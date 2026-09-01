@@ -198,9 +198,10 @@ platform write.
 `TerminalApplicationSignal` kind `58` is a separate event-only control record carrying the exact
 terminal identity, the literal channel `orchbee.agent.v1`, a positive terminal-local sequence, and
 at most 4 KiB of valid UTF-8 payload without NUL or unpaired surrogates. The record is an untrusted
-transport hint: the protocol grants no provider identity, Agent lifecycle, attention, idle,
-outcome, notification, or action semantics. An application may apply a stricter payload schema and
-reduce an accepted value only to its separately owned limited-status vocabulary.
+transport hint decoded by Terminal Host from the private APC prefix `orchbee.agent.v3;`; the
+literal channel is only a historical Host-to-Desktop discriminator, not the child wire protocol.
+The protocol grants no provider identity, Agent lifecycle, attention, idle, outcome, notification,
+or action semantics. An application must apply its separately owned stricter payload schema.
 
 ## Ownership
 

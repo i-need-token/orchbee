@@ -846,23 +846,28 @@ test "Ghostty BEL effects advance one terminal bell sequence per control byte" {
     try runtime.forceTerminate();
 }
 
-test "OSC 777 queues the reserved bounded application signal channel in order" {
+test "private APC queues the reserved bounded application signal channel in order" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();
 
     try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
         runtime,
-        "\x1b]777;notify;other.channel;ignored\x1b\\" ++
+        "\x1b]777;notify;orchbee.agent.v1;ignored\x1b\\" ++
             "\x1b]9;also ignored\x1b\\" ++
-            "\x1b]777;notify;orchbee.agent.v1;{\"activity\":\"thinking\",\"version\":1}\x1b\\" ++
-            "\x1b]777;notify;orchbee.agent.v1;{\"activity\":\"command\",\"version\":1}\x1b\\",
+            "\x1b_unrelated.private;ignored\x1b\\" ++
+            "\x1b_orchbee.agent.v3;\x1b\\" ++
+            "\x1b_orchbee.agent.v3;***\x1b\\" ++
+            "\x1b_orchbee.agent.v3;AA\x1b\\" ++
+            "\x1b_orchbee.agent.v3;_w\x1b\\" ++
+            "\x1b_orchbee.agent.v3;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjozfQ\x1b\\" ++
+            "\x1b_orchbee.agent.v3;eyJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30\x1b\\",
     ));
 
     var first = (try runtime.prepareApplicationSignal(std.testing.allocator)).?;
     defer first.deinit();
     try std.testing.expectEqual(@as(u64, 1), first.sequence);
     try std.testing.expectEqualStrings(
-        "{\"activity\":\"thinking\",\"version\":1}",
+        "{\"kind\":\"correlation\",\"version\":3}",
         first.payload,
     );
     runtime.commitApplicationSignal(first);
@@ -871,7 +876,7 @@ test "OSC 777 queues the reserved bounded application signal channel in order" {
     defer second.deinit();
     try std.testing.expectEqual(@as(u64, 2), second.sequence);
     try std.testing.expectEqualStrings(
-        "{\"activity\":\"command\",\"version\":1}",
+        "{\"kind\":\"launch\",\"version\":3}",
         second.payload,
     );
     runtime.commitApplicationSignal(second);
@@ -880,12 +885,12 @@ test "OSC 777 queues the reserved bounded application signal channel in order" {
     try runtime.forceTerminate();
 }
 
-test "OSC 777 application signal queue preserves admitted predecessors at its bound" {
+test "private APC application signal queue preserves admitted predecessors at its bound" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();
 
     const input_signal =
-        "\x1b]777;notify;orchbee.agent.v1;{\"activity\":\"thinking\",\"version\":1}\x1b\\";
+        "\x1b_orchbee.agent.v3;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjozfQ\x1b\\";
     var input: std.ArrayList(u8) = .empty;
     defer input.deinit(std.testing.allocator);
     for (0..max_pending_application_signals + 1) |_| {
@@ -902,6 +907,33 @@ test "OSC 777 application signal queue preserves admitted predecessors at its bo
         try std.testing.expectEqual(@as(u64, expected_sequence), signal.sequence);
         runtime.commitApplicationSignal(signal);
     }
+    try std.testing.expect((try runtime.prepareApplicationSignal(std.testing.allocator)) == null);
+
+    try runtime.forceTerminate();
+}
+
+test "truncated private APC is ignored without consuming the next valid signal" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    var input: std.ArrayList(u8) = .empty;
+    defer input.deinit(std.testing.allocator);
+    try input.appendSlice(std.testing.allocator, "\x1b_orchbee.agent.v3;");
+    for (0..protocol.Limits.terminal_application_signal_bytes * 2) |_| {
+        try input.append(std.testing.allocator, 'A');
+    }
+    try input.appendSlice(
+        std.testing.allocator,
+        "\x1b\\" ++
+            "\x1b_orchbee.agent.v3;eyJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30\x1b\\",
+    );
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, input.items));
+
+    var signal = (try runtime.prepareApplicationSignal(std.testing.allocator)).?;
+    defer signal.deinit();
+    try std.testing.expectEqual(@as(u64, 1), signal.sequence);
+    try std.testing.expectEqualStrings("{\"kind\":\"launch\",\"version\":3}", signal.payload);
+    runtime.commitApplicationSignal(signal);
     try std.testing.expect((try runtime.prepareApplicationSignal(std.testing.allocator)) == null);
 
     try runtime.forceTerminate();

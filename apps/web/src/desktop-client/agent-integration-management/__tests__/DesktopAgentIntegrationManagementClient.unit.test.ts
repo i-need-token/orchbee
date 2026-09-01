@@ -79,8 +79,7 @@ describe('DesktopAgentIntegrationManagementClient', () => {
 		});
 		await expect(operation).resolves.toMatchObject({ kind: 'completed' });
 		expect(
-			client.getSnapshot().integrations.find((integration) => integration.integrationId === 'codex')
-				?.state,
+			client.getSnapshot().integrations.find((item) => item.integrationId === 'codex')?.state,
 		).toBe('enabled');
 		expect(commands).toMatchObject([
 			{ type: 'desktop-agent-integration-inventory-requested' },
@@ -144,6 +143,7 @@ describe('DesktopAgentIntegrationManagementClient', () => {
 		await vi.waitFor(() => expect(inventoryRequestId).toBeDefined());
 
 		channel.port2.postMessage({
+			integration: integration('grok'),
 			integrationId: 'grok',
 			revision: 2,
 			type: 'desktop-agent-integration-launch-observed',
@@ -164,12 +164,14 @@ describe('DesktopAgentIntegrationManagementClient', () => {
 			}),
 		);
 		channel.port2.postMessage({
+			integration: integration('grok'),
 			integrationId: 'grok',
 			revision: 2,
 			type: 'desktop-agent-integration-launch-observed',
 		});
 		const enabling = client.enable('codex');
 		channel.port2.postMessage({
+			integration: integration('claude-code'),
 			integrationId: 'claude-code',
 			revision: 3,
 			type: 'desktop-agent-integration-launch-observed',
@@ -214,4 +216,12 @@ function snapshot(
 		launchedIntegrationIds: [],
 		revision,
 	};
+}
+
+function integration(integrationId: (typeof DESKTOP_AGENT_INTEGRATION_IDS)[number]) {
+	const item = snapshot('not-installed', 0).integrations.find(
+		(candidate) => candidate.integrationId === integrationId,
+	);
+	if (item === undefined) throw new Error('Missing test integration.');
+	return item;
 }

@@ -4,36 +4,54 @@
 
 Desktop Main 拥有易失 join，负责把一条经过清理的 rich Agent hook event 与用于识别其 live
 presentation 的有界 terminal correlation hint 关联起来。私有 Unix socket half 拥有 semantic
-authority，但没有 presentation authority；OSC 777 version-2 hint 只对一个 live terminal generation
-拥有 presentation authority，但没有 semantic authority。任何一半都不能单独修改 canonical Agent
-state。
+authority，但没有 presentation authority；private APC version-3 hint 只对一个 live terminal
+generation 拥有 presentation authority，但没有 semantic authority。Visibility 属于可信 socket
+envelope，而不属于 terminal half。任何一半都不能单独修改 canonical Agent state。
 
-本 contract 覆盖精确配对、两种到达顺序、有界 settlement、重复处理、presentation generation 替换、
-独立 fan-out、过期与 dispose。它不改变 wire contract、provider event 含义、Agent reducer、Workbench
-projection、SSH forwarding、notification policy、持久化或用户可见 copy。
+本 contract 覆盖 endpoint acceptance、精确配对、两种到达顺序、有界 settlement、重复处理、
+presentation generation 替换、独立 fan-out、过期与 dispose。它不改变 provider event 含义、Agent
+reducer、Workbench projection、notification policy、持久化或用户可见 copy。
+
+## Transport 准入
+
+Desktop 创建一个 user-private Unix-domain endpoint，并且只发布
+`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`。Hook 先发送一条 strict、content-free v3 rich envelope；只有
+收到完全一致的 `{"accepted":true,"version":3}\n` 后，才可以发送任何 terminal half。没有 endpoint、
+拒绝、超时、ACK 缺少或多出 byte、断连与 malformed input 都会静默停止。只有 schema validation 与
+closed-registry admission 成功后，Desktop 才写 ACK。
+
+唯一 terminal frame 是 `ESC _ orchbee.agent.v3;<base64url-payload> ESC \\`。解码后的 JSON 只包含
+`kind`、`version`、opaque `eventId` 与 opaque `correlationId`，不含 provider、activity、visibility、path、
+hostname、mux identity、content 或 notification copy。OSC 9、OSC 777、OSC 99 与 OSC 1337 等公开
+notification channel 都不是 observation transport。Socket acceptance 后，adapter 可以直接向解析出的
+outer tmux/Zellij client TTY 写 private frame，不依赖 mux passthrough。
 
 ## 参考范围
 
-2026-08-30 检查了 Herdr source revision `c2637dc1`，将其作为 design evidence。Orchbee 只采用两个
-有限原则：evidence 可以早于 identity acquisition 到达；只有 evidence 的 owner 确实被替换时才清除
-retained evidence。Orchbee 也遵循把 passive evidence capture 与 deterministic transition decision
-分离的做法。
+2026-08-31 检查了下列本地 source revision，并把它们作为有界 design evidence：
 
-这不是 compatibility 或 replication claim。Herdr 的 screen/process detection、flat status、terminal
-UI、provider lifecycle 与 timing constant 均不在范围内。当实现不同时，以 Orchbee 经验证的 rich hook
-fact、精确 two-half correlation、presentation generation 与 canonical Agent runtime 为准。
+| 产品             | 已审阅机制                                                                                                                   | Orchbee 决策                                                                                                                                                 |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Herdr `c2637dc1` | 先检测 foreground process，再选用 lifecycle hook 或 live screen 作为唯一 authority；其指南明确排除在内层 tmux 中启动的 Agent | Passive detection 保持无 capability，并把 evidence capture 与 deterministic transition 分离；不从 process 或 screen inspection 推断精确 nested-mux semantics |
+| Muxy `a5d276e1`  | 带 total execution budget、bounded retry 与 acknowledgement 的 nonblocking Unix-socket hook client                           | 采用 private socket、准确 ACK 与 execution bound；保留 Orchbee 不含内容的 terminal half 和 generation-fenced two-half join                                   |
+| tty7 `a2b5ae56`  | Provider hook diagnostics，以及通过 OSC 777 直接写 controlling TTY                                                           | 采用明确的 integration missing/outdated diagnostic；拒绝其公开 OSC notification transport                                                                    |
+| Warp `086dade6`  | OSC 777 会调用 pluggable desktop-notification callback；已审阅 parser 会忽略非 Kitty APC payload                             | 把它作为选择 private APC、拒绝 OSC 777 的具体 compatibility evidence，而不是对所有 Warp 或 terminal version 的声明                                           |
+
+这不是 compatibility 或 replication claim。竞品的 screen rule、payload、flat status、terminal UI、
+provider lifecycle 与 timing constant 均不在范围内。当实现不同时，以 Orchbee 经验证的 rich hook fact、
+精确 two-half correlation、presentation generation 与 canonical Agent runtime 为准。
 
 ## 输入与信任边界
 
-| 输入                      | 准入与缺失语义                                                                                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Rich hook event           | Socket boundary 已执行 body limit 与 strict schema，closed registry 已授予 provider provenance 与 accepted-event capability。没有匹配 hint 时，它保持 pending，且不产生 canonical effect。 |
-| Terminal correlation hint | Terminal signal 已通过 strict schema。只有准确的 current presentation generation 才能准入。没有匹配 rich event 时，它保持 pending，且不产生 canonical effect。                             |
-| Presentation registration | 建立后续 hint 能为该 presentation 指定的唯一 generation。替换时先 retire previous generation。                                                                                             |
-| Presentation retirement   | 只移除指定 presentation generation 的 pending 与 canonical navigation membership。                                                                                                         |
-| Settlement deadline       | 指定安排它的准确 pending-event incarnation。Stale deadline、expired event 或没有 live match 的 event 均为 no-op。                                                                          |
-| Expiry observation        | Logical time 由 ingress 提供。接受任一 half 之前以及 settlement 之前都会判断 expiry。                                                                                                      |
-| Disposal                  | 取消全部 deadline，并清除 noncanonical join state，不发布 Agent 或 terminal state。                                                                                                        |
+| 输入                      | 准入与缺失语义                                                                                                                                                                           |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rich hook event           | Socket boundary 已执行 body limit、strict v3 schema、可信 visibility、准确 ACK，以及 closed-registry provider/event grant。没有匹配 hint 时，它保持 pending，且不产生 canonical effect。 |
+| Terminal correlation hint | Terminal Host 已准入准确 private APC prefix 与有界 base64url UTF-8 payload，随后 Desktop 应用 strict hint schema。Join 只接受准确的 current presentation generation。                    |
+| Presentation registration | 建立后续 hint 能为该 presentation 指定的唯一 generation。替换时先 retire previous generation。                                                                                           |
+| Presentation retirement   | 只移除指定 presentation generation 的 pending 与 canonical navigation membership。                                                                                                       |
+| Settlement deadline       | 指定安排它的准确 pending-event incarnation。Stale deadline、expired event 或没有 live match 的 event 均为 no-op。                                                                        |
+| Expiry observation        | Logical time 由 ingress 提供。接受任一 half 之前以及 settlement 之前都会判断 expiry。                                                                                                    |
+| Disposal                  | 取消全部 deadline，并清除 noncanonical join state，不发布 Agent 或 terminal state。                                                                                                      |
 
 Provider payload、prompt、tool content、transcript path、path、error text 与 terminal screen text
 永远不会进入该状态机。
@@ -47,13 +65,13 @@ correlation-to-event claim、matched identity 与 attachment、历史 presentati
 状态机不依赖 socket、clock、timer、Agent runtime 或 renderer。它接收 validated input 与 logical
 time，并返回 command。`AgentHookObservationIngress` 拥有执行 command 的外部机制：
 
-| Command              | Effect owner 与结果                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------- |
-| Schedule settlement  | Ingress 创建一个以 event identity 与 expiry incarnation 为 key 的 timer。             |
-| Cancel settlement    | Ingress 只清除具有准确 identity 与 incarnation 的 timer。                             |
-| Apply observation    | Ingress 把 rich event 与所有 current matched attachment 一次性 dispatch。             |
-| Attach presentations | Ingress 把 late match 添加到已经 applied 的 live Session，但不重放其 semantic event。 |
-| Retire generation    | Ingress 从每个 canonical Agent Session detach 该准确 generation。                     |
+| Command              | Effect owner 与结果                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Schedule settlement  | Ingress 创建一个以 event identity 与 expiry incarnation 为 key 的 timer。                                                                                                                              |
+| Cancel settlement    | Ingress 只清除具有准确 identity 与 incarnation 的 timer。                                                                                                                                              |
+| Apply observation    | Ingress 把 rich event 与所有 current matched attachment 一次性 dispatch；Desktop runtime 会先 retire 这些 presentation generation 上相同 provider 的准确 passive presence，且不发 semantic end event。 |
+| Attach presentations | Ingress 把 late match 添加到已经 applied 的 live Session，但不重放其 semantic event。                                                                                                                  |
+| Retire generation    | Ingress 从每个 canonical Agent Session detach 该准确 generation。                                                                                                                                      |
 
 Command execution 不会把隐藏的 success 反馈给 join。因此 Agent runtime rejection 仍表示 observation
 已消费，从而保持现有 at-most-once contract。
@@ -92,8 +110,10 @@ Command execution 不会把隐藏的 success 反馈给 join。因此 Agent runti
 | Hint expiry            | 达到 expiry                                              | 移除 unmatched hint                                                            | 无                                                  |
 | Dispose                | 任意 state                                               | 清除全部 noncanonical fact                                                     | Ingress cancel 全部 timer                           |
 
-Visibility merge 是保守的：`hidden` 优先；两个 `visible` hint 仍为 `visible`；其他组合均为
-`unknown`。因此，同一 presentation generation 的多个 correlation 只产生一个 attachment。
+Visibility merge 只使用 socket 声明的值：`hidden` 优先；两个 `visible` value 仍为 `visible`；其他组合
+均为 `unknown`。APC 不能改变 visibility。因此，同一 presentation generation 的多个 correlation 只产生
+一个 attachment。打包 resolver 只会根据明确的 inner-mux evidence 声明 `hidden`，其他情况均声明
+`unknown`；Workbench 负责把它与当前 application Tab/Panel visibility 进行最终组合。
 
 ## 边界与时间
 
@@ -105,6 +125,15 @@ entry 中直到 join expiry，随后再进入 60 秒 replay fence。Cleanup 是 
 这些边界不声明 Desktop restart 后的 delivery、所有 SSH attachment 都 disconnected 时的 delivery、
 无界 replay protection、provider termination 或 wall-clock liveness。
 
+Socket 最多接受 64 个 concurrent connection、每个 body 16 KiB、每个 connection 500 毫秒。继承
+`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` 的 local Agent process 只能使用该准确 owned socket；stale 或
+malformed 的显式 path 不会回退到另一个 Desktop instance。只有没有 overlay 的 remote process 才扫描
+最多 32 个 same-user forwarded socket candidate，并且该扫描要求继承的 `SSH_CONNECTION`、`SSH_CLIENT`
+或 `SSH_TTY` marker 至少一个非空。没有准确 overlay 的普通 local terminal 不执行 socket scan。每次
+connection 与 outer-TTY resolver 限制为 250 毫秒。ACK 只表示 envelope admission，不证明 terminal
+delivery、correlation、semantic application 或 notification；没有 matching APC 的 accepted envelope
+到期后不会产生 canonical effect。
+
 ## 验证与可追溯性
 
 | Claim                                  | Executable evidence                                                                                             | Limit                                 |
@@ -114,6 +143,7 @@ entry 中直到 join expiry，随后再进入 60 秒 replay fence。Cleanup 是 
 | Generation fencing 与 local retirement | Replacement regression；property `MatchedPresentationNeverChangesGeneration` 与 `RetirementIsPresentationLocal` | TLC 中两个 presentation 与 generation |
 | Expiry、stale deadline 与 disposal     | Logical-time 与 delayed-timer regression；property `ExpiredOrDisposedCannotApply` 与 `StaleDeadlineCannotApply` | 有界 logical time；不声明 progress    |
 | Fail-closed collision 与 capacity      | 状态机 boundary test 与 strict ingress test                                                                     | 已记录的 same-user trust assumption   |
+| ACK-before-APC 与 private framing      | Adapter socket fixture 与 Terminal Host APC/OSC negative test                                                   | 仅限已审阅 terminal 与 mux 版本       |
 
 修改本 contract 或实现后，应运行 Desktop unit test、已注册的
 `desktop-agent-observation-join` TLA+ check 与 root merge gate。

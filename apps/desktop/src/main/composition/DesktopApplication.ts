@@ -90,6 +90,7 @@ import {
 	DesktopAgentObservationBroker,
 	DesktopAgentObservationRuntime,
 	type DesktopAgentObservationBrokerSource,
+	type DesktopAgentPassivePresenceEvidence,
 } from '../agent-observation';
 import {
 	ProjectedTerminalBroker,
@@ -285,11 +286,8 @@ type DesktopAgentObservationRuntimeHandle = AgentChangeSource &
 	DesktopAgentObservationBrokerSource & {
 		dispatch(event: AgentObservationEvent): AgentTransition;
 		dispose(): void;
-		observeTerminalApplicationSignal?(
-			event: TerminalApplicationSignal,
-			presentationId: TerminalPresentationId,
-		): void;
-		retireTerminalSignalPresentation?(presentationId: TerminalPresentationId): void;
+		observePassivePresence?(evidence: DesktopAgentPassivePresenceEvidence): boolean;
+		retirePassivePresencePresentation?(presentationId: TerminalPresentationId): void;
 	};
 
 interface DesktopAgentHookObservationIngressHandle {
@@ -450,6 +448,7 @@ export interface DesktopApplicationDependencies {
 		controller: DesktopAgentIntegrationManagementBrokerController,
 	) => DesktopAgentIntegrationManagementBrokerHandle;
 	readonly createAgentIntegrationManagementController: (options: {
+		readonly capsuleRoot: string;
 		readonly homeDirectory: string;
 		readonly platform: NodeJS.Platform;
 		readonly resourceRoot: string;
@@ -612,6 +611,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		});
 		return new DesktopAgentIntegrationManagementController(
 			createDesktopAgentIntegrationAdapters({
+				capsuleRoot: options.capsuleRoot,
 				commandRunner,
 				homeDirectory: options.homeDirectory,
 				platform: options.platform,
@@ -884,6 +884,7 @@ export class DesktopApplication {
 			);
 		this.#agentIntegrationManagementController =
 			dependencies.createAgentIntegrationManagementController({
+				capsuleRoot: options.runtime.agentObservationCapsuleDirectory,
 				homeDirectory: options.runtime.homeDirectory,
 				platform: options.platform,
 				resourceRoot: options.runtime.agentObservationAdapterDirectory,
@@ -903,14 +904,14 @@ export class DesktopApplication {
 					socketPath:
 						options.platform === 'win32'
 							? null
-							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v2.sock'),
+							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v3.sock'),
 				}) ??
 				new AgentHookObservationIngress(this.#agentObservationRuntime, {
 					allocateIdentifier: dependencies.randomIdentifier,
 					socketPath:
 						options.platform === 'win32'
 							? null
-							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v2.sock'),
+							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v3.sock'),
 				});
 		} catch {
 			this.#agentHookObservationIngress = undefined;
@@ -1335,7 +1336,7 @@ export class DesktopApplication {
 						[],
 					retire: (presentationId) => {
 						this.#agentHookObservationIngress?.retirePresentation(presentationId);
-						this.#agentObservationRuntime.retireTerminalSignalPresentation?.(presentationId);
+						this.#agentObservationRuntime.retirePassivePresencePresentation?.(presentationId);
 					},
 				},
 			);
@@ -2525,12 +2526,18 @@ export class DesktopApplication {
 	#acceptTerminalApplicationSignal(event: TerminalApplicationSignal): void {
 		const presentationId = this.#terminalRuntime?.findPresentationByIdentity(event.identity);
 		if (presentationId === undefined || presentationId === null) return;
-		const launchedIntegrationId = parseAgentIntegrationLaunchSignal(event.payload);
-		if (launchedIntegrationId !== null) {
-			this.#agentIntegrationManagementController.observeLaunch(launchedIntegrationId);
+		const launchPresence = parseAgentIntegrationLaunchSignal(event.payload);
+		if (launchPresence !== null) {
+			this.#agentIntegrationManagementController.observeLaunch(launchPresence.integrationId);
+			this.#agentObservationRuntime.observePassivePresence?.({
+				generation: event.identity.creationId,
+				integrationId: launchPresence.integrationId,
+				presentationId,
+				signatureId: launchPresence.signatureId,
+				source: launchPresence.source,
+			});
 		}
 		this.#agentHookObservationIngress?.observeTerminalApplicationSignal(event, presentationId);
-		this.#agentObservationRuntime.observeTerminalApplicationSignal?.(event, presentationId);
 	}
 
 	#acceptTerminalMetadata(event: TerminalMetadataChanged): void {

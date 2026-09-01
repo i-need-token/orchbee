@@ -7,10 +7,11 @@ effects. The renderer receives provider-neutral inventory and correlated results
 `agent-integration-management` port; it receives no executable path, resource path, command output,
 filesystem capability, or generic process capability.
 
-Startup and refresh are read-only. Orchbee never installs, enables, disables, updates, copies, or
-repairs an Agent integration until the user explicitly changes that Agent's integration switch in
-Settings or presses **Enable integration** in a launch-triggered reminder. Browser and Gateway
-compositions receive no management control.
+Startup constructs an uninspected snapshot and executes no provider command. A recognized launch
+may inspect only that provider; selecting **Refresh** in Settings inspects all ten providers.
+Orchbee never installs, enables, disables, updates, copies, or repairs an integration until
+the user explicitly changes that Agent's switch in Settings. A launch reminder opens Settings and
+never performs the mutation itself. Browser and Gateway compositions receive no management control.
 
 ## Local integration registry
 
@@ -18,48 +19,60 @@ The registry is closed and ordered as Claude Code, Codex, Grok, OpenCode, Pi, OM
 GitHub Copilot CLI, Cline, and Qwen Code. Each entry projects only availability, management mode,
 integration state, and a bounded issue.
 
-| Agent              | Read-only inspection                                                           | Explicit enable effect                                                                                             | Explicit disable effect                                                 |
-| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| Claude Code        | `claude plugin list --json`                                                    | Verify or add exact local `orchbee-local` marketplace, then install and enable `orchbee-agent-observation`         | Disable `orchbee-agent-observation@orchbee-local`                       |
-| Codex              | `codex plugin list --json`                                                     | Verify or add exact local `orchbee-local` marketplace, then add `orchbee-agent-observation`                        | Remove `orchbee-agent-observation@orchbee-local`                        |
-| Grok               | `grok plugin list --json`                                                      | Install the packaged Orchbee bundle with trust only after the user turns on its switch, or enable its exact plugin | Disable exact plugin `orchbee-agent-observation`                        |
-| OpenCode           | Exact target-path and symlink inspection                                       | Add exact symlink `~/.config/opencode/plugins/orchbee-agent-observation.mjs`                                       | Remove that symlink only when it still points to the packaged file      |
-| Pi                 | Exact target-path and symlink inspection                                       | Add exact symlink `~/.pi/agent/extensions/orchbee-agent-observation.cjs`                                           | Remove that symlink only when it still points to the packaged file      |
-| OMP                | Exact target-path and symlink inspection                                       | Add exact symlink `~/.omp/agent/extensions/orchbee-agent-observation.cjs`                                          | Remove that symlink only when it still points to the packaged file      |
-| Gemini CLI         | Exact target-path and symlink inspection                                       | Add exact directory symlink `~/.gemini/extensions/orchbee-agent-observation`                                       | Remove that symlink only when it still points to the packaged directory |
-| GitHub Copilot CLI | `copilot plugins list --kind plugin --json`                                    | Verify or add the exact local `orchbee-local` marketplace, then install or enable `orchbee-agent-observation`      | Disable `orchbee-agent-observation@orchbee-local`                       |
-| Cline              | Bounded scan of Cline's official local-install layout and exact Orchbee marker | Run `cline plugin install` against the packaged bundle                                                             | Run `cline plugin uninstall orchbee-agent-observation`                  |
-| Qwen Code          | Exact target-path and symlink inspection                                       | Add exact directory symlink `~/.qwen/extensions/orchbee-agent-observation`                                         | Remove that symlink only when it still points to the packaged directory |
+| Agent              | Read-only inspection                                                           | Explicit enable/update effect                                                                          | Explicit disable effect                                      |
+| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Claude Code        | Exact plugin plus `plugin marketplace list --json` source/version inspection   | Migrate an exact legacy source, then install and enable from the stable Capsule                        | Disable the current plugin; remove an exact legacy entry     |
+| Codex              | Bounded exact read of Codex-owned marketplace/plugin declarations              | Repair an exact legacy marketplace, retarget it to the stable Capsule, then reinstall the exact plugin | Remove the exact plugin; also remove an exact legacy source  |
+| Grok               | Exact `plugin list --json` source/version inspection                           | Replace an exact legacy copy, or install/enable the stable Capsule copy                                | Uninstall only the exact source-proven plugin copy           |
+| OpenCode           | Exact provider-local bootstrap and legacy-symlink inspection                   | Atomically publish a guarded local module bootstrap                                                    | Remove only the byte-exact bootstrap or exact legacy symlink |
+| Pi                 | Exact provider-local bootstrap and legacy-symlink inspection                   | Atomically publish a guarded local CommonJS bootstrap                                                  | Remove only the byte-exact bootstrap or exact legacy symlink |
+| OMP                | Exact provider-local bootstrap and legacy-symlink inspection                   | Atomically publish a guarded local CommonJS bootstrap                                                  | Remove only the byte-exact bootstrap or exact legacy symlink |
+| Gemini CLI         | Bounded manifest-and-digest inspection of the provider-local extension         | Atomically copy a self-contained guarded extension                                                     | Remove only the digest-verified owned directory              |
+| GitHub Copilot CLI | Exact plugin plus `plugins marketplace list --json` source inspection          | Repoint an exact legacy marketplace, then install or enable the exact plugin                           | Disable the current plugin; remove an exact legacy entry     |
+| Cline              | Bounded scan of Cline's official local-install layout and exact Orchbee marker | Install the stable Capsule bundle; replace an exact older contract only after the user requests it     | Uninstall only an exact current or older Orchbee package     |
+| Qwen Code          | Bounded manifest-and-digest inspection of the provider-local extension         | Atomically copy a self-contained guarded extension                                                     | Remove only the digest-verified owned directory              |
 
-Claude Code, Codex, and GitHub Copilot CLI disable retain the exact local marketplace because
-another explicitly installed Orchbee plugin may use it. Grok disable retains the installed plugin.
-Cline inspection does not run a mutation or trust an arbitrary same-named entry: only one package
-under its official local-install layout with Orchbee's exact contract marker is enabled. Orchbee
-performs no background update. Windows projects every entry as `manual-only`; no managed local
-mutation runs.
+The versioned Capsule lives under Desktop user data, outside the application bundle and provider
+cache. It is materialized only immediately before explicit local enable/update and must be retained
+while any provider declaration references it, including after application removal. Provider-local
+entries either remain self-contained or catch a missing Capsule before provider code can report an
+error. Every persisted command hook checks both its runtime and script, redirects stdout and
+stderr, and exits zero when observation is unavailable. Cline inspection trusts only one package
+under its official local-install layout with Orchbee's exact contract marker. Orchbee performs no
+background update. Windows projects every entry as `manual-only`; no managed local mutation runs.
+
+Claude and GitHub Copilot inspection joins the exact plugin inventory with the exact local
+marketplace declaration. Grok's provider-owned installed copy is self-contained, but inspection
+still verifies its recorded source and payload version. An exact Orchbee application-bundle source
+or older sibling Capsule is `update-required`; only explicit Enable/Update can repoint or replace
+it. A same-named marketplace, plugin, or copy with any other source is a conflict and is never
+changed. Grok disable removes the source-proven copy so its current CLI inventory cannot conceal a
+still-installed hook behind a provider-specific enablement representation.
 
 The packaged adapter contracts, compatibility floors, manual commands, and observation privacy
 boundary are authoritative in the [adapter guide](../resources/agent-observation-adapters/README.md).
 
 ## State and transaction
 
-| State           | Meaning                                                             |
-| --------------- | ------------------------------------------------------------------- |
-| `enabled`       | Exact Orchbee integration is present and enabled                    |
-| `disabled`      | Exact Orchbee integration is present but disabled                   |
-| `not-installed` | No exact Orchbee integration occupies the managed entry             |
-| `conflict`      | A different file or source occupies an Orchbee-owned name or target |
-| `unknown`       | Inspection could not establish an exact state                       |
+| State             | Meaning                                                                      |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `enabled`         | Exact Orchbee integration is present and enabled                             |
+| `disabled`        | Exact Orchbee integration is present but disabled                            |
+| `not-installed`   | No exact Orchbee integration occupies the managed entry                      |
+| `update-required` | An exact older or dependency-missing Orchbee entry needs consented migration |
+| `conflict`        | A different file or source occupies an Orchbee-owned name or target          |
+| `unknown`         | Inspection could not establish an exact state                                |
 
 One process-wide controller serializes mutation. An explicit request follows this order:
 
 1. Initialize or reuse the latest read-only inventory.
 2. Reject unavailable enable, manual-only management, conflicts, and concurrent work before a
    write.
-3. Re-inspect provider-owned state and execute only the adapter's fixed executable and argument
-   vectors or exact symlink operation.
-4. Re-inspect the selected adapter after every attempted effect.
-5. Publish the observed state. Command success without the requested observed state is
+3. Preflight and atomically publish Capsule `0.4.0` without changing provider configuration.
+4. Re-inspect provider-owned state and execute only fixed command vectors or an exact guarded-entry
+   operation; only exact legacy entries are eligible for migration.
+5. Re-inspect the selected adapter after every attempted effect.
+6. Publish the observed state. Command success without the requested observed state is
    `verification-failed`; failure never fabricates a successful state.
 
 ### Executable discovery
@@ -103,10 +116,20 @@ success, executable validation, and interpreter lookup through the selected shel
 macOS verification covers the packaged-launch compatibility claim; other shell families remain
 bounded by their maintained platform tests.
 
-Symlink enable creates only the parent directory and exact file or directory link. A regular file,
-directory, broken foreign link, or link to another source is a conflict and remains unchanged.
-Disable unlinks only a link whose resolved source exactly equals the current packaged adapter
-entry.
+Provider-local bootstrap installation stages before publication. Module bootstraps catch missing
+or invalid Capsule imports without output; extension directories contain their guarded runtime and
+an owned manifest that records every file digest. A regular file, directory, foreign link, modified
+bootstrap, extra file, or digest mismatch is a conflict and remains unchanged. An exact old
+application-bundle or stable-Capsule symlink is `update-required`; migration occurs only through an
+explicit switch action. Disable removes only a byte-exact bootstrap, digest-verified directory, or
+recognized exact legacy symlink.
+
+No managed provider entry persistently names an application-bundle path. A recognized exact legacy
+bundle path is never silently followed or repaired: inspection reports `update-required`, and only
+an explicit Settings action may migrate it. Removing the application while leaving enabled
+integrations therefore leaves either a self-contained provider entry, a silent guarded bootstrap,
+or its intentionally retained Capsule. Uninstall tooling must not delete a referenced Capsule; a
+full cleanup disables integrations first.
 
 ## Settings and reminder policy
 
@@ -126,14 +149,24 @@ and records each ID once in first-observation order. Aliases, functions, wrapper
 and terminals without Orchbee shell integration remain silent.
 
 The renderer may show one compact, visually quiet bottom-right reminder per application session
-only after the corresponding local launch was observed and the Agent is locally available with a
-managed, conflict-free integration in `not-installed` or `disabled` state. First-observed eligible
-launch order selects the candidate. Rendering performs no mutation and requests no operating-system
-notification permission. **Enable integration** is an explicit user request for the same verified
-enable transaction as the Settings switch; it is disabled while management is busy, disappears
-after verified success, and remains available for retry after failure. Closing the reminder stores
-only the dismissed integration ID in `orchbee:web:agent-integration-reminders:v1`; storage failure
-keeps the in-memory dismissal for the current session.
+only after the corresponding local launch was observed and its provider-scoped inspection proves
+the Agent is locally available with a managed, conflict-free integration in `not-installed`,
+`disabled`, or `update-required` state. First-observed eligible launch order selects the candidate.
+Rendering performs no mutation and requests no operating-system notification permission. **Open
+integration settings** hides the current reminder and navigates directly to Agent Integrations;
+only the switch there can mutate configuration. Closing the reminder stores only the dismissed
+integration ID in `orchbee:web:agent-integration-reminders:v1`; storage failure keeps the in-memory
+dismissal for the current session.
+
+## Passive presence boundary
+
+The launch hint creates only presentation-scoped heuristic presence with no capabilities and an
+unknown Turn. It cannot assert thinking, tool use, idle, attention, completion, success, failure, or
+notification eligibility. Evidence carries a curated signature ID, source, generation, freshness,
+and presentation identity; diagnostics expose no command or screen content. Fresh evidence becomes
+stale after 30 seconds and detaches after 120 seconds unless refreshed. Retirement detaches the
+presentation but never invents a semantic session end. Rich adapters remain the only authority for
+semantic status and exact hidden-mux state.
 
 ## Remote boundary
 
@@ -142,9 +175,10 @@ tmux or Zellij → Agent, the adapter must be reviewed and enabled manually on t
 Agent process runs. Orchbee does not execute a remote command, copy the packaged resource, write a
 remote file, inspect a remote home directory, or persist a remote credential.
 
-After manual remote setup, the existing reverse Unix-socket and OSC 777 correlation transport can
-carry observations through SSH and nested muxes. Transport reachability does not grant integration
-management authority.
+After manual remote setup, the v3 reverse Unix socket and private APC correlation transport can
+carry observations through SSH and nested tmux/Zellij layers. Adapters resolve outer client TTYs
+and write the private frame directly, so mux passthrough is unnecessary. Transport reachability
+does not grant integration management authority.
 
 ## Failure and recovery
 

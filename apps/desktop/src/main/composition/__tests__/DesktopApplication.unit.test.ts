@@ -90,17 +90,19 @@ class TestMainPort extends EventEmitter {
 }
 
 describe('DesktopApplication', () => {
-	it('routes only a bounded terminal Agent launch hint to integration management', async () => {
+	it('routes only a bounded terminal Agent launch presence to integration management', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 		await application.start();
 
 		harness.hostEnvelopeListener?.(
-			terminalApplicationSignalEnvelope('{"integrationId":"claude-code","version":3}'),
+			terminalApplicationSignalEnvelope(
+				'{"integrationId":"claude-code","kind":"launch","version":3}',
+			),
 		);
 		harness.hostEnvelopeListener?.(
 			terminalApplicationSignalEnvelope(
-				'{"command":"claude --prompt secret","integrationId":"claude-code","version":3}',
+				'{"command":"claude --prompt secret","integrationId":"claude-code","kind":"launch","version":3}',
 				'2',
 			),
 		);

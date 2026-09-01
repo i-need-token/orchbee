@@ -432,13 +432,14 @@ unsupported/manual-only entry, ambiguous inspection, or unavailable local Agent 
 Remote hosts are explained as manual-only and the renderer never writes terminal input or attempts
 remote setup.
 
-The compact, visually quiet bottom-right reminder is eligible only after Desktop observes a direct
-local launch for a locally available, `managed-local`, issue-free entry whose state is
-`not-installed` or `disabled`. First-observed eligible launch order selects the candidate, and the
-controller offers at most one reminder per application session. Rendering performs no integration
-mutation. **Enable integration** sends one explicit enable request for that exact Agent, is disabled
-while management is busy, disappears after verified success, and remains available for retry after
-failure. Explicit close persists that one Agent ID in the strict, bounded
+The compact, visually quiet bottom-right reminder is eligible only after shell integration emits an
+exact direct-local launch hint and Main's lazy inspection finds the corresponding entry locally
+available, `managed-local`, issue-free, and `not-installed`, `disabled`, or `update-required`.
+First-observed eligible launch order selects the candidate, and the controller offers at most one
+reminder per application session. Rendering performs no integration mutation. **Open integration
+settings** hides the current reminder and opens Settings directly on Agent Integrations; only a
+subsequent explicit switch action can change provider configuration. Explicit close persists that
+one Agent ID in the strict, bounded
 `orchbee:web:agent-integration-reminders:v1` record. A Settings disable records the same dismissal
 before it requests Main; a verified successful enable removes it. Missing or invalid storage falls
 back to no dismissals, and write failure retains the current-session behavior. Aliases, functions,
@@ -509,7 +510,7 @@ no earlier alias or function owns the name, a private local Agent-observation so
 stdin and stdout are interactive terminals. It leaves configuration, control, forwarding-only, and
 version/query modes unchanged. An eligible call preserves every user argument and adds only
 `StreamLocalBindMask=0177`, `StreamLocalBindUnlink=yes`, and a reverse Unix-socket forward from a
-random `/tmp/orchbee-agent-v2-*.sock` on the remote host to the local Desktop socket. OpenSSH
+random `/tmp/orchbee-agent-v3-*.sock` on the remote host to the local Desktop socket. OpenSSH
 authentication, explicit arguments, and user configuration remain authoritative. Orchbee adds no
 `SendEnv` rule, persists no host or credential, installs no remote file, and maintains no remote
 cache. A standard requested SSH PTY still carries TERM according to OpenSSH behavior. OSC 7
@@ -534,10 +535,12 @@ command text. Ambient environment cannot replace the resource path, and automati
 changes running or restored terminals, Windows terminals, remote connections, or user startup
 files.
 
-For an explicitly installed Agent observation adapter, the integration also enables the
-eligible SSH reverse-socket path described above; a remote adapter writes bounded OSC 777
-correlation hints directly to resolved direct, tmux, Zellij, or nested-mux outer TTYs. Terminal Host
-projects only bounded semantic signals.
+For an explicitly installed Agent observation adapter, the integration also enables the eligible
+SSH reverse-socket path described above. After a local or reverse-forwarded v3 socket returns the
+exact acceptance ACK, a remote adapter writes bounded private-APC correlation hints directly to
+resolved direct, tmux, Zellij, or nested-mux outer TTYs. Terminal Host projects only bounded
+application signals. OSC 9, OSC 777, OSC 99, OSC 1337, BEL, and provider notification hooks are not
+used as the Agent-observation correlation channel.
 
 Terminal feedback uses the separate key `orchbee:web:terminal-feedback:v2`, whose strict JSON
 value contains `agentNotificationMode` (`never` or `hidden`), `completionReminderMode` (`never`,

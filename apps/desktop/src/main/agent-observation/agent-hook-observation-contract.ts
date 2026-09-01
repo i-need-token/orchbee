@@ -60,27 +60,35 @@ const AgentHookSanitizedObservationSchema = z.strictObject({
 export const AgentHookRichObservationEnvelopeSchema = z
 	.strictObject({
 		adapterId: AgentHookAdapterIdSchema,
-		correlationIds: z.array(transportIdentitySchema).min(1).max(MAX_CORRELATIONS_PER_EVENT),
+		correlations: z
+			.array(
+				z.strictObject({
+					correlationId: transportIdentitySchema,
+					visibility: z.enum(['visible', 'hidden', 'unknown']),
+				}),
+			)
+			.min(1)
+			.max(MAX_CORRELATIONS_PER_EVENT),
 		eventId: transportIdentitySchema,
 		observation: AgentHookSanitizedObservationSchema,
-		version: z.literal(2),
+		version: z.literal(3),
 	})
 	.superRefine((envelope, context) => {
-		if (new Set(envelope.correlationIds).size !== envelope.correlationIds.length) {
+		const correlationIds = envelope.correlations.map(({ correlationId }) => correlationId);
+		if (new Set(correlationIds).size !== correlationIds.length) {
 			context.addIssue({
 				code: 'custom',
 				message: 'Agent hook correlation identities must be unique.',
-				path: ['correlationIds'],
+				path: ['correlations'],
 			});
 		}
 	});
 
 export const AgentHookPresentationCorrelationHintSchema = z.strictObject({
-	activity: AgentActivitySchema.nullable(),
 	correlationId: transportIdentitySchema,
 	eventId: transportIdentitySchema,
-	version: z.literal(2),
-	visibility: z.enum(['visible', 'hidden', 'unknown']),
+	kind: z.literal('correlation'),
+	version: z.literal(3),
 });
 
 export type AgentHookAdapterId = z.infer<typeof AgentHookAdapterIdSchema>;

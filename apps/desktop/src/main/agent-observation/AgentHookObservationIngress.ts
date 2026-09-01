@@ -44,6 +44,7 @@ const MAX_OBSERVATION_BODY_BYTES = 16 * 1024;
 const MAX_PENDING_REQUESTS_PER_SESSION = 128;
 const MAX_SESSIONS = 128;
 const CONNECTION_TIMEOUT_MILLISECONDS = 500;
+const ACCEPTED_ENVELOPE_ACK = '{"accepted":true,"version":3}\n';
 type AgentSessionObservationEvent = Exclude<
 	AgentObservationEvent,
 	{ readonly type: 'session-observed' }
@@ -78,8 +79,8 @@ interface SessionBinding {
 
 /**
  * Owns the trusted Desktop ingress for locally sanitized Agent hook
- * observations. A rich Unix-socket half has no presentation authority and an
- * OSC half has no semantic authority; only a bounded exact join admits both.
+ * observations. A rich Unix-socket half has no presentation authority and a
+ * private APC half has no semantic authority; only a bounded exact join admits both.
  */
 export class AgentHookObservationIngress {
 	readonly #activeConnections = new Set<Socket>();
@@ -109,7 +110,7 @@ export class AgentHookObservationIngress {
 				: { joinSettleMilliseconds: options.joinSettleMilliseconds },
 		);
 		this.#socketPath = options.socketPath;
-		this.#server = createServer(this.#acceptConnection);
+		this.#server = createServer({ allowHalfOpen: true }, this.#acceptConnection);
 		this.#server.maxConnections = MAX_ACTIVE_CONNECTIONS;
 	}
 
@@ -146,7 +147,7 @@ export class AgentHookObservationIngress {
 		this.#handleJoinCommands(
 			this.#observationJoin.registerPresentationGeneration(presentationId, creationId),
 		);
-		return [{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET', value: this.#socketPath }];
+		return [{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET_V3', value: this.#socketPath }];
 	}
 
 	observeTerminalApplicationSignal(
@@ -162,7 +163,6 @@ export class AgentHookObservationIngress {
 					eventId: parsed.data.eventId,
 					generation: event.identity.creationId,
 					presentationId,
-					visibility: parsed.data.visibility,
 				},
 				this.#now(),
 			),
@@ -208,25 +208,28 @@ export class AgentHookObservationIngress {
 			chunks.push(chunk);
 		});
 		socket.once('end', () => {
-			if (!rejected) this.#acceptEnvelope(Buffer.concat(chunks, byteLength));
-			socket.destroy();
+			const accepted = !rejected && this.#acceptEnvelope(Buffer.concat(chunks, byteLength));
+			if (accepted) socket.end(ACCEPTED_ENVELOPE_ACK);
+			else socket.end();
 		});
 		socket.once('error', () => undefined);
 		socket.once('close', () => this.#activeConnections.delete(socket));
 	};
 
-	#acceptEnvelope(body: Buffer): void {
+	#acceptEnvelope(body: Buffer): boolean {
 		let decoded: unknown;
 		try {
 			decoded = JSON.parse(body.toString('utf8'));
 		} catch {
-			return;
+			return false;
 		}
 		const parsed = AgentHookRichObservationEnvelopeSchema.safeParse(decoded);
-		if (!parsed.success) return;
+		if (!parsed.success) return false;
 		const adapter = resolveAgentHookAdapter(parsed.data.adapterId, parsed.data.observation.event);
-		if (adapter === null) return;
-		this.#handleJoinCommands(this.#observationJoin.receiveEvent(adapter, parsed.data, this.#now()));
+		if (adapter === null) return false;
+		const admission = this.#observationJoin.admitEvent(adapter, parsed.data, this.#now());
+		this.#handleJoinCommands(admission.commands);
+		return admission.accepted;
 	}
 
 	#handleJoinCommands(commands: readonly AgentObservationJoinCommand[]): void {

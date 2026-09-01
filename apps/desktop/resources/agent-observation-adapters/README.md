@@ -3,7 +3,7 @@
 This packaged resource contains ten explicitly installed, provider-bound observation adapters for
 Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code.
 Each adapter validates its own upstream event contract and emits the same content-free normalized
-facts through Orchbee's shared Unix-socket plus OSC 777 correlation transport. Desktop's closed
+facts through Orchbee's shared Unix-socket plus private-APC correlation transport. Desktop's closed
 registry, not an adapter payload, grants provider identity, accepted events, and maximum
 capabilities.
 
@@ -38,8 +38,19 @@ explicitly enable or disable Orchbee's exact entry through Agent Integrations Se
 never copies this resource to another host, edits remote Agent configuration, or runs remote setup;
 remote installation remains manual.
 
-Use the absolute path to this directory as `<adapter-root>`. A packaged Orchbee application ships
-the equivalent `agent-observation-adapters` resource directory.
+Use a durable standalone copy of this directory as `<adapter-root>`. Do not persist a path into an
+Orchbee application bundle: deleting or replacing the application must not break Agent startup.
+Local Settings first publishes a validated, versioned Capsule under the user's application-data
+directory and points managed CLI integrations at that durable copy. Provider-local module entries
+catch a missing Capsule, command hooks test that their runtime still exists, and Gemini/Qwen entries
+are self-contained copies. An uninstaller must retain every Capsule still referenced by any
+provider declaration; explicit disable owns removal of the corresponding provider entry.
+
+Local Claude and Copilot inspection verifies both the exact plugin and its marketplace source;
+Grok inspection verifies the copied plugin's recorded source and version. An exact old Orchbee
+application-bundle path or sibling Capsule version is migration evidence, not an enabled current
+adapter. It is changed only by an explicit Settings action. Any same-named entry with a different
+source remains an untouched conflict.
 
 The local Settings transaction, exact managed entries, conflict handling, and rollback behavior are
 defined in the [Agent integration guide](../../docs/agent-integrations.md). The commands below remain
@@ -73,14 +84,17 @@ grok plugin install <adapter-root>/bundle
 ```
 
 Review the plugin before accepting installation. Disable or uninstall
-`orchbee-agent-observation` to roll back.
+`orchbee-agent-observation` to roll back. Local Settings uninstalls only a source-proven Orchbee
+copy when its switch is turned off.
 
 ### OpenCode
 
 Add the absolute entry path
-`<adapter-root>/bundle/opencode/orchbee-agent-observation.mjs` as a local plugin, or place a symlink
-to it in `~/.config/opencode/plugins/`. Remove that configured path or symlink to roll back. Keep
-the full bundle at its original path because the entry imports the shared transport beside it.
+`<adapter-root>/bundle/opencode/orchbee-agent-observation.mjs` as a local plugin. Keep the durable
+standalone root in place because the entry imports the shared transport beside it, and remove the
+configured path to roll back. Local Settings instead writes a provider-local guarded bootstrap; if
+the Capsule is later unavailable, that bootstrap catches the failed import and returns no hooks or
+output.
 
 ### Pi
 
@@ -104,16 +118,18 @@ configured path to roll back.
 
 ### Gemini CLI
 
-Create an exact extension-directory symlink after confirming that the target does not already
+For manual setup, copy a self-contained extension after confirming that the target does not already
 exist:
 
 ```sh
-mkdir -p ~/.gemini/extensions
-ln -s <adapter-root>/bundle/gemini ~/.gemini/extensions/orchbee-agent-observation
+mkdir -p ~/.gemini/extensions/orchbee-agent-observation
+cp -R <adapter-root>/bundle/gemini/. ~/.gemini/extensions/orchbee-agent-observation/
+cp -R <adapter-root>/bundle/scripts ~/.gemini/extensions/orchbee-agent-observation/scripts
 ```
 
-Remove only that symlink to roll back. Keep the full adapter root at its original path because the
-extension imports the shared transport from the adjacent bundle directory.
+Remove only that exact copied extension to roll back. Local Settings publishes and fingerprints the
+same bounded self-contained layout atomically; modified, expanded, or unmarked directories remain
+untouched conflicts.
 
 ### GitHub Copilot CLI
 
@@ -139,16 +155,18 @@ unmarked same-named entry is a conflict, not an Orchbee-owned installation.
 
 ### Qwen Code
 
-Create an exact extension-directory symlink after confirming that the target does not already
+For manual setup, copy a self-contained extension after confirming that the target does not already
 exist:
 
 ```sh
-mkdir -p ~/.qwen/extensions
-ln -s <adapter-root>/bundle/qwen-code ~/.qwen/extensions/orchbee-agent-observation
+mkdir -p ~/.qwen/extensions/orchbee-agent-observation
+cp -R <adapter-root>/bundle/qwen-code/. ~/.qwen/extensions/orchbee-agent-observation/
+cp -R <adapter-root>/bundle/scripts ~/.qwen/extensions/orchbee-agent-observation/scripts
 ```
 
-Remove only that symlink to roll back. Keep the full adapter root at its original path because the
-extension imports the shared transport from the adjacent bundle directory.
+Remove only that exact copied extension to roll back. Local Settings publishes and fingerprints the
+same bounded self-contained layout atomically; modified, expanded, or unmarked directories remain
+untouched conflicts.
 
 ## Status fidelity
 
@@ -172,22 +190,38 @@ disconnected SSH path degrade to stale or unknown rather than guessed completion
 
 ## Security and failure boundary
 
-Desktop injects only `ORCHBEE_AGENT_OBSERVATION_SOCKET` through a non-persistent terminal
+Desktop injects only `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` through a non-persistent terminal
 environment overlay. Before transport, each entry selects only bounded event, session, Turn,
 tool-operation, and subagent identifiers and discards prompts, questions, tool input/output,
 transcript paths, working directories, error text, notification text, and unknown fields. The rich
-half goes to same-user private Unix-domain sockets; a separate content-free OSC 777 correlation
-half goes directly to every resolved outer TTY only after the adapter discovers at least one
-admitted local or reverse-forwarded socket candidate. With no candidate, the adapter writes no
-terminal control sequence. Desktop requires an exact event/correlation join for a live terminal
-generation, so neither half can associate and authorize rich state alone.
+half goes to same-user private Unix-domain sockets. A local process uses only the exact endpoint in
+its environment; only a remote process without that overlay discovers same-user forwarded
+candidates, and discovery requires an inherited non-empty `SSH_CONNECTION`, `SSH_CLIENT`, or
+`SSH_TTY` marker. An ordinary local terminal without the exact overlay performs no socket scan.
+Only after an endpoint returns the exact bounded v3 acceptance ACK does the adapter
+write one content-free private APC correlation half directly to each resolved outer TTY. With no
+exact ACK, the adapter writes no terminal control sequence. Desktop requires an exact
+event/correlation join for a live terminal generation, so neither half can associate and authorize
+rich state alone; unmatched envelopes sent to another live instance expire without canonical
+effect.
+Every TTY candidate must be a lexically normalized path below `/dev`; the writer opens it
+nonblocking without following symlinks, verifies a character device, and requires same-user
+ownership except for the kernel-owned `/dev/tty` alias. A resolver cannot redirect a hint into a
+regular file or another user's terminal.
 
 The shared resolver supports direct terminals, every attached tmux client, conservative Zellij
-client visibility, and nested mux environments. An explicitly sourced Orchbee shell integration
-can add a random mode-`0600` remote Unix socket that OpenSSH reverse-forwards to Desktop. There is no
+client visibility, and nested mux environments. It asserts `hidden` only when an attached mux
+client is showing another pane; direct and active-pane routes remain `unknown` because the hook
+cannot prove application-window visibility. Workbench combines that mux evidence with its own
+current Tab and Panel view. An explicitly sourced Orchbee shell integration can add a random
+mode-`0600` remote Unix socket that OpenSSH reverse-forwards to Desktop. There is no
 HTTP listener, TCP port, Bearer token, inherited terminal secret, automatic remote installation, or
 durable remote cache. Every adapter is passive, writes no shell output, and fails open on missing
-configuration, invalid input, timeout, resolver failure, or listener failure.
+configuration, invalid input, timeout, resolver failure, or listener failure. Persisted command
+hooks first test for Node and their readable runtime and always end successfully if either is gone.
+Orchbee never uses OSC 9, OSC 777, OSC 99, OSC 1337, BEL, or provider notification hooks as its
+correlation channel, so unrelated terminals such as Warp do not turn observation into user-facing
+notification popups.
 
 ## Verification
 

@@ -11,7 +11,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	AgentIntegrationReminderController,
-	type AgentIntegrationManagementClientOperationResult,
 	type AgentIntegrationManagementClientSnapshot,
 	type AgentIntegrationManagementControl,
 } from '../../../agent-integration-management';
@@ -36,7 +35,7 @@ function I18nWrapper({ children }: { readonly children: ReactNode }) {
 afterEach(() => cleanup());
 
 describe('useAgentIntegrationReminder', () => {
-	it('offers only the first launched eligible Agent and delegates explicit enablement', async () => {
+	it('offers only the first launched eligible Agent and delegates settings navigation', async () => {
 		const enable = vi.fn<AgentIntegrationManagementControl['enable']>(async () => ({
 			kind: 'completed',
 			snapshot: protocolSnapshot,
@@ -60,30 +59,28 @@ describe('useAgentIntegrationReminder', () => {
 			getItem: () => null,
 			setItem: () => undefined,
 		});
-		const rendered = renderHook(() => useAgentIntegrationReminder(control, controller), {
-			wrapper: I18nWrapper,
-		});
+		const onOpenSettings = vi.fn<Parameters<typeof useAgentIntegrationReminder>[2]>();
+		const rendered = renderHook(
+			() => useAgentIntegrationReminder(control, controller, onOpenSettings),
+			{
+				wrapper: I18nWrapper,
+			},
+		);
 
 		await waitFor(() => expect(rendered.result.current?.integrationId).toBe('grok'));
 		expect(rendered.result.current?.body).toContain('You started Grok');
 		expect(enable).not.toHaveBeenCalled();
-		act(() => rendered.result.current?.onEnable());
-		expect(enable).toHaveBeenCalledWith('grok');
-		expect(controller.getSnapshot().activeIntegrationId).toBe('grok');
+		act(() => rendered.result.current?.onAction());
+		expect(onOpenSettings).toHaveBeenCalledWith('grok');
+		expect(enable).not.toHaveBeenCalled();
+		expect(controller.getSnapshot().activeIntegrationId).toBeNull();
 		expect(controller.offer('codex')).toBe(false);
 
 		controller.dispose();
 	});
 
-	it('clears a concurrent dismissal after the explicit enable is verified', async () => {
-		let settleEnable: (result: AgentIntegrationManagementClientOperationResult) => void = () =>
-			undefined;
-		const enable = vi.fn<AgentIntegrationManagementControl['enable']>(
-			() =>
-				new Promise((resolve) => {
-					settleEnable = resolve;
-				}),
-		);
+	it('keeps an explicit dismissal persisted without opening settings or changing configuration', async () => {
+		const enable = vi.fn<AgentIntegrationManagementControl['enable']>();
 		const clientSnapshot: AgentIntegrationManagementClientSnapshot = {
 			...protocolSnapshot,
 			failureCode: null,
@@ -101,24 +98,21 @@ describe('useAgentIntegrationReminder', () => {
 		};
 		const controller = new AgentIntegrationReminderController({
 			getItem: () => null,
-			setItem: () => undefined,
+			setItem: vi.fn<(key: string, value: string) => void>(),
 		});
-		const rendered = renderHook(() => useAgentIntegrationReminder(control, controller), {
-			wrapper: I18nWrapper,
-		});
+		const onOpenSettings = vi.fn<Parameters<typeof useAgentIntegrationReminder>[2]>();
+		const rendered = renderHook(
+			() => useAgentIntegrationReminder(control, controller, onOpenSettings),
+			{ wrapper: I18nWrapper },
+		);
 		await waitFor(() => expect(rendered.result.current?.integrationId).toBe('grok'));
 		const view = rendered.result.current;
 		if (view === null) throw new Error('Expected an Agent integration reminder.');
 
-		act(() => {
-			view.onEnable();
-			view.onDismiss();
-		});
+		act(() => view.onDismiss());
 		expect(controller.getSnapshot().dismissedIntegrationIds).toEqual(['grok']);
-		await act(async () => {
-			settleEnable({ kind: 'completed', snapshot: protocolSnapshot });
-		});
-		expect(controller.getSnapshot().dismissedIntegrationIds).toEqual([]);
+		expect(onOpenSettings).not.toHaveBeenCalled();
+		expect(enable).not.toHaveBeenCalled();
 
 		controller.dispose();
 	});

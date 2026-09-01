@@ -25,7 +25,7 @@ Terminal Host owns:
 - effective terminal configuration, complete revisioned runtime themes, ordered bounded input,
   revisions, and generations;
 - broker-scoped attachments, demand, delivery flights, bell cursors, history anchors, selections, and exports;
-- bounded OSC 52 plain-text write intent, bounded OSC 777 application-signal transport, current
+- bounded OSC 52 plain-text write intent, bounded private-APC application-signal transport, current
   terminal progress, and latest semantic command completion facts derived from Ghostty output;
 - a private local IPC endpoint protected by operating-system user identity; and
 - typed native adaptation of the shared terminal protocol.
@@ -108,11 +108,13 @@ The accepted contract requires these externally visible properties:
 - OSC 52 can publish one bounded plain-text write intent to one read-capable attachment, but never
   reads the user's clipboard or performs a platform effect. Outgoing backpressure retries the same
   intent, while successful handoff and reconnect cannot duplicate it.
-- OSC 777 with the exact reserved title `orchbee.agent.v1` can publish one bounded application
-  signal. Reader-batch admission is transactional, up to 64 admitted signals remain in FIFO order,
-  and outgoing backpressure preserves the exact queue head until commit. The Host does not
-  authenticate the emitter, interpret Agent or provider state, or request a product or platform
-  notification; all other OSC 777 titles and OSC 9 notifications are ignored by this transport.
+- An unknown APC beginning with the exact private prefix `orchbee.agent.v3;` can publish one
+  base64url-decoded, bounded application signal. Reader-batch admission is transactional, up to 64
+  admitted signals remain in FIFO order, and outgoing backpressure preserves the exact queue head
+  until commit. The Host does not authenticate the emitter, interpret Agent or provider state, or
+  request a product or platform notification. The protocol record's literal channel
+  `orchbee.agent.v1` is only a historical Host-to-Desktop discriminator, not a child wire sequence.
+  Public notification channels such as OSC 9 and OSC 777 are ignored by this transport.
 - Ghostty progress reports project only the terminal's current bounded local sample; they do not
   assert process completion or request a system notification.
 - OSC 133 `C` and `D` actions transactionally retain only one terminal-local completion sequence,

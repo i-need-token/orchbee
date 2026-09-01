@@ -37,6 +37,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first.managedWorktreeRoot).toBe(
 			path.resolve('/users/orchbee/library/orchbee/worktrees'),
 		);
+		expect(first.agentObservationCapsuleDirectory).toBe(
+			path.resolve('/users/orchbee/library/orchbee/agent-observation-adapters/0.4.0'),
+		);
 		expect(first.projectWorktreeOperationStorePath).toBe(
 			path.resolve('/users/orchbee/library/orchbee/project-worktree-operations-v1.json'),
 		);

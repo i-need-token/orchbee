@@ -5,7 +5,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -16,7 +16,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -28,7 +28,7 @@
 				"matcher": "*",
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -40,7 +40,7 @@
 				"matcher": "*",
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -52,7 +52,7 @@
 				"matcher": "*",
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -63,7 +63,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -74,7 +74,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -86,7 +86,7 @@
 				"matcher": "*",
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -98,7 +98,7 @@
 				"matcher": "*",
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -109,7 +109,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 2,
 						"type": "command"
 					}
@@ -120,7 +120,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${PLUGIN_ROOT}/scripts/forward-hook.mjs\" codex >/dev/null 2>&1 || :",
 						"timeout": 1,
 						"type": "command"
 					}

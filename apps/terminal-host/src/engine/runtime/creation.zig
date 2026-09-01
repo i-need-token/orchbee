@@ -129,7 +129,6 @@ pub fn createWithOptionsUsingSpawner(
     });
     const effects = &self.stream.handler.terminal_handler.effects;
     effects.bell = output_ops.bellEffect;
-    effects.desktop_notification = feedback_ops.desktopNotificationEffect;
     effects.write_pty = output_ops.writePtyEffect;
     effects.color_scheme = output_ops.colorSchemeEffect;
     effects.device_attributes = output_ops.deviceAttributesEffect;
@@ -145,6 +144,10 @@ pub fn createWithOptionsUsingSpawner(
     self.stream.handler.progress_report = feedback_ops.progressReportEffect;
     self.stream.handler.semantic_prompt = feedback_ops.semanticPromptEffect;
     self.stream.handler.metadata_reset = output_ops.metadataResetEffect;
+    self.stream.handler.terminal_handler.apc_handler.unknown_max_bytes =
+        feedback_ops.max_private_application_signal_apc_bytes;
+    self.stream.handler.terminal_handler.unknown_sequence =
+        feedback_ops.privateApplicationSignalEffect;
 
     self.wait_thread = try spawner.spawn(wait_thread_ops.waitThread, self);
     self.reader_thread = try spawner.spawn(output_ops.readerThread, self);

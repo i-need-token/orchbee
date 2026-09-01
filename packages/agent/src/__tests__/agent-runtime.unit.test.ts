@@ -271,6 +271,55 @@ describe('Agent runtime transition', () => {
 		});
 	});
 
+	it('retires capability-free heuristic presence without emitting a semantic end event', () => {
+		const snapshot = apply(createAgentRuntimeSnapshot(), {
+			...observed(),
+			capabilities: [],
+			observation: {
+				fidelity: 'heuristic',
+				freshness: 'fresh',
+				generation: 0,
+				sequence: 1,
+				source: 'heuristic',
+			},
+		});
+
+		const transition = transitionAgentRuntime(snapshot, {
+			eventId: eventId(2),
+			generation: 0,
+			sequence: 2,
+			sessionId,
+			type: 'session-ended',
+		});
+
+		expect(transition).toMatchObject({
+			kind: 'applied',
+			semanticEvents: [],
+			snapshot: {
+				sessions: [
+					expect.objectContaining({
+						lifecycle: 'ended',
+						observation: expect.objectContaining({ freshness: 'disconnected' }),
+					}),
+				],
+			},
+		});
+
+		const richWithoutLifecycle = apply(createAgentRuntimeSnapshot(), {
+			...observed(),
+			capabilities: [],
+		});
+		expect(
+			transitionAgentRuntime(richWithoutLifecycle, {
+				eventId: eventId(2),
+				generation: 0,
+				sequence: 2,
+				sessionId,
+				type: 'session-ended',
+			}),
+		).toMatchObject({ kind: 'rejected', reason: 'capability-not-declared' });
+	});
+
 	it('retains terminal-scoped activity as a limited hint without inventing a Turn', () => {
 		const limitedSessionId = AgentSessionIdSchema.parse('session-limited');
 		let snapshot = apply(createAgentRuntimeSnapshot(), {

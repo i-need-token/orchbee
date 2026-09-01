@@ -2,8 +2,8 @@
 
 | 字段       | 内容                                                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态       | 第一阶段 core、本地 observation、已接受的 SSH、tmux、Zellij 拓扑、显式 multi-Agent adapter、显式本地集成管理与易失、可感知丢失的变化流已实现；后续保留决策仍未解决                                                                                                                                                                                          |
-| 决策 Owner | Active requester 以 Orchbee 产品与架构 decision owner 身份接受了第一阶段授权；每项保留决策仍需其所需 owner 明确接受                                                                                                                                                                                                                                         |
+| 状态       | 第一阶段 core、本地 observation、已接受的 SSH、tmux、Zellij 拓扑、显式 multi-Agent adapter、显式本地集成管理与易失、可感知丢失的变化流已实现；transport safety、卸载惰性安装、上下文 onboarding 与 limited presence 替换切片已获实现授权；后续保留决策仍未解决                                                                                              |
+| 决策 Owner | Active requester 以 Orchbee 产品与架构 decision owner 身份接受了各项授权；每项保留决策仍需其所需 owner 明确接受                                                                                                                                                                                                                                             |
 | 语义 Owner | Agent capability、应用运行时、Workbench 应用组合层与平台通知 adapter                                                                                                                                                                                                                                                                                        |
 | 当前权威   | [`docs/ARCHITECTURE.md`](../../docs/zh-CN/ARCHITECTURE.md)、[`@orchbee/agent`](../../packages/agent/README.zh-CN.md)、[`@orchbee/terminal-protocol`](../../packages/terminal-protocol/README.zh-CN.md)、[`@orchbee/workbench`](../../packages/workbench/README.zh-CN.md)，以及 [unified-search 契约](../../packages/workbench/docs/unified-search.zh-CN.md) |
 | 退出条件   | 实现分别接受的切片，把持续维护的状态、adapter、呈现、通知与证据契约迁入各自所属 package 和 application 指南与测试，解决或移除全部剩余未来决策，然后删除本提案及其译本                                                                                                                                                                                       |
@@ -638,8 +638,9 @@ Consequential 与 Modeled 切片：
    改写无关的用户 configuration。
 3. 本地操作串行执行，并遵循 inspect、preflight、mutate 与 verify。提交前失败保留先前状态。结果
    不明确或提交后失败会触发只读 reconciliation，在观察到结果状态前不能宣称成功或 rollback。
-4. 关闭仅移除或禁用精确的 Orchbee-owned plugin、extension 或 symlink，并保留其他 plugin、用户
-   settings、marketplace、项目 configuration 与 Agent data。
+4. 关闭仅移除或禁用精确的 Orchbee-owned plugin、extension 或 symlink。它可以移除准确 legacy
+   Orchbee marketplace declaration，但会保留其他 plugin、无关的用户 settings 与 marketplace、项目
+   configuration 和 Agent data。
 5. Provider-specific 检查与变更保持在一个 provider-neutral Desktop capability 之后。Settings 只消费
    有界集成状态与 failure code，不依据 CLI output、filesystem layout、Shell 或 provider configuration
    syntax 分支。
@@ -701,6 +702,143 @@ Consequential 与 Modeled 切片：
    coordinator retirement。Rollback 会移除 read operation 与 journal，同时保留 canonical Agent
    observation 和既有 point-in-time read。
 
+## 已接受的安全传输、卸载惰性安装、上下文 onboarding 与 limited presence 授权
+
+2026-08-31，同一 active requester 以 Orchbee 产品与架构 decision owner 身份明确接受了这一
+Consequential 与 Modeled 替换切片。本节取代本提案中此前选择 OSC 777、application bundle 符号链接、
+启动时 eager inspection 或仅依据启动 inventory 提醒的所有条款。未受影响的领域、capability、通知与
+SSH/mux 决策继续有效。
+
+### Transport v3 与精确关联
+
+1. 拒绝把公开 terminal notification protocol 用作 Orchbee transport。Adapter 与 Terminal Host 均不得
+   通过 OSC 9、OSC 777、OSC 99、OSC 1337 notification、BEL、title change、hyperlink、clipboard operation
+   或其他具有用户可见或第三方定义副作用的 sequence 编码 Agent observation。
+2. 唯一接受的 terminal half 是 namespaced private APC frame：
+   `ESC _ orchbee.agent.v3;<base64url-payload> ESC \\`。Terminal Host 只准入精确 prefix、已结束且未
+   truncated 的 frame、ASCII base64url syntax，以及解码后位于既有 4 KiB application-signal bound 内的
+   UTF-8 payload。其他 APC 继续由 Ghostty 拥有或被忽略。Terminal Host 只运输解码后的有界 payload，
+   不拥有 Agent semantics。
+3. Rich Unix-socket protocol 硬切到 v3。Desktop 只在已经验证、user-private 的产品 runtime directory
+   下创建 `agent-observation-v3.sock`，并只发布 `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`。Eligible SSH
+   invocation 会另外在 remote host 创建随机、mode-`0600` 的 `/tmp/orchbee-agent-v3-*` endpoint，并把它
+   reverse-forward 到该 local listener。Desktop 既不发布也不监听 v2 名称。不存在 dual-stack
+   compatibility window：旧 adapter 看不到受支持 endpoint，必须在写入任何 terminal half 前 fail open。
+4. v3 adapter 先发送 sanitized rich envelope，并等待一个精确且有界的 ACK。Local process 只能定位
+   environment 中继承的准确 owned endpoint；只有没有该 overlay 且继承的 `SSH_CONNECTION`、
+   `SSH_CLIENT` 或 `SSH_TTY` marker 至少一个非空的 remote process 才发现有界的 same-user forwarded
+   candidate。没有准确 overlay 的普通 local terminal 不执行 socket scan。Stale 显式 local path 永远不会
+   回退到另一个 Desktop instance。只有 accepted 后才能向解析出的 outer TTY 写 private APC correlation
+   half。Timeout、malformed ACK、reject、socket loss 或没有 endpoint 都不会产生 APC，且绝不阻塞 Agent
+   或改变 Agent exit status。
+5. Visibility 属于可信 routing evidence，从 attacker-controlled terminal half 移到 socket envelope。
+   Correlation APC payload 只包含 kind、protocol version、opaque one-time correlation identity 与 opaque
+   event identity；不包含 activity、provider identity、visibility、path、hostname、mux identity、content
+   或产品文案。另一种有界 launch-presence payload 只能包含其 kind、一个 curated integration ID 与
+   protocol version，不具备 semantic 或 notification authority。既有有界 join 在 endpoint acceptance
+   后接受 network/PTY 任一种 arrival order，fence presentation generation，只应用一次 semantic event，
+   并可把它 attach 到多个精确 presentation。
+6. 向解析出的 outer TTY 直接写入仍是 hidden tmux 与 Zellij pane 的机制，不要求 mux passthrough。
+   受控 compatibility matrix 必须证明 private APC 在每个声明支持的 Orchbee/Ghostty、Warp、tmux 与
+   Zellij revision 中都没有可见副作用。任意 terminal 或 mux version 不在声明内；无法完成准确
+   presentation correlation 时，降级为没有 canonical observation。
+
+Transport state machine 是 `discover -> connect -> send-rich -> accepted -> emit-hints -> settle`。
+`accepted` 之前的任何 failure 都直接转为 `done-fail-open`；accepted 之后，event 仍必须完成至少一条
+准确 APC correlation，否则到期后不产生 canonical effect。ACK 只表示有界 envelope 通过了 Desktop
+ingress boundary，并不证明 APC 已到达、presentation 已 join、semantic transition 已应用或
+notification 已显示。
+
+### 稳定、卸载惰性的安装与迁移
+
+1. 安装仍是按 provider、按 execution host 的显式用户操作。新用户不会收到自动 local 或 remote
+   configuration change。Orchbee 永不复制到或编辑 remote host；经过审阅的远端指引仍只能手动执行。
+2. 在显式 local enable mutation 前，Desktop 会在 application bundle 与 provider marketplace cache
+   之外的稳定 user data 下生成 Orchbee-owned、versioned adapter Capsule。Provider configuration 只能
+   引用稳定 Capsule 或 provider-local guarded bootstrap，不得引用 `/Applications/*.app`、checkout、
+   temporary build path 或 version-specific marketplace cache。
+3. 当 Orchbee application executable 或 observation endpoint 缺失时，每条持久化 provider entry 都必须
+   惰性无害。Provider-local bootstrap 在 Capsule 缺失时同样惰性无害；command hook 在 scripting runtime
+   或 script 缺失时也保持无害。这些 guard 必须位于 provider entry 本身：执行有界
+   existence/executable check，stdout 与 stderr 均为零，exit zero，并保留 provider operation 与 exit
+   status。CLI marketplace declaration 可以引用 stable Capsule，因此 uninstall 必须保留仍被任意
+   provider declaration 引用的每个 Capsule。只把 guard 放在可能缺失的 target 中不够。
+4. Capsule 对其声明的 runtime self-contained。首选 bridge 是小型原生 Zig executable；只有在测试证明
+   相同 absence behavior 时，才可采用 provider-guaranteed runtime 或受保护的 bundled script。Hook
+   callback 继续 nonblocking，sanitization 后不含内容，时间与字节有界，且不依赖 Orchbee process lifetime。
+5. Enable 遵循 `inspect -> preflight -> stage Capsule -> atomically publish -> mutate exact owned entry ->
+verify`。Provider mutation 前失败只删除未被引用的 staging area。Mutation 后结果不明确时执行只读
+   reconciliation，未观察到结果前绝不声称 rollback。Disable 只删除精确 owned provider entry，可以为
+   其他 provider 或以后重装保留惰性 Capsule。
+6. 仅因 application-bundle source、较旧 sibling Capsule 或 v2 transport 而失效的精确 legacy Orchbee
+   entry，通过有界 integration model 报告为 update-required。这包括 source-proven 的 Claude 与
+   Copilot marketplace entry 以及 Grok installed copy；inspection 会结合其 plugin source，并在 provider
+   暴露时同时校验 payload version。只有用户显式执行 Enable/Update 后才迁移。第三方或已修改 entry
+   仍为 conflict，绝不覆盖。仅卸载 App 不会导致 provider 报错；后续可以删除已证明无人引用的 Capsule，
+   但这不是 correctness 必需条件。
+
+Installation state machine 是 `absent | update-required | enabled | conflict | unavailable`。只有
+`absent` 与精确 `update-required` 能在显式用户操作后进入 mutation。`enabled` 同时要求精确 owned
+entry 与有效 Capsule manifest。缺失 dependency 绝不能成为 `enabled`；无法识别的既有 entry 始终是
+`conflict`。
+
+### 按需 inspection 与上下文 onboarding
+
+1. Desktop 启动时构造低成本 uninspected snapshot，不调用 provider CLI、shell 或 plugin manager。打开
+   普通 terminal UI 同样不会执行 all-provider inspection。
+2. 对一个 curated provider 的高可信 launch observation，可以在该 execution host 触发一次去重、有界的
+   provider-specific inspection。打开 Agent Integration Settings 或显式选择 Refresh，可以检查请求的
+   scope。Inspection 永不 mutation。
+3. 只有 launch-triggered inspection 证明刚观测到的 provider 在本地可用，且 integration 为 absent 或
+   update-required 时，右下角 reminder 才符合条件。它友善、按 provider 与 device 可关闭，并提供直接
+   Settings action。它永不在 reminder 内安装、请求操作系统 notification permission，或仅因 Orchbee
+   启动而出现。
+4. 不能从 local availability 推断 remote execution identity。在另行接受 product-owned remote installer
+   之前，remote launch evidence 只能提供经过审阅的手动 setup 指引，不能声明 remote integration state。
+
+### 有限的 passive presence
+
+1. 有界、data-driven provider signature registry 可以组合精确 process ancestry、terminal command
+   metadata 与经过审阅的 screen signature，但只能断言 `provider-present` 或 `provider-unknown`。它不能
+   断言 thinking、tool use、idle、question、approval、success、failure、completion 或 notification eligibility。
+2. Presence evidence 属于 presentation scope，携带 source 与 freshness，在移除前使用 hysteresis，并在
+   diagnostic 中暴露可解释的 matched-signature identifier 而不暴露 screen content。冲突或 stale evidence
+   降级为 unknown，绝不提升 capability。当相同 provider、presentation 与 terminal generation 的准确
+   rich observation 获得准入时，Desktop 会先 retire heuristic projection，再由 rich observation 接管。
+   这项本地清理只会断开并结束 heuristic presence Session，不发 semantic Session-end event，并会在该
+   准确 rich route 保持 live 时 suppress 后续 passive evidence。
+3. Rich installed adapter 仍是 semantic Agent state、hidden-mux exact state 与 notification candidate 的
+   唯一权威。Passive evidence 可以触发同一个 provider-scoped inspection 与 reminder workflow，但绝不
+   自动安装或修改 provider configuration。
+
+### 不变量、证据、rollout 与 rollback
+
+- `AR-010`：任何已接受 Orchbee adapter 的 byte sequence 都不会调用公开 notification surface。证据包括
+  byte-level adapter fixture、Terminal Host 对 OSC notification channel 的 negative test，以及受控
+  Warp/Ghostty/tmux/Zellij trace。声明仅限已审阅版本，不声称任意 terminal 会忽略任意 APC。
+- `AR-011`：未 ACK rich event 的 endpoint 不可能导致其 terminal half 被发送。Deterministic transport
+  test 覆盖 no endpoint、timeout、reject、malformed ACK、partial ACK、disconnect、多个 candidate 与恰好
+  一个成功 candidate；join property test 覆盖两种 arrival order、duplicate、expiry 与 presentation-
+  generation reuse。
+- `AR-012`：移除 App 且保留被引用 Capsule、provider-local bridge/runtime 缺失、stale socket 与
+  observation disabled 时，已安装 entry 保持静默且成功。测试分别移除 optional dependency 后执行准确
+  guarded entry 与持久化 command hook，并断言 stdout 为零、stderr 为零、exit zero、duration 有界且
+  provider command status 不变。Capsule lifecycle test 证明 application-bundle replacement 不是
+  dependency，且被引用 version 不是 uninstall cleanup target。
+- `AR-013`：启动时执行零条 provider inspection command；一次 launch 在 reminder eligibility 前最多检查
+  对应 provider。Call-ledger test 覆盖 startup、并发 duplicate launch、Settings refresh、dismissal、
+  update-required migration 与 remote evidence。
+- `AR-014`：Passive evidence 只能创建 limited presence。Generated 与 adversarial fixture 证明任何
+  signature sequence 都不会产生 semantic transition、request、outcome 或 device notification；hysteresis
+  与 stale transition 是 deterministic 的。
+
+Rollout 首先把 Desktop endpoint advertisement 与所有 bundled adapter 作为一个 hard-cut v3 切片替换，
+随后修改 Terminal Host admission，再把显式 local installation 迁移到 stable Capsule，然后启用按需
+inspection 与 contextual reminder eligibility，最后在 limited projection 后启用 passive presence。同一
+build 不得同时包含 v3 adapter 与 v2-only Desktop，反之亦然。Rollback 会一起关闭 v3 endpoint advertisement
+与 adapter offering；terminal operation、ordinary SSH 与 provider operation 保持正常。它不会恢复 OSC 777、
+application-bundle symlink、eager inspection 或 automatic onboarding。
+
 ## 保留决策
 
 已接受的第一阶段领域切片不会决定：
@@ -709,9 +847,9 @@ Consequential 与 Modeled 切片：
 - 任何未来 cross-process Agent-runtime protocol 命名、process extraction、version negotiation，以及
   application 或 operating-system restart 后 retention；Desktop Unix-socket ingress、terminal-signal
   ingress 与 renderer snapshot protocol 是各自更窄边界的当前权威；
-- 自动 local 或 remote adapter deployment、任何由 Orchbee 发起的 remote configuration change、静默
-  local configuration edit、background adapter updater，以及 pinned provider fixture matrix 之外的
-  compatibility claim；
+- 自动 local 或 remote adapter deployment、任何由 Orchbee 发起的 remote configuration change、显式
+  local enable/update action 之外的静默 local configuration edit、background adapter updater，以及
+  pinned provider 与 transport fixture matrix 之外的 compatibility claim；
 - 除既有显式 opt-in 外的 notification default、stale grace period、Activity 专用 recent-event bound、
   per-client acknowledgement persistence 与 cross-device suppression；易失 change journal 使用上面
   单独接受的 bound；

@@ -1,13 +1,11 @@
 import type { DesktopAgentIntegrationId } from '@orchbee/desktop-client-protocol';
 
 export interface AgentIntegrationReminderView {
+	readonly actionLabel: string;
 	readonly body: string;
 	readonly dismissLabel: string;
-	readonly enableDisabled: boolean;
-	readonly enableLabel: string;
 	readonly integrationId: DesktopAgentIntegrationId;
+	readonly onAction: () => void;
 	readonly onDismiss: () => void;
-	readonly onEnable: () => void;
-	readonly pending: boolean;
 	readonly title: string;
 }

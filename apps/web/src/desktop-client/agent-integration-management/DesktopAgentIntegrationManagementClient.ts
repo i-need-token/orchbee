@@ -6,6 +6,7 @@ import {
 	type DesktopAgentIntegrationManagementMainEvent,
 	type DesktopAgentIntegrationManagementRendererCommand,
 	type DesktopAgentIntegrationManagementRequestId,
+	type DesktopAgentIntegrationSnapshotItem,
 } from '@orchbee/desktop-client-protocol';
 
 import type {
@@ -157,7 +158,12 @@ export class DesktopAgentIntegrationManagementClient implements AgentIntegration
 			return;
 		}
 		if (parsed.data.type === 'desktop-agent-integration-launch-observed') {
-			this.#recordLaunch(parsed.data.integrationId, parsed.data.revision);
+			this.#recordLaunch(
+				parsed.data.integrationId,
+				parsed.data.revision,
+				true,
+				parsed.data.integration,
+			);
 			return;
 		}
 		const pending = this.#pending;
@@ -185,7 +191,12 @@ export class DesktopAgentIntegrationManagementClient implements AgentIntegration
 
 	readonly #handleMessageError = (): void => this.#retire(true);
 
-	#recordLaunch(integrationId: DesktopAgentIntegrationId, revision: number, publish = true): void {
+	#recordLaunch(
+		integrationId: DesktopAgentIntegrationId,
+		revision: number,
+		publish = true,
+		integration?: DesktopAgentIntegrationSnapshotItem,
+	): void {
 		const isNew = !this.#launchedIntegrationIds.includes(integrationId);
 		if (isNew) {
 			this.#launchedIntegrationIds = Object.freeze([
@@ -196,9 +207,21 @@ export class DesktopAgentIntegrationManagementClient implements AgentIntegration
 		this.#latestLaunchRevision = Math.max(this.#latestLaunchRevision, revision);
 		if (!publish || this.#snapshot === undefined) return;
 		const nextRevision = Math.max(this.#snapshot.revision, this.#latestLaunchRevision);
-		if (!isNew && nextRevision === this.#snapshot.revision) return;
+		const integrationChanged =
+			integration !== undefined &&
+			this.#snapshot.integrations.some(
+				(current) =>
+					current.integrationId === integrationId && !integrationItemsEqual(current, integration),
+			);
+		if (!isNew && !integrationChanged && nextRevision === this.#snapshot.revision) return;
 		this.#snapshot = {
 			...this.#snapshot,
+			integrations:
+				integration === undefined
+					? this.#snapshot.integrations
+					: this.#snapshot.integrations.map((current) =>
+							current.integrationId === integrationId ? integration : current,
+						),
 			launchedIntegrationIds: [...this.#launchedIntegrationIds],
 			revision: nextRevision,
 		};
@@ -241,6 +264,19 @@ export class DesktopAgentIntegrationManagementClient implements AgentIntegration
 		}
 		pending?.resolve(null);
 	}
+}
+
+function integrationItemsEqual(
+	left: DesktopAgentIntegrationSnapshotItem,
+	right: DesktopAgentIntegrationSnapshotItem,
+): boolean {
+	return (
+		left.availability === right.availability &&
+		left.integrationId === right.integrationId &&
+		left.issue === right.issue &&
+		left.managementMode === right.managementMode &&
+		left.state === right.state
+	);
 }
 
 function protocolSnapshot(

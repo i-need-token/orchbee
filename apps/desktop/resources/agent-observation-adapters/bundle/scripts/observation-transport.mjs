@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { appendFile, lstat, readdir, unlink } from 'node:fs/promises';
+import { constants as fileSystemConstants } from 'node:fs';
+import { lstat, open, readdir, unlink } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -11,9 +12,11 @@ const MAX_SOCKET_CANDIDATES = 32;
 const MAX_COMMAND_OUTPUT_BYTES = 64 * 1024;
 const SOCKET_TIMEOUT_MILLISECONDS = 250;
 const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
-const PRIVATE_SOCKET_NAME_PATTERN = /^orchbee-agent-v2-[A-Za-z0-9_-]{16,64}\.sock$/u;
-const OBSERVATION_SOCKET_ENVIRONMENT_NAME = 'ORCHBEE_AGENT_OBSERVATION_SOCKET';
-const OSC_CHANNEL = 'orchbee.agent.v1';
+const PRIVATE_SOCKET_NAME_PATTERN = /^orchbee-agent-v3-[A-Za-z0-9_-]{16,64}\.sock$/u;
+const OBSERVATION_SOCKET_ENVIRONMENT_NAME = 'ORCHBEE_AGENT_OBSERVATION_SOCKET_V3';
+const PRIVATE_APC_PREFIX = 'orchbee.agent.v3;';
+const ACCEPTED_ENVELOPE_ACK = '{"accepted":true,"version":3}\n';
+const MAX_ACK_BYTES = Buffer.byteLength(ACCEPTED_ENVELOPE_ACK);
 const ADAPTER_IDS = new Set([
 	'claude-code',
 	'codex',
@@ -87,26 +90,31 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 		correlationId: allocateIdentity(),
 		target,
 	}));
+	const envelope = {
+		adapterId,
+		correlations: correlations.map(({ correlationId, target }) => ({
+			correlationId,
+			visibility: target.visibility,
+		})),
+		eventId,
+		observation,
+		version: 3,
+	};
+	const deliveries = await Promise.allSettled(
+		sockets.slice(0, MAX_SOCKET_CANDIDATES).map((socketPath) => sendEnvelope(socketPath, envelope)),
+	);
+	if (!deliveries.some((delivery) => delivery.status === 'fulfilled' && delivery.value === true)) {
+		return;
+	}
 	await Promise.allSettled(
 		correlations.map(({ correlationId, target }) =>
 			writeHint(target.tty, {
-				activity: observation.activity,
 				correlationId,
 				eventId,
-				version: 2,
-				visibility: target.visibility,
+				kind: 'correlation',
+				version: 3,
 			}),
 		),
-	);
-	const envelope = {
-		adapterId,
-		correlationIds: correlations.map(({ correlationId }) => correlationId),
-		eventId,
-		observation,
-		version: 2,
-	};
-	await Promise.allSettled(
-		sockets.slice(0, MAX_SOCKET_CANDIDATES).map((socketPath) => sendEnvelope(socketPath, envelope)),
 	);
 }
 
@@ -130,7 +138,7 @@ export async function resolveObservationTargets(environment, options = {}) {
 	);
 	if (muxTargets.length > 0) return deduplicateTargets(muxTargets);
 	const directTty = normalizeTty(environment.SSH_TTY) ?? '/dev/tty';
-	return [{ tty: directTty, visibility: 'visible' }];
+	return [{ tty: directTty, visibility: 'unknown' }];
 }
 
 export function parseTmuxClientOutput(value, sessionName, paneId) {
@@ -141,7 +149,7 @@ export function parseTmuxClientOutput(value, sessionName, paneId) {
 		if (normalizedTty === null || clientSession !== sessionName) continue;
 		targets.push({
 			tty: normalizedTty,
-			visibility: activePane === paneId ? 'visible' : 'hidden',
+			visibility: activePane === paneId ? 'unknown' : 'hidden',
 		});
 	}
 	return deduplicateTargets(targets);
@@ -165,10 +173,13 @@ export function parseZellijClientProcesses(value, userId, sessionName) {
 		const match = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.+)$/u.exec(line);
 		if (match === null) continue;
 		const [, uidText, , ttyText, command] = match;
-		if (Number(uidText) !== userId || command === undefined || !zellijClientCommand(command)) {
+		if (
+			Number(uidText) !== userId ||
+			command === undefined ||
+			!zellijClientCommandForSession(command, sessionName)
+		) {
 			continue;
 		}
-		if (!commandContainsArgument(command, sessionName)) continue;
 		const tty = normalizeTty(ttyText);
 		if (tty !== null) targets.push(tty);
 	}
@@ -176,9 +187,14 @@ export function parseZellijClientProcesses(value, userId, sessionName) {
 }
 
 export async function discoverObservationSockets(environment) {
-	const candidates = [];
 	const localSocket = environment[OBSERVATION_SOCKET_ENVIRONMENT_NAME];
-	if (typeof localSocket === 'string' && path.isAbsolute(localSocket)) candidates.push(localSocket);
+	if (typeof localSocket === 'string') {
+		if (!path.isAbsolute(localSocket)) return [];
+		return (await isOwnedSocket(localSocket)) ? [localSocket] : [];
+	}
+	// Missing local routing is not proof of SSH and must not couple another terminal to Orchbee.
+	if (!isRemoteSshEnvironment(environment)) return [];
+	const candidates = [];
 	let entries = [];
 	try {
 		entries = await readdir('/tmp');
@@ -190,41 +206,66 @@ export async function discoverObservationSockets(environment) {
 	}
 	const admitted = [];
 	for (const candidate of [...new Set(candidates)].slice(0, MAX_SOCKET_CANDIDATES * 2)) {
-		try {
-			const metadata = await lstat(candidate);
-			const userId = process.getuid?.();
-			if (metadata.isSocket() && (userId === undefined || metadata.uid === userId)) {
-				admitted.push(candidate);
-			}
-		} catch {
-			// Candidate discovery is intentionally best effort.
-		}
+		if (await isOwnedSocket(candidate)) admitted.push(candidate);
 	}
 	return admitted.slice(0, MAX_SOCKET_CANDIDATES);
 }
 
 export async function writeCorrelationHint(tty, hint) {
 	if (normalizeTty(tty) !== tty) return;
-	const payload = JSON.stringify(hint);
-	await appendFile(tty, `\u001B]777;notify;${OSC_CHANNEL};${payload}\u001B\\`);
+	const payload = Buffer.from(JSON.stringify(hint), 'utf8').toString('base64url');
+	const handle = await open(
+		tty,
+		fileSystemConstants.O_WRONLY |
+			fileSystemConstants.O_NOCTTY |
+			fileSystemConstants.O_NOFOLLOW |
+			fileSystemConstants.O_NONBLOCK,
+	);
+	try {
+		const metadata = await handle.stat();
+		const userId = process.getuid?.();
+		if (
+			!metadata.isCharacterDevice() ||
+			(tty !== '/dev/tty' && userId !== undefined && metadata.uid !== userId)
+		) {
+			return;
+		}
+		await handle.write(`\u001B_${PRIVATE_APC_PREFIX}${payload}\u001B\\`);
+	} finally {
+		await handle.close();
+	}
 }
 
 export async function sendObservationEnvelope(socketPath, envelope) {
-	await new Promise((resolve) => {
+	return new Promise((resolve) => {
 		const socket = createConnection({ path: socketPath });
+		const chunks = [];
+		let byteLength = 0;
 		let settled = false;
-		const finish = () => {
+		const finish = (accepted) => {
 			if (settled) return;
 			settled = true;
 			socket.destroy();
-			resolve();
+			resolve(accepted);
 		};
-		socket.setTimeout(SOCKET_TIMEOUT_MILLISECONDS, finish);
+		socket.setTimeout(SOCKET_TIMEOUT_MILLISECONDS, () => finish(false));
 		socket.once('connect', () => socket.end(JSON.stringify(envelope)));
-		socket.once('close', finish);
+		socket.on('data', (chunk) => {
+			byteLength += chunk.byteLength;
+			if (byteLength > MAX_ACK_BYTES) {
+				finish(false);
+				return;
+			}
+			chunks.push(chunk);
+		});
+		socket.once('end', () => {
+			const response = Buffer.concat(chunks, byteLength).toString('utf8');
+			finish(response === ACCEPTED_ENVELOPE_ACK);
+		});
+		socket.once('close', () => finish(false));
 		socket.once('error', async (error) => {
 			if (hasErrorCode(error, 'ECONNREFUSED')) await removeStaleForwardSocket(socketPath);
-			finish();
+			finish(false);
 		});
 	});
 }
@@ -252,9 +293,7 @@ async function resolveZellijTargets(sessionName, paneId, execute) {
 	if (userId === undefined || clients.length === 0) return [];
 	const ttys = parseZellijClientProcesses(processOutput, userId, sessionName);
 	const visibleCount = clients.filter((client) => client.paneId === paneId).length;
-	let visibility = 'unknown';
-	if (visibleCount === 0) visibility = 'hidden';
-	else if (visibleCount === clients.length) visibility = 'visible';
+	const visibility = visibleCount === 0 ? 'hidden' : 'unknown';
 	return ttys.map((tty) => ({ tty, visibility }));
 }
 
@@ -282,6 +321,17 @@ async function removeStaleForwardSocket(socketPath) {
 		}
 	} catch {
 		// Another hook or OpenSSH may already have removed the stale socket.
+	}
+}
+
+async function isOwnedSocket(socketPath) {
+	try {
+		const metadata = await lstat(socketPath);
+		const userId = process.getuid?.();
+		return metadata.isSocket() && (userId === undefined || metadata.uid === userId);
+	} catch {
+		// Candidate discovery is intentionally best effort.
+		return false;
 	}
 }
 
@@ -337,10 +387,19 @@ function validEnvironmentValue(value) {
 	return typeof value === 'string' && value.length > 0 && value.length <= 256;
 }
 
+function isRemoteSshEnvironment(environment) {
+	return (
+		validEnvironmentValue(environment.SSH_CONNECTION) ||
+		validEnvironmentValue(environment.SSH_CLIENT) ||
+		validEnvironmentValue(environment.SSH_TTY)
+	);
+}
+
 function normalizeTty(value) {
 	if (typeof value !== 'string' || value === '' || value.includes('\0')) return null;
 	const candidate = value.startsWith('/dev/') ? value : `/dev/${value}`;
-	return /^\/dev\/[A-Za-z0-9._/-]{1,240}$/u.test(candidate) ? candidate : null;
+	if (!/^\/dev\/[A-Za-z0-9._/-]{1,240}$/u.test(candidate)) return null;
+	return path.posix.normalize(candidate) === candidate ? candidate : null;
 }
 
 function deduplicateTargets(targets) {
@@ -360,13 +419,18 @@ function combineVisibility(left, right) {
 	return left === 'visible' && right === 'visible' ? 'visible' : 'unknown';
 }
 
-function zellijClientCommand(command) {
-	const executable = command.trim().split(/\s+/u)[0];
-	return executable !== undefined && path.basename(executable) === 'zellij';
-}
-
-function commandContainsArgument(command, value) {
-	return command.split(/\s+/u).includes(value);
+function zellijClientCommandForSession(command, sessionName) {
+	const arguments_ = command.trim().split(/\s+/u);
+	const executable = arguments_[0];
+	if (executable === undefined || path.basename(executable) !== 'zellij') return false;
+	for (let index = 1; index < arguments_.length; index += 1) {
+		const argument = arguments_[index];
+		const next = arguments_[index + 1];
+		if ((argument === '--session' || argument === '-s') && next === sessionName) return true;
+		if (argument === `--session=${sessionName}`) return true;
+		if ((argument === 'attach' || argument === 'a') && next === sessionName) return true;
+	}
+	return false;
 }
 
 function hasErrorCode(error, code) {

@@ -36,11 +36,13 @@ describe('AgentHookObservationIngress', () => {
 		const creationId = CreationIdSchema.parse('11'.repeat(16));
 		const overlay = setup.ingress.environmentOverlayFor(presentationId, creationId);
 		expect(overlay).toEqual([
-			{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET', value: setup.socketPath },
+			{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET_V3', value: setup.socketPath },
 		]);
 		expect((await lstat(setup.socketPath)).mode & 0o777).toBe(0o600);
 
-		await sendEnvelope(setup.socketPath, envelope(1, 'session-started'));
+		await expect(sendEnvelope(setup.socketPath, envelope(1, 'session-started'))).resolves.toBe(
+			'{"accepted":true,"version":3}\n',
+		);
 		expect(runtime.getSnapshot().sessions).toEqual([]);
 		setup.ingress.observeTerminalApplicationSignal(signal(1, 1, creationId), presentationId);
 		expect(runtime.getSnapshot().sessions[0]).toMatchObject({
@@ -100,13 +102,13 @@ describe('AgentHookObservationIngress', () => {
 		setup.ingress.environmentOverlayFor(firstPresentation, firstCreation);
 		setup.ingress.environmentOverlayFor(secondPresentation, secondCreation);
 
-		await sendEnvelope(setup.socketPath, envelope(1, 'turn-started', [1, 2]));
-		setup.ingress.observeTerminalApplicationSignal(
-			signal(1, 1, firstCreation, 'hidden'),
-			firstPresentation,
+		await sendEnvelope(
+			setup.socketPath,
+			envelope(1, 'turn-started', [1, 2], 'claude-code', ['hidden', 'visible']),
 		);
+		setup.ingress.observeTerminalApplicationSignal(signal(1, 1, firstCreation), firstPresentation);
 		setup.ingress.observeTerminalApplicationSignal(
-			signal(2, 1, secondCreation, 'visible'),
+			signal(2, 1, secondCreation),
 			secondPresentation,
 		);
 		expect(runtime.getSnapshot().sessions).toHaveLength(1);
@@ -141,15 +143,12 @@ describe('AgentHookObservationIngress', () => {
 		const creationId = CreationIdSchema.parse('55'.repeat(16));
 		setup.ingress.environmentOverlayFor(presentationId, creationId);
 
-		setup.ingress.observeTerminalApplicationSignal(
-			signal(1, 1, creationId, 'visible'),
-			presentationId,
+		setup.ingress.observeTerminalApplicationSignal(signal(1, 1, creationId), presentationId);
+		setup.ingress.observeTerminalApplicationSignal(signal(2, 1, creationId), presentationId);
+		await sendEnvelope(
+			setup.socketPath,
+			envelope(1, 'turn-started', [1, 2], 'claude-code', ['visible', 'hidden']),
 		);
-		setup.ingress.observeTerminalApplicationSignal(
-			signal(2, 1, creationId, 'hidden'),
-			presentationId,
-		);
-		await sendEnvelope(setup.socketPath, envelope(1, 'turn-started', [1, 2]));
 
 		expect(runtime.getSnapshot().sessions[0]).toMatchObject({
 			presentationAttachments: [{ presentationId, visibility: 'hidden' }],
@@ -198,14 +197,21 @@ describe('AgentHookObservationIngress', () => {
 		const creationId = CreationIdSchema.parse('44'.repeat(16));
 		setup.ingress.environmentOverlayFor(presentationId, creationId);
 
-		await sendEnvelope(setup.socketPath, {
-			...envelope(1, 'session-started'),
-			observation: { ...observation('session-started'), prompt: 'forbidden' },
-		});
+		await expect(
+			sendEnvelope(setup.socketPath, {
+				...envelope(1, 'session-started'),
+				observation: { ...observation('session-started'), prompt: 'forbidden' },
+			}),
+		).resolves.toBe('');
 		setup.ingress.observeTerminalApplicationSignal(signal(1, 1, creationId), presentationId);
 		expect(runtime.getSnapshot().sessions).toEqual([]);
 
-		await sendEnvelope(setup.socketPath, envelope(2, 'session-started'));
+		await expect(sendEnvelope(setup.socketPath, envelope(2, 'session-started'))).resolves.toBe(
+			'{"accepted":true,"version":3}\n',
+		);
+		await expect(sendEnvelope(setup.socketPath, envelope(3, 'session-started', [2]))).resolves.toBe(
+			'',
+		);
 		now = 20_000;
 		setup.ingress.observeTerminalApplicationSignal(signal(2, 2, creationId), presentationId);
 		expect(runtime.getSnapshot().sessions).toEqual([]);
@@ -301,7 +307,7 @@ describe('AgentHookObservationIngress', () => {
 	) {
 		let identifier = 0;
 		runtimeDirectory = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-ingress-'));
-		const socketPath = path.join(runtimeDirectory, 'agent-observation-v2.sock');
+		const socketPath = path.join(runtimeDirectory, 'agent-observation-v3.sock');
 		ingress = new AgentHookObservationIngress(runtime, {
 			allocateIdentifier: () => `${++identifier}`,
 			joinSettleMilliseconds,
@@ -330,13 +336,17 @@ function envelope(
 	event: string,
 	correlations: readonly number[] = [sequence],
 	adapterId: AgentHookAdapterId = 'claude-code',
+	visibilities: readonly ('hidden' | 'unknown' | 'visible')[] = correlations.map(() => 'hidden'),
 ): AgentHookRichObservationEnvelope {
 	return {
 		adapterId,
-		correlationIds: correlations.map(correlationId),
+		correlations: correlations.map((value, index) => ({
+			correlationId: correlationId(value),
+			visibility: visibilities[index] ?? 'unknown',
+		})),
 		eventId: eventId(sequence),
 		observation: observation(event) as AgentHookRichObservationEnvelope['observation'],
-		version: 2,
+		version: 3,
 	};
 }
 
@@ -360,7 +370,6 @@ function signal(
 	sequence: number,
 	eventSequence: number,
 	creationId: ReturnType<typeof CreationIdSchema.parse>,
-	visibility: 'hidden' | 'unknown' | 'visible' = 'hidden',
 ) {
 	return TerminalApplicationSignalSchema.parse({
 		channel: 'orchbee.agent.v1',
@@ -370,11 +379,10 @@ function signal(
 			terminalId: 'ffeeddccbbaa99887766554433221100',
 		},
 		payload: JSON.stringify({
-			activity: null,
 			correlationId: correlationId(sequence),
 			eventId: eventId(eventSequence),
-			version: 2,
-			visibility,
+			kind: 'correlation',
+			version: 3,
 		}),
 		sequence: String(sequence),
 	});
@@ -388,11 +396,13 @@ function correlationId(sequence: number): string {
 	return `correlation-${String(sequence).padStart(16, '0')}`;
 }
 
-async function sendEnvelope(socketPath: string, body: unknown): Promise<void> {
-	await new Promise<void>((resolve, reject) => {
+async function sendEnvelope(socketPath: string, body: unknown): Promise<string> {
+	return new Promise<string>((resolve, reject) => {
 		const socket = createConnection({ path: socketPath });
+		const chunks: Buffer[] = [];
 		socket.once('error', reject);
-		socket.once('close', () => resolve());
+		socket.on('data', (chunk: Buffer) => chunks.push(chunk));
+		socket.once('close', () => resolve(Buffer.concat(chunks).toString('utf8')));
 		socket.once('connect', () => socket.end(JSON.stringify(body)));
 	});
 }

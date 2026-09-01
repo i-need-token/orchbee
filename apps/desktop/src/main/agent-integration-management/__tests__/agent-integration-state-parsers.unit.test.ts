@@ -1,64 +1,128 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	parseClaudeState,
-	parseCodexState,
-	parseGrokState,
-	parseGitHubCopilotState,
+	parseClaudeConfiguration,
+	parseGrokConfiguration,
+	parseGitHubCopilotConfiguration,
 } from '../agent-integration-state-parsers';
 
+const resourceOptions = {
+	expectedVersion: '0.4.0',
+	legacyResourceRoots: ['/Applications/Orchbee.app/Contents/Resources/agent-observation-adapters'],
+	resourceRoot: '/user-data/agent-observation-adapters/0.4.0',
+} as const;
+
 describe('Agent integration state parsers', () => {
-	it('parses only the exact managed plugin identity from bounded JSON shapes', () => {
+	it('requires the exact Claude plugin, version, and owned marketplace source', () => {
+		const plugin = (version = '0.4.0', enabled = true) =>
+			JSON.stringify([
+				{ enabled: true, id: 'other@orchbee-local', version },
+				{ enabled, id: 'orchbee-agent-observation@orchbee-local', version },
+			]);
+		const marketplace = (sourcePath: string) =>
+			JSON.stringify([{ name: 'orchbee-local', path: sourcePath, source: 'directory' }]);
+
 		expect(
-			parseClaudeState(
-				JSON.stringify([
-					{ enabled: true, id: 'other@orchbee-local' },
-					{ enabled: false, id: 'orchbee-agent-observation@orchbee-local' },
-				]),
+			parseClaudeConfiguration(
+				plugin('0.4.0', false),
+				marketplace(resourceOptions.resourceRoot),
+				resourceOptions,
 			),
-		).toBe('disabled');
+		).toMatchObject({ marketplace: 'current', pluginPresent: true, state: 'disabled' });
 		expect(
-			parseCodexState(
-				JSON.stringify({
-					installed: [
-						{
-							enabled: true,
-							pluginId: 'orchbee-agent-observation@orchbee-local',
-						},
-					],
-				}),
+			parseClaudeConfiguration(
+				plugin('0.3.0'),
+				marketplace(resourceOptions.resourceRoot),
+				resourceOptions,
 			),
-		).toBe('enabled');
+		).toMatchObject({ state: 'update-required' });
 		expect(
-			parseGrokState(JSON.stringify([{ name: 'orchbee-agent-observation', status: 'disabled' }])),
-		).toBe('disabled');
-		expect(parseClaudeState('{"not":"an array"}')).toBeNull();
+			parseClaudeConfiguration(
+				plugin(),
+				marketplace('/user-data/agent-observation-adapters/0.3.0'),
+				resourceOptions,
+			),
+		).toMatchObject({ marketplace: 'legacy', state: 'update-required' });
+		expect(
+			parseClaudeConfiguration(plugin(), marketplace('/third-party'), resourceOptions),
+		).toMatchObject({ state: 'conflict' });
+		expect(parseClaudeConfiguration('[]', '[]', resourceOptions)).toMatchObject({
+			marketplace: 'absent',
+			pluginPresent: false,
+			state: 'not-installed',
+		});
+		expect(parseClaudeConfiguration('{"not":"an array"}', '[]', resourceOptions)).toBeNull();
 	});
 
-	it('accepts only the exact enabled GitHub Copilot marketplace installation', () => {
-		const resourceRoot = '/application/agent-observation-adapters';
-		const exact = {
-			plugins: [
-				{
-					enabled: true,
-					installedFrom: resourceRoot,
-					name: 'orchbee-agent-observation',
-					source: 'live-marketplace:orchbee-local',
-				},
-			],
-		};
-		expect(parseGitHubCopilotState(JSON.stringify(exact), resourceRoot)).toBe('enabled');
+	it('classifies only source- and version-proven Grok copies as managed', () => {
+		const entry = (source: string, version = '0.4.0', status = 'installed') =>
+			JSON.stringify([{ name: 'orchbee-agent-observation', source, status, version }]);
+		const currentBundle = `${resourceOptions.resourceRoot}/bundle`;
+
+		expect(parseGrokConfiguration(entry(currentBundle), resourceOptions)).toEqual({
+			pluginPresent: true,
+			state: 'enabled',
+		});
 		expect(
-			parseGitHubCopilotState(
-				JSON.stringify({
-					plugins: [{ ...exact.plugins[0], installedFrom: '/different/resource' }],
-				}),
-				resourceRoot,
+			parseGrokConfiguration(entry(currentBundle, '0.4.0', 'disabled'), resourceOptions),
+		).toEqual({
+			pluginPresent: true,
+			state: 'disabled',
+		});
+		expect(
+			parseGrokConfiguration(
+				entry(`${resourceOptions.legacyResourceRoots[0]}/bundle`, '0.3.0'),
+				resourceOptions,
 			),
-		).toBe('conflict');
-		expect(parseGitHubCopilotState(JSON.stringify({ plugins: [] }), resourceRoot)).toBe(
-			'not-installed',
-		);
-		expect(parseGitHubCopilotState('[]', resourceRoot)).toBeNull();
+		).toMatchObject({ state: 'update-required' });
+		expect(parseGrokConfiguration(entry('/third-party/bundle'), resourceOptions)).toMatchObject({
+			state: 'conflict',
+		});
+		expect(parseGrokConfiguration('[]', resourceOptions)).toEqual({
+			pluginPresent: false,
+			state: 'not-installed',
+		});
+	});
+
+	it('requires matching owned Copilot plugin and marketplace sources', () => {
+		const plugin = (installedFrom: string, enabled = true) =>
+			JSON.stringify({
+				plugins: [
+					{
+						enabled,
+						installedFrom,
+						name: 'orchbee-agent-observation',
+						source: 'live-marketplace:orchbee-local',
+					},
+				],
+			});
+		const marketplace = (sourcePath: string) =>
+			JSON.stringify([{ name: 'orchbee-local', source: `Local: ${sourcePath}` }]);
+
+		expect(
+			parseGitHubCopilotConfiguration(
+				plugin(resourceOptions.resourceRoot),
+				marketplace(resourceOptions.resourceRoot),
+				resourceOptions,
+			),
+		).toMatchObject({ marketplace: 'current', pluginPresent: true, state: 'enabled' });
+		expect(
+			parseGitHubCopilotConfiguration(
+				plugin(resourceOptions.legacyResourceRoots[0]),
+				marketplace(resourceOptions.legacyResourceRoots[0]),
+				resourceOptions,
+			),
+		).toMatchObject({ marketplace: 'legacy', state: 'update-required' });
+		expect(
+			parseGitHubCopilotConfiguration(
+				plugin('/third-party'),
+				marketplace(resourceOptions.resourceRoot),
+				resourceOptions,
+			),
+		).toMatchObject({ state: 'conflict' });
+		expect(
+			parseGitHubCopilotConfiguration(JSON.stringify({ plugins: [] }), '[]', resourceOptions),
+		).toMatchObject({ marketplace: 'absent', state: 'not-installed' });
+		expect(parseGitHubCopilotConfiguration('[]', '[]', resourceOptions)).toBeNull();
 	});
 });

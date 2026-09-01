@@ -125,9 +125,10 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 
 kind `58` 的 `TerminalApplicationSignal` 是一条独立且仅用于事件的控制记录，携带精确终端标识、字面
 channel `orchbee.agent.v1`、正数终端本地序列，以及最多 4 KiB、不含 NUL 或未配对代理项的有效 UTF-8
-payload。该记录是不可信的 transport hint：协议不授予 provider identity、Agent lifecycle、attention、
-idle、outcome、notification 或 action 语义。应用可以施加更严格的 payload Schema，并且只能把已接受值
-归约到其单独拥有的 limited-status vocabulary。
+payload。该记录是 Terminal Host 从 private APC prefix `orchbee.agent.v3;` decode 的不可信 transport
+hint；literal channel 只是历史 Host-to-Desktop discriminator，不是 child wire protocol。协议不授予
+provider identity、Agent lifecycle、attention、idle、outcome、notification 或 action 语义。应用必须
+施加自己单独拥有的更严格 payload Schema。
 
 ## 所有权
 

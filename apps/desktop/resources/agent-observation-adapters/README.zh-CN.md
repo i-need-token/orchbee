@@ -2,7 +2,7 @@
 
 该打包资源包含十个需要显式安装、与 provider 绑定的 observation adapter，分别用于 Claude Code、
 Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code。每个 adapter
-校验自己的 upstream event contract，再通过 Orchbee 共享的 Unix socket 加 OSC 777 correlation
+校验自己的 upstream event contract，再通过 Orchbee 共享的 Unix socket 加 private APC correlation
 transport 发出同一组不含内容的 normalized fact。Provider identity、accepted event 与 maximum
 capability 由 Desktop 的 closed registry 授予，而不是由 adapter payload 声明。
 
@@ -35,8 +35,17 @@ Unix-socket forward 只提供 transport。Orchbee 永远不会自动安装或更
 device 上，用户可以通过 Agent 集成设置显式开启或关闭 Orchbee 的准确 entry。Orchbee 永远不会把
 该资源复制到另一台 host、修改远端 Agent 配置或运行远端设置；远端安装始终保持手动。
 
-下面用 `<adapter-root>` 表示该目录的 absolute path。打包后的 Orchbee 应用会提供同等的
-`agent-observation-adapters` resource directory。
+下面用 `<adapter-root>` 表示该目录一份独立、耐久副本的 absolute path。不要把 application bundle
+内部路径持久写进 Agent 配置：删除或替换 Orchbee application 不得破坏 Agent 启动。本地 Settings 会先
+在用户 application-data directory 发布经过校验、带版本的 Capsule，再让 managed CLI integration
+指向这个耐久副本。Provider-local module entry 会捕获 Capsule 缺失；command hook 会先检查 runtime
+是否仍存在；Gemini/Qwen entry 则是 self-contained copy。Uninstaller 必须保留仍被任意 provider
+declaration 引用的 Capsule；对应 provider entry 只由显式 disable 移除。
+
+本地 Claude 与 Copilot inspection 会同时验证准确 plugin 及其 marketplace source；Grok inspection
+会验证 copied plugin 记录的 source 与 version。准确的旧 Orchbee application-bundle path 或 sibling
+Capsule version 是 migration evidence，而不是已开启的 current adapter；只有显式 Settings action 才能
+修改它。任何使用不同 source 的同名 entry 都保持为不受改动的 conflict。
 
 本地 Settings transaction、准确 managed entry、conflict handling 与 rollback behavior 由
 [Agent 集成指南](../../docs/agent-integrations.zh-CN.md)定义。下面的 command 仍是手动设置方式，并且在
@@ -69,14 +78,16 @@ Codex 提示时需要 review 并信任 bundled hook。使用
 grok plugin install <adapter-root>/bundle
 ```
 
-接受安装前请 review plugin。Disable 或 uninstall `orchbee-agent-observation` 即可回滚。
+接受安装前请 review plugin。Disable 或 uninstall `orchbee-agent-observation` 即可回滚。本地 Settings
+关闭 switch 时，只会卸载 source-proven 的 Orchbee copy。
 
 ### OpenCode
 
 把 absolute entry path
-`<adapter-root>/bundle/opencode/orchbee-agent-observation.mjs` 加为 local plugin，或在
-`~/.config/opencode/plugins/` 中放置指向它的 symlink。移除 configured path 或 symlink 即可回滚。
-Entry 会导入相邻的 shared transport，因此应让完整 bundle 保留在原始路径。
+`<adapter-root>/bundle/opencode/orchbee-agent-observation.mjs` 加为 local plugin。Entry 会导入相邻的
+shared transport，因此应保留这份独立、耐久的完整 root；移除 configured path 即可回滚。本地 Settings
+会改为写入 provider-local guarded bootstrap；以后即使 Capsule 不可用，该 bootstrap 也会捕获 import
+failure，并且不返回 hook 或输出。
 
 ### Pi
 
@@ -99,15 +110,16 @@ omp --extension <adapter-root>/bundle/omp/orchbee-agent-observation.cjs
 
 ### Gemini CLI
 
-确认 target 尚不存在后，创建准确的 extension-directory symlink：
+手动设置时，确认 target 尚不存在，再复制一份 self-contained extension：
 
 ```sh
-mkdir -p ~/.gemini/extensions
-ln -s <adapter-root>/bundle/gemini ~/.gemini/extensions/orchbee-agent-observation
+mkdir -p ~/.gemini/extensions/orchbee-agent-observation
+cp -R <adapter-root>/bundle/gemini/. ~/.gemini/extensions/orchbee-agent-observation/
+cp -R <adapter-root>/bundle/scripts ~/.gemini/extensions/orchbee-agent-observation/scripts
 ```
 
-回滚时只移除该 symlink。Extension 会从相邻 bundle directory 导入 shared transport，因此应让完整
-adapter root 保留在原始路径。
+回滚时只移除这份准确 copied extension。本地 Settings 会原子发布并 fingerprint 同一套有界、
+self-contained layout；modified、expanded 或 unmarked directory 会作为 conflict 保持不动。
 
 ### GitHub Copilot CLI
 
@@ -132,15 +144,16 @@ local-install layout，并要求 Orchbee 准确 package marker；没有 marker �
 
 ### Qwen Code
 
-确认 target 尚不存在后，创建准确的 extension-directory symlink：
+手动设置时，确认 target 尚不存在，再复制一份 self-contained extension：
 
 ```sh
-mkdir -p ~/.qwen/extensions
-ln -s <adapter-root>/bundle/qwen-code ~/.qwen/extensions/orchbee-agent-observation
+mkdir -p ~/.qwen/extensions/orchbee-agent-observation
+cp -R <adapter-root>/bundle/qwen-code/. ~/.qwen/extensions/orchbee-agent-observation/
+cp -R <adapter-root>/bundle/scripts ~/.qwen/extensions/orchbee-agent-observation/scripts
 ```
 
-回滚时只移除该 symlink。Extension 会从相邻 bundle directory 导入 shared transport，因此应让完整
-adapter root 保留在原始路径。
+回滚时只移除这份准确 copied extension。本地 Settings 会原子发布并 fingerprint 同一套有界、
+self-contained layout；modified、expanded 或 unmarked directory 会作为 conflict 保持不动。
 
 ## 状态 fidelity
 
@@ -163,21 +176,33 @@ cancellation 用 `promptId` 限定 scope，避免延迟到达的 cancellation re
 ## 安全与失败边界
 
 Desktop 只通过非持久化 terminal environment overlay 注入
-`ORCHBEE_AGENT_OBSERVATION_SOCKET`。Transport 前，每个 entry 只选择有界的 event、session、Turn、
+`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`。Transport 前，每个 entry 只选择有界的 event、session、Turn、
 tool-operation 与 subagent identifier，并丢弃 prompt、question、tool input/output、transcript path、
 working directory、error text、notification text 与未知字段。Rich half 发往同用户 private Unix-domain
-socket；另一个不含内容的 OSC 777 correlation half 会直接写入每个解析出的 outer TTY。Desktop
-只会在 adapter 发现至少一个已准入的 local 或 reverse-forwarded socket candidate 后写入该
-correlation half；没有 candidate 时，adapter 不会写入 terminal control sequence。Desktop 要求对
-live terminal generation 完成精确 event/correlation join，因此任一 half 都不能单独关联并授权 rich
-state。
+socket。Local process 只使用 environment 中的准确 endpoint；只有没有该 overlay 的 remote process
+才发现 same-user forwarded candidate，并且 discovery 要求继承的 `SSH_CONNECTION`、`SSH_CLIENT` 或
+`SSH_TTY` marker 至少一个非空。没有准确 overlay 的普通 local terminal 不执行 socket scan。只有
+endpoint 返回准确、有界的 v3 acceptance ACK 后，adapter
+才会把一份不含内容的 private APC correlation half 直接写入每个解析出的 outer TTY。没有准确 ACK 时，
+adapter 不写 terminal control sequence。Desktop 要求对 live terminal generation 完成精确
+event/correlation join，因此任一 half 都不能单独关联并授权 rich state；发送到另一个 live instance 的
+unmatched envelope 会到期，不产生 canonical effect。
+每个 TTY candidate 都必须是 `/dev` 下经过词法规范化的路径；writer 以 nonblocking、禁止跟随
+symlink 的方式打开它，验证它是 character device，并且除 kernel-owned `/dev/tty` alias 外要求
+same-user ownership。Resolver 无法把 hint 重定向到 regular file 或其他用户的 terminal。
 
 Shared resolver 支持 direct terminal、每个 attached tmux client、保守的 Zellij client visibility 与
-nested mux environment。显式 source 的 Orchbee shell integration 可以增加随机 mode-`0600` remote
-Unix socket，再由 OpenSSH reverse-forward 到 Desktop。这里没有 HTTP listener、TCP port、Bearer
+nested mux environment。只有 attached mux client 正在显示另一个 pane 时，它才断言 `hidden`；direct
+route 与 active-pane route 保持 `unknown`，因为 hook 无法证明 application-window visibility。
+Workbench 会把这份 mux evidence 与自己当前的 Tab/Panel view 合并。显式 source 的 Orchbee shell
+integration 可以增加随机 mode-`0600` remote Unix socket，再由 OpenSSH reverse-forward 到 Desktop。
+这里没有 HTTP listener、TCP port、Bearer
 token、继承的 terminal secret、自动 remote installation 或 durable remote cache。每个 adapter 都是
 passive 的，不写 shell output，并会在配置缺失、input 无效、timeout、resolver failure 或 listener
-failure 时 fail open。
+failure 时 fail open。持久化 command hook 会先检查 Node 与可读 runtime；其中任一个消失时仍始终
+成功退出。Orchbee 从不把 OSC 9、OSC 777、OSC 99、OSC 1337、BEL 或 provider notification hook
+作为 correlation channel，因此 Warp 等无关 terminal 不会把 observation 变成用户可见的 notification
+popup。
 
 ## 验证
 

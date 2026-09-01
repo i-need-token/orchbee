@@ -23,9 +23,10 @@ export const zhCNAgentIntegrationMessages = {
 	'agent.integrations.remoteDescription':
 		'远端主机始终只能手动配置。请在 Agent 实际运行的主机执行经过审阅的设置命令；Orchbee 永远不会复制文件或修改远端配置。',
 	'agent.integrations.remoteTitle': '远端主机保持手动配置',
-	'agent.integrations.reminder.body': '你已运行 {agent}，但尚未开启它的 Orchbee 状态集成。',
+	'agent.integrations.reminder.body':
+		'Orchbee 已识别到 {agent}。查看集成设置即可开启更丰富的状态。',
 	'agent.integrations.reminder.dismiss': '关闭 {agent} 集成提醒',
-	'agent.integrations.reminder.enable': '开启集成',
+	'agent.integrations.reminder.openSettings': '打开集成设置',
 	'agent.integrations.reminder.title': '显示更丰富的 Agent 状态',
 	'agent.integrations.status.conflict': '存在冲突',
 	'agent.integrations.status.disabled': '已关闭',
@@ -34,6 +35,7 @@ export const zhCNAgentIntegrationMessages = {
 	'agent.integrations.status.manualOnly': '手动设置',
 	'agent.integrations.status.notFound': '未找到 Agent',
 	'agent.integrations.status.notInstalled': '未开启',
+	'agent.integrations.status.updateRequired': '集成需要更新',
 	'agent.integrations.status.unknown': '未知',
 	'agent.integrations.title': 'Agent 集成',
 	'agent.integrations.toggle.label': '{agent} 集成',

@@ -1,3 +1,7 @@
+import { spawnSync } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer, type Socket } from 'node:net';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -34,7 +38,7 @@ describe('Agent observation adapter resources', () => {
 
 		await transport.forwardSanitizedObservation('claude-code', observation, {
 			allocateIdentity: () => `identity_${String(++identity).padStart(16, '0')}`,
-			discoverSockets: async () => ['/tmp/orchbee-agent-v2-forwarded.sock'],
+			discoverSockets: async () => ['/tmp/orchbee-agent-v3-forwarded.sock'],
 			environment: {},
 			resolveTargets: async () => [
 				{ tty: '/dev/pts/4', visibility: 'hidden' },
@@ -42,6 +46,7 @@ describe('Agent observation adapter resources', () => {
 			],
 			sendEnvelope: async (_socketPath: string, envelope: unknown) => {
 				envelopes.push(envelope);
+				return true;
 			},
 			writeHint: async (tty: string, hint: unknown) => {
 				hints.push({ hint, tty });
@@ -51,21 +56,19 @@ describe('Agent observation adapter resources', () => {
 		expect(hints).toEqual([
 			{
 				hint: {
-					activity: 'command',
 					correlationId: 'identity_0000000000000002',
 					eventId: 'identity_0000000000000001',
-					version: 2,
-					visibility: 'hidden',
+					kind: 'correlation',
+					version: 3,
 				},
 				tty: '/dev/pts/4',
 			},
 			{
 				hint: {
-					activity: 'command',
 					correlationId: 'identity_0000000000000003',
 					eventId: 'identity_0000000000000001',
-					version: 2,
-					visibility: 'visible',
+					kind: 'correlation',
+					version: 3,
 				},
 				tty: '/dev/pts/7',
 			},
@@ -73,7 +76,10 @@ describe('Agent observation adapter resources', () => {
 		expect(envelopes).toEqual([
 			{
 				adapterId: 'claude-code',
-				correlationIds: ['identity_0000000000000002', 'identity_0000000000000003'],
+				correlations: [
+					{ correlationId: 'identity_0000000000000002', visibility: 'hidden' },
+					{ correlationId: 'identity_0000000000000003', visibility: 'visible' },
+				],
 				eventId: 'identity_0000000000000001',
 				observation: {
 					activity: 'command',
@@ -84,7 +90,7 @@ describe('Agent observation adapter resources', () => {
 					turnKey: null,
 					version: 1,
 				},
-				version: 2,
+				version: 3,
 			},
 		]);
 		const serialized = JSON.stringify({ envelopes, hints });
@@ -121,6 +127,146 @@ describe('Agent observation adapter resources', () => {
 
 		expect(resolveTargets).not.toHaveBeenCalled();
 		expect(writeHint).not.toHaveBeenCalled();
+	});
+
+	it('uses only the environment-addressed socket for a local Agent process', async () => {
+		const transport = await import(transportUrl);
+		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-local-socket-'));
+		const socketPath = path.join(directory, 'exact.sock');
+		const server = createServer();
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(socketPath, resolve);
+		});
+		try {
+			await expect(
+				transport.discoverObservationSockets({
+					ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: socketPath,
+				}),
+			).resolves.toEqual([socketPath]);
+			await expect(
+				transport.discoverObservationSockets({
+					ORCHBEE_AGENT_OBSERVATION_SOCKET_V3: path.join(directory, 'missing.sock'),
+				}),
+			).resolves.toEqual([]);
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+			await rm(directory, { force: true, recursive: true });
+		}
+	});
+
+	it('discovers forwarded candidates only from an explicit remote SSH environment', async () => {
+		const transport = await import(transportUrl);
+		const socketPath = path.join('/tmp', `orchbee-agent-v3-test_${process.pid}_${Date.now()}.sock`);
+		const server = createServer();
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(socketPath, resolve);
+		});
+		try {
+			await expect(
+				transport.discoverObservationSockets({ TERM_PROGRAM: 'WarpTerminal' }),
+			).resolves.toEqual([]);
+			await expect(
+				transport.discoverObservationSockets({
+					SSH_CONNECTION: '192.0.2.10 50000 192.0.2.20 22',
+				}),
+			).resolves.toContain(socketPath);
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+			await rm(socketPath, { force: true });
+		}
+	});
+
+	it('writes terminal hints once only after at least one endpoint returns the exact v3 ACK', async () => {
+		const transport = await import(transportUrl);
+		const writeHint = vi.fn<() => void>();
+		const sendEnvelope = vi.fn<(socketPath: string) => Promise<boolean>>(async (socketPath) =>
+			socketPath.endsWith('accepted.sock'),
+		);
+		const options = {
+			discoverSockets: async () => ['/tmp/rejected.sock', '/tmp/accepted.sock'],
+			environment: {},
+			resolveTargets: async () => [
+				{ tty: '/dev/ttys001', visibility: 'visible' },
+				{ tty: '/dev/ttys002', visibility: 'hidden' },
+			],
+			sendEnvelope,
+			writeHint,
+		};
+
+		await transport.forwardSanitizedObservation('codex', normalizedObservation(), options);
+
+		expect(sendEnvelope).toHaveBeenCalledTimes(2);
+		expect(writeHint).toHaveBeenCalledTimes(2);
+		writeHint.mockClear();
+		sendEnvelope.mockResolvedValue(false);
+
+		await transport.forwardSanitizedObservation('codex', normalizedObservation(), options);
+
+		expect(writeHint).not.toHaveBeenCalled();
+	});
+
+	it('accepts only the exact complete v3 socket acknowledgement', async () => {
+		const transport = await import(transportUrl);
+		const send = transport.sendObservationEnvelope as (
+			socketPath: string,
+			envelope: unknown,
+		) => Promise<boolean>;
+
+		await expect(
+			withAckServer((socket) => socket.end('{"accepted":true,"version":3}\n'), send),
+		).resolves.toBe(true);
+		await expect(
+			withAckServer((socket) => {
+				socket.write('{"accepted":');
+				socket.end('true,"version":3}\n');
+			}, send),
+		).resolves.toBe(true);
+		await expect(withAckServer((socket) => socket.end('{"accepted":true'), send)).resolves.toBe(
+			false,
+		);
+		await expect(
+			withAckServer((socket) => socket.end('{"accepted":true,"version":3}\nextra'), send),
+		).resolves.toBe(false);
+		await expect(withAckServer((socket) => socket.destroy(), send)).resolves.toBe(false);
+		await expect(withAckServer(() => undefined, send)).resolves.toBe(false);
+	});
+
+	it('keeps every persisted command-hook entry silent when the runtime or Capsule script is absent', async () => {
+		const hookFiles = [
+			'hooks/hooks.json',
+			'hooks/codex.json',
+			'hooks/grok.json',
+			'hooks/copilot.json',
+			'gemini/hooks/hooks.json',
+			'qwen-code/hooks/hooks.json',
+		];
+		for (const relativePath of hookFiles) {
+			const value: unknown = JSON.parse(
+				await readFile(path.join(resourceRoot, relativePath), 'utf8'),
+			);
+			for (const hook of commandHooks(value)) {
+				for (const [scenario, environment] of [
+					['runtime-absent', { PATH: '/definitely/missing' }],
+					['capsule-script-absent', process.env],
+				] as const) {
+					const invocation = guardedInvocation(hook);
+					const result = spawnSync(invocation.command, invocation.arguments, {
+						env: environment,
+						input: '{"private":"content"}',
+						timeout: 1000,
+					});
+					const label = `${relativePath}:${scenario}`;
+					expect({
+						label,
+						status: result.status,
+						stderrBytes: result.stderr.length,
+						stdoutBytes: result.stdout.length,
+					}).toEqual({ label, status: 0, stderrBytes: 0, stdoutBytes: 0 });
+				}
+			}
+		}
 	});
 
 	it('maps Codex and Grok through separate content-free wire contracts', async () => {
@@ -491,12 +637,12 @@ describe('Agent observation adapter resources', () => {
 		const transport = await import(transportUrl);
 		expect(
 			transport.parseTmuxClientOutput(
-				'/dev/pts/4\twork\t%7\n/dev/pts/8\twork\t%2\n/dev/pts/9\tother\t%7\n',
+				'/dev/pts/4\twork\t%7\n/dev/pts/8\twork\t%2\n/dev/pts/9\tother\t%7\n/dev/../tmp/victim\twork\t%7\n',
 				'work',
 				'%7',
 			),
 		).toEqual([
-			{ tty: '/dev/pts/4', visibility: 'visible' },
+			{ tty: '/dev/pts/4', visibility: 'unknown' },
 			{ tty: '/dev/pts/8', visibility: 'hidden' },
 		]);
 		expect(
@@ -509,18 +655,18 @@ describe('Agent observation adapter resources', () => {
 		]);
 		expect(
 			transport.parseZellijClientProcesses(
-				'501 100 pts/4 zellij a work\n501 101 pts/8 /usr/local/bin/zellij attach work\n502 102 pts/9 zellij a work\n501 103 ?? zellij --server work\n',
+				'501 100 pts/4 zellij a work\n501 101 pts/8 /usr/local/bin/zellij attach work\n502 102 pts/9 zellij a work\n501 103 pts/10 zellij --server work\n501 104 pts/11 zellij attach other --cwd work\n501 105 pts/12 zellij --session=work\n',
 				501,
 				'work',
 			),
-		).toEqual(['/dev/pts/4', '/dev/pts/8']);
+		).toEqual(['/dev/pts/4', '/dev/pts/8', '/dev/pts/12']);
 	});
 
 	it('resolves direct, tmux, and Zellij client TTYs without mux passthrough', async () => {
 		const transport = await import(transportUrl);
 		const userId = process.getuid?.() ?? 501;
 		await expect(transport.resolveObservationTargets({ SSH_TTY: '/dev/pts/2' })).resolves.toEqual([
-			{ tty: '/dev/pts/2', visibility: 'visible' },
+			{ tty: '/dev/pts/2', visibility: 'unknown' },
 		]);
 		await expect(
 			transport.resolveObservationTargets(
@@ -533,7 +679,7 @@ describe('Agent observation adapter resources', () => {
 				},
 			),
 		).resolves.toEqual([
-			{ tty: '/dev/pts/4', visibility: 'visible' },
+			{ tty: '/dev/pts/4', visibility: 'unknown' },
 			{ tty: '/dev/pts/8', visibility: 'hidden' },
 		]);
 		await expect(
@@ -609,6 +755,42 @@ function resourceUrl(relativePath: string): string {
 	return pathToFileURL(path.join(resourceRoot, relativePath)).href;
 }
 
+interface CommandHook {
+	readonly args?: readonly string[];
+	readonly command: string;
+}
+
+function commandHooks(value: unknown): CommandHook[] {
+	if (Array.isArray(value)) return value.flatMap(commandHooks);
+	if (typeof value !== 'object' || value === null) return [];
+	const record = value as Record<string, unknown>;
+	const own =
+		typeof record['command'] === 'string'
+			? [
+					{
+						...(Array.isArray(record['args']) &&
+						record['args'].every((argument) => typeof argument === 'string')
+							? { args: record['args'] as string[] }
+							: {}),
+						command: record['command'],
+					},
+				]
+			: [];
+	return [...own, ...Object.values(record).flatMap(commandHooks)];
+}
+
+function guardedInvocation(hook: CommandHook): {
+	readonly arguments: readonly string[];
+	readonly command: string;
+} {
+	const replaceRoot = (value: string): string =>
+		value.replace(/\$\{[^}]+\}/gu, '/definitely/missing');
+	if (hook.args !== undefined) {
+		return { arguments: hook.args.map(replaceRoot), command: hook.command };
+	}
+	return { arguments: ['-c', replaceRoot(hook.command)], command: '/bin/sh' };
+}
+
 function captureObservations(target: unknown[]): (observation: unknown) => void {
 	return (observation) => target.push(observation);
 }
@@ -623,4 +805,42 @@ function clineCompletion(conversationId: string, runId: string) {
 
 function clineStart(conversationId: string, runId: string) {
 	return { snapshot: { conversationId, runId }, type: 'run-started' };
+}
+
+function normalizedObservation(): Record<string, unknown> {
+	return {
+		activity: null,
+		agentKey: null,
+		event: 'session-started',
+		operationKey: null,
+		sessionKey: 'codex-session-1',
+		turnKey: null,
+		version: 1,
+	};
+}
+
+async function withAckServer(
+	respond: (socket: Socket) => void,
+	send: (socketPath: string, envelope: unknown) => Promise<boolean>,
+): Promise<boolean> {
+	const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-ack-'));
+	const socketPath = path.join(directory, 'ack.sock');
+	const connections = new Set<Socket>();
+	const server = createServer({ allowHalfOpen: true }, (socket) => {
+		connections.add(socket);
+		socket.once('close', () => connections.delete(socket));
+		socket.resume();
+		socket.once('end', () => respond(socket));
+	});
+	await new Promise<void>((resolve, reject) => {
+		server.once('error', reject);
+		server.listen(socketPath, resolve);
+	});
+	try {
+		return await send(socketPath, { version: 3 });
+	} finally {
+		for (const socket of connections) socket.destroy();
+		await new Promise<void>((resolve) => server.close(() => resolve()));
+		await rm(directory, { force: true, recursive: true });
+	}
 }

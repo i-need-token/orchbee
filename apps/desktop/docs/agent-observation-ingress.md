@@ -4,38 +4,58 @@
 
 Desktop Main owns the volatile join between one sanitized rich Agent-hook event and the bounded
 terminal correlation hints that identify its live presentations. The private Unix-socket half has
-semantic authority but no presentation authority; an OSC 777 version-2 hint has presentation
-authority for one live terminal generation but no semantic authority. Neither half alone may
-mutate canonical Agent state.
+semantic authority but no presentation authority; a private APC version-3 hint has presentation
+authority for one live terminal generation but no semantic authority. Visibility belongs to the
+trusted socket envelope, not the terminal half. Neither half alone may mutate canonical Agent
+state.
 
-This contract covers exact pairing, either arrival order, bounded settlement, duplicate handling,
-presentation-generation replacement, independent fan-out, expiry, and disposal. It does not change
-the wire contracts, provider event meanings, Agent reducer, Workbench projection, SSH forwarding,
-notification policy, persistence, or user-visible copy.
+This contract covers endpoint acceptance, exact pairing, either arrival order, bounded settlement,
+duplicate handling, presentation-generation replacement, independent fan-out, expiry, and disposal.
+It does not change provider event meanings, Agent reducer, Workbench projection, notification
+policy, persistence, or user-visible copy.
+
+## Transport admission
+
+Desktop creates one user-private Unix-domain endpoint and advertises only
+`ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`. A hook sends one strict, content-free v3 rich envelope and
+must receive exactly `{"accepted":true,"version":3}\n` before it may emit any terminal half. No
+endpoint, rejection, timeout, partial or extra ACK bytes, disconnect, and malformed input all stop
+silently. Desktop writes no ACK until schema validation and closed-registry admission succeed.
+
+The only terminal frame is `ESC _ orchbee.agent.v3;<base64url-payload> ESC \\`. Its decoded JSON
+contains only `kind`, `version`, opaque `eventId`, and opaque `correlationId`. It contains no provider,
+activity, visibility, path, hostname, mux identity, content, or notification copy. Public
+notification channels including OSC 9, OSC 777, OSC 99, and OSC 1337 are not observation transports.
+Adapters may write the private frame directly to resolved outer tmux and Zellij client TTYs after
+socket acceptance; no mux passthrough is required.
 
 ## Reference scope
 
-Herdr source revision `c2637dc1` was inspected on 2026-08-30 as design evidence. Orchbee adopts two
-limited principles: evidence may precede identity acquisition, and retained evidence is cleared
-only when its owner is actually replaced. Orchbee also follows the separation of passive evidence
-capture from deterministic transition decisions.
+The following local source revisions were inspected on 2026-08-31 as bounded design evidence:
 
-This is not a compatibility or replication claim. Herdr's screen/process detection, flat status,
+| Product          | Reviewed mechanism                                                                                                                                        | Orchbee decision                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Herdr `c2637dc1` | Foreground-process detection followed by one lifecycle-hook or live-screen authority; its own guide excludes agents launched inside an inner tmux session | Keep passive detection capability-free and separate evidence capture from deterministic transitions; do not infer exact nested-mux semantics from process or screen inspection |
+| Muxy `a5d276e1`  | A nonblocking Unix-socket hook client with a total execution budget, bounded retries, and an acknowledgement                                              | Adopt the private socket, exact ACK, and execution bounds; retain Orchbee's content-free terminal half and generation-fenced two-half join                                     |
+| tty7 `a2b5ae56`  | Provider hook diagnostics plus direct controlling-TTY delivery over OSC 777                                                                               | Adopt explicit missing/outdated integration diagnostics; reject its public OSC notification transport                                                                          |
+| Warp `086dade6`  | OSC 777 invokes the pluggable desktop-notification callback, while non-Kitty APC payloads are ignored by the reviewed parser                              | Treat this as concrete compatibility evidence for private APC and against OSC 777, not as a claim about every Warp or terminal version                                         |
+
+This is not a compatibility or replication claim. Competitor screen rules, payloads, flat status,
 terminal UI, provider lifecycle, and timing constants remain excluded. Orchbee's validated rich
 hook facts, exact two-half correlation, presentation generations, and canonical Agent runtime
 remain authoritative when the implementations differ.
 
 ## Inputs and trust boundaries
 
-| Input                     | Admission and absence semantics                                                                                                                                                                                                   |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rich hook event           | The socket boundary has enforced its body limit and strict schema, and the closed registry has granted provider provenance and accepted-event capability. Without a matching hint it remains pending and has no canonical effect. |
-| Terminal correlation hint | The terminal signal has passed its strict schema. The join admits it only for the exact current presentation generation. Without a matching rich event it remains pending and has no canonical effect.                            |
-| Presentation registration | Establishes the only generation later hints for that presentation may name. Replacement retires the previous generation first.                                                                                                    |
-| Presentation retirement   | Removes pending and canonical navigation membership for only the named presentation generation.                                                                                                                                   |
-| Settlement deadline       | Names the exact pending-event incarnation that scheduled it. A stale deadline, expired event, or event with no live match is a no-op.                                                                                             |
-| Expiry observation        | Logical time comes from the ingress. Expiry is evaluated before accepting either half and before settlement.                                                                                                                      |
-| Disposal                  | Cancels every deadline and clears noncanonical join state without publishing Agent or terminal state.                                                                                                                             |
+| Input                     | Admission and absence semantics                                                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rich hook event           | The socket boundary has enforced its body limit, strict v3 schema, trusted visibility, exact ACK, and closed-registry provider/event grant. Without a matching hint it remains pending and has no canonical effect. |
+| Terminal correlation hint | Terminal Host admitted the exact private APC prefix and bounded base64url UTF-8 payload; Desktop then applied the strict hint schema. The join admits it only for the exact current presentation generation.        |
+| Presentation registration | Establishes the only generation later hints for that presentation may name. Replacement retires the previous generation first.                                                                                      |
+| Presentation retirement   | Removes pending and canonical navigation membership for only the named presentation generation.                                                                                                                     |
+| Settlement deadline       | Names the exact pending-event incarnation that scheduled it. A stale deadline, expired event, or event with no live match is a no-op.                                                                               |
+| Expiry observation        | Logical time comes from the ingress. Expiry is evaluated before accepting either half and before settlement.                                                                                                        |
+| Disposal                  | Cancels every deadline and clears noncanonical join state without publishing Agent or terminal state.                                                                                                               |
 
 Provider payloads, prompts, tool content, transcript paths, paths, error text, and terminal screen
 text never enter this state machine.
@@ -50,13 +70,13 @@ The state machine has no socket, clock, timer, Agent runtime, or renderer depend
 validated inputs and logical time, then returns commands. `AgentHookObservationIngress` owns the
 mechanisms that execute them:
 
-| Command              | Effect owner and result                                                                            |
-| -------------------- | -------------------------------------------------------------------------------------------------- |
-| Schedule settlement  | Ingress creates one timer keyed by event identity and expiry incarnation.                          |
-| Cancel settlement    | Ingress clears only the timer with that exact identity and incarnation.                            |
-| Apply observation    | Ingress dispatches the rich event once with all currently matched attachments.                     |
-| Attach presentations | Ingress adds late matches to an already applied live Session without replaying its semantic event. |
-| Retire generation    | Ingress detaches that exact generation from every canonical Agent Session.                         |
+| Command              | Effect owner and result                                                                                                                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schedule settlement  | Ingress creates one timer keyed by event identity and expiry incarnation.                                                                                                                                              |
+| Cancel settlement    | Ingress clears only the timer with that exact identity and incarnation.                                                                                                                                                |
+| Apply observation    | Ingress dispatches the rich event once with all currently matched attachments; the Desktop runtime first retires exact same-provider passive presence for those presentation generations without a semantic end event. |
+| Attach presentations | Ingress adds late matches to an already applied live Session without replaying its semantic event.                                                                                                                     |
+| Retire generation    | Ingress detaches that exact generation from every canonical Agent Session.                                                                                                                                             |
 
 Command execution does not feed hidden success back into the join. An Agent runtime rejection is
 therefore still a consumed observation, preserving the existing at-most-once contract.
@@ -95,9 +115,11 @@ therefore still a consumed observation, preserving the existing at-most-once con
 | Hint expiry            | Expiry reached                                                        | Remove unmatched hint                                                                       | None                                              |
 | Dispose                | Any state                                                             | Clear all noncanonical facts                                                                | Ingress cancels every timer                       |
 
-Visibility merging is conservative: `hidden` dominates, two `visible` hints remain `visible`, and
-every other combination is `unknown`. Multiple correlations for one presentation generation
-therefore produce one attachment.
+Visibility merging uses only the socket-declared value: `hidden` dominates, two `visible` values
+remain `visible`, and every other combination is `unknown`. The APC cannot change visibility.
+Multiple correlations for one presentation generation therefore produce one attachment. The
+packaged resolver declares `hidden` only from positive inner-mux evidence and otherwise declares
+`unknown`; Workbench owns the final combination with current application Tab and Panel visibility.
 
 ## Bounds and timing
 
@@ -110,6 +132,16 @@ publish an expired event.
 These bounds do not claim delivery after Desktop restart, delivery while every SSH attachment is
 disconnected, unbounded replay protection, provider termination, or wall-clock liveness.
 
+The socket accepts at most 64 concurrent connections, 16 KiB per body, and 500 milliseconds per
+connection. A local Agent process that inherits `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3` may use only
+that exact owned socket; a stale or malformed explicit path does not fall through to another
+Desktop instance. Only a remote process without the overlay scans at most 32 same-user forwarded
+socket candidates, and that scan requires a non-empty inherited `SSH_CONNECTION`, `SSH_CLIENT`, or
+`SSH_TTY` marker. An ordinary local terminal without the exact overlay performs no socket scan.
+Each connection and outer-TTY resolver is bounded to 250 milliseconds. ACK
+establishes only envelope admission, not terminal delivery, correlation, semantic application, or
+notification; an accepted envelope without a matching APC expires with no canonical effect.
+
 ## Verification and traceability
 
 | Claim                                   | Executable evidence                                                                                                    | Limits                                   |
@@ -119,6 +151,7 @@ disconnected, unbounded replay protection, provider termination, or wall-clock l
 | Generation fencing and local retirement | Replacement regressions; properties `MatchedPresentationNeverChangesGeneration` and `RetirementIsPresentationLocal`    | Two presentations and generations in TLC |
 | Expiry, stale deadline, and disposal    | Logical-time and delayed-timer regressions; properties `ExpiredOrDisposedCannotApply` and `StaleDeadlineCannotApply`   | Bounded logical time; no progress claim  |
 | Fail-closed collision and capacity      | State-machine boundary tests and strict ingress tests                                                                  | Documented same-user trust assumption    |
+| ACK-before-APC and private framing      | Adapter socket fixtures plus Terminal Host APC/OSC negative tests                                                      | Reviewed terminal and mux versions only  |
 
 Run Desktop unit tests, the registered `desktop-agent-observation-join` TLA+ check, and the root
 merge gate after changes to this contract or implementation.

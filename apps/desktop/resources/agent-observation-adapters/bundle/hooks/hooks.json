@@ -5,8 +5,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -17,8 +23,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -30,8 +42,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -43,8 +61,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -56,8 +80,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -69,8 +99,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -81,8 +117,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -93,8 +135,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -106,8 +154,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -119,8 +173,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -131,8 +191,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -143,8 +209,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]
@@ -155,8 +227,14 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "node",
-						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"command": "/bin/sh",
+						"args": [
+							"-c",
+							"command -v node >/dev/null 2>&1 && [ -r \"$1\" ] && node \"$1\" \"$2\" >/dev/null 2>&1 || :",
+							"orchbee-agent-observation",
+							"${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs",
+							"claude-code"
+						],
 						"timeout": 2
 					}
 				]

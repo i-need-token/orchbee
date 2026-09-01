@@ -41,10 +41,10 @@ describe('CliAgentIntegrationAdapter', () => {
 			disable: enable,
 			enable,
 			executableName: 'codex',
-			inspectArguments: ['plugin', 'list'],
+			inspect: async () => 'not-installed',
 			integrationId: 'codex',
+			legacyResourceRoots: [],
 			managementMode: 'manual-only',
-			parseState: () => 'not-installed',
 			resourceRoot: '/resource',
 		});
 
@@ -59,10 +59,13 @@ function createAdapter(runner: AgentIntegrationCommandRunner): CliAgentIntegrati
 		disable: async () => ({ kind: 'attempted' }),
 		enable: async () => ({ kind: 'attempted' }),
 		executableName: 'codex',
-		inspectArguments: ['plugin', 'list'],
+		inspect: async (context) => {
+			const result = await context.commandRunner.run(context.executablePath, ['plugin', 'list']);
+			return result.kind === 'completed' && result.stdout === 'enabled' ? 'enabled' : null;
+		},
 		integrationId: 'codex',
+		legacyResourceRoots: [],
 		managementMode: 'managed-local',
-		parseState: (stdout) => (stdout === 'enabled' ? 'enabled' : null),
 		resourceRoot: '/resource',
 	});
 }

@@ -90,15 +90,57 @@ describe('ClineAgentIntegrationAdapter', () => {
 			await rm(root, { force: true, recursive: true });
 		}
 	});
+
+	it('classifies an older owned contract as update-required and replaces it only on enable', async () => {
+		const root = await mkdtemp(path.join(tmpdir(), 'orchbee-cline-integration-'));
+		try {
+			const homeDirectory = path.join(root, 'home');
+			const resourceRoot = path.join(root, 'resources');
+			await writeManagedPackage(path.join(resourceRoot, 'bundle'));
+			const installedPackage = path.join(
+				homeDirectory,
+				'.cline',
+				'plugins',
+				'_installed',
+				'local',
+				'bundle-old',
+				'package',
+			);
+			await writeManagedPackage(installedPackage, 1);
+			await mkdir(path.join(installedPackage, 'cline'), { recursive: true });
+			await writeFile(
+				path.join(installedPackage, 'cline', 'orchbee-agent-observation.js'),
+				'export default {};',
+				'utf8',
+			);
+			const runner = new RecordingRunner();
+			const adapter = new ClineAgentIntegrationAdapter({
+				commandRunner: runner,
+				homeDirectory,
+				managementMode: 'managed-local',
+				resourceRoot,
+			});
+
+			await expect(adapter.inspect()).resolves.toMatchObject({ state: 'update-required' });
+			expect(runner.commands).toEqual([]);
+			await expect(adapter.enable()).resolves.toEqual({ kind: 'attempted' });
+			expect(runner.commands).toEqual([
+				['plugin', 'uninstall', 'orchbee-agent-observation', '--json'],
+				['plugin', 'install', path.join(resourceRoot, 'bundle'), '--json'],
+			]);
+		} finally {
+			await rm(root, { force: true, recursive: true });
+		}
+	});
 });
 
-async function writeManagedPackage(packageRoot: string): Promise<void> {
+async function writeManagedPackage(packageRoot: string, contractVersion = 3): Promise<void> {
 	await mkdir(packageRoot, { recursive: true });
 	await writeFile(
 		path.join(packageRoot, 'package.json'),
 		JSON.stringify({
 			name: 'orchbee-agent-observation',
-			orchbeeAgentObservation: { contractVersion: 1 },
+			orchbeeAgentObservation: { contractVersion },
 		}),
 		'utf8',
 	);

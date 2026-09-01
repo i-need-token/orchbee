@@ -15,6 +15,9 @@ describe('isAgentIntegrationReminderEligible', () => {
 	it('accepts only actionable local integrations with a trustworthy inspection', () => {
 		expect(isAgentIntegrationReminderEligible(integration)).toBe(true);
 		expect(isAgentIntegrationReminderEligible({ ...integration, state: 'disabled' })).toBe(true);
+		expect(isAgentIntegrationReminderEligible({ ...integration, state: 'update-required' })).toBe(
+			true,
+		);
 		expect(isAgentIntegrationReminderEligible({ ...integration, state: 'enabled' })).toBe(false);
 		expect(
 			isAgentIntegrationReminderEligible({ ...integration, managementMode: 'manual-only' }),

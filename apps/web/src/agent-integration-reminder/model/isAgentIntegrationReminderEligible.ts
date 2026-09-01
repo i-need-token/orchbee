@@ -7,6 +7,8 @@ export function isAgentIntegrationReminderEligible(
 		integration.availability === 'available' &&
 		integration.issue === null &&
 		integration.managementMode === 'managed-local' &&
-		(integration.state === 'disabled' || integration.state === 'not-installed')
+		(integration.state === 'disabled' ||
+			integration.state === 'not-installed' ||
+			integration.state === 'update-required')
 	);
 }

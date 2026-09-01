@@ -19,24 +19,24 @@ __orchbee_read_latest_history() {
 }
 
 __orchbee_agent_integration_launch() {
-	local command_line=$1 command_word executable integration_id
+	local command_line=$1 command_word executable payload
 	command_word=${command_line%%[[:space:];|&]*}
 	executable=${command_word##*/}
 	case $executable in
-		claude) integration_id=claude-code ;;
-		codex) integration_id=codex ;;
-		grok) integration_id=grok ;;
-		opencode) integration_id=opencode ;;
-		pi) integration_id=pi ;;
-		omp) integration_id=omp ;;
-		gemini) integration_id=gemini ;;
-		copilot) integration_id=github-copilot ;;
-		cline) integration_id=cline ;;
-		qwen) integration_id=qwen-code ;;
+		claude) payload=eyJpbnRlZ3JhdGlvbklkIjoiY2xhdWRlLWNvZGUiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30 ;;
+		codex) payload=eyJpbnRlZ3JhdGlvbklkIjoiY29kZXgiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30 ;;
+		grok) payload=eyJpbnRlZ3JhdGlvbklkIjoiZ3JvayIsImtpbmQiOiJsYXVuY2giLCJ2ZXJzaW9uIjozfQ ;;
+		opencode) payload=eyJpbnRlZ3JhdGlvbklkIjoib3BlbmNvZGUiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30 ;;
+		pi) payload=eyJpbnRlZ3JhdGlvbklkIjoicGkiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30 ;;
+		omp) payload=eyJpbnRlZ3JhdGlvbklkIjoib21wIiwia2luZCI6ImxhdW5jaCIsInZlcnNpb24iOjN9 ;;
+		gemini) payload=eyJpbnRlZ3JhdGlvbklkIjoiZ2VtaW5pIiwia2luZCI6ImxhdW5jaCIsInZlcnNpb24iOjN9 ;;
+		copilot) payload=eyJpbnRlZ3JhdGlvbklkIjoiZ2l0aHViLWNvcGlsb3QiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30 ;;
+		cline) payload=eyJpbnRlZ3JhdGlvbklkIjoiY2xpbmUiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30 ;;
+		qwen) payload=eyJpbnRlZ3JhdGlvbklkIjoicXdlbi1jb2RlIiwia2luZCI6ImxhdW5jaCIsInZlcnNpb24iOjN9 ;;
 		*) return 0 ;;
 	esac
 	[[ $(type -t -- "$command_word") == file ]] || return 0
-	printf '\033]777;notify;orchbee.agent.v1;{"integrationId":"%s","version":3}\033\\' "$integration_id"
+	printf '\033_orchbee.agent.v3;%s\033\\' "$payload"
 }
 
 __orchbee_preexec() {
@@ -80,7 +80,7 @@ case $(declare -p PROMPT_COMMAND 2>/dev/null) in
 esac
 
 __orchbee_ssh_observation_eligible() {
-	[[ -n ${ORCHBEE_AGENT_OBSERVATION_SOCKET-} && -S ${ORCHBEE_AGENT_OBSERVATION_SOCKET-} && -t 0 && -t 1 ]] || return 1
+	[[ -n ${ORCHBEE_AGENT_OBSERVATION_SOCKET_V3-} && -S ${ORCHBEE_AGENT_OBSERVATION_SOCKET_V3-} && -t 0 && -t 1 ]] || return 1
 	local argument
 	for argument in "$@"; do
 		case $argument in
@@ -109,11 +109,11 @@ if [[ $(type -t ssh 2>/dev/null) == file ]]; then
 			return $?
 		fi
 		__orchbee_ssh_observation_nonce
-		local remote_socket="/tmp/orchbee-agent-v2-${REPLY}.sock"
+		local remote_socket="/tmp/orchbee-agent-v3-${REPLY}.sock"
 		command ssh \
 			-o StreamLocalBindMask=0177 \
 			-o StreamLocalBindUnlink=yes \
-			-R "${remote_socket}:${ORCHBEE_AGENT_OBSERVATION_SOCKET}" \
+			-R "${remote_socket}:${ORCHBEE_AGENT_OBSERVATION_SOCKET_V3}" \
 			"$@"
 	}
 fi

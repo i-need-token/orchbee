@@ -250,12 +250,13 @@ entry 使用由 snapshot 控制的 switch。一次 switch 变更只发送一个�
 或不可用的本地 Agent 都不能开启。Remote host 会明确说明只能手动设置；renderer 绝不写入 terminal
 input 或尝试远端设置。
 
-只有在 Desktop 观察到一次直接本地 launch，并且对应 entry 在本地可用、为 `managed-local`、没有 issue
-且 state 为 `not-installed` 或 `disabled` 时，位于右下角、紧凑且视觉低干扰的 reminder 才生效。候选
-按首次观察到的 eligible launch 顺序选择，controller 每个 application session 最多 offer 一次
-reminder。渲染不执行 integration mutation。**开启集成**会针对该 Agent 精确发送一次显式 enable
-request；management busy 时按钮会被禁用，验证成功后 reminder 消失，失败后仍可重试。显式关闭会把
-一个 Agent ID 写入严格且有界的 `orchbee:web:agent-integration-reminders:v1` record。设置中的关闭会在
+只有在 shell integration 发出准确 direct-local launch hint，且 Main 的 lazy inspection 发现对应 entry
+在本地可用、为 `managed-local`、没有 issue，并处于 `not-installed`、`disabled` 或
+`update-required` state 时，位于右下角、紧凑且视觉低干扰的 reminder 才生效。候选按首次观察到的
+eligible launch 顺序选择，controller 每个 application session 最多 offer 一次 reminder。渲染不执行
+integration mutation。**打开集成设置**会隐藏当前 reminder，并直接打开 Settings 的 Agent 集成；只有
+随后显式操作 switch 才能修改 provider configuration。显式关闭会把一个 Agent ID 写入严格且有界的
+`orchbee:web:agent-integration-reminders:v1` record。设置中的关闭会在
 请求 Main 前记录同一 dismissal；经过验证的成功开启会移除它。缺失或无效 storage 会回退为空
 dismissal；写入失败仍会保留当前 session 行为。Alias、function、wrapper、remote Agent，以及没有
 Orchbee shell integration 的 terminal 都不会触发它。
@@ -304,7 +305,7 @@ contract 位于 [Desktop SSH Environment 连接指南](../../desktop/docs/ssh-en
 
 该命令不包含用户插值，并在一个子 shell 内运行其帮助程序和临时值。它仅读取环境值，打印最多 128 个与保守的显示安全字符集匹配的字符的值，检查 `command -v infocmp` 并评估 `command infocmp` 的退出状态。不安全或过大的值会收到稳定的标记，而不是作为潜在的终端控制输入进行回显。它不会调用 SSH、访问网络、安装 terminfo、创建目录、读取配置文件、写入远程状态或在用户的交互式 shell 中留下帮助程序函数。设置不执行或粘贴命令；只读字段使用正常的文本选择，因此用户仍然负责选择在何处以及是否运行它。
 
-只有在 `ssh` 仍是 file、没有更早的 alias 或 function 拥有该名称、存在私有 local Agent-observation socket，且 stdin 与 stdout 都是交互式 terminal 时，显式 source 的 shell integration 才会定义 `ssh` wrapper。Configuration、control、仅转发与 version/query mode 保持不变。符合条件的调用会保留全部用户参数，只增加 `StreamLocalBindMask=0177`、`StreamLocalBindUnlink=yes`，以及从远端随机 `/tmp/orchbee-agent-v2-*.sock` 到 local Desktop socket 的 reverse Unix-socket forward。OpenSSH authentication、显式参数与用户配置仍然是最终依据。Orchbee 不添加 `SendEnv` rule、不持久化 host 或 credential、不安装 remote file，也不维护 remote cache。标准请求的 SSH PTY 仍根据 OpenSSH 行为携带 TERM。OSC 7 hostname、process title 与 terminal output 不是 remote-identity authority。
+只有在 `ssh` 仍是 file、没有更早的 alias 或 function 拥有该名称、存在私有 local Agent-observation socket，且 stdin 与 stdout 都是交互式 terminal 时，显式 source 的 shell integration 才会定义 `ssh` wrapper。Configuration、control、仅转发与 version/query mode 保持不变。符合条件的调用会保留全部用户参数，只增加 `StreamLocalBindMask=0177`、`StreamLocalBindUnlink=yes`，以及从远端随机 `/tmp/orchbee-agent-v3-*.sock` 到 local Desktop socket 的 reverse Unix-socket forward。OpenSSH authentication、显式参数与用户配置仍然是最终依据。Orchbee 不添加 `SendEnv` rule、不持久化 host 或 credential、不安装 remote file，也不维护 remote cache。标准请求的 SSH PTY 仍根据 OpenSSH 行为携带 TERM。OSC 7 hostname、process title 与 terminal output 不是 remote-identity authority。
 
 ## Shell 集成与完成提醒
 
@@ -321,7 +322,7 @@ Shell 的正常启动路径，再 source 共享集成。不受支持的形式保
 加载也绝不改变运行中或恢复的终端、Windows 终端、远程连接或用户启动文件。Terminal Host 只投影
 最新的正序列、持续时间、完成时间戳和标准化退出代码。
 
-对于显式安装的 Agent observation adapter，shell integration 还会启用上文所述、符合条件的 SSH reverse-socket path；remote adapter 会把有界 OSC 777 correlation hint 直接写到解析出的 direct、tmux、Zellij 或 nested-mux outer TTY。Terminal Host 只投影有界 semantic signal。
+对于显式安装的 Agent observation adapter，shell integration 还会启用上文所述、符合条件的 SSH reverse-socket path。Local 或 reverse-forwarded v3 socket 返回准确 acceptance ACK 后，remote adapter 会把有界 private-APC correlation hint 直接写到解析出的 direct、tmux、Zellij 或 nested-mux outer TTY。Terminal Host 只投影有界 application signal。OSC 9、OSC 777、OSC 99、OSC 1337、BEL 与 provider notification hook 不用作 Agent-observation correlation channel。
 
 Terminal feedback 使用单独的密钥 `orchbee:web:terminal-feedback:v2`，其严格 JSON 值包含 `agentNotificationMode`（`never` 或 `hidden`）、`completionReminderMode`（`never`、`unfocused` 或 `always`）和 `completionReminderMinimumSeconds`（1 到 3,600 之间的整数）。三者默认分别为 `never`、`never` 与 5 秒。有效的 version-1 completion-reminder record 会迁移，并保持 Agent notification 关闭。无效或不可读的存储会回退到完整默认值并显示可恢复警告；写入失败会保留当前 session 值，并报告尚未保存。重置会恢复全部三个默认值。
 

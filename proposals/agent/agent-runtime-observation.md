@@ -1,12 +1,12 @@
 # Agent Runtime Observation and Attention
 
-| Field             | Value                                                                                                                                                                                                                                                                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status            | Phase-one core, local observation, the accepted SSH, tmux, and Zellij topology, the explicit multi-Agent adapters, explicit local integration management, and the volatile loss-aware change feed are implemented; later reserved decisions remain unresolved                                                                        |
-| Decision owner    | The active requester acting as Orchbee product and architecture decision owner for the accepted phase-one authorization; each reserved decision still requires explicit acceptance by its required owner                                                                                                                             |
-| Semantic owners   | Agent capability, application runtime, Workbench application composition, and platform notification adapters                                                                                                                                                                                                                         |
-| Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md), [`@orchbee/agent`](../../packages/agent/README.md), [`@orchbee/terminal-protocol`](../../packages/terminal-protocol/README.md), [`@orchbee/workbench`](../../packages/workbench/README.md), and the [unified-search contract](../../packages/workbench/docs/unified-search.md) |
-| Exit condition    | Implement separately accepted slices, move maintained state, adapter, presentation, notification, and evidence contracts into their owning package and application guides and tests, resolve or remove every remaining future decision, then delete this proposal and its translation                                                |
+| Field             | Value                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Phase-one core, local observation, the accepted SSH, tmux, and Zellij topology, the explicit multi-Agent adapters, explicit local integration management, and the volatile loss-aware change feed are implemented; the transport-safety, inert-installation, contextual-onboarding, and limited-presence replacement slice is accepted for implementation; later reserved decisions remain unresolved |
+| Decision owner    | The active requester acting as Orchbee product and architecture decision owner for the accepted authorizations; each reserved decision still requires explicit acceptance by its required owner                                                                                                                                                                                                       |
+| Semantic owners   | Agent capability, application runtime, Workbench application composition, and platform notification adapters                                                                                                                                                                                                                                                                                          |
+| Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md), [`@orchbee/agent`](../../packages/agent/README.md), [`@orchbee/terminal-protocol`](../../packages/terminal-protocol/README.md), [`@orchbee/workbench`](../../packages/workbench/README.md), and the [unified-search contract](../../packages/workbench/docs/unified-search.md)                                                                  |
+| Exit condition    | Implement separately accepted slices, move maintained state, adapter, presentation, notification, and evidence contracts into their owning package and application guides and tests, resolve or remove every remaining future decision, then delete this proposal and its translation                                                                                                                 |
 
 Simplified Chinese review translation:
 [agent-runtime-observation.zh-CN.md](agent-runtime-observation.zh-CN.md). English remains
@@ -711,8 +711,9 @@ modeled slice while acting as Orchbee product and architecture decision owner:
 3. Local operations are serialized and follow inspect, preflight, mutate, and verify. A pre-commit
    failure preserves the prior state. An ambiguous or post-commit failure triggers read-only
    reconciliation and cannot claim success or rollback until the resulting state is observed.
-4. Disable removes or disables only the exact Orchbee-owned plugin, extension, or symlink. It
-   preserves other plugins, user settings, marketplaces, project configuration, and Agent data.
+4. Disable removes or disables only the exact Orchbee-owned plugin, extension, or symlink. It may
+   remove an exact legacy Orchbee marketplace declaration, but preserves other plugins, unrelated
+   user settings and marketplaces, project configuration, and Agent data.
 5. Provider-specific inspection and mutation remain behind one provider-neutral Desktop capability.
    Settings consumes bounded integration state and failure codes and does not branch on CLI output,
    filesystem layout, shell, or provider configuration syntax.
@@ -783,6 +784,166 @@ consequential and modeled slice accepts the following narrower contract:
    cursors, and coordinator retirement. Rollback removes the read operation and journal while
    preserving canonical Agent observation and existing point-in-time reads.
 
+## Accepted safe transport, inert installation, contextual onboarding, and limited presence authorization
+
+On 2026-08-31, the same active requester explicitly accepted this consequential and modeled
+replacement slice while acting as Orchbee product and architecture decision owner. This section
+supersedes every earlier clause in this proposal that selects OSC 777, an application-bundle
+symlink, eager startup inspection, or a reminder based merely on startup inventory. Unaffected
+domain, capability, notification, and SSH/mux decisions remain authoritative.
+
+### Transport v3 and exact correlation
+
+1. Public terminal-notification protocols are rejected as an Orchbee transport. Neither an adapter
+   nor Terminal Host may encode Agent observation in OSC 9, OSC 777, OSC 99, OSC 1337 notification,
+   BEL, title changes, hyperlinks, clipboard operations, or another sequence with user-visible or
+   third-party-defined side effects.
+2. The only accepted terminal half is the namespaced private APC frame
+   `ESC _ orchbee.agent.v3;<base64url-payload> ESC \\`. Terminal Host admits only that exact prefix,
+   a terminated and non-truncated frame, ASCII base64url syntax, and a decoded UTF-8 payload within
+   the existing 4 KiB application-signal bound. Every other APC remains owned by Ghostty or is
+   ignored. Terminal Host transports the decoded bounded payload and owns no Agent semantics.
+3. The rich Unix-socket protocol is hard-cut to v3. Desktop creates only
+   `agent-observation-v3.sock` beneath its already validated, user-private product runtime directory
+   and publishes only `ORCHBEE_AGENT_OBSERVATION_SOCKET_V3`. An eligible SSH invocation separately
+   creates a random mode-`0600` `/tmp/orchbee-agent-v3-*` endpoint on the remote host and
+   reverse-forwards it to that local listener. Desktop neither advertises nor listens on the v2
+   name. There is no dual-stack compatibility window: an old adapter sees no supported endpoint and
+   must fail open before writing any terminal half.
+4. A v3 adapter sends the sanitized rich envelope first and waits for one exact bounded ACK. A local
+   process may address only the exact owned endpoint inherited in its environment; only a remote
+   process without that overlay and with a non-empty inherited `SSH_CONNECTION`, `SSH_CLIENT`, or
+   `SSH_TTY` marker discovers bounded same-user forwarded candidates. An ordinary local terminal
+   without the exact overlay performs no socket scan. A stale explicit local path never falls
+   through to another Desktop instance. Only after acceptance may the adapter write private APC
+   correlation halves to the resolved outer TTYs. Timeout, malformed ACK, rejection, socket loss,
+   or no endpoint produces no APC and never blocks or changes the Agent exit status.
+5. Visibility is trusted routing evidence and moves from the attacker-controlled terminal half to
+   the socket envelope. A correlation APC payload contains only its kind, protocol version, opaque
+   one-time correlation identity, and opaque event identity. It contains no activity, provider
+   identity, visibility, path, hostname, mux identity, content, or product copy. A distinct bounded
+   launch-presence payload may contain only its kind, one curated integration ID, and protocol
+   version; it has no semantic or notification authority. The existing bounded join accepts either
+   network/PTY arrival order after endpoint acceptance, fences presentation generation, applies the
+   semantic event once, and may attach it to several exact presentations.
+6. Direct writes to the resolved outer TTY remain the mechanism for hidden tmux and Zellij panes;
+   mux passthrough is not required. A controlled compatibility matrix must prove that private APC
+   has no visible effect in each claimed Orchbee/Ghostty, Warp, tmux, and Zellij revision. Arbitrary
+   terminal or mux versions are outside the claim and degrade to no canonical observation when an
+   exact presentation correlation cannot be completed.
+
+The transport state machine is `discover -> connect -> send-rich -> accepted -> emit-hints ->
+settle`. Every failure before `accepted` transitions directly to `done-fail-open`; after acceptance,
+an event still requires at least one exact APC correlation and otherwise expires without canonical
+effect. ACK means only that a bounded envelope passed the Desktop ingress boundary. It is not proof
+that an APC arrived, a presentation joined, a semantic transition was applied, or a notification
+was displayed.
+
+### Stable inert installation and migration
+
+1. Installation remains an explicit per-provider, per-execution-host user action. New users receive
+   no automatic local or remote configuration changes. Orchbee never copies to or edits a remote
+   host; reviewed remote instructions remain manual-only.
+2. Before an explicit local enable mutation, Desktop materializes an Orchbee-owned, versioned
+   adapter Capsule under stable user data, outside the application bundle and provider marketplace
+   cache. Provider configuration may reference only the stable Capsule or a provider-local guarded
+   bootstrap. It must not reference `/Applications/*.app`, a checkout, a temporary build path, or a
+   version-specific marketplace cache.
+3. Every persisted provider entry is inert when the Orchbee application executable or observation
+   endpoint is missing. Provider-local bootstraps also remain inert when the Capsule is missing, and
+   command hooks remain inert when their scripting runtime or script is missing. Those guards are
+   part of the provider entry itself: they perform bounded existence/executable checks, emit zero
+   stdout and stderr, exit zero, and preserve the provider's operation and exit status. CLI
+   marketplace declarations may reference the stable Capsule, so uninstall must retain every
+   Capsule still referenced by any provider declaration. A guard located only in a missing target is
+   insufficient.
+4. The Capsule is self-contained for its declared runtime. The preferred bridge is a small native
+   Zig executable; a provider-guaranteed runtime or guarded bundled script is acceptable only while
+   tests prove the same absence behavior. Hook callbacks remain nonblocking, content-free after
+   sanitization, bounded in time and bytes, and independent from Orchbee process lifetime.
+5. Enable follows `inspect -> preflight -> stage Capsule -> atomically publish -> mutate exact owned
+entry -> verify`. A failure before provider mutation removes only the unreferenced staging area.
+   A post-mutation ambiguity triggers read-only reconciliation and never claims rollback without
+   observing it. Disable removes only the exact owned provider entry and may leave the inert Capsule
+   for other providers or later reinstall.
+6. An exact legacy Orchbee entry whose only defect is an application-bundle source, an older sibling
+   Capsule, or v2 transport is reported as update-required through the bounded integration model.
+   This includes source-proven Claude and Copilot marketplace entries and Grok installed copies;
+   their plugin source and, where exposed, payload version are inspected together. Migration occurs
+   only after the user's explicit Enable/Update action. Third-party or modified entries remain
+   conflicts and are never overwritten. App uninstall alone leaves no provider error; later cleanup
+   may remove a provably unreferenced Capsule but is not required for correctness.
+
+The installation state machine is `absent | update-required | enabled | conflict | unavailable`.
+Only `absent` and exact `update-required` may enter mutation after explicit user action. `enabled`
+requires both the exact owned entry and a valid Capsule manifest. Missing dependencies never become
+`enabled`; an unrecognized existing entry is always `conflict`.
+
+### Demand-driven inspection and contextual onboarding
+
+1. Desktop startup constructs a cheap uninspected snapshot and invokes no provider CLI, shell, or
+   plugin manager. Opening ordinary terminal UI also performs no all-provider inspection.
+2. A high-confidence launch observation for one curated provider may trigger one deduplicated,
+   bounded inspection for that provider on that execution host. Opening Agent Integration Settings
+   or explicitly selecting Refresh may inspect the requested scope. Inspection never mutates.
+3. The bottom-right reminder is eligible only after the launch-triggered inspection proves that the
+   just-observed provider is locally available and its integration is absent or update-required.
+   It is friendly, dismissible per provider and device, and offers a direct Settings action. It
+   never installs from the reminder, requests operating-system notification permission, or appears
+   merely because Orchbee started.
+4. Remote execution identity is not inferred from local availability. Until a separately accepted
+   product-owned remote installer exists, remote launch evidence can offer reviewed manual setup
+   guidance only and cannot claim remote integration state.
+
+### Limited passive presence
+
+1. A bounded, data-driven provider signature registry may combine exact process ancestry, terminal
+   command metadata, and reviewed screen signatures to assert only `provider-present` or
+   `provider-unknown`. It cannot assert thinking, tool use, idle, question, approval, success,
+   failure, completion, or notification eligibility.
+2. Presence evidence is presentation-scoped, carries source and freshness, uses hysteresis before
+   removal, and exposes an explainable matched-signature identifier in diagnostics without screen
+   content. Conflicting or stale evidence degrades to unknown; it never upgrades capability. When
+   an exact rich observation is admitted for the same provider, presentation, and terminal
+   generation, Desktop retires the heuristic projection before rich takeover. This local cleanup
+   disconnects and ends only the heuristic presence Session, emits no semantic Session-end event,
+   and suppresses later passive evidence while that exact rich route remains live.
+3. Rich installed adapters remain the only authority for semantic Agent state, hidden-mux exact
+   state, and notification candidates. Passive evidence may trigger the same provider-scoped
+   inspection and reminder workflow, but never an automatic install or provider configuration
+   change.
+
+### Invariants, evidence, rollout, and rollback
+
+- `AR-010`: No accepted Orchbee adapter byte sequence invokes a public notification surface.
+  Evidence includes byte-level adapter fixtures, Terminal Host negative tests for OSC notification
+  channels, and controlled Warp/Ghostty/tmux/Zellij traces. The claim is bounded to reviewed
+  versions and does not claim arbitrary terminals ignore arbitrary APC.
+- `AR-011`: An endpoint that did not ACK a rich event cannot cause its terminal half to be emitted.
+  Deterministic transport tests cover no endpoint, timeout, reject, malformed ACK, partial ACK,
+  disconnect, several candidates, and exactly one successful candidate; join property tests cover
+  both arrival orders, duplicates, expiry, and presentation-generation reuse.
+- `AR-012`: App removal with referenced Capsules retained, missing provider-local bridge/runtime,
+  stale socket, and disabled observation leave installed entries silent and successful. Tests
+  execute exact guarded entries and persisted command hooks with their optional dependencies
+  independently removed and assert zero stdout, zero stderr, exit zero, bounded duration, and
+  unchanged provider command status. Capsule lifecycle tests prove that app-bundle replacement is
+  not a dependency and that referenced versions are not an uninstall cleanup target.
+- `AR-013`: Startup executes zero provider inspection commands, and one launch inspects at most its
+  matching provider before reminder eligibility. Call-ledger tests cover startup, concurrent
+  duplicate launches, Settings refresh, dismissal, update-required migration, and remote evidence.
+- `AR-014`: Passive evidence can create only limited presence. Generated and adversarial fixtures
+  prove that no signature sequence produces semantic transitions, requests, outcomes, or device
+  notifications; hysteresis and stale transitions are deterministic.
+
+Rollout first replaces Desktop endpoint advertisement and all bundled adapters as one hard-cut v3
+slice, then changes Terminal Host admission, then migrates explicit local installations to the
+stable Capsule, then enables demand-driven inspection and contextual reminder eligibility, and
+finally enables passive presence behind its limited projection. A build must not ship a v3 adapter
+with a v2-only Desktop or vice versa. Rollback disables v3 endpoint advertisement and adapter
+offering together; terminal operation, ordinary SSH, and provider operation remain intact. It does
+not restore OSC 777, app-bundle symlinks, eager inspection, or automatic onboarding.
+
 ## Reserved decisions
 
 The accepted phase-one domain slice would not decide:
@@ -793,8 +954,9 @@ The accepted phase-one domain slice would not decide:
   terminal-signal ingress, and renderer snapshot protocol are current authority for their narrower
   boundaries;
 - automatic local or remote adapter deployment, every Orchbee-initiated remote configuration
-  change, silent local configuration edits, a background adapter updater, and compatibility claims
-  outside the pinned provider fixture matrix;
+  change, silent local configuration edits outside the explicitly accepted local enable/update
+  action, a background adapter updater, and compatibility claims outside the pinned provider and
+  transport fixture matrices;
 - notification defaults beyond the existing explicit opt-in, stale grace period, Activity-specific
   recent-event bounds, per-client acknowledgement persistence, and cross-device suppression; the
   volatile change journal has the separately accepted bound above;

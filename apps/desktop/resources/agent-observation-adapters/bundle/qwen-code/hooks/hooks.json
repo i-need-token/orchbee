@@ -4,7 +4,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -15,7 +15,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -27,7 +27,7 @@
 				"matcher": ".*",
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -39,7 +39,7 @@
 				"matcher": ".*",
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -51,7 +51,7 @@
 				"matcher": ".*",
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -63,7 +63,7 @@
 				"matcher": ".*",
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -75,7 +75,7 @@
 				"matcher": ".*",
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -87,7 +87,7 @@
 				"matcher": "permission_prompt|idle_prompt",
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -98,7 +98,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -109,7 +109,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -121,7 +121,7 @@
 				"matcher": ".*",
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -132,7 +132,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -143,7 +143,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -155,7 +155,7 @@
 				"matcher": ".*",
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 2000,
 						"type": "command"
 					}
@@ -166,7 +166,7 @@
 			{
 				"hooks": [
 					{
-						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"command": "command -v node >/dev/null 2>&1 && [ -r \"${extensionPath}/scripts/forward-hook.mjs\" ] && node \"${extensionPath}/scripts/forward-hook.mjs\" qwen-code >/dev/null 2>&1 || :",
 						"timeout": 1000,
 						"type": "command"
 					}

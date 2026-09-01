@@ -346,13 +346,13 @@ to another attachment, and it carries no trust duration, selection-kind choice, 
 clipboard contents from the client.
 
 `TerminalApplicationSignal` is an event-only control record containing one exact terminal identity,
-a positive terminal-owned `sequence`, and at most 4 KiB of UTF-8 `payload`. It transports a bounded
-application-emitted hint admitted from the reserved OSC 777 notification title
-`orchbee.agent.v1`; it does not authenticate the emitting process or grant Agent, lifecycle,
+a positive terminal-owned `sequence`, and at most 4 KiB of UTF-8 `payload`. Terminal Host admits
+the decoded payload from the exact private APC prefix `orchbee.agent.v3;`; the record's literal
+channel `orchbee.agent.v1` is only a historical Host-to-Desktop discriminator and is not emitted by
+the child. The record does not authenticate the emitting process or grant Agent, lifecycle,
 attention, outcome, notification, or provider authority. Terminal Host retains up to 64 admitted
 hints in terminal-sequence FIFO order and removes the queue head only after its exact outgoing
-record commits. Product adapters must validate a narrower schema before interpreting even limited
-activity.
+record commits. Product adapters must validate a narrower payload schema before interpreting it.
 
 Requests and responses use the response flag and `CorrelationId`; the named pairs in
 [runtime binding](#runtime-binding) use their registered response kind and other

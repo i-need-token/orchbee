@@ -15,7 +15,7 @@ import type {
 } from './agent-integration-adapter';
 
 const CLINE_PLUGIN_NAME = 'orchbee-agent-observation';
-const CLINE_CONTRACT_VERSION = 1;
+const CLINE_CONTRACT_VERSION = 3;
 const MAX_CLINE_INSTALLS = 128;
 const MAX_MANIFEST_BYTES = 16 * 1024;
 
@@ -48,13 +48,17 @@ export class ClineAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		]);
 		let issue: DesktopAgentIntegrationSnapshotItem['issue'] = null;
 		if (this.managementMode === 'manual-only') issue = 'unsupported-platform';
-		else if (!sourceReady || state === 'unknown') issue = 'inspection-failed';
+		else if (state === 'unknown') issue = 'inspection-failed';
+		const observedState =
+			(state === 'enabled' && !sourceReady) || state === 'update-required'
+				? 'update-required'
+				: state;
 		return {
 			availability: executablePath === null ? 'not-found' : 'available',
 			integrationId: this.integrationId,
 			issue,
 			managementMode: this.managementMode,
-			state,
+			state: observedState,
 		};
 	}
 
@@ -63,11 +67,20 @@ export class ClineAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		if (!(await isManagedClinePackage(this.#bundleRoot))) return { kind: 'failed' };
 		const state = await inspectManagedClineInstall(this.#homeDirectory);
 		if (state === 'enabled') return { kind: 'attempted' };
-		if (state !== 'not-installed') {
+		if (state !== 'not-installed' && state !== 'update-required') {
 			return { kind: state === 'conflict' ? 'conflict' : 'failed' };
 		}
 		const executablePath = await this.#commandRunner.resolveExecutable('cline');
 		if (executablePath === null) return { kind: 'failed' };
+		if (state === 'update-required') {
+			const removal = await this.#commandRunner.run(executablePath, [
+				'plugin',
+				'uninstall',
+				CLINE_PLUGIN_NAME,
+				'--json',
+			]);
+			if (removal.kind !== 'completed') return commandAttempt(removal);
+		}
 		return commandAttempt(
 			await this.#commandRunner.run(executablePath, [
 				'plugin',
@@ -82,7 +95,9 @@ export class ClineAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		if (this.managementMode === 'manual-only') return { kind: 'manual-action-required' };
 		const state = await inspectManagedClineInstall(this.#homeDirectory);
 		if (state === 'not-installed') return { kind: 'attempted' };
-		if (state !== 'enabled') return { kind: state === 'conflict' ? 'conflict' : 'failed' };
+		if (state !== 'enabled' && state !== 'update-required') {
+			return { kind: state === 'conflict' ? 'conflict' : 'failed' };
+		}
 		const executablePath = await this.#commandRunner.resolveExecutable('cline');
 		if (executablePath === null) return { kind: 'failed' };
 		return commandAttempt(
@@ -119,6 +134,7 @@ async function inspectManagedClineInstall(
 	}
 	if (entries.length > MAX_CLINE_INSTALLS) return 'unknown';
 	let exactCount = 0;
+	let updateRequiredCount = 0;
 	for (const entry of entries) {
 		if (!entry.isDirectory()) continue;
 		const candidateRoot = path.join(installedRoot, entry.name, 'package');
@@ -127,20 +143,35 @@ async function inspectManagedClineInstall(
 		);
 		if (entryState === 'missing') continue;
 		if (entryState === 'unknown') return 'unknown';
-		if (!(await isManagedClinePackage(candidateRoot))) return 'conflict';
-		exactCount += 1;
+		const packageState = await inspectManagedClinePackage(candidateRoot);
+		if (packageState === 'conflict') return 'conflict';
+		if (packageState === 'unknown') return 'unknown';
+		if (packageState === 'update-required') updateRequiredCount += 1;
+		else exactCount += 1;
 	}
-	if (exactCount > 1) return 'conflict';
+	if (exactCount + updateRequiredCount > 1) return 'conflict';
+	if (updateRequiredCount === 1) return 'update-required';
 	return exactCount === 1 ? 'enabled' : 'not-installed';
 }
 
 async function isManagedClinePackage(packageRoot: string): Promise<boolean> {
+	return (await inspectManagedClinePackage(packageRoot)) === 'current';
+}
+
+type ManagedClinePackageState = 'conflict' | 'current' | 'unknown' | 'update-required';
+
+async function inspectManagedClinePackage(packageRoot: string): Promise<ManagedClinePackageState> {
 	const value = await readJsonRecord(path.join(packageRoot, 'package.json'));
-	if (value === null || value['name'] !== CLINE_PLUGIN_NAME) return false;
+	if (value === null) return 'conflict';
+	if (value['name'] !== CLINE_PLUGIN_NAME) return 'conflict';
 	const marker = isRecord(value['orchbeeAgentObservation'])
 		? value['orchbeeAgentObservation']
 		: null;
-	return marker?.['contractVersion'] === CLINE_CONTRACT_VERSION;
+	const contractVersion = marker?.['contractVersion'];
+	if (contractVersion === CLINE_CONTRACT_VERSION) return 'current';
+	return Number.isSafeInteger(contractVersion) && Number(contractVersion) > 0
+		? 'update-required'
+		: 'conflict';
 }
 
 async function readJsonRecord(filePath: string): Promise<Record<string, unknown> | null> {

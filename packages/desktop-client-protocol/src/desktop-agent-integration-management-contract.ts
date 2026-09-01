@@ -26,6 +26,7 @@ export const DesktopAgentIntegrationStateSchema = z.enum([
 	'disabled',
 	'enabled',
 	'not-installed',
+	'update-required',
 	'unknown',
 ]);
 
@@ -123,11 +124,17 @@ const operationResultSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const DesktopAgentIntegrationManagementMainEventSchema = z.discriminatedUnion('type', [
-	z.strictObject({
-		integrationId: DesktopAgentIntegrationIdSchema,
-		revision: z.number().int().nonnegative(),
-		type: z.literal('desktop-agent-integration-launch-observed'),
-	}),
+	z
+		.strictObject({
+			integration: DesktopAgentIntegrationSnapshotItemSchema,
+			integrationId: DesktopAgentIntegrationIdSchema,
+			revision: z.number().int().nonnegative(),
+			type: z.literal('desktop-agent-integration-launch-observed'),
+		})
+		.refine(
+			(event) => event.integration.integrationId === event.integrationId,
+			'Desktop Agent launch event integration identities must match',
+		),
 	z.strictObject({
 		requestId: DesktopAgentIntegrationManagementRequestIdSchema,
 		result: operationResultSchema,

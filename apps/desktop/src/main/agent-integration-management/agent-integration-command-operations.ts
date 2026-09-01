@@ -10,7 +10,10 @@ export function commandAttempt(
 }
 
 export async function runCommandSequence(
-	context: CliAgentIntegrationOperationContext,
+	context: Pick<
+		CliAgentIntegrationOperationContext,
+		'commandRunner' | 'executablePath' | 'resourceRoot'
+	>,
 	steps: readonly (readonly string[])[],
 ): Promise<AgentIntegrationMutationAttempt> {
 	for (const commandArguments of steps) {

@@ -5,7 +5,7 @@ import {
 	type DesktopAgentIntegrationManagementMode,
 	type DesktopAgentIntegrationState,
 } from '@orchbee/desktop-client-protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type {
 	AgentIntegrationAdapter,
@@ -14,7 +14,7 @@ import type {
 import { DesktopAgentIntegrationManagementController } from '../DesktopAgentIntegrationManagementController';
 
 describe('DesktopAgentIntegrationManagementController', () => {
-	it('initializes through read-only inspection in canonical order', async () => {
+	it('initializes a canonical uninspected snapshot without invoking provider adapters', async () => {
 		const adapters = createAdapters();
 		const controller = new DesktopAgentIntegrationManagementController(adapters);
 
@@ -23,6 +23,8 @@ describe('DesktopAgentIntegrationManagementController', () => {
 		expect(snapshot.integrations.map(({ integrationId }) => integrationId)).toEqual(
 			DESKTOP_AGENT_INTEGRATION_IDS,
 		);
+		expect(snapshot.integrations.every(({ state }) => state === 'unknown')).toBe(true);
+		expect(adapters.every((candidate) => candidate.inspectCount === 0)).toBe(true);
 		expect(adapters.every((candidate) => candidate.enableCount === 0)).toBe(true);
 		expect(adapters.every((candidate) => candidate.disableCount === 0)).toBe(true);
 	});
@@ -32,19 +34,26 @@ describe('DesktopAgentIntegrationManagementController', () => {
 		const controller = new DesktopAgentIntegrationManagementController(adapters);
 		const launches: DesktopAgentIntegrationId[] = [];
 		const revisions: number[] = [];
-		controller.subscribeLaunches((integrationId, revision) => {
-			launches.push(integrationId);
+		controller.subscribeLaunches((integration, revision) => {
+			launches.push(integration.integrationId);
 			revisions.push(revision);
 		});
 
 		expect(controller.observeLaunch('grok')).toBe(true);
 		expect(controller.observeLaunch('grok')).toBe(false);
+		await vi.waitFor(() => expect(launches).toEqual(['grok']));
 		const snapshot = await controller.initialize();
 
 		expect(snapshot.launchedIntegrationIds).toEqual(['grok']);
-		expect(snapshot.revision).toBe(1);
+		expect(snapshot.revision).toBe(2);
 		expect(launches).toEqual(['grok']);
-		expect(revisions).toEqual([0]);
+		expect(revisions).toEqual([2]);
+		expect(adapter(adapters, 'grok').inspectCount).toBe(1);
+		expect(
+			adapters
+				.filter(({ integrationId }) => integrationId !== 'grok')
+				.every((candidate) => candidate.inspectCount === 0),
+		).toBe(true);
 		expect(adapters.every((candidate) => candidate.enableCount === 0)).toBe(true);
 		expect(adapters.every((candidate) => candidate.disableCount === 0)).toBe(true);
 	});
@@ -55,6 +64,10 @@ describe('DesktopAgentIntegrationManagementController', () => {
 		await controller.initialize();
 		controller.observeLaunch('grok');
 		controller.observeLaunch('claude-code');
+		await vi.waitFor(() => {
+			expect(adapter(adapters, 'grok').inspectCount).toBe(1);
+			expect(adapter(adapters, 'claude-code').inspectCount).toBe(1);
+		});
 
 		const refreshed = await controller.refresh();
 		const enabled = await controller.enable('codex');
@@ -72,6 +85,7 @@ describe('DesktopAgentIntegrationManagementController', () => {
 		};
 		const controller = new DesktopAgentIntegrationManagementController(adapters);
 		await controller.initialize();
+		await controller.refresh();
 
 		const result = await controller.enable('codex');
 
@@ -88,6 +102,7 @@ describe('DesktopAgentIntegrationManagementController', () => {
 		opencode.state = 'conflict';
 		const controller = new DesktopAgentIntegrationManagementController(adapters);
 		await controller.initialize();
+		await controller.refresh();
 
 		const result = await controller.enable('opencode');
 
@@ -101,6 +116,7 @@ describe('DesktopAgentIntegrationManagementController', () => {
 		grok.enableEffect = () => Promise.resolve({ kind: 'attempted' });
 		const controller = new DesktopAgentIntegrationManagementController(adapters);
 		await controller.initialize();
+		await controller.refresh();
 
 		const result = await controller.enable('grok');
 
@@ -119,6 +135,7 @@ describe('DesktopAgentIntegrationManagementController', () => {
 		};
 		const controller = new DesktopAgentIntegrationManagementController(adapters);
 		await controller.initialize();
+		await controller.refresh();
 
 		const result = await controller.disable('pi');
 
@@ -139,6 +156,7 @@ describe('DesktopAgentIntegrationManagementController', () => {
 			});
 		const controller = new DesktopAgentIntegrationManagementController(adapters);
 		await controller.initialize();
+		await controller.refresh();
 
 		const enabling = controller.enable('claude-code');
 		await Promise.resolve();
@@ -156,7 +174,9 @@ describe('DesktopAgentIntegrationManagementController', () => {
 		omp.inspectFailure = true;
 		const controller = new DesktopAgentIntegrationManagementController(adapters);
 
-		const snapshot = await controller.initialize();
+		await controller.initialize();
+		const result = await controller.refresh();
+		const snapshot = result.snapshot;
 
 		expect(
 			snapshot.integrations.find(({ integrationId }) => integrationId === 'omp'),
@@ -178,6 +198,7 @@ class FakeAdapter implements AgentIntegrationAdapter {
 	enableEffect: () => Promise<AgentIntegrationMutationAttempt> = () =>
 		Promise.resolve({ kind: 'attempted' });
 	inspectFailure = false;
+	inspectCount = 0;
 	readonly integrationId: DesktopAgentIntegrationId;
 	managementMode: DesktopAgentIntegrationManagementMode = 'managed-local';
 	state: DesktopAgentIntegrationState = 'not-installed';
@@ -197,6 +218,7 @@ class FakeAdapter implements AgentIntegrationAdapter {
 	}
 
 	inspect() {
+		this.inspectCount += 1;
 		if (this.inspectFailure) return Promise.reject(new Error('inspection failed'));
 		return Promise.resolve({
 			availability: this.availability,

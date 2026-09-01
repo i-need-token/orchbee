@@ -10,35 +10,45 @@ const failure_ops = @import("failure.zig");
 const mode_effects = @import("mode_effects.zig");
 
 const max_clipboard_text_bytes = protocol.Limits.clipboard_text_bytes;
-const application_signal_channel = "orchbee.agent.v1";
 const max_application_signal_bytes = protocol.Limits.terminal_application_signal_bytes;
+const private_application_signal_prefix = "orchbee.agent.v3;";
+pub const max_private_application_signal_apc_bytes = private_application_signal_prefix.len +
+    ((max_application_signal_bytes + 2) / 3) * 4;
 
-pub fn desktopNotificationEffect(
+pub fn privateApplicationSignalEffect(
     handler: *ghostty_vt.TerminalStream.Handler,
-    notification: ghostty_vt.StreamAction.ShowDesktopNotification,
+    sequence: ghostty_vt.UnknownSequence,
 ) void {
     const self = runtimeFromTerminalHandler(handler);
     std.debug.assert(self.reader_commit_in_progress);
-    if (!std.mem.eql(u8, notification.title, application_signal_channel) or
-        notification.body.len > max_application_signal_bytes or
-        !std.unicode.utf8ValidateSlice(notification.body) or
-        std.mem.indexOfScalar(u8, notification.body, 0) != null)
-    {
-        return;
-    }
+    const apc = switch (sequence) {
+        .apc => |value| value,
+    };
+    if (apc.truncated or
+        !std.mem.startsWith(u8, apc.content, private_application_signal_prefix)) return;
+    const encoded = apc.content[private_application_signal_prefix.len..];
+    if (encoded.len == 0) return;
     if (self.application_signal_pending_count + self.application_signal_staged_count >=
         contracts.max_pending_application_signals) return;
     if (self.application_signal_sequence_staged == std.math.maxInt(u64)) {
         self.feedback_sequence_overflow_pending = true;
         return;
     }
-    const payload = self.allocator.dupe(u8, notification.body) catch return;
+    const decoded_length = std.base64.url_safe_no_pad.Decoder.calcSizeForSlice(encoded) catch return;
+    if (decoded_length > max_application_signal_bytes) return;
+    const payload = self.allocator.alloc(u8, decoded_length) catch return;
+    var retained = false;
+    defer if (!retained) self.allocator.free(payload);
+    std.base64.url_safe_no_pad.Decoder.decode(payload, encoded) catch return;
+    if (!std.unicode.utf8ValidateSlice(payload) or
+        std.mem.indexOfScalar(u8, payload, 0) != null) return;
     self.application_signal_sequence_staged += 1;
     self.application_signal_staged[self.application_signal_staged_count] = .{
         .payload = payload,
         .sequence = self.application_signal_sequence_staged,
     };
     self.application_signal_staged_count += 1;
+    retained = true;
 }
 
 pub fn clipboardContentsEffect(

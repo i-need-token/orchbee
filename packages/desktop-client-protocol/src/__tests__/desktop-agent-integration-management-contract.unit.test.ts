@@ -59,13 +59,22 @@ describe('Desktop Agent integration management contract', () => {
 	});
 
 	it('publishes only a bounded Agent launch identity without command content', () => {
+		const integration = {
+			availability: 'available' as const,
+			integrationId: 'claude-code' as const,
+			issue: null,
+			managementMode: 'managed-local' as const,
+			state: 'not-installed' as const,
+		};
 		expect(
 			DesktopAgentIntegrationManagementMainEventSchema.parse({
+				integration,
 				integrationId: 'claude-code',
 				revision: 3,
 				type: 'desktop-agent-integration-launch-observed',
 			}),
 		).toEqual({
+			integration,
 			integrationId: 'claude-code',
 			revision: 3,
 			type: 'desktop-agent-integration-launch-observed',
@@ -73,6 +82,7 @@ describe('Desktop Agent integration management contract', () => {
 		expect(
 			DesktopAgentIntegrationManagementMainEventSchema.safeParse({
 				command: 'claude --prompt secret',
+				integration,
 				integrationId: 'claude-code',
 				revision: 3,
 				type: 'desktop-agent-integration-launch-observed',
@@ -80,6 +90,7 @@ describe('Desktop Agent integration management contract', () => {
 		).toBe(false);
 		expect(
 			DesktopAgentIntegrationManagementMainEventSchema.safeParse({
+				integration,
 				integrationId: 'claude-code',
 				revision: -1,
 				type: 'desktop-agent-integration-launch-observed',

@@ -23,7 +23,7 @@ Terminal Host 拥有：
 - 输入编码、投影、历史和选择使用的单一规范 Ghostty 状态；
 - 有效的终端配置、完整修订的运行时主题、有序的有界输入、修订和生成；
 - Broker 作用域的附件、需求、在途交付、响铃游标、历史锚点、选择和导出；
-- 有界 OSC 52 纯文本写入意图、有界 OSC 777 application-signal transport、当前终端进度，以及源自 Ghostty 输出的最新语义命令完成事实；
+- 有界 OSC 52 纯文本写入意图、有界 private-APC application-signal transport、当前终端进度，以及源自 Ghostty 输出的最新语义命令完成事实；
 - 受操作系统用户身份保护的私有本地 IPC 端点；和
 - 共享终端协议的类型化本机适配。
 
@@ -61,7 +61,7 @@ Terminal Host 拥有：
 - 语义键事件可以将一个 macOS 选项和弦标记为终结 Alt。主机将该意图应用于 Ghostty 的当前终端模式的权威编码器；它从不将渲染器的布局生成的特殊字符视为已编码的终端字节序列。
 - 每个 Ghostty 铃声都会推进一个终端拥有的序列。具有读取能力的附件仅接收稍后的铃声，每个提交的事件记录一次；重新连接不会重播之前的响铃意图。
 - OSC 52 可以将一个有界纯文本写入意图发布到一个可读取的附件，但从不读取用户的剪贴板或执行平台效果。传出的背压重试相同的意图，而成功的切换和重新连接不能复制它。
-- 带精确保留 title `orchbee.agent.v1` 的 OSC 777 可以发布一个有界 application signal。Reader-batch admission 是事务性的，最多 64 个已准入 signal 会保持 FIFO 顺序，outgoing backpressure 会保留精确 queue head 直至 commit。Host 不认证 emitter，不解释 Agent 或 provider state，也不请求产品或平台 notification；该 transport 会忽略其他 OSC 777 title 与 OSC 9 notification。
+- 以准确 private prefix `orchbee.agent.v3;` 开始的 unknown APC 可以发布一个经 base64url decode 的有界 application signal。Reader-batch admission 是事务性的，最多 64 个已准入 signal 会保持 FIFO 顺序，outgoing backpressure 会保留精确 queue head 直至 commit。Host 不认证 emitter，不解释 Agent 或 provider state，也不请求产品或平台 notification。Protocol record 中的 literal channel `orchbee.agent.v1` 只是历史 Host-to-Desktop discriminator，不是 child wire sequence。OSC 9 与 OSC 777 等公开 notification channel 会被该 transport 忽略。
 - Ghostty进度报告项目仅是终端当前限定的本地样本；他们不断言流程完成或请求系统通知。
 - OSC 133 `C` 和 `D` 操作在事务上仅保留一个终端本地完成序列、单调持续时间、挂钟完成时间戳和标准化退出代码。主机从不保留或投影命令文本、参数、目录、环境或提醒输出；新鲜度、焦点、许可、速率限制和通知效果仍然是客户政策。
 - Ghostty pin 仍有效时，成功的网格 reflow 会保留跟随选择与已提交历史锚点，同时取消过时的行在途交付与已编码导出字节。屏幕替换和保留行淘汰仍是明确的选择淘汰边界。

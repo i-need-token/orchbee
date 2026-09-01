@@ -21,14 +21,16 @@ export type DesktopAgentIntegrationManagementOperationResult =
 			readonly snapshot: DesktopAgentIntegrationManagementSnapshot;
 	  };
 
-type LaunchListener = (integrationId: DesktopAgentIntegrationId, revision: number) => void;
+type LaunchListener = (integration: DesktopAgentIntegrationSnapshotItem, revision: number) => void;
 
 export class DesktopAgentIntegrationManagementController {
 	#activeOperation = false;
 	readonly #adapters: ReadonlyMap<DesktopAgentIntegrationId, AgentIntegrationAdapter>;
 	#initialization: Promise<DesktopAgentIntegrationManagementSnapshot> | undefined;
+	readonly #launchInspections = new Map<DesktopAgentIntegrationId, Promise<void>>();
 	readonly #launchListeners = new Set<LaunchListener>();
 	#launchedIntegrationIds: readonly DesktopAgentIntegrationId[] = Object.freeze([]);
+	readonly #pendingLaunchInspections = new Set<DesktopAgentIntegrationId>();
 	#revision = 0;
 	#snapshot: DesktopAgentIntegrationManagementSnapshot | undefined;
 
@@ -45,7 +47,7 @@ export class DesktopAgentIntegrationManagementController {
 	}
 
 	initialize(): Promise<DesktopAgentIntegrationManagementSnapshot> {
-		this.#initialization ??= this.#inspectAll();
+		this.#initialization ??= Promise.resolve(this.#initializeUninspectedSnapshot());
 		return this.#initialization;
 	}
 
@@ -58,16 +60,15 @@ export class DesktopAgentIntegrationManagementController {
 
 	observeLaunch(integrationId: DesktopAgentIntegrationId): boolean {
 		if (this.#launchedIntegrationIds.includes(integrationId)) return false;
+		this.#initializeUninspectedSnapshot();
 		this.#launchedIntegrationIds = Object.freeze([...this.#launchedIntegrationIds, integrationId]);
 		const revision = this.#revision++;
-		if (this.#snapshot !== undefined) {
-			this.#snapshot = DesktopAgentIntegrationManagementSnapshotSchema.parse({
-				integrations: this.#snapshot.integrations,
-				launchedIntegrationIds: this.#launchedIntegrationIds,
-				revision,
-			});
-		}
-		for (const listener of this.#launchListeners) listener(integrationId, revision);
+		this.#snapshot = DesktopAgentIntegrationManagementSnapshotSchema.parse({
+			integrations: this.#snapshot?.integrations,
+			launchedIntegrationIds: this.#launchedIntegrationIds,
+			revision,
+		});
+		this.#scheduleLaunchInspection(integrationId);
 		return true;
 	}
 
@@ -78,12 +79,15 @@ export class DesktopAgentIntegrationManagementController {
 
 	async refresh(): Promise<DesktopAgentIntegrationManagementOperationResult> {
 		await this.initialize();
-		if (this.#activeOperation) return this.#failure('busy', null);
+		if (this.#activeOperation || this.#launchInspections.size > 0) {
+			return this.#failure('busy', null);
+		}
 		this.#activeOperation = true;
 		try {
 			return { kind: 'completed', snapshot: await this.#inspectAll() };
 		} finally {
 			this.#activeOperation = false;
+			this.#drainPendingLaunchInspections();
 		}
 	}
 
@@ -104,7 +108,9 @@ export class DesktopAgentIntegrationManagementController {
 		operation: 'disable' | 'enable',
 	): Promise<DesktopAgentIntegrationManagementOperationResult> {
 		await this.initialize();
-		if (this.#activeOperation) return this.#failure('busy', integrationId);
+		if (this.#activeOperation || this.#launchInspections.size > 0) {
+			return this.#failure('busy', integrationId);
+		}
 		const current = this.#item(integrationId);
 		if (current.managementMode === 'manual-only') {
 			return this.#failure('manual-action-required', integrationId);
@@ -139,6 +145,62 @@ export class DesktopAgentIntegrationManagementController {
 			return this.#failure(failureForAttempt(attempt), integrationId);
 		} finally {
 			this.#activeOperation = false;
+			this.#drainPendingLaunchInspections();
+		}
+	}
+
+	#initializeUninspectedSnapshot(): DesktopAgentIntegrationManagementSnapshot {
+		if (this.#snapshot !== undefined) return this.#snapshot;
+		this.#snapshot = DesktopAgentIntegrationManagementSnapshotSchema.parse({
+			integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => {
+				const adapter = this.#adapter(integrationId);
+				return {
+					availability: 'unknown',
+					integrationId,
+					issue: null,
+					managementMode: adapter.managementMode,
+					state: 'unknown',
+				};
+			}),
+			launchedIntegrationIds: this.#launchedIntegrationIds,
+			revision: this.#revision++,
+		});
+		return this.#snapshot;
+	}
+
+	#scheduleLaunchInspection(integrationId: DesktopAgentIntegrationId): void {
+		if (this.#launchInspections.has(integrationId)) return;
+		if (this.#activeOperation) {
+			this.#pendingLaunchInspections.add(integrationId);
+			return;
+		}
+		const inspection = this.#inspectLaunchedIntegration(integrationId)
+			.catch(() => undefined)
+			.finally(() => {
+				this.#launchInspections.delete(integrationId);
+				this.#drainPendingLaunchInspections();
+			});
+		this.#launchInspections.set(integrationId, inspection);
+	}
+
+	#drainPendingLaunchInspections(): void {
+		if (this.#activeOperation) return;
+		for (const integrationId of this.#pendingLaunchInspections) {
+			this.#pendingLaunchInspections.delete(integrationId);
+			this.#scheduleLaunchInspection(integrationId);
+		}
+	}
+
+	async #inspectLaunchedIntegration(integrationId: DesktopAgentIntegrationId): Promise<void> {
+		const item = await this.#inspectAdapter(this.#adapter(integrationId));
+		this.#replaceItem(item);
+		const revision = this.getSnapshot().revision;
+		for (const listener of this.#launchListeners) {
+			try {
+				listener(item, revision);
+			} catch {
+				// One renderer or diagnostic subscriber cannot break launch inspection.
+			}
 		}
 	}
 

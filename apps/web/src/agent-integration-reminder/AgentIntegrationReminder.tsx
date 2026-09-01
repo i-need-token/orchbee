@@ -1,4 +1,5 @@
 import { Button, ProductIcon } from '@orchbee/ui/components';
+import type { DesktopAgentIntegrationId } from '@orchbee/desktop-client-protocol';
 import type * as React from 'react';
 
 import type {
@@ -11,17 +12,18 @@ import styles from './AgentIntegrationReminder.module.css';
 export interface AgentIntegrationReminderProps {
 	readonly control: AgentIntegrationManagementControl;
 	readonly controller: AgentIntegrationReminderController;
+	readonly onOpenSettings: (integrationId: DesktopAgentIntegrationId) => void;
 }
 
 export function AgentIntegrationReminder({
 	control,
 	controller,
+	onOpenSettings,
 }: AgentIntegrationReminderProps): React.ReactNode {
-	const view = useAgentIntegrationReminder(control, controller);
+	const view = useAgentIntegrationReminder(control, controller, onOpenSettings);
 	if (view === null) return null;
 	return (
 		<aside
-			aria-busy={view.pending}
 			aria-labelledby='agent-integration-reminder-title'
 			aria-live='polite'
 			className={styles['root']}
@@ -37,8 +39,8 @@ export function AgentIntegrationReminder({
 					{view.title}
 				</strong>
 				<p className={styles['body']}>{view.body}</p>
-				<Button disabled={view.enableDisabled} size='xs' variant='ghost' onClick={view.onEnable}>
-					{view.enableLabel}
+				<Button size='xs' variant='ghost' onClick={view.onAction}>
+					{view.actionLabel}
 				</Button>
 			</div>
 			<Button

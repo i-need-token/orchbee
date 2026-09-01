@@ -16,23 +16,35 @@ function __orchbee_agent_integration_launch
 	set -l command_line "$argv[1]"
 	set -l command_word (string replace -r '^[[:space:]]*([^[:space:];|&]+).*$' '$1' -- "$command_line")
 	set -l executable (string replace -r '^.*/' '' -- "$command_word")
-	set -l integration_id
+	set -l payload
 	switch "$executable"
 		case claude
-			set integration_id claude-code
-		case codex grok opencode pi omp gemini cline
-			set integration_id "$executable"
+			set payload eyJpbnRlZ3JhdGlvbklkIjoiY2xhdWRlLWNvZGUiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30
+		case codex
+			set payload eyJpbnRlZ3JhdGlvbklkIjoiY29kZXgiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30
+		case grok
+			set payload eyJpbnRlZ3JhdGlvbklkIjoiZ3JvayIsImtpbmQiOiJsYXVuY2giLCJ2ZXJzaW9uIjozfQ
+		case opencode
+			set payload eyJpbnRlZ3JhdGlvbklkIjoib3BlbmNvZGUiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30
+		case pi
+			set payload eyJpbnRlZ3JhdGlvbklkIjoicGkiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30
+		case omp
+			set payload eyJpbnRlZ3JhdGlvbklkIjoib21wIiwia2luZCI6ImxhdW5jaCIsInZlcnNpb24iOjN9
+		case gemini
+			set payload eyJpbnRlZ3JhdGlvbklkIjoiZ2VtaW5pIiwia2luZCI6ImxhdW5jaCIsInZlcnNpb24iOjN9
 		case copilot
-			set integration_id github-copilot
+			set payload eyJpbnRlZ3JhdGlvbklkIjoiZ2l0aHViLWNvcGlsb3QiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30
+		case cline
+			set payload eyJpbnRlZ3JhdGlvbklkIjoiY2xpbmUiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30
 		case qwen
-			set integration_id qwen-code
+			set payload eyJpbnRlZ3JhdGlvbklkIjoicXdlbi1jb2RlIiwia2luZCI6ImxhdW5jaCIsInZlcnNpb24iOjN9
 		case '*'
 			return 0
 	end
 	if test (type -t "$command_word" 2>/dev/null) != file
 		return 0
 	end
-	printf '\e]777;notify;orchbee.agent.v1;{"integrationId":"%s","version":3}\e\\' "$integration_id"
+	printf '\e_orchbee.agent.v3;%s\e\\' "$payload"
 end
 
 function __orchbee_postexec --on-event fish_postexec
@@ -51,10 +63,10 @@ function __orchbee_prompt --on-event fish_prompt
 end
 
 function __orchbee_ssh_observation_eligible
-	if not set -q ORCHBEE_AGENT_OBSERVATION_SOCKET
+	if not set -q ORCHBEE_AGENT_OBSERVATION_SOCKET_V3
 		return 1
 	end
-	if not test -S "$ORCHBEE_AGENT_OBSERVATION_SOCKET"; or not isatty stdin; or not isatty stdout
+	if not test -S "$ORCHBEE_AGENT_OBSERVATION_SOCKET_V3"; or not isatty stdin; or not isatty stdout
 		return 1
 	end
 	for argument in $argv
@@ -85,11 +97,11 @@ if test (type -t ssh 2>/dev/null) = file
 			command ssh $argv
 			return $status
 		end
-		set -l remote_socket "/tmp/orchbee-agent-v2-"(__orchbee_ssh_observation_nonce)".sock"
+		set -l remote_socket "/tmp/orchbee-agent-v3-"(__orchbee_ssh_observation_nonce)".sock"
 		command ssh \
 			-o StreamLocalBindMask=0177 \
 			-o StreamLocalBindUnlink=yes \
-			-R "$remote_socket:$ORCHBEE_AGENT_OBSERVATION_SOCKET" \
+			-R "$remote_socket:$ORCHBEE_AGENT_OBSERVATION_SOCKET_V3" \
 			$argv
 	end
 end

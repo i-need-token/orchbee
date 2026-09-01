@@ -4,6 +4,7 @@ import {
 	type DesktopAgentIntegrationId,
 	type DesktopAgentIntegrationManagementRequestId,
 	type DesktopAgentIntegrationManagementSnapshot,
+	type DesktopAgentIntegrationSnapshotItem,
 } from '@orchbee/desktop-client-protocol';
 import type { MessageEvent, MessagePortMain } from 'electron';
 
@@ -19,7 +20,7 @@ export interface DesktopAgentIntegrationManagementBrokerController {
 	getSnapshot(): DesktopAgentIntegrationManagementSnapshot;
 	refresh(): Promise<DesktopAgentIntegrationManagementOperationResult>;
 	subscribeLaunches(
-		listener: (integrationId: DesktopAgentIntegrationId, revision: number) => void,
+		listener: (integration: DesktopAgentIntegrationSnapshotItem, revision: number) => void,
 	): () => void;
 }
 
@@ -54,12 +55,16 @@ export class DesktopAgentIntegrationManagementBroker {
 
 	readonly #handleClose = (): void => this.#retire(false);
 
-	readonly #handleLaunch = (integrationId: DesktopAgentIntegrationId, revision: number): void => {
+	readonly #handleLaunch = (
+		integration: DesktopAgentIntegrationSnapshotItem,
+		revision: number,
+	): void => {
 		if (this.#disposed) return;
 		try {
 			this.#port.postMessage(
 				DesktopAgentIntegrationManagementMainEventSchema.parse({
-					integrationId,
+					integration,
+					integrationId: integration.integrationId,
 					revision,
 					type: 'desktop-agent-integration-launch-observed',
 				}),

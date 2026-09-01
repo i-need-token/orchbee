@@ -33,7 +33,7 @@ export const agentIntegrationMessages = defineMessages({
 		'agent.integrations.reminder.dismiss',
 		'Accessible dismissal label. agent is a curated product name.',
 	),
-	reminderEnable: message('agent.integrations.reminder.enable'),
+	reminderOpenSettings: message('agent.integrations.reminder.openSettings'),
 	reminderTitle: message('agent.integrations.reminder.title'),
 	statusConflict: message('agent.integrations.status.conflict'),
 	statusDisabled: message('agent.integrations.status.disabled'),
@@ -42,6 +42,7 @@ export const agentIntegrationMessages = defineMessages({
 	statusManualOnly: message('agent.integrations.status.manualOnly'),
 	statusNotFound: message('agent.integrations.status.notFound'),
 	statusNotInstalled: message('agent.integrations.status.notInstalled'),
+	statusUpdateRequired: message('agent.integrations.status.updateRequired'),
 	statusUnknown: message('agent.integrations.status.unknown'),
 	title: message('agent.integrations.title'),
 	toggleLabel: message(

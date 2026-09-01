@@ -149,7 +149,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 
 `TerminalClipboardWriteRequest` 是仅事件控制记录，包含 `attachmentId`、正终端拥有的规范 `sequence` 以及最多 16 个 KiB 纯文本 UTF-8。 NUL、未配对的代理、零序列和过大的文本格式错误。它代表分配给一个可读取附件的一个主机承认的 OSC 52 剪贴板写入；它不代表剪贴板读取或授予效果。 Terminal Host 拥有有界挂起状态、单接收者交付、传出批量回滚以及切换后删除。接收应用程序拥有显式的每个请求提交策略和平台剪贴板效果。该文件不会被确认或重播到另一个附件，并且它不包含客户端的信任期限、选择类型选择、丰富的格式或剪贴板内容。
 
-`TerminalApplicationSignal` 是仅事件控制记录，包含一个精确 terminal identity、一个由 terminal 拥有的正数 `sequence`，以及最多 4 KiB UTF-8 `payload`。它传输从保留 OSC 777 notification title `orchbee.agent.v1` 准入的有界 application-emitted hint；它既不认证发出信号的进程，也不授予 Agent、lifecycle、attention、outcome、notification 或 provider 权威。Terminal Host 会按 terminal sequence 的 FIFO 顺序保留最多 64 个已准入 hint，并且只有在 queue head 对应的 outgoing record 精确提交后才移除它。产品 adapter 在解释哪怕 limited activity 之前，也必须校验更窄的 schema。
+`TerminalApplicationSignal` 是仅事件控制记录，包含一个精确 terminal identity、一个由 terminal 拥有的正数 `sequence`，以及最多 4 KiB UTF-8 `payload`。Terminal Host 从准确 private APC prefix `orchbee.agent.v3;` 准入 decoded payload；record 的 literal channel `orchbee.agent.v1` 只是历史 Host-to-Desktop discriminator，不由 child 发出。该 record 既不认证发出信号的进程，也不授予 Agent、lifecycle、attention、outcome、notification 或 provider 权威。Terminal Host 会按 terminal sequence 的 FIFO 顺序保留最多 64 个已准入 hint，并且只有在 queue head 对应的 outgoing record 精确提交后才移除它。产品 adapter 必须先校验更窄的 payload schema，才能解释该值。
 
 请求和响应使用响应标志和`CorrelationId`； [运行时绑定](#运行时绑定) 中的命名对使用其注册的响应类型，其他响应重用请求类型。事件使用事件标志。除非存在可选消息标志，否则未知类型将被拒绝，在这种情况下，可以跳过有界有效负载而不改变状态。
 

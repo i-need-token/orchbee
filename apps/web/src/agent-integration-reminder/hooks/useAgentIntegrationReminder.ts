@@ -30,6 +30,7 @@ const AGENT_NAME_MESSAGES: Readonly<Record<DesktopAgentIntegrationId, MessageDes
 export function useAgentIntegrationReminder(
 	control: AgentIntegrationManagementControl,
 	controller: AgentIntegrationReminderController,
+	onOpenSettings: (integrationId: DesktopAgentIntegrationId) => void,
 ): AgentIntegrationReminderView | null {
 	const intl = useOrchbeeIntl();
 	const managementSnapshot = React.useSyncExternalStore(
@@ -79,30 +80,20 @@ export function useAgentIntegrationReminder(
 	}
 	const integrationId = activeIntegration.integrationId;
 	const agentName = intl.formatMessage(AGENT_NAME_MESSAGES[integrationId]);
-	const enablePending =
-		managementSnapshot.pending && managementSnapshot.pendingIntegrationId === integrationId;
 	return {
+		actionLabel: intl.formatMessage(agentIntegrationMessages.reminderOpenSettings),
 		body: intl.formatMessage(agentIntegrationMessages.reminderBody, { agent: agentName }),
 		dismissLabel: intl.formatMessage(agentIntegrationMessages.reminderDismiss, {
 			agent: agentName,
 		}),
-		enableDisabled: managementSnapshot.pending,
-		enableLabel: intl.formatMessage(
-			enablePending
-				? agentIntegrationMessages.actionWorking
-				: agentIntegrationMessages.reminderEnable,
-		),
 		integrationId,
+		onAction: (): void => {
+			controller.hide(integrationId);
+			onOpenSettings(integrationId);
+		},
 		onDismiss: (): void => {
 			controller.dismiss(integrationId);
 		},
-		onEnable: (): void => {
-			if (managementSnapshot.pending) return;
-			void control.enable(integrationId).then((result) => {
-				if (result.kind === 'completed') controller.restore(integrationId);
-			});
-		},
-		pending: enablePending,
 		title: intl.formatMessage(agentIntegrationMessages.reminderTitle),
 	};
 }

@@ -14,6 +14,7 @@ import type {
 export interface CliAgentIntegrationOperationContext {
 	readonly commandRunner: AgentIntegrationCommandRunner;
 	readonly executablePath: string;
+	readonly legacyResourceRoots: readonly string[];
 	readonly resourceRoot: string;
 }
 
@@ -26,10 +27,12 @@ export interface CliAgentIntegrationAdapterOptions {
 		context: CliAgentIntegrationOperationContext,
 	) => Promise<AgentIntegrationMutationAttempt>;
 	readonly executableName: string;
-	readonly inspectArguments: readonly string[];
+	readonly inspect: (
+		context: CliAgentIntegrationOperationContext,
+	) => Promise<DesktopAgentIntegrationState | null>;
 	readonly integrationId: DesktopAgentIntegrationId;
+	readonly legacyResourceRoots: readonly string[];
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
-	readonly parseState: (stdout: string) => DesktopAgentIntegrationState | null;
 	readonly resourceRoot: string;
 }
 
@@ -38,10 +41,10 @@ export class CliAgentIntegrationAdapter implements AgentIntegrationAdapter {
 	readonly #disableOperation: CliAgentIntegrationAdapterOptions['disable'];
 	readonly #enableOperation: CliAgentIntegrationAdapterOptions['enable'];
 	readonly #executableName: string;
-	readonly #inspectArguments: readonly string[];
+	readonly #inspectOperation: CliAgentIntegrationAdapterOptions['inspect'];
 	readonly integrationId: DesktopAgentIntegrationId;
+	readonly #legacyResourceRoots: readonly string[];
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
-	readonly #parseState: CliAgentIntegrationAdapterOptions['parseState'];
 	readonly #resourceRoot: string;
 
 	constructor(options: CliAgentIntegrationAdapterOptions) {
@@ -49,10 +52,10 @@ export class CliAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		this.#disableOperation = options.disable;
 		this.#enableOperation = options.enable;
 		this.#executableName = options.executableName;
-		this.#inspectArguments = options.inspectArguments;
+		this.#inspectOperation = options.inspect;
 		this.integrationId = options.integrationId;
+		this.#legacyResourceRoots = options.legacyResourceRoots;
 		this.managementMode = options.managementMode;
-		this.#parseState = options.parseState;
 		this.#resourceRoot = options.resourceRoot;
 	}
 
@@ -67,8 +70,7 @@ export class CliAgentIntegrationAdapter implements AgentIntegrationAdapter {
 				state: 'unknown',
 			};
 		}
-		const result = await this.#commandRunner.run(executablePath, this.#inspectArguments);
-		const state = result.kind === 'completed' ? this.#parseState(result.stdout) : null;
+		const state = await this.#inspectOperation(this.#context(executablePath));
 		let issue: DesktopAgentIntegrationSnapshotItem['issue'] = null;
 		if (this.managementMode === 'manual-only') issue = 'unsupported-platform';
 		else if (state === null) issue = 'inspection-failed';
@@ -95,10 +97,15 @@ export class CliAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		if (this.managementMode === 'manual-only') return { kind: 'manual-action-required' };
 		const executablePath = await this.#commandRunner.resolveExecutable(this.#executableName);
 		if (executablePath === null) return { kind: 'failed' };
-		return operation({
+		return operation(this.#context(executablePath));
+	}
+
+	#context(executablePath: string): CliAgentIntegrationOperationContext {
+		return {
 			commandRunner: this.#commandRunner,
 			executablePath,
+			legacyResourceRoots: this.#legacyResourceRoots,
 			resourceRoot: this.#resourceRoot,
-		});
+		};
 	}
 }

@@ -162,6 +162,7 @@ export function WebApplication({
 				<AgentIntegrationReminder
 					control={agentIntegrationManagementControl}
 					controller={agentIntegrationReminderController}
+					onOpenSettings={view.onOpenAgentIntegrationSettings}
 				/>
 			)}
 			<TerminalSettingsSurface
@@ -175,6 +176,7 @@ export function WebApplication({
 				macosTerminalInputSettingsController={macosTerminalInputSettingsController}
 				onRequestClose={view.closeSettings}
 				requestBrowserAccess={requestBrowserAccess}
+				requestedCategory={view.requestedSettingsCategory}
 				sshConnectionManagementControl={sshConnectionManagementControl}
 				terminalFeedbackSettingsController={terminalFeedbackSettingsController}
 				terminalLaunchProfileClient={terminalLaunchProfileClient}

@@ -7,27 +7,30 @@ import {
 } from '@orchbee/desktop-client-protocol';
 
 import type { AgentIntegrationCommandRunner } from './NodeAgentIntegrationCommandRunner';
+import { CapsuleAgentIntegrationAdapter } from './CapsuleAgentIntegrationAdapter';
 import {
 	CliAgentIntegrationAdapter,
 	type CliAgentIntegrationOperationContext,
 } from './CliAgentIntegrationAdapter';
 import { ClineAgentIntegrationAdapter } from './ClineAgentIntegrationAdapter';
-import { SymlinkAgentIntegrationAdapter } from './SymlinkAgentIntegrationAdapter';
+import { CodexAgentIntegrationAdapter } from './CodexAgentIntegrationAdapter';
+import {
+	AGENT_OBSERVATION_CAPSULE_VERSION,
+	FileAgentObservationAdapterCapsule,
+	type AgentObservationAdapterCapsule,
+} from './file-agent-observation-adapter-capsule';
+import { GuardedLocalAgentIntegrationAdapter } from './GuardedLocalAgentIntegrationAdapter';
 import { commandAttempt, runCommandSequence } from './agent-integration-command-operations';
 import {
 	CLAUDE_PLUGIN_ID,
-	CODEX_PLUGIN_ID,
 	GITHUB_COPILOT_PLUGIN_ID,
 	GROK_PLUGIN_NAME,
-	parseClaudeState,
-	parseCodexState,
-	parseGrokState,
-	parseGitHubCopilotState,
-	parseJsonRecord,
-	parseRecordArray,
-	readRecord,
-	readRecordArray,
-	readString,
+	parseClaudeConfiguration,
+	parseGrokConfiguration,
+	parseGitHubCopilotConfiguration,
+	type ClaudeAgentIntegrationConfiguration,
+	type GitHubCopilotAgentIntegrationConfiguration,
+	type GrokAgentIntegrationConfiguration,
 } from './agent-integration-state-parsers';
 import type {
 	AgentIntegrationAdapter,
@@ -37,6 +40,8 @@ import type {
 const MARKETPLACE_NAME = 'orchbee-local';
 
 export interface CreateDesktopAgentIntegrationAdaptersOptions {
+	readonly capsule?: AgentObservationAdapterCapsule;
+	readonly capsuleRoot: string;
 	readonly commandRunner: AgentIntegrationCommandRunner;
 	readonly homeDirectory: string;
 	readonly platform: NodeJS.Platform;
@@ -48,47 +53,54 @@ export function createDesktopAgentIntegrationAdapters(
 ): readonly AgentIntegrationAdapter[] {
 	const managementMode: DesktopAgentIntegrationManagementMode =
 		options.platform === 'win32' ? 'manual-only' : 'managed-local';
-	const bundleRoot = path.join(options.resourceRoot, 'bundle');
-	const adapters: readonly AgentIntegrationAdapter[] = [
+	const capsule =
+		options.capsule ??
+		new FileAgentObservationAdapterCapsule({
+			rootPath: options.capsuleRoot,
+			sourcePath: options.resourceRoot,
+		});
+	const stableResourceRoot = capsule.rootPath;
+	const legacyResourceRoots = [options.resourceRoot];
+	const bundleRoot = path.join(stableResourceRoot, 'bundle');
+	const sharedRuntimeRoot = path.join(bundleRoot, 'scripts');
+	const adapters = [
 		new CliAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
 			disable: disableClaude,
 			enable: enableClaude,
 			executableName: 'claude',
-			inspectArguments: ['plugin', 'list', '--json'],
+			inspect: inspectClaudeState,
 			integrationId: 'claude-code',
+			legacyResourceRoots,
 			managementMode,
-			parseState: parseClaudeState,
-			resourceRoot: options.resourceRoot,
+			resourceRoot: stableResourceRoot,
 		}),
-		new CliAgentIntegrationAdapter({
+		new CodexAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
-			disable: disableCodex,
-			enable: enableCodex,
-			executableName: 'codex',
-			inspectArguments: ['plugin', 'list', '--json'],
-			integrationId: 'codex',
+			homeDirectory: options.homeDirectory,
+			legacyResourceRoots: [options.resourceRoot],
 			managementMode,
-			parseState: parseCodexState,
-			resourceRoot: options.resourceRoot,
+			resourceRoot: stableResourceRoot,
 		}),
 		new CliAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
 			disable: disableGrok,
 			enable: enableGrok,
 			executableName: 'grok',
-			inspectArguments: ['plugin', 'list', '--json'],
+			inspect: inspectGrokState,
 			integrationId: 'grok',
+			legacyResourceRoots,
 			managementMode,
-			parseState: parseGrokState,
-			resourceRoot: options.resourceRoot,
+			resourceRoot: stableResourceRoot,
 		}),
-		new SymlinkAgentIntegrationAdapter({
+		new GuardedLocalAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
+			entryKind: 'opencode-module',
 			executableName: 'opencode',
 			integrationId: 'opencode',
+			legacyResourceRoots,
 			managementMode,
-			sourceKind: 'file',
+			resourceRoot: stableResourceRoot,
 			sourcePath: path.join(bundleRoot, 'opencode', 'orchbee-agent-observation.mjs'),
 			targetPath: path.join(
 				options.homeDirectory,
@@ -98,12 +110,14 @@ export function createDesktopAgentIntegrationAdapters(
 				'orchbee-agent-observation.mjs',
 			),
 		}),
-		new SymlinkAgentIntegrationAdapter({
+		new GuardedLocalAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
+			entryKind: 'pi-module',
 			executableName: 'pi',
 			integrationId: 'pi',
+			legacyResourceRoots,
 			managementMode,
-			sourceKind: 'file',
+			resourceRoot: stableResourceRoot,
 			sourcePath: path.join(bundleRoot, 'pi', 'orchbee-agent-observation.cjs'),
 			targetPath: path.join(
 				options.homeDirectory,
@@ -113,12 +127,14 @@ export function createDesktopAgentIntegrationAdapters(
 				'orchbee-agent-observation.cjs',
 			),
 		}),
-		new SymlinkAgentIntegrationAdapter({
+		new GuardedLocalAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
+			entryKind: 'omp-module',
 			executableName: 'omp',
 			integrationId: 'omp',
+			legacyResourceRoots,
 			managementMode,
-			sourceKind: 'file',
+			resourceRoot: stableResourceRoot,
 			sourcePath: path.join(bundleRoot, 'omp', 'orchbee-agent-observation.cjs'),
 			targetPath: path.join(
 				options.homeDirectory,
@@ -128,12 +144,15 @@ export function createDesktopAgentIntegrationAdapters(
 				'orchbee-agent-observation.cjs',
 			),
 		}),
-		new SymlinkAgentIntegrationAdapter({
+		new GuardedLocalAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
+			entryKind: 'extension-directory',
 			executableName: 'gemini',
 			integrationId: 'gemini',
+			legacyResourceRoots,
 			managementMode,
-			sourceKind: 'directory',
+			resourceRoot: stableResourceRoot,
+			runtimeSourcePath: sharedRuntimeRoot,
 			sourcePath: path.join(bundleRoot, 'gemini'),
 			targetPath: path.join(
 				options.homeDirectory,
@@ -147,24 +166,27 @@ export function createDesktopAgentIntegrationAdapters(
 			disable: disableGitHubCopilot,
 			enable: enableGitHubCopilot,
 			executableName: 'copilot',
-			inspectArguments: ['plugins', 'list', '--kind', 'plugin', '--json'],
+			inspect: inspectGitHubCopilotState,
 			integrationId: 'github-copilot',
+			legacyResourceRoots,
 			managementMode,
-			parseState: (stdout) => parseGitHubCopilotState(stdout, options.resourceRoot),
-			resourceRoot: options.resourceRoot,
+			resourceRoot: stableResourceRoot,
 		}),
 		new ClineAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
 			homeDirectory: options.homeDirectory,
 			managementMode,
-			resourceRoot: options.resourceRoot,
+			resourceRoot: stableResourceRoot,
 		}),
-		new SymlinkAgentIntegrationAdapter({
+		new GuardedLocalAgentIntegrationAdapter({
 			commandRunner: options.commandRunner,
+			entryKind: 'extension-directory',
 			executableName: 'qwen',
 			integrationId: 'qwen-code',
+			legacyResourceRoots,
 			managementMode,
-			sourceKind: 'directory',
+			resourceRoot: stableResourceRoot,
+			runtimeSourcePath: sharedRuntimeRoot,
 			sourcePath: path.join(bundleRoot, 'qwen-code'),
 			targetPath: path.join(
 				options.homeDirectory,
@@ -173,7 +195,7 @@ export function createDesktopAgentIntegrationAdapters(
 				'orchbee-agent-observation',
 			),
 		}),
-	];
+	].map((adapter) => new CapsuleAgentIntegrationAdapter(adapter, capsule));
 	if (
 		adapters.length !== DESKTOP_AGENT_INTEGRATION_IDS.length ||
 		!DESKTOP_AGENT_INTEGRATION_IDS.every(
@@ -188,10 +210,11 @@ export function createDesktopAgentIntegrationAdapters(
 async function enableClaude(
 	context: CliAgentIntegrationOperationContext,
 ): Promise<AgentIntegrationMutationAttempt> {
-	const state = await inspectState(context, ['plugin', 'list', '--json'], parseClaudeState);
-	if (state === null) return { kind: 'failed' };
-	if (state === 'enabled') return { kind: 'attempted' };
-	if (state === 'disabled') {
+	const configuration = await inspectClaudeConfiguration(context);
+	if (configuration === null) return { kind: 'failed' };
+	if (configuration.state === 'enabled') return { kind: 'attempted' };
+	if (configuration.state === 'conflict') return { kind: 'conflict' };
+	if (configuration.state === 'disabled') {
 		return commandAttempt(
 			await context.commandRunner.run(context.executablePath, [
 				'plugin',
@@ -202,74 +225,65 @@ async function enableClaude(
 			]),
 		);
 	}
-	if (state !== 'not-installed') return { kind: 'failed' };
-	const marketplace = await ensureClaudeMarketplace(context);
-	if (marketplace.kind !== 'attempted') return marketplace;
-	return runCommandSequence(context, [
+	if (configuration.state !== 'not-installed' && configuration.state !== 'update-required') {
+		return { kind: 'failed' };
+	}
+	const commands: (readonly string[])[] = [];
+	if (configuration.state === 'update-required' && configuration.pluginPresent) {
+		commands.push(['plugin', 'uninstall', CLAUDE_PLUGIN_ID, '--scope', 'user']);
+	}
+	if (configuration.marketplace === 'legacy') {
+		commands.push(['plugin', 'marketplace', 'remove', MARKETPLACE_NAME, '--scope', 'user']);
+	}
+	if (configuration.marketplace !== 'current') {
+		commands.push(['plugin', 'marketplace', 'add', context.resourceRoot, '--scope', 'user']);
+	}
+	commands.push(
 		['plugin', 'install', CLAUDE_PLUGIN_ID, '--scope', 'user'],
 		['plugin', 'enable', CLAUDE_PLUGIN_ID, '--scope', 'user'],
-	]);
+	);
+	return runCommandSequence(context, commands);
 }
 
 async function disableClaude(
 	context: CliAgentIntegrationOperationContext,
 ): Promise<AgentIntegrationMutationAttempt> {
-	const state = await inspectState(context, ['plugin', 'list', '--json'], parseClaudeState);
-	if (state === null) return { kind: 'failed' };
-	if (state === 'not-installed' || state === 'disabled') return { kind: 'attempted' };
-	if (state !== 'enabled') return { kind: 'failed' };
-	return commandAttempt(
-		await context.commandRunner.run(context.executablePath, [
-			'plugin',
-			'disable',
-			CLAUDE_PLUGIN_ID,
-			'--scope',
-			'user',
-		]),
-	);
-}
-
-async function enableCodex(
-	context: CliAgentIntegrationOperationContext,
-): Promise<AgentIntegrationMutationAttempt> {
-	const state = await inspectState(context, ['plugin', 'list', '--json'], parseCodexState);
-	if (state === null) return { kind: 'failed' };
-	if (state === 'enabled') return { kind: 'attempted' };
-	const marketplace = await ensureCodexMarketplace(context);
-	if (marketplace.kind !== 'attempted') return marketplace;
-	const steps: (readonly string[])[] = [];
-	if (state === 'disabled') {
-		steps.push(['plugin', 'remove', CODEX_PLUGIN_ID, '--json']);
+	const configuration = await inspectClaudeConfiguration(context);
+	if (configuration === null) return { kind: 'failed' };
+	if (configuration.state === 'not-installed' || configuration.state === 'disabled') {
+		return { kind: 'attempted' };
 	}
-	if (state !== 'disabled' && state !== 'not-installed') return { kind: 'failed' };
-	steps.push(['plugin', 'add', CODEX_PLUGIN_ID, '--json']);
-	return runCommandSequence(context, steps);
-}
-
-async function disableCodex(
-	context: CliAgentIntegrationOperationContext,
-): Promise<AgentIntegrationMutationAttempt> {
-	const state = await inspectState(context, ['plugin', 'list', '--json'], parseCodexState);
-	if (state === null) return { kind: 'failed' };
-	if (state === 'not-installed') return { kind: 'attempted' };
-	if (state !== 'enabled' && state !== 'disabled') return { kind: 'failed' };
-	return commandAttempt(
-		await context.commandRunner.run(context.executablePath, [
-			'plugin',
-			'remove',
-			CODEX_PLUGIN_ID,
-			'--json',
-		]),
-	);
+	if (configuration.state === 'conflict') return { kind: 'conflict' };
+	if (configuration.state === 'enabled') {
+		return commandAttempt(
+			await context.commandRunner.run(context.executablePath, [
+				'plugin',
+				'disable',
+				CLAUDE_PLUGIN_ID,
+				'--scope',
+				'user',
+			]),
+		);
+	}
+	if (configuration.state !== 'update-required') return { kind: 'failed' };
+	const commands: (readonly string[])[] = [];
+	if (configuration.pluginPresent) {
+		commands.push(['plugin', 'uninstall', CLAUDE_PLUGIN_ID, '--scope', 'user']);
+	}
+	if (configuration.marketplace === 'legacy') {
+		commands.push(['plugin', 'marketplace', 'remove', MARKETPLACE_NAME, '--scope', 'user']);
+	}
+	return commands.length === 0 ? { kind: 'failed' } : runCommandSequence(context, commands);
 }
 
 async function enableGrok(
 	context: CliAgentIntegrationOperationContext,
 ): Promise<AgentIntegrationMutationAttempt> {
-	const state = await inspectState(context, ['plugin', 'list', '--json'], parseGrokState);
-	if (state === null) return { kind: 'failed' };
-	if (state === 'enabled') return { kind: 'attempted' };
-	if (state === 'disabled') {
+	const configuration = await inspectGrokConfiguration(context);
+	if (configuration === null) return { kind: 'failed' };
+	if (configuration.state === 'enabled') return { kind: 'attempted' };
+	if (configuration.state === 'conflict') return { kind: 'conflict' };
+	if (configuration.state === 'disabled') {
 		return commandAttempt(
 			await context.commandRunner.run(context.executablePath, [
 				'plugin',
@@ -278,29 +292,33 @@ async function enableGrok(
 			]),
 		);
 	}
-	if (state !== 'not-installed') return { kind: 'failed' };
-	return commandAttempt(
-		await context.commandRunner.run(context.executablePath, [
-			'plugin',
-			'install',
-			path.join(context.resourceRoot, 'bundle'),
-			'--trust',
-		]),
-	);
+	if (configuration.state !== 'not-installed' && configuration.state !== 'update-required') {
+		return { kind: 'failed' };
+	}
+	const commands: (readonly string[])[] = [];
+	if (configuration.pluginPresent) {
+		commands.push(['plugin', 'uninstall', GROK_PLUGIN_NAME, '--confirm']);
+	}
+	commands.push(['plugin', 'install', path.join(context.resourceRoot, 'bundle'), '--trust']);
+	return runCommandSequence(context, commands);
 }
 
 async function disableGrok(
 	context: CliAgentIntegrationOperationContext,
 ): Promise<AgentIntegrationMutationAttempt> {
-	const state = await inspectState(context, ['plugin', 'list', '--json'], parseGrokState);
-	if (state === null) return { kind: 'failed' };
-	if (state === 'not-installed' || state === 'disabled') return { kind: 'attempted' };
-	if (state !== 'enabled') return { kind: 'failed' };
+	const configuration = await inspectGrokConfiguration(context);
+	if (configuration === null) return { kind: 'failed' };
+	if (configuration.state === 'not-installed' || configuration.state === 'disabled') {
+		return { kind: 'attempted' };
+	}
+	if (configuration.state === 'conflict') return { kind: 'conflict' };
+	if (!configuration.pluginPresent) return { kind: 'failed' };
 	return commandAttempt(
 		await context.commandRunner.run(context.executablePath, [
 			'plugin',
-			'disable',
+			'uninstall',
 			GROK_PLUGIN_NAME,
+			'--confirm',
 		]),
 	);
 }
@@ -308,16 +326,11 @@ async function disableGrok(
 async function enableGitHubCopilot(
 	context: CliAgentIntegrationOperationContext,
 ): Promise<AgentIntegrationMutationAttempt> {
-	const parseState = (stdout: string) => parseGitHubCopilotState(stdout, context.resourceRoot);
-	const state = await inspectState(
-		context,
-		['plugins', 'list', '--kind', 'plugin', '--json'],
-		parseState,
-	);
-	if (state === null) return { kind: 'failed' };
-	if (state === 'enabled') return { kind: 'attempted' };
-	if (state === 'conflict') return { kind: 'conflict' };
-	if (state === 'disabled') {
+	const configuration = await inspectGitHubCopilotConfiguration(context);
+	if (configuration === null) return { kind: 'failed' };
+	if (configuration.state === 'enabled') return { kind: 'attempted' };
+	if (configuration.state === 'conflict') return { kind: 'conflict' };
+	if (configuration.state === 'disabled') {
 		return commandAttempt(
 			await context.commandRunner.run(context.executablePath, [
 				'plugins',
@@ -327,146 +340,138 @@ async function enableGitHubCopilot(
 			]),
 		);
 	}
-	if (state !== 'not-installed') return { kind: 'failed' };
-	const marketplace = await ensureGitHubCopilotMarketplace(context);
-	if (marketplace.kind !== 'attempted') return marketplace;
-	return commandAttempt(
-		await context.commandRunner.run(context.executablePath, [
-			'plugins',
-			'install',
-			GITHUB_COPILOT_PLUGIN_ID,
-		]),
-	);
+	if (configuration.state !== 'not-installed' && configuration.state !== 'update-required') {
+		return { kind: 'failed' };
+	}
+	const commands: (readonly string[])[] = [];
+	if (configuration.pluginPresent) {
+		commands.push(['plugins', 'remove', GITHUB_COPILOT_PLUGIN_ID, '--plugin']);
+	}
+	if (configuration.marketplace === 'legacy') {
+		commands.push(['plugins', 'marketplace', 'remove', MARKETPLACE_NAME]);
+	}
+	if (configuration.marketplace !== 'current') {
+		commands.push(['plugins', 'marketplace', 'add', context.resourceRoot]);
+	}
+	commands.push(['plugins', 'install', GITHUB_COPILOT_PLUGIN_ID]);
+	return runCommandSequence(context, commands);
 }
 
 async function disableGitHubCopilot(
 	context: CliAgentIntegrationOperationContext,
 ): Promise<AgentIntegrationMutationAttempt> {
-	const state = await inspectState(
-		context,
-		['plugins', 'list', '--kind', 'plugin', '--json'],
-		(stdout) => parseGitHubCopilotState(stdout, context.resourceRoot),
-	);
-	if (state === null) return { kind: 'failed' };
-	if (state === 'not-installed' || state === 'disabled') return { kind: 'attempted' };
-	if (state === 'conflict') return { kind: 'conflict' };
-	if (state !== 'enabled') return { kind: 'failed' };
-	return commandAttempt(
-		await context.commandRunner.run(context.executablePath, [
-			'plugins',
-			'disable',
-			GITHUB_COPILOT_PLUGIN_ID,
-			'--plugin',
-		]),
-	);
+	const configuration = await inspectGitHubCopilotConfiguration(context);
+	if (configuration === null) return { kind: 'failed' };
+	if (configuration.state === 'not-installed' || configuration.state === 'disabled') {
+		return { kind: 'attempted' };
+	}
+	if (configuration.state === 'conflict') return { kind: 'conflict' };
+	if (configuration.state === 'enabled') {
+		return commandAttempt(
+			await context.commandRunner.run(context.executablePath, [
+				'plugins',
+				'disable',
+				GITHUB_COPILOT_PLUGIN_ID,
+				'--plugin',
+			]),
+		);
+	}
+	if (configuration.state !== 'update-required') return { kind: 'failed' };
+	const commands: (readonly string[])[] = [];
+	if (configuration.pluginPresent) {
+		commands.push(['plugins', 'remove', GITHUB_COPILOT_PLUGIN_ID, '--plugin']);
+	}
+	if (configuration.marketplace === 'legacy') {
+		commands.push(['plugins', 'marketplace', 'remove', MARKETPLACE_NAME]);
+	}
+	return commands.length === 0 ? { kind: 'failed' } : runCommandSequence(context, commands);
 }
 
-async function ensureClaudeMarketplace(
+async function inspectClaudeState(
 	context: CliAgentIntegrationOperationContext,
-): Promise<AgentIntegrationMutationAttempt> {
-	const result = await context.commandRunner.run(context.executablePath, [
+): Promise<DesktopAgentIntegrationState | null> {
+	return (await inspectClaudeConfiguration(context))?.state ?? null;
+}
+
+async function inspectClaudeConfiguration(
+	context: CliAgentIntegrationOperationContext,
+): Promise<ClaudeAgentIntegrationConfiguration | null> {
+	const pluginResult = await context.commandRunner.run(context.executablePath, [
+		'plugin',
+		'list',
+		'--json',
+	]);
+	if (pluginResult.kind !== 'completed') return null;
+	const marketplaceResult = await context.commandRunner.run(context.executablePath, [
 		'plugin',
 		'marketplace',
 		'list',
 		'--json',
 	]);
-	if (result.kind !== 'completed') return commandAttempt(result);
-	const entries = parseRecordArray(result.stdout);
-	if (entries === null) return { kind: 'failed' };
-	const existing = entries.find((entry) => readString(entry, 'name') === MARKETPLACE_NAME);
-	if (existing !== undefined) {
-		const sourceKind = readString(existing, 'source');
-		const sourcePath = readString(existing, 'path');
-		return (sourceKind === 'directory' || sourceKind === 'local') &&
-			sourcePath !== null &&
-			path.resolve(sourcePath) === path.resolve(context.resourceRoot)
-			? { kind: 'attempted' }
-			: { kind: 'conflict' };
-	}
-	return commandAttempt(
-		await context.commandRunner.run(context.executablePath, [
-			'plugin',
-			'marketplace',
-			'add',
-			context.resourceRoot,
-			'--scope',
-			'user',
-		]),
-	);
+	return marketplaceResult.kind === 'completed'
+		? parseClaudeConfiguration(
+				pluginResult.stdout,
+				marketplaceResult.stdout,
+				resourceOptions(context),
+			)
+		: null;
 }
 
-async function ensureCodexMarketplace(
+async function inspectGrokState(
 	context: CliAgentIntegrationOperationContext,
-): Promise<AgentIntegrationMutationAttempt> {
+): Promise<DesktopAgentIntegrationState | null> {
+	return (await inspectGrokConfiguration(context))?.state ?? null;
+}
+
+async function inspectGrokConfiguration(
+	context: CliAgentIntegrationOperationContext,
+): Promise<GrokAgentIntegrationConfiguration | null> {
 	const result = await context.commandRunner.run(context.executablePath, [
 		'plugin',
-		'marketplace',
 		'list',
 		'--json',
 	]);
-	if (result.kind !== 'completed') return commandAttempt(result);
-	const root = parseJsonRecord(result.stdout);
-	const entries = root === null ? null : readRecordArray(root, 'marketplaces');
-	if (entries === null) return { kind: 'failed' };
-	const existing = entries.find((entry) => readString(entry, 'name') === MARKETPLACE_NAME);
-	if (existing !== undefined) {
-		const source = readRecord(existing, 'marketplaceSource');
-		const sourceKind = source === null ? null : readString(source, 'sourceType');
-		const sourcePath = source === null ? null : readString(source, 'source');
-		return sourceKind === 'local' &&
-			sourcePath !== null &&
-			path.resolve(sourcePath) === path.resolve(context.resourceRoot)
-			? { kind: 'attempted' }
-			: { kind: 'conflict' };
-	}
-	return commandAttempt(
-		await context.commandRunner.run(context.executablePath, [
-			'plugin',
-			'marketplace',
-			'add',
-			context.resourceRoot,
-			'--json',
-		]),
-	);
+	return result.kind === 'completed'
+		? parseGrokConfiguration(result.stdout, resourceOptions(context))
+		: null;
 }
 
-async function ensureGitHubCopilotMarketplace(
+async function inspectGitHubCopilotState(
 	context: CliAgentIntegrationOperationContext,
-): Promise<AgentIntegrationMutationAttempt> {
-	const result = await context.commandRunner.run(context.executablePath, [
+): Promise<DesktopAgentIntegrationState | null> {
+	return (await inspectGitHubCopilotConfiguration(context))?.state ?? null;
+}
+
+async function inspectGitHubCopilotConfiguration(
+	context: CliAgentIntegrationOperationContext,
+): Promise<GitHubCopilotAgentIntegrationConfiguration | null> {
+	const pluginResult = await context.commandRunner.run(context.executablePath, [
+		'plugins',
+		'list',
+		'--kind',
+		'plugin',
+		'--json',
+	]);
+	if (pluginResult.kind !== 'completed') return null;
+	const marketplaceResult = await context.commandRunner.run(context.executablePath, [
 		'plugins',
 		'marketplace',
 		'list',
 		'--json',
 	]);
-	if (result.kind !== 'completed') return commandAttempt(result);
-	const entries = parseRecordArray(result.stdout);
-	if (entries === null) return { kind: 'failed' };
-	const existing = entries.find((entry) => readString(entry, 'name') === MARKETPLACE_NAME);
-	if (existing !== undefined) {
-		const source = readString(existing, 'source');
-		const prefix = 'Local: ';
-		return source !== null &&
-			source.startsWith(prefix) &&
-			path.resolve(source.slice(prefix.length)) === path.resolve(context.resourceRoot)
-			? { kind: 'attempted' }
-			: { kind: 'conflict' };
-	}
-	return commandAttempt(
-		await context.commandRunner.run(context.executablePath, [
-			'plugins',
-			'marketplace',
-			'add',
-			context.resourceRoot,
-		]),
-	);
+	return marketplaceResult.kind === 'completed'
+		? parseGitHubCopilotConfiguration(
+				pluginResult.stdout,
+				marketplaceResult.stdout,
+				resourceOptions(context),
+			)
+		: null;
 }
 
-async function inspectState(
-	context: CliAgentIntegrationOperationContext,
-	arguments_: readonly string[],
-	parseState: (stdout: string) => DesktopAgentIntegrationState | null,
-): Promise<DesktopAgentIntegrationState | null> {
-	const result = await context.commandRunner.run(context.executablePath, arguments_);
-	return result.kind === 'completed' ? parseState(result.stdout) : null;
+function resourceOptions(context: CliAgentIntegrationOperationContext) {
+	return {
+		expectedVersion: AGENT_OBSERVATION_CAPSULE_VERSION,
+		legacyResourceRoots: context.legacyResourceRoots,
+		resourceRoot: context.resourceRoot,
+	};
 }

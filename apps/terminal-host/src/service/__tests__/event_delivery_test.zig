@@ -258,7 +258,7 @@ test "failed terminal outcome is emitted once with typed process evidence" {
     defer duplicate.deinit();
     try std.testing.expectEqual(@as(usize, 0), duplicate.records().len);
 }
-test "OSC 777 application activity signals cross the Host event scheduler once" {
+test "private APC application signals cross the Host event scheduler once" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
 
     const arguments = [_][]const u8{ "-c", "read value" };
@@ -291,7 +291,7 @@ test "OSC 777 application activity signals cross the Host event scheduler once" 
         @as(terminal_runtime.testing.ReaderBatchOutcomeType, .committed),
         commitReaderBatch(
             runtime,
-            "\x1b]777;notify;orchbee.agent.v1;{\"activity\":\"thinking\",\"version\":1}\x1b\\",
+            "\x1b_orchbee.agent.v3;eyJraW5kIjoiY29ycmVsYXRpb24iLCJ2ZXJzaW9uIjozfQ\x1b\\",
         ),
     );
 
@@ -314,7 +314,7 @@ test "OSC 777 application activity signals cross the Host event scheduler once" 
     defer signal.deinit();
     try std.testing.expectEqualStrings("orchbee.agent.v1", signal.value.channel);
     try std.testing.expectEqualStrings(
-        "{\"activity\":\"thinking\",\"version\":1}",
+        "{\"kind\":\"correlation\",\"version\":3}",
         signal.value.payload,
     );
     try std.testing.expectEqualStrings("1", signal.value.sequence);

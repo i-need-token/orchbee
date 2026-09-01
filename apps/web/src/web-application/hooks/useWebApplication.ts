@@ -3,9 +3,10 @@ import type {
 	WorkbenchHostActionCallback,
 	WorkbenchTerminalFontSizeChangeCallback,
 } from '@orchbee/workbench';
-import { useLayoutEffect, useRef, type RefObject } from 'react';
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 
 import { type TerminalSettingsController, useTerminalSettings } from '../../terminal-settings';
+import type { TerminalSettingsCategory } from '../../terminal-settings-surface';
 
 interface UseWebApplicationOptions {
 	readonly terminalSettingsController: TerminalSettingsController;
@@ -14,8 +15,10 @@ interface UseWebApplicationOptions {
 interface WebApplicationView {
 	readonly applicationReference: RefObject<HTMLDivElement | null>;
 	readonly closeSettings: () => void;
+	readonly onOpenAgentIntegrationSettings: () => void;
 	readonly onSettings: WorkbenchHostActionCallback;
 	readonly onTerminalFontSizeChange: WorkbenchTerminalFontSizeChangeCallback;
+	readonly requestedSettingsCategory: TerminalSettingsCategory | undefined;
 	readonly settingsOpen: boolean;
 	readonly workbenchReference: RefObject<HTMLDivElement | null>;
 }
@@ -25,6 +28,9 @@ export function useWebApplication({
 }: UseWebApplicationOptions): WebApplicationView {
 	const settings = useTerminalSettings(terminalSettingsController);
 	const applicationReference = useRef<HTMLDivElement>(null);
+	const [requestedSettingsCategory, setRequestedSettingsCategory] = useState<
+		TerminalSettingsCategory | undefined
+	>();
 	const workbenchReference = useRef<HTMLDivElement>(null);
 	const returnFocusReference = useRef<HTMLElement | null>(null);
 	useLayoutEffect(() => {
@@ -65,6 +71,7 @@ export function useWebApplication({
 	});
 
 	const closeSettings = useMemoizedFn((): void => {
+		setRequestedSettingsCategory(undefined);
 		const result = terminalSettingsController.close();
 		if (result.kind === 'changed') {
 			restoreWorkbenchFocus();
@@ -73,6 +80,7 @@ export function useWebApplication({
 
 	const onSettings: WorkbenchHostActionCallback = useMemoizedFn(
 		(context: Parameters<WorkbenchHostActionCallback>[0]) => {
+			setRequestedSettingsCategory(undefined);
 			if (context.signal.aborted) return { kind: 'cancelled' };
 			if (terminalSettingsController.getSnapshot().open) return { kind: 'unchanged' };
 			const activeElement = applicationReference.current?.ownerDocument.activeElement;
@@ -83,6 +91,10 @@ export function useWebApplication({
 			return { kind: 'completed' };
 		},
 	);
+	const onOpenAgentIntegrationSettings = useMemoizedFn((): void => {
+		setRequestedSettingsCategory('agent-integrations');
+		terminalSettingsController.open();
+	});
 	const onTerminalFontSizeChange: WorkbenchTerminalFontSizeChangeCallback = useMemoizedFn(
 		(context, change) => {
 			if (context.signal.aborted) return { kind: 'cancelled' };
@@ -108,8 +120,10 @@ export function useWebApplication({
 	return {
 		applicationReference,
 		closeSettings,
+		onOpenAgentIntegrationSettings,
 		onSettings,
 		onTerminalFontSizeChange,
+		requestedSettingsCategory,
 		settingsOpen: settings.open,
 		workbenchReference,
 	};

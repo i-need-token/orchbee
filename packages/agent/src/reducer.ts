@@ -531,7 +531,14 @@ function endSession(
 	session: AgentSessionSnapshot,
 	event: Extract<AgentObservationEvent, { readonly type: 'session-ended' }>,
 ): AgentTransition {
-	const unavailable = requireLiveCapability(snapshot, session, 'sessionLifecycle');
+	const retiresHeuristicPresence =
+		session.observation.source === 'heuristic' &&
+		session.observation.fidelity === 'heuristic' &&
+		session.capabilities.length === 0;
+	if (session.lifecycle !== 'live') return rejected(snapshot, 'session-ended');
+	const unavailable = retiresHeuristicPresence
+		? null
+		: requireLiveCapability(snapshot, session, 'sessionLifecycle');
 	if (unavailable !== null) return unavailable;
 	const interrupted =
 		session.turn.kind === 'active'
@@ -542,7 +549,7 @@ function endSession(
 				}
 			: session.lastOutcome;
 	const semanticEvents: AgentSemanticEvent[] = [];
-	if (session.turn.kind === 'active') {
+	if (!retiresHeuristicPresence && session.turn.kind === 'active') {
 		semanticEvents.push({
 			eventId: event.eventId,
 			outcome: 'interrupted',
@@ -551,11 +558,13 @@ function endSession(
 			type: 'turn-outcome',
 		});
 	}
-	semanticEvents.push({
-		eventId: event.eventId,
-		sessionId: session.sessionId,
-		type: 'session-ended',
-	});
+	if (!retiresHeuristicPresence) {
+		semanticEvents.push({
+			eventId: event.eventId,
+			sessionId: session.sessionId,
+			type: 'session-ended',
+		});
+	}
 	return replaceSession(
 		snapshot,
 		index,
@@ -564,7 +573,12 @@ function endSession(
 			activityHint: null,
 			lastOutcome: interrupted,
 			lifecycle: 'ended',
-			observation: advanceObservation(session, event.sequence),
+			observation: retiresHeuristicPresence
+				? {
+						...advanceObservation(session, event.sequence),
+						freshness: 'disconnected',
+					}
+				: advanceObservation(session, event.sequence),
 			pendingRequests: [],
 			turn: { kind: 'unknown' },
 		},

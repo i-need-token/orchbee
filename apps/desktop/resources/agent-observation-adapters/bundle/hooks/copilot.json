@@ -3,35 +3,35 @@
 	"hooks": {
 		"SessionStart": [
 			{
-				"command": "node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot",
+				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
 				"type": "command"
 			}
 		],
 		"UserPromptSubmit": [
 			{
-				"command": "node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot",
+				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
 				"type": "command"
 			}
 		],
 		"PostToolUse": [
 			{
-				"command": "node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot",
+				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
 				"type": "command"
 			}
 		],
 		"PostToolUseFailure": [
 			{
-				"command": "node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot",
+				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
 				"type": "command"
 			}
 		],
 		"Notification": [
 			{
-				"command": "node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot",
+				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"matcher": "permission_prompt|elicitation_dialog",
 				"timeoutSec": 2,
 				"type": "command"
@@ -39,28 +39,28 @@
 		],
 		"PreCompact": [
 			{
-				"command": "node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot",
+				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
 				"type": "command"
 			}
 		],
 		"Stop": [
 			{
-				"command": "node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot",
+				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
 				"type": "command"
 			}
 		],
 		"ErrorOccurred": [
 			{
-				"command": "node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot",
+				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 2,
 				"type": "command"
 			}
 		],
 		"SessionEnd": [
 			{
-				"command": "node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot",
+				"command": "command -v node >/dev/null 2>&1 && [ -r \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" ] && node \"${COPILOT_PLUGIN_ROOT}/scripts/forward-hook.mjs\" github-copilot >/dev/null 2>&1 || :",
 				"timeoutSec": 1,
 				"type": "command"
 			}

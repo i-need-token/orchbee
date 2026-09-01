@@ -256,9 +256,10 @@ All three compositions use one TanStack Browser Router and the same path contrac
 
 Local Desktop Settings includes Agent Integrations when that capability is present. Startup,
 search, category navigation, and reminder rendering perform no mutation. After a supported Agent is
-directly launched in an integrated local shell, the one-per-session reminder can send an explicit
-one-click enable request for that exact Agent; an explicit row action remains the Settings path.
-Reminder dismissal stores only the Agent ID, and remote setup remains manual-only.
+directly launched in an integrated local shell, Main lazily inspects only that provider and the
+one-per-session reminder can open Agent Integrations Settings. Only an explicit switch action there
+can mutate provider configuration. Reminder dismissal stores only the Agent ID, and remote setup
+remains manual-only.
 
 General lets the user choose English or Simplified Chinese. Before any explicit choice, locale is
 resolved from ordered operating-system or Browser preferences; afterward, the strict client-local

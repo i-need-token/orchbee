@@ -90,8 +90,10 @@ describe('DesktopAgentIntegrationManagementBroker', () => {
 
 		controller.publishLaunch('claude-code', 2);
 
+		const integration = snapshot.integrations[0];
 		expect(port.messages).toEqual([
 			{
+				integration,
 				integrationId: 'claude-code',
 				revision: 2,
 				type: 'desktop-agent-integration-launch-observed',
@@ -111,7 +113,7 @@ function createController(): DesktopAgentIntegrationManagementBrokerController &
 	): void;
 } {
 	const launchListeners = new Set<
-		(integrationId: (typeof DESKTOP_AGENT_INTEGRATION_IDS)[number], revision: number) => void
+		Parameters<DesktopAgentIntegrationManagementBrokerController['subscribeLaunches']>[0]
 	>();
 	return {
 		disable: vi.fn<DesktopAgentIntegrationManagementBrokerController['disable']>(async () => ({
@@ -128,7 +130,11 @@ function createController(): DesktopAgentIntegrationManagementBrokerController &
 			snapshot,
 		})),
 		publishLaunch: (integrationId, revision) => {
-			for (const listener of launchListeners) listener(integrationId, revision);
+			const integration = snapshot.integrations.find(
+				(candidate) => candidate.integrationId === integrationId,
+			);
+			if (integration === undefined) throw new Error('Missing test integration.');
+			for (const listener of launchListeners) listener(integration, revision);
 		},
 		subscribeLaunches: (listener) => {
 			launchListeners.add(listener);

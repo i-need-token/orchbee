@@ -24,7 +24,6 @@ export interface AgentObservationJoinHint {
 	readonly eventId: string;
 	readonly generation: CreationId;
 	readonly presentationId: TerminalPresentationId;
-	readonly visibility: AgentPresentationAttachment['visibility'];
 }
 
 export type AgentObservationJoinCommand =
@@ -56,6 +55,11 @@ export type AgentObservationJoinCommand =
 			readonly presentationId: TerminalPresentationId;
 			readonly type: 'retire-presentation-generation';
 	  };
+
+export interface AgentObservationJoinEventAdmission {
+	readonly accepted: boolean;
+	readonly commands: readonly AgentObservationJoinCommand[];
+}
 
 interface PendingHint extends AgentObservationJoinHint {
 	readonly expiresAt: number;
@@ -155,26 +159,40 @@ export class AgentObservationJoinStateMachine {
 		envelope: AgentHookRichObservationEnvelope,
 		now: number,
 	): readonly AgentObservationJoinCommand[] {
+		return this.admitEvent(adapter, envelope, now).commands;
+	}
+
+	admitEvent(
+		adapter: AgentHookAdapterDefinition,
+		envelope: AgentHookRichObservationEnvelope,
+		now: number,
+	): AgentObservationJoinEventAdmission {
 		const commands = this.#cleanupExpired(now);
 		const transportEventKey = eventKey(envelope.adapterId, envelope.eventId);
-		if (this.#recentEventExpirations.has(transportEventKey)) return commands;
+		if (this.#recentEventExpirations.has(transportEventKey)) {
+			return { accepted: false, commands };
+		}
 
 		const existing = this.#pendingEvents.get(transportEventKey);
 		if (existing !== undefined) {
-			if (!envelopesEqual(existing.envelope, envelope)) return commands;
-			for (const correlationId of envelope.correlationIds) {
+			if (!envelopesEqual(existing.envelope, envelope)) {
+				return { accepted: false, commands };
+			}
+			for (const { correlationId } of envelope.correlations) {
 				commands.push(...this.#joinCorrelation(correlationId));
 			}
-			return commands;
+			return { accepted: true, commands };
 		}
-		if (this.#pendingEvents.size >= this.#options.maxPendingEvents) return commands;
+		if (this.#pendingEvents.size >= this.#options.maxPendingEvents) {
+			return { accepted: false, commands };
+		}
 		if (
-			envelope.correlationIds.some((correlationId) => {
+			envelope.correlations.some(({ correlationId }) => {
 				const claimedEventKey = this.#correlationEventIds.get(correlationId);
 				return claimedEventKey !== undefined && claimedEventKey !== transportEventKey;
 			})
 		) {
-			return commands;
+			return { accepted: false, commands };
 		}
 
 		const pendingEvent: PendingEvent = {
@@ -188,11 +206,11 @@ export class AgentObservationJoinStateMachine {
 			settlementScheduled: false,
 		};
 		this.#pendingEvents.set(transportEventKey, pendingEvent);
-		for (const correlationId of envelope.correlationIds) {
+		for (const { correlationId } of envelope.correlations) {
 			this.#correlationEventIds.set(correlationId, transportEventKey);
 			commands.push(...this.#joinCorrelation(correlationId));
 		}
-		return commands;
+		return { accepted: true, commands };
 	}
 
 	settle(
@@ -230,6 +248,10 @@ export class AgentObservationJoinStateMachine {
 		if (transportEventKey === undefined || hint === undefined) return [];
 		const pendingEvent = this.#pendingEvents.get(transportEventKey);
 		if (pendingEvent === undefined || hint.eventId !== pendingEvent.envelope.eventId) return [];
+		const correlation = pendingEvent.envelope.correlations.find(
+			(candidate) => candidate.correlationId === correlationId,
+		);
+		if (correlation === undefined) return [];
 		if (pendingEvent.matchedCorrelationIds.has(correlationId)) {
 			this.#pendingHints.delete(correlationId);
 			return [];
@@ -245,7 +267,7 @@ export class AgentObservationJoinStateMachine {
 		pendingEvent.matchedPresentationGenerations.set(hint.presentationId, hint.generation);
 		const key = attachmentKey(hint.presentationId, hint.generation);
 		const matchedAttachment = pendingEvent.matchedAttachments.get(key);
-		const nextAttachment = attachmentFor(hint);
+		const nextAttachment = attachmentFor(hint, correlation.visibility);
 		const attachment =
 			matchedAttachment === undefined
 				? nextAttachment
@@ -269,7 +291,7 @@ export class AgentObservationJoinStateMachine {
 				},
 			];
 		}
-		if (pendingEvent.matchedCorrelationIds.size === pendingEvent.envelope.correlationIds.length) {
+		if (pendingEvent.matchedCorrelationIds.size === pendingEvent.envelope.correlations.length) {
 			return this.#applyPendingEvent(transportEventKey, pendingEvent);
 		}
 		if (pendingEvent.settlementScheduled) return [];
@@ -330,7 +352,7 @@ export class AgentObservationJoinStateMachine {
 				});
 			}
 			this.#pendingEvents.delete(transportEventKey);
-			for (const correlationId of pendingEvent.envelope.correlationIds) {
+			for (const { correlationId } of pendingEvent.envelope.correlations) {
 				if (this.#correlationEventIds.get(correlationId) === transportEventKey) {
 					this.#correlationEventIds.delete(correlationId);
 				}
@@ -358,12 +380,15 @@ function applyObservationCommand(pendingEvent: PendingEvent): AgentObservationJo
 	};
 }
 
-function attachmentFor(hint: AgentObservationJoinHint): AgentPresentationAttachment {
+function attachmentFor(
+	hint: AgentObservationJoinHint,
+	visibility: AgentPresentationAttachment['visibility'],
+): AgentPresentationAttachment {
 	return {
 		generation: hint.generation,
 		navigable: true,
 		presentationId: hint.presentationId,
-		visibility: hint.visibility,
+		visibility,
 	};
 }
 
@@ -390,8 +415,7 @@ function pendingHintsEqual(left: PendingHint, right: PendingHint): boolean {
 	return (
 		left.eventId === right.eventId &&
 		left.presentationId === right.presentationId &&
-		left.generation === right.generation &&
-		left.visibility === right.visibility
+		left.generation === right.generation
 	);
 }
 

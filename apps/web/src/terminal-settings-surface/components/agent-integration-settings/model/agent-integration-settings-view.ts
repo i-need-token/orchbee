@@ -83,6 +83,11 @@ export function resolveAgentIntegrationStatusView(
 				status: format(agentIntegrationMessages.statusNotInstalled),
 				statusTone: 'neutral',
 			};
+		case 'update-required':
+			return {
+				status: format(agentIntegrationMessages.statusUpdateRequired),
+				statusTone: 'warning',
+			};
 		case 'conflict':
 			return {
 				status: format(agentIntegrationMessages.statusConflict),

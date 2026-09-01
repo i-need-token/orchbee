@@ -33,7 +33,7 @@ afterAll(() => {
 });
 
 describe('AgentIntegrationReminder', () => {
-	it('waits for the matching Agent launch and enables its integration with one click', async () => {
+	it('waits for the matching Agent launch and opens its settings without mutating configuration', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const control = createTestControl({
@@ -44,6 +44,7 @@ describe('AgentIntegrationReminder', () => {
 			getItem: () => null,
 			setItem: () => undefined,
 		});
+		const onOpenSettings = vi.fn<(integrationId: DesktopAgentIntegrationId) => void>();
 		const root = createRoot(container);
 
 		await act(async () => {
@@ -51,7 +52,7 @@ describe('AgentIntegrationReminder', () => {
 				createElement(
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
-					createElement(AgentIntegrationReminder, { control, controller }),
+					createElement(AgentIntegrationReminder, { control, controller, onOpenSettings }),
 				),
 			);
 		});
@@ -69,13 +70,14 @@ describe('AgentIntegrationReminder', () => {
 		expect(control.enableCalls).toEqual([]);
 		expect(control.disableCalls).toEqual([]);
 
-		const enable = requiredElement<HTMLButtonElement>(
+		const openSettings = requiredElement<HTMLButtonElement>(
 			[...reminder.querySelectorAll('button')].find(
-				(button) => button.textContent === 'Enable integration',
+				(button) => button.textContent === 'Open integration settings',
 			),
 		);
-		await act(async () => enable.click());
-		expect(control.enableCalls).toEqual(['grok']);
+		await act(async () => openSettings.click());
+		expect(onOpenSettings).toHaveBeenCalledWith('grok');
+		expect(control.enableCalls).toEqual([]);
 		expect(container.querySelector('[data-slot="agent-integration-reminder"]')).toBeNull();
 		expect(control.disableCalls).toEqual([]);
 
@@ -107,6 +109,7 @@ describe('AgentIntegrationReminder', () => {
 					createElement(AgentIntegrationReminder, {
 						control,
 						controller,
+						onOpenSettings: vi.fn<(integrationId: DesktopAgentIntegrationId) => void>(),
 					}),
 				),
 			);
@@ -121,48 +124,6 @@ describe('AgentIntegrationReminder', () => {
 		expect(JSON.parse(serialized ?? '')).toEqual({ dismissedIntegrationIds: ['pi'] });
 		expect(control.enableCalls).toEqual([]);
 		expect(control.disableCalls).toEqual([]);
-
-		await act(async () => root.unmount());
-		controller.dispose();
-		container.remove();
-	});
-
-	it('keeps a failed one-click enable available for an explicit retry', async () => {
-		const container = document.createElement('div');
-		document.body.append(container);
-		const control = createTestControl(
-			{ codex: { availability: 'available', state: 'not-installed' } },
-			{ enableOutcome: 'failed' },
-		);
-		const controller = new AgentIntegrationReminderController({
-			getItem: () => null,
-			setItem: () => undefined,
-		});
-		const root = createRoot(container);
-		control.recordLaunch('codex');
-		await act(async () => {
-			root.render(
-				createElement(
-					OrchbeeI18nProvider,
-					{ locale: 'en-US' },
-					createElement(AgentIntegrationReminder, { control, controller }),
-				),
-			);
-		});
-
-		const enable = await vi.waitFor(() =>
-			requiredElement<HTMLButtonElement>(
-				[...container.querySelectorAll('button')].find(
-					(button) => button.textContent === 'Enable integration',
-				),
-			),
-		);
-		await act(async () => enable.click());
-		expect(control.enableCalls).toEqual(['codex']);
-		expect(container.querySelector('[data-slot="agent-integration-reminder"]')).not.toBeNull();
-
-		await act(async () => enable.click());
-		expect(control.enableCalls).toEqual(['codex', 'codex']);
 
 		await act(async () => root.unmount());
 		controller.dispose();
@@ -191,7 +152,6 @@ function createTestControl(
 	initial: Partial<
 		Readonly<Record<DesktopAgentIntegrationId, Partial<DesktopAgentIntegrationSnapshotItem>>>
 	>,
-	options: { readonly enableOutcome?: 'completed' | 'failed' } = {},
 ): TestControl {
 	let snapshot: AgentIntegrationManagementClientSnapshot = {
 		failureCode: null,
@@ -220,14 +180,6 @@ function createTestControl(
 		},
 		enable: async (integrationId): Promise<AgentIntegrationManagementClientOperationResult> => {
 			control.enableCalls.push(integrationId);
-			if (options.enableOutcome === 'failed') {
-				return {
-					code: 'operation-failed',
-					integrationId,
-					kind: 'failed',
-					snapshot,
-				};
-			}
 			control.updateIntegration(integrationId, { state: 'enabled' });
 			return { kind: 'completed', snapshot };
 		},

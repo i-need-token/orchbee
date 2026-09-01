@@ -36,7 +36,7 @@ describe('AgentObservationJoinStateMachine', () => {
 		const state = machine();
 		const firstPresentation = register(state, 'first', '33');
 		const secondPresentation = register(state, 'second', '44');
-		state.receiveEvent(adapter(), envelope(1, [1, 2]), 0);
+		state.receiveEvent(adapter(), envelope(1, [1, 2], ['hidden', 'visible']), 0);
 
 		const scheduled = state.receiveHint(hint(firstPresentation, '33', 1, 1), 1);
 		expect(commandTypes(scheduled)).toEqual(['schedule-settlement']);
@@ -47,7 +47,7 @@ describe('AgentObservationJoinStateMachine', () => {
 		const settled = state.settle(schedule.eventKey, schedule.eventExpiresAt, 2);
 		expect(commandTypes(settled)).toEqual(['apply-observation']);
 
-		const late = state.receiveHint(hint(secondPresentation, '44', 2, 1, 'visible'), 3);
+		const late = state.receiveHint(hint(secondPresentation, '44', 2, 1), 3);
 		expect(commandTypes(late)).toEqual(['attach-presentations']);
 		expect(late[0]).toMatchObject({
 			attachments: [{ presentationId: secondPresentation, visibility: 'visible' }],
@@ -58,10 +58,10 @@ describe('AgentObservationJoinStateMachine', () => {
 	it('combines visibility and cancels settlement when the final correlation arrives', () => {
 		const state = machine();
 		const presentationId = register(state, 'nested', '55');
-		state.receiveHint(hint(presentationId, '55', 1, 1, 'visible'), 0);
-		state.receiveHint(hint(presentationId, '55', 2, 1, 'hidden'), 0);
+		state.receiveHint(hint(presentationId, '55', 1, 1), 0);
+		state.receiveHint(hint(presentationId, '55', 2, 1), 0);
 
-		const commands = state.receiveEvent(adapter(), envelope(1, [1, 2]), 1);
+		const commands = state.receiveEvent(adapter(), envelope(1, [1, 2], ['visible', 'hidden']), 1);
 
 		expect(commandTypes(commands)).toEqual([
 			'schedule-settlement',
@@ -133,7 +133,11 @@ describe('AgentObservationJoinStateMachine', () => {
 		]);
 
 		expect(
-			state.receiveEvent(adapter(), { ...richEvent, correlationIds: [1].map(correlationId) }, 2),
+			state.receiveEvent(
+				adapter(),
+				{ ...richEvent, correlations: richEvent.correlations.slice(0, 1) },
+				2,
+			),
 		).toEqual([]);
 		const completed = state.receiveHint(hint(presentationId, 'aa', 2, 1), 3);
 		expect(commandTypes(completed)).toEqual(['cancel-settlement', 'apply-observation']);
@@ -145,7 +149,10 @@ describe('AgentObservationJoinStateMachine', () => {
 		const collisionState = machine();
 		const collisionPresentation = register(collisionState, 'collision', 'bb');
 		collisionState.receiveEvent(adapter(), envelope(1, [1, 2]), 0);
-		expect(collisionState.receiveEvent(adapter(), envelope(2, [1]), 1)).toEqual([]);
+		expect(collisionState.admitEvent(adapter(), envelope(2, [1]), 1)).toEqual({
+			accepted: false,
+			commands: [],
+		});
 		expect(
 			commandTypes(collisionState.receiveHint(hint(collisionPresentation, 'bb', 1, 1), 2)),
 		).toEqual(['schedule-settlement']);
@@ -153,7 +160,10 @@ describe('AgentObservationJoinStateMachine', () => {
 		const eventCapacityState = machine({ maxPendingEvents: 1 });
 		const eventCapacityPresentation = register(eventCapacityState, 'event-capacity', 'cc');
 		eventCapacityState.receiveEvent(adapter(), envelope(1), 0);
-		expect(eventCapacityState.receiveEvent(adapter(), envelope(2), 1)).toEqual([]);
+		expect(eventCapacityState.admitEvent(adapter(), envelope(2), 1)).toEqual({
+			accepted: false,
+			commands: [],
+		});
 		expect(
 			commandTypes(eventCapacityState.receiveHint(hint(eventCapacityPresentation, 'cc', 1, 1), 2)),
 		).toEqual(['apply-observation']);
@@ -193,10 +203,14 @@ function adapter() {
 function envelope(
 	sequence: number,
 	correlations: readonly number[] = [sequence],
+	visibilities: readonly ('hidden' | 'unknown' | 'visible')[] = correlations.map(() => 'hidden'),
 ): AgentHookRichObservationEnvelope {
 	return {
 		adapterId: 'claude-code',
-		correlationIds: correlations.map(correlationId),
+		correlations: correlations.map((value, index) => ({
+			correlationId: correlationId(value),
+			visibility: visibilities[index] ?? 'unknown',
+		})),
 		eventId: eventId(sequence),
 		observation: {
 			activity: 'thinking',
@@ -207,7 +221,7 @@ function envelope(
 			turnKey: null,
 			version: 1,
 		},
-		version: 2,
+		version: 3,
 	};
 }
 
@@ -216,14 +230,12 @@ function hint(
 	generationByte: string,
 	correlationSequence: number,
 	eventSequence: number,
-	visibility: 'hidden' | 'unknown' | 'visible' = 'hidden',
 ) {
 	return {
 		correlationId: correlationId(correlationSequence),
 		eventId: eventId(eventSequence),
 		generation: CreationIdSchema.parse(generationByte.repeat(16)),
 		presentationId,
-		visibility,
 	};
 }
 

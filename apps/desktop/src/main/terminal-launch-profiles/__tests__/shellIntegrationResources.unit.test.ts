@@ -41,15 +41,21 @@ describe('Desktop shell integration resources', () => {
 				]),
 		);
 		for (const source of [zsh, bash, fish]) {
+			if (source === undefined) throw new Error('Missing shell integration fixture.');
 			expect(source).toContain('133;C');
 			expect(source).toContain('133;D;');
 			expect(source).toContain('133;A');
-			expect(source).toContain('"integrationId":"%s","version":3');
+			expect(source).toContain('orchbee.agent.v3;%s');
+			expect(source).not.toContain(']777;notify');
 			expect(source).toContain('file://');
 			expect(source).not.toMatch(/cmdline|command[_ -]?text/iu);
-			for (const integrationId of DESKTOP_AGENT_INTEGRATION_IDS) {
-				expect(source).toContain(integrationId);
-			}
+			const launchIds = [...source.matchAll(/\b(eyJ[A-Za-z0-9_-]+)\b/gu)]
+				.map((match) => match[1])
+				.filter((encoded): encoded is string => encoded !== undefined)
+				.map((encoded) => JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')))
+				.map((payload: { readonly integrationId: string }) => payload.integrationId)
+				.sort();
+			expect(launchIds).toEqual([...DESKTOP_AGENT_INTEGRATION_IDS].sort());
 		}
 		expect(bash).toContain('BASH_VERSINFO[1] < 4');
 		expect(bash).toContain('unsupported-bash-version');
@@ -77,7 +83,7 @@ describe('Desktop shell integration resources', () => {
 				].join('\n');
 				const output = execFileSync('/bin/zsh', ['-f', '-c', script]).toString('utf8');
 				expect(output).toContain(
-					'\u001B]777;notify;orchbee.agent.v1;{"integrationId":"claude-code","version":3}\u001B\\',
+					'\u001B_orchbee.agent.v3;eyJpbnRlZ3JhdGlvbklkIjoiY2xhdWRlLWNvZGUiLCJraW5kIjoibGF1bmNoIiwidmVyc2lvbiI6M30\u001B\\',
 				);
 				expect(output).not.toContain('do-not-transport-this');
 			} finally {
