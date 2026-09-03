@@ -17,6 +17,14 @@ mod host_connection;
     )
 )]
 mod terminal_authorization;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the pure Host launch adapter is staged before carrier integration"
+    )
+)]
+mod terminal_host_launch_adapter;
 #[cfg(unix)]
 mod worker_connection;
 #[cfg(unix)]

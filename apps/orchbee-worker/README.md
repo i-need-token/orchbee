@@ -74,7 +74,7 @@ observation, so the eventual Host execution boundary still owns typed launch fai
 
 The application-private `terminal_authorization` module is compiled into Worker but is deliberately
 not constructed or called by the current process path. It is a carrier-neutral deterministic
-kernel for a later adapter that consumes the semantic
+kernel for the private Host launch adapter and consumes the semantic
 [`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.md) Launch and
 Start values. Its presence does not add a post-handshake Server message or a Terminal Host command
 to the runtime described above.
@@ -137,6 +137,35 @@ observed, so a caller-visible wall-clock rollback cannot revive any expired leas
 | Global result slot                       | Awaiting, handed-off, and result-ready backpressure                                 | Shared slot behavior                                                       | Exactly one outstanding operation or undelivered result across both kinds.                            |
 | Time rollback                            | Expired unaccepted request and admission-to-handoff expiry                          | Expired unaccepted request                                                 | Maximum-observed time prevents an expired lease from becoming dispatchable again.                     |
 
+## Worker-local Terminal Host launch adapter
+
+The application-private `terminal_host_launch_adapter` module is also compiled but not called by
+the current process path. It is a pure value mapper between one admitted `AuthorizedHostDispatch`,
+existing Terminal Protocol request/response values, and the Host observations already accepted by
+`terminal_authorization`; it neither opens a Host socket nor changes kernel state.
+
+### Launch-adapter modeling record
+
+| Field        | Current contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | An admitted OBCN Launch or Start must cross the existing Terminal Protocol without giving the carrier authority to invent a process, directory, environment, identity, geometry, or outcome.                                                                                                                                                                                                                                                                                                                                  |
+| Inputs       | One private admitted dispatch; for Launch only, an injected `ResolvedTerminalLaunchFacts` containing a previously resolved executable, literal arguments, durable launch environment, omitted-cwd default, terminal profile, and optional terminal configuration; or one decoded Host success/`TypedFailure` plus the response envelope's exact Host epoch. Transport supplies only the definite-before-handoff or unknown-after-handoff distinction.                                                                         |
+| Data         | The mapper retains no state. `ResolvedTerminalLaunchFacts::new` is the narrow composition seam for the node-local default-interactive-launch resolver and separately supplied cwd/profile/configuration facts; operating-system, account, environment, and filesystem lookup remain outside this module.                                                                                                                                                                                                                      |
+| Outputs      | Launch becomes `CreateTerminal`; Start becomes `StartTerminal`; Host success or `TypedFailure` becomes the existing `LaunchHostCompletion` or `StartHostCompletion`; transport loss becomes the kernel-facing pre-handoff-failure or post-handoff-unknown observation. The caller remains responsible for framing, I/O, correlation, handoff, and applying an observation to the kernel.                                                                                                                                      |
+| Invariants   | Product `TerminalId` bytes are the stable Host `CreationId`. Start additionally requires that stable creation identity and sends only the authorized Host `TerminalId`. Explicit cwd is copied exactly; omission selects the injected Worker-user-home default. Immediate Launch and Start preserve all four geometry dimensions; deferred Launch carries no geometry. Caller overlay is always empty. Executable, arguments, launch environment, profile, and optional configuration are copied exactly from resolved facts. |
+| Decisions    | The mapper reuses the Terminal Protocol encoders as pure preflight validation, so public protocol values cannot bypass its identity, text, count, palette, geometry, or control-payload bounds. A non-retryable Host `TypedFailure` is `Rejected`; a retryable one is `Failed`. A response kind, creation identity, Host epoch, Start target, or accepted geometry mismatch is a typed adapter error rather than a fabricated kernel observation.                                                                             |
+| Model        | `Launch(dispatch, facts) -> CreateTerminal`; `Start(dispatch) -> StartTerminal`; `(dispatch, response epoch, exact response) -> typed completion`; transport loss before handoff maps to definite failure, while loss after handoff maps to unknown. Each function is deterministic and side-effect free.                                                                                                                                                                                                                     |
+| Dependencies | Application-private OBCN authorization types and the existing Rust Terminal Protocol semantic values/encoders only. The module has no socket, envelope codec, carrier, clock, process, filesystem, account-database, environment-reader, shell resolver, or kernel-orchestration dependency.                                                                                                                                                                                                                                  |
+| Ownership    | The default-interactive-launch resolver owns node-local executable and durable default environment selection. The composition root owns the omitted-cwd, profile, and optional configuration facts. This adapter owns only deterministic translation and cross-contract consistency checks. Terminal Host still owns PTY/process effects; the carrier owns exact envelope/correlation transport; the authorization kernel owns replay and outcome state.                                                                      |
+| Verification | Unit tests cover immediate and deferred Launch, explicit and omitted cwd, stable creation identity, empty overlay and the accepted `TERM`, `COLORTERM`, and `TERM_PROGRAM` defaults, Start, both Start transitions, retryable and non-retryable typed failures for both operations, both transport outcomes, wrong response kinds, identity/epoch/geometry contradictions, and exact argument/environment plus malformed-value bounds.                                                                                        |
+| Limits       | The current runtime still sends no terminal command because no carrier invokes this mapper or the authorization kernel. This slice performs no default resolution itself and does not add Host framing, socket I/O, activation, retry, reconciliation, or a Terminal Protocol change.                                                                                                                                                                                                                                         |
+
+| Authorized input | Terminal Protocol request | Successful Host response                           | Kernel completion                                                                 |
+| ---------------- | ------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Immediate Launch | `CreateTerminal`          | `TerminalIdentity`                                 | Accepted identity; kernel derives `Started` from the authorized complete geometry |
+| Deferred Launch  | `CreateTerminal`          | `TerminalIdentity`                                 | Accepted identity; kernel derives `AwaitingStart`                                 |
+| Start            | `StartTerminal`           | `TerminalStartAccepted` with exact target/geometry | Accepted identity, geometry, and `started` or `already-started` transition        |
+
 ## Local Host broker modeling record
 
 | Field        | Current contract                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -171,10 +200,10 @@ kernel same-user proof used for both local connections. The
 the Host wire; its independent Rust binding supplies the consumed envelope and connection codecs.
 The capability-node protocol crate owns OBCN semantic values and framing without importing either
 local-Site or Terminal Host types. Worker owns admission order, the Host broker connection, coupled
-liveness, the unintegrated deterministic validation/replay/dispatch kernel, and bounded default
-interactive launch resolution. Server remains the only placement, authorization-issuance, and
-reconciliation owner. Terminal Host remains the sole PTY, process-tree, VT, history, and attachment
-authority.
+liveness, the unintegrated deterministic validation/replay/dispatch kernel, bounded default
+interactive launch resolution, and the pure Terminal Host launch adapter. Server remains the only
+placement, authorization-issuance, and reconciliation owner. Terminal Host remains the sole PTY,
+process-tree, VT, history, and attachment authority.
 
 The [`LocalSiteProcessSpine`](../orchbee-server/formal/tla/LocalSiteProcessSpine.tla) model continues
 to own Server admission and Worker-generation behavior. `LocalHostBroker` starts only after that

@@ -73,7 +73,7 @@ boundary 仍负责 typed launch failure。
 ## Worker 本地 authorized Host-operation 内核
 
 Application-private `terminal_authorization` module 会编译进 Worker，但当前 process path
-特意不构造也不调用它。它是供后续 adapter 使用的 carrier-neutral deterministic kernel，消费
+特意不构造也不调用它。它是供私有 Host launch adapter 使用的 carrier-neutral deterministic kernel，消费
 [`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.zh-CN.md) 的
 semantic Launch 与 Start value。它的存在不会给上述 runtime 增加 post-handshake Server message
 或 Terminal Host command。
@@ -135,6 +135,35 @@ rollback 不能让任何 expired lease 复活。
 | Global result slot                      | Awaiting、handed-off 与 result-ready backpressure                               | 共享 slot behavior                                                       | 两种 kind 合计恰好一个 outstanding operation 或 undelivered result。                   |
 | Time rollback                           | Expired unaccepted request 与 admission-to-handoff expiry                       | Expired unaccepted request                                               | Maximum-observed time 阻止 expired lease 再次变为 dispatchable。                       |
 
+## Worker 本地 Terminal Host launch adapter
+
+Application-private `terminal_host_launch_adapter` module 同样会编译，但当前 process path 不会调用它。
+它是一个 pure value mapper，在一项已接纳的 `AuthorizedHostDispatch`、现有 Terminal Protocol
+request/response value，以及 `terminal_authorization` 已接受的 Host observation 之间转换；它既不打开
+Host socket，也不改变 kernel state。
+
+### Launch-adapter 建模记录
+
+| 字段   | 当前契约                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | 已接纳的 OBCN Launch 或 Start 必须通过现有 Terminal Protocol，而不能让 carrier 获得虚构 process、directory、environment、identity、geometry 或 outcome 的 authority。                                                                                                                                                                                                                                                                           |
+| 输入   | 一个私有 admitted dispatch；仅 Launch 还接收注入的 `ResolvedTerminalLaunchFacts`，其中包含此前已解析的 executable、literal argument、durable launch environment、cwd 省略时的 default、terminal profile 与 optional terminal configuration；或者一个 decoded Host success/`TypedFailure` 加 response envelope 的精确 Host epoch。Transport 只提供 handoff 前 definite 与 handoff 后 unknown 的区分。                                            |
+| 数据   | Mapper 不保留 state。`ResolvedTerminalLaunchFacts::new` 是 node-local default-interactive-launch resolver 与单独提供的 cwd/profile/configuration fact 之间的狭窄 composition seam；operating-system、account、environment 与 filesystem lookup 均留在本 module 之外。                                                                                                                                                                           |
+| 输出   | Launch 变为 `CreateTerminal`；Start 变为 `StartTerminal`；Host success 或 `TypedFailure` 变为现有 `LaunchHostCompletion` 或 `StartHostCompletion`；transport loss 变为面向 kernel 的 pre-handoff-failure 或 post-handoff-unknown observation。Caller 仍负责 framing、I/O、correlation、handoff，以及把 observation 应用于 kernel。                                                                                                              |
+| 不变量 | Product `TerminalId` byte 就是 stable Host `CreationId`。Start 还要求该 stable creation identity，并且只发送 authorized Host `TerminalId`。Explicit cwd 会被精确复制；省略时选用注入的 Worker-user-home default。Immediate Launch 与 Start 保留全部四项 geometry dimension；deferred Launch 不携带 geometry。Caller overlay 始终为空。Executable、argument、launch environment、profile 与 optional configuration 都从 resolved fact 精确复制。 |
+| 决策   | Mapper 将 Terminal Protocol encoder 作为 pure preflight validation 复用，因此 public protocol value 无法绕过 identity、text、count、palette、geometry 或 control-payload bound。Non-retryable Host `TypedFailure` 映射为 `Rejected`；retryable failure 映射为 `Failed`。Response kind、creation identity、Host epoch、Start target 或 accepted geometry 不匹配时返回 typed adapter error，而不虚构 kernel observation。                         |
+| 模型   | `Launch(dispatch, facts) -> CreateTerminal`；`Start(dispatch) -> StartTerminal`；`(dispatch, response epoch, exact response) -> typed completion`；handoff 前 transport loss 映射为 definite failure，handoff 后 loss 映射为 unknown。每个 function 都是 deterministic 且 side-effect free。                                                                                                                                                    |
+| 依赖   | 仅依赖 application-private OBCN authorization type，以及现有 Rust Terminal Protocol semantic value/encoder。Module 不依赖 socket、envelope codec、carrier、clock、process、filesystem、account database、environment reader、shell resolver 或 kernel orchestration。                                                                                                                                                                           |
+| 所有权 | Default-interactive-launch resolver 拥有 node-local executable 与 durable default environment selection。Composition root 拥有 omitted-cwd、profile 与 optional configuration fact。此 adapter 只拥有 deterministic translation 与 cross-contract consistency check。Terminal Host 仍拥有 PTY/process effect；carrier 拥有精确 envelope/correlation transport；authorization kernel 拥有 replay 与 outcome state。                              |
+| 验证   | Unit test 覆盖 immediate 与 deferred Launch、explicit 与 omitted cwd、stable creation identity、empty overlay 与已接受的 `TERM`、`COLORTERM` 和 `TERM_PROGRAM` default、Start、两种 Start transition、两种 operation 的 retryable 与 non-retryable typed failure、两种 transport outcome、wrong response kind、identity/epoch/geometry contradiction，以及 exact argument/environment 与 malformed-value bound。                                |
+| 限制   | 当前 runtime 仍不发送 terminal command，因为尚无 carrier 调用此 mapper 或 authorization kernel。本切片自身不执行 default resolution，也不增加 Host framing、socket I/O、activation、retry、reconciliation 或 Terminal Protocol change。                                                                                                                                                                                                         |
+
+| Authorized input | Terminal Protocol request | Successful Host response                           | Kernel completion                                                          |
+| ---------------- | ------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------- |
+| Immediate Launch | `CreateTerminal`          | `TerminalIdentity`                                 | Accepted identity；kernel 从 authorized complete geometry 派生 `Started`   |
+| Deferred Launch  | `CreateTerminal`          | `TerminalIdentity`                                 | Accepted identity；kernel 派生 `AwaitingStart`                             |
+| Start            | `StartTerminal`           | `TerminalStartAccepted` with exact target/geometry | Accepted identity、geometry 以及 `started` 或 `already-started` transition |
+
 ## 本机 Host broker 建模记录
 
 | 字段   | 当前契约                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -167,10 +196,10 @@ Server-Worker framing。
 [`orchbee-terminal-protocol`](../../packages/terminal-protocol/references/protocol.zh-CN.md) package
 拥有 Host wire；其独立 Rust binding 提供本次消费的 envelope 与 connection codec。Capability-node
 protocol crate 拥有 OBCN semantic value 与 framing，不导入 local-Site 或 Terminal Host type。Worker
-拥有 admission order、Host broker connection、coupled liveness，以及尚未集成的 deterministic
-validation/replay/dispatch kernel 和有界 default interactive launch resolution。Server 仍是唯一
-placement、authorization-issuance 与 reconciliation owner。Terminal Host 仍是唯一 PTY、
-process-tree、VT、history 与 attachment authority。
+拥有 admission order、Host broker connection、coupled liveness、尚未集成的 deterministic
+validation/replay/dispatch kernel、有界 default interactive launch resolution，以及 pure Terminal Host
+launch adapter。Server 仍是唯一 placement、authorization-issuance 与 reconciliation owner。Terminal
+Host 仍是唯一 PTY、process-tree、VT、history 与 attachment authority。
 
 [`LocalSiteProcessSpine`](../orchbee-server/formal/tla/LocalSiteProcessSpine.tla) model 继续拥有
 Server admission 与 Worker-generation behavior。`LocalHostBroker` 只从该 admission boundary
