@@ -42,8 +42,68 @@ It performs no retry, discovery, activation, daemonization, child-process superv
 inventory, launch, attachment, input, resize, filesystem inspection, shell or working-directory
 resolution, PTY operation, Agent behavior, or durable write. It uses no current-directory,
 Project, Environment, Checkout, Worktree, launch-profile, Files, or Git fact. Endpoint selection,
-service supervision, Server-issued launch authorization, Host activation, and reconciliation
-belong to later slices.
+service supervision, carrier delivery and runtime consumption of Server-issued launch
+authorization, Host activation, and reconciliation belong to later slices.
+
+## Worker-local authorized Host-operation kernel
+
+The application-private `terminal_authorization` module is compiled into Worker but is deliberately
+not constructed or called by the current process path. It is a carrier-neutral deterministic
+kernel for a later adapter that consumes the semantic
+[`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.md) Launch and
+Start values. Its presence does not add a post-handshake Server message or a Terminal Host command
+to the runtime described above.
+
+A future composition root must construct the kernel with the current local-Site `WorkerId`, the
+nonzero Worker generation accepted by OBLS, and the supported terminal-launch capability version.
+Every admission or pre-handoff decision also receives an explicit Unix-millisecond time, and Start
+admission receives the currently observed Host epoch. A returned dispatch is permission to prepare
+the matching operation, not evidence that a Host effect occurred. The adapter must call
+`begin_host_handoff` with a fresh observed Host epoch immediately before the first possible Host
+effect, then report one typed Host completion, definite pre-handoff failure, or post-handoff unknown
+outcome through the same private dispatch token. The kernel retains the maximum time it has
+observed, so a caller-visible wall-clock rollback cannot revive any expired lease.
+
+### Authorization-kernel modeling record
+
+| Field        | Current contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | A future OBCN carrier may deliver a Server-authorized Launch or Start more than once, late, for the wrong Worker generation, or after authority has advanced. Worker must decide locally whether one Host operation may begin and must preserve the exact terminal result without acquiring Server placement authority or performing the Host effect itself.                                                                                                                                                                             |
+| Inputs       | Canonical OBCN `AuthorizedTerminalLaunch` or `AuthorizedTerminalStart`; the caller-supplied current local-Site Worker ID, nonzero OBLS generation, supported capability version, and current Unix-millisecond time; the observed Host epoch at Start admission and again at the handoff boundary; and a typed Host completion. A missing result or occupied slot remains explicit state rather than inferred success.                                                                                                                    |
+| Data         | `AuthorizedHostOperationKernel` owns one complete highest-fence binding per seen product `TerminalId`, including operation kind, full authorization, Launch or Start payload, and an optional exact cached result. It separately owns one process-local slot in `empty`, `awaiting-handoff`, `handed-off`, or `result-ready` state and a maximum-observed Unix-millisecond high-water mark. A private `AuthorizedHostDispatch` retains the complete admitted operation and therefore its generation and authority binding.               |
+| Outputs      | Admission returns `Dispatch`, `ResultReady`, or `SlotOccupied`; handoff returns `HandedOff` or `ResultReady`; `take_result` returns one typed OBCN Launch or Start result; invalid completion observations return a typed internal error without changing the slot. The kernel opens no carrier, performs no Host call, emits no product event, and writes no durable state.                                                                                                                                                             |
+| Invariants   | Wrong Worker, stale generation, unsupported capability, expired new lease, lower fence, and conflicting same-fence binding never dispatch. An exact binding dispatches at most once and replays only its cached exact result, even after expiry. Once the kernel observes a lease as expired, a lower later time cannot revive it. A valid higher fence replaces the prior binding and clears its cache. At most one operation or undelivered result occupies the global slot. Only `handed-off` can become a Host outcome.              |
+| Decisions    | Classification order is Worker identity, Worker generation, exact cached replay, capability, lease expiry, fence, then Start target epoch. Consequently unsupported or expired lower-fence requests retain their capability or lease classification, while a same-fence changed live lease, operation, or payload conflicts. At Start admission and again at handoff, a target epoch mismatch becomes `HostIdentityChanged`; handoff expiry prevents an effect, and later Host observations must remain consistent.                      |
+| Model        | One deterministic state owner combines a per-terminal monotonic binding map with one globally bounded operation/result slot. `admit_launch` and `admit_start` are the principal entry points; `begin_host_handoff` is the named external-effect boundary; typed observation methods close the accepted binding and queue its result.                                                                                                                                                                                                     |
+| Transitions  | The transition table below defines admission, handoff, completion, exact replay, result delivery, conflict, and stale-token behavior. Rejection before a binding is accepted queues an uncached result; every terminal outcome after a binding is accepted is cached before it is exposed.                                                                                                                                                                                                                                               |
+| Dependencies | The Rust standard library, canonical local-Site Worker identity, and OBCN semantic types and constructors only. Time, socket liveness, decoded framing, current Host epoch, and Host observations are supplied as values by a future adapter; the kernel monotonizes supplied time but never reads a clock. It does not read an environment, filesystem, socket, process, profile, executable, shell, or working directory, and it does not parse or encode Host framing.                                                                |
+| Ownership    | Server continues to own placement, authorization issuance, and reconciliation. OBCN owns the carrier-independent request/result types and wire codec. Worker owns only local validation, monotonic replay memory, the single dispatch gate, and classification around the Host handoff boundary. Terminal Host remains the sole owner of terminal and process effects.                                                                                                                                                                   |
+| Verification | Table-driven unit tests exercise both operation kinds across wrong identity, generation, capability, expiry and clock rollback, overlapping rejection priorities, lower and conflicting fences, exact replay of every accepted/rejected/failed/unknown outcome, expiry after admission, higher-fence rebinding, stale and wrong completions, slot backpressure, initial and raced Start identity changes, both Launch modes, and both Start success transitions. OBCN tests own value/codec validity; TLA+ owns the bounded abstraction. |
+| Correctness  | The Server-owned [`TerminalLaunchAuthorization`](../orchbee-server/formal/tla/TerminalLaunchAuthorization.tla) variables `acceptedBinding`, `requestPhase`, cached outcome/epoch/transition, and pending result map respectively to the kernel binding, slot phases, cached typed result, and result-ready slot. Concrete equality additionally covers every authorization field and Launch/Start payload. Unit tests are implementation-refinement evidence; TLC remains bounded model evidence, not a proof of this Rust code.         |
+| Limits       | No current carrier or Host adapter invokes this kernel, so tests establish deterministic state behavior only. Bindings and cached results are process-local, are not crash-persistent, and remain until the kernel is dropped or a higher fence replaces them; the future integration must define terminal-retirement and capacity policy before exposing runtime admission.                                                                                                                                                             |
+
+| Current slot       | Input or observation                               | Guard                                                                 | Next slot          | Binding/result effect                                                                                      |
+| ------------------ | -------------------------------------------------- | --------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `empty`            | New or higher-fence Launch/Start                   | Worker, generation, capability, lease, and fence are current          | `awaiting-handoff` | Store the complete binding with an empty cache and return its private dispatch.                            |
+| `empty`            | Invalid new, stale, or conflicting request         | A named rejection applies                                             | `result-ready`     | Queue the exact-echo typed rejection without accepting or replacing a binding.                             |
+| `empty`            | Exact accepted binding                             | Its exact terminal result is cached                                   | `result-ready`     | Queue the cached result semantically unchanged; do not dispatch or re-evaluate expiry.                     |
+| `awaiting-handoff` | `begin_host_handoff`                               | Lease remains live and any Start target epoch equals the observed one | `handed-off`       | Preserve the complete dispatch and observed Host epoch; only now may the adapter perform its first effect. |
+| `awaiting-handoff` | Expiry, Start epoch replacement, or definite loss  | No Host effect has begun                                              | `result-ready`     | Cache and queue lease/identity rejection or `HostUnavailableBeforeHandoff`.                                |
+| `handed-off`       | Accepted, rejected, failed, or unknown Host result | Dispatch and Host observation are consistent                          | `result-ready`     | Cache and queue the exact typed result; Launch state derives from its admitted mode.                       |
+| `result-ready`     | `take_result`                                      | One result is present                                                 | `empty`            | Deliver the queued result once while retaining any accepted binding cache for replay.                      |
+| Any occupied slot  | Another admission                                  | An operation or undelivered result already owns the slot              | Unchanged          | Return `SlotOccupied`; do not compare or mutate terminal authority.                                        |
+| Any phase          | Wrong, stale, or out-of-phase dispatch observation | Dispatch or phase does not match                                      | Unchanged          | Return a typed internal error and preserve the current operation/result.                                   |
+
+| Decision partition                       | Launch evidence                                                                     | Start evidence                                                             | Required result                                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Worker, generation, capability, or lease | Table case for every rejection                                                      | Same table cases                                                           | Exact request echo, no dispatch.                                                                      |
+| Overlapping invalid conditions           | Lower plus unsupported, lower plus expired, same-fence changed capability or expiry | Shared classification path                                                 | Capability precedes expiry, expiry precedes fence, and only an exact cached binding bypasses expiry.  |
+| Per-terminal fence                       | Lower, same-operation, lease, and payload conflicts; higher replacement             | Lower, cross-kind, target, and geometry conflicts; higher replacement      | Stale or conflicting rejection; valid higher fence clears the old cache.                              |
+| Exact replay after expiry                | Accepted in both launch modes, rejected, failed, and unknown                        | `Started`, `AlreadyStarted`, rejected, failed, and unknown                 | The original complete cached result; no new Host effect.                                              |
+| Handoff boundary                         | Expiry, definite failure, and Host epoch-bound completion                           | Admission mismatch, expiry, target epoch replacement, and definite failure | No accepted Host observation before handoff; post-handoff loss is unknown.                            |
+| Completion identity and ordering         | Wrong token, stale token, wrong phase, and wrong epoch                              | Wrong operation kind, wrong target identity, and wrong epoch               | Typed error with unchanged state; a later valid completion or unknown observation can still close it. |
+| Global result slot                       | Awaiting, handed-off, and result-ready backpressure                                 | Shared slot behavior                                                       | Exactly one outstanding operation or undelivered result across both kinds.                            |
+| Time rollback                            | Expired unaccepted request and admission-to-handoff expiry                          | Expired unaccepted request                                                 | Maximum-observed time prevents an expired lease from becoming dispatchable again.                     |
 
 ## Local Host broker modeling record
 
@@ -77,13 +137,18 @@ Server-Worker framing. The
 kernel same-user proof used for both local connections. The
 [`orchbee-terminal-protocol`](../../packages/terminal-protocol/references/protocol.md) package owns
 the Host wire; its independent Rust binding supplies the consumed envelope and connection codecs.
-Worker owns admission order, the Host broker connection, and coupled liveness. Server remains the
-only placement and launch-authorization owner. Terminal Host remains the sole PTY, process-tree,
-VT, history, and attachment authority.
+The capability-node protocol crate owns OBCN semantic values and framing without importing either
+local-Site or Terminal Host types. Worker owns admission order, the Host broker connection, coupled
+liveness, and the unintegrated deterministic validation/replay/dispatch kernel. Server remains the
+only placement, authorization-issuance, and reconciliation owner. Terminal Host remains the sole
+PTY, process-tree, VT, history, and attachment authority.
 
 The [`LocalSiteProcessSpine`](../orchbee-server/formal/tla/LocalSiteProcessSpine.tla) model continues
 to own Server admission and Worker-generation behavior. `LocalHostBroker` starts only after that
-admission boundary and adds no second Server or Host model.
+admission boundary and adds no second Server or Host model. The Server-owned
+[`TerminalLaunchAuthorization`](../orchbee-server/formal/tla/TerminalLaunchAuthorization.tla) model
+remains the abstract authorization authority; this Worker module is a concrete deterministic
+refinement of its local admission, handoff, cache, and result actions, not a competing model.
 
 ## Verification
 
@@ -94,7 +159,9 @@ artifact, so build it before a focused Cargo test; the root merge gate already b
 pnpm --filter @orchbee/terminal-host build
 cargo test -p orchbee-worker --all-targets --all-features --locked
 cargo clippy -p orchbee-worker --all-targets --all-features --locked -- -D warnings
+cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
+cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test -p orchbee-local-peer-credentials --all-targets --all-features --locked
-node scripts/tla/run-models.mjs --models local-site-process-spine,local-host-broker
+node scripts/tla/run-models.mjs --models local-site-process-spine,local-host-broker,terminal-launch-authorization
 pnpm verify
 ```

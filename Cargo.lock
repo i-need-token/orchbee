@@ -447,6 +447,7 @@ name = "orchbee-worker"
 version = "0.1.0"
 dependencies = [
  "nix",
+ "orchbee-capability-node-protocol",
  "orchbee-local-peer-credentials",
  "orchbee-local-site-protocol",
  "orchbee-terminal-protocol",

@@ -42,8 +42,66 @@ status-`1` 结果。
 terminal inventory、launch、attachment、input、resize、filesystem inspection、shell 或
 working-directory resolution、PTY operation、Agent behavior 或 durable write。它不使用
 current-directory、Project、Environment、Checkout、Worktree、launch-profile、Files 或 Git
-fact。Endpoint selection、service supervision、Server-issued launch authorization、Host
-activation 与 reconciliation 属于后续切片。
+fact。Endpoint selection、service supervision、Server-issued launch authorization 的 carrier
+delivery 与 runtime consumption、Host activation 以及 reconciliation 属于后续切片。
+
+## Worker 本地 authorized Host-operation 内核
+
+Application-private `terminal_authorization` module 会编译进 Worker，但当前 process path
+特意不构造也不调用它。它是供后续 adapter 使用的 carrier-neutral deterministic kernel，消费
+[`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.zh-CN.md) 的
+semantic Launch 与 Start value。它的存在不会给上述 runtime 增加 post-handshake Server message
+或 Terminal Host command。
+
+后续 composition root 必须用当前 local-Site `WorkerId`、OBLS 接受的非零 Worker generation
+以及受支持的 terminal-launch capability version 构造该内核。每次 admission 或 pre-handoff
+decision 还会接收显式 Unix-millisecond time，Start admission 还会接收当前 observed Host epoch。
+返回的 dispatch 是准备匹配 operation 的许可，并非 Host effect 已发生的证据。Adapter 必须在
+第一个可能的 Host effect 之前立即以新观察到的 Host epoch 调用 `begin_host_handoff`，然后通过
+同一个私有 dispatch token 报告一个 typed Host completion、确定的 pre-handoff failure 或
+post-handoff unknown outcome。Kernel 会保留观察到的最大时间，因此 caller 可见的 wall-clock
+rollback 不能让任何 expired lease 复活。
+
+### 授权内核建模记录
+
+| 字段   | 当前契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | 后续 OBCN carrier 可能重复、延迟、针对错误 Worker generation 或在 authority 已前移后交付 Server-authorized Launch 或 Start。Worker 必须在本地决定是否可以开始恰好一次 Host operation，并保留精确 terminal result，同时不取得 Server placement authority，也不自行执行 Host effect。                                                                                                                                                                                                          |
+| 输入   | Canonical OBCN `AuthorizedTerminalLaunch` 或 `AuthorizedTerminalStart`；caller 提供的当前 local-Site Worker ID、非零 OBLS generation、受支持 capability version 与当前 Unix-millisecond time；Start admission 与 handoff boundary 再次观察到的 Host epoch；以及 typed Host completion。缺失 result 或 occupied slot 保持为显式 state，而不推断成 success。                                                                                                                                   |
+| 数据   | `AuthorizedHostOperationKernel` 对每个见过的 product `TerminalId` 持有一份完整 highest-fence binding，其中包括 operation kind、完整 authorization、Launch 或 Start payload，以及可选的精确 cached result。它另外持有一个处于 `empty`、`awaiting-handoff`、`handed-off` 或 `result-ready` 的 process-local slot，以及 maximum-observed Unix-millisecond high-water mark。私有 `AuthorizedHostDispatch` 保留完整 admitted operation，因此也保留其 generation 与 authority binding。            |
+| 输出   | Admission 返回 `Dispatch`、`ResultReady` 或 `SlotOccupied`；handoff 返回 `HandedOff` 或 `ResultReady`；`take_result` 返回一个 typed OBCN Launch 或 Start result；非法 completion observation 返回 typed internal error，且不改变 slot。内核不开 carrier、不执行 Host call、不发 product event，也不写 durable state。                                                                                                                                                                        |
+| 不变量 | Wrong Worker、stale generation、unsupported capability、expired new lease、lower fence 与 conflicting same-fence binding 绝不 dispatch。Exact binding 最多 dispatch 一次，且即使 expiry 后也只 replay 其 cached exact result。Kernel 一旦观察到 lease expired，之后较低的时间不能使它复活。有效 higher fence 会替换 prior binding 并清除其 cache。Global slot 最多由一个 operation 或 undelivered result 占用。只有 `handed-off` 才能变成 Host outcome。                                     |
+| 决策   | 分类顺序为 Worker identity、Worker generation、exact cached replay、capability、lease expiry、fence，最后是 Start target epoch。因此 unsupported 或 expired lower-fence request 会保留 capability 或 lease 分类，而 same-fence changed live lease、operation 或 payload 为 conflict。在 Start admission 与 handoff 再次检查时，target epoch mismatch 变为 `HostIdentityChanged`；handoff expiry 会阻止 effect，之后 Host observation 必须保持一致。                                          |
+| 模型   | 一个 deterministic state owner 将 per-terminal monotonic binding map 与一个 globally bounded operation/result slot 组合起来。`admit_launch` 与 `admit_start` 是 principal entry point；`begin_host_handoff` 是命名的 external-effect boundary；typed observation method 会关闭 accepted binding 并排队其 result。                                                                                                                                                                            |
+| 转换   | 下方 transition table 定义 admission、handoff、completion、exact replay、result delivery、conflict 与 stale-token behavior。接受 binding 前的 rejection 会排队一个 uncached result；接受 binding 后的每个 terminal outcome 都会在公开前先缓存。                                                                                                                                                                                                                                              |
+| 依赖   | 仅依赖 Rust 标准库、canonical local-Site Worker identity，以及 OBCN semantic type 与 constructor。Time、socket liveness、decoded framing、current Host epoch 与 Host observation 均由后续 adapter 以 value 形式提供；kernel 会单调化 supplied time，但绝不读取 clock。它不读取 environment、filesystem、socket、process、profile、executable、shell 或 working directory，也不解析或编码 Host framing。                                                                                      |
+| 所有权 | Server 继续拥有 placement、authorization issuance 与 reconciliation。OBCN 拥有 carrier-independent request/result type 与 wire codec。Worker 只拥有本地 validation、monotonic replay memory、单一 dispatch gate，以及 Host handoff boundary 前后的分类。Terminal Host 仍是 terminal 与 process effect 的唯一 owner。                                                                                                                                                                         |
+| 验证   | Table-driven unit test 对两种 operation 覆盖 wrong identity、generation、capability、expiry 与 clock rollback、重叠 rejection priority、lower 与 conflicting fence、每种 accepted/rejected/failed/unknown outcome 的 exact replay、admission 后 expiry、higher-fence rebinding、stale 与 wrong completion、slot backpressure、initial 与 raced Start identity change、两种 Launch mode 与两种 Start success transition。OBCN test 负责 value/codec validity；TLA+ 负责 bounded abstraction。 |
+| 正确性 | Server-owned [`TerminalLaunchAuthorization`](../orchbee-server/formal/tla/TerminalLaunchAuthorization.tla) 的 `acceptedBinding`、`requestPhase`、cached outcome/epoch/transition 与 pending result，分别映射到 kernel binding、slot phase、cached typed result 与 result-ready slot。Concrete equality 还覆盖每个 authorization field 与 Launch/Start payload。Unit test 是 implementation-refinement evidence；TLC 仍是 bounded model evidence，而不是 Rust code proof。                    |
+| 限制   | 当前没有 carrier 或 Host adapter 调用此内核，因此测试只建立 deterministic state behavior。Binding 与 cached result 都是 process-local，不做 crash persistence，并会保留到 kernel drop 或 higher fence 替换；后续 integration 必须先定义 terminal-retirement 与 capacity policy，才能开放 runtime admission。                                                                                                                                                                                 |
+
+| 当前 slot          | 输入或 observation                                | Guard                                                           | 下一 slot          | Binding/result effect                                                              |
+| ------------------ | ------------------------------------------------- | --------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------- |
+| `empty`            | New 或 higher-fence Launch/Start                  | Worker、generation、capability、lease 与 fence 都为 current     | `awaiting-handoff` | 存储带 empty cache 的完整 binding，并返回其私有 dispatch。                         |
+| `empty`            | Invalid new、stale 或 conflicting request         | 某项 named rejection 成立                                       | `result-ready`     | 排队 exact-echo typed rejection，不接受也不替换 binding。                          |
+| `empty`            | Exact accepted binding                            | 它的 exact terminal result 已缓存                               | `result-ready`     | 排队语义不变的 cached result；不 dispatch，也不重新判断 expiry。                   |
+| `awaiting-handoff` | `begin_host_handoff`                              | Lease 仍 live，且 Start target epoch（如有）等于 observed epoch | `handed-off`       | 保留完整 dispatch 与 observed Host epoch；直到此时 adapter 才能执行第一个 effect。 |
+| `awaiting-handoff` | Expiry、Start epoch replacement 或 definite loss  | 尚未开始 Host effect                                            | `result-ready`     | 缓存并排队 lease/identity rejection 或 `HostUnavailableBeforeHandoff`。            |
+| `handed-off`       | Accepted、rejected、failed 或 unknown Host result | Dispatch 与 Host observation 一致                               | `result-ready`     | 缓存并排队 exact typed result；Launch state 从其 admitted mode 派生。              |
+| `result-ready`     | `take_result`                                     | 存在一个 result                                                 | `empty`            | 只交付一次 queued result，同时保留 accepted binding cache 供 replay。              |
+| 任意 occupied slot | 另一个 admission                                  | 已有 operation 或 undelivered result 占用 slot                  | 不变               | 返回 `SlotOccupied`；不比较也不改变 terminal authority。                           |
+| 任意 phase         | Wrong、stale 或 out-of-phase dispatch observation | Dispatch 或 phase 不匹配                                        | 不变               | 返回 typed internal error，并保留当前 operation/result。                           |
+
+| Decision partition                      | Launch evidence                                                                 | Start evidence                                                           | Required result                                                                        |
+| --------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Worker、generation、capability 或 lease | 每种 rejection 的 table case                                                    | 相同 table case                                                          | 精确 request echo，不 dispatch。                                                       |
+| 重叠 invalid condition                  | Lower 加 unsupported、lower 加 expired、same-fence changed capability 或 expiry | 共享 classification path                                                 | Capability 先于 expiry，expiry 先于 fence，只有 exact cached binding 会绕过 expiry。   |
+| Per-terminal fence                      | Lower、same-operation、lease 与 payload conflict；higher replacement            | Lower、cross-kind、target 与 geometry conflict；higher replacement       | Stale 或 conflicting rejection；有效 higher fence 会清除旧 cache。                     |
+| Expiry 后 exact replay                  | 两种 launch mode 的 accepted、rejected、failed 与 unknown                       | `Started`、`AlreadyStarted`、rejected、failed 与 unknown                 | 原始完整 cached result；无新 Host effect。                                             |
+| Handoff boundary                        | Expiry、definite failure 与 Host epoch-bound completion                         | Admission mismatch、expiry、target epoch replacement 与 definite failure | Handoff 前没有 accepted Host observation；post-handoff loss 为 unknown。               |
+| Completion identity 与 ordering         | Wrong token、stale token、wrong phase 与 wrong epoch                            | Wrong operation kind、wrong target identity 与 wrong epoch               | Typed error 且 state 不变；后续 valid completion 或 unknown observation 仍可将其关闭。 |
+| Global result slot                      | Awaiting、handed-off 与 result-ready backpressure                               | 共享 slot behavior                                                       | 两种 kind 合计恰好一个 outstanding operation 或 undelivered result。                   |
+| Time rollback                           | Expired unaccepted request 与 admission-to-handoff expiry                       | Expired unaccepted request                                               | Maximum-observed time 阻止 expired lease 再次变为 dispatchable。                       |
 
 ## 本机 Host broker 建模记录
 
@@ -75,14 +133,18 @@ Server-Worker framing。
 [`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.zh-CN.md) crate 拥有两条
 本机 connection 使用的 kernel same-user proof。
 [`orchbee-terminal-protocol`](../../packages/terminal-protocol/references/protocol.zh-CN.md) package
-拥有 Host wire；其独立 Rust binding 提供本次消费的 envelope 与 connection codec。Worker 拥有
-admission order、Host broker connection 与 coupled liveness。Server 仍是唯一 placement 与
-launch-authorization owner。Terminal Host 仍是唯一 PTY、process-tree、VT、history 与 attachment
-authority。
+拥有 Host wire；其独立 Rust binding 提供本次消费的 envelope 与 connection codec。Capability-node
+protocol crate 拥有 OBCN semantic value 与 framing，不导入 local-Site 或 Terminal Host type。Worker
+拥有 admission order、Host broker connection、coupled liveness，以及尚未集成的 deterministic
+validation/replay/dispatch kernel。Server 仍是唯一 placement、authorization-issuance 与
+reconciliation owner。Terminal Host 仍是唯一 PTY、process-tree、VT、history 与 attachment authority。
 
 [`LocalSiteProcessSpine`](../orchbee-server/formal/tla/LocalSiteProcessSpine.tla) model 继续拥有
 Server admission 与 Worker-generation behavior。`LocalHostBroker` 只从该 admission boundary
-之后开始，不增加第二个 Server 或 Host model。
+之后开始，不增加第二个 Server 或 Host model。Server-owned
+[`TerminalLaunchAuthorization`](../orchbee-server/formal/tla/TerminalLaunchAuthorization.tla) model
+仍是 abstract authorization authority；本 Worker module 是其 local admission、handoff、cache 与
+result action 的 concrete deterministic refinement，而不是 competing model。
 
 ## 验证
 
@@ -93,7 +155,9 @@ Cargo test 前要先构建它；根 merge gate 本身已经先 build 再 test。
 pnpm --filter @orchbee/terminal-host build
 cargo test -p orchbee-worker --all-targets --all-features --locked
 cargo clippy -p orchbee-worker --all-targets --all-features --locked -- -D warnings
+cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
+cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test -p orchbee-local-peer-credentials --all-targets --all-features --locked
-node scripts/tla/run-models.mjs --models local-site-process-spine,local-host-broker
+node scripts/tla/run-models.mjs --models local-site-process-spine,local-host-broker,terminal-launch-authorization
 pnpm verify
 ```

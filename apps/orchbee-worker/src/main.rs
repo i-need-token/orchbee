@@ -1,5 +1,13 @@
 #[cfg(unix)]
 mod host_connection;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the authorized Host-operation kernel is staged before its carrier adapter"
+    )
+)]
+mod terminal_authorization;
 #[cfg(unix)]
 mod worker_connection;
 #[cfg(unix)]
