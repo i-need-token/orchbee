@@ -1,4 +1,10 @@
-use std::{fmt, io, os::unix::net::UnixStream, path::Path, time::Duration};
+use std::{
+    fmt,
+    io::{self, Read, Write},
+    os::unix::net::UnixStream,
+    path::Path,
+    time::Duration,
+};
 
 use orchbee_local_peer_credentials::require_same_effective_user;
 
@@ -44,11 +50,9 @@ impl ClientSessionConnection {
     }
 
     pub fn wait_for_server_loss(&mut self) -> io::Result<()> {
-        use std::io::Read;
-
         let mut byte = [0_u8; 1];
         loop {
-            match self.stream.read(&mut byte) {
+            match self.read(&mut byte) {
                 Ok(0) => return Ok(()),
                 Ok(_) => {
                     return Err(io::Error::new(
@@ -70,6 +74,22 @@ impl ClientSessionConnection {
                 Err(error) => return Err(error),
             }
         }
+    }
+}
+
+impl Read for ClientSessionConnection {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        self.stream.read(buffer)
+    }
+}
+
+impl Write for ClientSessionConnection {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        self.stream.write(buffer)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.flush()
     }
 }
 

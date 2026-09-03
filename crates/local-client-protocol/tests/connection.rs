@@ -1,7 +1,8 @@
 #![cfg(unix)]
 
 use std::{
-    fs, io,
+    fs,
+    io::{self, Read, Write},
     num::NonZeroU64,
     os::unix::net::UnixListener,
     path::PathBuf,
@@ -51,6 +52,64 @@ fn connecting_adapter_authenticates_handshakes_and_observes_server_loss() -> io:
     release_sender
         .send(())
         .map_err(|error| io::Error::other(error.to_string()))?;
+    server
+        .join()
+        .map_err(|_panic| io::Error::other("fake Server panicked"))?
+        .map_err(io::Error::other)?;
+    connection.wait_for_server_loss()?;
+    Ok(())
+}
+
+#[test]
+fn accepted_connection_preserves_coalesced_next_phase_bytes() -> io::Result<()> {
+    const SERVER_PHASE_BYTES: &[u8] = b"OBCS\0\x01next-phase";
+    const CLIENT_PHASE_BYTES: &[u8] = b"client-next-phase";
+
+    let fixture = TestDirectory::new()?;
+    let endpoint = fixture.path.join("client.sock");
+    let listener = UnixListener::bind(&endpoint)?;
+    let server = thread::spawn(move || -> Result<(), String> {
+        let (mut stream, _address) = listener.accept().map_err(|error| error.to_string())?;
+        require_same_effective_user(&stream).map_err(|error| error.to_string())?;
+        let message = read_message(&mut stream).map_err(|error| error.to_string())?;
+        let LocalClientMessage::ClientHello(hello) = message else {
+            return Err("expected ClientHello".to_owned());
+        };
+        if hello.cohort() != "test-cohort" {
+            return Err(format!("unexpected cohort: {}", hello.cohort()));
+        }
+
+        let generation = NonZeroU64::new(11).ok_or_else(|| "invalid generation".to_owned())?;
+        let mut coalesced_response = Vec::new();
+        write_message(
+            &mut coalesced_response,
+            &LocalClientMessage::ClientAccepted { generation },
+        )
+        .map_err(|error| error.to_string())?;
+        coalesced_response.extend_from_slice(SERVER_PHASE_BYTES);
+        stream
+            .write_all(&coalesced_response)
+            .map_err(|error| error.to_string())?;
+
+        let mut client_phase_bytes = [0_u8; CLIENT_PHASE_BYTES.len()];
+        stream
+            .read_exact(&mut client_phase_bytes)
+            .map_err(|error| error.to_string())?;
+        if client_phase_bytes != CLIENT_PHASE_BYTES {
+            return Err("unexpected Client next-phase bytes".to_owned());
+        }
+        Ok(())
+    });
+
+    let mut connection =
+        ClientSessionConnection::connect(&endpoint, "test-cohort").map_err(io::Error::other)?;
+    assert_eq!(connection.generation().get(), 11);
+
+    let mut server_phase_bytes = [0_u8; SERVER_PHASE_BYTES.len()];
+    connection.read_exact(&mut server_phase_bytes)?;
+    assert_eq!(server_phase_bytes, SERVER_PHASE_BYTES);
+    connection.write_all(CLIENT_PHASE_BYTES)?;
+
     server
         .join()
         .map_err(|_panic| io::Error::other("fake Server panicked"))?

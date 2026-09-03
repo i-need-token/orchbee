@@ -11,11 +11,13 @@ English remains canonical.
 ## Framing and messages
 
 Each connection carries exactly one handshake frame from Client to Server and one response frame
-from Server to Client, then remains open only as the Client Session liveness attachment. A frame
-contains fixed `OBLC` magic, an unsigned big-endian protocol version, an unsigned big-endian
-payload length, and at most 256 payload bytes. Unknown magic, version, kind, enum value, missing or
-extra bytes, oversized payload, zero generation, invalid UTF-8, empty cohort, non-ASCII cohort, or
-a cohort over 64 bytes is rejected.
+from Server to Client. Acceptance ends the `OBLC` phase without consuming bytes from the next
+protocol phase; the same stream may then remain only as the Client Session liveness attachment or
+be used by its caller for a separately owned semantic protocol. An `OBLC` frame contains fixed
+magic, an unsigned big-endian protocol version, an unsigned big-endian payload length, and at most
+256 payload bytes. Unknown magic, version, kind, enum value, missing or extra bytes, oversized
+payload, zero generation, invalid UTF-8, empty cohort, non-ASCII cohort, or a cohort over 64 bytes
+is rejected.
 
 | Message          | Fields and meaning                                                                                                                          |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -33,9 +35,12 @@ semantic-command field.
 before effects, connects one caller-selected Unix socket, proves the Server has the same effective
 user through `orchbee-local-peer-credentials`, applies a two-second read and write handshake
 timeout, sends exactly one hello, requires one accepted response, then removes the handshake
-timeouts while retaining the liveness stream. Dropping the value closes only that connection.
-`wait_for_server_loss` observes EOF and rejects any post-admission byte because this slice has no
-application messages.
+timeouts while retaining the stream. The accepted connection implements `Read` and `Write` so its
+caller can become the sole owner of the next protocol phase without opening a second socket or
+creating a second reader. Exact, unbuffered handshake reads preserve next-phase bytes even when a
+Server writes them together with `ClientAccepted`. Dropping the value closes only that connection.
+For an admission-only caller, `wait_for_server_loss` observes EOF and rejects any post-admission
+byte; a caller using a semantic phase reads that phase directly instead.
 
 The adapter does not discover an endpoint, activate a service, retry, spawn a process or thread,
 render a TUI, or supervise Server lifetime. It is not yet called by public `orchbee`; process tests
@@ -49,18 +54,20 @@ handshakes cannot create unbounded work; a connection beyond that transport boun
 candidate within the transport bound receives a typed capacity rejection after the eight-session
 admission limit. Every handshake has a two-second read/write timeout.
 
-Any byte after admission, including a repeated hello, closes only that Session. Disconnect removes
-only the matching generation; delayed cleanup cannot remove a later Session. Client disconnect
-does not stop Server, Worker, or any other Client. Server process loss closes every liveness stream.
+The currently delivered Server admission service has not adopted a semantic next phase yet, so any
+byte after admission, including a repeated hello, closes only that Session. Disconnect removes only
+the matching generation; delayed cleanup cannot remove a later Session. Client disconnect does not
+stop Server, Worker, or any other Client. Server process loss closes every liveness stream.
 
 ## Ownership and exclusions
 
-This crate owns only Client framing, handshake validation, and the connecting adapter. Server owns
-listener and Client Session state. `orchbee-local-peer-credentials` owns kernel same-user proof.
-`orchbee-local-site-protocol` separately owns the Worker handshake. Endpoint discovery, lazy
-activation, public `orchbee` integration, Workbench snapshots and commands, terminal relay,
-controller policy, persistence, Windows named pipes, remote authentication, and production
-service lifecycle remain outside this slice.
+This crate owns only Client framing, handshake validation, the connecting adapter, and transfer of
+the accepted byte stream to its caller. It neither defines nor decodes the next semantic phase.
+Server owns listener and Client Session state. `orchbee-local-peer-credentials` owns kernel
+same-user proof. `orchbee-local-site-protocol` separately owns the Worker handshake. Endpoint
+discovery, lazy activation, public `orchbee` integration, Workbench snapshots and commands,
+terminal relay, controller policy, persistence, Windows named pipes, remote authentication, and
+production service lifecycle remain outside this slice.
 
 ## Verification
 
