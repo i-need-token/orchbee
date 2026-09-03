@@ -39,11 +39,36 @@ status-`1` 结果。
 
 本切片在 handshake 之后不发送 Server message，发往 Terminal Host 的 message 也只有
 `Hello`。它不执行 retry、discovery、activation、daemonization、child-process supervision、
-terminal inventory、launch、attachment、input、resize、filesystem inspection、shell 或
+terminal inventory、launch、attachment、input、resize、runtime filesystem inspection、shell 或
 working-directory resolution、PTY operation、Agent behavior 或 durable write。它不使用
 current-directory、Project、Environment、Checkout、Worktree、launch-profile、Files 或 Git
 fact。Endpoint selection、service supervision、Server-issued launch authorization 的 carrier
 delivery 与 runtime consumption、Host activation 以及 reconciliation 属于后续切片。
+
+## 暂存的默认交互式 launch 解析
+
+Application-private `default_interactive_launch` module 会编译进 Worker，但当前 process path
+不会调用它。其 transport-neutral `DefaultInteractiveLaunch` output 只持有一个已解析
+executable、恰好为空的 literal argument vector，以及三个固定 environment entry。后续
+authorized Host adapter 可以把这些 fact 与单独解析的 cwd、Terminal Protocol terminal profile、
+configuration、geometry 和 creation identity 组合起来。三个 entry 映射到 Terminal Protocol
+launch environment；在已接受的首个 milestone 中，invocation-scoped
+`CreateTerminal.environmentOverlay` 仍为空。
+
+解析依次考虑 inherited `SHELL`、effective operating-system account 的 shell，再考虑
+`/bin/sh`。Candidate 只有在 path 非空、为 absolute、是有效 UTF-8、不含 U+0000、不超过
+4,096 byte、解析为 regular file，并且 process effective user 在解析时可执行它时才有效。Invalid
+或 unusable candidate 会继续回退而不公开其 value。若连 `/bin/sh` 都不可用，解析返回 typed
+`NoUsableShell` failure。
+
+Native adapter 只读取 `SHELL`、effective-user account record，以及 executable metadata 与
+access state。它既不 canonicalize 已选择 path，也不启动 process。Result 始终只设置
+`TERM=xterm-256color`、`COLORTERM=truecolor` 与 `TERM_PROGRAM=ghostty`；它绝不复制
+caller-transient 或 product variable，不读取 cwd 或 launch profile，不发 diagnostic，不打开
+Server/OBCN/Host transport，也不构造 Host command。Pure table test 负责 candidate admission、
+所有 selection combination、output fact 与 typed failure；native test 覆盖 executable probe 与
+当前机器的 resolution boundary。File 在这次 observation 后仍可能变化，因此最终 Host execution
+boundary 仍负责 typed launch failure。
 
 ## Worker 本地 authorized Host-operation 内核
 
@@ -143,8 +168,9 @@ Server-Worker framing。
 拥有 Host wire；其独立 Rust binding 提供本次消费的 envelope 与 connection codec。Capability-node
 protocol crate 拥有 OBCN semantic value 与 framing，不导入 local-Site 或 Terminal Host type。Worker
 拥有 admission order、Host broker connection、coupled liveness，以及尚未集成的 deterministic
-validation/replay/dispatch kernel。Server 仍是唯一 placement、authorization-issuance 与
-reconciliation owner。Terminal Host 仍是唯一 PTY、process-tree、VT、history 与 attachment authority。
+validation/replay/dispatch kernel 和有界 default interactive launch resolution。Server 仍是唯一
+placement、authorization-issuance 与 reconciliation owner。Terminal Host 仍是唯一 PTY、
+process-tree、VT、history 与 attachment authority。
 
 [`LocalSiteProcessSpine`](../orchbee-server/formal/tla/LocalSiteProcessSpine.tla) model 继续拥有
 Server admission 与 Worker-generation behavior。`LocalHostBroker` 只从该 admission boundary

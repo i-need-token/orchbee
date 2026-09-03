@@ -39,11 +39,36 @@ transport failure has the same silent status-`1` result.
 
 This slice sends no post-handshake Server message and no Terminal Host message other than `Hello`.
 It performs no retry, discovery, activation, daemonization, child-process supervision, terminal
-inventory, launch, attachment, input, resize, filesystem inspection, shell or working-directory
-resolution, PTY operation, Agent behavior, or durable write. It uses no current-directory,
-Project, Environment, Checkout, Worktree, launch-profile, Files, or Git fact. Endpoint selection,
-service supervision, carrier delivery and runtime consumption of Server-issued launch
-authorization, Host activation, and reconciliation belong to later slices.
+inventory, launch, attachment, input, resize, runtime filesystem inspection, shell or
+working-directory resolution, PTY operation, Agent behavior, or durable write. It uses no
+current-directory, Project, Environment, Checkout, Worktree, launch-profile, Files, or Git fact.
+Endpoint selection, service supervision, carrier delivery and runtime consumption of Server-issued
+launch authorization, Host activation, and reconciliation belong to later slices.
+
+## Staged default interactive launch resolution
+
+The application-private `default_interactive_launch` module is compiled into Worker but is not
+called by the current process path. Its transport-neutral `DefaultInteractiveLaunch` output owns
+only one resolved executable, an exactly empty literal argument vector, and three fixed environment
+entries. A later authorized Host adapter may combine those facts with separately resolved cwd,
+Terminal Protocol terminal profile, configuration, geometry, and creation identity. The three
+entries map to the Terminal Protocol launch environment; the invocation-scoped
+`CreateTerminal.environmentOverlay` remains empty in the accepted first milestone.
+
+Resolution considers an inherited `SHELL`, then the effective operating-system account's shell,
+then `/bin/sh`. A candidate is valid only when its path is nonempty, absolute, valid UTF-8, free of
+U+0000, no longer than 4,096 bytes, resolves to a regular file, and is executable by the process's
+effective user at resolution time. An invalid or unusable candidate falls through without exposing
+its value. If even `/bin/sh` is unusable, resolution returns the typed `NoUsableShell` failure.
+
+The native adapter reads only `SHELL`, the effective-user account record, and executable metadata
+and access state. It neither canonicalizes a selected path nor starts a process. The result always
+sets exactly `TERM=xterm-256color`, `COLORTERM=truecolor`, and `TERM_PROGRAM=ghostty`; it never
+copies caller-transient or product variables, reads a cwd or launch profile, emits diagnostics,
+opens a Server/OBCN/Host transport, or constructs a Host command. Pure table tests own candidate
+admission, all selection combinations, output facts, and typed failure; native tests cover the
+executable probe and the current-machine resolution boundary. A file can change after this
+observation, so the eventual Host execution boundary still owns typed launch failure.
 
 ## Worker-local authorized Host-operation kernel
 
@@ -146,9 +171,10 @@ kernel same-user proof used for both local connections. The
 the Host wire; its independent Rust binding supplies the consumed envelope and connection codecs.
 The capability-node protocol crate owns OBCN semantic values and framing without importing either
 local-Site or Terminal Host types. Worker owns admission order, the Host broker connection, coupled
-liveness, and the unintegrated deterministic validation/replay/dispatch kernel. Server remains the
-only placement, authorization-issuance, and reconciliation owner. Terminal Host remains the sole
-PTY, process-tree, VT, history, and attachment authority.
+liveness, the unintegrated deterministic validation/replay/dispatch kernel, and bounded default
+interactive launch resolution. Server remains the only placement, authorization-issuance, and
+reconciliation owner. Terminal Host remains the sole PTY, process-tree, VT, history, and attachment
+authority.
 
 The [`LocalSiteProcessSpine`](../orchbee-server/formal/tla/LocalSiteProcessSpine.tla) model continues
 to own Server admission and Worker-generation behavior. `LocalHostBroker` starts only after that

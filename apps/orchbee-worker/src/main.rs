@@ -1,3 +1,12 @@
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "default launch resolution is staged for the authorized Host adapter"
+    )
+)]
+#[cfg(unix)]
+mod default_interactive_launch;
 #[cfg(unix)]
 mod host_connection;
 #[cfg_attr(
