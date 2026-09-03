@@ -271,6 +271,6 @@ cargo clippy -p orchbee-worker --all-targets --all-features --locked -- -D warni
 cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test -p orchbee-local-peer-credentials --all-targets --all-features --locked
-node scripts/tla/run-models.mjs --models local-site-process-spine,local-host-broker,terminal-launch-authorization,worker-terminal-binding-capacity
+node scripts/tla/run-models.mjs --models local-site-process-spine,terminal-launch-authorization,worker-terminal-binding-capacity,local-host-broker,terminal-host-request-outcome
 pnpm verify
 ```
