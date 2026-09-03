@@ -121,6 +121,29 @@ test('Worker terminal authorization paths select both refinement models', () => 
 	}
 });
 
+test('Worker Host-command adapter surfaces select the local Host broker model', () => {
+	for (const changedPath of [
+		'apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla',
+		'apps/orchbee-worker/README.zh-CN.md',
+		'apps/orchbee-worker/src/host_connection.rs',
+		'apps/orchbee-worker/tests/process.rs',
+		'apps/terminal-host/src/service/terminal_requests/creation.zig',
+		'crates/capability-node-protocol/src/terminal_launch.rs',
+		'crates/local-site-protocol/src/codec.rs',
+		'crates/terminal-protocol/src/creation.rs',
+		'packages/terminal-protocol/src/message.ts',
+		'proposals/platform/native-runtime-topology.zh-CN.md',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'local-host-broker',
+			),
+			true,
+			changedPath,
+		);
+	}
+});
+
 test('Client Session and OBCS refinement paths select the OBCS Session model', () => {
 	for (const changedPath of [
 		'apps/orchbee-server/Cargo.toml',

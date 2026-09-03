@@ -1923,12 +1923,25 @@
 			"claims": [
 				"apps/orchbee-worker/README.md",
 				"apps/terminal-host/README.md",
-				"packages/terminal-protocol/references/protocol.md"
+				"crates/capability-node-protocol/README.md",
+				"packages/terminal-protocol/references/protocol.md",
+				"proposals/platform/native-runtime-topology.md"
 			],
 			"triggers": [
+				"apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.cfg",
+				"apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla",
+				"apps/orchbee-worker/README.zh-CN.md",
 				"apps/orchbee-worker/src/**",
 				"apps/orchbee-worker/tests/**",
-				"crates/terminal-protocol/src/**"
+				"apps/terminal-host/README.zh-CN.md",
+				"apps/terminal-host/src/**",
+				"crates/capability-node-protocol/README.zh-CN.md",
+				"crates/capability-node-protocol/src/**",
+				"crates/local-site-protocol/src/**",
+				"crates/terminal-protocol/src/**",
+				"packages/terminal-protocol/references/protocol.zh-CN.md",
+				"packages/terminal-protocol/src/**",
+				"proposals/platform/native-runtime-topology.zh-CN.md"
 			],
 			"requiredCoverage": [
 				"StartWorker",
@@ -1942,8 +1955,35 @@
 				"RejectHostMalformed",
 				"HostHandshakeTimeout",
 				"EmitReady",
-				"LoseServer",
-				"LoseHost"
+				"AdmitLaunchDispatch",
+				"AdmitStartDispatch",
+				"BeginHostHandoff",
+				"FailBeforeHostHandoff",
+				"DispatchHostCommand",
+				"HostAppliesCommand",
+				"RejectWrongHostResponseRole",
+				"RejectWrongHostResponseKind",
+				"RejectWrongHostCorrelation",
+				"RejectWrongHostEpoch",
+				"HostAcceptsCommand",
+				"HostRejectsCommand",
+				"HostFailsCommand",
+				"HostCommandTimeout",
+				"BlockRetryAfterUnknown",
+				"DeliverResult",
+				"ResultDeliveryTimeout",
+				"LoseServerBeforeReady",
+				"LoseServerIdle",
+				"LoseServerBeforeHandoff",
+				"LoseServerAfterHandoff",
+				"LoseServerWithPendingResult",
+				"LoseServerDuringDrain",
+				"LoseHostBeforeReady",
+				"LoseHostIdle",
+				"LoseHostBeforeHandoff",
+				"LoseHostAfterHandoff",
+				"LoseHostWithPendingResult",
+				"RequireRecoveryForRetainedHost"
 			]
 		},
 		{
