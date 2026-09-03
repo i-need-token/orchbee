@@ -498,6 +498,17 @@ fn maximum_launch_remains_inside_the_frame_bound() -> Result<(), Box<dyn std::er
 fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
 -> Result<(), Box<dyn std::error::Error>> {
     let authorization = authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?;
+
+    let mut unknown_launch_mode = encode(&CapabilityNodeMessage::AuthorizedTerminalLaunch(
+        AuthorizedTerminalLaunch::new(authorization, None, TerminalLaunchMode::Deferred),
+    ))?;
+    let launch_mode_offset = unknown_launch_mode.len() - 1;
+    unknown_launch_mode[launch_mode_offset] = 99;
+    assert_eq!(
+        decode_message(&unknown_launch_mode),
+        Err(ProtocolError::InvalidPayload)
+    );
+
     let canonical_unknown = encode(&CapabilityNodeMessage::TerminalStartResult(
         TerminalStartResult::new(
             authorization,
@@ -586,6 +597,34 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
     unknown_failure[failure_offset] = 99;
     assert_eq!(
         decode_message(&unknown_failure),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut unknown_start_rejection = encode(&CapabilityNodeMessage::TerminalStartResult(
+        TerminalStartResult::new(
+            authorization,
+            host_identity()?,
+            TerminalStartOutcome::Rejected(TerminalStartRejection::WrongWorker),
+        )?,
+    ))?;
+    let start_rejection_offset = unknown_start_rejection.len() - 1;
+    unknown_start_rejection[start_rejection_offset] = 99;
+    assert_eq!(
+        decode_message(&unknown_start_rejection),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut unknown_start_failure = encode(&CapabilityNodeMessage::TerminalStartResult(
+        TerminalStartResult::new(
+            authorization,
+            host_identity()?,
+            TerminalStartOutcome::Failed(TerminalStartFailure::HostUnavailableBeforeHandoff),
+        )?,
+    ))?;
+    let start_failure_offset = unknown_start_failure.len() - 1;
+    unknown_start_failure[start_failure_offset] = 99;
+    assert_eq!(
+        decode_message(&unknown_start_failure),
         Err(ProtocolError::InvalidPayload)
     );
 
