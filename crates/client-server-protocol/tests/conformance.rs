@@ -34,7 +34,7 @@ enum Direction {
     ServerToClient,
 }
 
-#[derive(Clone, Copy, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum Boundary {
     Schema,
@@ -299,6 +299,50 @@ fn semantically_equivalent_noncanonical_json_decodes_to_the_same_value()
             "canonicalized fixture {}",
             fixture.name
         );
+    }
+    Ok(())
+}
+
+#[test]
+fn numeric_refinement_corpus_keeps_server_result_regressions()
+-> Result<(), Box<dyn std::error::Error>> {
+    let corpus = read_corpus()?;
+    for name in [
+        "server-protocol-version-integral-decimal",
+        "server-protocol-version-integral-exponent",
+        "server-protocol-version-binary64-rounded",
+        "server-create-geometry-integral-decimal",
+        "server-start-geometry-integral-exponent",
+    ] {
+        let fixture = corpus
+            .equivalent_messages
+            .iter()
+            .find(|fixture| fixture.name == name)
+            .ok_or("missing Server numeric-equivalence fixture")?;
+        assert!(matches!(fixture.direction, Direction::ServerToClient));
+    }
+
+    for (name, boundary) in [
+        ("server-protocol-version-negative-zero", Boundary::Schema),
+        ("server-protocol-version-fractional", Boundary::Schema),
+        (
+            "server-protocol-version-number-overflow",
+            Boundary::Encoding,
+        ),
+        ("server-protocol-version-nonfinite", Boundary::Encoding),
+        ("server-create-geometry-negative-zero", Boundary::Schema),
+        ("server-create-geometry-fractional", Boundary::Schema),
+        ("server-create-geometry-unsafe-integer", Boundary::Schema),
+        ("server-start-geometry-number-overflow", Boundary::Encoding),
+        ("server-start-geometry-nonfinite", Boundary::Encoding),
+    ] {
+        let fixture = corpus
+            .invalid_messages
+            .iter()
+            .find(|fixture| fixture.name == name)
+            .ok_or("missing Server numeric-rejection fixture")?;
+        assert!(matches!(fixture.direction, Direction::ServerToClient));
+        assert_eq!(fixture.boundary, boundary);
     }
     Ok(())
 }

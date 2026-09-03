@@ -158,6 +158,36 @@
 			"direction": "client-to-server",
 			"name": "geometry-integral-exponent",
 			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":8e1,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
+		},
+		{
+			"canonical": "create-accepted-awaiting-start",
+			"direction": "server-to-client",
+			"name": "server-protocol-version-integral-decimal",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1.0,\"requestId\":\"33333333333333333333333333333333\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}}}"
+		},
+		{
+			"canonical": "create-accepted-awaiting-start",
+			"direction": "server-to-client",
+			"name": "server-protocol-version-integral-exponent",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1e0,\"requestId\":\"33333333333333333333333333333333\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}}}"
+		},
+		{
+			"canonical": "create-accepted-awaiting-start",
+			"direction": "server-to-client",
+			"name": "server-protocol-version-binary64-rounded",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1.0000000000000001,\"requestId\":\"33333333333333333333333333333333\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}}}"
+		},
+		{
+			"canonical": "create-accepted-started",
+			"direction": "server-to-client",
+			"name": "server-create-geometry-integral-decimal",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":80.0,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"canonical": "start-accepted-started",
+			"direction": "server-to-client",
+			"name": "server-start-geometry-integral-exponent",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"accepted\",\"geometry\":{\"columns\":8e1,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"transition\":\"started\"}}"
 		}
 	],
 	"invalidMessages": [
@@ -262,6 +292,60 @@
 			"direction": "client-to-server",
 			"name": "geometry-nonfinite",
 			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":Infinity,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "server-protocol-version-negative-zero",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":-0,\"requestId\":\"33333333333333333333333333333333\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "server-protocol-version-fractional",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1.5,\"requestId\":\"33333333333333333333333333333333\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "server-to-client",
+			"name": "server-protocol-version-number-overflow",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1e4000,\"requestId\":\"33333333333333333333333333333333\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "server-to-client",
+			"name": "server-protocol-version-nonfinite",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":NaN,\"requestId\":\"33333333333333333333333333333333\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "server-create-geometry-negative-zero",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":-0,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "server-create-geometry-fractional",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":80.5,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "server-create-geometry-unsafe-integer",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":9007199254740992,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "server-to-client",
+			"name": "server-start-geometry-number-overflow",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"accepted\",\"geometry\":{\"columns\":1e4000,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"transition\":\"started\"}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "server-to-client",
+			"name": "server-start-geometry-nonfinite",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"accepted\",\"geometry\":{\"columns\":Infinity,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"transition\":\"started\"}}"
 		},
 		{
 			"boundary": "semantic",
