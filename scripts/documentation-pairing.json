@@ -442,8 +442,8 @@
 			"zhCnSha256": "ec609ff0f95207a581dd3322eade36dc650b97738cec02548aa2d1760116ee14"
 		},
 		"proposals/platform/native-runtime-topology.md": {
-			"englishSha256": "d8714336a072d170e1752ae1a62f0b1a40c9148a68412b882b92dcc5317ab5d1",
-			"zhCnSha256": "dc49b111cd33cf5625e702bf54a6a0b61e1b468697779078c2f952d5a0390aa8"
+			"englishSha256": "bf0a8f0b1310ecb35ddc9058b5cf062913202aed10a011c78f70d3c95ac9438e",
+			"zhCnSha256": "a58bfd0d185aa8d2239c61673a2dbe4a0fe0a8053282d04b1a3155d9d38f44dd"
 		},
 		"proposals/terminal-host/desktop-terminal-host-update-continuity.md": {
 			"englishSha256": "9db345f7bedcb849351160c2ae9cb33b4fcd544e722cfb1fef19863bb8a40efa",
