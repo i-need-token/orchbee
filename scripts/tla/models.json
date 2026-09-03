@@ -1621,6 +1621,57 @@
 			]
 		},
 		{
+			"id": "local-site-activation",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/LocalSiteActivation.tla",
+			"config": "apps/orchbee/formal/tla/LocalSiteActivation.cfg",
+			"claims": [
+				"apps/orchbee/README.md",
+				"proposals/cli/native-command-surface.md",
+				"proposals/platform/native-runtime-topology.md"
+			],
+			"triggers": [
+				"apps/orchbee/README.zh-CN.md",
+				"apps/orchbee/project.json",
+				"apps/orchbee/src/**",
+				"apps/orchbee/src/invocation.rs",
+				"apps/orchbee/src/local_client.rs",
+				"apps/orchbee/src/local_site_rendezvous.rs",
+				"apps/orchbee/tests/process.rs",
+				"crates/local-client-protocol/src/**",
+				"proposals/cli/native-command-surface.zh-CN.md",
+				"proposals/platform/native-runtime-topology.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"InvokeTui",
+				"CompleteHelp",
+				"CompleteVersion",
+				"ConnectFindsCompatible",
+				"ConnectFindsAbsent",
+				"ConnectFindsIncompatible",
+				"ConnectFindsPartial",
+				"AcquireActivationLock",
+				"ActivationLockContended",
+				"LaunchExactInstalledCohort",
+				"RecheckCompatible",
+				"RecheckActivationPending",
+				"RecheckIncompatible",
+				"RecheckPartial",
+				"RecheckLauncherFailure",
+				"CohortBecomesReady",
+				"CohortBecomesIncompatible",
+				"CohortBecomesPartial",
+				"LauncherFails",
+				"ObserveReady",
+				"ObserveIncompatible",
+				"ObservePartial",
+				"ObserveLauncherFailure",
+				"DeadlineExpires",
+				"ExitClient"
+			]
+		},
+		{
 			"id": "local-client-sessions",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",

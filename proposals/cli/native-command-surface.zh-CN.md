@@ -2,7 +2,7 @@
 
 | 字段     | 值                                                                                                                                                                                                                                                                                                            |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态     | 替换方向以及目标 TUI、裸激活、首版 CLI 信息架构、结构化输出、mutation 安全、打包和 service lifecycle contract 已接受；增量 Phase 3A 原生入口底座已完成，而实现、确切 wire/schema 细节、remote targeting、public cutover 与删除仍是后续工作                                                                    |
+| 状态     | 替换方向以及目标 TUI、裸激活、首版 CLI 信息架构、结构化输出、mutation 安全、打包和 service lifecycle contract 已接受；增量 Phase 3A 原生入口底座与已检查的 Client-side 本机 activation model 已完成，而 runtime implementation、确切 wire/schema 细节、remote targeting、public cutover 与删除仍是后续工作    |
 | 负责人   | 产品命令体验，以及 Rust `orchbee` Client、Server 语义命令边界、TUI、打包与发行集成的维护者                                                                                                                                                                                                                    |
 | 现行权威 | 在切换完成前，[`apps/cli/README.md`](../../apps/cli/README.zh-CN.md) 仍是已交付 TypeScript CLI 的权威                                                                                                                                                                                                         |
 | 父设计   | [`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md) 拥有可执行程序拓扑和进程职责；本提案拥有公开 Rust 命令面                                                                                                                                                                         |
@@ -55,6 +55,10 @@
 | 边界        | 公共进程既不内嵌 backend engine，也不直连 Terminal Host。它通过已接受且经 Server relay 的 Client path 获得 terminal behavior。                                                                           |
 | 反馈        | 快速成功的 bootstrap 保持静默；延迟时显示本地化进度。一个 monotonic 总 deadline 以 typed unavailable 或 incompatible diagnostic 结束；`orchbee` 绝不为恢复而杀死、替换或降级现有 cohort。                |
 | 延后细节    | 确切 timeout 和进度阈值、remote targeting、详细 command schema、public cutover 与最终删除继续保留。                                                                                                      |
+
+已检查 model 及其 maintained bound 现由
+[`apps/orchbee` 指南](../../apps/orchbee/README.zh-CN.md#已接受的本机-site-activation-建模记录)
+维护。它只提供 design evidence；当前 bare route 仍未接线且不可用。
 
 ## 已接受的 TUI Client 契约
 

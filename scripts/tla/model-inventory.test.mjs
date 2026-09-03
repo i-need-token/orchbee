@@ -180,6 +180,30 @@ test('Client Session and OBCS refinement paths select the OBCS Session model', (
 	}
 });
 
+test('local Client bootstrap owners select the Site activation model', () => {
+	for (const changedPath of [
+		'apps/orchbee/README.zh-CN.md',
+		'apps/orchbee/project.json',
+		'apps/orchbee/src/invocation.rs',
+		'apps/orchbee/src/local_client.rs',
+		'apps/orchbee/src/local_site_rendezvous.rs',
+		'apps/orchbee/src/main.rs',
+		'apps/orchbee/src/site_activation.rs',
+		'apps/orchbee/tests/process.rs',
+		'crates/local-client-protocol/src/client.rs',
+		'proposals/cli/native-command-surface.zh-CN.md',
+		'proposals/platform/native-runtime-topology.zh-CN.md',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'local-site-activation',
+			),
+			true,
+			changedPath,
+		);
+	}
+});
+
 test('configuration variants replace one declared constant and reject ambiguous input', () => {
 	assert.equal(
 		variantConfigFileName('formal/tla/ActionExecution.cfg', 'reject-duplicate'),
