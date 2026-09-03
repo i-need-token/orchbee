@@ -11,6 +11,7 @@ use std::{
         mpsc,
     },
     thread,
+    time::Duration,
 };
 
 use orchbee_local_client_protocol::{
@@ -87,10 +88,19 @@ fn accepted_connection_preserves_coalesced_next_phase_bytes() -> io::Result<()> 
         )
         .map_err(|error| error.to_string())?;
         coalesced_response.extend_from_slice(SERVER_PHASE_BYTES);
-        stream
-            .write_all(&coalesced_response)
+        let written = stream
+            .write(&coalesced_response)
             .map_err(|error| error.to_string())?;
+        if written != coalesced_response.len() {
+            return Err(format!(
+                "coalesced response was short-written: {written}/{} bytes",
+                coalesced_response.len()
+            ));
+        }
 
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .map_err(|error| error.to_string())?;
         let mut client_phase_bytes = [0_u8; CLIENT_PHASE_BYTES.len()];
         stream
             .read_exact(&mut client_phase_bytes)
