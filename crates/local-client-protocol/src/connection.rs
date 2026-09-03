@@ -50,11 +50,6 @@ impl ClientSessionConnection {
         self.generation
     }
 
-    pub fn set_io_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.stream.set_read_timeout(timeout)?;
-        self.stream.set_write_timeout(timeout)
-    }
-
     pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
         self.stream.set_nonblocking(nonblocking)
     }

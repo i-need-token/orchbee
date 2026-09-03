@@ -39,8 +39,6 @@ timeouts while retaining the stream. The accepted connection implements `Read` a
 caller can become the sole owner of the next protocol phase without opening a second socket or
 creating a second reader. Exact, unbuffered handshake reads preserve next-phase bytes even when a
 Server writes them together with `ClientAccepted`. Dropping the value closes only that connection.
-`set_io_timeout` lets the sole caller apply one read/write timeout to its owned next phase without
-changing the handshake policy.
 `set_nonblocking` and the standard `AsFd` view let that same sole owner implement an absolute
 readiness deadline without extracting, cloning, or replacing the admitted stream.
 For an admission-only caller, `wait_for_server_loss` observes EOF and rejects any post-admission
