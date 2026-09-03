@@ -52,6 +52,13 @@ awaiting-start or started geometry. Start results always retain their complete t
 accepted results additionally return the observed identity, geometry, and started/already-started
 transition.
 
+Launch and Start use distinct rejection and failure types: Launch cannot encode
+`HostIdentityChanged` because it has no target Host terminal. A Start `HostAccepted` observation
+must exactly equal the frame's target identity. Its `HostRejected` and `HostReportedFailure` epochs
+must equal the target epoch; a different observed epoch is represented only by
+`HostIdentityChanged`, whose epoch must actually differ. Validated result construction and decoding
+reject every contradiction, so canonical encoding cannot emit one.
+
 The launch payload has no general environment overlay, executable, argument vector, Project,
 Checkout, Worktree, Agent, or Launch Profile field. Unknown trailing bytes are rejected, so a
 nonempty environment is not representable by this contract.
@@ -82,6 +89,15 @@ epoch results from overwriting current authority. Because this protocol has no p
 acknowledgement, a lost Worker link after dispatch produces a conservative unknown observation at
 every unobserved Worker stage; only a returned Worker result can report definite pre-handoff
 failure.
+
+The model permits one outstanding request and one pending-result slot. Worker loss before
+admission, after admission, and after Host handoff is checked separately and always occupies that
+empty slot with an unknown result. A replacement Worker generation is not activated until that
+pending loss observation is settled, so reconnection cannot make the current unknown result appear
+stale. Start acceptance separately explores `Started` and `AlreadyStarted`. Once an admitted
+operation has a terminal result, the model caches its exact outcome, Host epoch, and transition. An
+exact replay returns that cache without a new Host effect—including after lease expiry—so a
+rejection, failure, or unknown result can never be manufactured into success.
 
 The only fairness condition settles a pending result while Server remains connected. It does not
 require any healthy connection to fail and does not promise automatic reconnection, authorization,

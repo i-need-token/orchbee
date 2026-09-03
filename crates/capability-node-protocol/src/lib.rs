@@ -15,10 +15,11 @@ pub use terminal_launch::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostLaunchAccepted,
     HostLaunchState, HostStartAccepted, HostTerminalIdentity, LeaseExpiresAtUnixMilliseconds,
     MAXIMUM_AUTHORIZED_CWD_BYTES, StartTransition, TERMINAL_LAUNCH_CAPABILITY_VERSION,
-    TerminalFence, TerminalLaunchCapabilityVersion, TerminalLaunchMode, TerminalLaunchOutcome,
-    TerminalLaunchResult, TerminalOperationAuthorization, TerminalOperationFailure,
-    TerminalOperationLease, TerminalOperationRejection, TerminalPixelGeometry,
-    TerminalStartOutcome, TerminalStartResult, WorkerGeneration,
+    TerminalFence, TerminalLaunchCapabilityVersion, TerminalLaunchFailure, TerminalLaunchMode,
+    TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
+    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
+    TerminalStartFailure, TerminalStartOutcome, TerminalStartRejection, TerminalStartResult,
+    WorkerGeneration,
 };
 
 #[cfg(test)]

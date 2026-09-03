@@ -9,6 +9,7 @@ pub enum ProtocolError {
     InvalidIdentity,
     InvalidCwd,
     InvalidGeometry,
+    ContradictoryHostObservation,
 }
 
 impl fmt::Display for ProtocolError {
@@ -31,6 +32,8 @@ impl fmt::Display for ProtocolError {
             }
             Self::InvalidCwd => formatter.write_str("invalid authorized terminal cwd"),
             Self::InvalidGeometry => formatter.write_str("invalid terminal pixel geometry"),
+            Self::ContradictoryHostObservation => formatter
+                .write_str("Capability Node result contradicts its target Host terminal identity"),
         }
     }
 }

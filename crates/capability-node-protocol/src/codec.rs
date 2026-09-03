@@ -11,10 +11,11 @@ use crate::{
     terminal_launch::{
         AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostLaunchAccepted,
         HostLaunchState, HostStartAccepted, HostTerminalIdentity, LeaseExpiresAtUnixMilliseconds,
-        StartTransition, TerminalFence, TerminalLaunchCapabilityVersion, TerminalLaunchMode,
-        TerminalLaunchOutcome, TerminalLaunchResult, TerminalOperationAuthorization,
-        TerminalOperationFailure, TerminalOperationLease, TerminalOperationRejection,
-        TerminalPixelGeometry, TerminalStartOutcome, TerminalStartResult, WorkerGeneration,
+        StartTransition, TerminalFence, TerminalLaunchCapabilityVersion, TerminalLaunchFailure,
+        TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
+        TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
+        TerminalStartFailure, TerminalStartOutcome, TerminalStartRejection, TerminalStartResult,
+        WorkerGeneration,
     },
 };
 
@@ -183,11 +184,11 @@ fn encode_terminal_launch_result(value: TerminalLaunchResult) -> Vec<u8> {
         }
         TerminalLaunchOutcome::Rejected(reason) => {
             payload.push(REJECTED_OUTCOME);
-            encode_rejection(&mut payload, reason);
+            encode_launch_rejection(&mut payload, reason);
         }
         TerminalLaunchOutcome::Failed(reason) => {
             payload.push(FAILED_OUTCOME);
-            encode_failure(&mut payload, reason);
+            encode_launch_failure(&mut payload, reason);
         }
         TerminalLaunchOutcome::OutcomeUnknown { host_epoch } => {
             payload.push(OUTCOME_UNKNOWN);
@@ -210,8 +211,8 @@ fn decode_terminal_launch_result(payload: &[u8]) -> Result<TerminalLaunchResult,
             };
             TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(identity, state))
         }
-        REJECTED_OUTCOME => TerminalLaunchOutcome::Rejected(decode_rejection(&mut reader)?),
-        FAILED_OUTCOME => TerminalLaunchOutcome::Failed(decode_failure(&mut reader)?),
+        REJECTED_OUTCOME => TerminalLaunchOutcome::Rejected(decode_launch_rejection(&mut reader)?),
+        FAILED_OUTCOME => TerminalLaunchOutcome::Failed(decode_launch_failure(&mut reader)?),
         OUTCOME_UNKNOWN => TerminalLaunchOutcome::OutcomeUnknown {
             host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
         },
@@ -262,11 +263,11 @@ fn encode_terminal_start_result(value: TerminalStartResult) -> Vec<u8> {
         }
         TerminalStartOutcome::Rejected(reason) => {
             payload.push(REJECTED_OUTCOME);
-            encode_rejection(&mut payload, reason);
+            encode_start_rejection(&mut payload, reason);
         }
         TerminalStartOutcome::Failed(reason) => {
             payload.push(FAILED_OUTCOME);
-            encode_failure(&mut payload, reason);
+            encode_start_failure(&mut payload, reason);
         }
         TerminalStartOutcome::OutcomeUnknown => payload.push(OUTCOME_UNKNOWN),
     }
@@ -290,13 +291,13 @@ fn decode_terminal_start_result(payload: &[u8]) -> Result<TerminalStartResult, P
                 identity, geometry, transition,
             ))
         }
-        REJECTED_OUTCOME => TerminalStartOutcome::Rejected(decode_rejection(&mut reader)?),
-        FAILED_OUTCOME => TerminalStartOutcome::Failed(decode_failure(&mut reader)?),
+        REJECTED_OUTCOME => TerminalStartOutcome::Rejected(decode_start_rejection(&mut reader)?),
+        FAILED_OUTCOME => TerminalStartOutcome::Failed(decode_start_failure(&mut reader)?),
         OUTCOME_UNKNOWN => TerminalStartOutcome::OutcomeUnknown,
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;
-    Ok(TerminalStartResult::new(authorization, target, outcome))
+    TerminalStartResult::new(authorization, target, outcome)
 }
 
 fn encode_authorization(payload: &mut Vec<u8>, value: TerminalOperationAuthorization) {
@@ -406,19 +407,51 @@ fn decode_host_identity(
     ))
 }
 
-fn encode_rejection(payload: &mut Vec<u8>, reason: TerminalOperationRejection) {
+fn encode_launch_rejection(payload: &mut Vec<u8>, reason: TerminalLaunchRejection) {
     match reason {
-        TerminalOperationRejection::WrongWorker => payload.push(1),
-        TerminalOperationRejection::StaleWorkerGeneration => payload.push(2),
-        TerminalOperationRejection::LeaseExpired => payload.push(3),
-        TerminalOperationRejection::StaleFence => payload.push(4),
-        TerminalOperationRejection::ConflictingReplay => payload.push(5),
-        TerminalOperationRejection::UnsupportedCapability => payload.push(6),
-        TerminalOperationRejection::HostRejected { host_epoch } => {
+        TerminalLaunchRejection::WrongWorker => payload.push(1),
+        TerminalLaunchRejection::StaleWorkerGeneration => payload.push(2),
+        TerminalLaunchRejection::LeaseExpired => payload.push(3),
+        TerminalLaunchRejection::StaleFence => payload.push(4),
+        TerminalLaunchRejection::ConflictingReplay => payload.push(5),
+        TerminalLaunchRejection::UnsupportedCapability => payload.push(6),
+        TerminalLaunchRejection::HostRejected { host_epoch } => {
             payload.push(7);
             payload.extend_from_slice(&host_epoch.as_bytes());
         }
-        TerminalOperationRejection::HostIdentityChanged {
+    }
+}
+
+fn decode_launch_rejection(
+    reader: &mut PayloadReader<'_>,
+) -> Result<TerminalLaunchRejection, ProtocolError> {
+    match reader.read_u8()? {
+        1 => Ok(TerminalLaunchRejection::WrongWorker),
+        2 => Ok(TerminalLaunchRejection::StaleWorkerGeneration),
+        3 => Ok(TerminalLaunchRejection::LeaseExpired),
+        4 => Ok(TerminalLaunchRejection::StaleFence),
+        5 => Ok(TerminalLaunchRejection::ConflictingReplay),
+        6 => Ok(TerminalLaunchRejection::UnsupportedCapability),
+        7 => Ok(TerminalLaunchRejection::HostRejected {
+            host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
+        }),
+        _ => Err(ProtocolError::InvalidPayload),
+    }
+}
+
+fn encode_start_rejection(payload: &mut Vec<u8>, reason: TerminalStartRejection) {
+    match reason {
+        TerminalStartRejection::WrongWorker => payload.push(1),
+        TerminalStartRejection::StaleWorkerGeneration => payload.push(2),
+        TerminalStartRejection::LeaseExpired => payload.push(3),
+        TerminalStartRejection::StaleFence => payload.push(4),
+        TerminalStartRejection::ConflictingReplay => payload.push(5),
+        TerminalStartRejection::UnsupportedCapability => payload.push(6),
+        TerminalStartRejection::HostRejected { host_epoch } => {
+            payload.push(7);
+            payload.extend_from_slice(&host_epoch.as_bytes());
+        }
+        TerminalStartRejection::HostIdentityChanged {
             observed_host_epoch,
         } => {
             payload.push(8);
@@ -427,42 +460,64 @@ fn encode_rejection(payload: &mut Vec<u8>, reason: TerminalOperationRejection) {
     }
 }
 
-fn decode_rejection(
+fn decode_start_rejection(
     reader: &mut PayloadReader<'_>,
-) -> Result<TerminalOperationRejection, ProtocolError> {
+) -> Result<TerminalStartRejection, ProtocolError> {
     match reader.read_u8()? {
-        1 => Ok(TerminalOperationRejection::WrongWorker),
-        2 => Ok(TerminalOperationRejection::StaleWorkerGeneration),
-        3 => Ok(TerminalOperationRejection::LeaseExpired),
-        4 => Ok(TerminalOperationRejection::StaleFence),
-        5 => Ok(TerminalOperationRejection::ConflictingReplay),
-        6 => Ok(TerminalOperationRejection::UnsupportedCapability),
-        7 => Ok(TerminalOperationRejection::HostRejected {
+        1 => Ok(TerminalStartRejection::WrongWorker),
+        2 => Ok(TerminalStartRejection::StaleWorkerGeneration),
+        3 => Ok(TerminalStartRejection::LeaseExpired),
+        4 => Ok(TerminalStartRejection::StaleFence),
+        5 => Ok(TerminalStartRejection::ConflictingReplay),
+        6 => Ok(TerminalStartRejection::UnsupportedCapability),
+        7 => Ok(TerminalStartRejection::HostRejected {
             host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
         }),
-        8 => Ok(TerminalOperationRejection::HostIdentityChanged {
+        8 => Ok(TerminalStartRejection::HostIdentityChanged {
             observed_host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
         }),
         _ => Err(ProtocolError::InvalidPayload),
     }
 }
 
-fn encode_failure(payload: &mut Vec<u8>, reason: TerminalOperationFailure) {
+fn encode_launch_failure(payload: &mut Vec<u8>, reason: TerminalLaunchFailure) {
     match reason {
-        TerminalOperationFailure::HostUnavailableBeforeHandoff => payload.push(1),
-        TerminalOperationFailure::HostReportedFailure { host_epoch } => {
+        TerminalLaunchFailure::HostUnavailableBeforeHandoff => payload.push(1),
+        TerminalLaunchFailure::HostReportedFailure { host_epoch } => {
             payload.push(2);
             payload.extend_from_slice(&host_epoch.as_bytes());
         }
     }
 }
 
-fn decode_failure(
+fn decode_launch_failure(
     reader: &mut PayloadReader<'_>,
-) -> Result<TerminalOperationFailure, ProtocolError> {
+) -> Result<TerminalLaunchFailure, ProtocolError> {
     match reader.read_u8()? {
-        1 => Ok(TerminalOperationFailure::HostUnavailableBeforeHandoff),
-        2 => Ok(TerminalOperationFailure::HostReportedFailure {
+        1 => Ok(TerminalLaunchFailure::HostUnavailableBeforeHandoff),
+        2 => Ok(TerminalLaunchFailure::HostReportedFailure {
+            host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
+        }),
+        _ => Err(ProtocolError::InvalidPayload),
+    }
+}
+
+fn encode_start_failure(payload: &mut Vec<u8>, reason: TerminalStartFailure) {
+    match reason {
+        TerminalStartFailure::HostUnavailableBeforeHandoff => payload.push(1),
+        TerminalStartFailure::HostReportedFailure { host_epoch } => {
+            payload.push(2);
+            payload.extend_from_slice(&host_epoch.as_bytes());
+        }
+    }
+}
+
+fn decode_start_failure(
+    reader: &mut PayloadReader<'_>,
+) -> Result<TerminalStartFailure, ProtocolError> {
+    match reader.read_u8()? {
+        1 => Ok(TerminalStartFailure::HostUnavailableBeforeHandoff),
+        2 => Ok(TerminalStartFailure::HostReportedFailure {
             host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
         }),
         _ => Err(ProtocolError::InvalidPayload),

@@ -352,7 +352,7 @@ impl HostLaunchAccepted {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum TerminalOperationRejection {
+pub enum TerminalLaunchRejection {
     WrongWorker,
     StaleWorkerGeneration,
     LeaseExpired,
@@ -360,11 +360,10 @@ pub enum TerminalOperationRejection {
     ConflictingReplay,
     UnsupportedCapability,
     HostRejected { host_epoch: HostEpoch },
-    HostIdentityChanged { observed_host_epoch: HostEpoch },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum TerminalOperationFailure {
+pub enum TerminalLaunchFailure {
     HostUnavailableBeforeHandoff,
     HostReportedFailure { host_epoch: HostEpoch },
 }
@@ -372,8 +371,8 @@ pub enum TerminalOperationFailure {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalLaunchOutcome {
     HostAccepted(HostLaunchAccepted),
-    Rejected(TerminalOperationRejection),
-    Failed(TerminalOperationFailure),
+    Rejected(TerminalLaunchRejection),
+    Failed(TerminalLaunchFailure),
     OutcomeUnknown { host_epoch: HostEpoch },
 }
 
@@ -489,9 +488,27 @@ impl HostStartAccepted {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalStartOutcome {
     HostAccepted(HostStartAccepted),
-    Rejected(TerminalOperationRejection),
-    Failed(TerminalOperationFailure),
+    Rejected(TerminalStartRejection),
+    Failed(TerminalStartFailure),
     OutcomeUnknown,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TerminalStartRejection {
+    WrongWorker,
+    StaleWorkerGeneration,
+    LeaseExpired,
+    StaleFence,
+    ConflictingReplay,
+    UnsupportedCapability,
+    HostRejected { host_epoch: HostEpoch },
+    HostIdentityChanged { observed_host_epoch: HostEpoch },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TerminalStartFailure {
+    HostUnavailableBeforeHandoff,
+    HostReportedFailure { host_epoch: HostEpoch },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -502,17 +519,17 @@ pub struct TerminalStartResult {
 }
 
 impl TerminalStartResult {
-    #[must_use]
-    pub const fn new(
+    pub fn new(
         authorization: TerminalOperationAuthorization,
         target: HostTerminalIdentity,
         outcome: TerminalStartOutcome,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ProtocolError> {
+        validate_start_outcome(target, outcome)?;
+        Ok(Self {
             authorization,
             outcome,
             target,
-        }
+        })
     }
 
     #[must_use]
@@ -528,6 +545,38 @@ impl TerminalStartResult {
     #[must_use]
     pub const fn target(self) -> HostTerminalIdentity {
         self.target
+    }
+}
+
+fn validate_start_outcome(
+    target: HostTerminalIdentity,
+    outcome: TerminalStartOutcome,
+) -> Result<(), ProtocolError> {
+    let target_epoch = target.host_epoch();
+    let consistent = match outcome {
+        TerminalStartOutcome::HostAccepted(accepted) => accepted.identity() == target,
+        TerminalStartOutcome::Rejected(TerminalStartRejection::HostRejected { host_epoch })
+        | TerminalStartOutcome::Failed(TerminalStartFailure::HostReportedFailure { host_epoch }) => {
+            host_epoch == target_epoch
+        }
+        TerminalStartOutcome::Rejected(TerminalStartRejection::HostIdentityChanged {
+            observed_host_epoch,
+        }) => observed_host_epoch != target_epoch,
+        TerminalStartOutcome::Rejected(
+            TerminalStartRejection::WrongWorker
+            | TerminalStartRejection::StaleWorkerGeneration
+            | TerminalStartRejection::LeaseExpired
+            | TerminalStartRejection::StaleFence
+            | TerminalStartRejection::ConflictingReplay
+            | TerminalStartRejection::UnsupportedCapability,
+        )
+        | TerminalStartOutcome::Failed(TerminalStartFailure::HostUnavailableBeforeHandoff)
+        | TerminalStartOutcome::OutcomeUnknown => true,
+    };
+    if consistent {
+        Ok(())
+    } else {
+        Err(ProtocolError::ContradictoryHostObservation)
     }
 }
 

@@ -13,10 +13,11 @@ use super::{
     HostLaunchAccepted, HostLaunchState, HostStartAccepted, HostTerminalId, HostTerminalIdentity,
     LeaseExpiresAtUnixMilliseconds, LeaseId, MAXIMUM_AUTHORIZED_CWD_BYTES, OperationId,
     StartTransition, TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalId,
-    TerminalLaunchCapabilityVersion, TerminalLaunchMode, TerminalLaunchOutcome,
-    TerminalLaunchResult, TerminalOperationAuthorization, TerminalOperationFailure,
-    TerminalOperationLease, TerminalOperationRejection, TerminalPixelGeometry,
-    TerminalStartOutcome, TerminalStartResult, WorkerGeneration,
+    TerminalLaunchCapabilityVersion, TerminalLaunchFailure, TerminalLaunchMode,
+    TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
+    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
+    TerminalStartFailure, TerminalStartOutcome, TerminalStartRejection, TerminalStartResult,
+    WorkerGeneration,
 };
 
 #[test]
@@ -24,23 +25,40 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
     let authorization = authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?;
     let geometry = geometry()?;
     let identity = host_identity()?;
-    let rejections = [
-        TerminalOperationRejection::WrongWorker,
-        TerminalOperationRejection::StaleWorkerGeneration,
-        TerminalOperationRejection::LeaseExpired,
-        TerminalOperationRejection::StaleFence,
-        TerminalOperationRejection::ConflictingReplay,
-        TerminalOperationRejection::UnsupportedCapability,
-        TerminalOperationRejection::HostRejected {
+    let launch_rejections = [
+        TerminalLaunchRejection::WrongWorker,
+        TerminalLaunchRejection::StaleWorkerGeneration,
+        TerminalLaunchRejection::LeaseExpired,
+        TerminalLaunchRejection::StaleFence,
+        TerminalLaunchRejection::ConflictingReplay,
+        TerminalLaunchRejection::UnsupportedCapability,
+        TerminalLaunchRejection::HostRejected {
             host_epoch: identity.host_epoch(),
         },
-        TerminalOperationRejection::HostIdentityChanged {
-            observed_host_epoch: identity.host_epoch(),
+    ];
+    let start_rejections = [
+        TerminalStartRejection::WrongWorker,
+        TerminalStartRejection::StaleWorkerGeneration,
+        TerminalStartRejection::LeaseExpired,
+        TerminalStartRejection::StaleFence,
+        TerminalStartRejection::ConflictingReplay,
+        TerminalStartRejection::UnsupportedCapability,
+        TerminalStartRejection::HostRejected {
+            host_epoch: identity.host_epoch(),
+        },
+        TerminalStartRejection::HostIdentityChanged {
+            observed_host_epoch: different_host_identity()?.host_epoch(),
         },
     ];
-    let failures = [
-        TerminalOperationFailure::HostUnavailableBeforeHandoff,
-        TerminalOperationFailure::HostReportedFailure {
+    let launch_failures = [
+        TerminalLaunchFailure::HostUnavailableBeforeHandoff,
+        TerminalLaunchFailure::HostReportedFailure {
+            host_epoch: identity.host_epoch(),
+        },
+    ];
+    let start_failures = [
+        TerminalStartFailure::HostUnavailableBeforeHandoff,
+        TerminalStartFailure::HostReportedFailure {
             host_epoch: identity.host_epoch(),
         },
     ];
@@ -88,7 +106,7 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
                 geometry,
                 StartTransition::Started,
             )),
-        )),
+        )?),
         CapabilityNodeMessage::TerminalStartResult(TerminalStartResult::new(
             authorization,
             identity,
@@ -97,35 +115,39 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
                 geometry,
                 StartTransition::AlreadyStarted,
             )),
-        )),
+        )?),
         CapabilityNodeMessage::TerminalStartResult(TerminalStartResult::new(
             authorization,
             identity,
             TerminalStartOutcome::OutcomeUnknown,
-        )),
+        )?),
     ];
-    for rejection in rejections {
+    for rejection in launch_rejections {
         messages.push(CapabilityNodeMessage::TerminalLaunchResult(
             TerminalLaunchResult::new(authorization, TerminalLaunchOutcome::Rejected(rejection)),
         ));
+    }
+    for rejection in start_rejections {
         messages.push(CapabilityNodeMessage::TerminalStartResult(
             TerminalStartResult::new(
                 authorization,
                 identity,
                 TerminalStartOutcome::Rejected(rejection),
-            ),
+            )?,
         ));
     }
-    for failure in failures {
+    for failure in launch_failures {
         messages.push(CapabilityNodeMessage::TerminalLaunchResult(
             TerminalLaunchResult::new(authorization, TerminalLaunchOutcome::Failed(failure)),
         ));
+    }
+    for failure in start_failures {
         messages.push(CapabilityNodeMessage::TerminalStartResult(
             TerminalStartResult::new(
                 authorization,
                 identity,
                 TerminalStartOutcome::Failed(failure),
-            ),
+            )?,
         ));
     }
 
@@ -236,7 +258,7 @@ fn unknown_start_result_retains_complete_target_identity() -> Result<(), Box<dyn
         authorization,
         target,
         TerminalStartOutcome::OutcomeUnknown,
-    ));
+    )?);
 
     let CapabilityNodeMessage::TerminalStartResult(decoded) = decode_message(&encode(&message)?)?
     else {
@@ -256,7 +278,7 @@ fn result_binding_echoes_every_stale_authority_guard() -> Result<(), Box<dyn std
     let authorization = authorization(capability)?;
     let result = TerminalLaunchResult::new(
         authorization,
-        TerminalLaunchOutcome::Rejected(TerminalOperationRejection::StaleFence),
+        TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::StaleFence),
     );
     let encoded = encode(&CapabilityNodeMessage::TerminalLaunchResult(result))?;
     let CapabilityNodeMessage::TerminalLaunchResult(decoded) = decode_message(&encoded)? else {
@@ -294,7 +316,7 @@ fn result_echoes_lease_identity_and_expiry_byte_for_byte() -> Result<(), Box<dyn
     let authorization = authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?;
     let message = CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
         authorization,
-        TerminalLaunchOutcome::Rejected(TerminalOperationRejection::LeaseExpired),
+        TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::LeaseExpired),
     ));
     let encoded = encode(&message)?;
     assert_eq!(
@@ -481,7 +503,7 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
             authorization,
             host_identity()?,
             TerminalStartOutcome::OutcomeUnknown,
-        ),
+        )?,
     ))?;
     let mut unknown_outcome = canonical_unknown.clone();
     let outcome_offset = unknown_outcome.len() - 1;
@@ -490,6 +512,82 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
         decode_message(&unknown_outcome),
         Err(ProtocolError::InvalidPayload)
     ));
+
+    let mut unknown_launch_state = encode(&CapabilityNodeMessage::TerminalLaunchResult(
+        TerminalLaunchResult::new(
+            authorization,
+            TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
+                host_identity()?,
+                HostLaunchState::AwaitingStart,
+            )),
+        ),
+    ))?;
+    let launch_state_offset = unknown_launch_state.len() - 1;
+    unknown_launch_state[launch_state_offset] = 99;
+    assert_eq!(
+        decode_message(&unknown_launch_state),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let target = host_identity()?;
+    let mut unknown_start_transition = encode(&CapabilityNodeMessage::TerminalStartResult(
+        TerminalStartResult::new(
+            authorization,
+            target,
+            TerminalStartOutcome::HostAccepted(HostStartAccepted::new(
+                target,
+                geometry()?,
+                StartTransition::Started,
+            )),
+        )?,
+    ))?;
+    let transition_offset = unknown_start_transition.len() - 1;
+    unknown_start_transition[transition_offset] = 99;
+    assert_eq!(
+        decode_message(&unknown_start_transition),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut unknown_rejection = encode(&CapabilityNodeMessage::TerminalLaunchResult(
+        TerminalLaunchResult::new(
+            authorization,
+            TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::WrongWorker),
+        ),
+    ))?;
+    let rejection_offset = unknown_rejection.len() - 1;
+    unknown_rejection[rejection_offset] = 99;
+    assert_eq!(
+        decode_message(&unknown_rejection),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut launch_identity_changed = encode(&CapabilityNodeMessage::TerminalLaunchResult(
+        TerminalLaunchResult::new(
+            authorization,
+            TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::HostRejected {
+                host_epoch: host_identity()?.host_epoch(),
+            }),
+        ),
+    ))?;
+    let launch_rejection_tag_offset = launch_identity_changed.len() - 17;
+    launch_identity_changed[launch_rejection_tag_offset] = 8;
+    assert_eq!(
+        decode_message(&launch_identity_changed),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut unknown_failure = encode(&CapabilityNodeMessage::TerminalLaunchResult(
+        TerminalLaunchResult::new(
+            authorization,
+            TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff),
+        ),
+    ))?;
+    let failure_offset = unknown_failure.len() - 1;
+    unknown_failure[failure_offset] = 99;
+    assert_eq!(
+        decode_message(&unknown_failure),
+        Err(ProtocolError::InvalidPayload)
+    );
 
     let mut truncated = encode(&CapabilityNodeMessage::AuthorizedTerminalStart(
         AuthorizedTerminalStart::new(authorization, host_identity()?, geometry()?),
@@ -501,6 +599,123 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
         decode_message(&truncated),
         Err(ProtocolError::InvalidPayload)
     ));
+    Ok(())
+}
+
+#[test]
+fn rejects_contradictory_start_host_observations() -> Result<(), Box<dyn std::error::Error>> {
+    const START_OBSERVED_IDENTITY_OFFSET: usize = 148;
+    const START_OBSERVED_EPOCH_RANGE: std::ops::Range<usize> = 149..165;
+
+    let authorization = authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?;
+    let target = host_identity()?;
+    let different = different_host_identity()?;
+    let error = Err(ProtocolError::ContradictoryHostObservation);
+
+    assert_eq!(
+        TerminalStartResult::new(
+            authorization,
+            target,
+            TerminalStartOutcome::HostAccepted(HostStartAccepted::new(
+                different,
+                geometry()?,
+                StartTransition::Started,
+            )),
+        ),
+        error
+    );
+    assert_eq!(
+        TerminalStartResult::new(
+            authorization,
+            target,
+            TerminalStartOutcome::Rejected(TerminalStartRejection::HostRejected {
+                host_epoch: different.host_epoch(),
+            }),
+        ),
+        error
+    );
+    assert_eq!(
+        TerminalStartResult::new(
+            authorization,
+            target,
+            TerminalStartOutcome::Failed(TerminalStartFailure::HostReportedFailure {
+                host_epoch: different.host_epoch(),
+            }),
+        ),
+        error
+    );
+    assert_eq!(
+        TerminalStartResult::new(
+            authorization,
+            target,
+            TerminalStartOutcome::Rejected(TerminalStartRejection::HostIdentityChanged {
+                observed_host_epoch: target.host_epoch(),
+            }),
+        ),
+        error
+    );
+
+    let mut accepted = encode(&CapabilityNodeMessage::TerminalStartResult(
+        TerminalStartResult::new(
+            authorization,
+            target,
+            TerminalStartOutcome::HostAccepted(HostStartAccepted::new(
+                target,
+                geometry()?,
+                StartTransition::Started,
+            )),
+        )?,
+    ))?;
+    accepted[START_OBSERVED_IDENTITY_OFFSET] ^= 1;
+    assert_eq!(
+        decode_message(&accepted),
+        Err(ProtocolError::ContradictoryHostObservation)
+    );
+
+    let mut rejected = encode(&CapabilityNodeMessage::TerminalStartResult(
+        TerminalStartResult::new(
+            authorization,
+            target,
+            TerminalStartOutcome::Rejected(TerminalStartRejection::HostRejected {
+                host_epoch: target.host_epoch(),
+            }),
+        )?,
+    ))?;
+    rejected[START_OBSERVED_EPOCH_RANGE.start] ^= 1;
+    assert_eq!(
+        decode_message(&rejected),
+        Err(ProtocolError::ContradictoryHostObservation)
+    );
+
+    let mut failed = encode(&CapabilityNodeMessage::TerminalStartResult(
+        TerminalStartResult::new(
+            authorization,
+            target,
+            TerminalStartOutcome::Failed(TerminalStartFailure::HostReportedFailure {
+                host_epoch: target.host_epoch(),
+            }),
+        )?,
+    ))?;
+    failed[START_OBSERVED_EPOCH_RANGE.start] ^= 1;
+    assert_eq!(
+        decode_message(&failed),
+        Err(ProtocolError::ContradictoryHostObservation)
+    );
+
+    let mut identity_changed = encode(&CapabilityNodeMessage::TerminalStartResult(
+        TerminalStartResult::new(
+            authorization,
+            target,
+            TerminalStartOutcome::Rejected(TerminalStartRejection::HostIdentityChanged {
+                observed_host_epoch: different.host_epoch(),
+            }),
+        )?,
+    ))?;
+    identity_changed[START_OBSERVED_EPOCH_RANGE].copy_from_slice(&target.host_epoch().as_bytes());
+    assert_eq!(
+        decode_message(&identity_changed),
+        Err(ProtocolError::ContradictoryHostObservation)
+    );
     Ok(())
 }
 
@@ -529,6 +744,14 @@ fn host_identity() -> Result<HostTerminalIdentity, ProtocolError> {
         HostCreationId::from_bytes([5; 16])?,
         HostEpoch::from_bytes([6; 16])?,
         HostTerminalId::from_bytes([7; 16])?,
+    ))
+}
+
+fn different_host_identity() -> Result<HostTerminalIdentity, ProtocolError> {
+    Ok(HostTerminalIdentity::new(
+        HostCreationId::from_bytes([8; 16])?,
+        HostEpoch::from_bytes([9; 16])?,
+        HostTerminalId::from_bytes([10; 16])?,
     ))
 }
 

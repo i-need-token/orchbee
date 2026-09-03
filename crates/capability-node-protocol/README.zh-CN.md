@@ -50,6 +50,13 @@ creation、epoch 与 terminal identity，加 awaiting-start 或 started geometry
 保留完整 target Host identity；accepted result 还会返回 observed identity、geometry 与
 started/already-started transition。
 
+Launch 与 Start 使用不同的 rejection 和 failure type：Launch 没有 target Host terminal，因此
+不能 encode `HostIdentityChanged`。Start 的 `HostAccepted` observation 必须与 frame 中的 target
+identity 完全相同。其 `HostRejected` 与 `HostReportedFailure` epoch 必须等于 target epoch；不同
+的 observed epoch 只能表示为 `HostIdentityChanged`，且该 epoch 必须确实不同。经过 validation
+的 result construction 与 decoding 会拒绝每一种 contradiction，因此 canonical encoding 无法
+发出矛盾值。
+
 Launch payload 没有 general environment overlay、executable、argument vector、Project、
 Checkout、Worktree、Agent 或 Launch Profile field。Unknown trailing byte 会被拒绝，因此本
 contract 根本无法表示 nonempty environment。
@@ -79,6 +86,15 @@ Host effect，并防止旧 generation、fence、operation 或 Host epoch result 
 因为本 protocol 没有 progress acknowledgement，dispatch 后 Worker link 丢失会在每个尚未观测的
 Worker stage 产生保守的 unknown observation；只有已返回的 Worker result 才能报告确定的
 pre-handoff failure。
+
+Model 允许一个 outstanding request 与一个 pending-result slot。Worker 在 admission 前、
+admission 后和 Host handoff 后断连会分别接受检查，并始终用 unknown result 占用该 empty slot。
+Replacement Worker generation 只有在该 pending loss observation 已 settle 后才会 activate，
+因此 reconnect 不会让 current unknown result 看起来 stale。Start acceptance 会分别探索
+`Started` 与 `AlreadyStarted`。一旦 admitted operation 获得 terminal result，model 就会缓存其
+确切 outcome、Host epoch 与 transition。Exact replay 不产生新的 Host effect，而是返回该
+cache——lease 过期后也一样——因此 rejection、failure 或 unknown result 永远不会被制造成
+success。
 
 唯一 fairness condition 会在 Server 保持 connected 时 settle pending result。它不要求任何健康
 connection 发生 failure，也不承诺 automatic reconnection、authorization 或 terminal recovery。
