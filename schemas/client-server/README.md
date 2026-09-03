@@ -40,14 +40,22 @@ a frame writer does not flush its caller's stream.
 The payload rejects a UTF-8 BOM, invalid UTF-8, duplicate object keys at any depth, a trailing second
 JSON value, non-object roots, unknown fields, unknown message or enum tags, and a message in the
 wrong direction. Whitespace, object-key order, and equivalent JSON string escapes are not semantic.
-Canonical encoding is deterministic compact JSON; equality and request replay compare decoded
-values, not raw payload bytes.
+Numeric `protocolVersion` and geometry values refine through finite IEEE 754 binary64 safe integers
+before their exact bounds are applied. Integral decimal and exponent spellings such as `1.0`, `1e0`,
+and `8e1` are therefore admitted when their refined value is in range; values that remain
+fractional after refinement, non-finite values, unsafe integers, and out-of-range values are
+rejected. Canonical encoding is deterministic compact JSON and emits ordinary integer tokens.
 
 ## Identity, path, and geometry
 
 `requestId`, `terminalCreateRequestId`, and `workerId` are opaque, nonzero 128-bit values encoded as
-exactly 32 lowercase hexadecimal characters. A `terminal.start` request uses distinct `requestId`
-and `terminalCreateRequestId` values.
+exactly 32 lowercase hexadecimal characters. `requestId` correlates one submitted request with its
+result; it is not a replay or Server-ledger identity. A Client generates a fresh `requestId` for
+every submitted request and does not reuse it within one active Server authority and authenticated
+subject. This is a Client producer obligation, not a promise that Server retains or searches request
+history. A `terminal.start` request uses distinct `requestId` and `terminalCreateRequestId` values.
+Its `terminalCreateRequestId` identifies the deferred create within that same authority and subject,
+independent of the particular Client Session transport.
 
 An explicit `cwd` is an absolute POSIX UTF-8 path whose encoded path value contains 1 through 4,096
 bytes and no NUL. `/` is valid. OBCS does not normalize the path, resolve `.` or `..`, inspect the
@@ -91,29 +99,30 @@ The result exposes no internal Terminal, Worker, operation, lease, fence, Host, 
 | Create outcome    | Closed detail                                                                                      |
 | ----------------- | -------------------------------------------------------------------------------------------------- |
 | `accepted`        | `state` is `awaiting-start`, or `started` with the accepted complete `geometry`.                   |
-| `rejected`        | `not-authorized`, `worker-constraint-unsatisfied`, `cwd-not-accepted`, or `request-id-conflict`.   |
+| `rejected`        | `not-authorized`, `worker-constraint-unsatisfied`, or `cwd-not-accepted`.                          |
 | `unavailable`     | `no-compatible-worker`, `terminal-runtime-unavailable`, or `server-busy`.                          |
 | `failed`          | `terminal-create-failed`.                                                                          |
 | `outcome-unknown` | No additional field. The Client must reconcile rather than infer success or retry as a new effect. |
 
-| Start outcome     | Closed detail                                                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `accepted`        | The accepted complete `geometry` and `transition` of `started` or `already-started`.                                           |
-| `rejected`        | `not-authorized`, `terminal-create-unavailable`, `terminal-not-awaiting-start`, `geometry-conflict`, or `request-id-conflict`. |
-| `unavailable`     | `terminal-runtime-unavailable` or `server-busy`.                                                                               |
-| `failed`          | `terminal-start-failed`.                                                                                                       |
-| `outcome-unknown` | No additional field. The Client must reconcile rather than infer a transition.                                                 |
+| Start outcome     | Closed detail                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `accepted`        | The accepted complete `geometry` and `transition` of `started` or `already-started`.                    |
+| `rejected`        | `not-authorized`, `terminal-create-unavailable`, `terminal-not-awaiting-start`, or `geometry-conflict`. |
+| `unavailable`     | `terminal-runtime-unavailable` or `server-busy`.                                                        |
+| `failed`          | `terminal-start-failed`.                                                                                |
+| `outcome-unknown` | No additional field. The Client must reconcile rather than infer a transition.                          |
 
-## Request and cancellation obligations
+## Submission, reference, and cancellation obligations
 
-Within one active Server authority, a request identity names one semantic request. Repeating the
-same identity with a semantically equal decoded request must reconcile with that request rather than
-authorize another effect; reusing it for a different decoded request returns `request-id-conflict`.
-This contract defines the boundary obligation and result vocabulary, not an idempotency ledger or
-Server implementation.
+A Client submits each mutating intent at most once. OBCS version 1 defines no replay lookup,
+historical duplicate detection, or idempotency ledger. A consumer may reject a request when its
+current accepted state exposes an ID collision or otherwise makes the request invalid, but that
+state validation is not a promise to retain, recognize, or replay a historical request.
 
-Version 1 has no cancel message. Transport loss, Client Session loss, or caller abandonment does not
-encode cancellation and must not be interpreted as proof that a terminal effect did not commit.
+Version 1 has no cancel message. A timeout, transport loss, Client Session loss, or caller
+abandonment neither encodes cancellation nor proves that a terminal effect did not commit. A Client
+must not automatically resend the mutating intent after any of those events; an ambiguous result is
+reconciled through a future read-only projection or observation boundary instead.
 
 ## Conformance and limits
 
@@ -131,5 +140,6 @@ CARGO_TARGET_DIR="$PWD/target" cargo clippy -p orchbee-client-server-protocol --
 ```
 
 These checks establish the schema-to-binding corpus agreement and deterministic frame behavior.
-They do not establish authentication, authorization decisions, same-active-Server idempotency
-storage, cancellation, terminal execution, persistence, recovery, or any live transport integration.
+They do not establish authentication, authorization decisions, replay lookup, duplicate-history or
+idempotency storage, cancellation, terminal execution, persistence, recovery, or any live transport
+integration.

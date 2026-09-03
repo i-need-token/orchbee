@@ -38,14 +38,21 @@ in-memory frame 时出现的额外 byte。Stream reader 每次消费一个 frame
 
 Payload 拒绝 UTF-8 BOM、无效 UTF-8、任意深度的重复 object key、尾随的第二个 JSON value、
 非 object root、未知 field、未知 message 或 enum tag，以及方向错误的 message。Whitespace、
-object-key order 与等价 JSON string escape 不具有语义。Canonical encoding 是确定性的 compact
-JSON；equality 与 request replay 比较 decoded value，而不是 raw payload byte。
+object-key order 与等价 JSON string escape 不具有语义。Numeric `protocolVersion` 与 geometry
+value 会先 refine 为有限的 IEEE 754 binary64 safe integer，再应用其精确 bound。因此 `1.0`、
+`1e0` 与 `8e1` 等 integral decimal 或 exponent spelling 在 refined value 位于范围内时有效；
+refinement 后仍为 fractional 的 value、non-finite value、unsafe integer 与越界 value 无效。
+Canonical encoding 是确定性的 compact JSON，并使用普通 integer token。
 
 ## Identity、path 与 geometry
 
 `requestId`、`terminalCreateRequestId` 与 `workerId` 是 opaque、nonzero 128-bit value，编码为
-恰好 32 个小写十六进制字符。`terminal.start` request 使用彼此不同的 `requestId` 与
-`terminalCreateRequestId`。
+恰好 32 个小写十六进制字符。`requestId` 用于关联一次已提交 request 及其 result；它不是 replay
+或 Server-ledger identity。Client 为每次 submitted request 生成新的 `requestId`，且不会在同一个
+active Server authority 与 authenticated subject 范围内复用。这是 Client producer obligation，
+不是 Server 保留或搜索 request history 的承诺。`terminal.start` request 使用彼此不同的
+`requestId` 与 `terminalCreateRequestId`。它的 `terminalCreateRequestId` 在同一个 authority 与
+subject 范围内标识 deferred create，不依赖具体 Client Session transport。
 
 显式 `cwd` 是 absolute POSIX UTF-8 path，其 encoded path value 包含 1 到 4,096 个 byte 且不含
 NUL。`/` 有效。OBCS 不 normalize path、不 resolve `.` 或 `..`、不检查 filesystem、不推断 Git
@@ -86,31 +93,32 @@ Client generation、profile 或 configuration fact。
 每个 result 都包含 `protocolVersion`、确切 request 的 `requestId`，以及一个 closed `outcome`。
 Result 不暴露内部 Terminal、Worker、operation、lease、fence、Host 或 placement fact。
 
-| Create outcome    | Closed detail                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------ |
-| `accepted`        | `state` 为 `awaiting-start`，或为带 accepted complete `geometry` 的 `started`。                  |
-| `rejected`        | `not-authorized`、`worker-constraint-unsatisfied`、`cwd-not-accepted` 或 `request-id-conflict`。 |
-| `unavailable`     | `no-compatible-worker`、`terminal-runtime-unavailable` 或 `server-busy`。                        |
-| `failed`          | `terminal-create-failed`。                                                                       |
-| `outcome-unknown` | 没有额外 field。Client 必须 reconcile，不能推断 success 或作为新 effect retry。                  |
+| Create outcome    | Closed detail                                                                   |
+| ----------------- | ------------------------------------------------------------------------------- |
+| `accepted`        | `state` 为 `awaiting-start`，或为带 accepted complete `geometry` 的 `started`。 |
+| `rejected`        | `not-authorized`、`worker-constraint-unsatisfied` 或 `cwd-not-accepted`。       |
+| `unavailable`     | `no-compatible-worker`、`terminal-runtime-unavailable` 或 `server-busy`。       |
+| `failed`          | `terminal-create-failed`。                                                      |
+| `outcome-unknown` | 没有额外 field。Client 必须 reconcile，不能推断 success 或作为新 effect retry。 |
 
-| Start outcome     | Closed detail                                                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `accepted`        | Accepted complete `geometry`，以及 `started` 或 `already-started` 的 `transition`。                                            |
-| `rejected`        | `not-authorized`、`terminal-create-unavailable`、`terminal-not-awaiting-start`、`geometry-conflict` 或 `request-id-conflict`。 |
-| `unavailable`     | `terminal-runtime-unavailable` 或 `server-busy`。                                                                              |
-| `failed`          | `terminal-start-failed`。                                                                                                      |
-| `outcome-unknown` | 没有额外 field。Client 必须 reconcile，不能推断 transition。                                                                   |
+| Start outcome     | Closed detail                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `accepted`        | Accepted complete `geometry`，以及 `started` 或 `already-started` 的 `transition`。                     |
+| `rejected`        | `not-authorized`、`terminal-create-unavailable`、`terminal-not-awaiting-start` 或 `geometry-conflict`。 |
+| `unavailable`     | `terminal-runtime-unavailable` 或 `server-busy`。                                                       |
+| `failed`          | `terminal-start-failed`。                                                                               |
+| `outcome-unknown` | 没有额外 field。Client 必须 reconcile，不能推断 transition。                                            |
 
-## Request 与 cancellation obligation
+## Submission、reference 与 cancellation obligation
 
-在同一个 active Server authority 中，一个 request identity 命名一个 semantic request。用相同
-identity 重复 semantically equal 的 decoded request 时，必须与该 request reconcile，而不能授权
-另一个 effect；将该 identity 用于不同 decoded request 时返回 `request-id-conflict`。本 contract
-定义 boundary obligation 与 result vocabulary，不实现 idempotency ledger 或 Server。
+Client 对每个 mutating intent 至多提交一次。OBCS version 1 不定义 replay lookup、历史 duplicate
+detection 或 idempotency ledger。Consumer 可在其当前 accepted state 暴露 ID collision 或以其他
+方式使 request 无效时拒绝该 request，但这种 state validation 不是保留、识别或 replay 历史
+request 的承诺。
 
-Version 1 没有 cancel message。Transport loss、Client Session loss 或 caller abandonment 都不编码
-cancellation，也不得被解释为 terminal effect 未 commit 的证明。
+Version 1 没有 cancel message。Timeout、transport loss、Client Session loss 或 caller abandonment
+既不编码 cancellation，也不能证明 terminal effect 未 commit。Client 不得在这些事件后自动重发
+mutating intent；ambiguous result 应改由未来的只读 projection 或 observation boundary reconcile。
 
 ## Conformance 与限制
 
@@ -128,5 +136,5 @@ CARGO_TARGET_DIR="$PWD/target" cargo clippy -p orchbee-client-server-protocol --
 ```
 
 这些检查建立 schema-to-binding corpus agreement 与 deterministic frame behavior。它们不建立
-authentication、authorization decision、same-active-Server idempotency storage、cancellation、
-terminal execution、persistence、recovery 或任何 live transport integration。
+authentication、authorization decision、replay lookup、duplicate-history 或 idempotency storage、
+cancellation、terminal execution、persistence、recovery 或任何 live transport integration。

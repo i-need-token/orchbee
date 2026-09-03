@@ -27,14 +27,20 @@ Workbench state。
 
 所有 decoded object 与 enum 都是 closed。缺失显式 nullable create field、未知 field 或 tag、重复
 key、BOM、无效 UTF-8、尾随 JSON value、direction mismatch、无效 identity、path 或 geometry，以及
-不符合精确长度或 32 KiB payload bound 的 frame 都会被拒绝。Canonical encoding 使用 compact
-deterministic JSON；semantic equality 是 decoded typed value 的 equality。
+不符合精确长度或 32 KiB payload bound 的 frame 都会被拒绝。Protocol 与 geometry number 使用
+schema 所有的有限 binary64 safe-integer refinement，因此等价的 integral decimal 与 exponent
+spelling 会 decode 为同一个 value。Canonical encoding 使用带普通 integer token 的 compact
+deterministic JSON。
 
 ## Request boundary
 
-本 crate 不建模 runtime idempotency ledger。Server consumer 必须执行 schema 所有的
-same-active-Server request replay 与 conflict obligation。OBCS v1 不包含 cancel message，codec 也
-绝不将 EOF 或 caller abandonment 解释为 cancellation。
+本 crate 不建模 replay lookup、历史 duplicate detection 或 runtime idempotency ledger。
+`RequestId` 仅用于 request/result correlation；Client 为每次 submitted request 生成新 value，且
+不会在同一个 active Server authority 与 authenticated subject 范围内复用。
+`terminalCreateRequestId` 在同一 scope 内标识 deferred create，不依赖具体 Client Session
+transport。Client 对 mutating intent 至多提交一次，且不得在 timeout、EOF、Session loss 或 caller
+abandonment 后自动重发。这些事件都不编码 cancellation，也不能证明 effect 未 commit；ambiguous
+completion 留给未来的只读 projection 或 observation boundary。
 
 ## 验证
 

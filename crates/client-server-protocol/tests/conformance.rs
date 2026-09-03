@@ -185,7 +185,6 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "create-outcome-unknown",
         "create-rejected-cwd-not-accepted",
         "create-rejected-not-authorized",
-        "create-rejected-request-id-conflict",
         "create-rejected-worker-constraint-unsatisfied",
         "create-request-cwd-null",
         "create-request-cwd-value",
@@ -206,7 +205,6 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "start-outcome-unknown",
         "start-rejected-geometry-conflict",
         "start-rejected-not-authorized",
-        "start-rejected-request-id-conflict",
         "start-rejected-terminal-create-unavailable",
         "start-rejected-terminal-not-awaiting-start",
         "start-unavailable-server-busy",
@@ -269,6 +267,8 @@ fn consumes_every_invalid_and_forbidden_corpus_case_as_a_rejection()
 fn semantically_equivalent_noncanonical_json_decodes_to_the_same_value()
 -> Result<(), Box<dyn std::error::Error>> {
     let corpus = read_corpus()?;
+    let schema = serde_json::from_str::<Value>(SCHEMA)?;
+    let schema_validator = jsonschema::draft202012::new(&schema)?;
     for fixture in &corpus.equivalent_messages {
         let canonical = corpus
             .valid_messages
@@ -280,6 +280,12 @@ fn semantically_equivalent_noncanonical_json_decodes_to_the_same_value()
             (Direction::ClientToServer, Direction::ClientToServer)
                 | (Direction::ServerToClient, Direction::ServerToClient)
         ));
+        let value = serde_json::from_str::<Value>(&fixture.payload)?;
+        assert!(
+            schema_validator.is_valid(&value),
+            "schema rejected equivalent fixture {}",
+            fixture.name
+        );
         let decoded = decode(fixture.direction, fixture.payload.as_bytes())?;
         assert_eq!(
             decoded,
@@ -460,9 +466,6 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 CreateOutcome::Rejected {
                     reason: CreateRejectedReason::CwdNotAccepted,
                 } => "create-rejected-cwd-not-accepted",
-                CreateOutcome::Rejected {
-                    reason: CreateRejectedReason::RequestIdConflict,
-                } => "create-rejected-request-id-conflict",
                 CreateOutcome::Unavailable {
                     reason: CreateUnavailableReason::NoCompatibleWorker,
                 } => "create-unavailable-no-compatible-worker",
@@ -501,9 +504,6 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 StartOutcome::Rejected {
                     reason: StartRejectedReason::GeometryConflict,
                 } => "start-rejected-geometry-conflict",
-                StartOutcome::Rejected {
-                    reason: StartRejectedReason::RequestIdConflict,
-                } => "start-rejected-request-id-conflict",
                 StartOutcome::Unavailable {
                     reason: StartUnavailableReason::TerminalRuntimeUnavailable,
                 } => "start-unavailable-terminal-runtime-unavailable",

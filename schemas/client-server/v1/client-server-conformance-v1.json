@@ -48,11 +48,6 @@
 		},
 		{
 			"direction": "server-to-client",
-			"name": "create-rejected-request-id-conflict",
-			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"request-id-conflict\"}}"
-		},
-		{
-			"direction": "server-to-client",
 			"name": "create-unavailable-no-compatible-worker",
 			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"no-compatible-worker\"}}"
 		},
@@ -108,11 +103,6 @@
 		},
 		{
 			"direction": "server-to-client",
-			"name": "start-rejected-request-id-conflict",
-			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"request-id-conflict\"}}"
-		},
-		{
-			"direction": "server-to-client",
 			"name": "start-unavailable-terminal-runtime",
 			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"terminal-runtime-unavailable\"}}"
 		},
@@ -138,6 +128,36 @@
 			"direction": "client-to-server",
 			"name": "create-key-order-whitespace-and-escapes",
 			"payload": " { \"startMode\": { \"geometry\": { \"cellPixelHeight\": 18, \"cellPixelWidth\": 9, \"rows\": 24, \"columns\": 80 }, \"kind\": \"immediate\" }, \"cwd\": \"\\/tmp\\/\\u5de5\\u4f5c\", \"workerConstraint\": { \"workerId\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"kind\": \"exact\" }, \"requestId\": \"22222222222222222222222222222222\", \"protocolVersion\": 1, \"kind\": \"terminal.create\" } "
+		},
+		{
+			"canonical": "create-deferred",
+			"direction": "client-to-server",
+			"name": "protocol-version-integral-decimal",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1.0,\"requestId\":\"33333333333333333333333333333333\",\"workerConstraint\":null,\"cwd\":\"/\",\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"canonical": "create-deferred",
+			"direction": "client-to-server",
+			"name": "protocol-version-integral-exponent",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1e0,\"requestId\":\"33333333333333333333333333333333\",\"workerConstraint\":null,\"cwd\":\"/\",\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"canonical": "create-deferred",
+			"direction": "client-to-server",
+			"name": "protocol-version-binary64-rounded",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1.0000000000000001,\"requestId\":\"33333333333333333333333333333333\",\"workerConstraint\":null,\"cwd\":\"/\",\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"canonical": "start-deferred-terminal",
+			"direction": "client-to-server",
+			"name": "geometry-integral-decimal",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":80.0,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
+		},
+		{
+			"canonical": "start-deferred-terminal",
+			"direction": "client-to-server",
+			"name": "geometry-integral-exponent",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":8e1,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
 		}
 	],
 	"invalidMessages": [
@@ -176,6 +196,72 @@
 			"direction": "client-to-server",
 			"name": "zero-request-id",
 			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000000\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "request-id-trailing-line-feed",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\\n\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "request-id-trailing-carriage-return",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\\r\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "protocol-version-negative-zero",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":-0,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "protocol-version-fractional",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1.5,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "client-to-server",
+			"name": "protocol-version-number-overflow",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1e4000,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "client-to-server",
+			"name": "protocol-version-nonfinite",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":NaN,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "geometry-negative-zero",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":-0,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "geometry-fractional",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":80.5,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "geometry-unsafe-integer",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":9007199254740992,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "client-to-server",
+			"name": "geometry-number-overflow",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":1e4000,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "client-to-server",
+			"name": "geometry-nonfinite",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":Infinity,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
 		},
 		{
 			"boundary": "semantic",
@@ -228,6 +314,12 @@
 		{
 			"boundary": "schema",
 			"direction": "server-to-client",
+			"name": "removed-create-request-id-conflict",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"request-id-conflict\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
 			"name": "create-started-without-geometry",
 			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\"}}}"
 		},
@@ -236,6 +328,12 @@
 			"direction": "server-to-client",
 			"name": "unknown-start-transition",
 			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"accepted\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"transition\":\"restarted\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "removed-start-request-id-conflict",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"request-id-conflict\"}}"
 		}
 	],
 	"workingDirectoryCases": [

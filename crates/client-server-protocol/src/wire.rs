@@ -6,6 +6,7 @@ use crate::{
     ClientMessage, CreateOutcome, Geometry, PROTOCOL_VERSION, ProtocolError, RequestId,
     ServerMessage, StartMode, StartOutcome, TerminalCreateRequest, TerminalCreateResult,
     TerminalStartRequest, TerminalStartResult, WorkerConstraint, WorkingDirectory,
+    number::Binary64SafeInteger,
 };
 
 const UTF8_BOM: &[u8] = &[0xef, 0xbb, 0xbf];
@@ -32,8 +33,8 @@ impl<'de> Deserialize<'de> for ProtocolVersion {
     where
         DeserializerType: Deserializer<'de>,
     {
-        let value = u8::deserialize(deserializer)?;
-        if value == PROTOCOL_VERSION {
+        let value = Binary64SafeInteger::deserialize(deserializer)?;
+        if value.value() == u64::from(PROTOCOL_VERSION) {
             Ok(Self)
         } else {
             Err(de::Error::custom(

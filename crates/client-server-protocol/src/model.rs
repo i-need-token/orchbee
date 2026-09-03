@@ -149,7 +149,6 @@ pub enum CreateRejectedReason {
     NotAuthorized,
     WorkerConstraintUnsatisfied,
     CwdNotAccepted,
-    RequestIdConflict,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -221,7 +220,6 @@ pub enum StartRejectedReason {
     TerminalCreateUnavailable,
     TerminalNotAwaitingStart,
     GeometryConflict,
-    RequestIdConflict,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

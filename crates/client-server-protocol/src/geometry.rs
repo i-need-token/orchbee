@@ -2,6 +2,8 @@ use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, de};
 
+use crate::number::Binary64SafeInteger;
+
 pub const MAXIMUM_GEOMETRY_VALUE: u16 = 4096;
 pub const MAXIMUM_TERMINAL_CELLS: u32 = 262_144;
 pub const MAXIMUM_PIXEL_EXTENT: u32 = 65_535;
@@ -132,10 +134,10 @@ impl Geometry {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct DecodedGeometry {
-    columns: u16,
-    rows: u16,
-    cell_pixel_width: u16,
-    cell_pixel_height: u16,
+    columns: Binary64SafeInteger,
+    rows: Binary64SafeInteger,
+    cell_pixel_width: Binary64SafeInteger,
+    cell_pixel_height: Binary64SafeInteger,
 }
 
 impl<'de> Deserialize<'de> for Geometry {
@@ -147,10 +149,16 @@ impl<'de> Deserialize<'de> for Geometry {
     {
         let decoded = DecodedGeometry::deserialize(deserializer)?;
         Self::new(
-            decoded.columns,
-            decoded.rows,
-            decoded.cell_pixel_width,
-            decoded.cell_pixel_height,
+            decoded.columns.try_into_u16().map_err(de::Error::custom)?,
+            decoded.rows.try_into_u16().map_err(de::Error::custom)?,
+            decoded
+                .cell_pixel_width
+                .try_into_u16()
+                .map_err(de::Error::custom)?,
+            decoded
+                .cell_pixel_height
+                .try_into_u16()
+                .map_err(de::Error::custom)?,
         )
         .map_err(de::Error::custom)
     }

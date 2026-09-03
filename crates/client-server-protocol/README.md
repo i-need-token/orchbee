@@ -29,14 +29,20 @@ project Workbench state.
 All decoded objects and enums are closed. Missing explicit nullable create fields, unknown fields or
 tags, duplicate keys, BOM, invalid UTF-8, trailing JSON values, direction mismatches, invalid
 identities, paths, or geometry, and frames outside the exact length or 32 KiB payload bound are
-rejected. Canonical encoding uses compact deterministic JSON; semantic equality is equality of the
-decoded typed values.
+rejected. Protocol and geometry numbers use the schema-owned finite binary64 safe-integer
+refinement, so equivalent integral decimal and exponent spellings decode to the same value.
+Canonical encoding uses compact deterministic JSON with ordinary integer tokens.
 
 ## Request boundary
 
-The crate models no runtime idempotency ledger. A Server consumer must enforce the schema-owned
-same-active-Server request replay and conflict obligations. OBCS v1 contains no cancel message, and
-the codec never interprets EOF or caller abandonment as cancellation.
+The crate models no replay lookup, historical duplicate detection, or runtime idempotency ledger.
+`RequestId` is request/result correlation only; a Client generates a fresh value for every submitted
+request and does not reuse it within one active Server authority and authenticated subject.
+`terminalCreateRequestId` identifies a deferred create within that same scope, independently of the
+particular Client Session transport. A Client submits a mutating intent at most once and must not
+automatically resend it after timeout, EOF, Session loss, or caller abandonment. None of those
+events encodes cancellation or proves that an effect did not commit; ambiguous completion is left
+to a future read-only projection or observation boundary.
 
 ## Verification
 

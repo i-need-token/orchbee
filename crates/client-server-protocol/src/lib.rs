@@ -3,6 +3,7 @@ mod error;
 mod geometry;
 mod identity;
 mod model;
+mod number;
 mod wire;
 mod working_directory;
 
