@@ -24,6 +24,7 @@ use crate::terminal_authorization::{
 pub(crate) struct ResolvedTerminalLaunchFacts {
     arguments: Vec<String>,
     configuration: Option<TerminalConfiguration>,
+    creation_id: CreationId,
     default_current_directory: AbsoluteCwd,
     environment: Vec<LaunchEnvironmentEntry>,
     executable: String,
@@ -32,6 +33,7 @@ pub(crate) struct ResolvedTerminalLaunchFacts {
 
 impl ResolvedTerminalLaunchFacts {
     pub(crate) const fn new(
+        creation_id: CreationId,
         executable: String,
         arguments: Vec<String>,
         environment: Vec<LaunchEnvironmentEntry>,
@@ -42,6 +44,7 @@ impl ResolvedTerminalLaunchFacts {
         Self {
             arguments,
             configuration,
+            creation_id,
             default_current_directory,
             environment,
             executable,
@@ -70,12 +73,6 @@ impl ObservedTerminalHostResponse {
             response,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum HostKernelCompletion {
-    Launch(LaunchHostCompletion),
-    Start(StartHostCompletion),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -113,7 +110,7 @@ impl fmt::Display for HostLaunchAdapterError {
                 formatter.write_str("Terminal Host response does not answer the authorized request")
             }
             Self::CreationIdentityMismatch => formatter
-                .write_str("Terminal Host creation identity does not match the product terminal"),
+                .write_str("Terminal Host creation identity does not match the resolved request"),
             Self::HostEpochMismatch => {
                 formatter.write_str("Terminal Host response epoch is internally inconsistent")
             }
@@ -182,7 +179,7 @@ pub(crate) fn map_launch_dispatch(
         TerminalLaunchMode::Deferred => LaunchStartMode::Deferred,
     };
     let control = TerminalCreationControl::CreateTerminal(Box::new(CreateTerminal {
-        creation_id: creation_id_for(launch.authorization().terminal_id())?,
+        creation_id: facts.creation_id,
         environment_overlay: Vec::new(),
         launch: TerminalLaunch {
             arguments: facts.arguments,
@@ -209,7 +206,6 @@ pub(crate) fn map_start_dispatch(
     let AuthorizedHostOperation::Start(start) = dispatch.operation() else {
         return Err(HostLaunchAdapterError::OperationKindMismatch);
     };
-    validate_start_target(start)?;
     let request = StartTerminal {
         geometry: protocol_geometry(start.geometry()),
         terminal_id: ProtocolTerminalId::from_bytes(start.identity().terminal_id().as_bytes())?,
@@ -218,34 +214,42 @@ pub(crate) fn map_start_dispatch(
     Ok(request)
 }
 
-pub(crate) fn map_host_response(
+pub(crate) fn map_launch_host_response(
+    dispatch: &AuthorizedHostDispatch,
+    expected_creation_id: CreationId,
+    observed: ObservedTerminalHostResponse,
+) -> Result<LaunchHostCompletion, HostLaunchAdapterError> {
+    let AuthorizedHostOperation::Launch(_) = dispatch.operation() else {
+        return Err(HostLaunchAdapterError::OperationKindMismatch);
+    };
+    validate_host_response(&observed.response)?;
+    match observed.response {
+        TerminalHostResponse::TerminalCreated(identity) => {
+            map_terminal_created(expected_creation_id, observed.host_epoch, identity)
+        }
+        TerminalHostResponse::TypedFailure(_) => map_reported_launch_failure(observed.host_epoch),
+        TerminalHostResponse::TerminalStartAccepted(_) => {
+            Err(HostLaunchAdapterError::UnexpectedHostResponse)
+        }
+    }
+}
+
+pub(crate) fn map_start_host_response(
     dispatch: &AuthorizedHostDispatch,
     observed: ObservedTerminalHostResponse,
-) -> Result<HostKernelCompletion, HostLaunchAdapterError> {
+) -> Result<StartHostCompletion, HostLaunchAdapterError> {
+    let AuthorizedHostOperation::Start(start) = dispatch.operation() else {
+        return Err(HostLaunchAdapterError::OperationKindMismatch);
+    };
     validate_host_response(&observed.response)?;
-    match (dispatch.operation(), observed.response) {
-        (
-            AuthorizedHostOperation::Launch(launch),
-            TerminalHostResponse::TerminalCreated(identity),
-        ) => map_terminal_created(
-            launch.authorization().terminal_id(),
-            observed.host_epoch,
-            identity,
-        )
-        .map(HostKernelCompletion::Launch),
-        (AuthorizedHostOperation::Launch(_), TerminalHostResponse::TypedFailure(failure)) => Ok(
-            HostKernelCompletion::Launch(map_launch_failure(observed.host_epoch, failure)?),
-        ),
-        (
-            AuthorizedHostOperation::Start(start),
-            TerminalHostResponse::TerminalStartAccepted(accepted),
-        ) => map_terminal_start_accepted(start, observed.host_epoch, accepted)
-            .map(HostKernelCompletion::Start),
-        (AuthorizedHostOperation::Start(start), TerminalHostResponse::TypedFailure(failure)) => {
-            map_start_failure(start, observed.host_epoch, failure).map(HostKernelCompletion::Start)
+    match observed.response {
+        TerminalHostResponse::TerminalStartAccepted(accepted) => {
+            map_terminal_start_accepted(start, observed.host_epoch, accepted)
         }
-        (AuthorizedHostOperation::Launch(_), TerminalHostResponse::TerminalStartAccepted(_))
-        | (AuthorizedHostOperation::Start(_), TerminalHostResponse::TerminalCreated(_)) => {
+        TerminalHostResponse::TypedFailure(_) => {
+            map_reported_start_failure(start, observed.host_epoch)
+        }
+        TerminalHostResponse::TerminalCreated(_) => {
             Err(HostLaunchAdapterError::UnexpectedHostResponse)
         }
     }
@@ -266,14 +270,14 @@ pub(crate) const fn map_host_transport_outcome(
 }
 
 fn map_terminal_created(
-    product_terminal_id: orchbee_capability_node_protocol::TerminalId,
+    expected_creation_id: CreationId,
     response_epoch: ProtocolHostEpoch,
     identity: TerminalIdentity,
 ) -> Result<LaunchHostCompletion, HostLaunchAdapterError> {
     if identity.host_epoch != response_epoch {
         return Err(HostLaunchAdapterError::HostEpochMismatch);
     }
-    if identity.creation_id != creation_id_for(product_terminal_id)? {
+    if identity.creation_id != expected_creation_id {
         return Err(HostLaunchAdapterError::CreationIdentityMismatch);
     }
     Ok(LaunchHostCompletion::Accepted {
@@ -281,16 +285,12 @@ fn map_terminal_created(
     })
 }
 
-fn map_launch_failure(
+// Terminal Protocol retryability is retry guidance, not a rejection/failure discriminator.
+fn map_reported_launch_failure(
     response_epoch: ProtocolHostEpoch,
-    failure: TypedFailure,
 ) -> Result<LaunchHostCompletion, HostLaunchAdapterError> {
     let host_epoch = capability_host_epoch(response_epoch)?;
-    if failure.retryable {
-        Ok(LaunchHostCompletion::Failed { host_epoch })
-    } else {
-        Ok(LaunchHostCompletion::Rejected { host_epoch })
-    }
+    Ok(LaunchHostCompletion::Failed { host_epoch })
 }
 
 fn map_terminal_start_accepted(
@@ -298,7 +298,6 @@ fn map_terminal_start_accepted(
     response_epoch: ProtocolHostEpoch,
     accepted: TerminalStartAccepted,
 ) -> Result<StartHostCompletion, HostLaunchAdapterError> {
-    validate_start_target(start)?;
     if accepted.identity.host_epoch != response_epoch
         || response_epoch.as_bytes() != &start.identity().host_epoch().as_bytes()
     {
@@ -321,32 +320,15 @@ fn map_terminal_start_accepted(
     )))
 }
 
-fn map_start_failure(
+fn map_reported_start_failure(
     start: &orchbee_capability_node_protocol::AuthorizedTerminalStart,
     response_epoch: ProtocolHostEpoch,
-    failure: TypedFailure,
 ) -> Result<StartHostCompletion, HostLaunchAdapterError> {
-    validate_start_target(start)?;
     if response_epoch.as_bytes() != &start.identity().host_epoch().as_bytes() {
         return Err(HostLaunchAdapterError::HostEpochMismatch);
     }
     let host_epoch = capability_host_epoch(response_epoch)?;
-    if failure.retryable {
-        Ok(StartHostCompletion::Failed { host_epoch })
-    } else {
-        Ok(StartHostCompletion::Rejected { host_epoch })
-    }
-}
-
-fn validate_start_target(
-    start: &orchbee_capability_node_protocol::AuthorizedTerminalStart,
-) -> Result<(), HostLaunchAdapterError> {
-    if creation_id_for(start.authorization().terminal_id())?.as_bytes()
-        != &start.identity().creation_id().as_bytes()
-    {
-        return Err(HostLaunchAdapterError::CreationIdentityMismatch);
-    }
-    Ok(())
+    Ok(StartHostCompletion::Failed { host_epoch })
 }
 
 fn validate_host_response(response: &TerminalHostResponse) -> Result<(), HostProtocolError> {
@@ -362,12 +344,6 @@ fn validate_host_response(response: &TerminalHostResponse) -> Result<(), HostPro
         }
     }
     Ok(())
-}
-
-fn creation_id_for(
-    product_terminal_id: orchbee_capability_node_protocol::TerminalId,
-) -> Result<CreationId, IdentityError> {
-    CreationId::from_bytes(product_terminal_id.as_bytes())
 }
 
 fn protocol_identity(identity: HostTerminalIdentity) -> Result<TerminalIdentity, IdentityError> {

@@ -21,7 +21,7 @@ use crate::terminal_authorization::{
 
 const CURRENT_LOCAL_WORKER_ID: LocalSiteWorkerId = LocalSiteWorkerId::from_bytes([3; 16]);
 const PRODUCT_TERMINAL: u8 = 11;
-const HOST_CREATION: u8 = PRODUCT_TERMINAL;
+const HOST_CREATION: u8 = 17;
 const HOST_EPOCH: u8 = 12;
 const HOST_TERMINAL: u8 = 13;
 
@@ -36,7 +36,8 @@ fn immediate_launch_maps_stable_identity_explicit_cwd_and_all_resolved_facts() -
 
     let request = map_launch_dispatch(&dispatch, facts)?;
 
-    assert_eq!(request.creation_id.as_bytes(), &[PRODUCT_TERMINAL; 16]);
+    assert_eq!(request.creation_id.as_bytes(), &[HOST_CREATION; 16]);
+    assert_ne!(request.creation_id.as_bytes(), &[PRODUCT_TERMINAL; 16]);
     assert!(request.environment_overlay.is_empty());
     assert_eq!(request.launch.executable, "/bin/zsh");
     assert!(request.launch.arguments.is_empty());
@@ -75,7 +76,7 @@ fn deferred_launch_uses_resolved_home_and_carries_no_geometry() -> TestResult {
 }
 
 #[test]
-fn product_terminal_identity_is_a_stable_host_creation_identity() -> TestResult {
+fn resolved_host_creation_identity_is_stable_and_independent_from_product_terminal() -> TestResult {
     let first = map_launch_dispatch(
         &launch_dispatch(None, TerminalLaunchMode::Deferred)?,
         resolved_facts("/home/worker")?,
@@ -89,7 +90,8 @@ fn product_terminal_identity_is_a_stable_host_creation_identity() -> TestResult 
     )?;
 
     assert_eq!(first.creation_id, second.creation_id);
-    assert_eq!(first.creation_id.as_bytes(), &[PRODUCT_TERMINAL; 16]);
+    assert_eq!(first.creation_id.as_bytes(), &[HOST_CREATION; 16]);
+    assert_ne!(first.creation_id.as_bytes(), &[PRODUCT_TERMINAL; 16]);
     Ok(())
 }
 
@@ -107,30 +109,19 @@ fn start_maps_only_the_exact_host_terminal_and_complete_authorized_geometry() ->
 }
 
 #[test]
-fn start_rejects_a_target_creation_identity_unrelated_to_the_product_terminal() -> TestResult {
-    let mismatched_target = capability_identity(HOST_CREATION + 1, HOST_EPOCH, HOST_TERMINAL)?;
+fn start_preserves_a_target_creation_identity_distinct_from_the_product_terminal() -> TestResult {
+    let target = capability_identity(HOST_CREATION, HOST_EPOCH, HOST_TERMINAL)?;
     let geometry = geometry(80, 24, 8, 16)?;
-    let dispatch = start_dispatch(mismatched_target, geometry)?;
+    let dispatch = start_dispatch(target, geometry)?;
 
-    assert_eq!(
-        map_start_dispatch(&dispatch),
-        Err(HostLaunchAdapterError::CreationIdentityMismatch)
-    );
-    assert_eq!(
-        map_host_response(
-            &dispatch,
-            ObservedTerminalHostResponse::new(
-                protocol_epoch(HOST_EPOCH)?,
-                TerminalHostResponse::TypedFailure(typed_failure(false)),
-            ),
-        ),
-        Err(HostLaunchAdapterError::CreationIdentityMismatch)
-    );
+    let request = map_start_dispatch(&dispatch)?;
+    assert_eq!(request.terminal_id.as_bytes(), &[HOST_TERMINAL; 16]);
+    assert_ne!(target.creation_id().as_bytes(), [PRODUCT_TERMINAL; 16]);
     Ok(())
 }
 
 #[test]
-fn request_functions_reject_the_opposite_authorized_operation_kind() -> TestResult {
+fn request_and_response_functions_reject_the_opposite_authorized_operation_kind() -> TestResult {
     let launch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
     let start = start_dispatch(
         capability_identity(HOST_CREATION, HOST_EPOCH, HOST_TERMINAL)?,
@@ -145,6 +136,27 @@ fn request_functions_reject_the_opposite_authorized_operation_kind() -> TestResu
         map_start_dispatch(&launch),
         Err(HostLaunchAdapterError::OperationKindMismatch)
     );
+    assert_eq!(
+        map_launch_host_response(
+            &start,
+            host_creation_id()?,
+            ObservedTerminalHostResponse::new(
+                protocol_epoch(HOST_EPOCH)?,
+                TerminalHostResponse::TypedFailure(typed_failure(false)),
+            ),
+        ),
+        Err(HostLaunchAdapterError::OperationKindMismatch)
+    );
+    assert_eq!(
+        map_start_host_response(
+            &launch,
+            ObservedTerminalHostResponse::new(
+                protocol_epoch(HOST_EPOCH)?,
+                TerminalHostResponse::TypedFailure(typed_failure(false)),
+            ),
+        ),
+        Err(HostLaunchAdapterError::OperationKindMismatch)
+    );
     Ok(())
 }
 
@@ -156,8 +168,9 @@ fn launch_success_preserves_exact_host_epoch_and_identity() -> TestResult {
     ] {
         let dispatch = launch_dispatch(None, mode)?;
         let identity = protocol_identity_value(HOST_CREATION, HOST_EPOCH, HOST_TERMINAL)?;
-        let completion = map_host_response(
+        let completion = map_launch_host_response(
             &dispatch,
+            host_creation_id()?,
             ObservedTerminalHostResponse::new(
                 protocol_epoch(HOST_EPOCH)?,
                 TerminalHostResponse::TerminalCreated(identity),
@@ -166,40 +179,30 @@ fn launch_success_preserves_exact_host_epoch_and_identity() -> TestResult {
 
         assert_eq!(
             completion,
-            HostKernelCompletion::Launch(LaunchHostCompletion::Accepted {
+            LaunchHostCompletion::Accepted {
                 identity: capability_identity(HOST_CREATION, HOST_EPOCH, HOST_TERMINAL)?,
-            })
+            }
         );
     }
     Ok(())
 }
 
 #[test]
-fn typed_host_failure_retryability_selects_rejection_or_failure_for_launch() -> TestResult {
-    for (retryable, expected) in [
-        (
-            false,
-            LaunchHostCompletion::Rejected {
-                host_epoch: capability_epoch(HOST_EPOCH)?,
-            },
-        ),
-        (
-            true,
-            LaunchHostCompletion::Failed {
-                host_epoch: capability_epoch(HOST_EPOCH)?,
-            },
-        ),
-    ] {
+fn every_generic_typed_host_failure_is_a_reported_launch_failure() -> TestResult {
+    for retryable in [false, true] {
         let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
         assert_eq!(
-            map_host_response(
+            map_launch_host_response(
                 &dispatch,
+                host_creation_id()?,
                 ObservedTerminalHostResponse::new(
                     protocol_epoch(HOST_EPOCH)?,
                     TerminalHostResponse::TypedFailure(typed_failure(retryable)),
                 ),
             )?,
-            HostKernelCompletion::Launch(expected)
+            LaunchHostCompletion::Failed {
+                host_epoch: capability_epoch(HOST_EPOCH)?,
+            }
         );
     }
     Ok(())
@@ -218,7 +221,7 @@ fn start_success_preserves_exact_identity_geometry_and_transition() -> TestResul
         ),
     ] {
         let dispatch = start_dispatch(target, geometry)?;
-        let completion = map_host_response(
+        let completion = map_start_host_response(
             &dispatch,
             ObservedTerminalHostResponse::new(
                 protocol_epoch(HOST_EPOCH)?,
@@ -232,43 +235,32 @@ fn start_success_preserves_exact_identity_geometry_and_transition() -> TestResul
 
         assert_eq!(
             completion,
-            HostKernelCompletion::Start(StartHostCompletion::Accepted(HostStartAccepted::new(
+            StartHostCompletion::Accepted(HostStartAccepted::new(
                 target,
                 geometry,
                 capability_transition,
-            )))
+            ))
         );
     }
     Ok(())
 }
 
 #[test]
-fn typed_host_failure_retryability_selects_rejection_or_failure_for_start() -> TestResult {
+fn every_generic_typed_host_failure_is_a_reported_start_failure() -> TestResult {
     let target = capability_identity(HOST_CREATION, HOST_EPOCH, HOST_TERMINAL)?;
-    for (retryable, expected) in [
-        (
-            false,
-            StartHostCompletion::Rejected {
-                host_epoch: capability_epoch(HOST_EPOCH)?,
-            },
-        ),
-        (
-            true,
-            StartHostCompletion::Failed {
-                host_epoch: capability_epoch(HOST_EPOCH)?,
-            },
-        ),
-    ] {
+    for retryable in [false, true] {
         let dispatch = start_dispatch(target, geometry(80, 24, 8, 16)?)?;
         assert_eq!(
-            map_host_response(
+            map_start_host_response(
                 &dispatch,
                 ObservedTerminalHostResponse::new(
                     protocol_epoch(HOST_EPOCH)?,
                     TerminalHostResponse::TypedFailure(typed_failure(retryable)),
                 ),
             )?,
-            HostKernelCompletion::Start(expected)
+            StartHostCompletion::Failed {
+                host_epoch: capability_epoch(HOST_EPOCH)?,
+            }
         );
     }
     Ok(())
@@ -287,8 +279,9 @@ fn response_mapper_rejects_wrong_response_kind() -> TestResult {
     };
 
     assert_eq!(
-        map_host_response(
+        map_launch_host_response(
             &launch,
+            host_creation_id()?,
             ObservedTerminalHostResponse::new(
                 protocol_epoch(HOST_EPOCH)?,
                 TerminalHostResponse::TerminalStartAccepted(start_response),
@@ -297,7 +290,7 @@ fn response_mapper_rejects_wrong_response_kind() -> TestResult {
         Err(HostLaunchAdapterError::UnexpectedHostResponse)
     );
     assert_eq!(
-        map_host_response(
+        map_start_host_response(
             &start,
             ObservedTerminalHostResponse::new(
                 protocol_epoch(HOST_EPOCH)?,
@@ -318,8 +311,9 @@ fn launch_success_rejects_mismatched_creation_identity_or_epoch() -> TestResult 
     let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
 
     assert_eq!(
-        map_host_response(
+        map_launch_host_response(
             &dispatch,
+            host_creation_id()?,
             ObservedTerminalHostResponse::new(
                 protocol_epoch(HOST_EPOCH)?,
                 TerminalHostResponse::TerminalCreated(protocol_identity_value(
@@ -332,8 +326,9 @@ fn launch_success_rejects_mismatched_creation_identity_or_epoch() -> TestResult 
         Err(HostLaunchAdapterError::CreationIdentityMismatch)
     );
     assert_eq!(
-        map_host_response(
+        map_launch_host_response(
             &dispatch,
+            host_creation_id()?,
             ObservedTerminalHostResponse::new(
                 protocol_epoch(HOST_EPOCH + 1)?,
                 TerminalHostResponse::TerminalCreated(protocol_identity_value(
@@ -389,7 +384,7 @@ fn start_success_rejects_mismatched_epoch_identity_or_geometry() -> TestResult {
 
     for (host_epoch, accepted, expected) in cases {
         assert_eq!(
-            map_host_response(
+            map_start_host_response(
                 &dispatch,
                 ObservedTerminalHostResponse::new(
                     host_epoch,
@@ -410,7 +405,7 @@ fn start_failure_rejects_a_host_epoch_other_than_the_authorized_target() -> Test
     )?;
 
     assert_eq!(
-        map_host_response(
+        map_start_host_response(
             &dispatch,
             ObservedTerminalHostResponse::new(
                 protocol_epoch(HOST_EPOCH + 1)?,
@@ -473,8 +468,9 @@ fn launch_and_response_values_are_revalidated_at_the_host_protocol_boundary() ->
 
     let mut invalid_failure = typed_failure(false);
     invalid_failure.code = "x".repeat(MAXIMUM_TYPED_FAILURE_CODE_BYTES + 1);
-    assert_invalid_host_field(map_host_response(
+    assert_invalid_host_field(map_launch_host_response(
         &launch,
+        host_creation_id()?,
         ObservedTerminalHostResponse::new(
             protocol_epoch(HOST_EPOCH)?,
             TerminalHostResponse::TypedFailure(invalid_failure),
@@ -485,7 +481,7 @@ fn launch_and_response_values_are_revalidated_at_the_host_protocol_boundary() ->
         capability_identity(HOST_CREATION, HOST_EPOCH, HOST_TERMINAL)?,
         geometry(80, 24, 8, 16)?,
     )?;
-    assert_invalid_host_field(map_host_response(
+    assert_invalid_host_field(map_start_host_response(
         &start,
         ObservedTerminalHostResponse::new(
             protocol_epoch(HOST_EPOCH)?,
@@ -508,8 +504,9 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 fn resolved_facts(
     default_cwd: &str,
-) -> Result<ResolvedTerminalLaunchFacts, CapabilityProtocolError> {
+) -> Result<ResolvedTerminalLaunchFacts, Box<dyn std::error::Error>> {
     Ok(ResolvedTerminalLaunchFacts::new(
+        host_creation_id()?,
         "/bin/zsh".to_owned(),
         Vec::new(),
         default_environment(),
@@ -570,7 +567,8 @@ fn start_dispatch(
     identity: HostTerminalIdentity,
     geometry: TerminalPixelGeometry,
 ) -> Result<AuthorizedHostDispatch, Box<dyn std::error::Error>> {
-    let start = AuthorizedTerminalStart::new(authorization(HOST_CREATION, 22)?, identity, geometry);
+    let start =
+        AuthorizedTerminalStart::new(authorization(PRODUCT_TERMINAL, 22)?, identity, geometry);
     let mut kernel = kernel()?;
     expect_dispatch(kernel.admit_start(start, 100, identity.host_epoch())?)
 }
@@ -653,9 +651,18 @@ fn protocol_epoch(value: u8) -> Result<ProtocolHostEpoch, IdentityError> {
     ProtocolHostEpoch::from_bytes([value; 16])
 }
 
+fn host_creation_id() -> Result<CreationId, IdentityError> {
+    CreationId::from_bytes([HOST_CREATION; 16])
+}
+
 fn typed_failure(retryable: bool) -> TypedFailure {
     TypedFailure {
-        code: "terminal-unavailable".to_owned(),
+        code: if retryable {
+            "resource-exhausted"
+        } else {
+            "internal-error"
+        }
+        .to_owned(),
         message: "terminal unavailable".to_owned(),
         retryable,
     }
