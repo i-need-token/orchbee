@@ -39,6 +39,8 @@ accepted connection 实现 `Read` 与 `Write`，因此调用方可以成为下�
 阶段的 byte，即使 Server 把它们与 `ClientAccepted` 一起写入。丢弃该值只关闭这条 connection。
 `set_io_timeout` 允许唯一 caller 为其拥有的下一 phase 应用同一 read/write timeout，而不改变
 handshake policy。
+`set_nonblocking` 与标准 `AsFd` view 允许同一唯一 owner 实现 absolute readiness deadline，
+而不提取、clone 或替换 admitted stream。
 对于只做 admission 的调用方，`wait_for_server_loss` 观察 EOF，并拒绝任何 post-admission byte；
 使用 semantic phase 的调用方则直接读取该 phase。
 

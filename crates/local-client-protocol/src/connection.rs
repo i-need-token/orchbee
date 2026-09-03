@@ -1,6 +1,7 @@
 use std::{
     fmt,
     io::{self, Read, Write},
+    os::fd::{AsFd, BorrowedFd},
     os::unix::net::UnixStream,
     path::Path,
     time::Duration,
@@ -54,6 +55,10 @@ impl ClientSessionConnection {
         self.stream.set_write_timeout(timeout)
     }
 
+    pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+        self.stream.set_nonblocking(nonblocking)
+    }
+
     pub fn wait_for_server_loss(&mut self) -> io::Result<()> {
         let mut byte = [0_u8; 1];
         loop {
@@ -79,6 +84,12 @@ impl ClientSessionConnection {
                 Err(error) => return Err(error),
             }
         }
+    }
+}
+
+impl AsFd for ClientSessionConnection {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.stream.as_fd()
     }
 }
 

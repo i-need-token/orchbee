@@ -3,9 +3,9 @@
 	"domain": "orchbee",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Unshipped native Orchbee process entry with exact Phase 3A TUI/help/version dispatch, bilingual development presentation, an unwired application-private POSIX local-Site rendezvous primitive, and an application-private same-user POSIX Client transport for at-most-once OBCS Create/Start exchange against an explicitly supplied Server endpoint.",
+	"responsibility": "Unshipped native Orchbee process entry with exact Phase 3A TUI/help/version dispatch, bilingual development presentation, an unwired application-private POSIX local-Site rendezvous primitive, and an application-private same-user POSIX Client transport for monotonic-total-deadline, at-most-once OBCS Create/Start exchange against an explicitly supplied Server endpoint.",
 	"nonGoals": [
-		"Exposing the private local Client transport through public grammar, selecting or discovering an endpoint, integrating a TUI renderer, Workbench or terminal commands, activating or supervising Server or Worker, readiness, relaying a terminal, reconnecting, reconciling an unknown outcome, endpoint cleanup, networking, persistence, or child-process supervision.",
+		"Exposing the private local Client transport through public grammar, selecting or discovering an endpoint, adding an OBLC connect-plus-handshake total deadline, integrating a TUI renderer, Workbench or terminal commands, activating or supervising Server or Worker, readiness, relaying a terminal, reconnecting, reconciling an unknown outcome, endpoint cleanup, networking, persistence, or child-process supervision.",
 		"Claiming production-private POSIX runtime security before inherited or extended ACL checks, socket metadata validation, and peer authentication are integrated.",
 		"Replacing, packaging, migrating, or deleting the delivered TypeScript CLI, its Desktop launcher, Agent Skill, commands, outputs, or compatibility contract.",
 		"Defining the future stable command tree, output schemas, exit categories, shell completion, package-manager distribution, release targets, update cohort, or rollback policy."

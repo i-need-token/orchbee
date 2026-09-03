@@ -4,16 +4,21 @@ use std::{
     num::NonZeroU64,
     os::unix::net::{UnixListener, UnixStream},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc::{Receiver, SyncSender, sync_channel},
+    },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use orchbee_client_server_protocol::{
     ClientMessage, CreateOutcome, CreateRejectedReason, FRAME_VERSION as OBCS_FRAME_VERSION,
     ProtocolError as ObcsProtocolError, RequestId, ServerMessage, StartMode, StartOutcome,
     StartRejectedReason, TerminalCreateRequest, TerminalCreateResult, TerminalStartRequest,
-    TerminalStartResult, read_client_message, write_server_message,
+    TerminalStartResult, encode_client_frame, encode_server_frame, read_client_message,
+    write_server_message,
 };
 use orchbee_local_client_protocol::{
     ConnectClientError, LocalClientMessage, PROTOCOL_VERSION as OBLC_PROTOCOL_VERSION,
@@ -22,7 +27,8 @@ use orchbee_local_client_protocol::{
 };
 
 use super::{
-    LocalClient, LocalClientConnectError, OutcomeUnknownReason, ResultKind, SubmissionError,
+    IoChunkLimits, LocalClient, LocalClientConnectError, MonotonicClock, OutcomeUnknownReason,
+    ResultKind, SubmissionError,
 };
 
 const COHORT: &str = "test-cohort";
@@ -383,6 +389,172 @@ fn request_timeout_is_unknown_retires_the_session_and_never_resubmits() -> TestR
 }
 
 #[test]
+fn slow_trickle_read_exhausts_one_total_deadline_despite_progress() -> TestResult {
+    let request = deferred_create(FIRST_REQUEST_ID)?;
+    let expected_request = request.clone();
+    let response = encode_server_frame(&ServerMessage::TerminalCreateResult(create_denied(
+        FIRST_REQUEST_ID,
+    )?))?;
+    let (progress_sender, progress_receiver) = sync_channel(0);
+    let (written_sender, written_receiver) = sync_channel(0);
+    let sent_bytes = Arc::new(AtomicU64::new(0));
+    let server_sent_bytes = sent_bytes.clone();
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 24)?;
+        require_message(
+            read_client_message(&mut stream).map_err(io::Error::other)?,
+            ClientMessage::TerminalCreate(expected_request),
+        )?;
+
+        for byte in response {
+            if progress_receiver.recv().is_err() {
+                return Ok(());
+            }
+            let write_result = stream.write_all(&[byte]);
+            if write_result.is_ok() {
+                server_sent_bytes.fetch_add(1, Ordering::Relaxed);
+            }
+            let _acknowledged = written_sender.send(());
+            write_result?;
+        }
+        Err(io::Error::other(
+            "fake Server delivered the complete result before deadline expiry",
+        ))
+    })?;
+
+    let observations = Arc::new(AtomicU64::new(0));
+    let clock = SteppingMonotonicClock::with_progress_signal(
+        Duration::from_millis(10),
+        observations.clone(),
+        ProgressSignal {
+            sender: progress_sender,
+            written: written_receiver,
+            first_observation: 4,
+            period: 2,
+        },
+    );
+    let mut client = LocalClient::connect_with_submission_runtime(
+        server.endpoint(),
+        COHORT,
+        Duration::from_millis(80),
+        Box::new(clock),
+        IoChunkLimits::UNBOUNDED,
+    )?;
+    let error = client
+        .submit_terminal_create(request)
+        .expect_err("partial read progress must not renew the total request deadline");
+    assert!(matches!(
+        error,
+        SubmissionError::OutcomeUnknown {
+            request_id,
+            reason: OutcomeUnknownReason::Read(error),
+        } if request_id.as_str() == FIRST_REQUEST_ID
+            && error.kind() == io::ErrorKind::TimedOut
+    ));
+    assert_eq!(client.generation(), None);
+    assert!(matches!(
+        client.submit_terminal_create(deferred_create(SECOND_REQUEST_ID)?),
+        Err(SubmissionError::SessionUnavailable)
+    ));
+    drop(client);
+    server.finish()?;
+    assert!(observations.load(Ordering::Relaxed) >= 9);
+    assert_eq!(sent_bytes.load(Ordering::Relaxed), 3);
+    Ok(())
+}
+
+#[test]
+fn slow_trickle_write_exhausts_one_total_deadline_after_partial_handoff() -> TestResult {
+    let request = deferred_create(FIRST_REQUEST_ID)?;
+    let expected_frame = encode_client_frame(&ClientMessage::TerminalCreate(request.clone()))?;
+    let expected_prefix = expected_frame[..4].to_vec();
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 25)?;
+
+        let mut received = Vec::new();
+        stream.read_to_end(&mut received)?;
+        if received != expected_prefix {
+            return Err(io::Error::other(format!(
+                "fake Server received partial request bytes {received:?}; expected one OBCS prefix"
+            )));
+        }
+        Ok(())
+    })?;
+
+    let observations = Arc::new(AtomicU64::new(0));
+    let clock = SteppingMonotonicClock::new(Duration::from_millis(10), observations.clone());
+    let mut client = LocalClient::connect_with_submission_runtime(
+        server.endpoint(),
+        COHORT,
+        Duration::from_millis(90),
+        Box::new(clock),
+        IoChunkLimits::new(usize::MAX, 1),
+    )?;
+    let error = client
+        .submit_terminal_create(request)
+        .expect_err("partial write progress must not renew the total request deadline");
+    assert!(matches!(
+        error,
+        SubmissionError::OutcomeUnknown {
+            request_id,
+            reason: OutcomeUnknownReason::Write(error),
+        } if request_id.as_str() == FIRST_REQUEST_ID
+            && error.kind() == io::ErrorKind::TimedOut
+    ));
+    assert_eq!(client.generation(), None);
+    assert!(matches!(
+        client.submit_terminal_create(deferred_create(SECOND_REQUEST_ID)?),
+        Err(SubmissionError::SessionUnavailable)
+    ));
+    drop(client);
+    server.finish()?;
+    assert!(observations.load(Ordering::Relaxed) >= 10);
+    Ok(())
+}
+
+#[test]
+fn deadline_expiry_before_the_first_write_is_a_definite_failure() -> TestResult {
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 26)?;
+        let mut received = Vec::new();
+        stream.read_to_end(&mut received)?;
+        if received.is_empty() {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!(
+                "fake Server received bytes before the pre-write failure: {received:?}"
+            )))
+        }
+    })?;
+
+    let observations = Arc::new(AtomicU64::new(0));
+    let clock = SteppingMonotonicClock::new(Duration::from_millis(10), observations.clone());
+    let mut client = LocalClient::connect_with_submission_runtime(
+        server.endpoint(),
+        COHORT,
+        Duration::from_millis(5),
+        Box::new(clock),
+        IoChunkLimits::UNBOUNDED,
+    )?;
+    let error = client
+        .submit_terminal_create(deferred_create(FIRST_REQUEST_ID)?)
+        .expect_err("deadline expiry before the first write must be definite");
+    assert!(matches!(
+        error,
+        SubmissionError::RequestNotSubmitted(error)
+            if error.kind() == io::ErrorKind::TimedOut
+    ));
+    assert_eq!(client.generation().map(NonZeroU64::get), Some(26));
+    drop(client);
+    server.finish()?;
+    assert_eq!(observations.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[test]
 fn eof_after_one_request_is_an_unknown_outcome_without_retry() -> TestResult {
     let request = deferred_create(FIRST_REQUEST_ID)?;
     let expected_request = request.clone();
@@ -558,6 +730,63 @@ struct ChunkedStream {
     stream: UnixStream,
     maximum_read_chunk: usize,
     maximum_write_chunk: usize,
+}
+
+#[derive(Debug)]
+struct SteppingMonotonicClock {
+    origin: Instant,
+    step: Duration,
+    observations: Arc<AtomicU64>,
+    progress_signal: Option<ProgressSignal>,
+}
+
+impl SteppingMonotonicClock {
+    fn new(step: Duration, observations: Arc<AtomicU64>) -> Self {
+        Self {
+            origin: Instant::now(),
+            step,
+            observations,
+            progress_signal: None,
+        }
+    }
+
+    fn with_progress_signal(
+        step: Duration,
+        observations: Arc<AtomicU64>,
+        progress_signal: ProgressSignal,
+    ) -> Self {
+        Self {
+            origin: Instant::now(),
+            step,
+            observations,
+            progress_signal: Some(progress_signal),
+        }
+    }
+}
+
+impl MonotonicClock for SteppingMonotonicClock {
+    fn now(&self) -> Instant {
+        let observation = self.observations.fetch_add(1, Ordering::Relaxed);
+        if let Some(signal) = &self.progress_signal
+            && observation >= signal.first_observation
+            && (observation - signal.first_observation).is_multiple_of(signal.period)
+            && signal.sender.send(()).is_ok()
+        {
+            let _written = signal.written.recv();
+        }
+        let multiplier = u32::try_from(observation).unwrap_or(u32::MAX);
+        self.origin
+            .checked_add(self.step.saturating_mul(multiplier))
+            .unwrap_or(self.origin)
+    }
+}
+
+#[derive(Debug)]
+struct ProgressSignal {
+    sender: SyncSender<()>,
+    written: Receiver<()>,
+    first_observation: u64,
+    period: u64,
 }
 
 impl ChunkedStream {

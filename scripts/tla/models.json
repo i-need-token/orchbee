@@ -1572,6 +1572,55 @@
 			]
 		},
 		{
+			"id": "local-client-submission",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/LocalClientSubmission.tla",
+			"config": "apps/orchbee/formal/tla/LocalClientSubmission.cfg",
+			"claims": [
+				"apps/orchbee/README.md",
+				"crates/client-server-protocol/README.md",
+				"crates/local-client-protocol/README.md",
+				"schemas/client-server/README.md"
+			],
+			"triggers": [
+				"apps/orchbee/Cargo.toml",
+				"apps/orchbee/README.zh-CN.md",
+				"apps/orchbee/project.json",
+				"apps/orchbee/src/local_client.rs",
+				"apps/orchbee/src/local_client/**",
+				"crates/client-server-protocol/README.zh-CN.md",
+				"crates/client-server-protocol/src/**",
+				"crates/local-client-protocol/README.zh-CN.md",
+				"crates/local-client-protocol/src/**",
+				"schemas/client-server/**"
+			],
+			"requiredCoverage": [
+				"BeginSubmission",
+				"EncodingFails",
+				"EncodingSucceeds",
+				"PreWriteDeadline",
+				"PreWriteIoFails",
+				"WriteBegins",
+				"WriteCompletes",
+				"WriteFails",
+				"WriteDeadlineExpires",
+				"ResultDeadlineExpires",
+				"MatchingKnownResultArrives",
+				"MatchingUnknownResultArrives",
+				"WrongKindResultArrives",
+				"WrongIdResultArrives",
+				"MalformedResultArrives",
+				"ReadFails",
+				"AcceptMatchingResult",
+				"RetireTimedOutResult",
+				"RetireWrongKind",
+				"RetireWrongId",
+				"RetireMalformedResult",
+				"RejectSendAfterRetirement"
+			]
+		},
+		{
 			"id": "local-client-sessions",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",

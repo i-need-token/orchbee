@@ -36,22 +36,68 @@ On Unix, the application-private `LocalClient` accepts an endpoint and executabl
 an internal caller. It delegates admission to `orchbee-local-client-protocol`, which validates the
 cohort before connecting, proves the Server has the same effective operating-system user, performs
 the exact `OBLC` handshake with two-second read/write timeouts, and returns the accepted generation
-plus the same unbuffered stream. The application then applies a two-second read/write timeout to
-the `OBCS` phase.
+plus the same unbuffered stream. Those existing handshake timeouts remain a separate OBLC boundary;
+this slice does not add one total deadline around connect plus handshake. The application switches
+the admitted stream to nonblocking I/O before the `OBCS` phase.
 
 `submit_terminal_create` and `submit_terminal_start` each take ownership of one already validated
-typed request, invoke one complete OBCS frame write, and wait for one Server frame. A result is
-returned only when its message kind and `requestId` exactly match the submitted request. A write or
-read failure, malformed or incompatible result, wrong result kind, or wrong correlation makes the
-effect outcome typed `OutcomeUnknown` and retires the connection; the transport never retries or
-returns the request for replay. A correctly correlated Server `outcome-unknown` result remains a
-valid OBCS result.
+typed request and encode its complete OBCS frame before submission. Encoding failure is definite
+and leaves the Session available. A successful encoding starts one two-second monotonic deadline
+covering the complete frame write and the one Server-frame read; readiness waits recompute the
+remaining budget, so partial progress cannot renew it. Failure before the first write syscall is
+definite. Once that syscall begins, any write or read failure or deadline expiry, malformed or
+incompatible result, wrong result kind, or wrong correlation makes the effect outcome typed
+`OutcomeUnknown` and retires the connection. The transport never retries or returns the request for
+replay. A correctly correlated Server `outcome-unknown` result remains a valid OBCS result rather
+than a transport ambiguity.
 
 No current invocation reaches this transport. Endpoint selection or discovery, activation,
 reconnection, request-identity generation or reconciliation, public command grammar, TUI
 composition, and terminal relay remain outside this slice. A later TUI adapter may receive an
 already selected endpoint, retain `LocalClient` as its Client Session carrier, inspect its
 generation, and submit typed Create or Start intent through these two methods.
+
+### Submission correctness record
+
+| Field        | Contract |
+| ------------ | -------- |
+| Problem      | An internal Client with an already admitted same-user Session must submit one typed Create or Start request without duplicating an effect when transport completion is ambiguous. Endpoint acquisition, process activation, and presentation are excluded. |
+| Inputs       | Trusted typed `TerminalCreateRequest` or `TerminalStartRequest`, the admitted `ClientSessionConnection`, its accepted generation, a finite request budget, and monotonic time. Server bytes and readiness outcomes are untrusted. An absent connection means `SessionUnavailable`. |
+| Data         | One invocation owns one `requestId`, encoded frame, absolute deadline, connection state, possible-handoff boundary, expected result kind, and decoded result class. The `LocalClient` exclusively owns its Session. |
+| Outputs      | Exact correlated typed result; definite `RequestEncoding` or `RequestNotSubmitted`; typed `OutcomeUnknown` with the submitted identity; or `SessionUnavailable`. There is no cancellation, retry, replay return, or optimistic terminal mutation. |
+| Invariants   | Encoding precedes the deadline and transport; one invocation begins at most one frame handoff; only exact kind and identity complete; every ambiguity after possible handoff retires the Session; a retired Session sends no bytes. |
+| Decisions    | Before versus after first possible handoff; write incomplete versus complete; result before versus at/after deadline; exact versus wrong kind or identity; valid versus malformed frame; known versus Server-reported unknown outcome. Deadline observation wins if acceptance has not completed. |
+| Model        | `LocalClientSubmission` is the bounded one-invocation state refinement. `LocalClient::exchange` is the implementation workflow; its deadline-aware nonblocking stream wrapper is the time and I/O adapter. |
+| Transitions  | The transition record below defines the serializable abstract phases and guards. Runtime phase is call-local; only the live-or-retired connection state persists between calls. |
+| Dependencies | One already admitted Unix stream, monotonic time, readiness polling, OBCS encoding/decoding, and same-stream OBLC admission. The OBCS workflow has no filesystem, process, endpoint-selection, randomness, localization, or UI capability. |
+| Ownership    | `LocalClient` is the sole stream and retirement owner. OBCS owns frame and result semantics; OBLC owns admission, credentials, cohort, generation, and its existing handshake timeouts. |
+| Verification | Fake-Server tests cover exact Create/Start, correlation, protocol and EOF failures, silent timeout, deterministic partial read/write deadline exhaustion, pre-write expiry, retirement, and no duplicate send. TLC requires a witness for every registered semantic action. |
+| Correctness  | Claims LC-01 through LC-05 below refine implementation branches and deterministic tests to the registered model. TLC exhausts 49 bounded states for one request and one Session; it does not prove OS scheduling, codec correctness, OBLC connect timing, activation, reconnection, reconciliation, or future TUI behavior. |
+
+### Submission transition record
+
+| Current phase | Event and guard | Next phase | Result and connection effect |
+| ------------- | --------------- | ---------- | ---------------------------- |
+| `ready` | Submit while a Session exists | `encoding` | No transport effect |
+| `encoding` | Frame encoding fails | `definite-failure` | `RequestEncoding`; Session retained |
+| `encoding` | Frame encoding succeeds and creates one absolute deadline | `write-ready` | Encoded frame is private to this invocation |
+| `write-ready` | Deadline or I/O setup fails before the first write syscall | `definite-failure` | `RequestNotSubmitted`; Session retained |
+| `write-ready` | First write syscall may hand bytes to the kernel | `write-begun` | Handoff count becomes one |
+| `write-begun` | The one complete frame is written before expiry | `awaiting-result` | Wait for exactly one Server frame under the same deadline |
+| `write-begun` or `awaiting-result` | Deadline, I/O, timeout, or EOF wins | `retired` | `OutcomeUnknown`; connection closed |
+| `awaiting-result` | Decoded frame is malformed, wrong-kind, or wrong-ID before expiry | `retired` | `OutcomeUnknown`; connection closed |
+| `awaiting-result` | Exact correlated result is decoded and deadline is still open | `completed` | Return typed known or Server-reported-unknown result; Session retained |
+| `retired` | Any later submit call | `retired` | `SessionUnavailable`; no write and no retry |
+
+### Correctness traceability
+
+| Claim | Implementation and deterministic witness | TLA+ evidence |
+| ----- | ---------------------------------------- | ------------- |
+| LC-01: encoding and every failure before the first write are definite. | `exchange` encodes before starting `SubmissionDeadline`; `deadline_expiry_before_the_first_write_is_a_definite_failure` observes zero Server bytes and a retained generation. | `EncodingFails`, `PreWriteDeadline`, `PreWriteIoFails`; `DefiniteFailurePrecedesHandoff`. |
+| LC-02: one invocation has at most one request-frame handoff and never retries it. | One encoded buffer is passed once to `write_all`; slow-write and silent-timeout tests reject a second request and subsequent calls return `SessionUnavailable`. | `WriteBegins`; `AtMostOneHandoff`; `NoSendAfterRetirement`. |
+| LC-03: every failure after possible handoff is unknown and retires the Session. | Write/read, EOF, incompatible frame, wrong kind, and wrong identity branches all call `retire_with_unknown`; focused tests assert the generation disappears. | `WriteFails`, `WriteDeadlineExpires`, `ReadFails`, all retire actions; `UnknownRequiresHandoffAndRetirement`. |
+| LC-04: only exact kind and identity complete, while a correlated Server `outcome-unknown` is data rather than transport ambiguity. | Exact Create/Start, wrong-kind, wrong-ID, and correlated-unknown fake-Server tests exercise the result classifier. | Matching and wrong-result arrival actions; `AcceptedResultIsExactAndBeforeDeadline`. |
+| LC-05: one monotonic deadline covers the full write and read and is not renewed by progress. | `SubmissionDeadline` is created once; every readiness boundary recomputes its remainder. Stepping-clock tests force sub-deadline byte progress across both read and write until the total budget expires. | `WriteDeadlineExpires`, `ResultDeadlineExpires`, `RetireTimedOutResult`; `TimeoutCannotProduceAcceptedResult`. |
 
 ## Localization and authority
 
@@ -166,10 +212,10 @@ default Cargo release profile, 5 warmups, and 50 measured invocations:
 | Measurement          | Reference observation |
 | -------------------- | --------------------- |
 | Executable size      | 432,144 bytes         |
-| Warm startup minimum | 1.415 ms              |
-| Warm startup p50     | 1.796 ms              |
-| Warm startup p95     | 2.782 ms              |
-| Warm startup maximum | 3.047 ms              |
+| Warm startup minimum | 1.161 ms              |
+| Warm startup p50     | 1.552 ms              |
+| Warm startup p95     | 2.294 ms              |
+| Warm startup maximum | 2.628 ms              |
 | Peak resident memory | 1,343,488 bytes       |
 
 Rerun and replace this reference after a later accepted slice changes the executable's reachable
@@ -183,5 +229,7 @@ Run from the repository root:
 ```sh
 cargo test -p orchbee --all-targets --all-features --locked
 cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
+node scripts/tla/check-inventory.mjs
+node scripts/tla/run-models.mjs --models local-client-submission
 pnpm verify
 ```

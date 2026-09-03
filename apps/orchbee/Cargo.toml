@@ -6,7 +6,7 @@ rust-version.workspace = true
 publish = false
 
 [target.'cfg(unix)'.dependencies]
-nix = { workspace = true, features = ["fs", "user"] }
+nix = { workspace = true, features = ["fs", "poll", "user"] }
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }
 orchbee-local-client-protocol = { path = "../../crates/local-client-protocol" }
 
