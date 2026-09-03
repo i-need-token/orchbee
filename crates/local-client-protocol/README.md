@@ -54,10 +54,12 @@ handshakes cannot create unbounded work; a connection beyond that transport boun
 candidate within the transport bound receives a typed capacity rejection after the eight-session
 admission limit. Every handshake has a two-second read/write timeout.
 
-The currently delivered Server admission service has not adopted a semantic next phase yet, so any
-byte after admission, including a repeated hello, closes only that Session. Disconnect removes only
-the matching generation; delayed cleanup cannot remove a later Session. Client disconnect does not
-stop Server, Worker, or any other Client. Server process loss closes every liveness stream.
+The delivered private Server retains the accepted unbuffered stream as the Session carrier and
+passes its next-phase bytes to the separately owned
+[`orchbee-client-server-protocol`](../client-server-protocol/README.md) OBCS decoder. This crate
+neither defines nor decodes that phase. The Server's deny-only runtime, fault handling, and
+generation-scoped cleanup are owned by its
+[`apps/orchbee-server` guide](../../apps/orchbee-server/README.md).
 
 ## Ownership and exclusions
 
@@ -76,6 +78,6 @@ Run from the repository root:
 ```sh
 cargo test -p orchbee-local-client-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-local-client-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models local-client-sessions
+node scripts/tla/run-models.mjs --models local-client-sessions,local-client-sessions-obcs
 pnpm verify
 ```

@@ -73,19 +73,27 @@ process-local Client Session generation。TUI、Web、Desktop、mobile、tab、w
 identity 被有意排除：该 endpoint 准入的是统一的 peer Client model。Server 最多接受八个 active
 Session，并最多保留十六个 candidate/session handler thread。每条 handshake 有两秒 read/write
 timeout。因此，只要还有 handler slot，一个 silent candidate 就不能阻塞另一条 connection；饱和
-时，多余 candidate 会被关闭，且不会分配更多 thread。
+时，多余 candidate 会被关闭，且不会分配更多 thread。Handler slot 与 admitted-Session
+registration 都由 lifetime-owned guard 持有，因此正常完成、fault 与 unwind 都会释放两类上限。
 
 经过认证的 candidate 会因 protocol/cohort 不兼容、malformed 或 wrong message、timeout 或
-active-Session capacity 收到 typed rejection。准入后的任何 byte（包括重复 hello）只会关闭该
-Session。Disconnect cleanup 匹配确切 generation，不能移除另一个或 replacement Session。它不会
-停止 Server、干扰独立 Worker registry，也不意味着任何 terminal action。Server process loss 会
-关闭每条 Client liveness attachment。
+active-Session capacity 收到 typed rejection。Server 完整写出 `ClientAccepted` 后才移除 handshake
+timeout，并在同一条 unbuffered stream 上读取 strict OBCS。它每次读取一条 request，构造并尝试完整
+写出相关联的 denial；只有写出完成才读取下一条。对于每个成功 decode 的 Create-immediate、
+Create-deferred 与 Start request，构造出的 result 都具有精确 result kind 与 `requestId`，并使用
+`rejected/not-authorized`；request field 与 Worker presence 不会改变该决策。EOF、malformed、
+wrong-direction、oversized、truncated、read 或 write failure 只会关闭该 Session。Disconnect cleanup
+匹配确切 generation，不能移除另一个或 replacement Session。它不会停止 Server、干扰独立 Worker
+registry，也不意味着任何 terminal action。Server process loss 会关闭每条 Client liveness
+attachment。
 
 私有 [`orchbee-local-client-protocol`](../../crates/local-client-protocol/README.zh-CN.md) crate
-拥有 Client framing 与真实 Rust connecting adapter。Server 拥有 listener、handler-slot、
-admission、generation 与 cleanup state。公开 `orchbee` 尚未调用 adapter，因此 bare、help 与
-version 行为保持不变。本切片不增加 Workbench command、terminal relay、TUI、activation、
-endpoint discovery、persistence 或 remote ingress。
+拥有 Client framing 与真实 Rust connecting adapter。独立
+[`orchbee-client-server-protocol`](../../crates/client-server-protocol/README.zh-CN.md) binding 拥有
+OBCS validation 与 frame I/O。Server 拥有 listener、handler-slot、admission、sequential denial、
+generation 与 cleanup state。公开 `orchbee` 尚未调用 adapter，因此 bare、help 与 version 行为
+保持不变。本切片不增加 Workbench command、successful terminal result、terminal relay、TUI、
+activation、endpoint discovery、persistence 或 remote ingress。
 
 ## 本机 Worker process-spine 建模记录
 
@@ -111,24 +119,23 @@ deterministic 与 process test 负责 implementation refinement。
 
 ## 本机 Client Session 与 OBCS 建模记录
 
-上面的现行 service contract 保持不变：Rust handler 收到任何 post-admission byte 时仍会关闭已准入的
-Client Session，并且不会 decode OBCS。本次 governed slice 只增加已接受下一阶段的 checked model、
-documentation 与 model inventory wiring；它不声称已完成 runtime refinement。
+Rust handler 现在细化下述已检查的 deny-only phase。它只在完整写出 accepted OBLC response 后消费
+strict OBCS，但不会因此获得 terminal capability，也不产生 terminal 或 Worker effect。
 
-| 字段   | 现行 runtime 与已检查的 model-only refinement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 字段   | 现行 runtime 与已检查的 refinement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题   | 保留已实现的 same-user OBLC admission boundary，并证明最小的下一个 same-stream phase：只有 OBLC accepted frame 已 queued 且 written 后，该精确 generation 才能读取 OBCS。OBLC admission 不等于 terminal capability。                                                                                                                                                                                                                                                                                                         |
-| 输入   | Runtime 输入仍是可选 absolute endpoint、kernel peer credential 与有界 OBLC handshake。模型增加 strictly decoded 的完整 Create-immediate、Create-deferred 与 Start request class；carrier 已缓冲的一帧或两帧 typed frame；idle、partial-header、partial-payload 与 result-write stall；strict malformed、wrong-direction、oversized、truncated、clean EOF、I/O failure 与 Server loss。OBCS schema、corpus 与 binding 拥有 byte 和 field validity。                                                                           |
+| 输入   | Runtime 与 model 消费可选 absolute endpoint、kernel peer credential、在当前每次 I/O 两秒 handshake timeout 下 decode 的有界 OBLC frame，以及 strictly decoded 的完整 Create-immediate、Create-deferred 与 Start request class。Model 还抽象 carrier 已缓冲的一帧或两帧 typed frame；idle、partial-header、partial-payload 与 result-write stall；strict malformed、wrong-direction、oversized、truncated、clean EOF、I/O failure 与 Server loss。OBCS schema、corpus 与 binding 拥有 byte 和 field validity。                |
 | 数据   | Runtime 最多拥有八个 active Session generation 与十六个 candidate/session handler。有界模型使用三个 Client slot、最多两个 Session、三个 handler、四个 globally fresh generation，以及两个 request-ID equivalence class。Active Session 与 slow candidate 各占一个 handler。OBCS refinement 为每个 Session 最多保留一个 outstanding request；最多两帧 carrier-buffered frame 是 environment fact，而不是 Server request queue。                                                                                               |
-| 输出   | 当前 runtime 不输出 OBCS result。在 model-only phase 中，decode 合法 Create 会 queue `terminal.create.result`，decode 合法 Start 会 queue `terminal.start.result`，并且总是使用请求的精确 `requestId` 与 `rejected/not-authorized`；actual write 仍取决于 carrier writability。任何输出都不暴露或创建 Terminal、Worker、Host、generation、operation、lease、fence、shell、executable、environment 或 Workbench authority。                                                                                                   |
+| 输出   | Runtime 与 model 把合法 Create 映射为 `terminal.create.result`，把合法 Start 映射为 `terminal.start.result`，始终使用请求的精确 `requestId` 与 `rejected/not-authorized`；actual write 仍取决于 carrier writability。任何输出都不暴露或创建 Terminal、Worker、Host、generation、operation、lease、fence、shell、executable、environment 或 Workbench authority。                                                                                                                                                             |
 | 不变量 | OBCS decode 之前必须已写出 OBLC accepted；每个 active generation 恰好拥有一个 handler；Session 与 handler bound 相互独立；每个 Session 最多有一个 outstanding request/result；malformed input 或 transport loss 只关闭 addressed current generation 并释放其 handler；stale EOF 或 cleanup 不能移除 replacement；Server stop 清除全部 Session；stalled Client work 保留另一个 Client 与 Worker registry；每个 modeled terminal-effect 和 Worker-request effect counter 始终为零。                                            |
 | 决策   | 合法 Create 与 Start input 在不查询 Worker presence、exact Worker constraint、`cwd`、Create start mode、geometry 或 Start `terminalCreateRequestId` 的情况下被拒绝。Start correlation `requestId` 与该 reference 不同，并且不会 lookup 该 reference。重复 request ID 会依据 current state 再次决定；不存在 replay lookup、historical conflict detection、cancellation、retry 或 idempotency ledger。                                                                                                                         |
 | 模型   | [`LocalClientSessions`](formal/tla/LocalClientSessions.tla) 拥有 OBLC admission、generation 与彼此独立的 Session/handler bound。[`LocalClientObcsSessions`](formal/tla/LocalClientObcsSessions.tla) 把每个 non-closed phase refinement 到一个 active generation 与 handler，从唯一 outstanding correlation record 直接派生 deny result，并保留 generation-scoped cleanup。其 `stream-faults` 与 `correlation` configuration 共享同一个 state machine，但避免将无关的 carrier-pair history 与每种 fault/stall ordering 相乘。 |
 | 转换   | Candidate `none -> slow -> released`，或 Session `closed -> OBLC-accepted-queued -> OBCS-idle`；read 可以 stall 或经过 partial header/payload；一条完整 request 变成一个 ready 或 write-stalled result；成功写出 result 后先清除该 request，再重新进入 read。Fault、EOF、I/O failure 或 result-write failure 会关闭 current generation。后续 admission 获得 fresh generation，而 stale event 保留它。Server loss 关闭全部 generation。                                                                                       |
-| 依赖   | 本 slice 不增加 runtime dependency。模型组合现行 local Client admission abstraction 与独立 OBCS schema/Rust binding contract。它不执行 Worker lookup、OBCN mapping、Host dispatch、PTY operation、terminal retention、shell selection、product projection、persistence 或 network ingress。                                                                                                                                                                                                                                  |
+| 依赖   | Runtime 把 Server-owned local Client admission workflow 与 OBLC 及独立 OBCS Rust binding 组合起来；model 组合这些 contract。两者都不执行 Worker lookup、OBCN mapping、Host dispatch、PTY operation、terminal retention、shell selection、product projection、persistence 或 network ingress。                                                                                                                                                                                                                                |
 | 所有权 | Server 拥有 Client Session generation、handler accounting、same-stream ordering、deny result construction 与 generation-scoped cleanup。Carrier 拥有 byte arrival、buffering、EOF 与 writability。OBCS 拥有 strict framing 与 message validity。Worker/Host authority 与未来 OBCS-to-OBCN mapping 仍在本 slice 范围外。                                                                                                                                                                                                      |
-| 验证   | 两个已注册模型都要求其 semantic action 具有非零 TLC coverage。Admission coverage 可达 Session-capacity 与 handler-capacity 的 `+1` case 以及两条 release path。OBCS coverage 可达 coalesced Create 与 Start ordering、duplicate Create/Create 与 distinct Create/Start 双帧顺序、两个 Session 中的 same-ID request、另一个 Session 在每种 read/write stall 下完成、stalled-candidate isolation、Worker change、全部 close path、replacement cleanup、correlated Create/Start write，以及 Server loss 保持零 effect。         |
-| 限制   | 这是 bounded safety evidence，不是 Rust implementation 或 codec refinement。它不增加 OBCS timeout，也不对 byte arrival、socket writability、EOF、disconnect 或 peer loss作 fairness 假设；stalled Session 可以永久 stalled。它既不证明 eventual response，也不证明 successful terminal effect。Client protocol 仍要求在 active Server authority 与 authenticated subject 下为每次 submitted request 使用 fresh `requestId`；模型探索 repeated ID 只是为了证明 stateless denial，不会产生 Server history obligation。         |
+| 验证   | Deterministic session test 覆盖每种 request class、exact correlation、partial I/O、双帧 ordering、duplicate ID、strict failure class、deterministic write failure 与 unwind 期间的 RAII cleanup。真实 process test 覆盖 coalesced OBLC 加 OBCS、sequential Create/Start、capacity cleanup、post-admission stall recovery 与 Worker non-interference。两个已注册 model 都要求其 semantic action 具有非零 TLC coverage，并检查下述 bounded admission 与 OBCS state space。                                                     |
+| 限制   | 这是 bounded safety 与 native process evidence，而不是 successful terminal effect 或 codec reimplementation。Runtime 不增加 OBCS timeout、queue、retry、cancellation、ledger 或 fairness promise；stalled Session 可以永久 stalled。它既不证明 eventual response，也不证明 terminal creation。Client protocol 仍要求在 active Server authority 与 authenticated subject 下为每次 submitted request 使用 fresh `requestId`；repeated ID 会被 statelessly 处理，且不会产生 Server history obligation。                         |
 
 Admission model 使用 `MaxSessions = 2` 与 `MaxHandlers = 3`，因此一个 slow candidate 可以独立于
 两个 active Session 占用 spare handler。OBCS model 使用两个不同 request ID；Start 始终以其中一个作为
@@ -170,17 +177,29 @@ retained terminal。只有 Host loss 会把 terminal 改为 `lost`。其 progres
 
 ## 所有权
 
-该 application 拥有其注入 in-memory snapshot copy 的 projection mechanics，以及实验性本机
-Worker 与 Client Session registry。它不是第二个 current product writer：已准入 Client transport
-不承载 product message，没有 Client 或当前 runtime 能提交 projection candidate，也没有
-publication 离开该 application。当前 Desktop/Workbench composition 继续作为
-已交付 Workbench writer，Node [`apps/server`](../server/README.zh-CN.md) 继续作为既有 Browser
-ingress 行为的权威。
+该 application 拥有其注入 in-memory snapshot copy 的 projection mechanics、实验性本机 Worker 与
+Client Session registry，以及 deny-only OBCS phase。它不是第二个 current product writer：每个成功
+decode 的 terminal intent 都会获得不产生 effect 的 denial decision，没有 Client 或当前 runtime 能
+提交 projection candidate，也没有 publication 离开该 application。当前 Desktop/Workbench
+composition 继续作为已交付 Workbench writer，Node
+[`apps/server`](../server/README.zh-CN.md) 继续作为既有 Browser ingress 行为的权威。
 
-Semantic business transition、post-handshake product Client transport、product authorization、
-persistence、recovery、external publication、endpoint discovery 与 activation、production service
-lifecycle、Terminal Host authority/runtime integration、packaging、migration 与 cutover 都需要后续
-implementation slice。
+Semantic business transition、authorized 或 successful terminal processing、terminal relay、
+product authorization、persistence、recovery、external publication、endpoint discovery 与
+activation、production service lifecycle、Terminal Host authority/runtime integration、packaging、
+migration 与 cutover 都需要后续 implementation slice。
+
+原生 source tree 有两个 root：`src/lib.rs` 是可导入的 projection root，`src/main.rs` 是私有 binary
+composition root。Binary 的穷尽 lateral import 方向是 `main -> local_site_service`、
+`local_site_service -> worker_registry` 加 `local_client_service::start`，以及
+`local_client_service -> client_session_registry` 加其私有 `obcs_session`。Reverse import、cousin
+import 与其他所有 lateral 方向均被禁止。Test 可以访问 owner-private state，但不得扩大 production
+方向。
+
+`obcs_session` 不会被 re-export。它唯一的入口是一个接收已准入 stream 的 `pub(super)` runner，
+唯一的非标准库依赖是 `orchbee-client-server-protocol`。它不得导入 Worker registry、Host、
+projection、effect 或 dispatch authority。任何更宽的 visibility 或 dependency（包括 OBCS-to-OBCN
+mapping）都需要后续已接受切片。
 
 ## 验证
 

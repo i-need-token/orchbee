@@ -1,6 +1,5 @@
 use std::{
-    fs,
-    io::{self, Read},
+    fs, io,
     os::unix::{fs::PermissionsExt, net::UnixListener, net::UnixStream},
     path::Path,
     sync::{Arc, Mutex},
@@ -15,6 +14,8 @@ use orchbee_local_client_protocol::{
 use orchbee_local_peer_credentials::require_same_effective_user;
 
 use crate::client_session_registry::{ClientSessionAdmission, ClientSessionRegistry};
+
+mod obcs_session;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const MAXIMUM_CLIENT_CONNECTIONS: usize = 16;
@@ -118,41 +119,50 @@ fn handle_candidate(
         }
         ClientSessionAdmission::GenerationExhausted => return,
     };
+    let _session_registration = ClientSessionRegistration::new(Arc::clone(registry), generation);
     if write_message(
         &mut stream,
         &LocalClientMessage::ClientAccepted { generation },
     )
     .is_err()
-        || stream.set_read_timeout(None).is_err()
-        || stream.set_write_timeout(None).is_err()
     {
-        disconnect(registry, generation);
+        return;
+    }
+    if stream.set_read_timeout(None).is_err() || stream.set_write_timeout(None).is_err() {
         return;
     }
 
-    monitor_client(stream);
-    disconnect(registry, generation);
+    let _session_result = obcs_session::run(&mut stream);
 }
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {
     let _result = write_message(stream, &LocalClientMessage::Rejected { reason });
 }
 
-fn monitor_client(mut stream: UnixStream) {
-    let mut byte = [0_u8; 1];
-    loop {
-        match stream.read(&mut byte) {
-            Ok(0 | 1) => return,
-            Ok(_count) => {}
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(_error) => return,
+struct ClientSessionRegistration {
+    registry: Arc<Mutex<ClientSessionRegistry>>,
+    generation: std::num::NonZeroU64,
+}
+
+impl ClientSessionRegistration {
+    const fn new(
+        registry: Arc<Mutex<ClientSessionRegistry>>,
+        generation: std::num::NonZeroU64,
+    ) -> Self {
+        Self {
+            registry,
+            generation,
         }
     }
 }
 
-fn disconnect(registry: &Arc<Mutex<ClientSessionRegistry>>, generation: std::num::NonZeroU64) {
-    if let Ok(mut registry) = registry.lock() {
-        registry.disconnect(generation);
+impl Drop for ClientSessionRegistration {
+    fn drop(&mut self) {
+        let mut registry = match self.registry.lock() {
+            Ok(registry) => registry,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let _was_active = registry.disconnect(self.generation);
     }
 }
 

@@ -83,21 +83,29 @@ window, and renderer identity are intentionally absent: the endpoint admits one 
 Server accepts up to eight active Sessions and at most sixteen total candidate/session handler
 threads. Each handshake has a two-second read/write timeout. One silent candidate therefore cannot
 block another connection while a handler slot remains, and saturation closes excess candidates
-without allocating more threads.
+without allocating more threads. Handler slots and admitted-Session registrations are
+lifetime-owned guards, so normal completion, faults, and unwinding release both bounds.
 
 An authenticated candidate receives a typed rejection for protocol/cohort incompatibility,
-malformed or wrong messages, timeout, or active-Session capacity. Any byte after admission,
-including a repeated hello, closes only that Session. Disconnect cleanup matches the exact
-generation and cannot remove another or replacement Session. It does not stop Server, disturb the
-independent Worker registry, or imply any terminal action. Server process loss closes every Client
-liveness attachment.
+malformed or wrong messages, timeout, or active-Session capacity. After Server completely writes
+`ClientAccepted`, it removes the handshake timeouts and reads strict OBCS on that same unbuffered
+stream. It reads one request, constructs and attempts to write its complete correlated denial, and
+only a completed write permits the next read. For every successfully decoded Create-immediate,
+Create-deferred, and Start request, the constructed result has its exact result kind and `requestId`
+with `rejected/not-authorized`; request fields and Worker presence do not change that decision. EOF,
+malformed, wrong-direction, oversized, truncated, read, or write failure closes only that Session.
+Disconnect cleanup matches the exact generation and cannot remove another or replacement Session.
+It does not stop Server, disturb the independent Worker registry, or imply any terminal action.
+Server process loss closes every Client liveness attachment.
 
 The private
 [`orchbee-local-client-protocol`](../../crates/local-client-protocol/README.md) crate owns Client
-framing and the real Rust connecting adapter. Server owns listener, handler-slot, admission,
+framing and the real Rust connecting adapter. The independent
+[`orchbee-client-server-protocol`](../../crates/client-server-protocol/README.md) binding owns OBCS
+validation and frame I/O. Server owns listener, handler-slot, admission, sequential denial,
 generation, and cleanup state. Public `orchbee` does not yet call the adapter, so bare, help, and
-version behavior remains unchanged. This slice adds no Workbench command, terminal relay, TUI,
-activation, endpoint discovery, persistence, or remote ingress.
+version behavior remains unchanged. This slice adds no Workbench command, successful terminal
+result, terminal relay, TUI, activation, endpoint discovery, persistence, or remote ingress.
 
 ## Local Worker process-spine modeling record
 
@@ -123,25 +131,24 @@ deterministic and process tests own implementation refinement.
 
 ## Local Client Session and OBCS modeling record
 
-The current service contract above is unchanged: the Rust handler still closes an admitted Client
-Session when it receives any post-admission byte and does not decode OBCS. This governed slice adds
-only a checked model of the accepted next phase, documentation, and model inventory wiring. It does
-not claim runtime refinement.
+The Rust handler now refines the checked deny-only phase below. It consumes strict OBCS after the
+accepted OBLC response is completely written, but it gains no terminal capability and produces no
+terminal or Worker effect.
 
-| Field        | Current runtime and checked model-only refinement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | Keep the implemented same-user OBLC admission boundary and prove the smallest next same-stream phase: only after the OBLC accepted frame has been queued and written may that exact generation read OBCS. OBLC admission is not terminal capability.                                                                                                                                                                                                                                                                                                                        |
-| Inputs       | The runtime inputs remain the optional absolute endpoint, kernel peer credentials, and bounded OBLC handshake. The model adds strictly decoded complete Create-immediate, Create-deferred, and Start request classes; one or two typed frames already buffered by the carrier; idle, partial-header, partial-payload, and result-write stalls; strict malformed, wrong-direction, oversized, truncated, clean EOF, I/O failure, and Server loss. The OBCS schema, corpus, and binding own byte and field validity.                                                          |
-| Data         | The runtime owns at most eight active Session generations and sixteen candidate/session handlers. The bounded models use three Client slots, at most two Sessions, three handlers, four globally fresh generations, and two request-ID equivalence classes. An active Session and a slow candidate each occupy one handler. The OBCS refinement holds at most one outstanding request per Session; up to two carrier-buffered frames are an environment fact, not a Server request queue.                                                                                   |
-| Outputs      | The current runtime emits no OBCS result. In the model-only phase, decoding a valid Create queues `terminal.create.result` and decoding a valid Start queues `terminal.start.result`, always `rejected/not-authorized` with the exact request `requestId`; an actual write still depends on carrier writability. No output exposes or creates Terminal, Worker, Host, generation, operation, lease, fence, shell, executable, environment, or Workbench authority.                                                                                                          |
-| Invariants   | OBLC accepted is written before OBCS decode; each active generation owns exactly one handler; Session and handler bounds are independent; at most one request/result is outstanding per Session; malformed input or transport loss closes only the addressed current generation and releases its handler; stale EOF or cleanup cannot remove a replacement; Server stop clears all Sessions; stalled Client work preserves another Client and the Worker registry; every modeled terminal- and Worker-request effect counter remains zero.                                  |
-| Decisions    | Valid Create and Start inputs are denied without consulting Worker presence, exact Worker constraint, `cwd`, Create start mode, geometry, or the Start `terminalCreateRequestId`. The Start correlation `requestId` is distinct from that reference, and the reference is not looked up. A repeated request ID is decided again from current state; no replay lookup, historical conflict detection, cancellation, retry, or idempotency ledger exists.                                                                                                                     |
-| Model        | [`LocalClientSessions`](formal/tla/LocalClientSessions.tla) owns OBLC admission, generation, and the separate Session/handler bounds. [`LocalClientObcsSessions`](formal/tla/LocalClientObcsSessions.tla) refines each non-closed phase to one active generation and handler, derives the deny result directly from its one outstanding correlation record, and retains generation-scoped cleanup. Its `stream-faults` and `correlation` configurations share the same state machine but avoid multiplying unrelated carrier-pair histories by every fault/stall ordering.  |
-| Transitions  | Candidate `none -> slow -> released` or Session `closed -> OBLC-accepted-queued -> OBCS-idle`; read may stall or advance through partial header/payload; one complete request becomes one ready or write-stalled result; a successful result write clears that request before read re-entry. Fault, EOF, I/O failure, or result-write failure closes the current generation. A later admission receives a fresh generation, and stale events preserve it. Server loss closes all generations.                                                                               |
-| Dependencies | This slice adds no runtime dependency. The model composes the current local Client admission abstraction with the independent OBCS schema and Rust binding contracts. It performs no Worker lookup, OBCN mapping, Host dispatch, PTY operation, terminal retention, shell selection, product projection, persistence, or network ingress.                                                                                                                                                                                                                                   |
-| Ownership    | Server owns Client Session generation, handler accounting, same-stream ordering, deny result construction, and generation-scoped cleanup. The carrier owns byte arrival, buffering, EOF, and writability. OBCS owns strict framing and message validity. Worker/Host authority and future OBCS-to-OBCN mapping remain outside this slice.                                                                                                                                                                                                                                   |
-| Verification | Both registered models require nonzero TLC coverage for their semantic actions. Admission coverage reaches the Session-capacity and handler-capacity `+1` cases and both release paths. OBCS coverage reaches coalesced Create and Start ordering, duplicate Create/Create and distinct Create/Start two-frame order, same-ID requests in two Sessions, every read/write stall with another Session completing, stalled-candidate isolation, Worker changes, all close paths, replacement cleanup, correlated Create/Start writes, and Server loss with zero effect.        |
-| Limits       | This is bounded safety evidence, not Rust implementation or codec refinement. It adds no OBCS timeout and assumes no fairness for byte arrival, socket writability, EOF, disconnect, or peer loss; a stalled Session may remain stalled forever. It proves neither eventual response nor successful terminal effect. The Client protocol still requires a fresh `requestId` for each submitted request under the active Server authority and authenticated subject; repeated IDs are explored only to prove stateless denial and do not create a Server history obligation. |
+| Field        | Current runtime and checked refinement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | Keep the implemented same-user OBLC admission boundary and prove the smallest next same-stream phase: only after the OBLC accepted frame has been queued and written may that exact generation read OBCS. OBLC admission is not terminal capability.                                                                                                                                                                                                                                                                                                                                              |
+| Inputs       | Runtime and model consume the optional absolute endpoint, kernel peer credentials, a bounded OBLC frame decoded under the current per-I/O two-second handshake timeout, and strictly decoded complete Create-immediate, Create-deferred, and Start request classes. The model additionally abstracts one or two typed frames already buffered by the carrier; idle, partial-header, partial-payload, and result-write stalls; strict malformed, wrong-direction, oversized, truncated, clean EOF, I/O failure, and Server loss. The OBCS schema, corpus, and binding own byte and field validity. |
+| Data         | The runtime owns at most eight active Session generations and sixteen candidate/session handlers. The bounded models use three Client slots, at most two Sessions, three handlers, four globally fresh generations, and two request-ID equivalence classes. An active Session and a slow candidate each occupy one handler. The OBCS refinement holds at most one outstanding request per Session; up to two carrier-buffered frames are an environment fact, not a Server request queue.                                                                                                         |
+| Outputs      | Runtime and model map valid Create to `terminal.create.result` and valid Start to `terminal.start.result`, always `rejected/not-authorized` with the exact request `requestId`; an actual write still depends on carrier writability. No output exposes or creates Terminal, Worker, Host, generation, operation, lease, fence, shell, executable, environment, or Workbench authority.                                                                                                                                                                                                           |
+| Invariants   | OBLC accepted is written before OBCS decode; each active generation owns exactly one handler; Session and handler bounds are independent; at most one request/result is outstanding per Session; malformed input or transport loss closes only the addressed current generation and releases its handler; stale EOF or cleanup cannot remove a replacement; Server stop clears all Sessions; stalled Client work preserves another Client and the Worker registry; every modeled terminal- and Worker-request effect counter remains zero.                                                        |
+| Decisions    | Valid Create and Start inputs are denied without consulting Worker presence, exact Worker constraint, `cwd`, Create start mode, geometry, or the Start `terminalCreateRequestId`. The Start correlation `requestId` is distinct from that reference, and the reference is not looked up. A repeated request ID is decided again from current state; no replay lookup, historical conflict detection, cancellation, retry, or idempotency ledger exists.                                                                                                                                           |
+| Model        | [`LocalClientSessions`](formal/tla/LocalClientSessions.tla) owns OBLC admission, generation, and the separate Session/handler bounds. [`LocalClientObcsSessions`](formal/tla/LocalClientObcsSessions.tla) refines each non-closed phase to one active generation and handler, derives the deny result directly from its one outstanding correlation record, and retains generation-scoped cleanup. Its `stream-faults` and `correlation` configurations share the same state machine but avoid multiplying unrelated carrier-pair histories by every fault/stall ordering.                        |
+| Transitions  | Candidate `none -> slow -> released` or Session `closed -> OBLC-accepted-queued -> OBCS-idle`; read may stall or advance through partial header/payload; one complete request becomes one ready or write-stalled result; a successful result write clears that request before read re-entry. Fault, EOF, I/O failure, or result-write failure closes the current generation. A later admission receives a fresh generation, and stale events preserve it. Server loss closes all generations.                                                                                                     |
+| Dependencies | Runtime composes the Server-owned local Client admission workflow with the OBLC and independent OBCS Rust bindings; the model composes their contracts. Neither performs Worker lookup, OBCN mapping, Host dispatch, PTY operation, terminal retention, shell selection, product projection, persistence, or network ingress.                                                                                                                                                                                                                                                                     |
+| Ownership    | Server owns Client Session generation, handler accounting, same-stream ordering, deny result construction, and generation-scoped cleanup. The carrier owns byte arrival, buffering, EOF, and writability. OBCS owns strict framing and message validity. Worker/Host authority and future OBCS-to-OBCN mapping remain outside this slice.                                                                                                                                                                                                                                                         |
+| Verification | Deterministic session tests cover every request class, exact correlation, partial I/O, two-frame ordering, duplicate IDs, strict failure classes, deterministic write failure, and RAII cleanup during unwinding. Real process tests cover coalesced OBLC plus OBCS, sequential Create/Start, capacity cleanup, post-admission stall recovery, and Worker non-interference. Both registered models require nonzero TLC coverage for their semantic actions and check the bounded admission and OBCS state spaces described below.                                                                 |
+| Limits       | This is bounded safety and native process evidence, not a successful terminal effect or codec reimplementation. Runtime adds no OBCS timeout, queue, retry, cancellation, ledger, or fairness promise; a stalled Session may remain stalled forever. It proves neither eventual response nor terminal creation. The Client protocol still requires a fresh `requestId` for each submitted request under the active Server authority and authenticated subject; repeated IDs are processed statelessly and do not create a Server history obligation.                                              |
 
 The admission model uses `MaxSessions = 2` and `MaxHandlers = 3`, so a slow candidate can consume
 the spare handler independently of two active Sessions. The OBCS model uses two distinct request
@@ -186,17 +193,31 @@ the Server survives, not that authority is automatically reassigned.
 ## Ownership
 
 This application owns projection mechanics for its injected in-memory snapshot copy plus the
-experimental local Worker and Client Session registries. It is not a second current product writer:
-the admitted Client transport carries no product message, no Client or current runtime can submit a
-projection candidate, and no publication leaves the application. The current
-Desktop/Workbench composition remains the delivered Workbench writer, and the Node
+experimental local Worker and Client Session registries and deny-only OBCS phase. It is not a
+second current product writer: every successfully decoded terminal intent is assigned a denial
+decision without an effect, no Client or current runtime can submit a projection candidate, and no
+publication leaves the application. The current Desktop/Workbench composition remains the
+delivered Workbench writer, and the Node
 [`apps/server`](../server/README.md) remains authoritative for its existing Browser ingress
 behavior.
 
-Semantic business transitions, post-handshake product Client transport, product authorization,
-persistence, recovery, external publication, endpoint discovery and activation, production
-service lifecycle, Terminal Host authority/runtime integration, packaging, migration, and cutover
-require later implementation slices.
+Semantic business transitions, authorized or successful terminal processing, terminal relay,
+product authorization, persistence, recovery, external publication, endpoint discovery and
+activation, production service lifecycle, Terminal Host authority/runtime integration, packaging,
+migration, and cutover require later implementation slices.
+
+The native source tree has two roots: `src/lib.rs` is the importable projection root, while
+`src/main.rs` is the private binary composition root. The binary's exhaustive lateral import
+directions are `main -> local_site_service`, `local_site_service -> worker_registry` plus
+`local_client_service::start`, and `local_client_service -> client_session_registry` plus its
+private `obcs_session`. Reverse imports, cousin imports, and every other lateral direction are
+forbidden. Tests may access owner-private state without expanding a production direction.
+
+`obcs_session` is not re-exported. Its only entry point is a `pub(super)` runner that receives the
+already admitted stream, and its only non-standard-library dependency is
+`orchbee-client-server-protocol`. It must not import the Worker registry, Host, projection,
+effect, or dispatch authority. Any wider visibility or dependency, including OBCS-to-OBCN
+mapping, requires a later accepted slice.
 
 ## Verification
 

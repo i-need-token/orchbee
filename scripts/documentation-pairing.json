@@ -106,8 +106,8 @@
 			"zhCnSha256": "01af0358f9c61778226f80f2876de08e84ed4fa6e0ab8c7a292de840944d8119"
 		},
 		"apps/orchbee-server/README.md": {
-			"englishSha256": "05d7e19e7e841a186c3376fdf373ff42a3c243a14fffbbb5eb8f5f56b024a12d",
-			"zhCnSha256": "fb68c42b4ee3d0848c8bfe50eb1866902590377ec530dc4cbc9a094f35668561"
+			"englishSha256": "3dc27cf6a611bc7fd6c4de40142afdc34859c1d402c4aed0d4c60959ac748dc2",
+			"zhCnSha256": "255a50fed1abff039668cd9fca5478f10de254a0bd12742f10335b6b5396fdaf"
 		},
 		"apps/orchbee-worker/README.md": {
 			"englishSha256": "1f7737e6da01551e83dc84e2e56bc349c15a14ddc026559a362e00f362915e23",
@@ -162,8 +162,8 @@
 			"zhCnSha256": "054b9f780196659fa252010a537a29b7ec360461ad3d80ff4009157fade27d3b"
 		},
 		"crates/local-client-protocol/README.md": {
-			"englishSha256": "9d0ef3bcf15a4f3a2ec6f37a17e30e4b4349a9b42a4a0a7a52d23088ff4b30f3",
-			"zhCnSha256": "84f88b826b3e350d4a5dbbd8511ce031d8eb8b330373164e343bb13bfda59c2c"
+			"englishSha256": "0b5d003029314cdfe36ee559db1c18a3e3e53ee4a5f9ea1ca299ee13df964544",
+			"zhCnSha256": "15e51c5a9ddfbb505127a5a38a1a9795cb68db33b57d35f56e5a48fc069459f3"
 		},
 		"crates/local-peer-credentials/README.md": {
 			"englishSha256": "4cf86b6a026a15590a805974150021cd1504e3799096c2eb80ffefea4b22a037",
@@ -450,8 +450,8 @@
 			"zhCnSha256": "ec609ff0f95207a581dd3322eade36dc650b97738cec02548aa2d1760116ee14"
 		},
 		"proposals/platform/native-runtime-topology.md": {
-			"englishSha256": "931a7d02c8e54da5f83455c079dcf6208adc7162e74fbdcb8455f86f29746c97",
-			"zhCnSha256": "aec9355102dd65acda921a38d8fb6a46872f20bf934dccca705881e88054b37e"
+			"englishSha256": "ba804c70217fa184c3b0d8f2d94002b0fcc0dc90aeb03ff8142ce98dcaa251f2",
+			"zhCnSha256": "b5d878ec0436494c999f0d9513ae5bb7e432e468170d3642d17bdedf221a8e84"
 		},
 		"proposals/terminal-host/desktop-terminal-host-update-continuity.md": {
 			"englishSha256": "9db345f7bedcb849351160c2ae9cb33b4fcd544e722cfb1fef19863bb8a40efa",

@@ -6,6 +6,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }
 orchbee-local-client-protocol = { path = "../../crates/local-client-protocol" }
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
 orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }

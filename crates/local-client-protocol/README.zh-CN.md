@@ -52,10 +52,11 @@ Server 为每条 accepted connection 分配独立 generation，并最多准入�
 Session admission limit 后会收到 typed capacity rejection。每条 handshake 都有两秒 read/write
 timeout。
 
-当前已交付的 Server admission service 尚未采用 semantic next phase，因此准入后的任何 byte
-（包括重复 hello）只会关闭该 Session。disconnect 只移除 matching generation；延迟 cleanup
-不能移除后来的 Session。Client disconnect 不停止 Server、Worker 或任何其他 Client。Server
-process loss 会关闭所有 liveness stream。
+已交付的私有 Server 把 accepted unbuffered stream 保留为 Session carrier，并把 next-phase byte
+交给由 [`orchbee-client-server-protocol`](../client-server-protocol/README.zh-CN.md) 单独拥有的 OBCS
+decoder。本 crate 既不定义也不解码该 phase。Server 的 deny-only runtime、fault handling 与
+generation-scoped cleanup 由其
+[`apps/orchbee-server` 指南](../../apps/orchbee-server/README.zh-CN.md) 拥有。
 
 ## Ownership 与排除项
 
@@ -74,6 +75,6 @@ persistence、Windows named pipe、remote authentication 与 production service 
 ```sh
 cargo test -p orchbee-local-client-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-local-client-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models local-client-sessions
+node scripts/tla/run-models.mjs --models local-client-sessions,local-client-sessions-obcs
 pnpm verify
 ```

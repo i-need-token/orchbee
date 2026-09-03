@@ -34,6 +34,9 @@ static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
 
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
+#[path = "client_process/obcs.rs"]
+mod obcs;
+
 #[test]
 fn rejects_invalid_client_endpoint_invocations_without_output() -> TestResult {
     let directory = TestDirectory::new("invalid-client-endpoint")?;
@@ -103,11 +106,11 @@ fn concurrent_clients_are_independent_and_disconnect_preserves_worker() -> TestR
 }
 
 #[test]
-fn active_session_capacity_is_typed_and_released_by_exact_disconnect() -> TestResult {
+fn active_session_capacity_is_typed_and_released_after_an_obcs_fault() -> TestResult {
     let server = RunningServer::start()?;
     let mut sessions = Vec::new();
     for _session in 0..8 {
-        sessions.push(connect_client(server.client_endpoint())?);
+        sessions.push(connect_bounded_client(server.client_endpoint())?);
     }
     assert!(matches!(
         ClientSessionConnection::connect(server.client_endpoint(), env!("CARGO_PKG_VERSION")),
@@ -116,7 +119,9 @@ fn active_session_capacity_is_typed_and_released_by_exact_disconnect() -> TestRe
         ))
     ));
 
-    let disconnected_generation = sessions.remove(0).generation();
+    let (mut faulted, disconnected_generation) = sessions.remove(0);
+    faulted.write_all(b"XBCS\x00\x01\x00\x00")?;
+    expect_connection_closed(&mut faulted)?;
     let replacement = wait_for_client_admission(server.client_endpoint())?;
     assert!(replacement.generation() > disconnected_generation);
     assert_eq!(sessions.len(), 7);
@@ -218,6 +223,21 @@ fn connect_client(endpoint: &Path) -> TestResult<ClientSessionConnection> {
         .map_err(|error| Box::new(error) as Box<dyn Error>)
 }
 
+fn connect_bounded_client(endpoint: &Path) -> TestResult<(UnixStream, NonZeroU64)> {
+    let mut stream = connect_candidate(endpoint)?;
+    write_client_message(
+        &mut stream,
+        &LocalClientMessage::ClientHello(ClientHello::new(env!("CARGO_PKG_VERSION"))?),
+    )?;
+    match read_client_message(&mut stream)? {
+        LocalClientMessage::ClientAccepted { generation } => Ok((stream, generation)),
+        response => Err(io::Error::other(format!(
+            "expected Client admission, received {response:?}"
+        ))
+        .into()),
+    }
+}
+
 fn wait_for_client_admission(endpoint: &Path) -> TestResult<ClientSessionConnection> {
     let deadline = Instant::now() + PROCESS_TIMEOUT;
     loop {
@@ -267,7 +287,7 @@ fn expect_connection_closed(stream: &mut UnixStream) -> io::Result<()> {
             Ok(())
         }
         outcome => Err(io::Error::other(format!(
-            "Client connection remained open after duplicate hello: {outcome:?}"
+            "Client connection remained open: {outcome:?}"
         ))),
     }
 }
