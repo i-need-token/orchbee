@@ -1,0 +1,348 @@
+use std::str;
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+
+use crate::{
+    ClientMessage, CreateOutcome, Geometry, PROTOCOL_VERSION, ProtocolError, RequestId,
+    ServerMessage, StartMode, StartOutcome, TerminalCreateRequest, TerminalCreateResult,
+    TerminalStartRequest, TerminalStartResult, WorkerConstraint, WorkingDirectory,
+};
+
+const UTF8_BOM: &[u8] = &[0xef, 0xbb, 0xbf];
+
+#[derive(Clone, Copy)]
+struct ProtocolVersion;
+
+impl Serialize for ProtocolVersion {
+    fn serialize<SerializerType>(
+        &self,
+        serializer: SerializerType,
+    ) -> Result<SerializerType::Ok, SerializerType::Error>
+    where
+        SerializerType: Serializer,
+    {
+        serializer.serialize_u8(PROTOCOL_VERSION)
+    }
+}
+
+impl<'de> Deserialize<'de> for ProtocolVersion {
+    fn deserialize<DeserializerType>(
+        deserializer: DeserializerType,
+    ) -> Result<Self, DeserializerType::Error>
+    where
+        DeserializerType: Deserializer<'de>,
+    {
+        let value = u8::deserialize(deserializer)?;
+        if value == PROTOCOL_VERSION {
+            Ok(Self)
+        } else {
+            Err(de::Error::custom(
+                "unsupported Client-Server protocol version",
+            ))
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+enum DecodedStartMode {
+    Immediate { geometry: Geometry },
+    Deferred {},
+}
+
+#[derive(Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+enum DecodedCreateAcceptedState {
+    AwaitingStart {},
+    Started { geometry: Geometry },
+}
+
+#[derive(Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+enum DecodedCreateOutcome {
+    Accepted {
+        state: DecodedCreateAcceptedState,
+    },
+    Rejected {
+        reason: crate::CreateRejectedReason,
+    },
+    Unavailable {
+        reason: crate::CreateUnavailableReason,
+    },
+    Failed {
+        reason: crate::CreateFailureReason,
+    },
+    OutcomeUnknown {},
+}
+
+#[derive(Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+enum DecodedStartOutcome {
+    Accepted {
+        geometry: Geometry,
+        transition: crate::StartTransition,
+    },
+    Rejected {
+        reason: crate::StartRejectedReason,
+    },
+    Unavailable {
+        reason: crate::StartUnavailableReason,
+    },
+    Failed {
+        reason: crate::StartFailureReason,
+    },
+    OutcomeUnknown {},
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
+enum DecodedClientMessage {
+    #[serde(rename = "terminal.create")]
+    TerminalCreate {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        #[serde(deserialize_with = "deserialize_nullable")]
+        worker_constraint: Option<WorkerConstraint>,
+        #[serde(deserialize_with = "deserialize_nullable")]
+        cwd: Option<WorkingDirectory>,
+        start_mode: DecodedStartMode,
+    },
+    #[serde(rename = "terminal.start")]
+    TerminalStart {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        terminal_create_request_id: RequestId,
+        geometry: Geometry,
+    },
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all_fields = "camelCase")]
+enum EncodedClientMessage<'a> {
+    #[serde(rename = "terminal.create")]
+    TerminalCreate {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        worker_constraint: &'a Option<WorkerConstraint>,
+        cwd: &'a Option<WorkingDirectory>,
+        start_mode: &'a StartMode,
+    },
+    #[serde(rename = "terminal.start")]
+    TerminalStart {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        terminal_create_request_id: &'a RequestId,
+        geometry: Geometry,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
+enum DecodedServerMessage {
+    #[serde(rename = "terminal.create.result")]
+    TerminalCreateResult {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        outcome: DecodedCreateOutcome,
+    },
+    #[serde(rename = "terminal.start.result")]
+    TerminalStartResult {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        outcome: DecodedStartOutcome,
+    },
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all_fields = "camelCase")]
+enum EncodedServerMessage<'a> {
+    #[serde(rename = "terminal.create.result")]
+    TerminalCreateResult {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        outcome: CreateOutcome,
+    },
+    #[serde(rename = "terminal.start.result")]
+    TerminalStartResult {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        outcome: StartOutcome,
+    },
+}
+
+pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, ProtocolError> {
+    let text = strict_json_text(payload)?;
+    let decoded = serde_json::from_str::<DecodedClientMessage>(text)
+        .map_err(|_error| ProtocolError::InvalidPayload)?;
+    match decoded {
+        DecodedClientMessage::TerminalCreate {
+            _protocol_version: _,
+            request_id,
+            worker_constraint,
+            cwd,
+            start_mode,
+        } => Ok(ClientMessage::TerminalCreate(TerminalCreateRequest::new(
+            request_id,
+            worker_constraint,
+            cwd,
+            start_mode.into(),
+        ))),
+        DecodedClientMessage::TerminalStart {
+            _protocol_version: _,
+            request_id,
+            terminal_create_request_id,
+            geometry,
+        } => TerminalStartRequest::new(request_id, terminal_create_request_id, geometry)
+            .map(ClientMessage::TerminalStart)
+            .map_err(|_error| ProtocolError::InvalidPayload),
+    }
+}
+
+pub(crate) fn encode_client_payload(message: &ClientMessage) -> Result<Vec<u8>, ProtocolError> {
+    let encoded = match message {
+        ClientMessage::TerminalCreate(request) => EncodedClientMessage::TerminalCreate {
+            protocol_version: ProtocolVersion,
+            request_id: &request.request_id,
+            worker_constraint: &request.worker_constraint,
+            cwd: &request.cwd,
+            start_mode: &request.start_mode,
+        },
+        ClientMessage::TerminalStart(request) => EncodedClientMessage::TerminalStart {
+            protocol_version: ProtocolVersion,
+            request_id: &request.request_id,
+            terminal_create_request_id: &request.terminal_create_request_id,
+            geometry: request.geometry,
+        },
+    };
+    serde_json::to_vec(&encoded).map_err(|_error| ProtocolError::InvalidPayload)
+}
+
+pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, ProtocolError> {
+    let text = strict_json_text(payload)?;
+    let decoded = serde_json::from_str::<DecodedServerMessage>(text)
+        .map_err(|_error| ProtocolError::InvalidPayload)?;
+    Ok(match decoded {
+        DecodedServerMessage::TerminalCreateResult {
+            _protocol_version: _,
+            request_id,
+            outcome,
+        } => ServerMessage::TerminalCreateResult(TerminalCreateResult::new(
+            request_id,
+            outcome.into(),
+        )),
+        DecodedServerMessage::TerminalStartResult {
+            _protocol_version: _,
+            request_id,
+            outcome,
+        } => {
+            ServerMessage::TerminalStartResult(TerminalStartResult::new(request_id, outcome.into()))
+        }
+    })
+}
+
+pub(crate) fn encode_server_payload(message: &ServerMessage) -> Result<Vec<u8>, ProtocolError> {
+    let encoded = match message {
+        ServerMessage::TerminalCreateResult(result) => EncodedServerMessage::TerminalCreateResult {
+            protocol_version: ProtocolVersion,
+            request_id: &result.request_id,
+            outcome: result.outcome,
+        },
+        ServerMessage::TerminalStartResult(result) => EncodedServerMessage::TerminalStartResult {
+            protocol_version: ProtocolVersion,
+            request_id: &result.request_id,
+            outcome: result.outcome,
+        },
+    };
+    serde_json::to_vec(&encoded).map_err(|_error| ProtocolError::InvalidPayload)
+}
+
+fn strict_json_text(payload: &[u8]) -> Result<&str, ProtocolError> {
+    if payload.starts_with(UTF8_BOM) {
+        return Err(ProtocolError::Utf8Bom);
+    }
+    str::from_utf8(payload).map_err(|_error| ProtocolError::InvalidUtf8)
+}
+
+fn deserialize_nullable<'de, DeserializerType, Value>(
+    deserializer: DeserializerType,
+) -> Result<Option<Value>, DeserializerType::Error>
+where
+    DeserializerType: Deserializer<'de>,
+    Value: Deserialize<'de>,
+{
+    Option::<Value>::deserialize(deserializer)
+}
+
+impl From<DecodedStartMode> for StartMode {
+    fn from(value: DecodedStartMode) -> Self {
+        match value {
+            DecodedStartMode::Immediate { geometry } => Self::Immediate { geometry },
+            DecodedStartMode::Deferred {} => Self::Deferred,
+        }
+    }
+}
+
+impl From<DecodedCreateAcceptedState> for crate::CreateAcceptedState {
+    fn from(value: DecodedCreateAcceptedState) -> Self {
+        match value {
+            DecodedCreateAcceptedState::AwaitingStart {} => Self::AwaitingStart,
+            DecodedCreateAcceptedState::Started { geometry } => Self::Started { geometry },
+        }
+    }
+}
+
+impl From<DecodedCreateOutcome> for CreateOutcome {
+    fn from(value: DecodedCreateOutcome) -> Self {
+        match value {
+            DecodedCreateOutcome::Accepted { state } => Self::Accepted {
+                state: state.into(),
+            },
+            DecodedCreateOutcome::Rejected { reason } => Self::Rejected { reason },
+            DecodedCreateOutcome::Unavailable { reason } => Self::Unavailable { reason },
+            DecodedCreateOutcome::Failed { reason } => Self::Failed { reason },
+            DecodedCreateOutcome::OutcomeUnknown {} => Self::OutcomeUnknown,
+        }
+    }
+}
+
+impl From<DecodedStartOutcome> for StartOutcome {
+    fn from(value: DecodedStartOutcome) -> Self {
+        match value {
+            DecodedStartOutcome::Accepted {
+                geometry,
+                transition,
+            } => Self::Accepted {
+                geometry,
+                transition,
+            },
+            DecodedStartOutcome::Rejected { reason } => Self::Rejected { reason },
+            DecodedStartOutcome::Unavailable { reason } => Self::Unavailable { reason },
+            DecodedStartOutcome::Failed { reason } => Self::Failed { reason },
+            DecodedStartOutcome::OutcomeUnknown {} => Self::OutcomeUnknown,
+        }
+    }
+}

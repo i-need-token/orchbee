@@ -1,0 +1,16 @@
+[package]
+name = "orchbee-client-server-protocol"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+
+[dev-dependencies]
+jsonschema = { version = "0.53.0", default-features = false }
+
+[lints]
+workspace = true

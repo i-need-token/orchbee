@@ -157,6 +157,10 @@
 			"englishSha256": "b50a7d6aac718b5bfc1d48790d91177c786f7d8744e2106a7c79d321d5edd782",
 			"zhCnSha256": "084ff66933a313e432f9a90a82bd6639c55770fe8121ab9b49f011fbcc08c9d8"
 		},
+		"crates/client-server-protocol/README.md": {
+			"englishSha256": "001244c512dc824edbfbc1a7eab562ee580ce71fd3a83a9e1a665494d44968e0",
+			"zhCnSha256": "ca776824e25c9bd8912905d4c7d0a0200c84ec41689cf7fc1aa9ca72bd480414"
+		},
 		"crates/local-client-protocol/README.md": {
 			"englishSha256": "9d0ef3bcf15a4f3a2ec6f37a17e30e4b4349a9b42a4a0a7a52d23088ff4b30f3",
 			"zhCnSha256": "84f88b826b3e350d4a5dbbd8511ce031d8eb8b330373164e343bb13bfda59c2c"
@@ -460,6 +464,10 @@
 		"proposals/workbench/unified-search-surface.md": {
 			"englishSha256": "d2d218daa25eb082ad10a216780b5352000af10d2cbeb01343e204557d7d946b",
 			"zhCnSha256": "ce2bdd8802acca9c3375adb2a3f9ff4ac7041b2f17f9b822bc06a526a401a93f"
+		},
+		"schemas/client-server/README.md": {
+			"englishSha256": "9b83d854ec0f2f72052bddb2f6f61d4114f30fd7d4f6e425a19373198cf3e209",
+			"zhCnSha256": "279291bd26f69c17dc04a54c76b37818661036be285a8a82797b729119c0a229"
 		},
 		"schemas/workbench/README.md": {
 			"englishSha256": "44eeb4f0497c5ae8b435a703964397bfdcda72bcd4433cf7a9d30c67392b145b",

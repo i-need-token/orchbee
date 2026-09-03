@@ -1,0 +1,417 @@
+{
+	"contractVersion": 1,
+	"validMessages": [
+		{
+			"direction": "client-to-server",
+			"name": "create-immediate-default",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "create-immediate-exact-worker",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"22222222222222222222222222222222\",\"workerConstraint\":{\"kind\":\"exact\",\"workerId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"cwd\":\"/tmp/工作\",\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "create-deferred",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"33333333333333333333333333333333\",\"workerConstraint\":null,\"cwd\":\"/\",\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "start-deferred-terminal",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-accepted-awaiting-start",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"33333333333333333333333333333333\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"awaiting-start\"}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-accepted-started",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-rejected-not-authorized",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"not-authorized\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-rejected-worker-constraint-unsatisfied",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"worker-constraint-unsatisfied\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-rejected-cwd-not-accepted",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"cwd-not-accepted\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-rejected-request-id-conflict",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"request-id-conflict\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-unavailable-no-compatible-worker",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"no-compatible-worker\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-unavailable-terminal-runtime",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"terminal-runtime-unavailable\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-unavailable-server-busy",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-failed",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"failed\",\"reason\":\"terminal-create-failed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "create-outcome-unknown",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"outcome-unknown\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-accepted-started",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"accepted\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"transition\":\"started\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-accepted-already-started",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"accepted\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"transition\":\"already-started\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-rejected-not-authorized",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"not-authorized\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-rejected-create-unavailable",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-create-unavailable\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-rejected-not-awaiting-start",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-not-awaiting-start\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-rejected-geometry-conflict",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"geometry-conflict\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-rejected-request-id-conflict",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"request-id-conflict\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-unavailable-terminal-runtime",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"terminal-runtime-unavailable\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-unavailable-server-busy",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-failed",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"failed\",\"reason\":\"terminal-start-failed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "start-outcome-unknown",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"outcome-unknown\"}}"
+		}
+	],
+	"equivalentMessages": [
+		{
+			"canonical": "create-immediate-exact-worker",
+			"direction": "client-to-server",
+			"name": "create-key-order-whitespace-and-escapes",
+			"payload": " { \"startMode\": { \"geometry\": { \"cellPixelHeight\": 18, \"cellPixelWidth\": 9, \"rows\": 24, \"columns\": 80 }, \"kind\": \"immediate\" }, \"cwd\": \"\\/tmp\\/\\u5de5\\u4f5c\", \"workerConstraint\": { \"workerId\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"kind\": \"exact\" }, \"requestId\": \"22222222222222222222222222222222\", \"protocolVersion\": 1, \"kind\": \"terminal.create\" } "
+		}
+	],
+	"invalidMessages": [
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "unknown-message-kind",
+			"payload": "{\"kind\":\"terminal.create.future\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\"}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "unsupported-body-version",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":2,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "missing-explicit-worker-constraint",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "missing-explicit-cwd",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "relative-cwd",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":\"tmp\",\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "zero-request-id",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000000\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "start-request-identities-equal",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"33333333333333333333333333333333\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "geometry-cell-area-overflow",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":512,\"rows\":513,\"cellPixelWidth\":1,\"cellPixelHeight\":1}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "geometry-pixel-width-overflow",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":4096,\"rows\":1,\"cellPixelWidth\":16,\"cellPixelHeight\":1}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "geometry-pixel-height-overflow",
+			"payload": "{\"kind\":\"terminal.start\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"terminalCreateRequestId\":\"33333333333333333333333333333333\",\"geometry\":{\"columns\":1,\"rows\":4096,\"cellPixelWidth\":1,\"cellPixelHeight\":16}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "deferred-mode-with-geometry",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "client-to-server",
+			"name": "duplicate-request-id",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"requestId\":\"22222222222222222222222222222222\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}}"
+		},
+		{
+			"boundary": "encoding",
+			"direction": "client-to-server",
+			"name": "trailing-second-json-value",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"deferred\"}} {}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "unknown-create-rejection-reason",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"internal-worker-error\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "create-started-without-geometry",
+			"payload": "{\"kind\":\"terminal.create.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"accepted\",\"state\":{\"kind\":\"started\"}}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "unknown-start-transition",
+			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"accepted\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18},\"transition\":\"restarted\"}}"
+		}
+	],
+	"workingDirectoryCases": [
+		{
+			"name": "root",
+			"prefix": "/",
+			"repeat": "",
+			"repeatCount": 0,
+			"suffix": "",
+			"valid": true
+		},
+		{
+			"name": "maximum-ascii-bytes",
+			"prefix": "/",
+			"repeat": "a",
+			"repeatCount": 4095,
+			"suffix": "",
+			"valid": true
+		},
+		{
+			"name": "maximum-multibyte-utf8-bytes",
+			"prefix": "/",
+			"repeat": "界",
+			"repeatCount": 1365,
+			"suffix": "",
+			"valid": true
+		},
+		{
+			"name": "multibyte-utf8-overflow",
+			"prefix": "/",
+			"repeat": "界",
+			"repeatCount": 1366,
+			"suffix": "",
+			"valid": false
+		},
+		{
+			"name": "worst-case-json-escaping",
+			"prefix": "/",
+			"repeat": "\u0001",
+			"repeatCount": 4095,
+			"suffix": "",
+			"valid": true
+		},
+		{
+			"name": "nul-forbidden",
+			"prefix": "/has",
+			"repeat": "\u0000",
+			"repeatCount": 1,
+			"suffix": "nul",
+			"valid": false
+		},
+		{
+			"name": "relative-forbidden",
+			"prefix": "relative",
+			"repeat": "",
+			"repeatCount": 0,
+			"suffix": "/path",
+			"valid": false
+		}
+	],
+	"geometryCases": [
+		{
+			"name": "minimum-scalars",
+			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"valid": true
+		},
+		{
+			"name": "exact-product-boundaries",
+			"geometry": { "columns": 255, "rows": 255, "cellPixelWidth": 257, "cellPixelHeight": 257 },
+			"valid": true
+		},
+		{
+			"name": "maximum-scalar-boundaries",
+			"geometry": { "columns": 4096, "rows": 1, "cellPixelWidth": 15, "cellPixelHeight": 4096 },
+			"valid": true
+		},
+		{
+			"name": "zero-columns",
+			"geometry": { "columns": 0, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"valid": false
+		},
+		{
+			"name": "zero-rows",
+			"geometry": { "columns": 1, "rows": 0, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"valid": false
+		},
+		{
+			"name": "zero-cell-pixel-width",
+			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 0, "cellPixelHeight": 1 },
+			"valid": false
+		},
+		{
+			"name": "zero-cell-pixel-height",
+			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 0 },
+			"valid": false
+		},
+		{
+			"name": "columns-over-scalar-bound",
+			"geometry": { "columns": 4097, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"valid": false
+		},
+		{
+			"name": "rows-over-scalar-bound",
+			"geometry": { "columns": 1, "rows": 4097, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"valid": false
+		},
+		{
+			"name": "cell-pixel-width-over-scalar-bound",
+			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 4097, "cellPixelHeight": 1 },
+			"valid": false
+		},
+		{
+			"name": "cell-pixel-height-over-scalar-bound",
+			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 4097 },
+			"valid": false
+		},
+		{
+			"name": "terminal-cell-count-overflow",
+			"geometry": { "columns": 512, "rows": 513, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"valid": false
+		},
+		{
+			"name": "pixel-width-overflow",
+			"geometry": { "columns": 4096, "rows": 1, "cellPixelWidth": 16, "cellPixelHeight": 1 },
+			"valid": false
+		},
+		{
+			"name": "pixel-height-overflow",
+			"geometry": { "columns": 1, "rows": 4096, "cellPixelWidth": 1, "cellPixelHeight": 16 },
+			"valid": false
+		}
+	],
+	"forbiddenClientFields": [
+		{
+			"field": "terminalId",
+			"name": "terminal-identity",
+			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		},
+		{
+			"field": "workerId",
+			"name": "authoritative-worker-placement",
+			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		},
+		{ "field": "workerGeneration", "name": "worker-generation", "value": 1 },
+		{ "field": "operation", "name": "worker-operation", "value": { "kind": "launch" } },
+		{
+			"field": "operationId",
+			"name": "operation-identity",
+			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		},
+		{ "field": "lease", "name": "worker-lease", "value": { "generation": 1 } },
+		{ "field": "fence", "name": "worker-fence", "value": 1 },
+		{ "field": "hostId", "name": "host-identity", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+		{ "field": "hostEpoch", "name": "host-epoch", "value": 1 },
+		{ "field": "executable", "name": "executable", "value": "/bin/sh" },
+		{ "field": "argv", "name": "argument-vector", "value": ["sh", "-c", "pwd"] },
+		{ "field": "env", "name": "environment", "value": { "TOKEN": "secret" } },
+		{ "field": "environmentOverlay", "name": "environment-overlay", "value": { "LANG": "C" } },
+		{
+			"field": "projectId",
+			"name": "project-identity",
+			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		},
+		{
+			"field": "workspaceId",
+			"name": "workspace-identity",
+			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		},
+		{ "field": "panelId", "name": "panel-identity", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+		{
+			"field": "worktreeId",
+			"name": "worktree-identity",
+			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		},
+		{ "field": "clientGeneration", "name": "client-generation", "value": 1 },
+		{ "field": "profileId", "name": "launch-profile", "value": "default" },
+		{ "field": "config", "name": "launch-configuration", "value": {} }
+	]
+}
