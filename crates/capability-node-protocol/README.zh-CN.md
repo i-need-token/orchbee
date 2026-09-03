@@ -33,6 +33,14 @@ Unix-millisecond expiry，以及显式 capability version。所有 protocol-owne
 128-bit value。Result 回显完整 authorization，让 Server 可以丢弃 stale generation、fence、
 operation、lease 或 capability observation。
 
+Operation identity 还有一项无法通过 decode 单条 frame 建立的 producer invariant：经过认证的权威
+Server 在其 active authority 内跨所有 Terminal ID、Worker 与 Worker generation 为每个
+`OperationId` 分配全局 fresh identity，且绝不会把一个 identity 分配给两份不同 authorization。后继
+Server authority 只有在其 authority transition 通过 generation、lease 与 fence validation 使所有旧
+authorization 不再 current 后，才能开始新的 producer scope。本 contract 不规定该 transition，也不
+要求 Capability Node 保留无界的跨 terminal tombstone ledger；Worker refinement 以经过认证的
+authority 正确签发为前提，并不声称能够遏制违反 invariant 的 issuer。
+
 可选 current directory 是 1 至 4,096 encoded byte 的 absolute POSIX UTF-8 path，且不能包含 NUL。
 缺省与空值不同。Geometry 包含 column、row、cell-pixel width 与 cell-pixel height。每个值均在
 `1..=4096` 内，grid 最多 262,144 个 cell，且每条 total pixel extent 都可放入 `u16`。这些 type
@@ -54,8 +62,9 @@ Launch 与 Start 使用不同的 rejection 和 failure type：Launch 没有 targ
 不能 encode `HostIdentityChanged`。Start 的 `HostAccepted` observation 必须与 frame 中的 target
 identity 完全相同。其 `HostRejected` 与 `HostReportedFailure` epoch 必须等于 target epoch；不同
 的 observed epoch 只能表示为 `HostIdentityChanged`，且该 epoch 必须确实不同。经过 validation
-的 result construction 与 decoding 会拒绝每一种 contradiction，因此 canonical encoding 无法
-发出矛盾值。
+的 result construction 与 decoding 会拒绝这些 identity 与 epoch contradiction，因此无法通过这些
+constructor 发出矛盾的 canonical encoding。Worker refinement 还要求 successful Start observation
+在构造 result 前保留确切 authorized geometry。
 
 Launch payload 没有 general environment overlay、executable、argument vector、Project、
 Checkout、Worktree、Agent 或 Launch Profile field。Unknown trailing byte 会被拒绝，因此本
@@ -80,12 +89,13 @@ protocol。Server 拥有 product authorization 与 reconciliation；未来 Capab
 model 是这个尚未消费 contract 的 Server-owned behavioral authority。它探索 current 与 stale
 Worker generation、lease 在 admission 前、admission 与 Host handoff 之间以及 handoff 后过期、
 lower/exact/conflicting fence、确定的 pre-handoff failure、post-handoff unknown outcome、Host
-epoch replacement、deferred launch 后单独 authorized start、stale result suppression、每一种
-connection loss 与 retained-terminal lifetime。其 invariant 要求每个 operation 最多产生一个
-Host effect，并防止旧 generation、fence、operation 或 Host epoch result 覆盖 current authority。
-因为本 protocol 没有 progress acknowledgement，dispatch 后 Worker link 丢失会在每个尚未观测的
-Worker stage 产生保守的 unknown observation；只有已返回的 Worker result 才能报告确定的
-pre-handoff failure。
+epoch replacement（包括已 admitted Start 的 target epoch 在 handoff 前变化）、deferred launch 后单独
+authorized start、stale result suppression、每一种 connection loss 与 retained-terminal lifetime。
+该 raced identity change 会作为确切 `HostIdentityChanged` result 被缓存，且没有 Host effect。Model
+的 invariant 要求每个 operation 最多产生一个 Host effect，并防止旧 generation、fence、operation
+或 Host epoch result 覆盖 current authority。因为本 protocol 没有 progress acknowledgement，
+dispatch 后 Worker link 丢失会在每个尚未观测的 Worker stage 产生保守的 unknown observation；只有
+已返回的 Worker result 才能报告确定的 pre-handoff failure。
 
 Model 允许一个 outstanding request 与一个 pending-result slot。Worker 在 admission 前、
 admission 后和 Host handoff 后断连会分别接受检查，并始终用 unknown result 占用该 empty slot。
@@ -101,8 +111,11 @@ connection 发生 failure，也不承诺 automatic reconnection、authorization 
 Model 的 bound 是两个 operation ID、两个不同的 lease identity，以及两个 Worker generation、
 fence 与 Host epoch。其 deterministic fence-to-operation-and-lease mapping 是 state-space symmetry
 reduction，而不是 runtime derivation rule；一个已检查的 no-revival property 会防止 expired
-accepted lease 在没有替换对应 binding 时再次变为 valid。未来 runtime adapter 需要单独的
-refinement evidence。
+accepted lease 在没有替换对应 binding 时再次变为 valid。
+`FreshOperation` 是 global Server producer invariant 在单个 retained terminal 上的 projection；由于
+current authority 与 Host effect 会被保留，该 invariant 跨 modeled Worker reconnect 仍然生效。
+Model 不枚举 cross-terminal、cross-Worker namespace 或 successor Server-authority transition。未来
+runtime adapter 需要单独的 refinement evidence。
 
 ## 验证
 

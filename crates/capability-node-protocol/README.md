@@ -33,6 +33,16 @@ absolute Unix-millisecond expiry, and explicit capability version. All protocol-
 nonzero opaque 128-bit values. Results echo the complete authorization so Server can discard stale
 generation, fence, operation, lease, or capability observations.
 
+Operation identity also has a producer invariant that cannot be established by decoding one frame:
+the authenticated authoritative Server allocates every `OperationId` globally fresh within its
+active authority, across all Terminal IDs, Workers, and Worker generations, and never assigns one
+identity to two different authorizations. A successor Server authority may begin a new producer
+scope only after its authority transition makes all earlier authorizations non-current through
+generation, lease, and fence validation. This contract does not specify that transition or require
+a Capability Node to retain an unbounded cross-terminal tombstone ledger; Worker refinement assumes
+well-formed issuance from the authenticated authority and does not claim to contain a violating
+issuer.
+
 The optional current directory is an absolute POSIX UTF-8 path of 1 through 4,096 encoded bytes and
 cannot contain NUL. Its absence is distinct from an empty value. Geometry contains columns, rows,
 cell-pixel width, and cell-pixel height. Each value is in `1..=4096`, the grid is at most 262,144
@@ -57,7 +67,9 @@ Launch and Start use distinct rejection and failure types: Launch cannot encode
 must exactly equal the frame's target identity. Its `HostRejected` and `HostReportedFailure` epochs
 must equal the target epoch; a different observed epoch is represented only by
 `HostIdentityChanged`, whose epoch must actually differ. Validated result construction and decoding
-reject every contradiction, so canonical encoding cannot emit one.
+reject these identity and epoch contradictions, so canonical encoding cannot emit one through those
+constructors. The Worker refinement additionally requires a successful Start observation to retain
+the exact authorized geometry before it constructs a result.
 
 The launch payload has no general environment overlay, executable, argument vector, Project,
 Checkout, Worktree, Agent, or Launch Profile field. Unknown trailing bytes are rejected, so a
@@ -82,13 +94,14 @@ The registered
 model is the Server-owned behavioral authority for this unconsumed contract. It explores current
 and stale Worker generations, lease expiry before admission, between admission and Host handoff,
 and after handoff, lower/exact/conflicting fences, definite pre-handoff failure, post-handoff
-unknown outcomes, Host epoch replacement, deferred launch followed by separate authorized start,
-stale result suppression, every connection loss, and retained-terminal lifetime. Its invariants
-require at most one Host effect per operation and prevent old generation, fence, operation, or Host
-epoch results from overwriting current authority. Because this protocol has no progress
-acknowledgement, a lost Worker link after dispatch produces a conservative unknown observation at
-every unobserved Worker stage; only a returned Worker result can report definite pre-handoff
-failure.
+unknown outcomes, Host epoch replacement—including an admitted Start whose target epoch changes
+before handoff—deferred launch followed by separate authorized start, stale result suppression,
+every connection loss, and retained-terminal lifetime. That raced identity change is cached as the
+exact `HostIdentityChanged` result without a Host effect. The model's invariants require at most one
+Host effect per operation and prevent old generation, fence, operation, or Host epoch results from
+overwriting current authority. Because this protocol has no progress acknowledgement, a lost Worker
+link after dispatch produces a conservative unknown observation at every unobserved Worker stage;
+only a returned Worker result can report definite pre-handoff failure.
 
 The model permits one outstanding request and one pending-result slot. Worker loss before
 admission, after admission, and after Host handoff is checked separately and always occupies that
@@ -105,7 +118,11 @@ or terminal recovery. The model is bounded to two operation IDs, two distinct le
 two Worker generations, fences, and Host epochs. Its deterministic fence-to-operation-and-lease
 mapping is a state-space symmetry reduction, not a runtime derivation rule; a checked no-revival
 property prevents an expired accepted lease from becoming valid again without replacing that
-binding. Future runtime adapters require separate refinement evidence.
+binding. `FreshOperation` is the one-retained-terminal projection of the global Server producer
+invariant and remains in force across modeled Worker reconnection because current authority and Host
+effects are retained. The model does not enumerate the cross-terminal and cross-Worker namespace or
+a successor Server-authority transition. Future runtime adapters require separate refinement
+evidence.
 
 ## Verification
 

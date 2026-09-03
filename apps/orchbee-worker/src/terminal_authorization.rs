@@ -155,6 +155,9 @@ enum AdmissionAction {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AuthorizedHostOperationKernel {
+    // Global OperationId freshness is an authenticated Server-producer
+    // precondition. This per-terminal map is intentionally not an unbounded
+    // collision ledger; issuer violations lie outside this refinement.
     bindings: BTreeMap<TerminalId, TerminalAuthorizationBinding>,
     current_worker_generation: WorkerGeneration,
     current_worker_id: WorkerId,
@@ -448,6 +451,9 @@ impl AuthorizedHostOperationKernel {
         let outcome = match completion {
             StartHostCompletion::Accepted(accepted) => {
                 require_same_host_epoch(accepted.identity().host_epoch(), handed_off_epoch)?;
+                if accepted.geometry() != start.geometry() {
+                    return Err(ProtocolError::ContradictoryHostObservation.into());
+                }
                 TerminalStartOutcome::HostAccepted(accepted)
             }
             StartHostCompletion::Rejected { host_epoch } => {

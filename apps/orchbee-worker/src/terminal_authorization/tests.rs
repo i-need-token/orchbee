@@ -461,7 +461,7 @@ fn exact_start_replay_preserves_host_results_and_both_success_transitions() -> T
                     | Scenario::PreHandoffFailed
                     | Scenario::OutcomeUnknown => unreachable!(),
                 };
-                let accepted = HostStartAccepted::new(target, geometry(81)?, transition);
+                let accepted = HostStartAccepted::new(target, request.geometry(), transition);
                 kernel
                     .record_start_completion(&dispatch, StartHostCompletion::Accepted(accepted))?;
                 TerminalStartOutcome::HostAccepted(accepted)
@@ -985,6 +985,38 @@ fn start_handoff_and_completion_preserve_exact_target_host_identity() -> TestRes
     };
     assert_eq!(unknown.target(), accepted_target);
     assert_eq!(unknown.outcome(), TerminalStartOutcome::OutcomeUnknown);
+    Ok(())
+}
+
+#[test]
+fn start_completion_rejects_changed_geometry_without_consuming_handoff() -> TestResult {
+    let mut kernel = kernel()?;
+    let target = host_identity(14, 6, 15)?;
+    let request = start(AuthorizationSpec::standard(3, 3), target, geometry(80)?)?;
+    let dispatch = expect_dispatch(admit_start_at_target(&mut kernel, request, NOW)?);
+    kernel.begin_host_handoff(&dispatch, NOW, target.host_epoch())?;
+
+    let contradictory =
+        HostStartAccepted::new(target, geometry(81)?, StartTransition::AlreadyStarted);
+    assert_eq!(
+        kernel.record_start_completion(&dispatch, StartHostCompletion::Accepted(contradictory)),
+        Err(AuthorizationKernelError::Protocol(
+            ProtocolError::ContradictoryHostObservation
+        ))
+    );
+    assert_eq!(kernel.take_result(), None);
+
+    let accepted =
+        HostStartAccepted::new(target, request.geometry(), StartTransition::AlreadyStarted);
+    kernel.record_start_completion(&dispatch, StartHostCompletion::Accepted(accepted))?;
+    assert_eq!(
+        take_required_result(&mut kernel),
+        AuthorizedHostOperationResult::Start(TerminalStartResult::new(
+            request.authorization(),
+            target,
+            TerminalStartOutcome::HostAccepted(accepted),
+        )?)
+    );
     Ok(())
 }
 

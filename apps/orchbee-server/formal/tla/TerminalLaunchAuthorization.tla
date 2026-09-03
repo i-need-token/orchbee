@@ -8,6 +8,13 @@ EXTENDS FiniteSets, Naturals, TLC
 \* and (for Start) the target Host epoch. Host effects happen only after an
 \* admitted handoff. Transport loss alone never terminates a retained
 \* terminal; Host process replacement is a separate epoch-changing action.
+\* FreshOperation is this single-terminal model's projection of the producer
+\* invariant that an authenticated active Server authority allocates operation
+\* identities globally fresh across terminals, Workers, and Worker generations.
+\* Worker reconnection does not reset that scope. A successor Server authority
+\* may start a new scope only after its generation, lease, and fence transition
+\* makes every prior authorization non-current; that transition and the
+\* cross-terminal and cross-Worker namespace are outside this bounded model.
 
 CONSTANTS
   FirstOperation,
@@ -215,6 +222,9 @@ CanIssue ==
   /\ authority = NoBinding \/ authority.fence < MaxFence
 
 FreshOperation(operation) ==
+  \* The adversarial Issue* branches below do not represent authoritative
+  \* Server issuance. Current issuance uses this guard, whose bounded
+  \* fence-to-operation mapping never selects an earlier operation again.
   /\ operation \in Operations
   /\ ~HasOperationEffect(operation)
   /\ (authority = NoBinding \/ operation # authority.operation)
@@ -562,6 +572,17 @@ RejectExpiredAfterAdmission ==
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
        terminalState, terminalHostEpoch, hostEffects>>
 
+RejectHostIdentityChangedAfterAdmission ==
+  /\ requestPhase = "admitted"
+  /\ request.kind = "start"
+  /\ hostConnected
+  /\ leaseValid[request.lease]
+  /\ request.targetEpoch # hostEpoch
+  /\ QueueAcceptedResult("rejected", hostEpoch, "none")
+  /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
+       workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
+       terminalState, terminalHostEpoch, hostEffects>>
+
 FailBeforeHostHandoff ==
   /\ requestPhase = "admitted"
   /\ pendingResult = NoResult
@@ -815,6 +836,7 @@ Next ==
   \/ ReplayCachedExpiredLeaseResult
   \/ ExpireLeaseAfterAdmission
   \/ RejectExpiredAfterAdmission
+  \/ RejectHostIdentityChangedAfterAdmission
   \/ FailBeforeHostHandoff
   \/ HandoffToHost
   \/ ExpireLeaseAfterHandoff
@@ -886,8 +908,11 @@ CachedResultIsClosed ==
              cachedTransition \in {"started", "already-started"}))
   /\ (cachedOutcome \in {"rejected", "failed"} =>
        /\ cachedHostEpoch \in {0} \cup HostEpochs
-       /\ (cachedHostEpoch = 0 \/
-             HasEffect(acceptedBinding, cachedHostEpoch))
+       /\ ( \/ cachedHostEpoch = 0
+            \/ HasEffect(acceptedBinding, cachedHostEpoch)
+            \/ /\ cachedOutcome = "rejected"
+               /\ acceptedBinding.kind = "start"
+               /\ acceptedBinding.targetEpoch # cachedHostEpoch )
        /\ cachedTransition = "none")
   /\ (cachedOutcome = "outcome-unknown" =>
        /\ cachedHostEpoch \in HostEpochs
@@ -911,6 +936,14 @@ NewAdmissionClearsPriorCachedResult ==
       /\ cachedHostEpoch' = 0
       /\ cachedTransition' = "none"]_vars
 
+AuthoritativeIssuance == IssueCurrentLaunch \/ IssueAuthorizedStart
+
+AuthoritativeOperationFreshnessSpansWorkerReconnect ==
+  /\ [][AuthoritativeIssuance => FreshOperation(request'.operation)]_vars
+  /\ [][ReconnectWorker =>
+      /\ authority' = authority
+      /\ hostEffects' = hostEffects]_vars
+
 HostEffectAtMostOncePerOperation ==
   \A operation \in Operations:
     Cardinality({effect \in hostEffects: effect.operation = operation}) <= 1
@@ -919,6 +952,16 @@ HandoffRequiresLiveLease ==
   [][HandoffToHost =>
       /\ request # NoBinding
       /\ leaseValid[request.lease]]_vars
+
+AdmittedHostIdentityChangeIsCachedAndEffectFree ==
+  [][RejectHostIdentityChangedAfterAdmission =>
+      /\ pendingResult' = Result(request, "rejected", hostEpoch, "none")
+      /\ cachedOutcome' = "rejected"
+      /\ cachedHostEpoch' = hostEpoch
+      /\ cachedTransition' = "none"
+      /\ requestPhase' = "none"
+      /\ ~HasOperationEffect(request.operation)
+      /\ hostEffects' = hostEffects]_vars
 
 ExpiredAcceptedLeaseCannotRevive ==
   [][( /\ acceptedBinding # NoBinding
