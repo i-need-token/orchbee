@@ -438,20 +438,20 @@
 			"zhCnSha256": "403a26836704cb98a731ed1b24d63d3e9e5008b6e3725741d678f25ef2467675"
 		},
 		"proposals/agent/agent-runtime-observation.md": {
-			"englishSha256": "2f738c0eb095d7ef5213e29f8f1410e7ed9b72e102d275061e2e7dc848f1a515",
-			"zhCnSha256": "d54397fa229041413004b93b9377f43c844b1c76305c7fa5d8917ff61e657e92"
+			"englishSha256": "81da8c2ea7dc46af0035c5e2bf538719ff521fbeaf110474a4ed592324d2b05f",
+			"zhCnSha256": "b8c6604d29eaffee10563e225ae0491528e327f28f2f889aa4c7043f235507ef"
 		},
 		"proposals/cli/native-command-surface.md": {
-			"englishSha256": "49aecc780e05d6d4ac53159015f89e7cc18b525213a9ae0d091a9f8a52beb114",
-			"zhCnSha256": "04706a3f96580776c494be28289f604035a834bf6b06cc7632ee62059e9854e0"
+			"englishSha256": "7601bccf1ecd4f06febcd0bba3c5de7847c15ecea8ebe1fad988a2610649d70e",
+			"zhCnSha256": "d5294cd85ea342608d8614ec9c3310119b5f84bd3787a707b108309f733aff5e"
 		},
 		"proposals/platform/connected-client-capability-service.md": {
-			"englishSha256": "59584d0654347fc2f3c32a87c6b4511e87f364392c13853d0764efbee24d1f31",
-			"zhCnSha256": "ec609ff0f95207a581dd3322eade36dc650b97738cec02548aa2d1760116ee14"
+			"englishSha256": "c3a8d05732e3cef9edbded6ba268678cef38053cfb028fde99634c1ef85c7e06",
+			"zhCnSha256": "3796c905802ca6f90f30bb611eb7294e1aea841ad58eeb2ebd5af6ef1a673504"
 		},
 		"proposals/platform/native-runtime-topology.md": {
-			"englishSha256": "ba804c70217fa184c3b0d8f2d94002b0fcc0dc90aeb03ff8142ce98dcaa251f2",
-			"zhCnSha256": "b5d878ec0436494c999f0d9513ae5bb7e432e468170d3642d17bdedf221a8e84"
+			"englishSha256": "1c0cf5308241c5a657545fd0653cb0625dbd8f46e863755f0722f0914a216fe0",
+			"zhCnSha256": "e9c45596dd4d05e2cb28df94e173c878d2f621138f0ccc94180491adac47bcd0"
 		},
 		"proposals/terminal-host/desktop-terminal-host-update-continuity.md": {
 			"englishSha256": "9db345f7bedcb849351160c2ae9cb33b4fcd544e722cfb1fef19863bb8a40efa",

@@ -1,13 +1,13 @@
 # Native Orchbee Command Surface
 
-| Field              | Value                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status             | Replacement direction is accepted, the additive Phase 3A native-entry foundation is complete, and the bare local interactive route plus bounded lazy activation are accepted pending implementation; broader command grammar, stable output and exit contracts, remote targeting, compatibility window, and cutover remain reserved                                                         |
-| Owner              | Product command experience and the maintainers of the Rust `orchbee` Client, Server semantic-command boundary, TUI, packaging, and release integration                                                                                                                                                                                                                                      |
-| Current authority  | [`apps/cli/README.md`](../../apps/cli/README.md) remains authoritative for the delivered TypeScript CLI until cutover                                                                                                                                                                                                                                                                       |
-| Parent design      | [`native-runtime-topology.md`](../platform/native-runtime-topology.md) owns executable topology and process responsibility; this proposal owns the public Rust command surface                                                                                                                                                                                                              |
-| Decision authority | The product owner accepted replacing and deleting `apps/cli`, implementing CLI and TUI in one public Rust `orchbee` executable, redesigning commands and parameters without preserving the current experimental grammar, allowing bounded framework-neutral Workbench semantic snapshots as CLI output, the exact unshipped Phase 3A foundation, and the bare local interactive route below |
-| Exit condition     | Deliver the accepted Rust command slices, switch the packaged public entry with rollback evidence, delete `apps/cli` and obsolete launch artifacts, move maintained behavior into the new application guide and tests, then delete this proposal                                                                                                                                            |
+| Field              | Value                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status             | Replacement direction and the target TUI, bare activation, first CLI information architecture, structured-output, mutation-safety, packaging, and service-lifecycle contracts are accepted; the additive Phase 3A native-entry foundation is complete, while implementation, exact wire/schema details, remote targeting, public cutover, and deletion remain future work                                        |
+| Owner              | Product command experience and the maintainers of the Rust `orchbee` Client, Server semantic-command boundary, TUI, packaging, and release integration                                                                                                                                                                                                                                                           |
+| Current authority  | [`apps/cli/README.md`](../../apps/cli/README.md) remains authoritative for the delivered TypeScript CLI until cutover                                                                                                                                                                                                                                                                                            |
+| Parent design      | [`native-runtime-topology.md`](../platform/native-runtime-topology.md) owns executable topology and process responsibility; this proposal owns the public Rust command surface                                                                                                                                                                                                                                   |
+| Decision authority | The product owner accepted replacing and deleting `apps/cli`; one public Rust `orchbee` for CLI and TUI; the peer-Client TUI model and initial full-screen interaction contract; the resource-first command families below; human and versioned machine output; bounded input and at-most-once mutation rules; one public packaged entry; and the accepted bare local activation and user-service surfaces below |
+| Exit condition     | Deliver the accepted Rust command slices, switch the packaged public entry with rollback evidence, delete `apps/cli` and obsolete launch artifacts, move maintained behavior into the new application guide and tests, then delete this proposal                                                                                                                                                                 |
 
 Simplified Chinese review translation:
 [native-command-surface.zh-CN.md](native-command-surface.zh-CN.md).
@@ -17,9 +17,9 @@ English remains canonical.
 
 - `orchbee` is the only public native executable name. Server, Worker, Terminal Host, and Agent
   Bridge remain private implementation processes.
-- Bare `orchbee` selects the interactive TUI. Explicit commands and options select one-shot CLI,
-  lifecycle, help, or version behavior; grammar beyond the exact Phase 3A foundation below remains
-  reserved.
+- Bare `orchbee` selects the interactive TUI. Explicit `orchbee tui` selects the same surface;
+  explicit resource commands, Site lifecycle commands, help, version, and completion select
+  one-shot behavior without initializing the TUI.
 - When the local Site is absent, bare `orchbee` may initiate bounded lazy activation of the exact
   compatible installed Server and local Worker cohort and wait for readiness. Once ready, the
   private processes own their lifetimes; `orchbee` never remains their supervisor.
@@ -50,14 +50,109 @@ The local-terminal milestone in
 [`native-runtime-topology.md`](../platform/native-runtime-topology.md) accepts the observable bare
 invocation behavior. This proposal owns its command-facing boundary:
 
-| Concern          | Accepted behavior                                                                                                                                                                                 |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Invocation       | An empty argument vector selects the interactive TUI route. No alternate public executable or hidden mode is required from the user.                                                              |
-| Existing Site    | Connect to the exact compatible local Server and create a new Client Session; another invocation creates another peer session rather than reusing local view state.                               |
-| Absent Site      | Initiate bounded lazy activation of the exact installed private Server and local Worker cohort, wait for a typed ready, unavailable, or incompatible result, then enter TUI only after readiness. |
-| Lifetime         | Activation is a bootstrap effect, not parent-child supervision. Closing the TUI releases only its Client Session and attachments; it does not stop the Site, services, or retained terminals.     |
-| Boundary         | The public process neither embeds backend engines nor connects directly to Terminal Host. It reaches terminal behavior through the accepted Server-relayed Client path.                           |
-| Deferred surface | Explicit Site lifecycle commands, one-shot business commands, stable automation output and exit categories, remote targeting, completion, Skills, packaging, and public cutover remain reserved.  |
+| Concern         | Accepted behavior                                                                                                                                                                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Invocation      | An empty argument vector selects the interactive TUI route. No alternate public executable or hidden mode is required from the user.                                                                                                                       |
+| Terminal device | Bare and explicit TUI routes require an interactive TTY and never open `/dev/tty` implicitly. Help, version, and machine-readable one-shot output remain pipeable.                                                                                         |
+| Existing Site   | Connect to the exact compatible local Server and create a new Client Session; another invocation creates another peer session rather than reusing local view state.                                                                                        |
+| Absent Site     | Under one per-user activation lock, initiate the exact installed private Server and local Worker cohort, converge concurrent invocations on that singleton, and enter TUI only after typed readiness. Terminal Host remains lazy until first terminal use. |
+| Lifetime        | Activation is a bootstrap effect, not parent-child supervision. Closing the TUI releases only its Client Session and attachments; it does not stop the Site, services, or retained terminals.                                                              |
+| Boundary        | The public process neither embeds backend engines nor connects directly to Terminal Host. It reaches terminal behavior through the accepted Server-relayed Client path.                                                                                    |
+| Feedback        | A fast successful bootstrap stays silent. A delayed bootstrap shows localized progress. One monotonic total deadline ends in a typed unavailable or incompatible diagnostic; `orchbee` never kills, replaces, or downgrades an existing cohort to recover. |
+| Deferred detail | Exact timeout values and progress thresholds, remote targeting, detailed command schemas, public cutover, and final deletion remain reserved.                                                                                                              |
+
+## Accepted TUI Client contract
+
+TUI is a peer Workbench Client, at the same architectural level as Web, Desktop, and mobile. It is
+not a global terminal picker and does not introduce a second Workbench model.
+
+| Concern               | Accepted behavior                                                                                                                                                                                                                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared document       | Server-owned Workbench state contains Project, Workspace, terminal context, Tab, Panel, and Presentation membership and ordering. A mutation accepted from any Client is published to every authorized Client.                                                                               |
+| Client view           | Each TUI invocation owns its active location, active Tab, focus, layout projection, viewport, scroll, search, and selection presentation. Opening another TUI creates another independent Client View, just as opening another Browser tab does.                                             |
+| Initial location      | Bare TUI defaults to the standalone terminal context and its first ordered Tab. Opening an empty context may create its first terminal exactly once through one Server-coordinated semantic operation; it does not show a startup terminal-picker modal.                                     |
+| Empty state           | Closing the final Tab leaves an explicit empty context. It does not close the TUI, stop the Site, or terminate unrelated retained terminals.                                                                                                                                                 |
+| Attachment            | Only a visible active terminal needs a transient display attachment. Switching releases the old attachment and opens the new one; neither action creates, clones, restarts, or terminates the retained terminal. Product copy uses “open” or “connect”; `attachment` is an engineering term. |
+| Controller            | Several attachments may view one terminal. One combined input-and-resize controller exists at a time. Attach acquires it only when unowned; otherwise the Client enters explicit view-only mode. Release never auto-promotes another viewer or steals control.                               |
+| First-create geometry | The full-screen TUI obtains one complete actual cell and pixel geometry before submitting immediate Create. It never fabricates 80x24. Deferred Create plus Start remains available to other flows whose real first geometry is not yet known.                                               |
+
+The initial TUI uses a full-screen alternate screen. Its wide layout has an Orchbee business
+sidebar on the left and Workbench tabs, panel tree, and the real terminal on the right; narrow
+layouts collapse the sidebar into an overlay. Ratatui plus Crossterm is the selected initial Rust
+stack. The default prefix is `Ctrl+B`, with a visible prefix-mode indicator and this initial map:
+
+| Binding                 | Action                                  |
+| ----------------------- | --------------------------------------- |
+| Prefix, then `c`        | Create a Tab                            |
+| Prefix, then `n` / `p`  | Select next / previous Tab              |
+| Prefix, then `1` … `9`  | Select the corresponding ordered Tab    |
+| Prefix, then `h/j/k/l`  | Move between Panels                     |
+| Prefix, then `b`        | Toggle the business sidebar             |
+| Prefix, then `w`        | Open the Workbench navigator            |
+| Prefix, then `?`        | Open shortcut help                      |
+| Prefix, then `q` or `d` | Detach this TUI Client                  |
+| Prefix, then `Ctrl+B`   | Send a literal `Ctrl+B` to the terminal |
+
+Outside prefix mode, `Ctrl+C`, `Ctrl+D`, and ordinary terminal input pass through to the active
+terminal. HERDR and the established tmux/Zellij interaction vocabulary are behavioral research
+references only: no competitor source, asset, or one-off checkout artifact is copied into this
+repository, and Orchbee keeps its own information architecture and visual design.
+
+## Accepted CLI information architecture
+
+Commands use explicit resource-first noun/verb vocabulary, with no fuzzy abbreviations and no
+public aliases for private executable names. The accepted target command families are:
+
+| Family          | Accepted commands                                                                                                                               | Delivery boundary                                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Entry and tools | bare `orchbee`, `tui`, `status`, `completion`, `config check`, `api schema`, `api snapshot`, `--help`, and `--version`                          | Entry, basic tools, schema discovery, and bounded read-only snapshots belong in the first public command cohort. |
+| Project         | `project list`, `project get`                                                                                                                   | Read-only in the first cohort.                                                                                   |
+| Workspace       | `workspace list`, `workspace get`, `workspace create`, `workspace focus`, `workspace rename`, `workspace close`                                 | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
+| Tab             | `tab list`, `tab get`, `tab create`, `tab focus`, `tab rename`, `tab close`                                                                     | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
+| Panel           | `panel list`, `panel get`, `panel focus`, `panel split`, `panel resize`, `panel move`, `panel close`                                            | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
+| Terminal        | `terminal list`, `terminal get`, `terminal read`, `terminal open`; later `terminal send-text`, `terminal send-keys`, and `terminal wait-output` | Read-only and `open` first; active input automation remains a later explicitly authorized slice.                 |
+| Site lifecycle  | `site enable`, `site stop`, and `site restart`                                                                                                  | Later lifecycle slices; there is no public `orchbee server` command.                                             |
+| Later domains   | Agent, managed Worktree, Archive, Launch Profile, and integration commands                                                                      | Added only by their owning accepted domain contracts.                                                            |
+
+`Tab`, `Panel`, and `Terminal` remain distinct product nouns. There is no monolithic
+`--no-session` mode and no compatibility grammar built around the old raw `session` term. Root help
+guides Agents toward `api schema`, `api snapshot`, and stable CLI commands rather than restoring the
+old `--skill` interface. Update commands, if admitted, remain aware of the installation manager and
+never overwrite a Brew- or npm-managed installation behind that manager's back.
+
+## Accepted automation, input, and mutation contract
+
+- Localized human-readable text is the default. An explicitly selected machine mode emits stable,
+  versioned JSON; streaming operations use NDJSON. The exact selection flag, schema identifiers,
+  pagination bounds, and numeric exit codes remain implementation-slice decisions.
+- Machine data belongs only on stdout. Localized diagnostics and progress belong on stderr. Stable
+  exit categories distinguish usage, rejection, service unavailable, failed effect, cancellation,
+  transport loss, incompatibility, and unknown outcome.
+- CLI input from an argument, file, or stdin is explicitly selected and byte bounded. Secrets never
+  appear in argv, human output, diagnostics, or shell completion.
+- Every mutation carries a globally unique request identity and is submitted at most once. After an
+  ambiguous result, the Client reconciles that identity and never retries the effect as a new request.
+- Destructive operations require an explicit noninteractive confirmation contract. `--detach` is
+  admitted only for operations with durable Server-owned identity and later observation; it never
+  converts terminal input into a fire-and-forget effect.
+- `completion` generates shell completion from the accepted grammar. Installed Skills are separate,
+  versioned product assets owned by the feature that exposes them, not compatibility copies of the
+  current embedded Skill.
+
+## Accepted packaging boundary
+
+One standard installation exposes only `bin/orchbee`. Compatible private Server, Worker, Terminal
+Host, manifest, and—when Agent integration is included—Agent Bridge artifacts live in a private
+versioned `libexec` cohort. Shell installer, Homebrew, and npm distribute the same signed and
+digest-verified native cohort; npm uses platform-specific optional packages and does not require a
+Node.js runtime to execute Orchbee. macOS and Linux are the first supported native release targets;
+Windows remains later work.
+
+The release layout uses side-by-side version directories and one atomic active pointer. A failed
+install or migration rolls back the whole compatible cohort. Public cutover waits for the selected
+vertical commands, legacy-consumer migration, packaged upgrade and rollback evidence, and measured
+startup/size budgets; those budgets are derived from real artifacts rather than chosen in this
+proposal.
 
 ## Problem
 
@@ -111,7 +206,8 @@ or treats terminal output as Agent or Workbench authority.
 
 ## Command-design contract
 
-The future grammar must decide each dimension explicitly before parser implementation:
+The accepted target fixes the product vocabulary above. Each implementation slice must still
+materialize these dimensions explicitly before extending the parser:
 
 | Dimension       | Required decision                                                                                                                                                           |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -170,7 +266,8 @@ guide's [Measurement](../../apps/orchbee/README.md#measurement) section.
    composition without changing CLI startup dependencies.
 4. Prove only deliberately retained semantic behavior against its owner contract. Do not use parser
    parity as the acceptance oracle.
-5. Package one compatible `orchbee`/Server/Worker/Host cohort and atomically switch the public entry.
+5. Package one compatible `orchbee`/Server/Worker/Host cohort, plus Agent Bridge when that
+   capability is installed, and atomically switch the public entry.
    Before any incompatible durable migration, rollback restores the complete prior cohort.
 6. After the replacement cohort and rollback path are verified, delete `apps/cli`, its Desktop
    launcher and injected variables, obsolete protocol/Skill consumers, tests, documentation, and
@@ -183,32 +280,39 @@ the first business-command cohort nor the packaged-entry cutover.
 
 ## Evidence plan
 
-| Claim                                                                                        | Required evidence                                                                                                       |
-| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| CLI startup does not initialize TUI or backend engines                                       | Dependency and process-start tests, cold/warm startup measurements, artifact-size and peak-memory measurements          |
-| One invocation cannot gain Server, Worker, or Host authority                                 | Capability-negative tests, malformed-input tests, authentication tests, and direct-Host connection rejection            |
-| Mutating commands submit at most once                                                        | Request-identity property tests, transport-loss traces, restart reconciliation, and unknown-outcome tests               |
-| Human output is not the automation contract                                                  | Versioned-schema conformance, stdout/stderr tests, redaction tests, and compatibility fixtures                          |
-| Bare invocation and explicit CLI modes do not select ambiguous paths                         | Parser decision-table tests, help/version tests, TUI bootstrap tests, and unsupported-mode cases                        |
-| Bare local activation creates a peer Client Session without owning service lifetime          | Absent/present/incompatible cohort process tests, simultaneous-TUI traces, and Client-exit retention tests              |
-| Phase 3A has no hidden backend or TUI initialization and localizes every authored message    | Dependency metadata, exact process-output tests in both locales, and release-profile startup/size/memory baseline       |
-| Cutover leaves one public entry and one compatible service cohort                            | Packaged installation, upgrade, rollback, partial-installation, and stale-private-executable tests                      |
-| `apps/cli` deletion removes no deliberately selected capability                              | Consumer scan, selected-capability traceability, packaging diff, and current-authority/documentation cleanup checks     |
-| CLI Workbench snapshots expose product semantics without Web or another Client's local state | Server projection fixtures, schema bounds, authorization/redaction tests, and negative HTML/DOM/pixel/client-view cases |
+| Claim                                                                                        | Required evidence                                                                                                         |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| CLI startup does not initialize TUI or backend engines                                       | Dependency and process-start tests, cold/warm startup measurements, artifact-size and peak-memory measurements            |
+| One invocation cannot gain Server, Worker, or Host authority                                 | Capability-negative tests, malformed-input tests, authentication tests, and direct-Host connection rejection              |
+| Mutating commands submit at most once                                                        | Request-identity property tests, transport-loss traces, restart reconciliation, and unknown-outcome tests                 |
+| Human output is not the automation contract                                                  | Versioned-schema conformance, stdout/stderr tests, redaction tests, and compatibility fixtures                            |
+| Bare invocation and explicit CLI modes do not select ambiguous paths                         | Parser decision-table tests, help/version tests, TUI bootstrap tests, and unsupported-mode cases                          |
+| Bare local activation creates a peer Client Session without owning service lifetime          | Absent/present/incompatible cohort process tests, simultaneous-TUI traces, and Client-exit retention tests                |
+| TUI shares Workbench semantics without sharing another Client's view                         | Multi-TUI/Web trace, empty-context first-create test, Tab/Panel navigation tests, and attachment/controller fencing       |
+| Piped one-shot commands never seize a terminal device or initialize the alternate screen     | TTY/non-TTY process matrix, `/dev/tty` negative test, exact stdout/stderr fixtures, and signal/terminal restoration tests |
+| Phase 3A has no hidden backend or TUI initialization and localizes every authored message    | Dependency metadata, exact process-output tests in both locales, and release-profile startup/size/memory baseline         |
+| Cutover leaves one public entry and one compatible service cohort                            | Packaged installation, upgrade, rollback, partial-installation, and stale-private-executable tests                        |
+| `apps/cli` deletion removes no deliberately selected capability                              | Consumer scan, selected-capability traceability, packaging diff, and current-authority/documentation cleanup checks       |
+| CLI Workbench snapshots expose product semantics without Web or another Client's local state | Server projection fixtures, schema bounds, authorization/redaction tests, and negative HTML/DOM/pixel/client-view cases   |
 
 ## Reserved decisions
 
-1. Define the complete command tree, option names, aliases, and help organization beyond the
-   accepted bare local route and exact `--help` and `--version` vectors.
-2. Select human and automation output formats, versioning, streaming, pagination, diagnostics, and
-   stable exit categories, including the exact Workbench semantic snapshot command and schema.
-3. Decide remote Site targeting and authentication, explicit lifecycle commands, and production
-   service installation and activation mechanics beyond the accepted bounded local bootstrap.
-4. Select which current semantic capabilities, if any, enter the first Rust release and which are
-   removed without compatibility aliases.
-5. Define the installed Skill and shell-completion distribution model independently from the old
-   embedded-Skill contract.
-6. Set measured startup, artifact-size, and peak-memory budgets for supported platforms; the
-   Phase 3A reference baseline does not set an acceptance budget.
-7. Define the exact packaged cutover, update cohort, compatibility rejection, rollback, and
-   `apps/cli` deletion authorization.
+1. Select the exact option spelling for machine output, input sources, pagination, confirmation,
+   targeting, timeouts, and detached observation; define the versioned JSON/NDJSON schemas and
+   numeric exit codes without changing the accepted semantic categories.
+2. Select the exact first-release subset from the accepted read-only and `terminal open` families,
+   then admit each later mutation only with its owner state machine and safety evidence.
+3. Define remote Site targeting and authentication. Remote enrollment, production human/device
+   identity, TLS, Internet reachability, multi-user tenancy, and mobile background behavior are not
+   implied by the local command surface.
+4. Define detailed TUI visual composition, accessibility projection, configurable binding policy,
+   mouse behavior, and noninitial layout operations beyond the accepted full-screen structure and
+   default keyboard map.
+5. Define the installed Skill catalog and completion-installation mechanics independently from the
+   old embedded-Skill contract; the accepted `completion` generator and Agent-facing schema
+   discovery do not select those distribution details.
+6. Derive supported-platform startup, artifact-size, and peak-memory budgets from measured release
+   candidates; the Phase 3A reference baseline does not set an acceptance budget.
+7. Authorize the exact packaged public cutover and `apps/cli` deletion only after consumer,
+   compatibility, signed-cohort upgrade, rollback, documentation, and installed-artifact evidence
+   is complete.

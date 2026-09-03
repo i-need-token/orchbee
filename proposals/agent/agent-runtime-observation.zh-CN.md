@@ -2,8 +2,8 @@
 
 | 字段       | 内容                                                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态       | 第一阶段 core、本地 observation、已接受的 SSH、tmux、Zellij 拓扑、显式 multi-Agent adapter、显式本地集成管理与易失、可感知丢失的变化流已实现；transport safety、卸载惰性安装、上下文 onboarding 与 limited presence 替换切片已获实现授权；后续保留决策仍未解决                                                                                              |
-| 决策 Owner | Active requester 以 Orchbee 产品与架构 decision owner 身份接受了各项授权；每项保留决策仍需其所需 owner 明确接受                                                                                                                                                                                                                                             |
+| 状态       | 第一阶段 core、本地 observation、已接受的 SSH、tmux、Zellij 拓扑、显式 multi-Agent adapter、本地集成管理与易失、可感知丢失的变化流已实现；transport-safety 替换切片以及 Rust Agent Bridge/Worker/Server migration target 已接受，而 implementation 与后续 Agent-control 保留决策仍未解决                                                                    |
+| 决策 Owner | Active requester 以 Orchbee 产品与架构 decision owner 身份接受了下文 observation model、safe transport、私有 Rust Agent Bridge、Worker ingress/join、Server semantic ownership 与 mixed-package migration；每项剩余保留决策仍需其所需 owner 明确接受                                                                                                        |
 | 语义 Owner | Agent capability、应用运行时、Workbench 应用组合层与平台通知 adapter                                                                                                                                                                                                                                                                                        |
 | 当前权威   | [`docs/ARCHITECTURE.md`](../../docs/zh-CN/ARCHITECTURE.md)、[`@orchbee/agent`](../../packages/agent/README.zh-CN.md)、[`@orchbee/terminal-protocol`](../../packages/terminal-protocol/README.zh-CN.md)、[`@orchbee/workbench`](../../packages/workbench/README.zh-CN.md)，以及 [unified-search 契约](../../packages/workbench/docs/unified-search.zh-CN.md) |
 | 退出条件   | 实现分别接受的切片，把持续维护的状态、adapter、呈现、通知与证据契约迁入各自所属 package 和 application 指南与测试，解决或移除全部剩余未来决策，然后删除本提案及其译本                                                                                                                                                                                       |
@@ -42,7 +42,7 @@ Provider native API / managed hooks
                   |
  Local Unix socket or SSH reverse-forwarded Unix socket
                   |                         Exact outer PTY
-                  |                    bounded OSC correlation hint
+                  |                    bounded private APC correlation
                   +-------------+-------------+
                                 |
                     Application ingress join
@@ -64,11 +64,10 @@ Provider native API / managed hooks
 | Client view         | 拥有 presentation-scoped visibility、focus、attachment generation 与事件 acknowledgement，不解决 shared Agent request                                                                                                             |
 | 平台通知 adapter    | 尝试一个已经授权、本地化且有界的通知 effect，并报告 delivery API outcome，不改变 Agent 状态                                                                                                                                       |
 
-第一个已接受的实现切片只能在确定性模型拥有真实 application consumer 时创建 `@orchbee/agent`。
-Serialized Agent protocol 只能随第一个真实的跨进程 producer 和 consumer 创建；其 schema 可以表示经过
-校验的 wire data，但不得拥有 transition 合法性或产品策略。已接受的 SSH 切片让该 runtime 继续与
-Desktop 共址，并使用 application-owned local Unix socket；后续进程拆分与 protocol package 命名仍是
-保留决策。
+第一个已接受的实现切片只在 deterministic model 拥有真实 application consumer 时创建了
+`@orchbee/agent`。其已交付 Desktop-co-located runtime 与 application-owned Unix socket 在下文已接受
+native migration 替换各 consumer 前继续作为当前权威。目标为第一个真实 Rust producer 与 consumer
+使用 language-neutral schema；wire data 永远不能拥有 transition legality 或 product policy。
 
 ## 输入与观测质量
 
@@ -763,9 +762,10 @@ notification 已显示。
    existence/executable check，stdout 与 stderr 均为零，exit zero，并保留 provider operation 与 exit
    status。CLI marketplace declaration 可以引用 stable Capsule，因此 uninstall 必须保留仍被任意
    provider declaration 引用的每个 Capsule。只把 guard 放在可能缺失的 target 中不够。
-4. Capsule 对其声明的 runtime self-contained。首选 bridge 是小型原生 Zig executable；只有在测试证明
-   相同 absence behavior 时，才可采用 provider-guaranteed runtime 或受保护的 bundled script。Hook
-   callback 继续 nonblocking，sanitization 后不含内容，时间与字节有界，且不依赖 Orchbee process lifetime。
+4. Capsule 对其声明的 runtime self-contained。目标 bridge 是下文已接受的小型原生 Rust
+   `orchbee-agent-bridge`；这取代此前 Zig 偏好。Provider-guaranteed runtime 或 guarded bundled
+   script 只能作为当前 migration input，并且测试必须证明相同 absence behavior。Hook callback
+   继续 nonblocking，sanitization 后不含内容，时间与字节有界，且不依赖 Orchbee process lifetime。
 5. Enable 遵循 `inspect -> preflight -> stage Capsule -> atomically publish -> mutate exact owned entry ->
 verify`。Provider mutation 前失败只删除未被引用的 staging area。Mutation 后结果不明确时执行只读
    reconciliation，未观察到结果前绝不声称 rollback。Disable 只删除精确 owned provider entry，可以为
@@ -839,14 +839,51 @@ build 不得同时包含 v3 adapter 与 v2-only Desktop，反之亦然。Rollbac
 与 adapter offering；terminal operation、ordinary SSH 与 provider operation 保持正常。它不会恢复 OSC 777、
 application-bundle symlink、eager inspection 或 automatic onboarding。
 
+## 已接受的原生运行时迁移目标
+
+产品决策人在 2026-09-03 接受了这个目标。它取代此前保留的 helper language 与 process-placement
+决策，但不声称已交付 Desktop runtime 已经完成迁移。
+
+```text
+provider hook / plugin / adapter
+             |
+             v
+  orchbee-agent-bridge (Rust, one shot)
+             |
+             | bounded rich observation + exact ACK
+             v
+        local Worker  <--- private APC correlation via Terminal Host
+             |
+             | validated joined observation
+             v
+           Server  ---> authorized Client projections
+```
+
+| 关注点              | 已接受目标                                                                                                                                                                                                                                                                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Executable          | `orchbee-agent-bridge` 是私有 Rust executable，从 versioned Agent Capsule/private libexec cohort 分发。它不在 `PATH` 上，没有用户 command surface，未使用时不驻留。因此 Agent-capable 标准发行版识别五个 executable role：公共 `orchbee`、Server、Worker、Terminal Host 与 Agent Bridge。                                          |
+| Callback contract   | 一个 provider callback 调用一个 Bridge process，并提供 byte-bounded input。Bridge 按 allowlist 清洗 event，只解析确切 inherited local Worker endpoint 与 invocation context，执行一次 synchronous bounded attempt，并等待一个 exact ACK。只有 ACK 后才能向解析出的 outer terminal 发送 private APC correlation half。              |
+| Failure             | Bridge 不发现 Server、不使用 remote network、不激活 service，也不创建 durable state。Worker 缺失、timeout、malformed input、rejection 或 correlation unavailable 时保持静默：stdout/stderr 为空，process exit zero，provider operation 与 exit status 不变。                                                                       |
+| Worker ownership    | Worker 鉴权 local Bridge，校验 bound 与 provider capability，并使用 exact Terminal/Presentation generation、expiry、deduplication 和 fencing，把 sanitized rich event 与 private terminal correlation join。Terminal Host 只运输有边界 private correlation；二者都不会从 terminal content 推导 canonical Agent semantics。         |
+| Server ownership    | Server 拥有 canonical provider-neutral Agent Session、Turn、Attention Request、Outcome、observation health、hierarchy 与 shared projection。Client 只拥有 presentation。当前 `@orchbee/agent` 中的 deterministic transition model 迁到 Rust Server，并位于一套 cross-language schema 之后，不再保留 TypeScript runtime authority。 |
+| Integration effects | Worker 在 exact Server authorization 下拥有 node-local integration inspection 与 mutation。继续要求 per-provider 显式 enable。不增加 automatic remote configuration、prompt/response/tool/transcript capture 或 implicit capability elevation。                                                                                    |
+| Product scope       | Observation 与 truthful attention state 先于 Agent launching、prompt submission、resume、scheduling 或 orchestration 交付。这些 control-plane feature 保持为独立决策。                                                                                                                                                             |
+| Presentation        | Web presentation 迁入 `apps/web`；TUI、Desktop 与 mobile 通过各自 renderer 消费同一已授权 semantic projection。所有 state、adapter、consumer、schema、evidence、Capsule 与 rollback obligation 迁移后，删除 mixed `@orchbee/agent` package，而不是保留第二个 authority。                                                           |
+
+Migration 先在没有当前 consumer 的情况下增加 language-neutral observation boundary 与 Rust reduction，
+再让一个 provider 通过 Bridge 到达 Worker 与 Server，证明 equivalence 与 fail-open behavior，然后迁移
+其余 integration 与 Web presentation，最后才切换当前 Desktop ingress 并删除过时 TypeScript ownership。
+Rollback 选择上一套完整 integration cohort；绝不让 provider entry 指向缺失 Capsule，也绝不 replay
+admission outcome 未知的 observation。
+
 ## 保留决策
 
-已接受的第一阶段领域切片不会决定：
+已接受的 observation 与 native-migration target 不会决定：
 
-- Runtime 保持与 Desktop 共址，还是成为单独 supervised Agent process；
-- 任何未来 cross-process Agent-runtime protocol 命名、process extraction、version negotiation，以及
-  application 或 operating-system restart 后 retention；Desktop Unix-socket ingress、terminal-signal
-  ingress 与 renderer snapshot protocol 是各自更窄边界的当前权威；
+- 确切 cross-process schema name、numeric bound、deadline value、compatibility negotiation，或跨
+  Server、application、operating-system restart 的 durable retention；当前 Desktop Unix-socket
+  ingress、terminal-signal ingress 与 renderer snapshot protocol 在已接受 migration 切换各 consumer
+  前继续作为当前权威；
 - 自动 local 或 remote adapter deployment、任何由 Orchbee 发起的 remote configuration change、显式
   local enable/update action 之外的静默 local configuration edit、background adapter updater，以及
   pinned provider 与 transport fixture matrix 之外的 compatibility claim；

@@ -1,12 +1,12 @@
 # Native Runtime Topology and Responsibility Migration
 
-| Field              | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status             | Accepted consequential target; the additive native foundations, local Server-Worker and Client Session process spines, deny-only Server OBCS phase, checked terminal Client authority model, Client-Server and Server-Worker terminal-control contracts, Worker-Host broker connection spine, and unintegrated Worker authorization kernel are complete and unshipped, the remaining local-terminal vertical implementation is in progress, and every later migration, cutover, and deletion remains bounded by this design                                                                                                                                                                                                         |
-| Owner              | Product architecture and the maintainers of Client, Server, Desktop, Worker, Terminal Host, and Agent integration boundaries                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Current authority  | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md), the owning application and package guides, and the accepted logical topology in [`connected-client-capability-service.md`](connected-client-capability-service.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Decision authority | The product owner has accepted the Client-Server-Worker topology; separate Rust `orchbee`, Rust Server, Rust Worker, and Zig Terminal Host executables; the delivered native foundations summarized below; the code-agnostic launch boundary; one uniform multi-Client model; lazy local activation without Client lifetime ownership; the first Server-relayed local terminal path; one input-and-resize controller per terminal for this milestone; and the CLI, Gateway, SSH Runtime/protocol, Workbench-package, and non-SSH Desktop dispositions below. Agent, Worktree, Archive, Launch Profiles, SSH-specific Desktop behavior, direct Worker attachment, collaborative input, and later production concerns remain reserved |
-| Exit condition     | Accept bounded delivery slices, implement them with mapped evidence, move maintained facts into current authorities, resolve every workspace disposition, and delete this proposal after it no longer owns unresolved future-design evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Field              | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status             | Accepted consequential target; the additive native foundations, local Server-Worker and Client Session process spines, deny-only Server OBCS phase, checked terminal Client authority model, Client-Server and Server-Worker terminal-control contracts, Worker-Host broker connection spine, and unintegrated Worker authorization kernel are complete and unshipped, the remaining local-terminal vertical implementation is in progress, and every later migration, cutover, and deletion remains bounded by this design                                                                                                                                                                                                                                            |
+| Owner              | Product architecture and the maintainers of Client, Server, Desktop, Worker, Terminal Host, and Agent integration boundaries                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Current authority  | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md), the owning application and package guides, and the accepted logical topology in [`connected-client-capability-service.md`](connected-client-capability-service.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Decision authority | The product owner has accepted the Client-Server-Worker topology; the public Rust Client and four private executable roles used by an Agent-capable installation; the delivered native foundations; code-agnostic launch and 1,024-binding Worker limit; uniform peer Clients and transient terminal attachments; the first relayed path and measured local-direct fallback; Agent observation, managed Worktree, Archive, Launch Profile, SSH-connection, service-lifecycle, cohort-update, and Server-recovery ownership below; and the CLI, Gateway, SSH Runtime/protocol, Workbench-package, and Desktop dispositions. Remote enrollment, production human/device identity, TLS/Internet ingress, multi-user tenancy, and mobile background policy remain reserved |
+| Exit condition     | Accept bounded delivery slices, implement them with mapped evidence, move maintained facts into current authorities, resolve every workspace disposition, and delete this proposal after it no longer owns unresolved future-design evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 Simplified Chinese review translation:
 [native-runtime-topology.zh-CN.md](native-runtime-topology.zh-CN.md).
@@ -27,9 +27,9 @@ The accepted direction is:
 
 - one logical Client-Server-Worker topology for local and distributed operation;
 - a mandatory native Rust `orchbee` entry containing both CLI and TUI surfaces;
-- separate private Rust `orchbee-server`, Rust `orchbee-worker`, and Zig
-  `orchbee-terminal-host` executables; the optional Agent helper topology, name, and language remain
-  reserved with Agent integration;
+- separate private Rust `orchbee-server`, Rust `orchbee-worker`, Zig
+  `orchbee-terminal-host`, and optional Rust `orchbee-agent-bridge` executable roles; ordinary
+  terminal creation does not require or start the Bridge;
 - optional Web, Desktop, and mobile Client surfaces that consume the same Site authority;
 - Terminal Host as a separate node-local process and the sole PTY/VT authority; and
 - a narrow Worker baseline for code-agnostic Terminal launch, with Agent runtime effects admitted
@@ -44,17 +44,16 @@ The target core therefore has no generic `Environment` registry or `EnvironmentI
 This decision supersedes the parent proposal's universal Environment-before-Worker invariant for
 future native terminal launch: Server authorizes one exact Worker directly, and no Environment
 identity reaches Terminal Host. The parent proposal is narrowed in the same change. Existing
-delivered SSH Environment records and behavior remain current authority until a separately accepted
-migration; an unmanaged-SSH adapter may retain `EnvironmentId` as its connection identity without
-making it a core Terminal concept.
+delivered SSH Environment records and behavior remain current authority until the accepted
+`SshTarget`/`SshConnection` migration removes that generic identity from the replacement path.
 
 The current `apps/ssh-environment-runtime` and `@orchbee/ssh-environment-protocol` are not target
 architecture assets. The product owner has accepted retiring them after a bounded slice either
 migrates every supported use to native Workers or a new SSH design, or explicitly sunsets that use
-and accounts for installed artifacts. A future unmanaged-SSH capability may be redesigned after
-the old implementation is removed; it need not preserve the current executable, source, package
-name, framing, services, release cohort, or Desktop-owned topology. This decision separates the SSH
-product capability from its current implementation and does not itself authorize deleting code.
+and accounts for installed artifacts. The accepted Worker/OpenSSH temporary-connection design need
+not preserve the current executable, source, package name, framing, services, release cohort, or
+Desktop-owned topology. This decision separates the SSH product capability from its current
+implementation and does not itself authorize deleting code.
 
 The product owner has also accepted replacing and then deleting the current TypeScript `apps/cli`
 implementation. The Rust `orchbee` entry is a new Client implementation, not a source-compatible
@@ -79,14 +78,14 @@ projection snapshot, but it never serializes a React tree, DOM state, pixels, or
 local focus and window state. After contracts and Web behavior migrate, delete the mixed package
 rather than repurposing its browser-only identity as the new cross-language authority.
 
-The non-SSH Desktop Main dispositions below are accepted target boundaries. Agent-owned areas,
-managed Worktree, Terminal Archive, Launch Profiles, and SSH-specific Desktop areas remain
-deliberately reserved; this proposal does not resolve them by implication.
+The Desktop Main dispositions below are accepted target boundaries, including the now-explicit
+Agent, managed Worktree, Terminal Archive, Launch Profile, and SSH connection ownership. Each is a
+future migration contract, not evidence that the current Desktop implementation has already moved.
 
-The accepted topology and Phase 1 repository foundation do not implicitly accept a future command
-grammar, Agent design, future SSH design, persistence migration, direct Client-to-Worker data path,
-or deletion before each affected current path has an accepted migration or sunset plus rollback
-boundary.
+The accepted topology and Phase 1 repository foundation do not imply that the newly accepted
+command, Agent, SSH, persistence, direct-data-path, or deletion targets are delivered. Each affected
+current path remains authoritative until a bounded implementation or migration slice supplies its
+model, evidence, cutover, and rollback boundary.
 
 ## Problem
 
@@ -170,12 +169,12 @@ Worker role x N
 `- orchbee-worker
    |- Terminal launch validation
    |- Terminal Host broker --------> orchbee-terminal-host --> PTY / process tree / Ghostty VT
-   `- optional Agent capability (process topology reserved)
+   `- optional Agent observation ingress <--- orchbee-agent-bridge <--- provider hook/plugin
 ```
 
 Terminal Host is a specialized process inside the physical Worker-node boundary and does not create
-an additional logical role. It belongs to the terminal baseline. Agent integration may add a
-specialized helper later, but its process boundary is not accepted by this proposal.
+an additional logical role. It belongs to the terminal baseline. Agent Bridge is an optional
+one-shot ingress helper, not a long-running logical authority or a terminal dependency.
 
 ## Native executable set
 
@@ -185,9 +184,11 @@ specialized helper later, but its process boundary is not accepted by this propo
 | `orchbee-server`        | Rust     | Private    | Long-running Site service       | Server authority, Client sessions, canonical product state, placement, optional Agent orchestration, and remote Client relay |
 | `orchbee-worker`        | Rust     | Private    | Long-running per execution node | Node identity, scoped code-agnostic launch, Host brokering, and optional Agent runtime effects                               |
 | `orchbee-terminal-host` | Zig      | Private    | On-demand retained node service | PTY, process tree, canonical Ghostty VT, terminal history, input, and attachment authority                                   |
+| `orchbee-agent-bridge`  | Rust     | Private    | One bounded provider callback   | Sanitize one provider observation, deliver it to the local Worker, and emit private correlation only after exact acceptance  |
 
-The Agent hook helper's existence, executable name, language, lifetime, and Worker relationship
-remain reserved with the Agent capability. It is not part of the accepted executable set.
+The first four executable roles form the terminal-capable baseline. A full Agent-capable
+distribution also recognizes `orchbee-agent-bridge`; it is installed as a versioned Capsule asset
+and is not resident when unused.
 
 The proposed installed layout keeps one user-facing name:
 
@@ -198,7 +199,8 @@ bin/
 libexec/
 |- orchbee-server
 |- orchbee-worker
-`- orchbee-terminal-host
+|- orchbee-terminal-host
+`- orchbee-agent-bridge (Agent-capable cohort only)
 ```
 
 Installation cohorts do not create protocol variants:
@@ -208,11 +210,11 @@ Installation cohorts do not create protocol variants:
 | Native Client only                  | `orchbee`                                                       |
 | Local terminal Site                 | `orchbee`, Server, Worker, and Terminal Host                    |
 | Terminal-only remote execution node | Worker and Terminal Host                                        |
-| Agent-enabled execution node        | Reserved; no helper executable set is accepted yet              |
+| Agent-enabled execution node        | Worker, Terminal Host when terminals are used, and Agent Bridge |
 | Browser or mobile Client            | No local native executable; it connects to an authorized Server |
 
-Exact platform installation paths and whether full distributions bundle optional cohorts remain
-reserved. Agent integration is never a prerequisite for ordinary terminal creation.
+Exact platform installation paths remain packaging details. Agent integration is never a
+prerequisite for ordinary terminal creation.
 
 ## Role responsibilities
 
@@ -227,6 +229,13 @@ Every active TUI invocation, browser tab, and independently active Desktop or mo
 Client Session. Renderer type grants no authority and creates no separate product model. Client
 Sessions may select different active locations and view state while consuming the same authorized
 shared Workspace, Tab, Panel, and Terminal facts.
+
+The shared Workbench document owns Project, Workspace, terminal-context, Tab, Panel, and
+Presentation membership and ordering. Each Client View owns navigation, active Tab, focus, layout
+projection, viewport, scroll, search, and selection. Bare TUI opens its standalone terminal context
+and first ordered Tab; an empty context may create its first terminal exactly once through one
+Server-coordinated operation. Closing the final Tab leaves an explicit empty context. A Client
+switches only its visible display attachment; the PTY continues independently.
 
 `orchbee` contains both CLI and TUI Client surfaces. A CLI invocation is transient; a TUI owns a
 longer Client Session. The CLI path must not initialize TUI rendering or load Server, Worker, or Host
@@ -288,20 +297,21 @@ Terminal Host owns no Site, Client Session, Project, Workspace, Tab, Panel, Work
 semantics, remote authentication, network listener, or update policy. A Server or Client restart
 does not own its lifetime. A Host or operating-system failure does not promise PTY recovery.
 
-### Agent integration helper (reserved)
+### Agent integration helper
 
-If accepted later, an Agent hook helper should be a minimal, bounded synchronous native process. It
-would accept one bounded invocation,
-resolves only the local Worker endpoint and invocation-scoped context, attempts one delivery under a
-strict end-to-end deadline, emits no product payload to stdout or stderr, exits zero without changing
-the Agent's result when Worker is unavailable, and cannot activate a service. It starts neither
-Server nor Worker and owns no durable state. The Agent proposal owns the exact deadline and provider
-installation contract. None of this paragraph accepts the helper's existence, name, language, or
-process topology.
+`orchbee-agent-bridge` is a minimal synchronous Rust process invoked by an explicitly installed
+provider hook, plugin, or adapter. The versioned Agent Capsule is its release source. Each invocation
+accepts one byte-bounded input, allowlist-sanitizes the observation, resolves only the exact local
+Worker endpoint and invocation context, attempts one delivery under a strict end-to-end deadline,
+and retains no durable state.
 
-Choosing Rust supersedes the existing Agent proposal's preference for a Zig bridge only after that
-reserved language decision is explicitly accepted and the Agent proposal is updated in the same
-implementation slice.
+The Bridge does not discover a remote Server, use the network, activate a service, read product
+state, or expose a public CLI. It emits no stdout or stderr. Worker absence, timeout, malformed input,
+or rejection exits zero and leaves the provider operation unchanged. Only an exact Worker ACK allows
+the Bridge to emit the private APC correlation half to the resolved terminal. Worker performs the
+bounded rich-event/correlation join with Terminal and Presentation generations, deduplication,
+expiry, and fencing; Terminal Host only transports the private correlation and owns no Agent
+semantics. The Agent proposal owns provider installation and the canonical observation model.
 
 ## Code-agnostic terminal-launch boundaries
 
@@ -321,19 +331,34 @@ be copied into an authorization envelope without Server validation, and Terminal
 Site, Client Session, Workspace, Project, Checkout, Worktree, Environment, Worker-lease, or
 placement semantics.
 
-The terminal baseline launches the Worker's accepted default interactive shell. It has no command
-profile, raw shell text, arbitrary executable, or caller-supplied argument-vector variant. A later
-profile or noninteractive-command capability requires its own authorization, catalog/default owner,
-versioned representation, and negative proof that terminal-create authority alone cannot invoke it.
+Without an explicit Launch Profile, the terminal baseline launches the Worker's accepted default
+interactive shell: a valid absolute `$SHELL`, otherwise the operating-system account shell,
+otherwise `/bin/sh`. It supplies an empty argument vector and does not force login mode. A named
+Launch Profile is a separately authorized catalog selection described below; terminal-create
+authority alone never grants raw shell text or an arbitrary argument vector.
+
+The admitted Worker authorization kernel retains at most 1,024 terminal bindings per Worker
+generation. A binding and its terminal result remain for that generation's lifetime so exact replay
+and higher-fence behavior stay deterministic. Reaching capacity rejects only a previously unseen
+binding identity; it never evicts, expires, or rewrites an existing result. An explicit retirement
+contract is required before public production may depend on long-lived generation reuse.
 
 ### Starting-directory semantics
 
 The starting `cwd` may be the user's home, a temporary directory, an ordinary non-Git directory, a
-repository directory, or a generated Worktree. A generic create intent may carry one explicit
-node-local path or omit it; omission asks the selected Worker to resolve its accepted default.
-Worker validates the resolved launch facts and Terminal Host starts the PTY. A shell may later
-change directories under normal operating-system permissions without changing canonical product
-state.
+repository directory, or a generated Worktree. Product context resolves it before authorization:
+
+| Creation context                  | Accepted starting directory                                                                                       |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Bare or standalone first terminal | The selected Worker's user home; the invoking shell's current directory is not inferred                           |
+| Workspace terminal                | The Workspace's accepted Primary Directory on that exact Worker                                                   |
+| New Tab in Current Directory      | The latest validated Host-observed `currentCwd` for the source terminal, pinned to the same Worker                |
+| Explicit future CLI directory     | One explicitly named and authorized node-local path; this is not implied by running `orchbee` from that directory |
+
+A generic create intent may carry the resulting explicit node-local path or omit it; omission asks
+the selected Worker to resolve its user-home default. Worker validates the resolved launch facts and
+Terminal Host starts the PTY. A shell may later change directories under normal operating-system
+permissions without changing canonical product state.
 
 A Workspace or Panel may present the resulting terminal, and an optional feature may resolve a
 starting directory before submitting intent, but association alone does not derive `cwd`. The
@@ -350,11 +375,14 @@ A managed Worktree flow is strictly upstream:
 optional managed Worktree operation --> node-local directory --> TerminalCreateIntent.cwd
 ```
 
-Server may own canonical Worktree product references, but it does not own the node-local Git
-effect, pending-operation journal, serialization, compensation, recovery, or cleanup. If managed
-Worktree remains supported, one separately accepted node-local capability owner must own those
-facts. Managed Worktree is absent from the baseline Worker capability, and terminal creation remains
-fully usable without it.
+Server owns managed-Worktree semantic intent and the canonical reference. An optional, explicitly
+advertised `managed-worktree` capability on the exact Worker owns Git execution, serialization,
+journaling, compensation, and recovery beneath a Worker-private managed root. Creation, discovery,
+and adoption of an existing external Worktree form the first migration scope; fetch, move, prune,
+and deletion remain later operations. Adoption never grants Orchbee ownership to delete the external
+directory. Product-reference removal and `git worktree remove` remain distinct explicit actions.
+There is no sixth executable, no inferred Worktree creation, and terminal creation remains fully
+usable without this capability.
 
 ### Start geometry
 
@@ -367,9 +395,9 @@ Start mode is one closed choice:
   complete geometry.
 
 Host retains its existing idempotent exact-replay and conflicting-geometry behavior. No layer may
-invent a timeout or 80x24 fallback. Which Client operations choose immediate or deferred creation,
-and which authorized Client supplies the first geometry, remain command- and attachment-policy
-decisions.
+invent a timeout or 80x24 fallback. A full-screen TUI obtains one complete actual cell and pixel
+geometry and chooses immediate creation. Deferred creation remains for other Client flows that do
+not yet possess a real first geometry and requires a later complete Start operation.
 
 ### Environment-variable overlay
 
@@ -379,6 +407,11 @@ Worker admission and Host creation generation, omitted from audit and diagnostic
 after loss or expiry. Server may retain only non-secret outcome metadata; Host retains only the
 target-normalized digest required by its current idempotency contract. A retry that still requires
 overlay values obtains a fresh capability instead of reconstructing or persisting them.
+
+The default terminal environment declares `TERM=xterm-256color`, `COLORTERM=truecolor`, and the
+current Ghostty compatibility identity `TERM_PROGRAM=ghostty`. It does not inherit old CLI, Agent,
+Project, or caller-transient product variables. Any later profile environment or secret injection is
+a separate capability; Launch Profiles themselves contain neither environment values nor secrets.
 
 ## Why Server, Worker, and Terminal Host remain separate
 
@@ -416,30 +449,61 @@ overlay values obtains a fresh capability instead of reconstructing or persistin
 | Optional Agent task, orchestration, and shared semantic observation          | Server                                          | Worker executor observation and Client presentation projections                    |
 | Active Tab, focus, viewport, search, selection view, and window state        | Exact Client Session or client platform         | None unless an explicitly accepted client-local persistence feature owns it        |
 | Platform clipboard and native window effects                                 | Exact client platform                           | No implicit cross-client replication                                               |
-| Optional Agent hook delivery, if accepted                                    | Exact selected helper invocation                | Worker and Server may observe one accepted bounded event; helper retains none      |
+| Optional Agent hook delivery                                                 | Exact Agent Bridge invocation                   | Worker and Server may observe one accepted bounded event; Bridge retains none      |
 
 No colocation path may introduce a second writer. In particular, Server records terminal intent and
 outcome but never a second VT; Worker records Host identity and execution observations but never a
 second terminal engine; a Client may stage a UI preview but never optimistically commit shared
 Workbench state.
 
+## Accepted optional-capability ownership
+
+These capabilities are accepted target boundaries but remain optional and independently delivered.
+None may broaden the terminal-only Worker or introduce another canonical Workbench writer.
+
+| Capability        | Accepted target contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent observation | An explicitly enabled provider hook/plugin invokes private Rust `orchbee-agent-bridge`. Bridge sends one sanitized bounded rich observation to the local Worker and emits a private APC correlation only after exact ACK. Worker joins rich event and correlation against Terminal and Presentation generations with expiry, deduplication, and fencing. Server owns canonical Agent Session, Turn, Attention, Outcome, and shared projection; Clients render it. Observation ships before launch/orchestration. Content such as prompts, responses, tools, and transcripts is absent by default.                                                                                                                                                                                                                                                                                           |
+| Managed Worktree  | Server owns semantic intent and canonical reference. The exact Worker may advertise one optional `managed-worktree` capability that owns Git effects, a Worker-private managed root, serialization, journal, compensation, and recovery. Creation, discovery, and adoption migrate first; adopting an external Worktree conveys no deletion ownership. Terminal receives only an ordinary resulting `cwd`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Terminal Archive  | Terminal Host owns live VT and scrollback. On explicit Stop, Worker requests one final read-only platform-neutral terminal snapshot before Host disposal and atomically stores its content; Server owns metadata, indexing, and authorization. Capture failure does not block Stop but records archive unavailable. Detach creates no archive. Stop creates one archive. Close deletes the Presentation and its archive. A later Start creates a fresh terminal rather than appending. Natural process exit does not automatically create a permanent archive. Initial bounds are 5,000 rows or 10 MiB per Presentation and 250 MiB per Worker.                                                                                                                                                                                                                                             |
+| Launch Profiles   | Server owns the canonical product catalog; each profile is Worker/platform scoped and revisioned. A profile contains a name plus either system shell with an explicit login choice or one absolute executable with literal arguments. It contains no cwd, appearance, environment, or secrets. Worker validates and executes the exact resolved revision. Creation records that revision and resolved launch so later edits cannot change an existing terminal or replay. Missing, stale, unauthorized, or failed profiles report explicit failure and never fall back. Use and management permissions are distinct.                                                                                                                                                                                                                                                                        |
+| Connect via SSH   | The enrolled-Worker path and an SSH-attached temporary Worker remain distinct. Product copy says “Connect via SSH”; internal contracts use `SshTarget` and `SshConnection`, not generic Environment. Server owns connection intent and state; one selected local Worker uses system OpenSSH, local config/agent/known-hosts, and ephemeral AskPass to start the same `orchbee-worker` in temporary connection mode on the remote account, followed by its Host. Private keys never reach Server. The identity lasts only for that connection and is never promoted to enrollment implicitly. Initial interactive creation is from local TUI or Desktop; Web/mobile may use an established connection. Disconnect is distinct from terminal exit and reconciles only exact retained identity/generation. Ordinary manual `ssh` remains supported but is not the product connection contract. |
+
+The current mixed `@orchbee/agent` TypeScript package remains current authority during migration,
+but it is not the target canonical runtime. Move its deterministic state machine to Rust Server,
+publish one cross-language schema, move Web presentation into `apps/web`, and delete the mixed
+package only after behavioral and consumer evidence proves the replacement. Worker, under Server
+authorization, owns node-local Agent integration inspection and mutation. No separate Agent service,
+Worktree service, Archive service, Profile service, or SSH executable is added.
+
+## Accepted production lifecycle direction
+
+| Concern                     | Accepted target contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local direct terminal path  | The first and fallback path remains `Host <-> Worker <-> Server relay <-> Client`. Only measured relay insufficiency may enable `Worker <-> local native TUI/Desktop Client`; Browser and mobile continue through Server and no Client ever connects directly to Host. Server mints a short-lived capability bound to Client Session, Terminal, Worker, Host epoch, controller generation, and permissions. Control stays on Server. Server-Worker authority loss stops input/resize and permits at most one explicitly bounded read-only drain. A failed direct path may obtain a newly authorized relay path, but unknown input is never replayed. One multiplexed Client-Worker connection per Client Session and Worker is permitted.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Controller transfer         | One combined input-and-resize controller remains. An unowned terminal can be acquired explicitly. An occupied terminal sends a request to the current active owner. Observed disconnect releases only after a liveness grace; no viewer is auto-promoted. After a modeled timeout, an authorized requester may perform a second-confirmation forced take. Server commits one atomic controller generation and fence, rejecting every late operation from the prior generation. Viewer scroll, search, and selection remain independent. Collaborative input and split input/resize ownership are excluded.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| User services               | Lazy start remains default. `orchbee site enable` installs per-user LaunchAgent or systemd-user units for an always-available Web/mobile/remote Site; no root or system daemon is used and no supervisor executable is added. Server and Worker are separate units from one compatible cohort with bounded restart backoff; Host stays lazy. `site restart` preserves live Host terminals. `site stop` stops admission plus Server/Worker and explicitly reports any retained Host terminals; terminating all terminals is a separate destructive operation. Disable, uninstall, and upgrade do not delete data or terminate terminals by default.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Update and compatibility    | One signed manifest records every component and asset version/digest. Versions install side by side and switch through one atomic active pointer; failure rolls back the entire cohort. Compatibility is an exact tested set, not an open range. A live Host is never replaced. Compatible Server/Worker may update around retained old Hosts; an incompatible Host update remains pending until its terminals stop, with no first-version parallel takeover. Referenced old Agent Capsules remain until their integration is explicitly updated. Database migration snapshots first and may reject unsafe downgrade. Package-manager installations update through their manager; automatic installation is off by default.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Server persistence/recovery | Before public release, Server uses one transactional database, with SQLite in WAL mode as the default design. It persists Site/Workbench revision; Project, Workspace, Tab, and Panel state; terminal intent, placement, lifecycle, Worker identity/enrollment and operation ledger; Profiles; Worktree references; Archive metadata; SSH target/connection intent; and required operation identities. It does not persist Client View, attachment/controller leases, terminal frames, PTY/live scrollback, transient environment/secrets, raw hook payloads, or full Agent observation history by default. Intent commits before external effects. Restart reconciles exact Worker/Host inventory and never replays create or input. Exact binding, generation, epoch, and Terminal identity may recover; unknown Host terminals enter `RecoveryRequired` quarantine and are never adopted, deleted, or replaced automatically. Corrupt or incompatible storage opens read-only recovery rather than resetting. Credentials stay in the operating-system credential store; Worker Archive content and Worktree journals keep their node-local recovery owners. |
+
 ## Process lifecycle and supervision
 
-| Process                 | Start policy                                                                  | Stop and restart consequence                                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `orchbee` CLI           | Per invocation                                                                | Ends only its request or observation                                                                              |
-| `orchbee` TUI           | Explicit human launch; may initiate bounded lazy local-Site activation        | Releases its Client Session and attachments; it does not stop Site or terminals                                   |
-| Server                  | Exact-cohort lazy local activation or an optional user-service policy         | Clients and Workers reconnect; retained node execution does not infer cancellation                                |
-| Worker                  | Exact-cohort local activation or enrolled-node service policy                 | Host remains independently retained; replacement Worker reconciles Host inventory                                 |
-| Terminal Host           | Worker starts or discovers the exact compatible version on first terminal use | May exit only under its accepted no-broker/no-retained-terminal policy; Host loss reports terminal loss           |
-| Agent helper (reserved) | Provider hook invocation, only if separately accepted                         | Candidate: exits after one bounded attempt; failure is fail-open for the invoking Agent                           |
-| Web or Desktop Client   | Explicit human launch                                                         | Releases only that Client Session unless the human separately requests a shared product or Site lifecycle command |
+| Process               | Start policy                                                                  | Stop and restart consequence                                                                                      |
+| --------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `orchbee` CLI         | Per invocation                                                                | Ends only its request or observation                                                                              |
+| `orchbee` TUI         | Explicit human launch; may initiate bounded lazy local-Site activation        | Releases its Client Session and attachments; it does not stop Site or terminals                                   |
+| Server                | Exact-cohort lazy local activation or an optional user-service policy         | Clients and Workers reconnect; retained node execution does not infer cancellation                                |
+| Worker                | Exact-cohort local activation or enrolled-node service policy                 | Host remains independently retained; replacement Worker reconciles Host inventory                                 |
+| Terminal Host         | Worker starts or discovers the exact compatible version on first terminal use | May exit only under its accepted no-broker/no-retained-terminal policy; Host loss reports terminal loss           |
+| Agent Bridge          | One explicitly installed provider callback                                    | Exits after one bounded local-Worker attempt; failure is silent and fail-open for the invoking Agent              |
+| Web or Desktop Client | Explicit human launch                                                         | Releases only that Client Session unless the human separately requests a shared product or Site lifecycle command |
 
 Bare `orchbee` may initiate Server and local Worker activation and wait for bounded readiness. Once
 ready, each private process owns its own lifetime; the initiating Client is not its supervisor and
-Client exit is not a stop signal. Operating-system user services remain an optional later delivery
-mechanism. Exact launchd, systemd, Windows Service, login-time start, update, and uninstall policies
-remain reserved.
+Client exit is not a stop signal. Lazy start is the default. `orchbee site enable` may install
+per-user LaunchAgent or systemd-user units for always-on access; it never installs a root/system
+daemon. Exact unit files and platform adapters are implementation details constrained by the
+accepted user-service lifecycle above.
 
 ## Deployment shapes
 
@@ -454,13 +518,13 @@ orchbee TUI -----'
 This shape requires no Browser listener, Web renderer distribution, or Desktop shell. Server and
 Worker use local IPC while preserving the same identities and protocol semantics used across nodes.
 
-If Agent integration later accepts a helper, one candidate independent hook path is:
+When Agent observation is explicitly enabled, its independent hook path is:
 
 ```text
-Agent hook --> selected helper --> local Worker
+provider hook/plugin --> orchbee-agent-bridge --> local Worker
 ```
 
-Omitting the unaccepted helper changes no terminal-launch contract.
+Omitting Agent Bridge changes no terminal-launch contract.
 
 ### Web plus CLI and TUI
 
@@ -498,16 +562,16 @@ Machine A: Site
 Machine B: execution node
 |- Worker
 |- Terminal Host
-`- optional Agent helper (reserved)
+`- optional orchbee-agent-bridge (one-shot, only when invoked)
 
 Machine C: client only
 `- Desktop / TUI / Web / Mobile
 ```
 
-An unmanaged-SSH product capability may later be redesigned as a separate bootstrap, recovery, or
-temporary remote path. The current SSH Environment Runtime and protocol are not members of the
-target executable set, and a future adapter is not silently reclassified as an enrolled Worker or
-a generic `Environment` domain.
+The accepted Connect-via-SSH capability is a separate bootstrap, recovery, or temporary remote path.
+The current SSH Environment Runtime and protocol are not members of the target executable set, and
+the new temporary Worker connection is not silently reclassified as an enrolled Worker or a generic
+`Environment` domain.
 
 ## Control plane
 
@@ -548,15 +612,17 @@ Terminal Host <--> Worker <--> Server terminal relay <--> Client
 ```
 
 Server and Worker inspect only bounded routing, identity, role, authorization, queue, and recovery
-facts. They preserve terminal payload bytes and never emulate VT or become terminal-content
-authorities. Terminal frames, input, history, selection, and export stay outside the canonical
-Workbench commit queue.
+facts. They preserve bounded framed terminal projections without reinterpreting them and never
+emulate VT or become terminal-content authorities. Terminal frames, input, history, selection, and
+export stay outside the canonical Workbench commit queue.
 
-A later measured optimization may let a colocated native Client use
-`Terminal Host <--> Worker <--> Client`. That path would require an exact Server-issued attachment
-capability bound to Client
-Session, Terminal, Worker, connection/Host epoch, allowed operations, and expiry or revocation.
-Direct Worker attachment is not part of the accepted local-terminal milestone.
+A measured optimization may let a colocated native TUI or Desktop Client use
+`Terminal Host <--> Worker <--> Client`. The accepted design requires an exact short-lived
+Server-issued attachment capability bound to Client Session, Terminal, Worker, Host epoch,
+controller generation, allowed operations, and expiry or revocation. It is implemented only after
+relay measurements show need; Browser and mobile stay relayed, and no Client connects directly to
+Host. Server-Worker authority loss stops input/resize and permits at most one explicitly bounded
+read-only drain. Direct failure may request a fresh relay authorization, never replay unknown input.
 
 Server terminal relay may authenticate, route, enforce bounds, isolate backpressure, and request a
 fresh snapshot. It does not parse or emulate VT, own history, durably persist terminal content, or
@@ -582,8 +648,10 @@ automatically replay input with an unknown admission outcome.
    revision.
 2. Server authorizes and serializes the canonical transition.
 3. Server publishes the committed revision to all authorized Clients.
-4. If the transition requires terminal or Agent effects, Server reconciles them through exact Worker
-   operations and publishes typed outcomes without claiming cross-process atomicity.
+4. If the transition includes terminal creation, one Server-owned state machine coordinates the
+   Workbench mutation, durable terminal intent, exact Worker effect, and typed outcome. The Client
+   never performs two independently visible phases. Cross-process effects are reconciled explicitly
+   rather than falsely claimed as a database-atomic Host launch.
 
 ### Terminal creation
 
@@ -610,15 +678,14 @@ the resulting node-local directory used as intent `cwd`.
 
 ### Optional Agent observation
 
-This candidate flow is not accepted until the Agent review selects its topology:
-
-1. When the Agent capability is installed, an explicitly installed provider hook may invoke the
-   selected helper with bounded event data and exact execution context.
-2. The helper attempts one local Worker delivery and exits fail-open.
-3. Worker validates and associates the event with an authorized local execution before forwarding a
-   bounded observation.
-4. Server owns Agent semantic reduction, durable orchestration state, and publication to Clients.
-5. Terminal Host never derives Agent semantics from hook data.
+1. When the Agent capability is explicitly enabled, an installed provider hook/plugin invokes
+   `orchbee-agent-bridge` with bounded event data and exact execution context.
+2. Bridge sanitizes the event, attempts one local Worker delivery, waits for one exact ACK, emits the
+   private correlation half only after acceptance, and exits fail-open.
+3. Worker validates and joins the rich event and correlation against authorized Terminal and
+   Presentation generations before forwarding one bounded observation.
+4. Server owns Agent semantic reduction, canonical shared state, and publication to Clients.
+5. Terminal Host transports only the private bounded correlation and never derives Agent semantics.
 
 ## Multi-client terminal semantics
 
@@ -632,25 +699,26 @@ One retained terminal may have several attachment-scoped projections.
 | Canonical terminal geometry and terminal-generated resize | Selection presentation and platform copy effect         |
 | Clear, reset, close, and process termination outcomes     | Projection demand, pause, recovery, and local animation |
 
-Host attachment capabilities decide whether an attachment may read, input, or resize. Different
-Client Sessions may control different terminals. Several attachments may read one terminal, but the
-accepted local milestone grants input and the resize lease to at most one active controller for that
-terminal. Other attachments remain non-controlling.
-
-Explicit takeover, separate input and resize controllers, or opt-in collaborative input remains
-reserved. No policy may present multiple input streams as independent shells. Selecting, searching,
-copying, and scrolling history remain independent where they do not become application mouse or
-other PTY input.
+An attachment is a transient display/control relationship with a retained terminal; it does not
+create, clone, restart, or own that terminal. Host attachment capabilities decide whether an
+attachment may read, input, or resize. Different Client Sessions may control different terminals.
+Several attachments may read one terminal, but one combined input-and-resize controller exists at a
+time. Attach acquires it only when unowned; otherwise the Client is explicitly view-only. Release
+does not auto-promote another viewer. Normal transfer asks the current active owner; after observed
+disconnect plus grace and a modeled timeout, an authorized second-confirmation forced take commits a
+new Server controller generation and fence. Late prior-generation input or resize is rejected.
+Separate controllers and collaborative input remain excluded. Selecting, searching, copying, and
+scrolling history stay independent where they do not become application mouse or other PTY input.
 
 ## Protocol and transport boundaries
 
-| Boundary                          | Semantic purpose                                                                                                             | Local transport candidate        | Remote transport candidate                        |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------- |
-| Client to Server                  | Human session, snapshots, deltas, semantic commands including `TerminalCreateIntent`, attachment bootstrap, and remote relay | Unix-domain socket or named pipe | HTTPS plus bounded binary WebSocket or equivalent |
-| Server to Worker                  | Node enrollment, capability versions, `AuthorizedTerminalLaunch`, lease, heartbeat, fencing, progress, and result            | Unix-domain socket or named pipe | Authenticated encrypted outbound node connection  |
-| Worker to Terminal Host           | `HostLaunch`, exact terminal lifecycle, input, projection, history, selection, and Host inventory                            | Existing private Host IPC        | None                                              |
-| Agent helper to Worker (reserved) | One optional bounded local Agent hook observation, only if separately accepted                                               | Candidate private local IPC      | None                                              |
-| Local native Client to Worker     | Server-authorized high-volume terminal attachment when accepted                                                              | Scoped private local IPC         | Reserved; not required for the initial topology   |
+| Boundary                      | Semantic purpose                                                                                                               | Local transport candidate        | Remote transport candidate                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ------------------------------------------------- |
+| Client to Server              | Human session, snapshots, deltas, semantic commands including narrow OBCS Create/Start, attachment bootstrap, and remote relay | Unix-domain socket or named pipe | HTTPS plus bounded binary WebSocket or equivalent |
+| Server to Worker              | Node enrollment, capability versions, `AuthorizedTerminalLaunch`, lease, heartbeat, fencing, progress, and result              | Unix-domain socket or named pipe | Authenticated encrypted outbound node connection  |
+| Worker to Terminal Host       | `HostLaunch`, exact terminal lifecycle, input, projection, history, selection, and Host inventory                              | Existing private Host IPC        | None                                              |
+| Agent Bridge to Worker        | One optional bounded local Agent observation plus exact ACK                                                                    | Private local IPC                | None                                              |
+| Local native Client to Worker | Measured optimization carrying one Server-authorized live-terminal attachment                                                  | Scoped private local IPC         | None; Browser and mobile remain Server-relayed    |
 
 `Capability Node Protocol` names Server-Worker semantics, not an extra process or fixed transport.
 It runs over local IPC when colocated and over a network connection for a remote Worker.
@@ -659,6 +727,13 @@ Current TypeScript protocol packages cannot silently become the Rust contract. T
 implementation must choose one canonical schema and behavior source, generate or independently
 implement codecs with cross-language conformance evidence, and avoid two mutable protocol
 authorities.
+
+OBCS version 1 remains intentionally narrow: it owns Client-Server terminal Create and Start only.
+TUI submits one Workbench business intent, and Server coordinates the shared document mutation with
+terminal intent/effect reconciliation. A separate versioned, bounded live-terminal protocol owns
+display attachment, controller acquisition/transfer, OBTF frames and acknowledgements, input, and
+resize. Logical control and live protocols may share one physical connection, but neither exposes
+Host binding identities, Host capabilities, or raw PTY byte streams to a Client.
 
 ## Identity and fencing
 
@@ -680,9 +755,13 @@ automatically.
 
 ## Trust and security constraints
 
+- A local Human Client running as the same effective operating-system user may read its authorized
+  Workbench projection and submit ordinary terminal operations under Server policy. Terminal
+  ownership belongs to Site/Workbench state, not to the Client Session that created it; request
+  identities are correlation values, not capabilities. Remote authentication remains separate.
 - Human Client credentials and Worker device credentials remain distinct and non-interchangeable.
 - Worker normally initiates its Server connection; Terminal Host exposes no LAN or Internet
-  listener, and any future Agent helper must preserve that constraint.
+  listener, and Agent Bridge preserves that constraint.
 - Terminal Host retains its same-user local trust boundary and gains no Site authorization logic.
 - A Server-authorized local data path uses a narrowly scoped attachment capability, not ambient
   same-user access as product authorization.
@@ -699,21 +778,28 @@ automatically.
 
 ## Continuity and failure model
 
-| Event                                         | Required or candidate behavior                                                                                                        |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| CLI invocation exits                          | Ends only its request or observation                                                                                                  |
-| TUI, Web, Desktop, or mobile Client exits     | Releases that Client Session and attachments; shared state and retained terminals remain                                              |
-| Client transport loss                         | Marks the attachment disconnected; no deletion or terminal input replay                                                               |
-| Server unavailable                            | Workers and Hosts preserve independently retained execution; exact Client and Worker degraded behavior remains reserved               |
-| Server restart                                | Clients and Workers reconnect and reconcile Site revision, node generation, execution, Host inventory, and attachment state           |
-| Server-Worker link loss                       | Worker accepts no invented authority; retained Host terminals continue; bounded observation retention or loss policy remains reserved |
-| Worker restart                                | Host survives independently when possible; replacement Worker establishes a new generation and reconciles exact Host inventory        |
-| Terminal Host crash                           | Worker reports terminal loss; no PTY recovery is claimed                                                                              |
-| Node or operating-system restart              | Ordinary PTYs and processes may be lost; Site reports the distinct machine-restart outcome                                            |
-| Selected Agent helper unavailable or rejected | If that capability is accepted, the hook exits fail-open and creates no fabricated observation                                        |
-| Slow remote Client                            | Its bounded relay or attachment is paused or retired without blocking another Client or terminal                                      |
-| Lost terminal-input acknowledgement           | Outcome is unknown and never automatically replayed                                                                                   |
-| Version or protocol mismatch                  | Reject or quarantine the incompatible connection without replacing a Host that still owns retained terminals                          |
+| Event                                     | Required or candidate behavior                                                                                                                                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CLI invocation exits                      | Ends only its request or observation                                                                                                                                                                         |
+| TUI, Web, Desktop, or mobile Client exits | Releases that Client Session and attachments; shared state and retained terminals remain                                                                                                                     |
+| Client transport loss                     | Marks the attachment disconnected; no deletion or terminal input replay                                                                                                                                      |
+| Server unavailable                        | Host preserves retained execution; Worker accepts no input/resize without current Server authority and exits in the first milestone                                                                          |
+| Server restart                            | First unshipped milestone has no durable adoption: a successor accepts only exact known identity and otherwise reports `RecoveryRequired`; production later reconciles from the accepted transactional store |
+| Server-Worker link loss                   | Worker accepts no invented authority; retained Host terminals continue; bounded observation retention or loss policy remains reserved                                                                        |
+| Worker restart                            | Host survives independently when possible; replacement Worker establishes a new generation and reconciles exact Host inventory                                                                               |
+| Terminal Host crash                       | Worker reports terminal loss; no PTY recovery is claimed                                                                                                                                                     |
+| Node or operating-system restart          | Ordinary PTYs and processes may be lost; Site reports the distinct machine-restart outcome                                                                                                                   |
+| Agent Bridge unavailable or rejected      | The hook exits zero, stays silent, and creates no fabricated observation                                                                                                                                     |
+| Slow remote Client                        | Its bounded relay or attachment is paused or retired without blocking another Client or terminal                                                                                                             |
+| Lost terminal-input acknowledgement       | Outcome is unknown and never automatically replayed                                                                                                                                                          |
+| Version or protocol mismatch              | Reject or quarantine the incompatible connection without replacing a Host that still owns retained terminals                                                                                                 |
+
+For the first unshipped local milestone, Server loss closes the Worker control connection and the
+Worker exits; Host may retain its terminals. There is deliberately no durable Server adoption in
+that milestone. A successor that observes any nonempty Host inventory it cannot match exactly to
+its own known bindings fails closed with `RecoveryRequired`; it does not adopt, delete, replace, or
+send input. The production persistence contract above must be implemented and verified before this
+failure mode can be promoted to public release.
 
 ## Application responsibility migration
 
@@ -726,23 +812,22 @@ deletion.
 | `apps/cli`                       | **Accepted:** build the Rust `orchbee` CLI/TUI as a new Client, migrate only explicitly selected semantic capabilities, switch the packaged public entry atomically, then delete the Node workspace and its launch artifacts; old command and parameter compatibility is not required                                                                                                                                                                                                                                                                                                                                          |
 | `apps/orchbee-server`            | **Delivered additive boundary:** the Rust Server owns its in-memory kernel plus separate bounded same-user local Worker and Human Client listeners, admission registries, generations, and liveness attachments. After OBLC admission, Server consumes strict OBCS Create/Start requests sequentially on the same stream only to construct and attempt to write correlated `rejected/not-authorized` results without terminal or Worker effects. Next add authorized launch through a separately accepted slice, then later absorb production Browser ingress and remote terminal relay through separately accepted migrations |
 | `apps/server`                    | **Accepted replacement:** keep the delivered Node Browser-ingress preview authoritative until its supported behavior migrates to `apps/orchbee-server`, then delete the Node application and obsolete package identity in the same audited cohort                                                                                                                                                                                                                                                                                                                                                                              |
-| `apps/orchbee-worker`            | **Delivered additive boundary:** the separate Rust Worker owns bounded same-user Server registration, retained Worker generation, an authenticated exact-version Host broker connection with retained Host epoch and limits, coupled peer-loss cleanup, and an unintegrated deterministic OBCN authorization/replay/Host-dispatch kernel without terminal effects. Before a carrier invokes that kernel, define terminal retirement and binding capacity; then connect the exact OBCN carrier and Host command mapping. Remote enrollment remains later work                                                                   |
+| `apps/orchbee-worker`            | **Delivered additive boundary:** the separate Rust Worker owns bounded same-user Server registration, retained Worker generation, an authenticated exact-version Host broker connection with retained Host epoch and limits, coupled peer-loss cleanup, and an unintegrated deterministic OBCN authorization/replay/Host-dispatch kernel without terminal effects. The generation limit is accepted at 1,024 retained bindings with no implicit eviction; next connect the exact OBCN carrier and Host command mapping. Explicit retirement is required before production, and remote enrollment remains later work            |
 | `apps/terminal-host`             | **Delivered additive connection boundary:** retain the separate Zig application and Ghostty authority; the unshipped Worker now consumes its existing same-user endpoint and handshake as the normal broker connection without changing Zig, migrating Desktop/SSH adapters, sending a terminal command, or merging the process                                                                                                                                                                                                                                                                                                |
-| `apps/agent-bridge`              | **Reserved with Agent:** create no target until Agent integration, absence/failure, language, and cohort decisions are accepted                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `apps/desktop`                   | **Accepted outside reserved areas:** retain the Desktop Client shell, renderer bootstrap, packaging, platform effects, and application-local lifecycle; apply the exact non-SSH module disposition below and keep Agent, Worktree, Archive, Launch Profiles, and SSH-specific areas reserved                                                                                                                                                                                                                                                                                                                                   |
+| `apps/agent-bridge`              | **Accepted target:** add a private one-shot Rust `orchbee-agent-bridge` only with its first migrated provider integration. It is a versioned Capsule/libexec asset, talks only to local Worker, stays silent and fail-open, starts no service, and owns no durable state                                                                                                                                                                                                                                                                                                                                                       |
+| `apps/desktop`                   | **Accepted:** retain the Desktop Client shell, renderer bootstrap, packaging, platform effects, and application-local lifecycle; apply the complete target disposition below, including the separately accepted Agent, Worktree, Archive, Launch Profile, and SSH connection boundaries                                                                                                                                                                                                                                                                                                                                        |
 | `apps/web`                       | **Accepted:** retain the sole Browser/Desktop renderer application and absorb the React Workbench shell, browser interaction state, layout persistence, and presentation implementation from `@orchbee/workbench`                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `apps/gateway`                   | **Accepted retirement:** delete after Server owns the authenticated Browser session, terminal relay, and backpressure behavior and every supported Desktop/Web consumer migrates                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `apps/ssh-environment-runtime`   | **Accepted retirement:** it is not a target Worker or compatibility layer. Keep it only as current authority until an accepted slice migrates or explicitly sunsets every supported route and accounts for installed artifacts, then delete it; any later unmanaged-SSH implementation is a new design with no executable-compatibility requirement                                                                                                                                                                                                                                                                            |
+| `apps/ssh-environment-runtime`   | **Accepted retirement:** it is not a target Worker or compatibility layer. Keep it only as current authority until the accepted Worker/OpenSSH temporary-connection path migrates or explicitly sunsets every supported route and accounts for installed artifacts, then delete it; the replacement preserves the product capability, not the executable or wire contract                                                                                                                                                                                                                                                      |
 | `apps/storybook`                 | **Retain:** development-only visual evidence host; application-owned Web stories move with the React Workbench implementation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## Desktop Main target disposition
 
-The product owner delegated the non-SSH Desktop boundary and accepted this target disposition.
+The product owner delegated the Desktop boundary and accepted this target disposition.
 These are responsibility outcomes, not mechanical directory moves: an accepted row removes the
-current Desktop owner only after the destination behavior and recovery evidence exist. Rows marked
-reserved remain intentionally undecided.
+current Desktop owner only after the destination behavior and recovery evidence exist.
 
-| Current `apps/desktop/src/main` area                                                                                                      | Accepted or reserved target disposition                                                                                                                                                                                                                              |
+| Current `apps/desktop/src/main` area                                                                                                      | Accepted target disposition                                                                                                                                                                                                                                          |
 | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `client-session` and `workbench-document`                                                                                                 | **Move to Server, then remove from Desktop:** Server owns authenticated Client sessions, canonical Workbench state, commit, snapshot/delta publication, persistence, and reconciliation                                                                              |
 | Shared-document portions of `terminal-document-control` and `remote-terminal-creation`                                                    | **Move to Server, then remove from Desktop:** Clients submit terminal intent; Server owns the canonical mutation and authorized Worker placement. Desktop retains no terminal-create authority                                                                       |
@@ -750,18 +835,18 @@ reserved remain intentionally undecided.
 | `host`, `terminal-binding-registry`, and Host-facing portions of `terminal-lifetime` and `terminal-output-read`                           | **Move to Worker, then remove from Desktop:** Worker owns Host discovery, brokering, bindings, lifecycle effect dispatch, output-read routing, and inventory reconciliation; Terminal Host remains the terminal authority                                            |
 | `terminal-projection-control` and Host-facing `broker` behavior                                                                           | **Split, then reduce Desktop:** Server authorizes attachments and Worker routes Host data. Desktop may retain only a bounded Electron transport handoff needed by its sandboxed renderer; it owns no attachment policy, terminal state, or node routing              |
 | `browser-access` service lifecycle, authentication material, and relay composition; all of `gateway`                                      | **Move ingress/session/relay ownership to Server and delete the old composition:** Desktop may retain explicit Client actions to request access, open an approved URL, or copy it, but it does not supervise Gateway, sign Browser sessions, or relay terminals      |
-| Generic product-placement behavior in `environment`                                                                                       | **Delete from the target core:** native terminal placement resolves directly to Worker. Any registry code still required by the current SSH path remains only until the reserved SSH-specific disposition                                                            |
+| Generic product-placement behavior in `environment`                                                                                       | **Delete from the target core:** native terminal placement resolves directly to Worker. Current registry code remains only until the accepted SSH connection migration removes generic Environment from that path                                                    |
 | `project-folder-acquisition`                                                                                                              | **Retain only the Desktop platform adapter:** it may show a native picker and return the user-selected local path to the authorized Client workflow; it does not create canonical Project state or claim that a client-only machine is the selected Worker           |
-| `terminal-default-settings`                                                                                                               | **Split:** move node-local default interactive-shell resolution to Worker. Any product preference or named-profile behavior remains reserved with `terminal-launch-profiles`                                                                                         |
+| `terminal-default-settings`                                                                                                               | **Split:** move node-local default interactive-shell resolution to Worker; move the canonical revisioned named-profile catalog to Server; retain only Client presentation and preference editing in Desktop                                                          |
 | `application-lifetime`                                                                                                                    | **Split and retain only Desktop lifetime:** window/app quit and renderer teardown remain in Desktop; Site shutdown, shared terminal intent, Worker drain, and Host retention belong to their owning Server, Worker, and Host contracts                               |
 | `desktop-clipboard`, `window-actions`, `window-state`, `application-menu`, and `secure-keyboard-entry`                                    | **Retain in Desktop:** exact Client-local or operating-system effects                                                                                                                                                                                                |
 | `desktop-renderer-protocol`, preload bootstrap, and remaining `broker` adapters                                                           | **Reduce and retain:** expose only the minimum sandboxed renderer bootstrap and exact Desktop platform capabilities; remove Server, Worker, terminal-authority, Gateway, Agent-owner, and legacy Environment messages when their owning slices migrate               |
 | `composition` and `recovery`                                                                                                              | **Rewrite around retained Desktop responsibilities:** keep only Electron Client/platform composition and Client-local recovery; Server owns Site recovery, Worker owns node/Host reconciliation, and no replacement composition may recreate the removed authorities |
-| Shared Agent state in `agent-observation` and `agent-integration-management`                                                              | **Reserved with `@orchbee/agent`:** do not decide package, Server, Worker, Bridge, or Desktop presentation ownership in this review                                                                                                                                  |
-| `project-worktree`                                                                                                                        | **Reserved:** it remains optional and outside terminal baseline; this review does not decide retention, owner, Git authorization, journaling, cleanup, or deletion                                                                                                   |
-| `terminal-archive`                                                                                                                        | **Reserved:** do not move or delete it merely because live-terminal routing moves                                                                                                                                                                                    |
-| `terminal-launch-profiles` and non-baseline portions of `terminal-default-settings`                                                       | **Reserved:** do not decide named profiles, raw commands, argument vectors, preference scope, or compatibility here                                                                                                                                                  |
-| `ssh-environment`, `ssh-project-enrollment`, `remote-project`, SSH portions of `remote-terminal`, and the remaining SSH registry behavior | **Reserved:** the current SSH Runtime/protocol retirement is accepted, but the exact Desktop user-experience migration or deletion list waits for its own review                                                                                                     |
+| Shared Agent state in `agent-observation` and `agent-integration-management`                                                              | **Move canonical state to Server and node integration effects to Worker:** Desktop retains only its Client presentation and explicit platform interaction; provider callbacks migrate to private Rust Agent Bridge                                                   |
+| `project-worktree`                                                                                                                        | **Split:** Server owns semantic intent/reference, Worker owns the optional managed-root Git workflow and recovery journal, and Desktop retains only Client UI; first migration preserves create/discover/adopt without adding deletion                               |
+| `terminal-archive`                                                                                                                        | **Split:** Worker captures/stores the final platform-neutral snapshot, Server owns metadata/index/authorization, and Desktop retains only Client presentation; live VT/history remains in Host                                                                       |
+| `terminal-launch-profiles` and non-baseline portions of `terminal-default-settings`                                                       | **Split:** Server owns canonical catalog, scope, revision, permissions, and exact selected revision; Worker validates and executes; Desktop retains only Client presentation and editing                                                                             |
+| `ssh-environment`, `ssh-project-enrollment`, `remote-project`, SSH portions of `remote-terminal`, and the remaining SSH registry behavior | **Rewrite around `SshTarget`/`SshConnection`:** Server owns intent/state, selected local Worker runs system OpenSSH and temporary remote Worker/Host, and Desktop retains the first local interactive credential/host-verification UX; remove generic Environment    |
 
 The migration must update each source and destination `project.json` in the same accepted slice. A
 module is deleted only after its state, behavior, recovery, tests, and documentation have one
@@ -776,20 +861,20 @@ product-sunset evidence, and deletion of stale documentation and tests in one ac
 | Workspace or package                                                               | Candidate review outcome                                                                                                                                                                                                                                                                                                                       |
 | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@orchbee/gateway-protocol` and `apps/gateway`                                     | **Accepted coupled retirement:** delete after Server provides the one production Browser/session/relay contract and every supported Desktop/Web consumer migrates; neither old framing nor process topology is a compatibility target                                                                                                          |
-| `@orchbee/desktop-client-protocol`                                                 | **Accepted reduction:** retain only sandboxed Desktop bootstrap and exact platform-local capabilities; remove Server, Worker, terminal-authority, and Gateway messages after migration. Agent and SSH-specific messages follow their reserved reviews rather than gaining permanent ownership here                                             |
+| `@orchbee/desktop-client-protocol`                                                 | **Accepted reduction:** retain only sandboxed Desktop bootstrap and exact platform-local capabilities; remove Server, Worker, terminal-authority, Gateway, canonical Agent, managed-Worktree, Archive, Profile, and SSH execution messages after their accepted migrations                                                                     |
 | `@orchbee/remote-client-protocol`                                                  | **Accepted retention:** keep the human Client boundary; expand only through accepted production session and relay slices, never with Worker device semantics                                                                                                                                                                                   |
 | `@orchbee/semantic-command-protocol`                                               | **Accepted decomposition:** retain deliberately selected semantic operations only as framework-neutral contracts/TS bindings while consumed; replace or retire current CLI-specific HTTP/locator transport at cutover, with no syntax compatibility, and use the accepted cross-language schema authority for Rust                             |
 | `@orchbee/workbench-client-protocol`                                               | **Accepted bounded retention:** keep only as the TypeScript binding for a transport-neutral Client session, semantic-intent, snapshot, and delta boundary while real TS consumers remain; the canonical cross-language schema is framework-neutral, and Rust/mobile bindings do not depend on this package                                     |
 | `@orchbee/terminal-protocol`                                                       | **Accepted retention:** keep as the Host boundary and add Rust conformance without creating a second protocol authority                                                                                                                                                                                                                        |
 | `@orchbee/ssh-environment-protocol` and `apps/ssh-environment-runtime`             | Accepted coupled retirement candidates; their source, wire, services, names, and release cohort are not target compatibility contracts. Delete them together only after current consumers, supported-route migration or sunset, installed-artifact handling, and rollback are accepted and verified                                            |
-| `@orchbee/agent`                                                                   | **Reserved:** make no package or ownership disposition in this review                                                                                                                                                                                                                                                                          |
+| `@orchbee/agent`                                                                   | **Accepted decomposition and deletion:** move its deterministic canonical state machine to Rust Server, define one cross-language schema, move node-local integration effects to Worker and provider ingress to Agent Bridge, move Web presentation to `apps/web`, then delete the mixed TypeScript package after migration evidence           |
 | `@orchbee/workbench`                                                               | **Accepted decomposition and deletion:** move its React shell, browser-local interaction state, layout persistence, styles, and stories into `apps/web`; extract shared vocabulary and snapshot/delta contracts to the framework-neutral cross-language authority; move canonical transitions to Server; then delete the mixed browser package |
 | `@orchbee/actions`                                                                 | **Accepted retention:** keep framework-independent action discovery and Client-side execution lifecycle while the Web renderer consumes it; do not turn it into a second Server command authority                                                                                                                                              |
 | `@orchbee/foundation`                                                              | **Accepted retention with pruning:** keep dependency-light domain-neutral primitives with surviving cross-workspace consumers; audit orphan exports after each owner migration rather than moving backend behavior into it                                                                                                                     |
 | `@orchbee/keyboard-shortcuts`                                                      | **Accepted retention:** keep TypeScript Client shortcut normalization while Web or Desktop consumes it; Rust TUI owns its platform input adapter and may share identifiers only through an accepted contract                                                                                                                                   |
 | `@orchbee/terminal`                                                                | **Accepted retention:** keep the Browser/Desktop terminal renderer; Rust TUI consumes Terminal Protocol through its own renderer and does not make this browser package obsolete                                                                                                                                                               |
 | `@orchbee/ui`, `@orchbee/tab-strip`, `@orchbee/i18n`, and `@orchbee/design-tokens` | **Accepted retention:** keep while the Web/Desktop renderer consumes them; backend migration alone is not evidence for deletion                                                                                                                                                                                                                |
-| Current Desktop Main modules                                                       | Apply the accepted non-SSH target-disposition table above; keep Agent, Worktree, Archive, Launch Profiles, and SSH-specific rows reserved; do not preserve compatibility wrappers without a released compatibility need                                                                                                                        |
+| Current Desktop Main modules                                                       | Apply the complete accepted target-disposition table above; do not preserve compatibility wrappers without a released compatibility need                                                                                                                                                                                                       |
 
 The first reduction target is duplicated ownership, not package count. A small package with one
 real owner and several consumers may remain; a large compatibility package with no surviving
@@ -831,7 +916,7 @@ authoritative until an accepted migration switches a complete consumer path.
 | Rust repository contract        | The root Cargo workspace, pinned toolchain, Rust standards, project-contract support, and root verification are current repository infrastructure owned by [`docs/RUST.md`](../../docs/RUST.md) and the root build files.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Workbench projection contract   | JSON Schema version 1 plus independent TypeScript and Rust bindings provide bounded read-only snapshots and atomic deltas. The schemas, package guide, crate contract, and conformance corpus own the maintained facts; no current writer or consumer has migrated.                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Client-Server terminal contract | [`schemas/client-server`](../../schemas/client-server/README.md) and [`orchbee-client-server-protocol`](../../crates/client-server-protocol/README.md) own the strict bounded OBCS version 1 terminal Create/Start intent and result contract, including its cross-language corpus and at-most-once producer obligations. The private Server consumes it only for the deny-only Session phase; no Client runtime consumes it yet.                                                                                                                                                                                                                                               |
-| Server-Worker launch contract   | [`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.md) owns the bounded OBCN version 1 authorization and result encoding, while Server's checked launch-authorization model and Worker's unintegrated private kernel own admission, fencing, exact replay, handoff, and result behavior under the documented Server-producer invariant. No carrier or Host command adapter consumes the kernel yet; terminal retirement and binding capacity must be accepted before that integration.                                                                                                                                                           |
+| Server-Worker launch contract   | [`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.md) owns the bounded OBCN version 1 authorization and result encoding, while Server's checked launch-authorization model and Worker's unintegrated private kernel own admission, fencing, exact replay, handoff, and result behavior under the documented Server-producer invariant. No carrier or Host command adapter consumes the kernel yet; the accepted generation bound is 1,024 retained bindings with no implicit eviction, and explicit retirement remains a production prerequisite.                                                                                               |
 | Native `orchbee` entry          | [`apps/orchbee`](../../apps/orchbee/README.md) owns the unshipped empty, `--help`, and `--version` foundation and its reference startup measurements. Bare invocation still reports that the TUI is unavailable.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Rust Server kernel and service  | [`apps/orchbee-server`](../../apps/orchbee-server/README.md) owns bounded Workbench reads, failure-atomic in-memory projection publication selection, and separate unshipped private same-user local Worker and Human Client services. The Worker service admits one compatible Worker; the Client service admits up to eight independent compatible Client Sessions with bounded candidate handling. Both own nonzero generation-scoped liveness and cleanup. The Client service sequentially denies strict post-admission OBCS terminal intents without an effect; Server has no successful terminal processing, activation, persistence, packaging, or production lifecycle. |
 | Terminal Client authority model | The Server-owned [`LocalTerminalClientAuthority`](../../apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.tla) refinement model checks peer Client Sessions, multiple viewers, one combined input-and-resize controller per terminal, generation-scoped cleanup, and independently ordered Client, Server, Worker, Host, and terminal loss. It records the accepted target authority but does not add runtime messages or implement attach, control, takeover, or automatic controller promotion.                                                                                                                                                                     |
@@ -849,33 +934,33 @@ dependency-ordered implementation slices after accepting the observable behavior
 boundaries, exclusions, evidence, and rollback below. A slice must return for review only when it
 discovers a materially different product outcome, owner, public contract, risk, or exclusion.
 
-| Field                   | Accepted decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem                 | The native entry, Server kernel, and Rust Host binding are individually verified but do not form a runnable product path. Continuing message-by-message parity would increase unused protocol surface while leaving the one-command experience, Worker boundary, process lifetime, real terminal rendering, and IPC performance untested.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Outcome                 | On one supported local machine, bare `orchbee` discovers or lazily activates the exact compatible private Server and local Worker cohort, enters a real TUI Client Session, and can create or attach one default-interactive-shell terminal whose actual output, input, and resize flow through the retained Zig Terminal Host. Closing one Client never implicitly terminates the Site, private services, or a retained terminal. A later invocation joins the same Site as another independent Client Session.                                                                                                                                                                                                                                                                                                                            |
-| Scope                   | Deliver the private Rust Server service boundary, one private Rust local Worker, existing Zig Host discovery or activation, bounded same-user local IPC, minimal default-shell terminal intent with optional node-local `cwd`, Host launch mapping, create/attach/output/input/resize flow, a real single-terminal TUI surface, bounded relay queues, version-cohort rejection, and the process/fault/performance evidence required for that path.                                                                                                                                                                                                                                                                                                                                                                                          |
-| Client model            | TUI, Web, Desktop, mobile, separate browser tabs, separate Desktop windows, and repeated `orchbee` invocations are peers under one Client model. Each active instance has its own Client Session and local focus, active location, viewport, scroll, and presentation state. Shared Workspace, Tab, Panel, and Terminal facts come from Server. Terminal Host sees typed attachments and capabilities, never renderer identity.                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Terminal control        | Different Clients may control different terminals. Several Client Sessions may view one terminal through separate attachments, but the milestone admits only one active input-and-resize controller for that terminal. Another attachment remains non-controlling; explicit takeover and collaborative input remain later decisions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Activation and lifetime | Bare `orchbee` may initiate bounded lazy activation of the exact installed private cohort and wait for readiness, but it does not remain the Server or Worker's lifetime supervisor after readiness. `--help` and `--version` remain side-effect free. Client exit releases only that Client Session and its attachments. Exact daemonization or platform service mechanics are delegated implementation choices that must preserve singleton, version, cleanup, and failure claims.                                                                                                                                                                                                                                                                                                                                                        |
-| Launch boundary         | Client intent never supplies authoritative Worker placement, lease, generation, fence, executable, arbitrary arguments, Environment, Project, Checkout, Worktree, or Agent identity. Server selects the one local Worker; Worker resolves the accepted default interactive shell and omitted local defaults; Host receives only its exact launch facts. The first milestone sends an empty transient environment overlay.                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Data path               | The first complete path is `Terminal Host <-> Worker <-> Server <-> Client`. Worker and Server validate routing, identity, role, size, queue, and authorization facts but do not emulate VT or reinterpret frame content. A direct local Client-to-Worker attachment is not part of this milestone and requires measured need plus a separately accepted scoped-capability design.                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Trust                   | The milestone exposes private same-operating-system-user local endpoints only. It adds no LAN or Internet listener, Cookie-to-device credential conversion, ambient direct Host access, or multi-user claim. Wrong peer role, stale identity, malformed data, and incompatible versions fail closed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Claims                  | One local Site has at most one active Server authority and one admitted local Worker identity. Help/version start no service. Mutating intent is submitted at most once and unknown terminal input is never replayed. A slow Client cannot block Worker progress or another Client. Client disconnect does not imply terminal termination. Server never becomes a VT/history authority, Worker never becomes a generic command/filesystem service, and the baseline terminal requires no Project, repository, Worktree, Environment, or Agent state.                                                                                                                                                                                                                                                                                        |
-| Non-goals               | No complete Workbench UI, additional public CLI grammar, selection/export/history/theme/clear/reset feature parity, direct Worker data path, final collaborative-input or takeover UX, Agent helper, managed Worktree, Archive, Launch Profile, SSH redesign, remote Worker, Web/mobile migration, Gateway/SSH/Workbench/old-CLI deletion, production TLS, multi-user tenancy, durable Server recovery, operating-system-restart PTY recovery, login-time service installation, package-manager release, public cutover, or compatibility promise is admitted.                                                                                                                                                                                                                                                                              |
-| Evidence                | Model singleton activation, independently ordered Client/Server/Worker/Host loss, controller ownership, bounded queues, and unknown input outcome where the existing topology model is insufficient. Add process tests for absent/present/incompatible cohorts, two simultaneous Client Sessions, Client exit with retained terminal, malformed peers, Host loss, and bounded shutdown. Add an end-to-end real PTY trace for create, attach, frame, input, resize, detach, reattach, and exit. Measure warm/cold activation, input latency, frame throughput, copies, queue memory, and slow-client isolation before proposing a direct path or numerical release budget. The applicable focused checks and root `pnpm verify` remain required; the manual focus-stealing native-window test remains excluded unless explicitly authorized. |
-| Delivery and rollback   | First converge the three owning proposals. Then deliver a no-terminal-effect process spine, the minimal launch/Host broker, the relayed terminal stream, the TUI adapter, and finally loss/performance convergence. Each slice stays additive and unshipped, has no durable migration, and leaves current Desktop behavior authoritative. Rollback removes the new unused slice or returns to the last verified additive spine; it never deletes or switches an existing consumer.                                                                                                                                                                                                                                                                                                                                                          |
+| Field                   | Accepted decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Problem                 | The native entry, Server kernel, and Rust Host binding are individually verified but do not form a runnable product path. Continuing message-by-message parity would increase unused protocol surface while leaving the one-command experience, Worker boundary, process lifetime, real terminal rendering, and IPC performance untested.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Outcome                 | On one supported local machine, bare `orchbee` discovers or lazily activates the exact compatible private Server and local Worker cohort, enters a real TUI Client Session, and can create or attach one default-interactive-shell terminal whose actual output, input, and resize flow through the retained Zig Terminal Host. Closing one Client never implicitly terminates the Site, private services, or a retained terminal. A later invocation joins the same Site as another independent Client Session.                                                                                                                                                                                                                                                                                                                                       |
+| Scope                   | Deliver the private Rust Server service boundary, one private Rust local Worker, existing Zig Host discovery or activation, bounded same-user local IPC, minimal default-shell terminal intent with optional node-local `cwd`, Host launch mapping, create/attach/output/input/resize flow, a real single-terminal TUI surface, bounded relay queues, version-cohort rejection, and the process/fault/performance evidence required for that path.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Client model            | TUI, Web, Desktop, mobile, separate browser tabs, separate Desktop windows, and repeated `orchbee` invocations are peers under one Client model. Each active instance has its own Client Session and local focus, active location, viewport, scroll, and presentation state. Shared Workspace, Tab, Panel, and Terminal facts come from Server. Terminal Host sees typed attachments and capabilities, never renderer identity.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Terminal control        | Different Clients may control different terminals. Several Client Sessions may view one terminal through separate attachments, but the milestone admits only one active input-and-resize controller for that terminal. Another attachment remains non-controlling. The accepted transfer/forced-take contract above is a later implementation slice; collaborative input remains excluded.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Activation and lifetime | Bare `orchbee` may initiate bounded lazy activation of the exact installed private cohort and wait for readiness, but it does not remain the Server or Worker's lifetime supervisor after readiness. `--help` and `--version` remain side-effect free. Client exit releases only that Client Session and its attachments. Exact daemonization or platform service mechanics are delegated implementation choices that must preserve singleton, version, cleanup, and failure claims.                                                                                                                                                                                                                                                                                                                                                                   |
+| Launch boundary         | Client intent never supplies authoritative Worker placement, lease, generation, fence, executable, arbitrary arguments, Environment, Project, Checkout, Worktree, or Agent identity. Server selects the one local Worker; Worker resolves the accepted default interactive shell and omitted local defaults; Host receives only its exact launch facts. The first milestone sends an empty transient environment overlay.                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Data path               | The first complete path is `Terminal Host <-> Worker <-> Server <-> Client`. Worker and Server validate routing, identity, role, size, queue, and authorization facts but do not emulate VT or reinterpret frame content. A direct local Client-to-Worker attachment is not part of this milestone; measurements gate the already accepted scoped-capability optimization above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Trust                   | The milestone exposes private same-operating-system-user local endpoints only. It adds no LAN or Internet listener, Cookie-to-device credential conversion, ambient direct Host access, or multi-user claim. Wrong peer role, stale identity, malformed data, and incompatible versions fail closed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Claims                  | One local Site has at most one active Server authority and one admitted local Worker identity. Help/version start no service. Mutating intent is submitted at most once and unknown terminal input is never replayed. A slow Client cannot block Worker progress or another Client. Client disconnect does not imply terminal termination. Server never becomes a VT/history authority, Worker never becomes a generic command/filesystem service, and the baseline terminal requires no Project, repository, Worktree, Environment, or Agent state.                                                                                                                                                                                                                                                                                                   |
+| Non-goals               | No complete Workbench UI, additional public CLI grammar, selection/export/history/theme/clear/reset feature parity, direct Worker data path, final collaborative-input or takeover UX, Agent helper, managed Worktree, Archive, Launch Profile, SSH redesign, remote Worker, Web/mobile migration, Gateway/SSH/Workbench/old-CLI deletion, production TLS, multi-user tenancy, durable Server recovery, operating-system-restart PTY recovery, login-time service installation, package-manager release, public cutover, or compatibility promise is admitted.                                                                                                                                                                                                                                                                                         |
+| Evidence                | Model singleton activation, independently ordered Client/Server/Worker/Host loss, controller ownership, bounded queues, and unknown input outcome where the existing topology model is insufficient. Add process tests for absent/present/incompatible cohorts, two simultaneous Client Sessions, Client exit with retained terminal, malformed peers, Host loss, and bounded shutdown. Add an end-to-end real PTY trace for create, attach, frame, input, resize, detach, reattach, and exit. Measure warm/cold activation, input latency, frame throughput, copies, queue memory, and slow-client isolation before enabling the direct path or setting a numerical release budget. The applicable focused checks and root `pnpm verify` remain required; the manual focus-stealing native-window test remains excluded unless explicitly authorized. |
+| Delivery and rollback   | First converge the three owning proposals. Then deliver a no-terminal-effect process spine, the minimal launch/Host broker, the relayed terminal stream, the TUI adapter, and finally loss/performance convergence. Each slice stays additive and unshipped, has no durable migration, and leaves current Desktop behavior authoritative. Rollback removes the new unused slice or returns to the last verified additive spine; it never deletes or switches an existing consumer.                                                                                                                                                                                                                                                                                                                                                                     |
 
 ## Delivery and migration sequence
 
-| Milestone                  | Independently reviewable outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Native foundations         | **Complete and unshipped:** repository/Cargo support, read-only Workbench projection contracts, the native entry foundation, the in-memory Server projection kernel, and the independent Rust Terminal Host binding. Their owning guides and executable tests maintain current facts.                                                                                                                                                                                                                                                                                                            |
-| Local terminal vertical    | **In progress and unshipped:** the real local Server-Worker and Client Session spines, deny-only Server OBCS phase, checked terminal Client authority model, strict OBCS terminal-control contract, OBCN authorization contract, Worker authorization kernel, and Worker-Host broker connection, handshake, and coupled-loss boundary are complete. Next define Worker binding retirement/capacity, connect authorized Server processing to the OBCN carrier and Host command mapping, and then deliver the relayed terminal stream, real TUI adapter, and remaining fault/performance evidence. |
-| Shared Web/Desktop Client  | After the local authority path exists, move React Workbench presentation into `apps/web`, migrate shared semantic transitions to Server, retain Desktop-only platform effects, and delete `@orchbee/workbench` only after its complete responsibility audit.                                                                                                                                                                                                                                                                                                                                     |
-| Browser ingress retirement | Move supported Browser session, terminal relay, and backpressure behavior into Server, migrate Web/Desktop consumers, then delete `apps/gateway`, `@orchbee/gateway-protocol`, and superseded Desktop composition as one reversible cohort.                                                                                                                                                                                                                                                                                                                                                      |
-| Optional capabilities      | Review Agent, managed Worktree, Archive, Launch Profiles, SSH-specific Desktop behavior, and any future unmanaged-SSH design under their own owners; none is required for the terminal baseline.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Distributed operation      | Add enrolled remote Workers, mobile or remote Clients, production authentication, recovery, compatibility, and optimized direct attachments one accepted capability at a time.                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Legacy retirement          | Delete the current SSH Runtime/protocol, old CLI, Gateway, Workbench package, and reduced Desktop authorities only after each accepted replacement or sunset slice proves consumer, artifact, migration, and rollback coverage.                                                                                                                                                                                                                                                                                                                                                                  |
+| Milestone                            | Independently reviewable outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native foundations                   | **Complete and unshipped:** repository/Cargo support, read-only Workbench projection contracts, the native entry foundation, the in-memory Server projection kernel, and the independent Rust Terminal Host binding. Their owning guides and executable tests maintain current facts.                                                                                                                                                                                                                                                                                                             |
+| Local terminal vertical              | **In progress and unshipped:** the real local Server-Worker and Client Session spines, deny-only Server OBCS phase, checked terminal Client authority model, strict OBCS terminal-control contract, OBCN authorization contract, Worker authorization kernel, and Worker-Host broker connection, handshake, and coupled-loss boundary are complete. The 1,024-binding generation limit is accepted; next connect authorized Server processing to the OBCN carrier and Host command mapping, then deliver the relayed terminal stream, real TUI adapter, and remaining fault/performance evidence. |
+| Shared Web/Desktop Client            | After the local authority path exists, move React Workbench presentation into `apps/web`, migrate shared semantic transitions to Server, retain Desktop-only platform effects, and delete `@orchbee/workbench` only after its complete responsibility audit.                                                                                                                                                                                                                                                                                                                                      |
+| Browser ingress retirement           | Move supported Browser session, terminal relay, and backpressure behavior into Server, migrate Web/Desktop consumers, then delete `apps/gateway`, `@orchbee/gateway-protocol`, and superseded Desktop composition as one reversible cohort.                                                                                                                                                                                                                                                                                                                                                       |
+| Optional capabilities                | Implement the accepted Agent observation, managed Worktree, Archive, Launch Profile, and Connect-via-SSH contracts as independent owner-specific migrations; none is required for the terminal baseline.                                                                                                                                                                                                                                                                                                                                                                                          |
+| Production and distributed operation | Implement accepted local persistence/recovery, user services, cohort updates, controller transfer, and measured direct attachment independently. Remote enrollment, production human/device identity, TLS/Internet ingress, multi-user tenancy, and mobile backgrounding still require later decisions.                                                                                                                                                                                                                                                                                           |
+| Legacy retirement                    | Delete the current SSH Runtime/protocol, old CLI, Gateway, Workbench package, and reduced Desktop authorities only after each accepted replacement or sunset slice proves consumer, artifact, migration, and rollback coverage.                                                                                                                                                                                                                                                                                                                                                                   |
 
 Rollback preserves one canonical writer. Every local-terminal slice is additive and unshipped,
 so rollback removes only its unused artifacts or returns to the last verified process spine.
@@ -921,101 +1006,135 @@ implementation.
 
 ## Accepted decisions from product review
 
-1. Terminal launch is independent of Project, repository, Checkout, Worktree, and generic
-   Environment identity. Future native placement resolves directly to one Server-authorized Worker;
-   current SSH Environment behavior remains unchanged until an accepted migration.
-2. One public Rust `orchbee` executable owns both CLI and TUI Client surfaces. The current
-   TypeScript `apps/cli` is replaced and deleted after cutover; its source, commands, parameters,
-   output, exit meanings, and Desktop-specific launcher contract are not compatibility targets.
-3. Terminal-only cohorts do not require Agent Bridge, Agent orchestration, or managed Worktree.
-4. The new launch boundary preserves current Host geometry/start rules, non-persistent overlay
-   semantics, and same-Worker split/child `currentCwd` inheritance unless a later explicit product
-   decision replaces an observable behavior.
-5. The current `apps/ssh-environment-runtime` and `@orchbee/ssh-environment-protocol` are excluded
-   from the target architecture and are deleted together after an accepted migration or product
-   sunset. Any future unmanaged-SSH capability is a new design and has no source, executable,
-   package-name, wire, service, release-cohort, or Desktop-composition compatibility obligation.
-6. `apps/gateway` and `@orchbee/gateway-protocol` are deleted together after Server assumes the
-   supported Browser-session, terminal-relay, and backpressure behavior and consumers migrate.
-   Their process split and framing are not compatibility targets.
-7. The current mixed `@orchbee/workbench` browser package is decomposed and deleted. React UI,
-   browser-local interaction state, layout persistence, styles, and Stories move to `apps/web`;
-   Server owns canonical Workbench transitions; framework-neutral semantic-intent, snapshot, and
-   delta contracts use a cross-language authority. TUI and mobile own separate renderers, and CLI
-   may return a bounded versioned semantic projection snapshot rather than Web UI state.
-8. The non-SSH Desktop Main target-disposition table is accepted. Agent, managed Worktree, Terminal
-   Archive, Launch Profiles, and SSH-specific Desktop areas remain reserved and are not decided by
-   neighboring migrations.
-9. The target baseline uses four separate executables: public Rust `orchbee`, private Rust
-   `orchbee-server`, private Rust `orchbee-worker`, and private Zig `orchbee-terminal-host`.
-   Colocation does not merge their roles or lifecycles. No Agent helper executable is accepted.
-10. The Phase 1 Rust repository decision is accepted: one pinned root Cargo workspace, executable
-    crates under `apps/*`, reusable Rust libraries under `crates/*`, direct root-gate integration,
-    `native` as the runtime classification, and `Cargo.toml` as the implementation-language authority.
-11. The first additive Phase 2 slice uses strict JSON Schema 2020-12 under
-    `schemas/workbench/v1` as the language-neutral authority. It admits only a read-only snapshot
-    intent, complete bounded projection snapshots, atomic revision-chained aggregate deltas, and
-    independent TypeScript/Rust bindings with one canonical conformance corpus. It changes no
-    current writer, consumer, transport, persistence, or runtime behavior.
-12. The additive Phase 3A slice creates an unshipped Rust `apps/orchbee` application and admits
-    only exact empty, `--help`, and `--version` dispatch. Empty dispatch reports the explicit
-    development-unavailable TUI state; authored help and diagnostics ship in `en-US` and `zh-CN`;
-    no Server, Worker, Host, TUI, business command, packaging, current CLI migration, or deletion is
-    admitted. Its release-profile measurements are a reference baseline, not acceptance budgets.
-13. TUI, Web, Desktop, mobile, browser tabs, Desktop windows, and repeated native invocations use
-    one Client/Client Session model. Renderer form never changes authority; shared product state
-    comes from Server and active location, focus, viewport, scroll, and presentation remain local to
-    each Client Session.
-14. The first local-terminal path relays through Server. Bare `orchbee` may lazily activate the
-    exact private Server and local Worker cohort without supervising their lifetime, while help and
-    version remain side-effect free. Client exit does not stop the Site or a retained terminal.
-15. During the accepted local milestone, several attachments may view one terminal but at most one
-    active controller holds input and resize authority. Direct Worker attachment, takeover, and
-    collaborative input require later acceptance.
-16. Rust Terminal Host protocol work is consumer-driven after the completed foundation. Message
-    codecs that are not required by the next vertical runtime slice do not advance independently.
-17. OBCS version 1 is the strict language-neutral Client-Server terminal Create/Start contract.
-    Client request identities are producer-owned correlation values, mutating intent is submitted
-    at most once, transport ambiguity is reconciled through a later read-only boundary, and Server
-    maintains no protocol-required replay ledger. The Rust binding and bidirectional numeric corpus
-    are delivered; the private Server consumes them only to construct and attempt to write
-    sequential correlated `rejected/not-authorized` results without an effect, and no Client
-    runtime consumes them yet.
-18. OBCN version 1 and `TerminalLaunchAuthorization` own the Server-Worker authorization contract.
-    Worker's private deterministic kernel implements its admission, fencing, exact cached replay,
-    pre-effect handoff, and typed result behavior under the active Server authority's global-fresh
-    `OperationId` producer invariant. It remains unintegrated; terminal retirement and binding
-    capacity must be accepted before a carrier may invoke it.
+1. One Worker generation admits at most 1,024 retained terminal bindings. Existing results remain
+   available for exact replay and fencing; capacity rejects only new identities. There is no TTL,
+   LRU, or implicit eviction. Explicit retirement is required before production.
+2. A full-screen TUI submits immediate first creation only after obtaining complete real cell and
+   pixel geometry. It never invents 80x24. Deferred Create plus complete Start remains valid for
+   Clients that do not yet know real geometry.
+3. TUI is a peer Workbench Client like Web, Desktop, and mobile. Shared document membership and
+   ordering belong to Server; every Client owns an independent Client View. Bare TUI opens the
+   standalone terminal context, creates its first terminal exactly once when empty, and uses normal
+   Tab navigation rather than a startup picker. Closing the last Tab leaves an empty context.
+4. Attachment means a transient display/control relationship to an existing retained terminal. It
+   never creates, clones, restarts, or owns the terminal. Several viewers are allowed; one combined
+   input-and-resize controller is acquired only when unowned, and release never auto-promotes or
+   steals. Product copy says “open” or “connect”.
+5. TUI exit detaches only, and no last-Client rule stops the Site. The first unshipped milestone has
+   no durable Server adoption: Server loss closes Worker; Host may retain terminals; unmatched
+   nonempty Host inventory yields `RecoveryRequired` with no automatic adoption, deletion, or
+   replacement. Production recovery is a pre-release requirement.
+6. Same-effective-user local Human Clients may read the authorized Workbench and submit ordinary
+   terminal operations under Server policy. Terminals belong to Site/Workbench state, not their
+   creator Client Session; a request identity is not a capability. Remote auth remains separate.
+7. OBCS v1 remains the narrow Create/Start Client-Server contract. One TUI business intent lets
+   Server coordinate Workbench mutation and terminal creation; Clients do not run two phases. A
+   separate bounded live-terminal protocol owns attachment, controller, OBTF frames/ACKs, input, and
+   resize without exposing Host identities, capabilities, or raw PTY authority.
+8. Bare/standalone launch starts in Worker user home; Workspace launch uses its Primary Directory;
+   Current Directory uses validated same-Worker `currentCwd`. Bare invocation never infers caller
+   cwd. Default shell resolution is valid absolute `$SHELL`, OS account shell, then `/bin/sh`, with
+   no forced login arguments. Default environment is `TERM=xterm-256color`, `COLORTERM=truecolor`,
+   and `TERM_PROGRAM=ghostty`, without old product or caller-transient variables.
+9. TUI uses a full-screen alternate screen, Orchbee business sidebar, Workbench tabs/panels, and a
+   real terminal, collapsing the sidebar on narrow layouts. Ratatui/Crossterm and the documented
+   `Ctrl+B` prefix map are the initial implementation contract. HERDR and tmux/Zellij are research
+   references only; no source or assets are copied.
+10. Bare `orchbee` is TTY-only, connects first, and uses one per-user activation lock when the Site
+    is absent. Concurrent invocations converge on one Server/Worker cohort and each creates a TUI;
+    Host stays lazy. Success is silent when fast, delayed startup has localized progress, one total
+    monotonic deadline fails explicitly, and the Client never kills or downgrades an existing Site.
+11. One Rust `orchbee` exposes bare/explicit TUI and the accepted resource-first command families in
+    the CLI proposal. There is no public `orchbee server`, fuzzy abbreviation, old raw-session mode,
+    or restored `--skill`; Site lifecycle is under `orchbee site`, and update behavior respects the
+    installation manager.
+12. Human-readable localized output is default. Explicit machine output is stable versioned JSON;
+    streams use NDJSON; stdout contains data and stderr contains diagnostics. Stable semantic exit
+    categories are accepted while exact numeric values and schemas remain slice decisions.
+13. CLI inputs are explicitly selected and bounded; secrets never use argv. Mutations carry one
+    globally unique request identity, submit at most once, never retry unknown results, and require
+    explicit noninteractive confirmation when destructive. Detached execution is only for durable,
+    observable operations; completion is generated from the accepted grammar.
+14. The old TypeScript CLI grammar and output are not compatibility targets. Migrate selected
+    semantics and every consumer first, remove old `--skill`, publish future Skills as owner-versioned
+    assets, atomically switch one public entry, then delete `apps/cli` and its launch artifacts.
+15. Standard packaging exposes `bin/orchbee` and private versioned libexec artifacts. Shell,
+    Homebrew, and npm distribute one signed/digest-verified native cohort; npm platform packages do
+    not require Node at runtime. macOS/Linux come first. Atomic side-by-side install and rollback,
+    migration evidence, and measured budgets precede public cutover.
+16. Agent observation uses private one-shot Rust `orchbee-agent-bridge` from a versioned Capsule.
+    Bridge is local-only, bounded, silent, fail-open, nonactivating, and stateless. Worker joins the
+    acknowledged rich event and private correlation; Server owns canonical Agent semantics; Clients
+    render. Observation precedes launch/orchestration, and content capture is off by default. The
+    mixed TypeScript Agent package is decomposed and deleted only after migration.
+17. Managed Worktree is an optional upstream capability. Server owns semantic intent/reference; an
+    exact Worker capability owns Git, a private managed root, journal, compensation, and recovery.
+    First migration covers create/discover/adopt, never infers creation, and gives adopted external
+    paths no delete ownership. Terminal receives only an ordinary cwd.
+18. Explicit Stop asks Worker to capture and atomically store one final platform-neutral terminal
+    snapshot before Host disposal; Server owns archive metadata/index/auth. Detach does not archive,
+    Close deletes Presentation plus archive, Start is fresh, and natural exit is not permanent
+    archive. Initial bounds are 5,000 rows or 10 MiB per Presentation and 250 MiB per Worker.
+19. Server owns the revisioned Worker/platform-scoped Launch Profile catalog; Worker validates and
+    executes. A profile contains a name and either system-shell/login choice or an absolute
+    executable with literal args—never cwd, appearance, environment, or secrets. Creation freezes
+    the resolved revision; missing/stale/unauthorized/failure never falls back, and use/manage
+    permissions differ.
+20. “Connect via SSH” remains a product capability without generic Environment. Server owns
+    `SshTarget`/`SshConnection` intent; a selected local Worker uses system OpenSSH and local
+    config/agent/known-hosts plus ephemeral AskPass to start temporary remote Worker/Host. It is
+    connection-scoped, never implicit enrollment, and initially created from local TUI/Desktop.
+    Disconnect differs from terminal exit. The old SSH Runtime/protocol retire after migration.
+21. Relay remains the first and fallback terminal path. Only measurements may enable a local native
+    TUI/Desktop Client-to-Worker path with a short Server capability bound to all terminal, epoch,
+    controller, and permission identities. Browser/mobile remain relayed; control stays on Server;
+    authority loss stops input/resize and permits at most one bounded read-only drain; no Client
+    reaches Host; fallback never replays unknown input.
+22. Controller transfer keeps one input-and-resize owner. Acquire is explicit when unowned; an active
+    owner receives normal requests; disconnect releases after observed liveness grace. No viewer is
+    auto-promoted. A permitted second-confirmation forced take after timeout atomically advances the
+    Server generation/fence and rejects old input. Collaborative and split control stay excluded.
+23. Lazy service start is default. `orchbee site enable` installs per-user LaunchAgent/systemd-user
+    Server and Worker units from one cohort with bounded backoff; no root daemon or supervisor is
+    added and Host stays lazy. Restart preserves retained terminals; stop reports retained Host
+    terminals; terminate-all is separate and destructive. Disable/uninstall/upgrade preserve data
+    and terminals by default.
+24. A signed manifest and side-by-side version directories define one atomic cohort. Compatibility
+    is an exact tested set. Live Hosts are never replaced; incompatible Host updates wait for their
+    terminals; referenced Capsules remain. Failed cohort or database migration rolls back safely,
+    package-manager installs update through their manager, and auto-install is off by default.
+25. Production Server state uses a transactional SQLite/WAL design and persists canonical product
+    intent, revisions, topology, ledgers, profiles, references, and metadata—not Client View, live
+    attachments, frames, PTY/scrollback, transient secrets/env, raw hooks, or default full Agent
+    history. Intent precedes effect; restart reconciles exact identities without replay; unknown Host
+    inventory quarantines; corrupt/incompatible storage opens read-only recovery; credentials stay
+    in the OS store and Worker-owned archives/journals remain node-local.
 
 ## Reserved decisions for review
 
-1. Decide whether Agent integration needs a hook helper and, if so, its executable, language,
-   lifetime, installation cohort, failure contract, Worker relationship, and association model.
-2. Define public commands beyond accepted bare TUI, `--help`, and `--version`: grammar, stable
-   output and exit contracts, automation, completion, compatibility, and migration.
-3. Decide ownership and behavior for managed Worktree, Archive, Launch Profiles, and every
-   SSH-specific Desktop area. None is implied by the terminal baseline.
-4. Admit a direct local Client-to-Worker data path only after relay measurements justify it and
-   its scoped capability, expiry, revocation, reconnect, accounting, and fallback are accepted.
-5. Define explicit controller takeover, separate input and resize ownership, or collaborative
-   input beyond the accepted single-controller milestone policy.
-6. Define the product scope, timing, transport, authentication, installation, and removal model
-   of any future unmanaged-SSH capability independently from the retiring implementation.
-7. Define production service installation, login-time start, update cohort, compatibility,
-   durable Server recovery, backup, rollback, and uninstall beyond accepted lazy local
-   activation and Client-independent lifetime.
-8. Define later Workbench schemas, broader mutating intents, persistence and migration,
-   authorization and redaction, and remaining projection domains beyond the local-terminal
-   milestone.
-9. Decide Desktop's long-term shell technology separately from its Client-only authority.
-10. Define remote Worker enrollment, production human and device sessions, mobile backgrounding,
-    TLS, discovery, Internet reachability, multi-user tenancy, and compatibility.
-11. Set supported-platform startup, artifact-size, latency, throughput, queue-memory, and
-    peak-memory budgets after the accepted milestone produces measurements; define package
-    manager distribution, public cutover, and exact `apps/cli` deletion at release time.
-12. Accept each Gateway, SSH Runtime/protocol, Workbench package, old CLI, and Desktop authority
-    deletion only after its own consumer, installed-artifact, behavior, migration or sunset,
-    documentation, evidence, and rollback audit.
+1. Define remote Worker enrollment, production human/device identity, remote Site authentication,
+   TLS and Internet ingress, discovery/relay/NAT traversal, multi-user tenancy, authorization
+   hierarchy, and mobile background/push behavior.
+2. Select exact JSON/NDJSON schemas and numeric CLI exit codes, remote CLI targeting, first-release
+   command subset, detailed TUI visual/accessibility/mouse behavior, installed Skill catalog, and
+   configurable shortcut policy within the accepted command/TUI boundaries.
+3. Select exact controller liveness/grace durations, activation deadlines, service unit mechanics,
+   relay/direct-path thresholds, queue and performance budgets, archive retention values beyond the
+   accepted initial bounds, and platform-specific resource limits from measurements.
+4. Define Agent launch/orchestration, provider-native question or approval response, durable Agent
+   history/content, remote automatic integration installation, and mobile notification delivery;
+   none follows from accepted observation.
+5. Define destructive managed-Worktree operations, archive export/synchronization, broader Launch
+   Profile capabilities, and remote SSH credential UX beyond the accepted first migrations.
+6. Define later Workbench schemas, broader mutating intents, fine-grained authorization/redaction,
+   and projection domains beyond the selected local-terminal and CLI slices.
+7. Decide Desktop's long-term shell technology separately from its accepted Client-only authority,
+   and decide Windows service, packaging, terminal, and credential adapters before Windows support.
+8. Authorize each Gateway, SSH Runtime/protocol, Workbench package, Agent package, old CLI, and
+   Desktop-authority deletion only after its consumer, installed-artifact, behavior, migration or
+   sunset, documentation, evidence, and rollback audit.
+9. Authorize public cutover only after the accepted persistence, recovery, update, migration,
+   packaging, security, and measured-performance requirements are implemented and verified.
 
 ## Review checklist
 

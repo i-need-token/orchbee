@@ -1,12 +1,12 @@
 # Orchbee Server、连接客户端与 Worker
 
-| 字段     | 内容                                                                                                                                                                                                                                                                                                                        |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态     | Client-Server-Worker 产品方向已经接受；现有 Browser ingress 与 Desktop SSH 底座继续作为已交付现行权威，第一条原生本机 Server-Worker process spine 已完成且尚未发布，其余本机 terminal vertical 正在推进，remote/distributed operation、consumer migration、cutover 与 deletion 继续作为有边界的未来工作                     |
-| Owner    | 产品架构、Server 协调、Workbench、网络入口、Worker placement、远程 connection adapter、CLI、Agent 与未来 capability-node 维护者                                                                                                                                                                                             |
-| 当前权威 | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) 以及 Desktop、Gateway、Web、Terminal Host 的所属指南                                                                                                                                                                                                                   |
-| 决策权威 | 产品决策人已经接受统一的同级 Client 模型、相互独立的 Rust `orchbee`/Server/Worker 加 Zig Terminal Host 进程、第一条经 Server relay 的本机 terminal path、有界本机懒激活、第一个 milestone 中每个 terminal 单一 controller，以及下文引用的目标处置；确切 remote、production-service 与 optional-capability contract 继续保留 |
-| 退出条件 | 接受并实现边界清晰的 owner-specific 切片，把维护事实迁入所属指南和测试，然后删除本提案                                                                                                                                                                                                                                      |
+| 字段     | 内容                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态     | Client-Server-Worker 产品方向以及 native Agent、Worktree、Archive、Launch Profile、Connect-via-SSH、本机 service/update/recovery、controller-transfer 与 measured direct-path refinement 已接受；当前 Browser/Desktop 路径继续作为权威，本机 vertical 正在推进，而 remote enrollment/identity/Internet deployment 与各项 migration 仍是后续工作                                                   |
+| Owner    | 产品架构、Server 协调、Workbench、网络入口、Worker placement、远程 connection adapter、CLI、Agent 与未来 capability-node 维护者                                                                                                                                                                                                                                                                   |
+| 当前权威 | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) 以及 Desktop、Gateway、Web、Terminal Host 的所属指南                                                                                                                                                                                                                                                                                         |
+| 决策权威 | 产品决策人已经接受统一同级 Client 模型；彼此独立的公共 Rust `orchbee` 与私有 Server/Worker/Terminal Host 加可选 Rust Agent Bridge role；第一条经 Server relay 的 terminal path；有界本机懒激活；native topology 中已接受的本机 lifecycle 与 capability refinement；以及下文目标处置。确切 remote enrollment、production identity、TLS/Internet、multi-user 与 mobile-background contract 继续保留 |
+| 退出条件 | 接受并实现边界清晰的 owner-specific 切片，把维护事实迁入所属指南和测试，然后删除本提案                                                                                                                                                                                                                                                                                                            |
 
 英文 [connected-client-capability-service.md](connected-client-capability-service.md) 是 canonical
 版本；本文用于简体中文评审。
@@ -138,10 +138,10 @@ Orchbee 支持两个互补的连接族：
 这个连接族描述的是产品 capability，并不承诺保留当前 SSH Environment Runtime 或协议。若现有
 产品路径已显式下线，已经接受的退役可以有意先于替代 adapter。
 
-原生站点连接是已鉴权 Client 与已登记 Worker 的长期主路径。如果选择保留 SSH，它继续作为首次使用、
-兼容、管理和恢复路径；它不是 Workbench、Agent、调度或 state synchronization protocol。登记后，
-Worker 通常应使用非 Cookie 设备 credential 主动建立到 Server 的原生出站连接，而不要求 Server 持续维护
-一条入站 SSH 登录。
+原生站点连接是已鉴权 Client 与已登记 Worker 的长期主路径。已接受 Connect-via-SSH path 继续作为
+首次使用、兼容、管理与 temporary-connection path；它不是 Workbench、Agent、调度或 state
+synchronization protocol。已登记 Worker 通常使用非 Cookie device credential 主动连接 Server；
+SSH-attached temporary Worker 是 connection-scoped，绝不隐式提升为 enrollment。
 
 用户明确授权的 SSH Project 可以在该 SSH 账号范围内提供 Terminal 与 filesystem effect。这不会自动登记
 该机器，不会把 capability-node contract 变成通用远程 shell，也不会向 scheduled work 授予超出已接受 typed
@@ -153,9 +153,10 @@ TLS listener 与 WebSocket 实现，capability node 仍然使用独立的 node �
 tunnel、relay 或后续 transport adapter 无法创建第二套产品模型。
 
 生产网络流量使用成熟 TLS 与 SSH 实现提供的 authenticated encryption；Orchbee 不发明 transport
-cryptography。Plain HTTP 继续仅限于已经交付且明确警告风险的 trusted-LAN 预览。Client 到 Worker 的直连
-数据路径、QUIC 或 WebTransport adapter、relay service 与 Internet ingress 仍是保留的优化或部署决策。
-它们不能绕过 Server 签发的 authority 或 recovery fencing。
+cryptography。Plain HTTP 继续仅限于已经交付且明确警告风险的 trusted-LAN 预览。由测量触发的
+local-native Client-to-Worker path 只在下文 scoped Server-capability contract 内获接受；remote direct
+path、QUIC/WebTransport adapter、relay service 与 Internet ingress 仍是保留的优化或部署决策。
+它们都不能绕过 Server 签发的 authority 或 recovery fencing。
 
 ## 已接受的初始入口基础
 
@@ -215,6 +216,24 @@ authorization、host verification、compatibility 或 policy 需要用户或管�
 Transport 丢失、远程 runtime 失败与远程机器重启是不同的失败类型。第一种保留远程执行；第二种在可用时与
 独立 retained owner 对账；第三种可能需要明确重启任务，因为操作系统重启无法保留普通 PTY 或进程。
 
+## 已接受的原生运行时细化
+
+[`native-runtime-topology.md`](native-runtime-topology.zh-CN.md) 是本逻辑设计的 canonical physical-process
+与 local-lifecycle refinement。产品审阅还接受了以下方向：
+
+| 区域                    | 已接受方向                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client 与 terminal use  | 每次 TUI invocation 都是共享 Workbench document 上的独立 peer Client View。Display attachment 是 transient 的，多个 Client 可以查看一个 retained terminal。一个 combined input-and-resize controller 由 Server fencing；显式 request、disconnect grace 与二次确认 forced take 定义 transfer，不做 automatic promotion 或 collaborative input。                                           |
+| 可选 capability         | 私有 Rust Agent Bridge 通过 Worker 向 Server-owned Agent semantics 提供有界 local observation；managed Worktree Git effect 与 Archive content 保持 Worker-local；Server 拥有其 canonical reference/metadata 与 revisioned Launch Profile catalog；每个 Client 各自渲染 projection。Terminal-only Site 不需要这些 capability。                                                            |
+| 通过 SSH 连接           | 目标中删除 generic Environment。Server 拥有 `SshTarget`/`SshConnection` intent，所选 local Worker 使用 system OpenSSH、本机 host verification/credential 与 ephemeral AskPass 启动 connection-scoped temporary remote Worker/Host。它不同于 enrolled Worker，首批从 local TUI/Desktop 创建；只有 migration evidence 完成后才替换旧 SSH Runtime/protocol。                                |
+| Terminal path           | Server relay 是首条和 fallback route。只有实测需要才可以在 short Server-minted、绑定 identity/generation 的 capability 下启用 local native TUI/Desktop Client-to-Worker route。Browser/mobile 保持 relay，任何 Client 不直连 Host，Server 保留 control authority，fallback 不 replay unknown input。                                                                                     |
+| Local Site lifecycle    | 默认 lazy activation。显式 `orchbee site enable` 可以安装 same-cohort per-user LaunchAgent/systemd-user Server 与 Worker unit；Host 保持 lazy，不增加 root daemon 或 supervisor。Restart 保留 retained Host terminal；stop 报告它们，不等同 terminate-all。Signed side-by-side cohort 原子更新，绝不替换 live Host。                                                                     |
+| Persistence 与 recovery | Production Server 对 canonical intent、topology、ledger、profile 与 reference 使用 transactional SQLite/WAL，而不保存 Client View、live attachment、terminal frame、PTY/scrollback、transient secret 或 raw hook。Intent 先于 effect；restart 对账 exact identity 且不 replay。Unknown Host inventory 被 quarantine，corrupt/incompatible storage 进入 read-only recovery 而不是 reset。 |
+
+这些是已接受的未来边界，并不表示已交付 Node Browser preview 或 Desktop-co-located runtime 已经具备
+对应行为。Exact remote Worker enrollment、production human/device identity、TLS/Internet ingress、
+multi-user tenancy 与 mobile background behavior 仍未决定。
+
 ## 候选职责拆分
 
 | 职责                                          | 候选 owner                                                                                                                |
@@ -231,12 +250,12 @@ Transport 丢失、远程 runtime 失败与远程机器重启是不同的失败�
 | Desktop、Browser 与手机端 projection          | 消费已授权应用 API 的产品客户端；终端形态本身不会自动获得后端 authority                                                   |
 
 逻辑 Client-Server-Worker 拓扑与原生物理 baseline 已经接受：公共 Rust `orchbee`、私有 Rust Server、
-私有 Rust Worker 与独立 Zig Terminal Host。其增量底座与第一条本机 Server-Worker process spine
-已经交付但尚未发布，其余本机 terminal vertical 正在推进；当前与 Desktop 共置的 runtime 在有边界
-migration slice 替换前保持权威。第一条完整本机 terminal path 经 Server relay，裸 `orchbee` 可以
-懒激活确切本机 cohort，但不监督其生命周期。共置绝不能合并 trust、state 或 lifecycle 职责。
-Production service installation、remote enrollment 与任何由测量证明必要的 direct Worker
-attachment 继续保留。
+私有 Rust Worker、独立 Zig Terminal Host 与可选私有 Rust Agent Bridge。其增量底座与第一条本机
+Server-Worker process spine 已经交付但尚未发布，其余本机 terminal vertical 正在推进；当前与
+Desktop 共置的 runtime 在有边界 migration slice 替换前保持权威。第一条完整本机 terminal path
+经 Server relay，裸 `orchbee` 可以懒激活确切本机 cohort，但不监督其生命周期。共置绝不能合并
+trust、state 或 lifecycle 职责。User-service installation 与 direct-path contract 已在上文接受，
+但仍是 gated implementation work；remote enrollment 继续保留。
 
 ## 连接角色
 
@@ -311,23 +330,20 @@ LAN 发现、Internet relay、NAT 穿透、公共 DNS 与云端 rendezvous 是�
 
 已接受的本机 terminal milestone 不会顺带决定以下后续事项：
 
-1. Agent integration，包括 orchestration 语义、可选 hook helper、Worker-local execution、
-   association、installation cohort 与 failure policy。
-2. Managed Worktree、Archive、Launch Profiles、SSH 专属 Desktop 行为，以及 split、restart、
-   close、export 与长期 history 等更广 terminal lifecycle。
-3. 当前 SSH 路径的 migration 或 sunset，包括每个 consumer 与 installed artifact；与此独立，
-   任何未来 unmanaged-SSH adapter 的产品范围、时机、transport、authentication 与 lifecycle。
-4. Production human/device session、Worker enrollment、remote capability contract、scheduling、
+1. 已接受 observation topology 之外的 Agent launch/orchestration、provider-native response、
+   durable content/history、automatic remote integration installation 与 mobile notification delivery。
+2. 超出已接受首批 migration 的 destructive managed-Worktree operation、Archive
+   export/synchronization 与长期 retention、更广 Launch Profile capability，以及 remote SSH
+   credential UX。
+3. Production human/device session、Worker enrollment、remote capability contract、scheduling、
    lease、fencing、cancellation、quota 与 data-locality policy。
-5. Production HTTPS/WSS、TLS 与 Internet ingress、relay 或 NAT traversal、mobile backgrounding、
+4. Production HTTPS/WSS、TLS 与 Internet ingress、relay 或 NAT traversal、mobile backgrounding、
    multi-user tenancy、authorization hierarchy、audit、secret 与 artifact transfer。
-6. Client 到 Worker 的 direct terminal path。只有 Server relay 测量证明有必要，并且 scoped
-   capability、expiry、revocation、accounting、reconnect 与 fallback 单独获接受后才能准入。
-7. 已接受有界本机懒激活之外的 production service installation、login-time start、update cohort、
-   compatibility、durable Server recovery、backup、rollback 与 uninstall。
-8. 裸 TUI、`--help` 与 `--version` 之外的 public command grammar；稳定 automation output 与 exit
-   contract；Skill 与 completion；package-manager distribution；public cutover 与 compatibility policy。
-9. Node Server preview、Gateway/protocol、SSH Runtime/protocol、混合 Workbench package、旧 CLI 或
+5. 已接受 local lifecycle contract 内的 exact service unit、activation/grace deadline、performance
+   threshold、numeric limit、database schema/migration、backup UI 与 package-manager adapter mechanic。
+6. 已接受 command architecture 内的 remote CLI targeting、exact machine schema 与 numeric exit、
+   详细 TUI presentation、installed Skill catalog 与 exact first public command cohort。
+7. Node Server preview、Gateway/protocol、SSH Runtime/protocol、混合 Workbench package、旧 CLI 或
    已迁移 Desktop authority 的每项 deletion。删除需要各自的 consumer、installed-artifact、behavior、
    migration 或 sunset、documentation、evidence 与 rollback 审计。
 
@@ -345,7 +361,8 @@ LAN 发现、Internet relay、NAT 穿透、公共 DNS 与云端 rendezvous 是�
 | 原生底座                        | **已经完成且尚未发布：**根 Rust 支持、framework-neutral Workbench projection contract、原生 `orchbee` 入口底座、Rust Server kernel 与 Rust Terminal Host binding。[`native-runtime-topology.md`](native-runtime-topology.zh-CN.md) 链接其现行 owner。 |
 | 本机 terminal 纵向链路          | **正在推进且尚未发布：**真实本机 Server/Worker process spine 已完成；下一步交付最小 Host broker、经 Server relay 的 terminal stream 与真实 TUI Client，随后完成 fault 与 performance 收敛。该路径不改变当前 consumer，也不进行 public cutover。       |
 | 共享 Client 与 Server migration | 把 canonical Workbench coordination 和受支持 Browser session/relay 行为迁入 Rust Server，把 React presentation 迁入 `apps/web`，把 Desktop 缩减为 Client/platform adapter，并且只迁移显式准入的 CLI capability。                                      |
-| 可选与分布式 capability         | 通过单独纵向 capability 审阅 Agent、Worktree、Archive、Launch Profiles、未来 SSH、已登记 remote Worker、mobile/remote Client、production authentication 与 scheduling。                                                                               |
+| 已接受的可选 capability         | 通过各自已接受的 owner-specific vertical migration 实现 Agent observation、managed Worktree、Archive、Launch Profile 与 Connect via SSH。                                                                                                             |
+| 远程与分布式 capability         | 通过单独 vertical capability 审阅 enrolled remote Worker、production identity/authentication、TLS/Internet ingress、mobile background behavior、multi-user policy 与 scheduling。                                                                     |
 | 旧实现退役                      | 只有每个替代或 sunset cohort 证明 compatibility、installed-artifact handling 与 rollback 后，才删除 Node Server preview、Gateway/protocol、SSH Runtime/protocol、混合 Workbench package、旧 CLI 与已移除 Desktop authority。                          |
 
 每个 implementation slice 都必须保留已接受 role boundary，并证明自身 security、privacy、

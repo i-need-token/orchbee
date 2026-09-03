@@ -2,8 +2,8 @@
 
 | Field             | Value                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Phase-one core, local observation, the accepted SSH, tmux, and Zellij topology, the explicit multi-Agent adapters, explicit local integration management, and the volatile loss-aware change feed are implemented; the transport-safety, inert-installation, contextual-onboarding, and limited-presence replacement slice is accepted for implementation; later reserved decisions remain unresolved |
-| Decision owner    | The active requester acting as Orchbee product and architecture decision owner for the accepted authorizations; each reserved decision still requires explicit acceptance by its required owner                                                                                                                                                                                                       |
+| Status            | Phase-one core, local observation, the accepted SSH, tmux, and Zellij topology, explicit multi-Agent adapters, local integration management, and the volatile loss-aware change feed are implemented; the transport-safety replacement slice and the Rust Agent Bridge/Worker/Server migration target are accepted, while implementation and later reserved Agent-control decisions remain unresolved |
+| Decision owner    | The active requester acting as Orchbee product and architecture decision owner accepted the observation model, safe transport, private Rust Agent Bridge, Worker ingress/join, Server semantic ownership, and mixed-package migration below; each remaining reserved decision still requires explicit acceptance by its required owner                                                                |
 | Semantic owners   | Agent capability, application runtime, Workbench application composition, and platform notification adapters                                                                                                                                                                                                                                                                                          |
 | Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md), [`@orchbee/agent`](../../packages/agent/README.md), [`@orchbee/terminal-protocol`](../../packages/terminal-protocol/README.md), [`@orchbee/workbench`](../../packages/workbench/README.md), and the [unified-search contract](../../packages/workbench/docs/unified-search.md)                                                                  |
 | Exit condition    | Implement separately accepted slices, move maintained state, adapter, presentation, notification, and evidence contracts into their owning package and application guides and tests, resolve or remove every remaining future decision, then delete this proposal and its translation                                                                                                                 |
@@ -45,7 +45,7 @@ Provider native API / managed hooks
                   |
  Local Unix socket or SSH reverse-forwarded Unix socket
                   |                         Exact outer PTY
-                  |                    bounded OSC correlation hint
+                  |                    bounded private APC correlation
                   +-------------+-------------+
                                 |
                     Application ingress join
@@ -67,12 +67,11 @@ Provider native API / managed hooks
 | Client view                   | Own presentation-scoped visibility, focus, attachment generation, and event acknowledgement without resolving shared Agent requests                                                                                                                                                                                    |
 | Platform notification adapter | Attempt one already-authorized, localized, bounded notification effect and report delivery API outcomes without changing Agent state                                                                                                                                                                                   |
 
-The first accepted implementation slice should create `@orchbee/agent` only when its deterministic
-model has a real application consumer. A serialized Agent protocol should be created only with its
-first real cross-process producer and consumer; its schema may represent validated wire data but
-must not own transition legality or product policy. The accepted SSH slice keeps this runtime
-Desktop-co-located and uses an application-owned local Unix socket; later process extraction and
-protocol-package naming remain reserved decisions.
+The first accepted implementation slice created `@orchbee/agent` only with its real application
+consumer. Its delivered Desktop-co-located runtime and application-owned Unix socket remain current
+authority until the accepted native migration below replaces their consumers. The target uses a
+language-neutral schema for the first real Rust producer and consumer; wire data never owns
+transition legality or product policy.
 
 ## Inputs and observation quality
 
@@ -857,10 +856,12 @@ was displayed.
    marketplace declarations may reference the stable Capsule, so uninstall must retain every
    Capsule still referenced by any provider declaration. A guard located only in a missing target is
    insufficient.
-4. The Capsule is self-contained for its declared runtime. The preferred bridge is a small native
-   Zig executable; a provider-guaranteed runtime or guarded bundled script is acceptable only while
-   tests prove the same absence behavior. Hook callbacks remain nonblocking, content-free after
-   sanitization, bounded in time and bytes, and independent from Orchbee process lifetime.
+4. The Capsule is self-contained for its declared runtime. The target bridge is the small native
+   Rust `orchbee-agent-bridge` accepted below; this supersedes the earlier Zig preference. A
+   provider-guaranteed runtime or guarded bundled script is acceptable only as a current migration
+   input while tests prove the same absence behavior. Hook callbacks remain nonblocking,
+   content-free after sanitization, bounded in time and bytes, and independent from Orchbee process
+   lifetime.
 5. Enable follows `inspect -> preflight -> stage Capsule -> atomically publish -> mutate exact owned
 entry -> verify`. A failure before provider mutation removes only the unreferenced staging area.
    A post-mutation ambiguity triggers read-only reconciliation and never claims rollback without
@@ -944,15 +945,53 @@ with a v2-only Desktop or vice versa. Rollback disables v3 endpoint advertisemen
 offering together; terminal operation, ordinary SSH, and provider operation remain intact. It does
 not restore OSC 777, app-bundle symlinks, eager inspection, or automatic onboarding.
 
+## Accepted native runtime migration target
+
+The product owner accepted this target on 2026-09-03. It supersedes the previously reserved helper
+language and process-placement decisions without claiming that the delivered Desktop runtime has
+already migrated.
+
+```text
+provider hook / plugin / adapter
+             |
+             v
+  orchbee-agent-bridge (Rust, one shot)
+             |
+             | bounded rich observation + exact ACK
+             v
+        local Worker  <--- private APC correlation via Terminal Host
+             |
+             | validated joined observation
+             v
+           Server  ---> authorized Client projections
+```
+
+| Concern             | Accepted target                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Executable          | `orchbee-agent-bridge` is a private Rust executable, distributed from a versioned Agent Capsule/private libexec cohort. It is not on `PATH`, has no user command surface, and is not resident when unused. An Agent-capable standard distribution therefore recognizes five executable roles: public `orchbee`, Server, Worker, Terminal Host, and Agent Bridge.                           |
+| Callback contract   | One provider callback invokes one Bridge process with byte-bounded input. Bridge allowlist-sanitizes the event, resolves only the exact inherited local Worker endpoint and invocation context, makes one synchronous bounded attempt, and waits for one exact ACK. Only after ACK may it emit the private APC correlation half to the resolved outer terminal.                            |
+| Failure             | Bridge never discovers Server, uses a remote network, activates a service, or creates durable state. Missing Worker, timeout, malformed input, rejection, or unavailable correlation is silent: stdout and stderr remain empty, the process exits zero, and the provider's operation and exit status are unchanged.                                                                        |
+| Worker ownership    | Worker authenticates the local Bridge, validates bounds and provider capability, and joins the sanitized rich event with the private terminal correlation using exact Terminal and Presentation generations, expiry, deduplication, and fencing. Terminal Host transports only the private bounded correlation; neither component derives canonical Agent semantics from terminal content. |
+| Server ownership    | Server owns canonical provider-neutral Agent Session, Turn, Attention Request, Outcome, observation health, hierarchy, and shared projection. Clients own presentation only. The deterministic transition model currently in `@orchbee/agent` moves to Rust Server behind one cross-language schema rather than remaining a TypeScript runtime authority.                                  |
+| Integration effects | Worker, under exact Server authorization, owns node-local integration inspection and mutation. Explicit per-provider enablement remains required. No automatic remote configuration, prompt/response/tool/transcript capture, or implicit capability elevation is introduced.                                                                                                              |
+| Product scope       | Observation and truthful attention state ship before any Agent launching, prompt submission, resume, scheduling, or orchestration. Those control-plane features remain separate decisions.                                                                                                                                                                                                 |
+| Presentation        | Web presentation moves into `apps/web`; TUI, Desktop, and mobile consume the same authorized semantic projection through their own renderers. After all state, adapter, consumer, schema, evidence, Capsule, and rollback obligations migrate, delete the mixed `@orchbee/agent` package rather than retaining it as a second authority.                                                   |
+
+Migration first adds the language-neutral observation boundary and Rust reduction under no current
+consumer, then routes one provider through Bridge to Worker and Server, proves equivalence and
+fail-open behavior, migrates remaining integrations and Web presentation, and only then switches
+the current Desktop ingress and deletes obsolete TypeScript ownership. Rollback selects the prior
+complete integration cohort; it never leaves a provider entry pointing to a missing Capsule and
+never replays an observation whose admission outcome is unknown.
+
 ## Reserved decisions
 
-The accepted phase-one domain slice would not decide:
+The accepted observation and native-migration target does not decide:
 
-- whether the runtime remains Desktop-co-located or becomes a separately supervised Agent process;
-- any future cross-process Agent-runtime protocol naming, process extraction, version negotiation,
-  and retention across application or operating-system restart; the Desktop Unix-socket ingress,
-  terminal-signal ingress, and renderer snapshot protocol are current authority for their narrower
-  boundaries;
+- exact cross-process schema names, numeric bounds, deadline values, compatibility negotiation, or
+  durable retention across Server, application, or operating-system restart; the current Desktop
+  Unix-socket ingress, terminal-signal ingress, and renderer snapshot protocol remain current
+  authority until the accepted migration switches each consumer;
 - automatic local or remote adapter deployment, every Orchbee-initiated remote configuration
   change, silent local configuration edits outside the explicitly accepted local enable/update
   action, a background adapter updater, and compatibility claims outside the pinned provider and
