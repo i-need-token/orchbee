@@ -106,8 +106,8 @@
 			"zhCnSha256": "01af0358f9c61778226f80f2876de08e84ed4fa6e0ab8c7a292de840944d8119"
 		},
 		"apps/orchbee-server/README.md": {
-			"englishSha256": "4a09f35b0cd35604be6f56880e2cfcbdbb89084e85d0dfebf744f1f65b658356",
-			"zhCnSha256": "5ede5ed6792d20e6e98e763f2fe514ff8bdf39ee7e223de816c20546aea1d4e1"
+			"englishSha256": "f513620f23d77827c546a713ff3f810e9509b6ca1cafcb9a50dcaa2972cc6a0c",
+			"zhCnSha256": "06d986c211d7a72e263f07f1224e48722356ea9b3c19ed5bc3e764d699365d50"
 		},
 		"apps/orchbee-worker/README.md": {
 			"englishSha256": "4edff5c8a33c8f9c44fce5c26756c1d0689b492ed128b508901932eed900f199",

@@ -131,6 +131,37 @@ slow candidate 映射到 bounded handshake thread，把 `workerRegistered` 映�
 presence，并把 stale cleanup 映射到 generation-scoped disconnect。它检查 safety，不检查 handshake
 time progress 或 implementation refinement；deterministic 与 process test 负责这些 mapping。
 
+## 已接受的 Terminal Client authority 建模记录
+
+下一个已接受的 implementation slice 让 Rust Server 成为 relay
+`Client -> Server -> Worker -> Terminal Host` path 上 product-level Client Session 与 terminal
+authority 的 owner。本记录及其 formal model 描述已接受的 refinement target；它们不声称当前
+runtime 或 wire contract 已实现该目标。Client Session 是 Server transport/session identity，viewer
+attachment 把该 Session 的某一 generation 与 retained terminal 关联，而 controller 是该 terminal
+唯一、同时覆盖 input 与 resize 的 grant。
+
+| 字段   | 已接受的 refinement target                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | 多个同级 TUI、Web、Desktop 或 mobile Client Session 必须能够并发查看同一个 retained terminal，同时不能产生多个 input 或 geometry writer。关闭 Client 必须释放其临时 authority，但不能结束 terminal。                                                                                                                                                                                                                |
+| 输入   | Server availability；独立生成的 Client Session identity；Worker 与 Host availability；retained 或 lost terminal state；viewer attach、controller acquire、input、resize、Client disconnect 与 generation-scoped cleanup event。建立 Client Session 只依赖存活的 Server。Worker、Host 或 terminal 不可用会阻止 terminal attach 与 control，但不会阻止建立 Server session。                                           |
+| 数据   | Server-owned last-known session registry 与每个 Client 的 generation、generation-scoped viewer attachment、每个 terminal 一个可选 combined controller reference，以及 pending cleanup reference。Server 丢失后，registry entry 只是最后一次 Server snapshot，不是 Client transport 仍存活的证据。Effective Client transport 还要求 Server 存活。                                                                    |
+| 输出   | Viewer attachment 只在通向 retained terminal 的 path 存活时成功。只有同一个 current controller reference 才能推进 input 与 resize；其他 attached viewer 的尝试会被拒绝，且不改变 terminal input 或 geometry。Disconnected Client 会从 current attachment 中移除；disconnected controller 会立即释放 grant。                                                                                                         |
+| 不变量 | 任意数量的 modeled current session 都可以成为 viewer，但 effective input 与 resize authority 必须是同一个 set，并且最多包含一个 generation-scoped controller。Controller 必须是 current viewer。Acquire operation 只能填充 unowned grant，绝不替换另一个 controller。Disconnect 与 stale cleanup 不能终止 retained terminal；旧 generation 的 cleanup 不能撤销 reconnected generation 的新 grant。                  |
+| 决策   | Client Session creation 与 reconnection 只要求 Server 可用。Viewer attach 与 controller 使用要求 Server、Worker、Host 以及 retained terminal 均可用。Controller disconnect 会释放 authority；其他 viewer 只能在 grant unowned 后 acquire。确切 acquire/takeover interaction 刻意保持未决。Server 或 Worker loss 可以释放 temporary grant 或冻结其 registry snapshot，但不能转移 grant 或结束 terminal。             |
+| 模型   | Server 把每个 Client generation 投影为 modeled terminal 的零或一个 viewer reference，并保存零或一个 combined controller reference。Effective input 与 resize controller 由该 reference 与 path availability 派生。现有 Host resize lease 仍是 lower-level mechanism，并不是 Server product policy。                                                                                                                 |
+| 转换   | Session `closed -> open(generation)`，且不依赖 terminal availability；viewer `detached -> attached`；controller `unowned -> owned(current viewer) -> unowned`；Client `open -> disconnected -> reconnected(next generation)`，old-generation cleanup 可发生在 reconnect 前或后；process `up -> lost`；只有 Host loss 能让 terminal `retained -> lost`。不存在 restart 或 automatic controller transfer transition。 |
+| 依赖   | 未来 runtime refinement 将依赖 Server-Worker spine、Worker-owned Host broker、Terminal Host attachment/input/resize protocol 与 Client transport。它必须为 viewer 投影 read-only Host attachment，并为 controller 投影严格的 combined input-plus-resize authority，或者证明等价 refinement。本 modeling slice 不引入新的 runtime 或 wire dependency。                                                               |
+| 所有权 | Server 拥有 Client Session generation、viewer membership、product-level controller selection、rejection 与 stale cleanup。Worker 仍是唯一 Terminal Host broker。Host 拥有 retained PTY lifetime，并执行其 lower-level attachment capability 与 resize lease。Host 侧 resize owner 在 detach 后的 promotion 只是现有 mechanism；本模型不会把它提升为 Server-level automatic takeover policy。                        |
+| 验证   | 注册的 TLA+ model 检查三个 Client slot、每个 slot 两个 generation、有界 input 与 geometry revision、每个 semantic transition 的非零 coverage、safety invariant，以及 Server 保持可用期间的 cleanup progress。因为本 slice 不改变 runtime，所以尚无 runtime refinement test。                                                                                                                                        |
+| 限制   | Model 覆盖一个 terminal 与每个 Client slot 最多一个 attachment。它不证明 runtime 或 protocol refinement、byte/queue/backpressure behavior、PTY retention implementation、direct Client-Worker path、restart、durable recovery、automatic 或 forced takeover、collaborative input、controller fairness 或 takeover UX。                                                                                              |
+
+已检查的
+[`LocalTerminalClientAuthority`](formal/tla/LocalTerminalClientAuthority.tla) model 把 Client
+transport liveness 与 terminal path availability 分离。Server 或 Worker loss 会让 terminal authority
+失效，并可以释放 temporary controller reference 或留下 frozen registry snapshot；两者都不会改变
+retained terminal。只有 Host loss 会把 terminal 改为 `lost`。其 progress property 保证 Server
+存活期间 pending generation cleanup 会被清空，而不保证 authority 会自动重新分配。
+
 ## 所有权
 
 该 application 拥有其注入 in-memory snapshot copy 的 projection mechanics，以及实验性本机
@@ -140,9 +171,10 @@ publication 离开该 application。当前 Desktop/Workbench composition 继续�
 已交付 Workbench writer，Node [`apps/server`](../server/README.zh-CN.md) 继续作为既有 Browser
 ingress 行为的权威。
 
-Semantic business transition、post-handshake Client transport、product authorization、persistence、
-recovery、external publication、endpoint discovery 与 activation、production service lifecycle、
-Terminal Host integration、packaging、migration 与 cutover 都需要后续已接受切片。
+Semantic business transition、post-handshake product Client transport、product authorization、
+persistence、recovery、external publication、endpoint discovery 与 activation、production service
+lifecycle、Terminal Host authority/runtime integration、packaging、migration 与 cutover 都需要后续
+implementation slice。
 
 ## 验证
 
@@ -151,6 +183,6 @@ Terminal Host integration、packaging、migration 与 cutover 都需要后续已
 ```sh
 cargo test -p orchbee-server --all-targets --all-features --locked
 cargo clippy -p orchbee-server --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models local-client-sessions,local-site-process-spine
+node scripts/tla/run-models.mjs --models local-client-sessions,local-site-process-spine,local-terminal-client-authority
 pnpm verify
 ```

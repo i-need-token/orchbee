@@ -1648,6 +1648,51 @@
 			]
 		},
 		{
+			"id": "local-terminal-client-authority",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.tla",
+			"config": "apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.cfg",
+			"claims": [
+				"apps/orchbee-server/README.md",
+				"proposals/cli/native-command-surface.md",
+				"proposals/platform/connected-client-capability-service.md",
+				"proposals/platform/native-runtime-topology.md"
+			],
+			"triggers": [
+				"apps/orchbee/src/**",
+				"apps/orchbee-server/src/**",
+				"apps/orchbee-worker/src/**",
+				"apps/terminal-host/src/core/broker_session.zig",
+				"apps/terminal-host/src/core/state/attachments.zig",
+				"apps/terminal-host/src/service/runtime_aggregate/attachments.zig",
+				"crates/terminal-protocol/src/attachment.rs",
+				"crates/terminal-protocol/src/input.rs",
+				"crates/terminal-protocol/src/resize.rs"
+			],
+			"timeoutMilliseconds": 300000,
+			"requiredCoverage": [
+				"OpenInitialSession",
+				"ReconnectSession",
+				"AttachFirstViewer",
+				"AttachAdditionalViewer",
+				"AcquireUnownedController",
+				"AcceptControllerInput",
+				"RejectNonControllerInput",
+				"AcceptControllerResize",
+				"RejectNonControllerResize",
+				"DisconnectController",
+				"DisconnectViewer",
+				"DisconnectUnattachedSession",
+				"CleanupDisconnectedSession",
+				"CleanupStaleSession",
+				"CleanupStaleAfterRegrant",
+				"LoseServer",
+				"LoseWorker",
+				"LoseHost"
+			]
+		},
+		{
 			"id": "terminal-close-activity-freshness",
 			"owner": "@orchbee/terminal-host",
 			"workspace": "apps/terminal-host",
