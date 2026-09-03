@@ -103,19 +103,21 @@ test('projected terminal selection, Find, projection, and recovery owners select
 	}
 });
 
-test('Worker terminal authorization refinement paths select its Server authority model', () => {
+test('Worker terminal authorization paths select both refinement models', () => {
 	for (const changedPath of [
 		'apps/orchbee-worker/src/terminal_authorization.rs',
 		'apps/orchbee-worker/src/terminal_authorization/tests.rs',
 		'apps/orchbee-worker/README.zh-CN.md',
+		'crates/capability-node-protocol/src/codec.rs',
 	]) {
-		assert.equal(
-			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
-				({ id }) => id === 'terminal-launch-authorization',
-			),
-			true,
-			changedPath,
-		);
+		const selected = selectModelsForChangedPaths(repositoryInventory, [changedPath]);
+		for (const modelId of ['terminal-launch-authorization', 'worker-terminal-binding-capacity']) {
+			assert.equal(
+				selected.some(({ id }) => id === modelId),
+				true,
+				`${changedPath}: ${modelId}`,
+			);
+		}
 	}
 });
 

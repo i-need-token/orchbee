@@ -1898,6 +1898,38 @@
 			]
 		},
 		{
+			"id": "worker-terminal-binding-capacity",
+			"owner": "orchbee-worker",
+			"workspace": "apps/orchbee-worker",
+			"module": "apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.tla",
+			"config": "apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.cfg",
+			"claims": ["apps/orchbee-worker/README.md", "crates/capability-node-protocol/README.md"],
+			"triggers": [
+				"apps/orchbee-worker/README.zh-CN.md",
+				"apps/orchbee-worker/src/terminal_authorization.rs",
+				"apps/orchbee-worker/src/terminal_authorization/tests.rs",
+				"crates/capability-node-protocol/src/codec.rs",
+				"crates/capability-node-protocol/src/terminal_launch.rs",
+				"crates/capability-node-protocol/src/tests.rs",
+				"crates/capability-node-protocol/README.md",
+				"crates/capability-node-protocol/README.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"AdmitNewBinding",
+				"CacheBindingResult",
+				"RejectWrongWorkerAtCapacity",
+				"RejectStaleGenerationAtCapacity",
+				"RejectUnsupportedCapabilityAtCapacity",
+				"RejectExpiredLeaseAtCapacity",
+				"RejectNewTerminalAtCapacity",
+				"RejectCapacityBeforeStartIdentity",
+				"ReplayExactAtCapacity",
+				"ReplaceHigherFenceAtCapacity",
+				"RejectLowerFenceAtCapacity",
+				"RejectConflictingFenceAtCapacity"
+			]
+		},
+		{
 			"id": "terminal-close-activity-freshness",
 			"owner": "@orchbee/terminal-host",
 			"workspace": "apps/terminal-host",
