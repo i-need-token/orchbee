@@ -103,6 +103,22 @@ test('projected terminal selection, Find, projection, and recovery owners select
 	}
 });
 
+test('Worker terminal authorization refinement paths select its Server authority model', () => {
+	for (const changedPath of [
+		'apps/orchbee-worker/src/terminal_authorization.rs',
+		'apps/orchbee-worker/src/terminal_authorization/tests.rs',
+		'apps/orchbee-worker/README.zh-CN.md',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'terminal-launch-authorization',
+			),
+			true,
+			changedPath,
+		);
+	}
+});
+
 test('configuration variants replace one declared constant and reject ambiguous input', () => {
 	assert.equal(
 		variantConfigFileName('formal/tla/ActionExecution.cfg', 'reject-duplicate'),
