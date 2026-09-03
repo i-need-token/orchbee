@@ -1693,6 +1693,38 @@
 			]
 		},
 		{
+			"id": "local-host-broker",
+			"owner": "orchbee-worker",
+			"workspace": "apps/orchbee-worker",
+			"module": "apps/orchbee-worker/formal/tla/LocalHostBroker.tla",
+			"config": "apps/orchbee-worker/formal/tla/LocalHostBroker.cfg",
+			"claims": [
+				"apps/orchbee-worker/README.md",
+				"apps/terminal-host/README.md",
+				"packages/terminal-protocol/references/protocol.md"
+			],
+			"triggers": [
+				"apps/orchbee-worker/src/**",
+				"apps/orchbee-worker/tests/**",
+				"crates/terminal-protocol/src/**"
+			],
+			"requiredCoverage": [
+				"StartWorker",
+				"AcceptServer",
+				"RejectServer",
+				"ConnectHost",
+				"RejectHostPeer",
+				"AcceptHostHandshake",
+				"RejectHostWrongRole",
+				"RejectHostIncompatible",
+				"RejectHostMalformed",
+				"HostHandshakeTimeout",
+				"EmitReady",
+				"LoseServer",
+				"LoseHost"
+			]
+		},
+		{
 			"id": "terminal-close-activity-freshness",
 			"owner": "@orchbee/terminal-host",
 			"workspace": "apps/terminal-host",

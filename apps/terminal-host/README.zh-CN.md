@@ -1,6 +1,6 @@
 # Terminal Host
 
-Terminal Host是Orchbee的本地权威终端执行服务。它拥有本机终端身份、PTYs 和进程树、规范的 Ghostty 状态、保留的生命周期以及一个受信任的桌面代理的附件范围的终端功能。
+Terminal Host 是 Orchbee 的本地权威终端执行服务。它拥有本机终端身份、PTY 与进程树、规范的 Ghostty 状态、保留的生命周期，以及一个受信任本地 Broker 的附件范围终端能力。
 
 该应用程序是私有的并且是实验性版本。它安装一个可执行文件；它不导出可重用的本机库。
 
@@ -9,6 +9,7 @@ Terminal Host是Orchbee的本地权威终端执行服务。它拥有本机终端
 - [运行时契约和正确性模型](docs/runtime-model.md)拥有主机生命周期、状态、交付、重试、失败、并发和证据要求。
 - [终端协议参考](../../packages/terminal-protocol/references/protocol.md) 拥有线路记录、编解码器、消息模式、格式版本和协议安全限制。
 - [桌面版](../desktop/README.md)拥有产品拓扑、恢复策略、展示、平台效果。
+- [Worker](../orchbee-worker/README.zh-CN.md) 拥有其尚未发布、Server-first 的本地 Broker 连接与对端存活耦合；它不拥有终端语义。
 
 已接受的 [Desktop 更新连续性提案](../../proposals/terminal-host/desktop-terminal-host-update-continuity.md)记录未来实现设计；它不是当前运行时权威。
 
@@ -33,8 +34,8 @@ Terminal Host 拥有：
 
 接受的合同需要这些外部可见的属性：
 
-- 一个端点至多有一个活动的物理桌面代理会话。
-- 桌面断开连接会破坏该代理的附件，但不会终止或处置保留的终端。
+- 一个端点至多有一个活动的物理本地 Broker 会话。
+- Broker 断开连接会破坏该 Broker 的附件，但不会终止或处置保留的终端。
 - 具有保留终端的主机仍可用于重新连接。没有代理且没有保留终端的主机可以退出。
 - 当 terminal 保留在一个 Host epoch 中时，terminal creation 按 creation identity 与 durable launch fingerprint 保持原子和幂等。单独的非持久化 environment overlay 只应用于该 creation generation，并在 retained state 中表示为经目标规则规范化、与顺序无关的 digest。非空重放必须匹配该 digest；空重放可以在不重建 capability 的情况下校验已经保留的创建。显式 disposal 会释放 identity 与 overlay generation。
 - 具有空几何图形的启动会在 `awaiting-start` 中保留身份、配置和准备好的启动所有权，而不会生成子项或 PTY。 `StartTerminal` 需要一个完整的几何形状； success 将其用于子项 PTY、规范状态、核心观察和第一帧。精确重播是幂等的，冲突的几何体被拒绝，失败的生成仍然可以重试。
@@ -71,11 +72,16 @@ Terminal Host 拥有：
 
 ## 信任和连续性边界
 
-运行时目录和端点是操作系统用户私有的。 POSIX 使用可信的每用户集合点、无跟随目录描述符、effective-UID 所有权、私有模式、扩展和可继承 ACLs 的删除和验证、终身锁以及实际 Unix 域套接字的后绑定验证。主机和桌面在每个连接上都需要通过内核凭据连接的对等方的有效 UID。 Windows 使用拥有的非重分析运行时目录、受保护的 DACLs、单例互斥体、本地命名管道和 peer-SID 验证。
+运行时目录和端点是操作系统用户私有的。 POSIX 使用可信的每用户集合点、无跟随目录描述符、effective-UID 所有权、私有模式、扩展和可继承 ACLs 的删除和验证、终身锁以及实际 Unix 域套接字的后绑定验证。Host 与每个当前本地 Broker 在每次连接时都通过内核凭据要求对端具有相同 effective UID。 Windows 使用拥有的非重分析运行时目录、受保护的 DACLs、单例互斥体、本地命名管道和 peer-SID 验证。
 
 这些控制建立了同一用户的信任边界。端点标识符不是秘密，并且 Terminal Host 不区分一个相同用户应用程序与另一个。它不是多租户服务。
 
 当 Host 存活时，支持 Desktop 重新连接。在 POSIX 上，Desktop 的进程内本机端点适配器拥有客户端套接字，并在协议工作前验证 Host；Terminal Host 独立验证每个已接受客户端。关闭 Desktop 连接不会终止或以其他方式拥有 Host。不承诺在 Host 或操作系统崩溃后迁移或恢复 PTY。客户端模型见 Desktop 的 [POSIX Host 端点合同](../desktop/docs/posix-host-endpoint.zh-CN.md)。
+
+尚未发布的 Rust Worker 是新增的第二种 Broker 实现，而不是可并发的第二个 session。它只在
+Server admission 之后验证同用户 Host 并完成相同的精确版本 `Hello` exchange。其当前切片不发送
+terminal command，也不创建 PTY；Server 仍是 launch-authorization owner，Host 仍是 terminal
+authority。
 
 进程树所有权遵循启动时创建的遏制域：专用的 POSIX 会话或 Windows 关闭时终止作业。仅当该域没有实时成员时清理才完成。在 Windows 上，Host 会等待 Job 的空信号后再关闭 HPCON；Desktop 拥有的强制升级会终止 Job 并唤醒该等待。防止受信任的同一用户子进程故意逃离 POSIX 会话并不是一个隔离承诺。
 

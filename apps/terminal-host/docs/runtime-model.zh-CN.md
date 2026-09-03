@@ -18,16 +18,16 @@
 
 ## 目的
 
-Terminal Host是Orchbee的本地权威终端执行服务。对于每个端点的一个活动可信桌面代理，它拥有：
+Terminal Host 是 Orchbee 的本地权威终端执行服务。对于每个端点的一个活动可信本地 Broker，它拥有：
 
 - 保留终端身份及其生命周期；
 - 每个终端的PTY和进程树；
 - 规范的 Ghostty 终端状态；
 - 终端配置和有序输入准入；
 - 附件范围的投影、历史记录、选择和导出状态；和
-- Desktop 通过其访问这些功能的私有本地端点。
+- 活动 Broker 通过其访问这些能力的私有本地端点。
 
-主机的存在是为了使终端真相和终端资源不会移动到 Electron、渲染器或产品布局模型中。桌面断开连接或重新启动会破坏连接范围的功能，但不会处置保留的终端。
+Host 的存在是为了使终端真相和终端资源不会移动到 Electron、renderer 或产品布局模型中。Broker 断开连接或重启会破坏连接范围的能力，但不会处置 retained terminal。
 
 ## 边界和非目标
 
@@ -44,6 +44,11 @@ Terminal Host是Orchbee的本地权威终端执行服务。对于每个端点的
 - 用于另一个工作区的可重用本机库 API。
 
 桌面可能会重新连接到幸存的主机进程。如果主机或操作系统崩溃，合约不承诺其 PTYs 或终端进程可以恢复。
+
+当前 Desktop adapter 仍是一种 Broker 实现。尚未发布的 Rust Worker 是相同单 Broker role 的新增
+实现：它只在 Server admission 之后执行 same-user authentication 与精确版本 Host handshake，保留
+已接受的 Host epoch 与 negotiated limit，并耦合 Server 和 Host connection liveness。这个仅连接
+切片不发送 terminal command、不创建 PTY，也不增加 launch authority 或并发 Broker session。
 
 拥有的进程树是在启动时建立的操作系统遏制域：Linux 和 macOS 上的专用会话、FreeBSD 上保留的直接子进程 reaper 子树，或 Windows 的 kill-on-close Job。在提交清理前，遏制必须观察到该域没有活动成员。在 Linux 和 macOS 上，故意逃逸 POSIX 会话的同用户子进程也会逃逸此契约；防止敌对的同用户代码分离不属于已接受的信任边界。FreeBSD 遏制跟随 reaper 子树而不是会话成员关系。
 

@@ -1,5 +1,9 @@
 #[cfg(unix)]
+mod host_connection;
+#[cfg(unix)]
 mod worker_connection;
+#[cfg(unix)]
+mod worker_options;
 
 #[cfg(unix)]
 use std::env;

@@ -3,10 +3,10 @@
 	"domain": "orchbee-worker",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Unshipped private Rust Worker process that authenticates and registers one bounded local same-user POSIX connection with the exact compatible Orchbee Server.",
+	"responsibility": "Unshipped private Rust Worker process that authenticates and registers one bounded local same-user POSIX Server connection, then owns one authenticated exact-version Terminal Host broker connection and their coupled liveness without terminal effects.",
 	"nonGoals": [
 		"Discovering or activating Server, retrying connections, supervising processes, or owning production service installation, update, rollback, or recovery.",
-		"Connecting to Terminal Host, creating a PTY, resolving a shell or working directory, launching arbitrary commands, or owning terminal state and history.",
+		"Activating Terminal Host, creating or attaching a terminal, sending terminal commands, resolving a shell or working directory, launching arbitrary commands, or owning PTY, VT, terminal state, attachments, and history.",
 		"Owning Client sessions, product state, Project, Environment, Checkout, Worktree, Agent, Files, Git, SSH, remote enrollment, scheduling, or durable state."
 	]
 }

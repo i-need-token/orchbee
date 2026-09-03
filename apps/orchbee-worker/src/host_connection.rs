@@ -1,0 +1,167 @@
+use std::{
+    error::Error,
+    io::{self, Read, Write},
+    os::unix::net::UnixStream,
+    path::Path,
+    time::Duration,
+};
+
+use orchbee_local_peer_credentials::require_same_effective_user;
+use orchbee_terminal_protocol::{
+    CURRENT_PROTOCOL_VERSION, ClientId, ConnectionControl, CorrelationId, Envelope, Hello,
+    MAXIMUM_INPUT_BYTES, MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TERMINAL_FRAME_BYTES,
+    MAXIMUM_TRANSPORT_RECORD_BYTES, MessageRole, PayloadEncoding, TRANSPORT_ENVELOPE_HEADER_BYTES,
+    decode_connection_control, decode_transport_envelope, encode_connection_control,
+    encode_transport_envelope,
+};
+
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
+const CLIENT_ID_BYTES: [u8; 16] = *b"orchbee-worker-1";
+const HELLO_CORRELATION_BYTES: [u8; 16] = *b"worker-host-hi-1";
+
+pub(crate) struct HostBrokerConnection {
+    host_epoch: orchbee_terminal_protocol::HostEpoch,
+    negotiated_limits: NegotiatedHostLimits,
+    stream: UnixStream,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct NegotiatedHostLimits {
+    pub(crate) frame_bytes: u32,
+    pub(crate) input_bytes: u32,
+    pub(crate) row_window_bytes: u32,
+}
+
+impl HostBrokerConnection {
+    pub(crate) fn connect(endpoint: &Path) -> Result<Self, Box<dyn Error>> {
+        let mut stream = UnixStream::connect(endpoint)?;
+        require_same_effective_user(&stream)?;
+        stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT))?;
+        stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT))?;
+
+        let expected = requested_hello()?;
+        let correlation_id = CorrelationId::from_bytes(HELLO_CORRELATION_BYTES)?;
+        write_hello(&mut stream, &expected, correlation_id)?;
+        let (host_epoch, negotiated_limits) =
+            validate_hello_accepted(&mut stream, &expected, correlation_id)?;
+
+        stream.set_read_timeout(None)?;
+        stream.set_write_timeout(None)?;
+        Ok(Self {
+            host_epoch,
+            negotiated_limits,
+            stream,
+        })
+    }
+
+    pub(crate) const fn host_epoch(&self) -> orchbee_terminal_protocol::HostEpoch {
+        self.host_epoch
+    }
+
+    pub(crate) const fn negotiated_limits(&self) -> NegotiatedHostLimits {
+        self.negotiated_limits
+    }
+
+    pub(crate) const fn stream(&self) -> &UnixStream {
+        &self.stream
+    }
+}
+
+fn requested_hello() -> Result<Hello, Box<dyn Error>> {
+    Ok(Hello {
+        client_id: ClientId::from_bytes(CLIENT_ID_BYTES)?,
+        frame_bytes: u32::try_from(MAXIMUM_TERMINAL_FRAME_BYTES)?,
+        input_bytes: u32::try_from(MAXIMUM_INPUT_BYTES)?,
+        protocol: CURRENT_PROTOCOL_VERSION,
+        row_window_bytes: u32::try_from(MAXIMUM_ROW_WINDOW_BYTES)?,
+        supported_optional_features: Vec::new(),
+    })
+}
+
+fn write_hello(
+    stream: &mut UnixStream,
+    hello: &Hello,
+    correlation_id: CorrelationId,
+) -> Result<(), Box<dyn Error>> {
+    let control = encode_connection_control(&ConnectionControl::Hello(hello.clone()))?;
+    let record = encode_transport_envelope(&Envelope {
+        correlation_id: Some(correlation_id),
+        host_epoch: None,
+        kind: control.kind,
+        optional_message: false,
+        payload: &control.payload,
+        payload_encoding: PayloadEncoding::ControlJson,
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: control.role,
+    })?;
+    stream.write_all(&record)?;
+    Ok(())
+}
+
+fn validate_hello_accepted(
+    stream: &mut UnixStream,
+    requested: &Hello,
+    correlation_id: CorrelationId,
+) -> Result<(orchbee_terminal_protocol::HostEpoch, NegotiatedHostLimits), Box<dyn Error>> {
+    let record = read_transport_record(stream)?;
+    let envelope = decode_transport_envelope(&record)?;
+    if envelope.role != MessageRole::Response
+        || envelope.correlation_id != Some(correlation_id)
+        || envelope.host_epoch.is_none()
+        || envelope.optional_message
+        || envelope.protocol != CURRENT_PROTOCOL_VERSION
+    {
+        return Err(invalid_handshake());
+    }
+
+    let ConnectionControl::HelloAccepted(accepted) =
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload)?
+    else {
+        return Err(invalid_handshake());
+    };
+    if envelope.host_epoch != Some(accepted.host_epoch)
+        || accepted.protocol != CURRENT_PROTOCOL_VERSION
+        || accepted.frame_bytes != requested.frame_bytes
+        || accepted.input_bytes != requested.input_bytes
+        || accepted.row_window_bytes != requested.row_window_bytes
+        || !accepted.supported_optional_features.is_empty()
+    {
+        return Err(invalid_handshake());
+    }
+    Ok((
+        accepted.host_epoch,
+        NegotiatedHostLimits {
+            frame_bytes: accepted.frame_bytes,
+            input_bytes: accepted.input_bytes,
+            row_window_bytes: accepted.row_window_bytes,
+        },
+    ))
+}
+
+fn read_transport_record(stream: &mut UnixStream) -> Result<Vec<u8>, Box<dyn Error>> {
+    let mut header = [0_u8; TRANSPORT_ENVELOPE_HEADER_BYTES];
+    stream.read_exact(&mut header)?;
+    let total_length = usize::try_from(u32::from_le_bytes([
+        header[8], header[9], header[10], header[11],
+    ]))?;
+    if !(TRANSPORT_ENVELOPE_HEADER_BYTES..=MAXIMUM_TRANSPORT_RECORD_BYTES).contains(&total_length) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Terminal Host record length is outside the protocol boundary",
+        )
+        .into());
+    }
+
+    let mut record = vec![0_u8; total_length];
+    record[..TRANSPORT_ENVELOPE_HEADER_BYTES].copy_from_slice(&header);
+    stream.read_exact(&mut record[TRANSPORT_ENVELOPE_HEADER_BYTES..])?;
+    Ok(record)
+}
+
+fn invalid_handshake() -> Box<dyn Error> {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "Terminal Host rejected the exact Worker broker handshake",
+    )
+    .into()
+}

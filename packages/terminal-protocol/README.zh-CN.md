@@ -12,7 +12,11 @@ response、nested inventory fact、现有 kind 12 到 19 的非创建 lifecycle 
 的 attachment control、kind 30 和 31 的 raw `WriteInput`/`InputAccepted` 交换，以及 kind 32 和 33
 的 `ResizeTerminal`/`ResizeAccepted` control 交换，以及 kind 34 到 38 的 semantic `KeyInput`、
 `TextInput`、`MouseInput`、`FocusInput` 与 `PasteInput` request。本 package、其 reference 与
-fixture 仍是唯一 wire authority。该 binding 还覆盖 kind 43 与 44 的双向 `FrameApplied` 和
+fixture 仍是唯一 wire authority。尚未发布的
+[`orchbee-worker`](../../apps/orchbee-worker/README.zh-CN.md) application 现在只消费 Rust envelope
+与 connection-control codec，以执行现有的精确版本 Host handshake；socket authentication、
+handshake state 与 connection liveness 归 Worker 而非该 binding 所有。该 binding 还覆盖 kind
+43 与 44 的双向 `FrameApplied` 和
 `NeedSnapshot` projection-feedback control、kind 47 到 49 的 projection-demand request、
 acceptance 与 blocked event，以及 kind 51 到 54 的 history-demand、change 与 observation
 control。其 row-access control binding 覆盖 kind-45 `ReadRows` request 与 kind-50 `RowsApplied`

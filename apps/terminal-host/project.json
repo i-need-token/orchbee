@@ -3,7 +3,7 @@
 	"domain": "terminal-host",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Local authoritative terminal-execution service for one trusted Desktop broker, owning retained terminal lifecycle, PTY and process trees, canonical Ghostty state, attachment-scoped input, projection, history, selection, bounded terminal application-signal transport, the private local IPC endpoint, and parameter-fixed explicit-version ReleaseSafe stripped component builds for the accepted SSH Environment release targets.",
+	"responsibility": "Local authoritative terminal-execution service for one trusted local broker, owning retained terminal lifecycle, PTY and process trees, canonical Ghostty state, attachment-scoped input, projection, history, selection, bounded terminal application-signal transport, the private local IPC endpoint, and parameter-fixed explicit-version ReleaseSafe stripped component builds for the accepted SSH Environment release targets.",
 	"nonGoals": [
 		"Owning Project, Workspace, Workbench, Tab, Panel, Agent, provider, product-session, or terminal-application-signal interpretation models.",
 		"Owning Electron lifecycle, product recovery or update policy, presentation, renderer behavior, or platform UI effects.",

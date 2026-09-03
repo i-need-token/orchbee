@@ -2,7 +2,7 @@
 	"name": "@orchbee/terminal-host",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Local authoritative terminal-execution service for Orchbee's trusted Desktop broker",
+	"description": "Local authoritative terminal-execution service for Orchbee's trusted local broker",
 	"type": "module",
 	"scripts": {
 		"benchmark": "zig build benchmark -Doptimize=ReleaseFast",

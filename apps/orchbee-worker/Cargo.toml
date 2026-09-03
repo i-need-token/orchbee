@@ -8,6 +8,10 @@ publish = false
 [dependencies]
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
 orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
+orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", default-features = false, features = ["poll"] }
 
 [lints]
 workspace = true

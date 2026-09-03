@@ -23,17 +23,17 @@ version of a fact owned here.
 ## Purpose
 
 Terminal Host is Orchbee's local authoritative terminal-execution service. For one active trusted
-Desktop broker per endpoint, it owns:
+local broker per endpoint, it owns:
 
 - retained terminal identities and their lifecycle;
 - each terminal's PTY and process tree;
 - the canonical Ghostty terminal state;
 - terminal configuration and ordered input admission;
 - attachment-scoped projection, history, selection, and export state; and
-- the private local endpoint through which Desktop accesses those capabilities.
+- the private local endpoint through which the active broker accesses those capabilities.
 
 The Host exists so that terminal truth and terminal resources do not move into Electron, a
-renderer, or a product-layout model. A Desktop disconnect or restart destroys connection-scoped
+renderer, or a product-layout model. A broker disconnect or restart destroys connection-scoped
 capabilities but does not dispose retained terminals.
 
 ## Boundary and non-goals
@@ -57,6 +57,13 @@ The Host does not own:
 
 Desktop may reconnect to a surviving Host process. If the Host or operating system crashes, the
 contract does not promise that its PTYs or terminal processes can be recovered.
+
+The current Desktop adapter remains one broker implementation. The unshipped Rust Worker is an
+additive implementation of the same single-broker role: only after Server admission, it performs
+same-user authentication and the exact-version Host handshake, retains the accepted Host epoch and
+negotiated limits, and couples Server and Host connection liveness. This connection-only slice
+sends no terminal command, creates no PTY, and adds neither launch authority nor a concurrent
+broker session.
 
 The owned process tree is the operating-system containment domain established at launch: the
 dedicated session on Linux and macOS, the retained direct-child process-reaper subtree on FreeBSD,

@@ -1,6 +1,6 @@
 # Terminal Host
 
-Terminal Host is Orchbee's local authoritative terminal-execution service. It owns native terminal identities, PTYs and process trees, canonical Ghostty state, retained lifecycle, and attachment-scoped terminal capabilities for one trusted Desktop broker.
+Terminal Host is Orchbee's local authoritative terminal-execution service. It owns native terminal identities, PTYs and process trees, canonical Ghostty state, retained lifecycle, and attachment-scoped terminal capabilities for one trusted local broker.
 
 The application is private and experimentally versioned. It installs an executable; it does not export a reusable native library.
 
@@ -9,6 +9,7 @@ The application is private and experimentally versioned. It installs an executab
 - [Runtime contract and correctness model](docs/runtime-model.md) owns Host lifecycle, state, delivery, retry, failure, concurrency, and evidence requirements.
 - [Terminal protocol reference](../../packages/terminal-protocol/references/protocol.md) owns wire records, codecs, message schemas, format versions, and protocol safety limits.
 - [Desktop](../desktop/README.md) owns product topology, recovery policy, presentation, and platform effects.
+- [Worker](../orchbee-worker/README.md) owns its unshipped Server-first local broker connection and coupled peer liveness; it owns no terminal semantics.
 
 The accepted [Desktop update-continuity proposal](../../proposals/terminal-host/desktop-terminal-host-update-continuity.md) records future implementation design; it is not current runtime authority.
 
@@ -36,8 +37,8 @@ It does not own Project, Workspace, Workbench, Tab, Panel, Agent, provider, or p
 
 The accepted contract requires these externally visible properties:
 
-- One endpoint has at most one active physical Desktop broker session.
-- A Desktop disconnect destroys that broker's attachments but does not terminate or dispose retained terminals.
+- One endpoint has at most one active physical local broker session.
+- A broker disconnect destroys that broker's attachments but does not terminate or dispose retained terminals.
 - A Host with retained terminals remains available for reconnect. A Host with no broker and no retained terminal may exit.
 - Terminal creation is atomic and idempotent by creation identity and durable launch fingerprint
   while the terminal remains retained in one Host epoch. A separate, non-persistent environment
@@ -130,11 +131,16 @@ The complete state model, retry classes, commit boundaries, invariants, and evid
 
 ## Trust and continuity boundary
 
-The runtime directory and endpoint are private to the operating-system user. POSIX uses a trusted per-user rendezvous, a no-follow directory descriptor, effective-UID ownership, private mode, removal and validation of extended and inheritable ACLs, a lifetime lock, and post-bind validation of the actual Unix-domain socket. Host and Desktop both require the connected peer's effective UID through kernel credentials on every connection. Windows uses an owned non-reparse runtime directory, protected DACLs, a singleton mutex, a local named pipe, and peer-SID validation.
+The runtime directory and endpoint are private to the operating-system user. POSIX uses a trusted per-user rendezvous, a no-follow directory descriptor, effective-UID ownership, private mode, removal and validation of extended and inheritable ACLs, a lifetime lock, and post-bind validation of the actual Unix-domain socket. Host and each current local broker require the connected peer's effective UID through kernel credentials on every connection. Windows uses an owned non-reparse runtime directory, protected DACLs, a singleton mutex, a local named pipe, and peer-SID validation.
 
 These controls establish a same-user trust boundary. The endpoint identifier is not a secret, and Terminal Host does not distinguish one same-user application from another. It is not a multi-tenant service.
 
 Desktop reconnect is supported while the Host survives. On POSIX, Desktop's in-process native endpoint adapter owns the client socket and authenticates the Host before protocol work; Terminal Host independently authenticates every accepted client. Closing the Desktop connection does not terminate or otherwise own the Host. PTY migration or recovery after a Host or operating-system crash is not promised. The client-side model lives in the Desktop [POSIX Host endpoint contract](../desktop/docs/posix-host-endpoint.md).
+
+The unshipped Rust Worker is an additive second broker implementation, not a concurrent second
+session. Only after Server admission, it authenticates the same-user Host and completes the same
+exact-version `Hello` exchange. Its current slice sends no terminal command and creates no PTY;
+Server remains the launch-authorization owner and Host remains the terminal authority.
 
 Process-tree ownership follows the containment domain created at launch: a dedicated POSIX session or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. On Windows, the Host waits on the Job's empty signal before closing HPCON; Desktop-owned force escalation terminates the Job and wakes that wait. Preventing a trusted same-user child from deliberately escaping a POSIX session is not an isolation promise.
 

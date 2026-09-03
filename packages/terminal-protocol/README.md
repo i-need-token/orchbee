@@ -13,7 +13,11 @@ and observations for kinds 12 through 19, attachment controls for kinds 20 throu
 `WriteInput`/`InputAccepted` exchange for kinds 30 and 31, and the `ResizeTerminal`/
 `ResizeAccepted` control exchange for kinds 32 and 33, plus the semantic `KeyInput`, `TextInput`,
 `MouseInput`, `FocusInput`, and `PasteInput` requests for kinds 34 through 38. This package, its
-reference, and its fixtures remain the sole wire authority. The binding also covers the
+reference, and its fixtures remain the sole wire authority. The unshipped
+[`orchbee-worker`](../../apps/orchbee-worker/README.md) application now consumes only the Rust
+envelope and connection-control codecs to perform the existing exact-version Host handshake; the
+Worker, not this binding, owns socket authentication, handshake state, and connection liveness.
+The binding also covers the
 bidirectional `FrameApplied` and `NeedSnapshot` projection-feedback controls for kinds 43 and 44,
 the projection-demand request, acceptance, and blocked event for kinds 47 through 49, and the
 history-demand, change, and observation controls for kinds 51 through 54. Its row-access control
