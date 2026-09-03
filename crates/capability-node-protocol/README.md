@@ -25,7 +25,9 @@ without changing the frame envelope. A Worker admits only its exact supported ca
 version 1 and version 2 requests therefore reject each other as `UnsupportedCapability`. Both
 versions use the same rejection tag for that outcome, while a version 1 decoder rejects the new
 capacity tag as unknown. Mixed versions consequently fail closed instead of silently using version
-1's unbounded binding behavior.
+1's unbounded binding behavior. The current Worker authorization kernel is fixed to version 2
+rather than accepting a configurable version with version 2 capacity behavior. Construction and
+decoding also reject `CapacityExceeded` when its echoed authorization is not version 2.
 
 | Message                    | Direction                 | Closed semantic payload                                                                                                                                               |
 | -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -134,15 +136,21 @@ effects are retained. The model does not enumerate the cross-terminal and cross-
 a successor Server-authority transition. Future runtime adapters require separate refinement
 evidence.
 
+The registered `TerminalLaunchAuthorization` model uses capability version 2 as its supported
+authority and version 1 as its unsupported-capability witness.
+
 The Worker-owned registered
 [`WorkerTerminalBindingCapacity`](../../apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.tla)
-refinement checks the cross-terminal bound separately from the single-terminal Server authority
-model. Its TLC configuration uses capacity two and three terminal identities to exhaustively cover
-below-limit admission, the full threshold, rejection of one new identity, exact cached replay,
-higher-fence replacement, rejection preservation, and classification priority. The production
-constant is exactly 1,024 retained bindings per Worker generation. There is no release, TTL, LRU,
-or eviction path; explicit retirement remains required before production. This bounded model is
-not a proof over 1,024 concrete entries or of the Rust implementation.
+refinement composes the cross-terminal bound with the Worker's abstract global operation/result
+slot while the single-terminal Server authority model retains the detailed handoff phases. Its TLC
+configuration uses capacity two and three terminal identities to exhaustively cover below-limit
+admission, the full threshold, rejection of one new identity, occupied-slot priority, result
+delivery clearing, exact cached replay and higher-fence replacement at capacity only after the slot
+is empty, rejection preservation, and classification priority. The production constant is exactly
+1,024 retained bindings per Worker generation. There is no release, TTL, LRU, or eviction path;
+explicit retirement remains required before production. This bounded model is not a proof over
+1,024 concrete entries or of the Rust implementation, and its authority ships only in the same
+unshipped delivery cohort as the corresponding Rust enforcement.
 
 ## Verification
 

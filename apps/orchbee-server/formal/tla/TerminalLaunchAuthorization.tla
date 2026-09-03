@@ -37,6 +37,8 @@ ResultOutcomes == {"host-accepted", "rejected", "failed", "outcome-unknown"}
 ResultTransitions == {"none", "awaiting-start", "started", "already-started"}
 TerminalStates == {"none", "awaiting-start", "started", "lost"}
 Capabilities == {1, 2}
+LegacyCapability == 1
+SupportedCapability == 2
 Generations == 1..MaxGeneration
 Fences == 1..MaxFence
 HostEpochs == 1..MaxHostEpoch
@@ -253,7 +255,7 @@ IssueCurrentLaunchFor(kind) ==
            operation,
            lease,
            kind,
-           1,
+           SupportedCapability,
            0
          )
      IN
@@ -289,7 +291,7 @@ IssueStaleGenerationLaunch ==
        FirstOperation,
        FirstLease,
        "launch-immediate",
-       1,
+       SupportedCapability,
        0
      )
   /\ requestPhase' = "issued"
@@ -299,7 +301,7 @@ IssueStaleGenerationLaunch ==
        terminalState, terminalHostEpoch,
        hostEffects>>
 
-IssueUnsupportedCapabilityLaunch ==
+IssueLegacyCapabilityLaunch ==
   /\ CanDispatch
   /\ request' = Binding(
        workerGeneration,
@@ -307,7 +309,7 @@ IssueUnsupportedCapabilityLaunch ==
        FirstOperation,
        FirstLease,
        "launch-immediate",
-       2,
+       LegacyCapability,
        0
      )
   /\ requestPhase' = "issued"
@@ -327,7 +329,7 @@ IssueLowFenceReplay ==
        acceptedBinding.operation,
        acceptedBinding.lease,
        acceptedBinding.kind,
-       1,
+       SupportedCapability,
        acceptedBinding.targetEpoch
      )
   /\ requestPhase' = "issued"
@@ -374,7 +376,7 @@ IssueAuthorizedStart ==
            operation,
            lease,
            "start",
-           1,
+           SupportedCapability,
            terminalHostEpoch
          )
      IN
@@ -422,7 +424,7 @@ RejectStaleGeneration ==
 RejectUnsupportedCapability ==
   /\ requestPhase = "issued"
   /\ request.generation = workerGeneration
-  /\ request.capability # 1
+  /\ request.capability # SupportedCapability
   /\ QueueUncachedResult("rejected", 0, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
@@ -450,7 +452,7 @@ RejectExpiredBeforeAdmission ==
 RejectLowFence ==
   /\ requestPhase = "issued"
   /\ request.generation = workerGeneration
-  /\ request.capability = 1
+  /\ request.capability = SupportedCapability
   /\ leaseValid[request.lease]
   /\ acceptedBinding # NoBinding
   /\ request.fence < acceptedBinding.fence
@@ -462,7 +464,7 @@ RejectLowFence ==
 RejectConflictingReplay ==
   /\ requestPhase = "issued"
   /\ request.generation = workerGeneration
-  /\ request.capability = 1
+  /\ request.capability = SupportedCapability
   /\ leaseValid[request.lease]
   /\ acceptedBinding # NoBinding
   /\ request.fence = acceptedBinding.fence
@@ -476,7 +478,7 @@ RejectHostIdentityChanged ==
   /\ requestPhase = "issued"
   /\ request.kind = "start"
   /\ request.generation = workerGeneration
-  /\ request.capability = 1
+  /\ request.capability = SupportedCapability
   /\ leaseValid[request.lease]
   /\ request.targetEpoch # hostEpoch
   /\ (~HasCachedResult \/ request # acceptedBinding)
@@ -540,7 +542,7 @@ AdmitAuthorization ==
   /\ workerConnected
   /\ pendingResult = NoResult
   /\ request.generation = workerGeneration
-  /\ request.capability = 1
+  /\ request.capability = SupportedCapability
   /\ leaseValid[request.lease]
   /\ (request.kind # "start" \/ request.targetEpoch = hostEpoch)
   /\ acceptedBinding = NoBinding \/ request.fence > acceptedBinding.fence
@@ -816,7 +818,7 @@ Next ==
   \/ IssueCurrentImmediateLaunch
   \/ IssueCurrentDeferredLaunch
   \/ IssueStaleGenerationLaunch
-  \/ IssueUnsupportedCapabilityLaunch
+  \/ IssueLegacyCapabilityLaunch
   \/ IssueLowFenceReplay
   \/ IssueExactReplay
   \/ IssueConflictingReplay
@@ -888,6 +890,9 @@ TypeOK ==
 
 RequestPhaseHasBinding ==
   (requestPhase = "none") <=> (request = NoBinding)
+
+AcceptedBindingUsesSupportedCapability ==
+  acceptedBinding # NoBinding => acceptedBinding.capability = SupportedCapability
 
 OutstandingRequestOwnsEmptyResultSlot ==
   requestPhase # "none" => pendingResult = NoResult

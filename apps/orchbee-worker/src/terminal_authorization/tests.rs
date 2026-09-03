@@ -123,47 +123,30 @@ fn rejects_invalid_authority_for_launch_and_start_without_dispatch() -> TestResu
 }
 
 #[test]
-fn terminal_launch_capability_versions_fail_closed_in_both_directions() -> TestResult {
+fn version_two_kernel_rejects_legacy_and_future_capabilities() -> TestResult {
     let legacy_capability = TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN);
-    assert_ne!(
-        legacy_capability, TERMINAL_LAUNCH_CAPABILITY_VERSION,
-        "the capacity contract requires a distinct capability version"
-    );
+    let future_capability = TerminalLaunchCapabilityVersion::new(nonzero_u16(3)?);
 
     for request_kind in [RequestKind::Launch, RequestKind::Start] {
-        let mut current_kernel = kernel()?;
-        let legacy_operation = operation(
-            request_kind,
-            AuthorizationSpec {
-                capability: legacy_capability.get(),
-                ..AuthorizationSpec::standard(1, 1)
-            },
-        )?;
-        assert_eq!(
-            admit(&mut current_kernel, legacy_operation, NOW)?,
-            HostOperationAdmission::ResultReady
-        );
-        assert_rejection(
-            take_required_result(&mut current_kernel),
-            ExpectedAdmissionRejection::UnsupportedCapability,
-            request_kind,
-        );
-
-        let mut legacy_kernel = AuthorizedHostOperationKernel::new(
-            CURRENT_LOCAL_WORKER_ID,
-            nonzero_u64(7)?,
-            legacy_capability,
-        )?;
-        let current_operation = operation(request_kind, AuthorizationSpec::standard(2, 2))?;
-        assert_eq!(
-            admit(&mut legacy_kernel, current_operation, NOW)?,
-            HostOperationAdmission::ResultReady
-        );
-        assert_rejection(
-            take_required_result(&mut legacy_kernel),
-            ExpectedAdmissionRejection::UnsupportedCapability,
-            request_kind,
-        );
+        for capability in [legacy_capability, future_capability] {
+            let mut kernel = kernel()?;
+            let operation = operation(
+                request_kind,
+                AuthorizationSpec {
+                    capability: capability.get(),
+                    ..AuthorizationSpec::standard(1, 1)
+                },
+            )?;
+            assert_eq!(
+                admit(&mut kernel, operation, NOW)?,
+                HostOperationAdmission::ResultReady
+            );
+            assert_rejection(
+                take_required_result(&mut kernel),
+                ExpectedAdmissionRejection::UnsupportedCapability,
+                request_kind,
+            );
+        }
     }
     Ok(())
 }
@@ -654,7 +637,7 @@ fn exact_launch_replay_preserves_every_cached_outcome_after_expiry() -> TestResu
             AuthorizedHostOperationResult::Launch(TerminalLaunchResult::new(
                 request.authorization(),
                 expected_outcome,
-            ))
+            )?)
         );
         assert_eq!(
             kernel.admit_launch(request, LIVE_EXPIRY)?,
@@ -983,11 +966,8 @@ fn dispatch_tokens_reject_wrong_stale_and_out_of_phase_observations() -> TestRes
         Err(AuthorizationKernelError::DispatchMismatch)
     );
 
-    let mut next_generation = AuthorizedHostOperationKernel::new(
-        CURRENT_LOCAL_WORKER_ID,
-        nonzero_u64(8)?,
-        TERMINAL_LAUNCH_CAPABILITY_VERSION,
-    )?;
+    let mut next_generation =
+        AuthorizedHostOperationKernel::new(CURRENT_LOCAL_WORKER_ID, nonzero_u64(8)?)?;
     let next_generation_dispatch = expect_dispatch(next_generation.admit_launch(
         launch(AuthorizationSpec {
             generation: 8,
@@ -1266,22 +1246,15 @@ fn start_completion_rejects_changed_geometry_without_consuming_handoff() -> Test
 
 #[test]
 fn rejects_zero_local_site_worker_identity_at_the_kernel_boundary() {
-    let result = AuthorizedHostOperationKernel::new(
-        LocalSiteWorkerId::from_bytes([0; 16]),
-        NonZeroU64::MIN,
-        TERMINAL_LAUNCH_CAPABILITY_VERSION,
-    );
+    let result =
+        AuthorizedHostOperationKernel::new(LocalSiteWorkerId::from_bytes([0; 16]), NonZeroU64::MIN);
     assert_eq!(result, Err(ProtocolError::InvalidIdentity));
 }
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 fn kernel() -> Result<AuthorizedHostOperationKernel, ProtocolError> {
-    AuthorizedHostOperationKernel::new(
-        CURRENT_LOCAL_WORKER_ID,
-        nonzero_u64(7)?,
-        TERMINAL_LAUNCH_CAPABILITY_VERSION,
-    )
+    AuthorizedHostOperationKernel::new(CURRENT_LOCAL_WORKER_ID, nonzero_u64(7)?)
 }
 
 fn operation(

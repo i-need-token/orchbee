@@ -219,7 +219,7 @@ fn decode_terminal_launch_result(payload: &[u8]) -> Result<TerminalLaunchResult,
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;
-    Ok(TerminalLaunchResult::new(authorization, outcome))
+    TerminalLaunchResult::new(authorization, outcome)
 }
 
 fn encode_authorized_terminal_start(value: AuthorizedTerminalStart) -> Vec<u8> {

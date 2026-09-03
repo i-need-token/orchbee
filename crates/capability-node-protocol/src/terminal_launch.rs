@@ -384,15 +384,21 @@ pub struct TerminalLaunchResult {
 }
 
 impl TerminalLaunchResult {
-    #[must_use]
-    pub const fn new(
+    pub fn new(
         authorization: TerminalOperationAuthorization,
         outcome: TerminalLaunchOutcome,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ProtocolError> {
+        validate_capacity_outcome_capability(
+            authorization,
+            matches!(
+                outcome,
+                TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::CapacityExceeded)
+            ),
+        )?;
+        Ok(Self {
             authorization,
             outcome,
-        }
+        })
     }
 
     #[must_use]
@@ -526,6 +532,13 @@ impl TerminalStartResult {
         target: HostTerminalIdentity,
         outcome: TerminalStartOutcome,
     ) -> Result<Self, ProtocolError> {
+        validate_capacity_outcome_capability(
+            authorization,
+            matches!(
+                outcome,
+                TerminalStartOutcome::Rejected(TerminalStartRejection::CapacityExceeded)
+            ),
+        )?;
         validate_start_outcome(target, outcome)?;
         Ok(Self {
             authorization,
@@ -548,6 +561,18 @@ impl TerminalStartResult {
     pub const fn target(self) -> HostTerminalIdentity {
         self.target
     }
+}
+
+fn validate_capacity_outcome_capability(
+    authorization: TerminalOperationAuthorization,
+    is_capacity_exceeded: bool,
+) -> Result<(), ProtocolError> {
+    if is_capacity_exceeded
+        && authorization.capability_version() != TERMINAL_LAUNCH_CAPABILITY_VERSION
+    {
+        return Err(ProtocolError::InvalidPayload);
+    }
+    Ok(())
 }
 
 fn validate_start_outcome(

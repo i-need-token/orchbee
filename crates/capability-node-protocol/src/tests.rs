@@ -81,20 +81,20 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
                 identity,
                 HostLaunchState::AwaitingStart,
             )),
-        )),
+        )?),
         CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
             authorization,
             TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
                 identity,
                 HostLaunchState::Started(geometry),
             )),
-        )),
+        )?),
         CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
             authorization,
             TerminalLaunchOutcome::OutcomeUnknown {
                 host_epoch: identity.host_epoch(),
             },
-        )),
+        )?),
         CapabilityNodeMessage::AuthorizedTerminalStart(AuthorizedTerminalStart::new(
             authorization,
             identity,
@@ -126,7 +126,7 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
     ];
     for rejection in launch_rejections {
         messages.push(CapabilityNodeMessage::TerminalLaunchResult(
-            TerminalLaunchResult::new(authorization, TerminalLaunchOutcome::Rejected(rejection)),
+            TerminalLaunchResult::new(authorization, TerminalLaunchOutcome::Rejected(rejection))?,
         ));
     }
     for rejection in start_rejections {
@@ -140,7 +140,7 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
     }
     for failure in launch_failures {
         messages.push(CapabilityNodeMessage::TerminalLaunchResult(
-            TerminalLaunchResult::new(authorization, TerminalLaunchOutcome::Failed(failure)),
+            TerminalLaunchResult::new(authorization, TerminalLaunchOutcome::Failed(failure))?,
         ));
     }
     for failure in start_failures {
@@ -172,7 +172,7 @@ fn capability_two_capacity_rejections_have_exact_canonical_tags()
     let launch = CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
         current_authorization,
         TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::CapacityExceeded),
-    ));
+    )?);
     let encoded_launch = encode(&launch)?;
     assert_eq!(encoded_launch.len(), 101);
     assert_eq!(&encoded_launch[..8], &[b'O', b'B', b'C', b'N', 0, 1, 0, 93]);
@@ -194,6 +194,42 @@ fn capability_two_capacity_rejections_have_exact_canonical_tags()
     assert_eq!(decode_message(&encoded_start)?, start);
 
     let legacy_capability = TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN);
+    let future_capability = TerminalLaunchCapabilityVersion::new(
+        NonZeroU16::new(3).ok_or("future capability must be nonzero")?,
+    );
+    for unsupported_capability in [legacy_capability, future_capability] {
+        let unsupported_authorization = authorization(unsupported_capability)?;
+        assert_eq!(
+            TerminalLaunchResult::new(
+                unsupported_authorization,
+                TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::CapacityExceeded),
+            ),
+            Err(ProtocolError::InvalidPayload)
+        );
+        assert_eq!(
+            TerminalStartResult::new(
+                unsupported_authorization,
+                target,
+                TerminalStartOutcome::Rejected(TerminalStartRejection::CapacityExceeded),
+            ),
+            Err(ProtocolError::InvalidPayload)
+        );
+
+        let mut incompatible_launch = encoded_launch.clone();
+        incompatible_launch[97..99].copy_from_slice(&unsupported_capability.get().to_be_bytes());
+        assert_eq!(
+            decode_message(&incompatible_launch),
+            Err(ProtocolError::InvalidPayload)
+        );
+
+        let mut incompatible_start = encoded_start.clone();
+        incompatible_start[97..99].copy_from_slice(&unsupported_capability.get().to_be_bytes());
+        assert_eq!(
+            decode_message(&incompatible_start),
+            Err(ProtocolError::InvalidPayload)
+        );
+    }
+
     let legacy_request =
         CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
             authorization(legacy_capability)?,
@@ -323,7 +359,7 @@ fn result_binding_echoes_every_stale_authority_guard() -> Result<(), Box<dyn std
     let result = TerminalLaunchResult::new(
         authorization,
         TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::StaleFence),
-    );
+    )?;
     let encoded = encode(&CapabilityNodeMessage::TerminalLaunchResult(result))?;
     let CapabilityNodeMessage::TerminalLaunchResult(decoded) = decode_message(&encoded)? else {
         return Err("wrong decoded result kind".into());
@@ -361,7 +397,7 @@ fn result_echoes_lease_identity_and_expiry_byte_for_byte() -> Result<(), Box<dyn
     let message = CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
         authorization,
         TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::LeaseExpired),
-    ));
+    )?);
     let encoded = encode(&message)?;
     assert_eq!(
         &encoded[LEASE_ID_RANGE],
@@ -575,7 +611,7 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
                 host_identity()?,
                 HostLaunchState::AwaitingStart,
             )),
-        ),
+        )?,
     ))?;
     let launch_state_offset = unknown_launch_state.len() - 1;
     unknown_launch_state[launch_state_offset] = 99;
@@ -607,7 +643,7 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
         TerminalLaunchResult::new(
             authorization,
             TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::WrongWorker),
-        ),
+        )?,
     ))?;
     let rejection_offset = unknown_rejection.len() - 1;
     unknown_rejection[rejection_offset] = 99;
@@ -622,7 +658,7 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
             TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::HostRejected {
                 host_epoch: host_identity()?.host_epoch(),
             }),
-        ),
+        )?,
     ))?;
     let launch_rejection_tag_offset = start_only_launch_rejection.len() - 17;
     start_only_launch_rejection[launch_rejection_tag_offset] = 9;
@@ -635,7 +671,7 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
         TerminalLaunchResult::new(
             authorization,
             TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::CapacityExceeded),
-        ),
+        )?,
     ))?;
     let launch_capacity_tag_offset = unknown_after_launch_capacity.len() - 1;
     unknown_after_launch_capacity[launch_capacity_tag_offset] = 9;
@@ -648,7 +684,7 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
         TerminalLaunchResult::new(
             authorization,
             TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff),
-        ),
+        )?,
     ))?;
     let failure_offset = unknown_failure.len() - 1;
     unknown_failure[failure_offset] = 99;

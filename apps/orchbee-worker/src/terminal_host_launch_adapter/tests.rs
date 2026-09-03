@@ -1,11 +1,11 @@
-use std::num::{NonZeroU16, NonZeroU64};
+use std::num::NonZeroU64;
 
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostCreationId, HostEpoch, HostTerminalId,
     HostTerminalIdentity, LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, StartTransition,
-    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalId, TerminalLaunchCapabilityVersion,
-    TerminalLaunchMode, TerminalOperationAuthorization, TerminalOperationLease,
-    TerminalPixelGeometry, WorkerGeneration, WorkerId,
+    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalFence, TerminalId, TerminalLaunchMode,
+    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
+    WorkerGeneration, WorkerId,
 };
 use orchbee_local_site_protocol::WorkerId as LocalSiteWorkerId;
 use orchbee_terminal_protocol::{
@@ -585,11 +585,7 @@ fn expect_dispatch(
 }
 
 fn kernel() -> Result<AuthorizedHostOperationKernel, CapabilityProtocolError> {
-    AuthorizedHostOperationKernel::new(
-        CURRENT_LOCAL_WORKER_ID,
-        nonzero_u64(7)?,
-        TERMINAL_LAUNCH_CAPABILITY_VERSION,
-    )
+    AuthorizedHostOperationKernel::new(CURRENT_LOCAL_WORKER_ID, nonzero_u64(7)?)
 }
 
 fn authorization(
@@ -606,7 +602,7 @@ fn authorization(
             LeaseId::from_bytes([operation; 16])?,
             LeaseExpiresAtUnixMilliseconds::new(nonzero_u64(200)?),
         ),
-        TerminalLaunchCapabilityVersion::new(nonzero_u16(1)?),
+        TERMINAL_LAUNCH_CAPABILITY_VERSION,
     ))
 }
 
@@ -666,10 +662,6 @@ fn typed_failure(retryable: bool) -> TypedFailure {
         message: "terminal unavailable".to_owned(),
         retryable,
     }
-}
-
-fn nonzero_u16(value: u16) -> Result<NonZeroU16, CapabilityProtocolError> {
-    NonZeroU16::new(value).ok_or(CapabilityProtocolError::InvalidPayload)
 }
 
 fn nonzero_u64(value: u64) -> Result<NonZeroU64, CapabilityProtocolError> {

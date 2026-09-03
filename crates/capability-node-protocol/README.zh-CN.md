@@ -24,7 +24,10 @@ Capability version 2 在不改变 frame envelope 的情况下增加 generation-l
 及其 typed capacity result。Worker 只 admit 与自身精确匹配的 supported capability version；因此
 version 1 与 version 2 request 会互相以 `UnsupportedCapability` 拒绝。两个 version 对该 outcome
 使用相同 rejection tag，而 version 1 decoder 会把新的 capacity tag 当作 unknown 拒绝。Mixed
-version 由此 fail closed，而不会静默使用 version 1 的 unbounded binding behavior。
+version 由此 fail closed，而不会静默使用 version 1 的 unbounded binding behavior。当前 Worker
+authorization kernel 固定为 version 2，而不是接受带 version 2 capacity behavior 的可配置 version。
+当 echoed authorization 不是 version 2 时，construction 与 decoding 也会拒绝
+`CapacityExceeded`。
 
 | Message                    | 方向                      | 闭合 semantic payload                                                                                                                                     |
 | -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -125,14 +128,20 @@ current authority 与 Host effect 会被保留，该 invariant 跨 modeled Worke
 Model 不枚举 cross-terminal、cross-Worker namespace 或 successor Server-authority transition。未来
 runtime adapter 需要单独的 refinement evidence。
 
+已注册的 `TerminalLaunchAuthorization` model 使用 capability version 2 作为 supported authority，
+并使用 version 1 作为 unsupported-capability witness。
+
 Worker-owned 且已注册的
 [`WorkerTerminalBindingCapacity`](../../apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.tla)
-refinement 在 single-terminal Server authority model 之外单独检查 cross-terminal bound。它的 TLC
-configuration 使用 capacity two 与三个 terminal identity，以 exhaustive 覆盖 below-limit admission、
-full threshold、拒绝一个 new identity、exact cached replay、higher-fence replacement、rejection
-preservation 与 classification priority。Production constant 是每个 Worker generation 精确 1,024 个
-retained binding。没有 release、TTL、LRU 或 eviction path；production 之前仍需要 explicit
-retirement。该 bounded model 不是针对 1,024 个 concrete entry 或 Rust implementation 的 proof。
+refinement 将 cross-terminal bound 与 Worker 的 abstract global operation/result slot 组合起来，
+single-terminal Server authority model 则继续保留详细 handoff phase。它的 TLC configuration 使用
+capacity two 与三个 terminal identity，以 exhaustive 覆盖 below-limit admission、full threshold、
+拒绝一个 new identity、occupied-slot priority、result delivery clearing、仅在 slot empty 后才允许
+capacity 时的 exact cached replay 与 higher-fence replacement、rejection preservation 与
+classification priority。Production constant 是每个 Worker generation 精确 1,024 个 retained
+binding。没有 release、TTL、LRU 或 eviction path；production 之前仍需要 explicit retirement。
+该 bounded model 不是针对 1,024 个 concrete entry 或 Rust implementation 的 proof，且其 authority
+只会与对应 Rust enforcement 作为同一个 unshipped delivery cohort 一起 ship。
 
 ## 验证
 

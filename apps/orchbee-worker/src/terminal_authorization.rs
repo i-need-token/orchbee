@@ -2,8 +2,8 @@ use std::{cmp::Ordering, collections::BTreeMap, fmt, num::NonZeroU64};
 
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostEpoch, HostLaunchAccepted,
-    HostLaunchState, HostStartAccepted, HostTerminalIdentity, ProtocolError, TerminalId,
-    TerminalLaunchCapabilityVersion, TerminalLaunchFailure, TerminalLaunchMode,
+    HostLaunchState, HostStartAccepted, HostTerminalIdentity, ProtocolError,
+    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalId, TerminalLaunchFailure, TerminalLaunchMode,
     TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
     TerminalOperationAuthorization, TerminalStartFailure, TerminalStartOutcome,
     TerminalStartRejection, TerminalStartResult, WorkerGeneration, WorkerId,
@@ -166,14 +166,12 @@ pub(crate) struct AuthorizedHostOperationKernel {
     current_worker_id: WorkerId,
     maximum_observed_unix_milliseconds: u64,
     slot: Option<HostOperationSlot>,
-    supported_capability_version: TerminalLaunchCapabilityVersion,
 }
 
 impl AuthorizedHostOperationKernel {
     pub(crate) fn new(
         current_worker_id: LocalSiteWorkerId,
         current_worker_generation: NonZeroU64,
-        supported_capability_version: TerminalLaunchCapabilityVersion,
     ) -> Result<Self, ProtocolError> {
         Ok(Self {
             bindings: BTreeMap::new(),
@@ -181,7 +179,6 @@ impl AuthorizedHostOperationKernel {
             current_worker_id: WorkerId::from_bytes(current_worker_id.as_bytes())?,
             maximum_observed_unix_milliseconds: 0,
             slot: None,
-            supported_capability_version,
         })
     }
 
@@ -292,7 +289,7 @@ impl AuthorizedHostOperationKernel {
             return Ok(AdmissionAction::Replay);
         }
 
-        if authorization.capability_version() != self.supported_capability_version {
+        if authorization.capability_version() != TERMINAL_LAUNCH_CAPABILITY_VERSION {
             return Ok(AdmissionAction::Reject(
                 AdmissionRejection::UnsupportedCapability,
             ));
@@ -396,7 +393,7 @@ impl AuthorizedHostOperationKernel {
                 AuthorizedHostOperationResult::Launch(TerminalLaunchResult::new(
                     launch.authorization(),
                     TerminalLaunchOutcome::OutcomeUnknown { host_epoch },
-                ))
+                )?)
             }
             AuthorizedHostOperation::Start(start) => {
                 AuthorizedHostOperationResult::Start(TerminalStartResult::new(
@@ -443,7 +440,7 @@ impl AuthorizedHostOperationKernel {
         let result = AuthorizedHostOperationResult::Launch(TerminalLaunchResult::new(
             launch.authorization(),
             outcome,
-        ));
+        )?);
         self.cache_and_queue_result(operation, result)
     }
 
@@ -600,7 +597,7 @@ fn rejected_result(
                         TerminalLaunchRejection::CapacityExceeded
                     }
                 }),
-            ),
+            )?,
         )),
         AuthorizedHostOperation::Start(start) => Ok(AuthorizedHostOperationResult::Start(
             TerminalStartResult::new(
@@ -636,7 +633,7 @@ fn pre_handoff_failure_result(
             TerminalLaunchResult::new(
                 launch.authorization(),
                 TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff),
-            ),
+            )?,
         )),
         AuthorizedHostOperation::Start(start) => Ok(AuthorizedHostOperationResult::Start(
             TerminalStartResult::new(

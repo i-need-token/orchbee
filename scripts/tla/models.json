@@ -1820,7 +1820,7 @@
 				"IssueCurrentImmediateLaunch",
 				"IssueCurrentDeferredLaunch",
 				"IssueStaleGenerationLaunch",
-				"IssueUnsupportedCapabilityLaunch",
+				"IssueLegacyCapabilityLaunch",
 				"IssueLowFenceReplay",
 				"IssueExactReplay",
 				"IssueConflictingReplay",
@@ -1917,6 +1917,8 @@
 			"requiredCoverage": [
 				"AdmitNewBinding",
 				"CacheBindingResult",
+				"DeliverResult",
+				"RejectSlotOccupied",
 				"RejectWrongWorkerAtCapacity",
 				"RejectStaleGenerationAtCapacity",
 				"RejectUnsupportedCapabilityAtCapacity",
