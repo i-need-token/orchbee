@@ -123,6 +123,10 @@ test('Client Session and OBCS refinement paths select the OBCS Session model', (
 	for (const changedPath of [
 		'apps/orchbee-server/Cargo.toml',
 		'apps/orchbee-server/README.zh-CN.md',
+		'apps/orchbee-server/formal/tla/LocalClientObcsSessions.cfg',
+		'apps/orchbee-server/formal/tla/LocalClientObcsSessions.tla',
+		'apps/orchbee-server/formal/tla/LocalClientSessions.cfg',
+		'apps/orchbee-server/formal/tla/LocalClientSessions.tla',
 		'apps/orchbee-server/project.json',
 		'apps/orchbee-server/src/local_client_service.rs',
 		'apps/orchbee-server/tests/client_process.rs',

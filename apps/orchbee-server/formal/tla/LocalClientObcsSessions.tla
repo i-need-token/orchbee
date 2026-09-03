@@ -44,15 +44,29 @@ WorkerConstraints == {"none", "exact-present", "exact-absent"}
 WorkingDirectories == {"null", "absolute"}
 PairKinds == {NoPair, "duplicate", "distinct"}
 
-NoOutstandingRequest == [kind |-> "none", requestId |-> NoRequestId]
-OutstandingRequest(kind, requestId) == [kind |-> kind, requestId |-> requestId]
-CreateRequest(requestId) == OutstandingRequest("create", requestId)
-StartRequest(requestId) == OutstandingRequest("start", requestId)
+NoOutstandingRequest == [
+  kind |-> "none",
+  requestId |-> NoRequestId,
+  terminalCreateRequestId |-> NoRequestId
+]
+OutstandingRequest(kind, requestId, terminalCreateRequestId) == [
+  kind |-> kind,
+  requestId |-> requestId,
+  terminalCreateRequestId |-> terminalCreateRequestId
+]
+CreateRequest(requestId) ==
+  OutstandingRequest("create", requestId, NoRequestId)
+StartRequest(requestId, terminalCreateRequestId) ==
+  OutstandingRequest("start", requestId, terminalCreateRequestId)
 
 OutstandingRequestValues ==
   {NoOutstandingRequest} \cup
   {CreateRequest(requestId) : requestId \in RequestIds} \cup
-  {StartRequest(requestId) : requestId \in RequestIds}
+  UNION {
+    {StartRequest(requestId, terminalCreateRequestId) :
+       terminalCreateRequestId \in RequestIds \ {requestId}} :
+    requestId \in RequestIds
+  }
 
 NoResult == [
   protocolVersion |-> 0,
@@ -77,11 +91,21 @@ DeniedProjection(request) ==
     ELSE "terminal.start.result",
     request.requestId)
 
+CarrierFrameValues == OutstandingRequestValues \ {NoOutstandingRequest}
+
+\* Singleton frames cover coalesced Create and Start. Duplicate pairs retain
+\* the same Create request ID; distinct pairs represent Create followed by a
+\* Start whose independent reference names that first Create request.
 CarrierFrameSequences ==
   {<<>>} \cup
-  {<<requestId>> : requestId \in RequestIds} \cup
-  {<<first, second>> :
-     first \in RequestIds, second \in RequestIds}
+  {<<request>> : request \in CarrierFrameValues} \cup
+  {<<CreateRequest(requestId), CreateRequest(requestId)>> :
+     requestId \in RequestIds} \cup
+  UNION {
+    {<<CreateRequest(first), StartRequest(second, first)>> :
+       second \in RequestIds \ {first}} :
+    first \in RequestIds
+  }
 
 GenerationRefs == [client : Clients, generation : 1..MaxGeneration]
 GenerationRef(client, generation) == [
@@ -179,8 +203,10 @@ QueueOblcAccepted(client, frames, pairKind) ==
   /\ frames \in CarrierFrameSequences
   /\ pairKind \in PairKinds
   /\ (Len(frames) = 2) = (pairKind # NoPair)
-  /\ (pairKind = "duplicate" => frames[1] = frames[2])
-  /\ (pairKind = "distinct" => frames[1] # frames[2])
+  /\ (pairKind = "duplicate" =>
+       frames[1].requestId = frames[2].requestId)
+  /\ (pairKind = "distinct" =>
+       frames[1].requestId # frames[2].requestId)
   /\ state' = [state EXCEPT
        !.sessions[client] = state.nextGeneration,
        !.sessionPhases[client] = "oblc-accepted-queued",
@@ -194,18 +220,33 @@ QueueOblcAcceptedWithoutBufferedFrame(client) ==
 QueueOblcAcceptedWithBufferedCreate(client, requestId) ==
   /\ Scenario = "correlation"
   /\ requestId \in RequestIds
-  /\ QueueOblcAccepted(client, <<requestId>>, NoPair)
+  /\ QueueOblcAccepted(client, <<CreateRequest(requestId)>>, NoPair)
+
+QueueOblcAcceptedWithBufferedStart(client, requestId, terminalCreateRequestId) ==
+  /\ Scenario = "correlation"
+  /\ requestId \in RequestIds
+  /\ terminalCreateRequestId \in RequestIds \ {requestId}
+  /\ QueueOblcAccepted(
+       client,
+       <<StartRequest(requestId, terminalCreateRequestId)>>,
+       NoPair)
 
 QueueOblcAcceptedWithDuplicateFrames(client, requestId) ==
   /\ Scenario = "correlation"
   /\ requestId \in RequestIds
-  /\ QueueOblcAccepted(client, <<requestId, requestId>>, "duplicate")
+  /\ QueueOblcAccepted(
+       client,
+       <<CreateRequest(requestId), CreateRequest(requestId)>>,
+       "duplicate")
 
 QueueOblcAcceptedWithDistinctFrames(client, first, second) ==
   /\ Scenario = "correlation"
   /\ first \in RequestIds
   /\ second \in RequestIds \ {first}
-  /\ QueueOblcAccepted(client, <<first, second>>, "distinct")
+  /\ QueueOblcAccepted(
+       client,
+       <<CreateRequest(first), StartRequest(second, first)>>,
+       "distinct")
 
 WriteOblcAccepted(client) ==
   /\ state.serverPhase = "listening"
@@ -272,17 +313,22 @@ ReceiveStart(client, requestId, terminalCreateRequestId) ==
   /\ terminalCreateRequestId \in RequestIds \ {requestId}
   /\ state.carrierFrames[client] = <<>>
   /\ QueueDeniedResult(
-       client, StartRequest(requestId), "obcs-start-result-ready")
+       client,
+       StartRequest(requestId, terminalCreateRequestId),
+       "obcs-start-result-ready")
 
-ReceiveBufferedCreateCore(client) ==
-  LET requestId == Head(state.carrierFrames[client]) IN
+ReceiveBufferedFrameCore(client) ==
+  LET request == Head(state.carrierFrames[client]) IN
   /\ state.serverPhase = "listening"
   /\ state.sessionPhases[client] \in ObcsReadPhases
   /\ state.outstandingRequests[client] = NoOutstandingRequest
   /\ Len(state.carrierFrames[client]) \in {1, 2}
   /\ state' = [state EXCEPT
-       !.outstandingRequests[client] = CreateRequest(requestId),
-       !.sessionPhases[client] = "obcs-create-result-ready",
+       !.outstandingRequests[client] = request,
+       !.sessionPhases[client] =
+         IF request.kind = "create"
+         THEN "obcs-create-result-ready"
+         ELSE "obcs-start-result-ready",
        !.carrierFrames[client] = Tail(@),
        !.carrierPairKinds[client] =
          IF Len(state.carrierFrames[client]) = 1 THEN NoPair ELSE @]
@@ -290,31 +336,40 @@ ReceiveBufferedCreateCore(client) ==
 ReceiveBufferedCreate(client) ==
   /\ Scenario = "correlation"
   /\ state.carrierPairKinds[client] = NoPair
-  /\ ReceiveBufferedCreateCore(client)
+  /\ Len(state.carrierFrames[client]) = 1
+  /\ Head(state.carrierFrames[client]).kind = "create"
+  /\ ReceiveBufferedFrameCore(client)
+
+ReceiveBufferedStart(client) ==
+  /\ Scenario = "correlation"
+  /\ state.carrierPairKinds[client] = NoPair
+  /\ Len(state.carrierFrames[client]) = 1
+  /\ Head(state.carrierFrames[client]).kind = "start"
+  /\ ReceiveBufferedFrameCore(client)
 
 ReceiveFirstBufferedDuplicate(client) ==
   /\ Scenario = "correlation"
   /\ Len(state.carrierFrames[client]) = 2
   /\ state.carrierPairKinds[client] = "duplicate"
-  /\ ReceiveBufferedCreateCore(client)
+  /\ ReceiveBufferedFrameCore(client)
 
 ReceiveSecondBufferedDuplicate(client) ==
   /\ Scenario = "correlation"
   /\ Len(state.carrierFrames[client]) = 1
   /\ state.carrierPairKinds[client] = "duplicate"
-  /\ ReceiveBufferedCreateCore(client)
+  /\ ReceiveBufferedFrameCore(client)
 
 ReceiveFirstBufferedDistinct(client) ==
   /\ Scenario = "correlation"
   /\ Len(state.carrierFrames[client]) = 2
   /\ state.carrierPairKinds[client] = "distinct"
-  /\ ReceiveBufferedCreateCore(client)
+  /\ ReceiveBufferedFrameCore(client)
 
 ReceiveSecondBufferedDistinct(client) ==
   /\ Scenario = "correlation"
   /\ Len(state.carrierFrames[client]) = 1
   /\ state.carrierPairKinds[client] = "distinct"
-  /\ ReceiveBufferedCreateCore(client)
+  /\ ReceiveBufferedFrameCore(client)
 
 StallObcsResultWrite(client) ==
   /\ state.serverPhase = "listening"
@@ -348,11 +403,12 @@ WriteCreateResult(client, requestId) ==
        DeniedResult("terminal.create.result", requestId),
        CreateResultPhases)
 
-WriteStartResult(client, requestId) ==
+WriteStartResult(client, requestId, terminalCreateRequestId) ==
   /\ requestId \in RequestIds
+  /\ terminalCreateRequestId \in RequestIds \ {requestId}
   /\ WriteDeniedResult(
        client,
-       StartRequest(requestId),
+       StartRequest(requestId, terminalCreateRequestId),
        DeniedResult("terminal.start.result", requestId),
        StartResultPhases)
 
@@ -447,6 +503,13 @@ ReceiveCoalescedCreateAfterAcceptance ==
        /\ state.sessionPhases[client] = "obcs-idle"
        /\ Len(state.carrierFrames[client]) = 1
        /\ ReceiveBufferedCreate(client)
+
+ReceiveCoalescedStartAfterAcceptance ==
+  /\ Scenario = "correlation"
+  /\ \E client \in Clients:
+       /\ state.sessionPhases[client] = "obcs-idle"
+       /\ Len(state.carrierFrames[client]) = 1
+       /\ ReceiveBufferedStart(client)
 
 ReceiveSameRequestIdInOtherSession ==
   /\ Scenario = "correlation"
@@ -546,7 +609,9 @@ CommonNext ==
   \/ \E client \in Clients:
        \E requestId \in RequestIds: WriteCreateResult(client, requestId)
   \/ \E client \in Clients:
-       \E requestId \in RequestIds: WriteStartResult(client, requestId)
+       \E requestId \in RequestIds:
+         \E terminalCreateRequestId \in RequestIds:
+           WriteStartResult(client, requestId, terminalCreateRequestId)
   \/ \E client \in Clients:
        \E generation \in 1..MaxGeneration:
          CleanSessionEof(client, generation)
@@ -586,17 +651,24 @@ Next ==
          QueueOblcAcceptedWithBufferedCreate(client, requestId)
   \/ \E client \in Clients:
        \E requestId \in RequestIds:
+         \E terminalCreateRequestId \in RequestIds:
+           QueueOblcAcceptedWithBufferedStart(
+             client, requestId, terminalCreateRequestId)
+  \/ \E client \in Clients:
+       \E requestId \in RequestIds:
          QueueOblcAcceptedWithDuplicateFrames(client, requestId)
   \/ \E client \in Clients:
        \E first \in RequestIds:
          \E second \in RequestIds:
            QueueOblcAcceptedWithDistinctFrames(client, first, second)
   \/ \E client \in Clients: ReceiveBufferedCreate(client)
+  \/ \E client \in Clients: ReceiveBufferedStart(client)
   \/ \E client \in Clients: ReceiveFirstBufferedDuplicate(client)
   \/ \E client \in Clients: ReceiveSecondBufferedDuplicate(client)
   \/ \E client \in Clients: ReceiveFirstBufferedDistinct(client)
   \/ \E client \in Clients: ReceiveSecondBufferedDistinct(client)
   \/ ReceiveCoalescedCreateAfterAcceptance
+  \/ ReceiveCoalescedStartAfterAcceptance
   \/ ReceiveSameRequestIdInOtherSession
 
 Spec == Init /\ [][Next]_vars
@@ -624,13 +696,22 @@ SessionShapeIsConsistent ==
     /\ (state.carrierPairKinds[client] = "duplicate" =>
          /\ Len(state.carrierFrames[client]) \in {1, 2}
          /\ (Len(state.carrierFrames[client]) = 2 =>
-              state.carrierFrames[client][1] =
-                state.carrierFrames[client][2]))
+              state.carrierFrames[client][1].requestId =
+                state.carrierFrames[client][2].requestId))
     /\ (state.carrierPairKinds[client] = "distinct" =>
          /\ Len(state.carrierFrames[client]) \in {1, 2}
          /\ (Len(state.carrierFrames[client]) = 2 =>
-              state.carrierFrames[client][1] #
-                state.carrierFrames[client][2]))
+              state.carrierFrames[client][1].requestId #
+                state.carrierFrames[client][2].requestId))
+
+RequestReferencesMatchKind ==
+  \A client \in Clients:
+    LET request == state.outstandingRequests[client] IN
+    /\ (request.kind = "create" =>
+         request.terminalCreateRequestId = NoRequestId)
+    /\ (request.kind = "start" =>
+         request.terminalCreateRequestId \in
+           RequestIds \ {request.requestId})
 
 SessionCapacityIsBounded == Cardinality(ActiveClients) <= MaxSessions
 HandlerCapacityIsBounded == HandlerCount <= MaxHandlers
