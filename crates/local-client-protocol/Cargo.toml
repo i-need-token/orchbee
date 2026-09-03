@@ -1,0 +1,12 @@
+[package]
+name = "orchbee-local-client-protocol"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[target.'cfg(unix)'.dependencies]
+orchbee-local-peer-credentials = { path = "../local-peer-credentials" }
+
+[lints]
+workspace = true

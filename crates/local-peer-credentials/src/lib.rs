@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use std::{io, os::unix::net::UnixStream};
 
 pub fn require_same_effective_user(stream: &UnixStream) -> io::Result<()> {
@@ -8,7 +10,7 @@ pub fn require_same_effective_user(stream: &UnixStream) -> io::Result<()> {
     }
     Err(io::Error::new(
         io::ErrorKind::PermissionDenied,
-        "local Site peer has a different effective user",
+        "local peer has a different effective user",
     ))
 }
 
@@ -44,6 +46,6 @@ fn peer_effective_user(stream: &UnixStream) -> io::Result<u32> {
 fn peer_effective_user(_stream: &UnixStream) -> io::Result<u32> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
-        "local Site peer credentials are unsupported on this Unix target",
+        "local peer credentials are unsupported on this Unix target",
     ))
 }

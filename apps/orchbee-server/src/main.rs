@@ -1,4 +1,8 @@
 #[cfg(unix)]
+mod client_session_registry;
+#[cfg(unix)]
+mod local_client_service;
+#[cfg(unix)]
 mod local_site_service;
 #[cfg(unix)]
 mod worker_registry;

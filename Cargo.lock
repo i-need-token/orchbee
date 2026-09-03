@@ -71,16 +71,29 @@ name = "orchbee"
 version = "0.1.0"
 
 [[package]]
-name = "orchbee-local-site-protocol"
+name = "orchbee-local-client-protocol"
+version = "0.1.0"
+dependencies = [
+ "orchbee-local-peer-credentials",
+]
+
+[[package]]
+name = "orchbee-local-peer-credentials"
 version = "0.1.0"
 dependencies = [
  "nix",
 ]
 
 [[package]]
+name = "orchbee-local-site-protocol"
+version = "0.1.0"
+
+[[package]]
 name = "orchbee-server"
 version = "0.1.0"
 dependencies = [
+ "orchbee-local-client-protocol",
+ "orchbee-local-peer-credentials",
  "orchbee-local-site-protocol",
  "orchbee-workbench-protocol",
  "serde_json",
@@ -106,6 +119,7 @@ dependencies = [
 name = "orchbee-worker"
 version = "0.1.0"
 dependencies = [
+ "orchbee-local-peer-credentials",
  "orchbee-local-site-protocol",
 ]
 

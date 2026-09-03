@@ -3,9 +3,9 @@
 	"domain": "orchbee-server",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Unshipped private Rust Server with version-1 Workbench projection mechanics and one bounded same-user POSIX local Worker admission service.",
+	"responsibility": "Unshipped private Rust Server with version-1 Workbench projection mechanics plus bounded same-user POSIX Worker and Human Client Session admission services.",
 	"nonGoals": [
-		"Providing Client transport, external Workbench mutation or publication, persistence, authorization, recovery, endpoint discovery, lazy activation, production supervision, or a durable background lifecycle.",
+		"Providing post-handshake Client messages, terminal relay, external Workbench mutation or publication, product authorization, persistence, recovery, endpoint discovery, lazy activation, production supervision, or a durable background lifecycle.",
 		"Migrating the current Node Server, Desktop Workbench writer, Browser ingress, CLI, TUI, Worker, Terminal Host, packaging, release, or installation behavior.",
 		"Owning semantic business transitions, redefining the language-neutral Workbench contract, or exposing this unpublished application crate as a stable cross-application API."
 	]

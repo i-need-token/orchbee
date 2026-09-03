@@ -25,9 +25,10 @@ fact。Endpoint selection 与 lifecycle supervision 属于后续切片。
 
 ## Ownership 与 model mapping
 
-[`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.zh-CN.md) crate 拥有 framing
-与双向 same-user proof。Worker 只拥有 connect、authenticate、register、acknowledge 与观察 Server
-loss 的顺序。Server 拥有 admission、active identity 与 generation。
+[`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.zh-CN.md) crate 拥有 Worker
+framing；[`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.zh-CN.md)
+拥有 kernel same-user proof。Worker 只拥有 connect、authenticate、register、acknowledge 与观察
+Server loss 的顺序。Server 拥有 admission、active identity 与 generation。
 [`LocalSiteProcessSpine`](../orchbee-server/formal/tla/LocalSiteProcessSpine.tla) model 把本进程映射到
 candidate、active Worker、disconnect 与 Server-stop transition；Server guide 拥有完整 modeling
 record 与 evidence limit。
@@ -39,6 +40,7 @@ record 与 evidence limit。
 ```sh
 cargo test -p orchbee-worker --all-targets --all-features --locked
 cargo clippy -p orchbee-worker --all-targets --all-features --locked -- -D warnings
+cargo test -p orchbee-local-peer-credentials --all-targets --all-features --locked
 node scripts/tla/run-models.mjs --models local-site-process-spine
 pnpm verify
 ```

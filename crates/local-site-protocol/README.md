@@ -29,11 +29,11 @@ process, or own Server admission state.
 
 ## Trust and bounds
 
-Before either process exchanges a frame, the POSIX adapter obtains kernel Unix-socket peer
-credentials through safe `nix` APIs and compares the peer's effective user to the current effective
-user. Both directions perform this check. Runtime evidence covers macOS and Linux. Directory and
-socket modes remain defense in depth; possession of a path or valid bytes never replaces peer
-authentication.
+Before either process exchanges a frame, each consumer uses
+[`orchbee-local-peer-credentials`](../local-peer-credentials/README.md) to compare the kernel
+Unix-socket peer's effective user with its own. Both directions perform this check. Runtime
+evidence covers macOS and Linux. Directory and socket modes remain defense in depth; possession of
+a path or valid bytes never replaces peer authentication.
 
 Reads and writes use finite frame bounds and reject partial EOF. Server additionally supplies the
 finite handshake timeout. After `WorkerAccepted`, no application message is admitted in this slice;
@@ -42,11 +42,12 @@ version is private and may be replaced atomically with the unshipped cohort.
 
 ## Ownership and exclusions
 
-This crate owns only the encoded local handshake and same-user peer proof. Server owns Worker
-admission and generations; Worker owns connection order; Terminal Host continues to own its
-separate protocol. Client sessions, Workbench semantics, terminal creation and streaming,
-activation, endpoint discovery, remote transport, encryption, enrollment, persistence, Windows
-named pipes, and compatibility negotiation remain outside this crate.
+This crate owns only the encoded local Worker handshake. Server owns Worker admission and
+generations; Worker owns connection order; `orchbee-local-peer-credentials` owns same-user proof;
+Terminal Host and Human Clients retain separate protocols. Client Sessions, Workbench semantics,
+terminal creation and streaming, activation, endpoint discovery, remote transport, encryption,
+enrollment, persistence, Windows named pipes, and compatibility negotiation remain outside this
+crate.
 
 ## Verification
 

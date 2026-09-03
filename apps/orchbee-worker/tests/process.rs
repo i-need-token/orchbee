@@ -16,9 +16,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_local_site_protocol::{
-    LocalSiteMessage, RejectionReason, WorkerHello, WorkerId, read_message,
-    require_same_effective_user, write_message,
+    LocalSiteMessage, RejectionReason, WorkerHello, WorkerId, read_message, write_message,
 };
 
 const ACCEPT_TIMEOUT: Duration = Duration::from_secs(5);

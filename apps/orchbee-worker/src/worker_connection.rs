@@ -6,9 +6,9 @@ use std::{
     time::Duration,
 };
 
+use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_local_site_protocol::{
-    LocalSiteMessage, WorkerHello, WorkerId, read_message, require_same_effective_user,
-    write_message,
+    LocalSiteMessage, WorkerHello, WorkerId, read_message, write_message,
 };
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);

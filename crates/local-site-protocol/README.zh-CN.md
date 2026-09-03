@@ -28,10 +28,11 @@ admission state。
 
 ## 信任与边界
 
-任一进程交换 frame 前，POSIX adapter 都会通过安全 `nix` API 获取 kernel Unix-socket peer
-credential，并把 peer effective user 与当前 effective user 比较。两个方向都会检查。Runtime
-evidence 覆盖 macOS 与 Linux。Directory 与 socket mode 继续作为纵深防御；持有 path 或有效 byte
-绝不能替代 peer authentication。
+任一进程交换 frame 前，每个 consumer 都使用
+[`orchbee-local-peer-credentials`](../local-peer-credentials/README.zh-CN.md) 把 kernel Unix-socket
+peer 的 effective user 与自身比较。两个方向都会检查。Runtime evidence 覆盖 macOS 与 Linux。
+Directory 与 socket mode 继续作为纵深防御；持有 path 或有效 byte 绝不能替代 peer
+authentication。
 
 Read 与 write 使用有限 frame bound，并拒绝 partial EOF。Server 还提供 finite handshake timeout。
 `WorkerAccepted` 之后，本切片不准入任何 application message；收到任意 byte 都是 protocol
@@ -40,11 +41,11 @@ violation，并会关闭 Worker attachment。当前 protocol version 是私有�
 
 ## Ownership 与排除项
 
-本 crate 只拥有 encoded local handshake 与 same-user peer proof。Server 拥有 Worker admission
-与 generation；Worker 拥有 connection order；Terminal Host 继续拥有其独立 protocol。Client
-Session、Workbench semantic、terminal creation/streaming、activation、endpoint discovery、remote
-transport、encryption、enrollment、persistence、Windows named pipe 与 compatibility negotiation
-均不属于本 crate。
+本 crate 只拥有 encoded local Worker handshake。Server 拥有 Worker admission 与 generation；
+Worker 拥有 connection order；`orchbee-local-peer-credentials` 拥有 same-user proof；Terminal
+Host 与 Human Client 保持独立 protocol。Client Session、Workbench semantic、terminal
+creation/streaming、activation、endpoint discovery、remote transport、encryption、enrollment、
+persistence、Windows named pipe 与 compatibility negotiation 均不属于本 crate。
 
 ## 验证
 

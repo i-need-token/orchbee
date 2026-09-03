@@ -1572,6 +1572,43 @@
 			]
 		},
 		{
+			"id": "local-client-sessions",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/LocalClientSessions.tla",
+			"config": "apps/orchbee-server/formal/tla/LocalClientSessions.cfg",
+			"claims": [
+				"apps/orchbee-server/README.md",
+				"crates/local-client-protocol/README.md",
+				"crates/local-peer-credentials/README.md"
+			],
+			"triggers": [
+				"apps/orchbee-server/src/**",
+				"apps/orchbee-server/tests/**",
+				"crates/local-client-protocol/src/**",
+				"crates/local-client-protocol/tests/**",
+				"crates/local-peer-credentials/src/**",
+				"crates/local-peer-credentials/tests/**"
+			],
+			"requiredCoverage": [
+				"StartServer",
+				"RegisterWorker",
+				"BeginSlow",
+				"RejectWrongUser",
+				"RejectMalformed",
+				"RejectIncompatibleProtocol",
+				"RejectIncompatibleCohort",
+				"RejectWrongMessage",
+				"RejectCapacity",
+				"HandshakeTimeout",
+				"AdmitClient",
+				"ClientDisconnect",
+				"DuplicateHello",
+				"StaleSessionCleanup",
+				"StopServer"
+			]
+		},
+		{
 			"id": "local-site-process-spine",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",
@@ -1587,6 +1624,8 @@
 				"apps/orchbee-server/tests/**",
 				"apps/orchbee-worker/src/**",
 				"apps/orchbee-worker/tests/**",
+				"crates/local-peer-credentials/src/**",
+				"crates/local-peer-credentials/tests/**",
 				"crates/local-site-protocol/src/**",
 				"crates/local-site-protocol/tests/**"
 			],

@@ -3,18 +3,21 @@ use std::{
     fs,
     io::{self, Read, Write},
     os::unix::{fs::PermissionsExt, net::UnixListener, net::UnixStream},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
 
+use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_local_site_protocol::{
-    LocalSiteMessage, ProtocolError, ReadMessageError, RejectionReason, read_message,
-    require_same_effective_user, write_message,
+    LocalSiteMessage, ProtocolError, ReadMessageError, RejectionReason, read_message, write_message,
 };
 
-use crate::worker_registry::{WorkerAdmission, WorkerRegistry};
+use crate::{
+    local_client_service,
+    worker_registry::{WorkerAdmission, WorkerRegistry},
+};
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -22,9 +25,14 @@ pub(crate) fn run(
     arguments: impl Iterator<Item = OsString>,
     expected_cohort: &str,
 ) -> io::Result<()> {
-    let endpoint = parse_endpoint(arguments)?;
-    let listener = UnixListener::bind(&endpoint)?;
-    fs::set_permissions(&endpoint, fs::Permissions::from_mode(0o600))?;
+    let endpoints = parse_endpoints(arguments)?;
+    let listener = UnixListener::bind(&endpoints.worker)?;
+    fs::set_permissions(&endpoints.worker, fs::Permissions::from_mode(0o600))?;
+    let _client_service = endpoints
+        .client
+        .as_deref()
+        .map(|endpoint| local_client_service::start(endpoint, expected_cohort))
+        .transpose()?;
     write_ready_marker()?;
 
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
@@ -37,24 +45,63 @@ pub(crate) fn run(
     }
 }
 
-fn parse_endpoint(mut arguments: impl Iterator<Item = OsString>) -> io::Result<PathBuf> {
+struct LocalEndpoints {
+    client: Option<PathBuf>,
+    worker: PathBuf,
+}
+
+fn parse_endpoints(mut arguments: impl Iterator<Item = OsString>) -> io::Result<LocalEndpoints> {
     if arguments.next().as_deref() != Some(std::ffi::OsStr::new("--local-endpoint")) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "invalid private Server invocation",
         ));
     }
-    let endpoint = arguments
+    let worker = arguments
         .next()
         .map(PathBuf::from)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "missing endpoint path"))?;
-    if arguments.next().is_some() || !endpoint.is_absolute() || endpoint.file_name().is_none() {
+    validate_endpoint(&worker)?;
+
+    let client = match arguments.next() {
+        None => None,
+        Some(flag) if flag == "--client-endpoint" => {
+            let endpoint = arguments.next().map(PathBuf::from).ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "missing Client endpoint path")
+            })?;
+            validate_endpoint(&endpoint)?;
+            if endpoint == worker {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Worker and Client endpoints must differ",
+                ));
+            }
+            Some(endpoint)
+        }
+        Some(_) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid private Server invocation",
+            ));
+        }
+    };
+    if arguments.next().is_some() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "invalid endpoint path",
+            "invalid private Server invocation",
         ));
     }
-    Ok(endpoint)
+    Ok(LocalEndpoints { client, worker })
+}
+
+fn validate_endpoint(endpoint: &Path) -> io::Result<()> {
+    if endpoint.is_absolute() && endpoint.file_name().is_some() {
+        return Ok(());
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "invalid endpoint path",
+    ))
 }
 
 fn write_ready_marker() -> io::Result<()> {

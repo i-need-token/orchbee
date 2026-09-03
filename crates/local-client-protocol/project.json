@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "local-client-protocol",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Private bounded Rust handshake contract and connecting adapter for same-user local human Client Sessions admitted by Orchbee Server.",
+	"nonGoals": [
+		"Defining Worker identity, capability-node enrollment, Terminal Host, terminal relay, Workbench commands, renderer state, or service activation semantics.",
+		"Owning Server Client Session state, endpoint selection, listener lifecycle, process supervision, retry, persistence, or public command behavior.",
+		"Providing public or cross-version compatibility, Windows named-pipe transport, remote transport, encryption, multi-user authentication, or terminal payload framing."
+	]
+}

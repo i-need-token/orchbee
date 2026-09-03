@@ -26,9 +26,10 @@ profile fact. Endpoint selection and lifecycle supervision belong to later slice
 
 ## Ownership and model mapping
 
-The [`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.md) crate owns the
-framing and mutual same-user proof. Worker owns only connect, authenticate, register, acknowledge,
-and observe-Server-loss order. Server owns admission, active identity, and generation. The
+The [`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.md) crate owns Worker
+framing; [`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.md) owns the
+kernel same-user proof. Worker owns only connect, authenticate, register, acknowledge, and
+observe-Server-loss order. Server owns admission, active identity, and generation. The
 [`LocalSiteProcessSpine`](../orchbee-server/formal/tla/LocalSiteProcessSpine.tla) model maps this
 process to candidate, active Worker, disconnect, and Server-stop transitions; the Server guide owns
 the complete modeling record and evidence limits.
@@ -40,6 +41,7 @@ Run from the repository root:
 ```sh
 cargo test -p orchbee-worker --all-targets --all-features --locked
 cargo clippy -p orchbee-worker --all-targets --all-features --locked -- -D warnings
+cargo test -p orchbee-local-peer-credentials --all-targets --all-features --locked
 node scripts/tla/run-models.mjs --models local-site-process-spine
 pnpm verify
 ```
