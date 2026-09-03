@@ -7,7 +7,7 @@ mod invocation;
         reason = "the accepted private foundations are staged before TUI and activation integration"
     )
 )]
-mod local_site_rendezvous;
+mod local_client;
 #[cfg(unix)]
 #[cfg_attr(
     not(test),
@@ -16,7 +16,7 @@ mod local_site_rendezvous;
         reason = "the accepted private foundations are staged before TUI and activation integration"
     )
 )]
-mod local_client;
+mod local_site_rendezvous;
 mod localization;
 mod presentation;
 
