@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "capability-node-protocol",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Private carrier-neutral Rust framing and semantic contract for authorized Server-Capability Node terminal operations.",
+	"nonGoals": [
+		"Owning Server authorization state, Worker or Terminal Host lifecycle, carrier selection, connection admission, endpoint discovery, retry, persistence, or recovery.",
+		"Defining general environment, executable, arguments, Project, Checkout, Worktree, Agent, Launch Profile, terminal stream, input, resize, attachment, or arbitrary-command semantics.",
+		"Re-exporting Terminal Host wire payloads, providing a public or cross-version compatibility contract, or defining local, remote, encrypted, or multi-user transport security."
+	]
+}

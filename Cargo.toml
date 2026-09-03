@@ -4,6 +4,7 @@ members = [
 	"apps/orchbee",
 	"apps/orchbee-server",
 	"apps/orchbee-worker",
+	"crates/capability-node-protocol",
 	"crates/local-client-protocol",
 	"crates/local-peer-credentials",
 	"crates/local-site-protocol",

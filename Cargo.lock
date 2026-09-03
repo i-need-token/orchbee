@@ -71,6 +71,10 @@ name = "orchbee"
 version = "0.1.0"
 
 [[package]]
+name = "orchbee-capability-node-protocol"
+version = "0.1.0"
+
+[[package]]
 name = "orchbee-local-client-protocol"
 version = "0.1.0"
 dependencies = [
