@@ -17,6 +17,9 @@ members = [
 edition = "2024"
 rust-version = "1.97.0"
 
+[workspace.dependencies]
+nix = { version = "0.31.3", default-features = false }
+
 [workspace.lints.rust]
 unsafe_code = "deny"
 

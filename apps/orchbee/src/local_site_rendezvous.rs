@@ -1,15 +1,16 @@
 use std::{
     error::Error,
+    ffi::OsStr,
     fmt,
     fs::{File, TryLockError},
-    os::fd::OwnedFd,
+    os::{fd::OwnedFd, unix::ffi::OsStrExt},
     path::{Path, PathBuf},
 };
 
 use nix::{
     errno::Errno,
-    fcntl::{OFlag, open, openat},
-    sys::stat::{FileStat, Mode, SFlag, fchmod, fstat, mkdirat},
+    fcntl::{AtFlags, OFlag, open, openat},
+    sys::stat::{FchmodatFlags, FileStat, Mode, SFlag, fchmod, fchmodat, fstat, fstatat, mkdirat},
     unistd::geteuid,
 };
 
@@ -135,17 +136,21 @@ impl ModeCheckedLocalSiteRendezvous {
         expected_uid: u32,
     ) -> Result<Self, RendezvousError> {
         let paths = LocalSitePaths::new(runtime_base, &scope)?;
-        let runtime_base_descriptor = open(runtime_base, DIRECTORY_OPEN_FLAGS, Mode::empty())
-            .map_err(|error| directory_open_error(runtime_base, DirectoryRole::Base, error))?;
+        let runtime_base_descriptor = open_runtime_base(runtime_base)?;
 
-        let created = match policy {
+        let created_status = match policy {
             OpenPolicy::CreateIfMissing => match mkdirat(
                 &runtime_base_descriptor,
                 scope.as_str(),
                 exact_mode(RUNTIME_DIRECTORY_MODE),
             ) {
-                Ok(()) => true,
-                Err(Errno::EEXIST) => false,
+                Ok(()) => Some(initialize_created_directory(
+                    &runtime_base_descriptor,
+                    OsStr::new(scope.as_str()),
+                    &paths.runtime_directory,
+                    expected_uid,
+                )?),
+                Err(Errno::EEXIST) => None,
                 Err(error) => {
                     return Err(system_error(
                         "create runtime directory",
@@ -154,7 +159,7 @@ impl ModeCheckedLocalSiteRendezvous {
                     ));
                 }
             },
-            OpenPolicy::ExistingOnly => false,
+            OpenPolicy::ExistingOnly => None,
         };
 
         let directory = openat(
@@ -164,9 +169,20 @@ impl ModeCheckedLocalSiteRendezvous {
             Mode::empty(),
         )
         .map_err(|error| {
-            directory_open_error(&paths.runtime_directory, DirectoryRole::Runtime, error)
+            directory_open_error(
+                &runtime_base_descriptor,
+                OsStr::new(scope.as_str()),
+                &paths.runtime_directory,
+                DirectoryRole::Runtime,
+                error,
+            )
         })?;
-        validate_directory(&directory, &paths.runtime_directory, expected_uid, created)?;
+        validate_directory(
+            &directory,
+            &paths.runtime_directory,
+            expected_uid,
+            created_status.as_ref(),
+        )?;
 
         Ok(Self {
             paths,
@@ -239,11 +255,7 @@ struct LocalSitePaths {
 
 impl LocalSitePaths {
     fn new(runtime_base: &Path, scope: &SiteScope) -> Result<Self, RendezvousError> {
-        if !runtime_base.is_absolute() {
-            return Err(RendezvousError::RuntimeBaseNotAbsolute {
-                path: runtime_base.to_path_buf(),
-            });
-        }
+        validate_runtime_base_path(runtime_base)?;
         let runtime_directory = runtime_base.join(scope.as_str());
         Ok(Self {
             activation_lock: runtime_directory.join(ACTIVATION_LOCK_NAME),
@@ -280,6 +292,9 @@ pub(crate) enum RendezvousError {
     RuntimeBaseNotAbsolute {
         path: PathBuf,
     },
+    RuntimeBaseNotNormalized {
+        path: PathBuf,
+    },
     DirectorySymlink {
         path: PathBuf,
     },
@@ -305,6 +320,9 @@ pub(crate) enum RendezvousError {
         path: PathBuf,
         actual: u64,
     },
+    RuntimeDirectoryIdentityChanged {
+        path: PathBuf,
+    },
     LockFileSymlink {
         kind: LockKind,
         path: PathBuf,
@@ -327,6 +345,11 @@ impl fmt::Display for RendezvousError {
                     path.display()
                 )
             }
+            Self::RuntimeBaseNotNormalized { path } => write!(
+                formatter,
+                "runtime base is not an exact normalized path: {}",
+                path.display()
+            ),
             Self::DirectorySymlink { path } => {
                 write!(formatter, "directory path is a symlink: {}", path.display())
             }
@@ -361,6 +384,11 @@ impl fmt::Display for RendezvousError {
                 formatter,
                 "{} lock path has {actual} hard links, expected 1: {}",
                 kind.name(),
+                path.display()
+            ),
+            Self::RuntimeDirectoryIdentityChanged { path } => write!(
+                formatter,
+                "runtime directory identity changed during initialization: {}",
                 path.display()
             ),
             Self::LockFileSymlink { kind, path } => write!(
@@ -416,23 +444,104 @@ fn effective_uid() -> u32 {
     geteuid().as_raw()
 }
 
+fn validate_runtime_base_path(path: &Path) -> Result<(), RendezvousError> {
+    let bytes = path.as_os_str().as_bytes();
+    let Some(relative_bytes) = bytes.strip_prefix(b"/") else {
+        return Err(RendezvousError::RuntimeBaseNotAbsolute {
+            path: path.to_path_buf(),
+        });
+    };
+    if relative_bytes.is_empty() {
+        return Ok(());
+    }
+    if relative_bytes.split(|byte| *byte == b'/').any(|component| {
+        component.is_empty() || component == b"." || component == b".." || component.contains(&0)
+    }) {
+        return Err(RendezvousError::RuntimeBaseNotNormalized {
+            path: path.to_path_buf(),
+        });
+    }
+    Ok(())
+}
+
+fn open_runtime_base(path: &Path) -> Result<OwnedFd, RendezvousError> {
+    validate_runtime_base_path(path)?;
+    let mut descriptor = open(Path::new("/"), DIRECTORY_OPEN_FLAGS, Mode::empty())
+        .map_err(|error| system_error("open trusted filesystem root", Path::new("/"), error))?;
+    let Some(relative_bytes) = path.as_os_str().as_bytes().strip_prefix(b"/") else {
+        return Err(RendezvousError::RuntimeBaseNotAbsolute {
+            path: path.to_path_buf(),
+        });
+    };
+    if relative_bytes.is_empty() {
+        return Ok(descriptor);
+    }
+
+    let mut opened_path = PathBuf::from("/");
+    for component in relative_bytes.split(|byte| *byte == b'/') {
+        let component = OsStr::from_bytes(component);
+        opened_path.push(component);
+        descriptor = openat(&descriptor, component, DIRECTORY_OPEN_FLAGS, Mode::empty()).map_err(
+            |error| {
+                directory_open_error(
+                    &descriptor,
+                    component,
+                    &opened_path,
+                    DirectoryRole::Base,
+                    error,
+                )
+            },
+        )?;
+    }
+    Ok(descriptor)
+}
+
+fn initialize_created_directory(
+    parent: &OwnedFd,
+    component: &OsStr,
+    path: &Path,
+    expected_uid: u32,
+) -> Result<FileStat, RendezvousError> {
+    let status = fstatat(parent, component, AtFlags::AT_SYMLINK_NOFOLLOW)
+        .map_err(|error| system_error("inspect new runtime directory", path, error))?;
+    require_type(&status, SFlag::S_IFDIR, path, None)?;
+    require_owner(&status, path, expected_uid)?;
+    fchmodat(
+        parent,
+        component,
+        exact_mode(RUNTIME_DIRECTORY_MODE),
+        FchmodatFlags::NoFollowSymlink,
+    )
+    .map_err(|error| system_error("initialize runtime directory mode", path, error))?;
+    Ok(status)
+}
+
 fn validate_directory(
     descriptor: &OwnedFd,
     path: &Path,
     expected_uid: u32,
-    created: bool,
+    created_status: Option<&FileStat>,
 ) -> Result<(), RendezvousError> {
-    let initial = descriptor_status(descriptor, "inspect runtime directory", path)?;
-    require_type(&initial, SFlag::S_IFDIR, path, None)?;
-    require_owner(&initial, path, expected_uid)?;
-    if created {
-        fchmod(descriptor, exact_mode(RUNTIME_DIRECTORY_MODE))
-            .map_err(|error| system_error("set runtime directory mode", path, error))?;
-    }
     let status = descriptor_status(descriptor, "validate runtime directory", path)?;
     require_type(&status, SFlag::S_IFDIR, path, None)?;
     require_owner(&status, path, expected_uid)?;
+    if let Some(created_status) = created_status {
+        require_same_directory_identity(created_status, &status, path)?;
+    }
     require_mode(&status, path, RUNTIME_DIRECTORY_MODE)
+}
+
+fn require_same_directory_identity(
+    expected: &FileStat,
+    actual: &FileStat,
+    path: &Path,
+) -> Result<(), RendezvousError> {
+    if expected.st_dev == actual.st_dev && expected.st_ino == actual.st_ino {
+        return Ok(());
+    }
+    Err(RendezvousError::RuntimeDirectoryIdentityChanged {
+        path: path.to_path_buf(),
+    })
 }
 
 fn validate_lock_file(
@@ -525,23 +634,42 @@ fn require_single_link(
     })
 }
 
-fn directory_open_error(path: &Path, role: DirectoryRole, error: Errno) -> RendezvousError {
+fn directory_open_error(
+    parent: &OwnedFd,
+    component: &OsStr,
+    path: &Path,
+    role: DirectoryRole,
+    error: Errno,
+) -> RendezvousError {
     match error {
         Errno::ELOOP => RendezvousError::DirectorySymlink {
             path: path.to_path_buf(),
         },
+        Errno::ENOTDIR if entry_is_symlink(parent, component) => {
+            RendezvousError::DirectorySymlink {
+                path: path.to_path_buf(),
+            }
+        }
         Errno::ENOTDIR => RendezvousError::NotDirectory {
             path: path.to_path_buf(),
         },
         _ => system_error(
             match role {
-                DirectoryRole::Base => "open runtime base",
+                DirectoryRole::Base => "open runtime-base component",
                 DirectoryRole::Runtime => "open runtime directory",
             },
             path,
             error,
         ),
     }
+}
+
+fn entry_is_symlink(parent: &OwnedFd, component: &OsStr) -> bool {
+    matches!(
+        fstatat(parent, component, AtFlags::AT_SYMLINK_NOFOLLOW),
+        Ok(status)
+            if SFlag::from_bits_truncate(status.st_mode) & SFlag::S_IFMT == SFlag::S_IFLNK
+    )
 }
 
 fn lock_open_error(kind: LockKind, path: &Path, error: Errno) -> RendezvousError {

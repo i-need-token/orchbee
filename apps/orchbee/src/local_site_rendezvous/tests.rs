@@ -1,15 +1,24 @@
 use std::{
     error::Error,
+    ffi::OsString,
     fs::{self, OpenOptions},
     io::{self, Write},
-    os::unix::fs::{MetadataExt, PermissionsExt, symlink},
+    os::unix::{
+        ffi::{OsStrExt, OsStringExt},
+        fs::{MetadataExt, PermissionsExt, symlink},
+    },
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Barrier, Mutex, MutexGuard,
+        atomic::{AtomicU64, Ordering},
+    },
+    thread,
 };
 
 use super::*;
 
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
+static FILESYSTEM_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
@@ -80,6 +89,41 @@ fn derives_exact_stable_paths_from_the_typed_scope() -> TestResult {
 }
 
 #[test]
+fn rejects_non_normal_runtime_base_forms_before_filesystem_resolution() -> TestResult {
+    let fixture = TestDirectory::new("runtime-base-lexical")?;
+    fs::create_dir(fixture.path().join("nested"))?;
+    let scope = SiteScope::parse("orchbee-lexical")?;
+    let mut double_root_bytes = vec![b'/'];
+    double_root_bytes.extend_from_slice(fixture.path().as_os_str().as_bytes());
+    let invalid_paths = [
+        path_with_suffix(fixture.path(), b"/"),
+        path_with_suffix(fixture.path(), b"/."),
+        path_with_suffix(fixture.path(), b"/nested/./child"),
+        path_with_suffix(fixture.path(), b"//nested"),
+        path_with_suffix(fixture.path(), b"/nested/.."),
+        path_with_suffix(fixture.path(), b"/bad\0component"),
+        PathBuf::from(OsString::from_vec(double_root_bytes)),
+    ];
+
+    for invalid_path in invalid_paths {
+        assert!(matches!(
+            ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
+                &invalid_path,
+                scope.clone()
+            ),
+            Err(RendezvousError::RuntimeBaseNotNormalized { path }) if path == invalid_path
+        ));
+    }
+    assert!(matches!(
+        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(Path::new("relative"), scope.clone()),
+        Err(RendezvousError::RuntimeBaseNotAbsolute { path }) if path == Path::new("relative")
+    ));
+    assert!(!fixture.path().join(scope.as_str()).exists());
+    assert!(!fixture.path().join("nested").join(scope.as_str()).exists());
+    Ok(())
+}
+
+#[test]
 fn creates_and_validates_an_owned_exact_mode_runtime_directory() -> TestResult {
     let fixture = TestDirectory::new("runtime-directory")?;
     let scope = SiteScope::parse("orchbee-local")?;
@@ -116,6 +160,71 @@ fn creates_and_validates_an_owned_exact_mode_runtime_directory() -> TestResult {
 }
 
 #[test]
+fn initializes_a_new_scope_under_a_fully_restrictive_umask() -> TestResult {
+    let fixture = TestDirectory::new("restrictive-umask")?;
+    let scope = SiteScope::parse("orchbee-umask")?;
+    let runtime_directory = fixture.path().join(scope.as_str());
+
+    let rendezvous = {
+        let _umask = TestUmask::set(0o777);
+        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(fixture.path(), scope.clone())?
+    };
+    assert_eq!(rendezvous.runtime_directory(), runtime_directory);
+    assert_eq!(mode(&runtime_directory)?, RUNTIME_DIRECTORY_MODE);
+    drop(rendezvous);
+
+    let validated = ModeCheckedLocalSiteRendezvous::validate_mode_checked(fixture.path(), scope)?;
+    assert_eq!(validated.runtime_directory(), runtime_directory);
+    assert_eq!(mode(&runtime_directory)?, RUNTIME_DIRECTORY_MODE);
+    Ok(())
+}
+
+#[test]
+fn concurrent_preparation_converges_on_one_initialized_scope() -> TestResult {
+    let fixture = TestDirectory::new("concurrent-creation")?;
+    let runtime_base = fixture.path().to_path_buf();
+    let scope = SiteScope::parse("orchbee-concurrent")?;
+    let barrier = Barrier::new(2);
+
+    let (first, second) = {
+        let _umask = TestUmask::set(0);
+        thread::scope(|threads| -> TestResult<_> {
+            let first_base = runtime_base.clone();
+            let first_scope = scope.clone();
+            let first_barrier = &barrier;
+            let first = threads.spawn(move || {
+                first_barrier.wait();
+                ModeCheckedLocalSiteRendezvous::prepare_mode_checked(&first_base, first_scope)
+            });
+            let second_base = runtime_base.clone();
+            let second_scope = scope.clone();
+            let second_barrier = &barrier;
+            let second = threads.spawn(move || {
+                second_barrier.wait();
+                ModeCheckedLocalSiteRendezvous::prepare_mode_checked(&second_base, second_scope)
+            });
+            let first = first
+                .join()
+                .map_err(|_| io::Error::other("first preparation thread panicked"))??;
+            let second = second
+                .join()
+                .map_err(|_| io::Error::other("second preparation thread panicked"))??;
+            Ok((first, second))
+        })?
+    };
+
+    assert_eq!(first.runtime_directory(), second.runtime_directory());
+    assert_eq!(mode(first.runtime_directory())?, RUNTIME_DIRECTORY_MODE);
+    assert_eq!(
+        fs::read_dir(fixture.path())?
+            .collect::<Result<Vec<_>, _>>()?
+            .len(),
+        1
+    );
+    Ok(())
+}
+
+#[test]
 fn validation_does_not_create_a_missing_scope() -> TestResult {
     let fixture = TestDirectory::new("validate-missing")?;
     let scope = SiteScope::parse("orchbee-local")?;
@@ -131,26 +240,38 @@ fn rejects_runtime_base_and_scope_symlinks_without_following_them() -> TestResul
     let fixture = TestDirectory::new("directory-symlinks")?;
     let actual_base = fixture.path().join("actual-base");
     fs::create_dir(&actual_base)?;
+    fs::create_dir(actual_base.join("child"))?;
     let linked_base = fixture.path().join("linked-base");
     symlink(&actual_base, &linked_base)?;
 
-    assert!(
+    assert!(matches!(
         ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
             &linked_base,
-            SiteScope::parse("orchbee-local")?
-        )
-        .is_err()
-    );
-    assert!(!actual_base.join("orchbee-local").exists());
+            SiteScope::parse("orchbee-final")?
+        ),
+        Err(RendezvousError::DirectorySymlink { path }) if path == linked_base
+    ));
+    assert!(!actual_base.join("orchbee-final").exists());
+
+    assert!(matches!(
+        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
+            &linked_base.join("child"),
+            SiteScope::parse("orchbee-intermediate")?
+        ),
+        Err(RendezvousError::DirectorySymlink { path }) if path == linked_base
+    ));
+    assert!(!actual_base.join("child/orchbee-intermediate").exists());
 
     let linked_scope = SiteScope::parse("orchbee-linked")?;
     let target = fixture.path().join("scope-target");
     fs::create_dir(&target)?;
     fs::set_permissions(&target, fs::Permissions::from_mode(RUNTIME_DIRECTORY_MODE))?;
-    symlink(&target, fixture.path().join(linked_scope.as_str()))?;
-    assert!(
-        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(fixture.path(), linked_scope).is_err()
-    );
+    let linked_scope_path = fixture.path().join(linked_scope.as_str());
+    symlink(&target, &linked_scope_path)?;
+    assert!(matches!(
+        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(fixture.path(), linked_scope),
+        Err(RendezvousError::DirectorySymlink { path }) if path == linked_scope_path
+    ));
     assert_eq!(mode(&target)?, RUNTIME_DIRECTORY_MODE);
     Ok(())
 }
@@ -441,18 +562,34 @@ fn mode(path: &Path) -> io::Result<u32> {
     Ok(fs::metadata(path)?.permissions().mode() & 0o7777)
 }
 
-struct TestDirectory(PathBuf);
+struct TestDirectory {
+    path: PathBuf,
+    _filesystem_lock: MutexGuard<'static, ()>,
+}
 
 impl TestDirectory {
     fn new(label: &str) -> io::Result<Self> {
+        let filesystem_lock = FILESYSTEM_TEST_LOCK
+            .lock()
+            .map_err(|_| io::Error::other("local Site filesystem test lock is poisoned"))?;
+        let temporary_root = if cfg!(target_os = "macos") {
+            Path::new("/private/tmp")
+        } else {
+            Path::new("/tmp")
+        };
         for _attempt in 0..100 {
             let fixture_id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
-            let path = std::env::temp_dir().join(format!(
+            let path = temporary_root.join(format!(
                 "orchbee-{label}-{}-{fixture_id}",
                 std::process::id()
             ));
             match fs::create_dir(&path) {
-                Ok(()) => return Ok(Self(path)),
+                Ok(()) => {
+                    return Ok(Self {
+                        path,
+                        _filesystem_lock: filesystem_lock,
+                    });
+                }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(error) => return Err(error),
             }
@@ -464,12 +601,32 @@ impl TestDirectory {
     }
 
     fn path(&self) -> &Path {
-        &self.0
+        &self.path
     }
+}
+
+struct TestUmask(Mode);
+
+impl TestUmask {
+    fn set(mode: u32) -> Self {
+        Self(nix::sys::stat::umask(exact_mode(mode)))
+    }
+}
+
+impl Drop for TestUmask {
+    fn drop(&mut self) {
+        let _replaced = nix::sys::stat::umask(self.0);
+    }
+}
+
+fn path_with_suffix(path: &Path, suffix: &[u8]) -> PathBuf {
+    let mut bytes = path.as_os_str().as_bytes().to_vec();
+    bytes.extend_from_slice(suffix);
+    PathBuf::from(OsString::from_vec(bytes))
 }
 
 impl Drop for TestDirectory {
     fn drop(&mut self) {
-        let _result = fs::remove_dir_all(&self.0);
+        let _result = fs::remove_dir_all(&self.path);
     }
 }
