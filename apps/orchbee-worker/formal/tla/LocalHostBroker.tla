@@ -5,11 +5,17 @@ EXTENDS FiniteSets, Naturals, TLC
 \* Worker-to-Terminal-Host broker. Server admission still precedes Host
 \* contact. The admitted dispatch is an input from the separately checked
 \* TerminalLaunchAuthorization model; this module owns only the adapter order:
-\* begin_host_handoff, one exactly correlated Terminal Protocol command, one
-\* terminal result, and bounded Server delivery. A Server loss closes Host
-\* immediately. A Host loss may retain Server only for one bounded result
-\* delivery, then closes it. A retained Host observed after Worker loss is
-\* classified RecoveryRequired and is never silently adopted.
+\* begin_host_handoff (including its two cached pre-effect ResultReady paths),
+\* one exactly correlated Terminal Protocol command, one terminal result, and
+\* bounded Server delivery. Its detailed slot phases refine the separate
+\* WorkerTerminalBindingCapacity model's one operation-pending/result slot.
+\* An exactly validated generic TypedFailure has no
+\* authoritative rejection discriminator and therefore maps to
+\* HostReportedFailure; a mismatched record is protocol-unknown, never
+\* HostRejected. A Server loss closes Host immediately. A Host loss may retain
+\* Server only for one bounded result delivery, then closes it. A retained Host
+\* observed after Worker loss is classified RecoveryRequired and is never
+\* silently adopted.
 
 WorkerPhases == {
   "absent", "connecting-server", "connecting-host", "host-handshake",
@@ -28,16 +34,28 @@ OperationPhases == {
   "completed", "abandoned"
 }
 HostCommandKinds == {"none", "create-terminal", "start-terminal"}
-HostResponseKinds == {
-  "none", "create-terminal", "terminal-start-accepted", "typed-failure"
+ObservedHostKinds == {
+  "none", "create-terminal", "start-terminal", "terminal-start-accepted",
+  "typed-failure"
 }
+HostResponseRoles == {"none", "request", "response"}
+HostEpochs == 0..2
 ResultOutcomes == {"none", "accepted", "rejected", "failed", "unknown"}
 CompletionSources == {
-  "none", "pre-handoff", "host-response", "host-protocol", "host-loss",
-  "host-timeout", "server-loss"
+  "none", "handoff-lease-expired", "handoff-host-identity-changed",
+  "host-unavailable-before-handoff", "host-accepted",
+  "host-reported-failure", "host-protocol", "host-loss", "host-timeout",
+  "server-loss"
 }
 DeliveryPhases == {"none", "pending", "delivered", "abandoned"}
-Correlations == {"none", "operation"}
+Correlations == {"none", "operation", "other"}
+KernelSlotPhases == {
+  "empty", "awaiting-handoff", "handed-off", "result-ready"
+}
+CapacitySlotPhases == {"empty", "operation-pending", "result-ready"}
+HandoffRejectionSources == {
+  "handoff-lease-expired", "handoff-host-identity-changed"
+}
 RejectedHostResponseClasses == {
   "wrong-role", "wrong-kind", "wrong-correlation", "wrong-host-epoch"
 }
@@ -50,11 +68,12 @@ Actions == {
   "reject-host-wrong-role", "reject-host-incompatible",
   "reject-host-malformed", "host-handshake-timeout", "emit-ready",
   "admit-launch-dispatch", "admit-start-dispatch", "begin-host-handoff",
+  "handoff-lease-expired-result", "handoff-host-identity-changed-result",
   "fail-before-host-handoff", "dispatch-host-command",
   "host-applies-command", "reject-wrong-host-response-role",
   "reject-wrong-host-response-kind", "reject-wrong-host-correlation",
   "reject-wrong-host-epoch", "host-accepts-command",
-  "host-rejects-command", "host-fails-command", "host-command-timeout",
+  "host-reports-typed-failure", "host-command-timeout",
   "block-retry-after-unknown", "deliver-result", "result-delivery-timeout",
   "lose-server-before-ready", "lose-server-idle",
   "lose-server-before-handoff", "lose-server-after-handoff",
@@ -71,19 +90,26 @@ VARIABLES
   stopCause,
   helloSent,
   readinessEmitted,
+  hostEpoch,
   dispatchKind,
   operationPhase,
+  kernelSlotPhase,
+  handoffAttemptCount,
   handoffCount,
+  startTargetHostEpoch,
+  handoffHostEpoch,
   hostCommandKind,
   hostCommandCount,
   hostCommandApplied,
   hostCorrelation,
+  hostResponseRole,
   hostResponseKind,
   hostResponseCorrelation,
   hostResponseEpoch,
   rejectedHostResponses,
   resultOutcome,
   completionSource,
+  bindingResultCached,
   deliveryPhase,
   resultDeliveryCount,
   retryAfterUnknownBlocked,
@@ -92,17 +118,34 @@ VARIABLES
   lastAction
 
 brokerState == <<
-  workerPhase, serverLink, hostLink, stopCause, helloSent, readinessEmitted
+  workerPhase, serverLink, hostLink, stopCause, helloSent, readinessEmitted,
+  hostEpoch
 >>
 operationState == <<
-  dispatchKind, operationPhase, handoffCount, hostCommandKind,
-  hostCommandCount, hostCommandApplied, hostCorrelation, hostResponseKind,
-  hostResponseCorrelation, hostResponseEpoch, rejectedHostResponses,
-  resultOutcome, completionSource, deliveryPhase, resultDeliveryCount,
+  dispatchKind, operationPhase, kernelSlotPhase, handoffAttemptCount,
+  handoffCount, startTargetHostEpoch, handoffHostEpoch, hostCommandKind,
+  hostCommandCount, hostCommandApplied, hostCorrelation, hostResponseRole,
+  hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
+  rejectedHostResponses, resultOutcome, completionSource,
+  bindingResultCached, deliveryPhase, resultDeliveryCount,
   retryAfterUnknownBlocked
 >>
 retentionState == <<retainedHostTerminal, retentionDisposition>>
 vars == <<brokerState, operationState, retentionState, lastAction>>
+
+HandoffResultProjection == <<
+  dispatchKind,
+  resultOutcome,
+  completionSource,
+  startTargetHostEpoch,
+  handoffHostEpoch
+>>
+
+CapacitySlotProjection ==
+  CASE kernelSlotPhase = "empty" -> "empty"
+    [] kernelSlotPhase \in {"awaiting-handoff", "handed-off"} ->
+         "operation-pending"
+    [] OTHER -> "result-ready"
 
 ExpectedHostCommand(kind) ==
   CASE kind = "launch" -> "create-terminal"
@@ -114,6 +157,13 @@ ExpectedSuccessResponse(kind) ==
     [] kind = "start" -> "terminal-start-accepted"
     [] OTHER -> "none"
 
+OtherSuccessResponse(kind) ==
+  CASE kind = "launch" -> "terminal-start-accepted"
+    [] kind = "start" -> "create-terminal"
+    [] OTHER -> "create-terminal"
+
+OtherHostEpoch(epoch) == IF epoch = 1 THEN 2 ELSE 1
+
 Init ==
   /\ workerPhase = "absent"
   /\ serverLink = "closed"
@@ -121,19 +171,26 @@ Init ==
   /\ stopCause = "none"
   /\ helloSent = FALSE
   /\ readinessEmitted = FALSE
+  /\ hostEpoch = 0
   /\ dispatchKind = "none"
   /\ operationPhase = "none"
+  /\ kernelSlotPhase = "empty"
+  /\ handoffAttemptCount = 0
   /\ handoffCount = 0
+  /\ startTargetHostEpoch = 0
+  /\ handoffHostEpoch = 0
   /\ hostCommandKind = "none"
   /\ hostCommandCount = 0
   /\ hostCommandApplied = FALSE
   /\ hostCorrelation = "none"
+  /\ hostResponseRole = "none"
   /\ hostResponseKind = "none"
   /\ hostResponseCorrelation = "none"
   /\ hostResponseEpoch = 0
   /\ rejectedHostResponses = {}
   /\ resultOutcome = "none"
   /\ completionSource = "none"
+  /\ bindingResultCached = FALSE
   /\ deliveryPhase = "none"
   /\ resultDeliveryCount = 0
   /\ retryAfterUnknownBlocked = FALSE
@@ -147,7 +204,7 @@ StartWorker ==
   /\ serverLink' = "connecting"
   /\ lastAction' = "start-worker"
   /\ UNCHANGED <<hostLink, stopCause, helloSent, readinessEmitted,
-       operationState, retentionState>>
+       hostEpoch, operationState, retentionState>>
 
 AcceptServer ==
   /\ workerPhase = "connecting-server"
@@ -155,7 +212,7 @@ AcceptServer ==
   /\ serverLink' = "active"
   /\ lastAction' = "accept-server"
   /\ UNCHANGED <<hostLink, stopCause, helloSent, readinessEmitted,
-       operationState, retentionState>>
+       hostEpoch, operationState, retentionState>>
 
 RejectServer ==
   /\ workerPhase = "connecting-server"
@@ -163,8 +220,8 @@ RejectServer ==
   /\ serverLink' = "closed"
   /\ stopCause' = "server-rejected"
   /\ lastAction' = "reject-server"
-  /\ UNCHANGED <<hostLink, helloSent, readinessEmitted, operationState,
-       retentionState>>
+  /\ UNCHANGED <<hostLink, helloSent, readinessEmitted, hostEpoch,
+       operationState, retentionState>>
 
 ConnectHost ==
   /\ workerPhase = "connecting-host"
@@ -172,8 +229,8 @@ ConnectHost ==
   /\ hostLink' = "connecting"
   /\ helloSent' = TRUE
   /\ lastAction' = "connect-host"
-  /\ UNCHANGED <<serverLink, stopCause, readinessEmitted, operationState,
-       retentionState>>
+  /\ UNCHANGED <<serverLink, stopCause, readinessEmitted, hostEpoch,
+       operationState, retentionState>>
 
 StopForHostAdmissionFailure(cause, action) ==
   /\ workerPhase \in {"connecting-host", "host-handshake", "host-admitted"}
@@ -186,7 +243,8 @@ StopForHostAdmissionFailure(cause, action) ==
   /\ hostLink' = "closed"
   /\ stopCause' = cause
   /\ lastAction' = action
-  /\ UNCHANGED <<helloSent, readinessEmitted, operationState, retentionState>>
+  /\ UNCHANGED <<helloSent, readinessEmitted, hostEpoch, operationState,
+       retentionState>>
 
 RejectHostPeer ==
   /\ workerPhase = "connecting-host"
@@ -196,6 +254,7 @@ AcceptHostHandshake ==
   /\ workerPhase = "host-handshake"
   /\ workerPhase' = "host-admitted"
   /\ hostLink' = "active"
+  /\ hostEpoch' = 1
   /\ lastAction' = "accept-host-handshake"
   /\ UNCHANGED <<serverLink, stopCause, helloSent, readinessEmitted,
        operationState, retentionState>>
@@ -227,26 +286,33 @@ EmitReady ==
   /\ workerPhase' = "ready"
   /\ readinessEmitted' = TRUE
   /\ lastAction' = "emit-ready"
-  /\ UNCHANGED <<serverLink, hostLink, stopCause, helloSent, operationState,
-       retentionState>>
+  /\ UNCHANGED <<serverLink, hostLink, stopCause, helloSent, hostEpoch,
+       operationState, retentionState>>
 
 CanAdmitDispatch ==
+  \* Capacity rejection and SlotOccupied remain authorization-kernel results.
+  \* Only the kernel's one globally admitted dispatch reaches this adapter.
   /\ workerPhase = "ready"
   /\ serverLink = "active"
   /\ hostLink = "active"
   /\ dispatchKind = "none"
   /\ operationPhase = "none"
+  /\ kernelSlotPhase = "empty"
   /\ deliveryPhase = "none"
 
 AdmitLaunchDispatch ==
   /\ CanAdmitDispatch
   /\ dispatchKind' = "launch"
   /\ operationPhase' = "admitted"
+  /\ kernelSlotPhase' = "awaiting-handoff"
+  /\ startTargetHostEpoch' = 0
   /\ lastAction' = "admit-launch-dispatch"
-  /\ UNCHANGED <<brokerState, handoffCount, hostCommandKind,
+  /\ UNCHANGED <<brokerState, handoffAttemptCount, handoffCount,
+       handoffHostEpoch, hostCommandKind,
        hostCommandCount, hostCommandApplied, hostCorrelation,
-       hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
-       rejectedHostResponses, resultOutcome, completionSource, deliveryPhase,
+       hostResponseRole, hostResponseKind, hostResponseCorrelation,
+       hostResponseEpoch, rejectedHostResponses, resultOutcome,
+       completionSource, bindingResultCached, deliveryPhase,
        resultDeliveryCount, retryAfterUnknownBlocked, retentionState>>
 
 AdmitStartDispatch ==
@@ -254,13 +320,17 @@ AdmitStartDispatch ==
   \* The exact authorized Start target is an already retained deferred terminal.
   /\ dispatchKind' = "start"
   /\ operationPhase' = "admitted"
+  /\ kernelSlotPhase' = "awaiting-handoff"
+  /\ startTargetHostEpoch' = hostEpoch
   /\ retainedHostTerminal' = TRUE
   /\ retentionDisposition' = "current-worker"
   /\ lastAction' = "admit-start-dispatch"
-  /\ UNCHANGED <<brokerState, handoffCount, hostCommandKind,
+  /\ UNCHANGED <<brokerState, handoffAttemptCount, handoffCount,
+       handoffHostEpoch, hostCommandKind,
        hostCommandCount, hostCommandApplied, hostCorrelation,
-       hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
-       rejectedHostResponses, resultOutcome, completionSource, deliveryPhase,
+       hostResponseRole, hostResponseKind, hostResponseCorrelation,
+       hostResponseEpoch, rejectedHostResponses, resultOutcome,
+       completionSource, bindingResultCached, deliveryPhase,
        resultDeliveryCount, retryAfterUnknownBlocked>>
 
 BeginHostHandoff ==
@@ -268,13 +338,22 @@ BeginHostHandoff ==
   /\ serverLink = "active"
   /\ hostLink = "active"
   /\ operationPhase = "admitted"
+  /\ kernelSlotPhase = "awaiting-handoff"
+  /\ handoffAttemptCount = 0
+  /\ \/ dispatchKind = "launch"
+     \/ startTargetHostEpoch = hostEpoch
   /\ operationPhase' = "handed-off"
+  /\ kernelSlotPhase' = "handed-off"
+  /\ handoffAttemptCount' = 1
   /\ handoffCount' = 1
+  /\ handoffHostEpoch' = hostEpoch
   /\ lastAction' = "begin-host-handoff"
-  /\ UNCHANGED <<brokerState, dispatchKind, hostCommandKind,
+  /\ UNCHANGED <<brokerState, dispatchKind, startTargetHostEpoch,
+       hostCommandKind,
        hostCommandCount, hostCommandApplied, hostCorrelation,
-       hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
-       rejectedHostResponses, resultOutcome, completionSource, deliveryPhase,
+       hostResponseRole, hostResponseKind, hostResponseCorrelation,
+       hostResponseEpoch, rejectedHostResponses, resultOutcome,
+       completionSource, bindingResultCached, deliveryPhase,
        resultDeliveryCount, retryAfterUnknownBlocked, retentionState>>
 
 QueueResult(outcome, source) ==
@@ -282,36 +361,82 @@ QueueResult(outcome, source) ==
   /\ source \in CompletionSources \ {"none"}
   /\ resultOutcome' = outcome
   /\ completionSource' = source
+  /\ bindingResultCached' = TRUE
   /\ deliveryPhase' = "pending"
   /\ operationPhase' = "result-ready"
+  /\ kernelSlotPhase' = "result-ready"
   /\ retryAfterUnknownBlocked' = (outcome = "unknown")
+
+HandoffLeaseExpiredResult ==
+  /\ workerPhase = "ready"
+  /\ serverLink = "active"
+  /\ hostLink = "active"
+  /\ operationPhase = "admitted"
+  /\ kernelSlotPhase = "awaiting-handoff"
+  /\ handoffAttemptCount = 0
+  /\ handoffAttemptCount' = 1
+  /\ handoffHostEpoch' = hostEpoch
+  /\ QueueResult("rejected", "handoff-lease-expired")
+  /\ lastAction' = "handoff-lease-expired-result"
+  /\ UNCHANGED <<brokerState, dispatchKind, handoffCount,
+       startTargetHostEpoch, hostCommandKind, hostCommandCount,
+       hostCommandApplied, hostCorrelation, hostResponseRole,
+       hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
+       rejectedHostResponses, resultDeliveryCount, retentionState>>
+
+HandoffHostIdentityChangedResult ==
+  /\ workerPhase = "ready"
+  /\ serverLink = "active"
+  /\ hostLink = "active"
+  /\ operationPhase = "admitted"
+  /\ kernelSlotPhase = "awaiting-handoff"
+  /\ dispatchKind = "start"
+  /\ handoffAttemptCount = 0
+  /\ hostEpoch = startTargetHostEpoch
+  /\ hostEpoch' = OtherHostEpoch(startTargetHostEpoch)
+  /\ handoffAttemptCount' = 1
+  /\ handoffHostEpoch' = hostEpoch'
+  /\ QueueResult("rejected", "handoff-host-identity-changed")
+  /\ lastAction' = "handoff-host-identity-changed-result"
+  /\ UNCHANGED <<workerPhase, serverLink, hostLink, stopCause, helloSent,
+       readinessEmitted, dispatchKind, handoffCount, startTargetHostEpoch,
+       hostCommandKind, hostCommandCount, hostCommandApplied,
+       hostCorrelation, hostResponseRole, hostResponseKind,
+       hostResponseCorrelation, hostResponseEpoch, rejectedHostResponses,
+       resultDeliveryCount, retentionState>>
 
 FailBeforeHostHandoff ==
   /\ workerPhase = "ready"
   /\ serverLink = "active"
   /\ operationPhase = "admitted"
-  /\ QueueResult("failed", "pre-handoff")
+  /\ QueueResult("failed", "host-unavailable-before-handoff")
   /\ lastAction' = "fail-before-host-handoff"
-  /\ UNCHANGED <<brokerState, dispatchKind, handoffCount, hostCommandKind,
-       hostCommandCount, hostCommandApplied, hostCorrelation,
-       hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
-       rejectedHostResponses, resultDeliveryCount, retentionState>>
+  /\ UNCHANGED <<brokerState, dispatchKind, handoffAttemptCount,
+       handoffCount, startTargetHostEpoch, handoffHostEpoch,
+       hostCommandKind, hostCommandCount, hostCommandApplied,
+       hostCorrelation, hostResponseRole, hostResponseKind,
+       hostResponseCorrelation, hostResponseEpoch, rejectedHostResponses,
+       resultDeliveryCount, retentionState>>
 
 DispatchHostCommand ==
   /\ workerPhase = "ready"
   /\ serverLink = "active"
   /\ hostLink = "active"
   /\ operationPhase = "handed-off"
+  /\ kernelSlotPhase = "handed-off"
   /\ handoffCount = 1
+  /\ handoffHostEpoch \in HostEpochs \ {0}
   /\ operationPhase' = "awaiting-host"
   /\ hostCommandKind' = ExpectedHostCommand(dispatchKind)
   /\ hostCommandCount' = 1
   /\ hostCorrelation' = "operation"
   /\ lastAction' = "dispatch-host-command"
-  /\ UNCHANGED <<brokerState, dispatchKind, handoffCount,
-       hostCommandApplied, hostResponseKind, hostResponseCorrelation,
-       hostResponseEpoch, rejectedHostResponses, resultOutcome,
-       completionSource, deliveryPhase, resultDeliveryCount,
+  /\ UNCHANGED <<brokerState, dispatchKind, kernelSlotPhase,
+       handoffAttemptCount, handoffCount, startTargetHostEpoch,
+       handoffHostEpoch, hostCommandApplied, hostResponseRole,
+       hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
+       rejectedHostResponses, resultOutcome, completionSource,
+       bindingResultCached, deliveryPhase, resultDeliveryCount,
        retryAfterUnknownBlocked, retentionState>>
 
 HostAppliesCommand ==
@@ -323,79 +448,142 @@ HostAppliesCommand ==
   /\ retainedHostTerminal' = TRUE
   /\ retentionDisposition' = "current-worker"
   /\ lastAction' = "host-applies-command"
-  /\ UNCHANGED <<brokerState, dispatchKind, operationPhase, handoffCount,
-       hostCommandKind, hostCommandCount, hostCorrelation, hostResponseKind,
-       hostResponseCorrelation, hostResponseEpoch, rejectedHostResponses,
-       resultOutcome, completionSource, deliveryPhase, resultDeliveryCount,
+  /\ UNCHANGED <<brokerState, dispatchKind, operationPhase,
+       kernelSlotPhase, handoffAttemptCount, handoffCount,
+       startTargetHostEpoch, handoffHostEpoch, hostCommandKind,
+       hostCommandCount, hostCorrelation, hostResponseRole,
+       hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
+       rejectedHostResponses, resultOutcome, completionSource,
+       bindingResultCached, deliveryPhase, resultDeliveryCount,
        retryAfterUnknownBlocked>>
 
-RejectHostResponse(class, action) ==
+KnownHostResponseMatches(role, kind, correlation, epoch) ==
+  /\ role = "response"
+  /\ correlation = hostCorrelation
+  /\ epoch = handoffHostEpoch
+  /\ kind \in {ExpectedSuccessResponse(dispatchKind), "typed-failure"}
+
+RejectHostResponse(class, role, kind, correlation, epoch, action) ==
   /\ workerPhase = "ready"
   /\ serverLink = "active"
   /\ hostLink = "active"
   /\ operationPhase = "awaiting-host"
+  /\ kernelSlotPhase = "handed-off"
   /\ class \in RejectedHostResponseClasses
   /\ class \notin rejectedHostResponses
+  /\ role \in HostResponseRoles \ {"none"}
+  /\ kind \in ObservedHostKinds \ {"none"}
+  /\ correlation \in Correlations \ {"none"}
+  /\ epoch \in HostEpochs \ {0}
+  /\ ~KnownHostResponseMatches(role, kind, correlation, epoch)
   /\ workerPhase' = "draining-result"
   /\ hostLink' = "closed"
   /\ stopCause' = "host-malformed"
   /\ rejectedHostResponses' = rejectedHostResponses \cup {class}
+  /\ hostResponseRole' = role
+  /\ hostResponseKind' = kind
+  /\ hostResponseCorrelation' = correlation
+  /\ hostResponseEpoch' = epoch
   /\ QueueResult("unknown", "host-protocol")
   /\ lastAction' = action
-  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, dispatchKind, handoffCount,
-       hostCommandKind, hostCommandCount, hostCommandApplied, hostCorrelation,
-       hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
+  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, hostEpoch,
+       dispatchKind, handoffAttemptCount, handoffCount,
+       startTargetHostEpoch, handoffHostEpoch, hostCommandKind,
+       hostCommandCount, hostCommandApplied, hostCorrelation,
        resultDeliveryCount, retentionState>>
 
 RejectWrongHostResponseRole ==
   /\ "wrong-role" \notin rejectedHostResponses
-  /\ RejectHostResponse("wrong-role", "reject-wrong-host-response-role")
+  /\ RejectHostResponse(
+       "wrong-role",
+       "request",
+       hostCommandKind,
+       hostCorrelation,
+       handoffHostEpoch,
+       "reject-wrong-host-response-role"
+     )
 
 RejectWrongHostResponseKind ==
   /\ "wrong-kind" \notin rejectedHostResponses
-  /\ RejectHostResponse("wrong-kind", "reject-wrong-host-response-kind")
+  /\ RejectHostResponse(
+       "wrong-kind",
+       "response",
+       OtherSuccessResponse(dispatchKind),
+       hostCorrelation,
+       handoffHostEpoch,
+       "reject-wrong-host-response-kind"
+     )
 
 RejectWrongHostCorrelation ==
   /\ "wrong-correlation" \notin rejectedHostResponses
-  /\ RejectHostResponse("wrong-correlation", "reject-wrong-host-correlation")
+  /\ RejectHostResponse(
+       "wrong-correlation",
+       "response",
+       "typed-failure",
+       "other",
+       handoffHostEpoch,
+       "reject-wrong-host-correlation"
+     )
 
 RejectWrongHostEpoch ==
   /\ "wrong-host-epoch" \notin rejectedHostResponses
-  /\ RejectHostResponse("wrong-host-epoch", "reject-wrong-host-epoch")
+  /\ RejectHostResponse(
+       "wrong-host-epoch",
+       "response",
+       ExpectedSuccessResponse(dispatchKind),
+       hostCorrelation,
+       OtherHostEpoch(handoffHostEpoch),
+       "reject-wrong-host-epoch"
+     )
 
-CompleteFromHost(outcome, responseKind, action) ==
+CompleteFromHost(outcome, source, role, kind, correlation, epoch, action) ==
   /\ workerPhase = "ready"
   /\ serverLink = "active"
   /\ hostLink = "active"
   /\ operationPhase = "awaiting-host"
+  /\ kernelSlotPhase = "handed-off"
   /\ hostCommandCount = 1
   /\ hostCorrelation = "operation"
-  /\ outcome \in {"accepted", "rejected", "failed"}
-  /\ responseKind \in HostResponseKinds \ {"none"}
-  /\ QueueResult(outcome, "host-response")
-  /\ hostResponseKind' = responseKind
-  /\ hostResponseCorrelation' = "operation"
-  /\ hostResponseEpoch' = 1
+  /\ \/ outcome = "accepted" /\ source = "host-accepted"
+     \/ outcome = "failed" /\ source = "host-reported-failure"
+  /\ KnownHostResponseMatches(role, kind, correlation, epoch)
+  /\ \/ outcome = "accepted" /\ kind = ExpectedSuccessResponse(dispatchKind)
+     \/ outcome = "failed" /\ kind = "typed-failure"
+  /\ QueueResult(outcome, source)
+  /\ hostResponseRole' = role
+  /\ hostResponseKind' = kind
+  /\ hostResponseCorrelation' = correlation
+  /\ hostResponseEpoch' = epoch
   /\ lastAction' = action
-  /\ UNCHANGED <<brokerState, dispatchKind, handoffCount, hostCommandKind,
-       hostCommandCount, hostCommandApplied, hostCorrelation,
-       rejectedHostResponses, resultDeliveryCount, retentionState>>
+  /\ UNCHANGED <<brokerState, dispatchKind, handoffAttemptCount,
+       handoffCount, startTargetHostEpoch, handoffHostEpoch,
+       hostCommandKind, hostCommandCount, hostCommandApplied,
+       hostCorrelation, rejectedHostResponses, resultDeliveryCount,
+       retentionState>>
 
 HostAcceptsCommand ==
   /\ hostCommandApplied
   /\ CompleteFromHost(
        "accepted",
+       "host-accepted",
+       "response",
        ExpectedSuccessResponse(dispatchKind),
+       hostCorrelation,
+       handoffHostEpoch,
        "host-accepts-command"
      )
 
-HostRejectsCommand ==
+HostReportsTypedFailure ==
   /\ ~hostCommandApplied
-  /\ CompleteFromHost("rejected", "typed-failure", "host-rejects-command")
-
-HostFailsCommand ==
-  /\ ~hostCommandApplied
-  /\ CompleteFromHost("failed", "typed-failure", "host-fails-command")
+  /\ CompleteFromHost(
+       "failed",
+       "host-reported-failure",
+       "response",
+       "typed-failure",
+       hostCorrelation,
+       handoffHostEpoch,
+       "host-reports-typed-failure"
+     )
 
 HostCommandTimeout ==
   /\ workerPhase = "ready"
@@ -407,9 +595,11 @@ HostCommandTimeout ==
   /\ stopCause' = "host-command-timeout"
   /\ QueueResult("unknown", "host-timeout")
   /\ lastAction' = "host-command-timeout"
-  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, dispatchKind,
-       handoffCount, hostCommandKind, hostCommandCount, hostCommandApplied,
-       hostCorrelation, hostResponseKind, hostResponseCorrelation,
+  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, hostEpoch,
+       dispatchKind, handoffAttemptCount, handoffCount,
+       startTargetHostEpoch, handoffHostEpoch, hostCommandKind,
+       hostCommandCount, hostCommandApplied, hostCorrelation,
+       hostResponseRole, hostResponseKind, hostResponseCorrelation,
        hostResponseEpoch, rejectedHostResponses, resultDeliveryCount,
        retentionState>>
 
@@ -422,17 +612,15 @@ BlockRetryAfterUnknown ==
   /\ retryAfterUnknownBlocked
   /\ lastAction # "block-retry-after-unknown"
   /\ lastAction' = "block-retry-after-unknown"
-  /\ UNCHANGED <<brokerState, dispatchKind, operationPhase, handoffCount,
-       hostCommandKind, hostCommandCount, hostCommandApplied, hostCorrelation,
-       hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
-       rejectedHostResponses, resultOutcome, completionSource, deliveryPhase,
-       resultDeliveryCount, retryAfterUnknownBlocked, retentionState>>
+  /\ UNCHANGED <<brokerState, operationState, retentionState>>
 
 DeliverResult ==
   /\ serverLink = "active"
   /\ operationPhase = "result-ready"
+  /\ kernelSlotPhase = "result-ready"
   /\ deliveryPhase = "pending"
   /\ operationPhase' = "completed"
+  /\ kernelSlotPhase' = "empty"
   /\ deliveryPhase' = "delivered"
   /\ resultDeliveryCount' = 1
   /\ workerPhase' = IF workerPhase = "draining-result"
@@ -447,31 +635,38 @@ DeliverResult ==
        ELSE retentionDisposition
   /\ lastAction' = "deliver-result"
   /\ UNCHANGED <<hostLink, stopCause, helloSent, readinessEmitted,
-       dispatchKind, handoffCount, hostCommandKind, hostCommandCount,
-       hostCommandApplied, hostCorrelation, hostResponseKind,
-       hostResponseCorrelation, hostResponseEpoch, rejectedHostResponses,
-       resultOutcome, completionSource, retryAfterUnknownBlocked,
+       hostEpoch, dispatchKind, handoffAttemptCount, handoffCount,
+       startTargetHostEpoch, handoffHostEpoch, hostCommandKind,
+       hostCommandCount, hostCommandApplied, hostCorrelation,
+       hostResponseRole, hostResponseKind, hostResponseCorrelation,
+       hostResponseEpoch, rejectedHostResponses, resultOutcome,
+       completionSource, bindingResultCached, retryAfterUnknownBlocked,
        retainedHostTerminal>>
 
 ResultDeliveryTimeout ==
   /\ serverLink = "active"
   /\ operationPhase = "result-ready"
+  /\ kernelSlotPhase = "result-ready"
   /\ deliveryPhase = "pending"
   /\ workerPhase' = "stopped"
   /\ serverLink' = "closed"
   /\ hostLink' = "closed"
   /\ stopCause' = "result-delivery-timeout"
   /\ operationPhase' = "abandoned"
+  /\ kernelSlotPhase' = "empty"
   /\ deliveryPhase' = "abandoned"
   /\ retentionDisposition' = IF retainedHostTerminal
                               THEN "unmatched"
                               ELSE retentionDisposition
   /\ lastAction' = "result-delivery-timeout"
-  /\ UNCHANGED <<helloSent, readinessEmitted, dispatchKind, handoffCount,
-       hostCommandKind, hostCommandCount, hostCommandApplied, hostCorrelation,
+  /\ UNCHANGED <<helloSent, readinessEmitted, hostEpoch, dispatchKind,
+       handoffAttemptCount, handoffCount, startTargetHostEpoch,
+       handoffHostEpoch, hostCommandKind, hostCommandCount,
+       hostCommandApplied, hostCorrelation, hostResponseRole,
        hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
        rejectedHostResponses, resultOutcome, completionSource,
-       resultDeliveryCount, retryAfterUnknownBlocked, retainedHostTerminal>>
+       bindingResultCached, resultDeliveryCount, retryAfterUnknownBlocked,
+       retainedHostTerminal>>
 
 LoseServerBeforeReady ==
   /\ serverLink = "active"
@@ -481,7 +676,8 @@ LoseServerBeforeReady ==
   /\ hostLink' = "closed"
   /\ stopCause' = "server-lost"
   /\ lastAction' = "lose-server-before-ready"
-  /\ UNCHANGED <<helloSent, readinessEmitted, operationState, retentionState>>
+  /\ UNCHANGED <<helloSent, readinessEmitted, hostEpoch, operationState,
+       retentionState>>
 
 LoseServerIdle ==
   /\ workerPhase = "ready"
@@ -495,7 +691,7 @@ LoseServerIdle ==
                               THEN "unmatched"
                               ELSE retentionDisposition
   /\ lastAction' = "lose-server-idle"
-  /\ UNCHANGED <<helloSent, readinessEmitted, operationState,
+  /\ UNCHANGED <<helloSent, readinessEmitted, hostEpoch, operationState,
        retainedHostTerminal>>
 
 AbandonForServerLoss ==
@@ -506,8 +702,10 @@ AbandonForServerLoss ==
   /\ hostLink' = "closed"
   /\ stopCause' = "server-lost"
   /\ operationPhase' = "abandoned"
+  /\ kernelSlotPhase' = "empty"
   /\ resultOutcome' = "unknown"
   /\ completionSource' = "server-loss"
+  /\ bindingResultCached' = FALSE
   /\ deliveryPhase' = "abandoned"
   /\ retryAfterUnknownBlocked' = TRUE
   /\ retentionDisposition' = IF retainedHostTerminal
@@ -518,8 +716,10 @@ LoseServerBeforeHandoff ==
   /\ operationPhase = "admitted"
   /\ AbandonForServerLoss
   /\ lastAction' = "lose-server-before-handoff"
-  /\ UNCHANGED <<helloSent, readinessEmitted, dispatchKind, handoffCount,
-       hostCommandKind, hostCommandCount, hostCommandApplied, hostCorrelation,
+  /\ UNCHANGED <<helloSent, readinessEmitted, hostEpoch, dispatchKind,
+       handoffAttemptCount, handoffCount, startTargetHostEpoch,
+       handoffHostEpoch, hostCommandKind, hostCommandCount,
+       hostCommandApplied, hostCorrelation, hostResponseRole,
        hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
        rejectedHostResponses, resultDeliveryCount, retainedHostTerminal>>
 
@@ -527,8 +727,10 @@ LoseServerAfterHandoff ==
   /\ operationPhase \in {"handed-off", "awaiting-host"}
   /\ AbandonForServerLoss
   /\ lastAction' = "lose-server-after-handoff"
-  /\ UNCHANGED <<helloSent, readinessEmitted, dispatchKind, handoffCount,
-       hostCommandKind, hostCommandCount, hostCommandApplied, hostCorrelation,
+  /\ UNCHANGED <<helloSent, readinessEmitted, hostEpoch, dispatchKind,
+       handoffAttemptCount, handoffCount, startTargetHostEpoch,
+       handoffHostEpoch, hostCommandKind, hostCommandCount,
+       hostCommandApplied, hostCorrelation, hostResponseRole,
        hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
        rejectedHostResponses, resultDeliveryCount, retainedHostTerminal>>
 
@@ -536,44 +738,53 @@ LoseServerWithPendingResult ==
   /\ workerPhase = "ready"
   /\ serverLink = "active"
   /\ operationPhase = "result-ready"
+  /\ kernelSlotPhase = "result-ready"
   /\ deliveryPhase = "pending"
   /\ workerPhase' = "stopped"
   /\ serverLink' = "closed"
   /\ hostLink' = "closed"
   /\ stopCause' = "server-lost"
   /\ operationPhase' = "abandoned"
+  /\ kernelSlotPhase' = "empty"
   /\ deliveryPhase' = "abandoned"
   /\ retentionDisposition' = IF retainedHostTerminal
                               THEN "unmatched"
                               ELSE retentionDisposition
   /\ lastAction' = "lose-server-with-pending-result"
-  /\ UNCHANGED <<helloSent, readinessEmitted, dispatchKind, handoffCount,
-       hostCommandKind, hostCommandCount, hostCommandApplied, hostCorrelation,
+  /\ UNCHANGED <<helloSent, readinessEmitted, hostEpoch, dispatchKind,
+       handoffAttemptCount, handoffCount, startTargetHostEpoch,
+       handoffHostEpoch, hostCommandKind, hostCommandCount,
+       hostCommandApplied, hostCorrelation, hostResponseRole,
        hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
        rejectedHostResponses, resultOutcome, completionSource,
-       resultDeliveryCount, retryAfterUnknownBlocked, retainedHostTerminal>>
+       bindingResultCached, resultDeliveryCount, retryAfterUnknownBlocked,
+       retainedHostTerminal>>
 
 LoseServerDuringDrain ==
   /\ workerPhase = "draining-result"
   /\ serverLink = "active"
   /\ hostLink = "closed"
   /\ operationPhase = "result-ready"
+  /\ kernelSlotPhase = "result-ready"
   /\ deliveryPhase = "pending"
   /\ workerPhase' = "stopped"
   /\ serverLink' = "closed"
   /\ stopCause' = "server-lost"
   /\ operationPhase' = "abandoned"
+  /\ kernelSlotPhase' = "empty"
   /\ deliveryPhase' = "abandoned"
   /\ retentionDisposition' = IF retainedHostTerminal
                               THEN "unmatched"
                               ELSE retentionDisposition
   /\ lastAction' = "lose-server-during-drain"
-  /\ UNCHANGED <<hostLink, helloSent, readinessEmitted, dispatchKind,
-       handoffCount, hostCommandKind, hostCommandCount, hostCommandApplied,
-       hostCorrelation, hostResponseKind, hostResponseCorrelation,
+  /\ UNCHANGED <<hostLink, helloSent, readinessEmitted, hostEpoch,
+       dispatchKind, handoffAttemptCount, handoffCount,
+       startTargetHostEpoch, handoffHostEpoch, hostCommandKind,
+       hostCommandCount, hostCommandApplied, hostCorrelation,
+       hostResponseRole, hostResponseKind, hostResponseCorrelation,
        hostResponseEpoch, rejectedHostResponses, resultOutcome,
-       completionSource, resultDeliveryCount, retryAfterUnknownBlocked,
-       retainedHostTerminal>>
+       completionSource, bindingResultCached, resultDeliveryCount,
+       retryAfterUnknownBlocked, retainedHostTerminal>>
 
 LoseHostBeforeReady ==
   /\ hostLink \in {"connecting", "active"}
@@ -583,7 +794,8 @@ LoseHostBeforeReady ==
   /\ hostLink' = "closed"
   /\ stopCause' = "host-lost"
   /\ lastAction' = "lose-host-before-ready"
-  /\ UNCHANGED <<helloSent, readinessEmitted, operationState, retentionState>>
+  /\ UNCHANGED <<helloSent, readinessEmitted, hostEpoch, operationState,
+       retentionState>>
 
 LoseHostIdle ==
   /\ workerPhase = "ready"
@@ -597,7 +809,7 @@ LoseHostIdle ==
                               THEN "unmatched"
                               ELSE retentionDisposition
   /\ lastAction' = "lose-host-idle"
-  /\ UNCHANGED <<helloSent, readinessEmitted, operationState,
+  /\ UNCHANGED <<helloSent, readinessEmitted, hostEpoch, operationState,
        retainedHostTerminal>>
 
 DrainForHostLoss(outcome, source, action) ==
@@ -612,23 +824,29 @@ DrainForHostLoss(outcome, source, action) ==
 
 LoseHostBeforeHandoff ==
   /\ operationPhase = "admitted"
+  /\ kernelSlotPhase = "awaiting-handoff"
   /\ DrainForHostLoss(
        "failed",
-       "pre-handoff",
+       "host-unavailable-before-handoff",
        "lose-host-before-handoff"
      )
-  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, dispatchKind,
-       handoffCount, hostCommandKind, hostCommandCount, hostCommandApplied,
-       hostCorrelation, hostResponseKind, hostResponseCorrelation,
+  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, hostEpoch,
+       dispatchKind, handoffAttemptCount, handoffCount,
+       startTargetHostEpoch, handoffHostEpoch, hostCommandKind,
+       hostCommandCount, hostCommandApplied, hostCorrelation,
+       hostResponseRole, hostResponseKind, hostResponseCorrelation,
        hostResponseEpoch, rejectedHostResponses, resultDeliveryCount,
        retentionState>>
 
 LoseHostAfterHandoff ==
   /\ operationPhase \in {"handed-off", "awaiting-host"}
+  /\ kernelSlotPhase = "handed-off"
   /\ DrainForHostLoss("unknown", "host-loss", "lose-host-after-handoff")
-  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, dispatchKind,
-       handoffCount, hostCommandKind, hostCommandCount, hostCommandApplied,
-       hostCorrelation, hostResponseKind, hostResponseCorrelation,
+  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, hostEpoch,
+       dispatchKind, handoffAttemptCount, handoffCount,
+       startTargetHostEpoch, handoffHostEpoch, hostCommandKind,
+       hostCommandCount, hostCommandApplied, hostCorrelation,
+       hostResponseRole, hostResponseKind, hostResponseCorrelation,
        hostResponseEpoch, rejectedHostResponses, resultDeliveryCount,
        retentionState>>
 
@@ -637,13 +855,14 @@ LoseHostWithPendingResult ==
   /\ serverLink = "active"
   /\ hostLink = "active"
   /\ operationPhase = "result-ready"
+  /\ kernelSlotPhase = "result-ready"
   /\ deliveryPhase = "pending"
   /\ workerPhase' = "draining-result"
   /\ hostLink' = "closed"
   /\ stopCause' = "host-lost"
   /\ lastAction' = "lose-host-with-pending-result"
-  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, operationState,
-       retentionState>>
+  /\ UNCHANGED <<serverLink, helloSent, readinessEmitted, hostEpoch,
+       operationState, retentionState>>
 
 RequireRecoveryForRetainedHost ==
   /\ workerPhase = "stopped"
@@ -668,6 +887,8 @@ Next ==
   \/ AdmitLaunchDispatch
   \/ AdmitStartDispatch
   \/ BeginHostHandoff
+  \/ HandoffLeaseExpiredResult
+  \/ HandoffHostIdentityChangedResult
   \/ FailBeforeHostHandoff
   \/ DispatchHostCommand
   \/ HostAppliesCommand
@@ -676,8 +897,7 @@ Next ==
   \/ RejectWrongHostCorrelation
   \/ RejectWrongHostEpoch
   \/ HostAcceptsCommand
-  \/ HostRejectsCommand
-  \/ HostFailsCommand
+  \/ HostReportsTypedFailure
   \/ HostCommandTimeout
   \/ BlockRetryAfterUnknown
   \/ DeliverResult
@@ -702,17 +922,17 @@ SettlePendingWorker ==
   LoseServerBeforeReady \/ LoseHostBeforeReady
 
 SettleAdmittedOperation ==
-  BeginHostHandoff \/ FailBeforeHostHandoff \/ LoseServerBeforeHandoff \/
-  LoseHostBeforeHandoff
+  BeginHostHandoff \/ HandoffLeaseExpiredResult \/
+  HandoffHostIdentityChangedResult \/ FailBeforeHostHandoff \/
+  LoseServerBeforeHandoff \/ LoseHostBeforeHandoff
 
 SettleHandedOffOperation ==
   DispatchHostCommand \/ HostCommandTimeout \/ LoseServerAfterHandoff \/
   LoseHostAfterHandoff
 
 SettleHostCommand ==
-  HostAppliesCommand \/ HostAcceptsCommand \/ HostRejectsCommand \/
-  HostFailsCommand \/ HostCommandTimeout \/ LoseServerAfterHandoff \/
-  LoseHostAfterHandoff
+  HostAppliesCommand \/ HostAcceptsCommand \/ HostReportsTypedFailure \/
+  HostCommandTimeout \/ LoseServerAfterHandoff \/ LoseHostAfterHandoff
 
 SettlePendingResult ==
   DeliverResult \/ ResultDeliveryTimeout \/ LoseServerWithPendingResult \/
@@ -738,19 +958,26 @@ TypeOK ==
   /\ stopCause \in StopCauses
   /\ helloSent \in BOOLEAN
   /\ readinessEmitted \in BOOLEAN
+  /\ hostEpoch \in HostEpochs
   /\ dispatchKind \in DispatchKinds
   /\ operationPhase \in OperationPhases
+  /\ kernelSlotPhase \in KernelSlotPhases
+  /\ handoffAttemptCount \in 0..1
   /\ handoffCount \in 0..1
+  /\ startTargetHostEpoch \in HostEpochs
+  /\ handoffHostEpoch \in HostEpochs
   /\ hostCommandKind \in HostCommandKinds
   /\ hostCommandCount \in 0..1
   /\ hostCommandApplied \in BOOLEAN
   /\ hostCorrelation \in Correlations
-  /\ hostResponseKind \in HostResponseKinds
+  /\ hostResponseRole \in HostResponseRoles
+  /\ hostResponseKind \in ObservedHostKinds
   /\ hostResponseCorrelation \in Correlations
-  /\ hostResponseEpoch \in 0..1
+  /\ hostResponseEpoch \in HostEpochs
   /\ rejectedHostResponses \subseteq RejectedHostResponseClasses
   /\ resultOutcome \in ResultOutcomes
   /\ completionSource \in CompletionSources
+  /\ bindingResultCached \in BOOLEAN
   /\ deliveryPhase \in DeliveryPhases
   /\ resultDeliveryCount \in 0..1
   /\ retryAfterUnknownBlocked \in BOOLEAN
@@ -766,6 +993,7 @@ ReadinessRequiresBothAdmissions ==
     /\ serverLink = "active"
     /\ readinessEmitted
     /\ helloSent
+    /\ hostEpoch # 0
 
 ReadinessWasNeverForged ==
   readinessEmitted =>
@@ -792,6 +1020,44 @@ DrainOwnsOnlyPendingResult ==
 OneAdmittedDispatch ==
   /\ (dispatchKind = "none") <=> (operationPhase = "none")
   /\ dispatchKind # "none" => readinessEmitted
+  /\ dispatchKind = "launch" => startTargetHostEpoch = 0
+  /\ dispatchKind = "start" => startTargetHostEpoch # 0
+
+KernelGlobalSlotRefinesOperation ==
+  /\ operationPhase = "none" => kernelSlotPhase = "empty"
+  /\ operationPhase = "admitted" =>
+       kernelSlotPhase = "awaiting-handoff"
+  /\ operationPhase \in {"handed-off", "awaiting-host"} =>
+       kernelSlotPhase = "handed-off"
+  /\ operationPhase = "result-ready" =>
+       kernelSlotPhase = "result-ready"
+  /\ operationPhase \in {"completed", "abandoned"} =>
+       kernelSlotPhase = "empty"
+
+CapacityGlobalSlotRefinement ==
+  /\ CapacitySlotProjection \in CapacitySlotPhases
+  /\ (CapacitySlotProjection = "empty") <=>
+       operationPhase \in {"none", "completed", "abandoned"}
+  /\ (CapacitySlotProjection = "operation-pending") <=>
+       operationPhase \in {"admitted", "handed-off", "awaiting-host"}
+  /\ (CapacitySlotProjection = "result-ready") <=>
+       operationPhase = "result-ready"
+
+HandoffObservationIsRetained ==
+  /\ handoffAttemptCount = 0 =>
+       /\ handoffCount = 0
+       /\ handoffHostEpoch = 0
+  /\ handoffCount = 1 =>
+       /\ handoffAttemptCount = 1
+       /\ handoffHostEpoch # 0
+  /\ handoffAttemptCount = 1 /\ handoffCount = 0 =>
+       /\ completionSource \in HandoffRejectionSources
+       /\ bindingResultCached
+
+HostResponseObservationIsComplete ==
+  /\ (hostResponseRole = "none") <=> (hostResponseKind = "none")
+  /\ (hostResponseRole = "none") <=> (hostResponseCorrelation = "none")
+  /\ (hostResponseRole = "none") <=> (hostResponseEpoch = 0)
 
 HostCommandRefinesDispatch ==
   /\ hostCommandCount = 0 => hostCommandKind = "none"
@@ -807,14 +1073,17 @@ ResultLifecycleIsClosed ==
   /\ operationPhase \in {"none", "admitted", "handed-off", "awaiting-host"} =>
        /\ resultOutcome = "none"
        /\ completionSource = "none"
+       /\ ~bindingResultCached
        /\ deliveryPhase = "none"
   /\ operationPhase = "result-ready" =>
        /\ resultOutcome # "none"
        /\ completionSource # "none"
+       /\ bindingResultCached
        /\ deliveryPhase = "pending"
   /\ operationPhase = "completed" =>
        /\ resultOutcome # "none"
        /\ completionSource # "none"
+       /\ bindingResultCached
        /\ deliveryPhase = "delivered"
        /\ resultDeliveryCount = 1
   /\ operationPhase = "abandoned" =>
@@ -822,14 +1091,76 @@ ResultLifecycleIsClosed ==
        /\ completionSource # "none"
        /\ deliveryPhase = "abandoned"
 
+HandoffResultReadyIsExact ==
+  /\ completionSource = "handoff-lease-expired" =>
+       /\ resultOutcome = "rejected"
+       /\ handoffAttemptCount = 1
+       /\ handoffCount = 0
+       /\ handoffHostEpoch # 0
+       /\ hostCommandCount = 0
+       /\ ~hostCommandApplied
+       /\ bindingResultCached
+  /\ completionSource = "handoff-host-identity-changed" =>
+       /\ dispatchKind = "start"
+       /\ resultOutcome = "rejected"
+       /\ handoffAttemptCount = 1
+       /\ handoffCount = 0
+       /\ startTargetHostEpoch # handoffHostEpoch
+       /\ hostCommandCount = 0
+       /\ ~hostCommandApplied
+       /\ bindingResultCached
+  /\ completionSource = "host-unavailable-before-handoff" =>
+       /\ resultOutcome = "failed"
+       /\ handoffAttemptCount = 0
+       /\ handoffCount = 0
+       /\ hostCommandCount = 0
+       /\ ~hostCommandApplied
+       /\ bindingResultCached
+
+RejectedResultIsKernelClassified ==
+  resultOutcome = "rejected" =>
+    completionSource \in HandoffRejectionSources
+
 HostCompletionIsStrictlyCorrelated ==
-  completionSource = "host-response" =>
+  completionSource \in {"host-accepted", "host-reported-failure"} =>
+    /\ hostResponseRole = "response"
+    /\ hostResponseCorrelation = hostCorrelation
     /\ hostResponseCorrelation = "operation"
-    /\ hostResponseEpoch = 1
-    /\ (resultOutcome = "accepted" =>
-         hostResponseKind = ExpectedSuccessResponse(dispatchKind))
-    /\ (resultOutcome \in {"rejected", "failed"} =>
-         hostResponseKind = "typed-failure")
+    /\ hostResponseEpoch = handoffHostEpoch
+    /\ handoffCount = 1
+    /\ (completionSource = "host-accepted" =>
+         /\ resultOutcome = "accepted"
+         /\ hostResponseKind = ExpectedSuccessResponse(dispatchKind))
+    /\ (completionSource = "host-reported-failure" =>
+         /\ resultOutcome = "failed"
+         /\ hostResponseKind = "typed-failure")
+
+ExactGenericTypedFailureIsHostReportedFailure ==
+  /\ hostResponseKind = "typed-failure"
+  /\ KnownHostResponseMatches(
+       hostResponseRole,
+       hostResponseKind,
+       hostResponseCorrelation,
+       hostResponseEpoch
+     )
+  =>
+    /\ completionSource = "host-reported-failure"
+    /\ resultOutcome = "failed"
+
+InvalidGenericTypedFailureIsUnknown ==
+  /\ hostResponseKind = "typed-failure"
+  /\ ~KnownHostResponseMatches(
+       hostResponseRole,
+       hostResponseKind,
+       hostResponseCorrelation,
+       hostResponseEpoch
+     )
+  =>
+    /\ completionSource = "host-protocol"
+    /\ resultOutcome = "unknown"
+
+GenericTypedFailureIsNeverRejected ==
+  hostResponseKind = "typed-failure" => resultOutcome # "rejected"
 
 AcceptedHostCompletionRequiresApplication ==
   resultOutcome = "accepted" => hostCommandApplied
@@ -858,11 +1189,23 @@ MismatchedHostResponseCannotProduceKnownOutcome ==
        \/ RejectWrongHostEpoch ) =>
       /\ resultOutcome' = "unknown"
       /\ completionSource' = "host-protocol"
-      /\ hostResponseKind' = "none"
-      /\ hostResponseCorrelation' = "none"
-      /\ hostResponseEpoch' = 0
+      /\ ~KnownHostResponseMatches(
+           hostResponseRole',
+           hostResponseKind',
+           hostResponseCorrelation',
+           hostResponseEpoch'
+         )
+      /\ bindingResultCached'
       /\ UNCHANGED <<hostCommandCount, hostCommandApplied,
            retentionState>>]_vars
+
+PreserveExactHandoffResult ==
+  completionSource \in HandoffRejectionSources =>
+    /\ UNCHANGED HandoffResultProjection
+    /\ bindingResultCached' = TRUE
+
+ExactHandoffResultSurvivesDelivery ==
+  [][PreserveExactHandoffResult]_vars
 
 BeginHandoffPrecedesEveryHostEffect ==
   [][(DispatchHostCommand \/ HostAppliesCommand) => handoffCount = 1]_vars
