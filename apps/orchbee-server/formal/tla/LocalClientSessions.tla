@@ -2,27 +2,40 @@
 EXTENDS FiniteSets, Naturals, TLC
 
 \* Models the additive same-user local Human Client admission boundary. Each
-\* accepted transport owns one independent Client Session generation. Multiple
-\* sessions, a silent handshake, malformed candidates, duplicate handshakes,
-\* disconnect, stale cleanup, Worker presence, and Server loss may be ordered
-\* independently. Workbench commands, terminal relay, rendering, activation,
-\* persistence, and remote authentication are outside this model.
+\* accepted transport owns one independent Client Session generation and one
+\* bounded handler slot. Slow candidates consume handler capacity without
+\* consuming Session capacity. Post-admission OBCS stream behavior refines an
+\* active generation in LocalClientObcsSessions; it is intentionally separate
+\* so carrier state cannot multiply this admission model's state space.
 
-CONSTANTS Clients, MaxSessions, MaxGeneration
+CONSTANTS Clients, MaxSessions, MaxHandlers, MaxGeneration
 
 ServerPhases == {"absent", "listening", "stopped"}
 ClientValues == Clients \cup {"none"}
+\* rejection is an internal outcome observation. "handler-saturation" denotes
+\* the existing silent close, not an on-wire typed rejection.
 RejectionKinds == {
   "wrong-user", "malformed", "incompatible-protocol",
-  "incompatible-cohort", "wrong-message", "capacity", "timeout"
+  "incompatible-cohort", "wrong-message", "capacity",
+  "handler-saturation", "timeout"
 }
 Actions == {
   "init", "start-server", "register-worker", "begin-slow",
   "reject-wrong-user", "reject-malformed", "reject-incompatible-protocol",
   "reject-incompatible-cohort", "reject-wrong-message", "reject-capacity",
-  "handshake-timeout", "admit-client", "client-disconnect",
-  "duplicate-hello", "stale-session-cleanup", "stop-server"
+  "reject-handler-saturation", "handshake-timeout", "admit-client",
+  "client-disconnect", "duplicate-hello", "stale-session-cleanup",
+  "stop-server"
 }
+
+ASSUME
+  /\ IsFiniteSet(Clients)
+  /\ Cardinality(Clients) >= MaxHandlers
+  /\ MaxSessions \in Nat \ {0}
+  /\ MaxHandlers \in Nat \ {0}
+  /\ MaxSessions < MaxHandlers
+  /\ MaxGeneration \in Nat
+  /\ MaxGeneration > MaxHandlers
 
 VARIABLES serverPhase, sessions, slowCandidates, nextGeneration,
   staleGenerations, rejection, workerRegistered, priorSessions,
@@ -34,6 +47,7 @@ vars == <<serverPhase, sessions, slowCandidates, nextGeneration,
 
 ActiveClients == {client \in Clients : sessions[client] # 0}
 ActiveGenerations == {sessions[client] : client \in ActiveClients}
+HandlerCount == Cardinality(ActiveClients) + Cardinality(slowCandidates)
 
 Init ==
   /\ serverPhase = "absent"
@@ -76,6 +90,7 @@ BeginSlow(client) ==
   /\ client \in Clients
   /\ sessions[client] = 0
   /\ client \notin slowCandidates
+  /\ HandlerCount < MaxHandlers
   /\ slowCandidates' = slowCandidates \cup {client}
   /\ UNCHANGED <<serverPhase, sessions, nextGeneration, staleGenerations,
        rejection, workerRegistered>>
@@ -83,6 +98,7 @@ BeginSlow(client) ==
 
 RejectWrongUser ==
   /\ serverPhase = "listening"
+  /\ HandlerCount < MaxHandlers
   /\ rejection' = "wrong-user"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
@@ -90,6 +106,7 @@ RejectWrongUser ==
 
 RejectMalformed ==
   /\ serverPhase = "listening"
+  /\ HandlerCount < MaxHandlers
   /\ rejection' = "malformed"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
@@ -97,6 +114,7 @@ RejectMalformed ==
 
 RejectIncompatibleProtocol ==
   /\ serverPhase = "listening"
+  /\ HandlerCount < MaxHandlers
   /\ rejection' = "incompatible-protocol"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
@@ -104,6 +122,7 @@ RejectIncompatibleProtocol ==
 
 RejectIncompatibleCohort ==
   /\ serverPhase = "listening"
+  /\ HandlerCount < MaxHandlers
   /\ rejection' = "incompatible-cohort"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
@@ -111,6 +130,7 @@ RejectIncompatibleCohort ==
 
 RejectWrongMessage ==
   /\ serverPhase = "listening"
+  /\ HandlerCount < MaxHandlers
   /\ rejection' = "wrong-message"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
@@ -119,10 +139,19 @@ RejectWrongMessage ==
 RejectCapacity ==
   /\ serverPhase = "listening"
   /\ Cardinality(ActiveClients) = MaxSessions
+  /\ HandlerCount < MaxHandlers
   /\ rejection' = "capacity"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
   /\ Record("reject-capacity", "none")
+
+RejectHandlerSaturation ==
+  /\ serverPhase = "listening"
+  /\ HandlerCount = MaxHandlers
+  /\ rejection' = "handler-saturation"
+  /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
+       staleGenerations, workerRegistered>>
+  /\ Record("reject-handler-saturation", "none")
 
 HandshakeTimeout(client) ==
   /\ serverPhase = "listening"
@@ -139,6 +168,7 @@ AdmitClient(client) ==
   /\ sessions[client] = 0
   /\ client \notin slowCandidates
   /\ Cardinality(ActiveClients) < MaxSessions
+  /\ HandlerCount < MaxHandlers
   /\ nextGeneration <= MaxGeneration
   /\ sessions' = [sessions EXCEPT ![client] = nextGeneration]
   /\ nextGeneration' = nextGeneration + 1
@@ -194,6 +224,7 @@ Next ==
   \/ RejectIncompatibleCohort
   \/ RejectWrongMessage
   \/ RejectCapacity
+  \/ RejectHandlerSaturation
   \/ \E client \in Clients: HandshakeTimeout(client)
   \/ \E client \in Clients: AdmitClient(client)
   \/ \E client \in Clients: ClientDisconnect(client)
@@ -219,6 +250,8 @@ TypeOK ==
 
 SessionCapacityIsBounded == Cardinality(ActiveClients) <= MaxSessions
 
+HandlerCapacityIsBounded == HandlerCount <= MaxHandlers
+
 ActiveGenerationsAreUnique ==
   Cardinality(ActiveGenerations) = Cardinality(ActiveClients)
 
@@ -239,7 +272,8 @@ WorkerRequiresListeningServer == workerRegistered => serverPhase = "listening"
 RejectionPreservesAuthority ==
   lastAction \in {
     "reject-wrong-user", "reject-malformed", "reject-incompatible-protocol",
-    "reject-incompatible-cohort", "reject-wrong-message", "reject-capacity"
+    "reject-incompatible-cohort", "reject-wrong-message", "reject-capacity",
+    "reject-handler-saturation"
   } =>
     /\ sessions = priorSessions
     /\ serverPhase = priorServerPhase

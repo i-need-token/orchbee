@@ -1600,12 +1600,111 @@
 				"RejectIncompatibleCohort",
 				"RejectWrongMessage",
 				"RejectCapacity",
+				"RejectHandlerSaturation",
 				"HandshakeTimeout",
 				"AdmitClient",
 				"ClientDisconnect",
 				"DuplicateHello",
 				"StaleSessionCleanup",
 				"StopServer"
+			]
+		},
+		{
+			"id": "local-client-sessions-obcs",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/LocalClientObcsSessions.tla",
+			"config": "apps/orchbee-server/formal/tla/LocalClientObcsSessions.cfg",
+			"claims": [
+				"apps/orchbee-server/README.md",
+				"crates/client-server-protocol/README.md",
+				"crates/local-client-protocol/README.md",
+				"crates/local-peer-credentials/README.md",
+				"schemas/client-server/README.md"
+			],
+			"triggers": [
+				"apps/orchbee-server/Cargo.toml",
+				"apps/orchbee-server/README.zh-CN.md",
+				"apps/orchbee-server/project.json",
+				"apps/orchbee-server/src/**",
+				"apps/orchbee-server/tests/**",
+				"crates/client-server-protocol/Cargo.toml",
+				"crates/client-server-protocol/README.zh-CN.md",
+				"crates/client-server-protocol/project.json",
+				"crates/client-server-protocol/src/**",
+				"crates/client-server-protocol/tests/**",
+				"crates/local-client-protocol/Cargo.toml",
+				"crates/local-client-protocol/README.zh-CN.md",
+				"crates/local-client-protocol/project.json",
+				"crates/local-client-protocol/src/**",
+				"crates/local-client-protocol/tests/**",
+				"crates/local-peer-credentials/Cargo.toml",
+				"crates/local-peer-credentials/README.zh-CN.md",
+				"crates/local-peer-credentials/project.json",
+				"crates/local-peer-credentials/src/**",
+				"crates/local-peer-credentials/tests/**",
+				"schemas/client-server/**"
+			],
+			"requiredCoverage": [
+				"BeginSlowCandidate",
+				"ReleaseSlowCandidate",
+				"QueueOblcAccepted",
+				"QueueOblcAcceptedWithBufferedCreate",
+				"QueueOblcAcceptedWithDuplicateFrames",
+				"QueueOblcAcceptedWithDistinctFrames",
+				"WriteOblcAccepted",
+				"StallObcsRead",
+				"ResumeObcsRead",
+				"ReadPartialHeader",
+				"ReadPartialPayload",
+				"ReceiveImmediateCreate",
+				"ReceiveDeferredCreate",
+				"ReceiveStart",
+				"ReceiveBufferedCreate",
+				"ReceiveFirstBufferedDuplicate",
+				"ReceiveSecondBufferedDuplicate",
+				"ReceiveFirstBufferedDistinct",
+				"ReceiveSecondBufferedDistinct",
+				"StallObcsResultWrite",
+				"WriteCreateResult",
+				"WriteStartResult",
+				"RegisterWorker",
+				"ObserveHandlerSaturation",
+				"StrictMalformedObcsFrame",
+				"WrongDirectionObcsFrame",
+				"OversizedObcsFrame",
+				"TruncatedObcsFrame",
+				"CleanSessionEof",
+				"SessionIoFailure",
+				"ObcsResultWriteFailure",
+				"StopServer",
+				"ReceiveCoalescedCreateAfterAcceptance",
+				"ReceiveSameRequestIdInOtherSession",
+				"OtherSessionCompletesDuringReadStall",
+				"OtherSessionCompletesDuringPartialHeader",
+				"OtherSessionCompletesDuringPartialPayload",
+				"OtherSessionCompletesDuringWriteStall",
+				"OtherSessionCompletesWhileSlowCandidate",
+				"RegisterWorkerWhileObcsStalled",
+				"ReceiveCreateWithoutWorker",
+				"ReceiveCreateWithWorker",
+				"RejectHandlerSaturationWithStalledObcs",
+				"StaleEofAfterReplacement",
+				"CleanupStaleAfterReplacement"
+			],
+			"variants": [
+				{
+					"name": "stream-faults",
+					"constants": {
+						"Scenario": "stream-faults"
+					}
+				},
+				{
+					"name": "correlation",
+					"constants": {
+						"Scenario": "correlation"
+					}
+				}
 			]
 		},
 		{

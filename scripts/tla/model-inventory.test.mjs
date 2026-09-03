@@ -119,6 +119,31 @@ test('Worker terminal authorization refinement paths select its Server authority
 	}
 });
 
+test('Client Session and OBCS refinement paths select the OBCS Session model', () => {
+	for (const changedPath of [
+		'apps/orchbee-server/Cargo.toml',
+		'apps/orchbee-server/README.zh-CN.md',
+		'apps/orchbee-server/project.json',
+		'apps/orchbee-server/src/local_client_service.rs',
+		'apps/orchbee-server/tests/client_process.rs',
+		'crates/client-server-protocol/Cargo.toml',
+		'crates/client-server-protocol/README.zh-CN.md',
+		'crates/client-server-protocol/project.json',
+		'crates/client-server-protocol/src/codec.rs',
+		'crates/client-server-protocol/tests/conformance.rs',
+		'schemas/client-server/v1/client-server.schema.json',
+		'schemas/client-server/v1/client-server-conformance-v1.json',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'local-client-sessions-obcs',
+			),
+			true,
+			changedPath,
+		);
+	}
+});
+
 test('configuration variants replace one declared constant and reject ambiguous input', () => {
 	assert.equal(
 		variantConfigFileName('formal/tla/ActionExecution.cfg', 'reject-duplicate'),
