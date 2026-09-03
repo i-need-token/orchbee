@@ -1,4 +1,13 @@
 mod invocation;
+#[cfg(unix)]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the local Site rendezvous primitive is staged before activation integration"
+    )
+)]
+mod local_site_rendezvous;
 mod localization;
 mod presentation;
 

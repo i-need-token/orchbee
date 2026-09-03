@@ -3,9 +3,10 @@
 	"domain": "orchbee",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Unshipped native Orchbee process entry with exact Phase 3A TUI/help/version dispatch, bilingual development presentation, and no backend authority.",
+	"responsibility": "Unshipped native Orchbee process entry with exact Phase 3A TUI/help/version dispatch, bilingual development presentation, and an unwired application-private POSIX local-Site rendezvous primitive.",
 	"nonGoals": [
-		"Implementing a TUI renderer, Workbench or terminal commands, Server or Worker discovery, service activation, IPC, networking, authentication, persistence, or child-process supervision.",
+		"Integrating a TUI renderer, Workbench or terminal commands, Server or Worker discovery or launch, service activation, readiness, IPC connections, networking, authentication, persistence, endpoint cleanup, or child-process supervision.",
+		"Claiming production-private POSIX runtime security before inherited or extended ACL checks, socket metadata validation, and peer authentication are integrated.",
 		"Replacing, packaging, migrating, or deleting the delivered TypeScript CLI, its Desktop launcher, Agent Skill, commands, outputs, or compatibility contract.",
 		"Defining the future stable command tree, output schemas, exit categories, shell completion, package-manager distribution, release targets, update cohort, or rollback policy."
 	]
