@@ -14,11 +14,17 @@ promise。
 一条 canonical frame 包含固定 `OBCN` magic、unsigned big-endian frame version、unsigned
 big-endian payload length，以及最多 8 KiB 的 payload。Frame codec 会拒绝 unknown magic、
 version、message 或 enum tag、malformed 或 incomplete value、extra byte 与 oversized payload。
-Frame version 1 与 terminal-launch capability version 1 是彼此独立的 version domain。
+Frame version 1 与 terminal-launch capability version 2 是彼此独立的 version domain。
 Bounded streaming helper 会先完整读取 8-byte header，在 validation 通过后才按声明长度分配
 payload，并精确读取该 payload；write 会容忍 partial progress。I/O failure 与 syntactically
 invalid protocol frame 明确区分。写入一条 frame 不会 flush caller-owned buffer；该 carrier
 policy 仍由 adapter 决定。
+
+Capability version 2 在不改变 frame envelope 的情况下增加 generation-local Worker binding bound
+及其 typed capacity result。Worker 只 admit 与自身精确匹配的 supported capability version；因此
+version 1 与 version 2 request 会互相以 `UnsupportedCapability` 拒绝。两个 version 对该 outcome
+使用相同 rejection tag，而 version 1 decoder 会把新的 capacity tag 当作 unknown 拒绝。Mixed
+version 由此 fail closed，而不会静默使用 version 1 的 unbounded binding behavior。
 
 | Message                    | 方向                      | 闭合 semantic payload                                                                                                                                     |
 | -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -50,7 +56,9 @@ adapter 必须显式转换并保留 validation。
 ## Authorization outcome
 
 Pre-admission rejection 区分 wrong Worker、stale generation、expired lease、stale fence、
-conflicting same-fence replay 与 unsupported capability。Host-side rejection 与 failure 会保留
+conflicting same-fence replay、unsupported capability 与 retained-binding capacity。只有在一个
+Worker generation 已保留 1,024 个 binding 后，才能对此前未见过的 `TerminalId` 返回
+`CapacityExceeded`；它不插入 tombstone，也不改变 binding。Host-side rejection 与 failure 会保留
 observed Host epoch。`HostUnavailableBeforeHandoff` 是确定未产生 effect 的 failure；
 `OutcomeUnknown` 是 dispatched request 没有可观测 result 时的保守结果，因为 Server 不能从
 carrier write completion 推断 Worker 内部 handoff stage。Launch success 返回完整 Host
@@ -117,6 +125,15 @@ current authority 与 Host effect 会被保留，该 invariant 跨 modeled Worke
 Model 不枚举 cross-terminal、cross-Worker namespace 或 successor Server-authority transition。未来
 runtime adapter 需要单独的 refinement evidence。
 
+Worker-owned 且已注册的
+[`WorkerTerminalBindingCapacity`](../../apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.tla)
+refinement 在 single-terminal Server authority model 之外单独检查 cross-terminal bound。它的 TLC
+configuration 使用 capacity two 与三个 terminal identity，以 exhaustive 覆盖 below-limit admission、
+full threshold、拒绝一个 new identity、exact cached replay、higher-fence replacement、rejection
+preservation 与 classification priority。Production constant 是每个 Worker generation 精确 1,024 个
+retained binding。没有 release、TTL、LRU 或 eviction path；production 之前仍需要 explicit
+retirement。该 bounded model 不是针对 1,024 个 concrete entry 或 Rust implementation 的 proof。
+
 ## 验证
 
 从仓库根目录运行：
@@ -124,7 +141,7 @@ runtime adapter 需要单独的 refinement evidence。
 ```sh
 cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models terminal-launch-authorization
+node scripts/tla/run-models.mjs --models terminal-launch-authorization,worker-terminal-binding-capacity
 pnpm test:tla:inventory
 pnpm lint:documentation
 pnpm lint:projects

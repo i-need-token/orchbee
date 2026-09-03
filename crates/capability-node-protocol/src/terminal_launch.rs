@@ -9,7 +9,7 @@ use crate::{
 
 pub const MAXIMUM_AUTHORIZED_CWD_BYTES: usize = 4_096;
 pub const TERMINAL_LAUNCH_CAPABILITY_VERSION: TerminalLaunchCapabilityVersion =
-    TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN);
+    TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN.saturating_add(1));
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TerminalLaunchCapabilityVersion(NonZeroU16);
@@ -359,6 +359,7 @@ pub enum TerminalLaunchRejection {
     StaleFence,
     ConflictingReplay,
     UnsupportedCapability,
+    CapacityExceeded,
     HostRejected { host_epoch: HostEpoch },
 }
 
@@ -501,6 +502,7 @@ pub enum TerminalStartRejection {
     StaleFence,
     ConflictingReplay,
     UnsupportedCapability,
+    CapacityExceeded,
     HostRejected { host_epoch: HostEpoch },
     HostIdentityChanged { observed_host_epoch: HostEpoch },
 }
@@ -568,7 +570,8 @@ fn validate_start_outcome(
             | TerminalStartRejection::LeaseExpired
             | TerminalStartRejection::StaleFence
             | TerminalStartRejection::ConflictingReplay
-            | TerminalStartRejection::UnsupportedCapability,
+            | TerminalStartRejection::UnsupportedCapability
+            | TerminalStartRejection::CapacityExceeded,
         )
         | TerminalStartOutcome::Failed(TerminalStartFailure::HostUnavailableBeforeHandoff)
         | TerminalStartOutcome::OutcomeUnknown => true,

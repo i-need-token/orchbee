@@ -91,7 +91,9 @@ fence transition makes every earlier authorization non-current.
 One kernel represents one accepted Worker generation and retains at most 1,024 distinct terminal
 bindings for that generation. It has no release, TTL, LRU, or eviction transition. Capacity rejects
 only a previously unseen `TerminalId`; exact cached replay and a valid higher-fence replacement of
-an existing terminal remain eligible when the map is full.
+an existing terminal remain eligible when the map is full. This behavior is terminal-launch
+capability version 2; a version 1 or otherwise mismatched request fails closed as
+`UnsupportedCapability` before capacity is considered.
 
 Every admission or pre-handoff decision also receives an explicit Unix-millisecond time, and Start
 admission receives the currently observed Host epoch. A returned dispatch is permission to prepare

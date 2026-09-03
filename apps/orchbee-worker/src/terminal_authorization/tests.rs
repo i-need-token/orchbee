@@ -15,7 +15,8 @@ use orchbee_local_site_protocol::WorkerId as LocalSiteWorkerId;
 use super::{
     AuthorizationKernelError, AuthorizedHostDispatch, AuthorizedHostOperation,
     AuthorizedHostOperationKernel, AuthorizedHostOperationResult, HostHandoffAdmission,
-    HostOperationAdmission, LaunchHostCompletion, StartHostCompletion,
+    HostOperationAdmission, LaunchHostCompletion, MAXIMUM_RETAINED_TERMINAL_BINDINGS,
+    StartHostCompletion,
 };
 
 const CURRENT_LOCAL_WORKER_ID: LocalSiteWorkerId = LocalSiteWorkerId::from_bytes([3; 16]);
@@ -37,7 +38,7 @@ struct AuthorizationSpec {
 impl AuthorizationSpec {
     const fn standard(terminal: u8, operation: u8) -> Self {
         Self {
-            capability: 1,
+            capability: TERMINAL_LAUNCH_CAPABILITY_VERSION.get(),
             expiry: LIVE_EXPIRY,
             fence: 1,
             generation: 7,
@@ -63,6 +64,7 @@ enum ExpectedAdmissionRejection {
     StaleFence,
     ConflictingReplay,
     UnsupportedCapability,
+    CapacityExceeded,
 }
 
 #[test]
@@ -87,7 +89,7 @@ fn rejects_invalid_authority_for_launch_and_start_without_dispatch() -> TestResu
         (
             "unsupported capability",
             AuthorizationSpec {
-                capability: 2,
+                capability: 3,
                 ..AuthorizationSpec::standard(1, 1)
             },
             ExpectedAdmissionRejection::UnsupportedCapability,
@@ -121,6 +123,248 @@ fn rejects_invalid_authority_for_launch_and_start_without_dispatch() -> TestResu
 }
 
 #[test]
+fn terminal_launch_capability_versions_fail_closed_in_both_directions() -> TestResult {
+    let legacy_capability = TerminalLaunchCapabilityVersion::new(NonZeroU16::MIN);
+    assert_ne!(
+        legacy_capability, TERMINAL_LAUNCH_CAPABILITY_VERSION,
+        "the capacity contract requires a distinct capability version"
+    );
+
+    for request_kind in [RequestKind::Launch, RequestKind::Start] {
+        let mut current_kernel = kernel()?;
+        let legacy_operation = operation(
+            request_kind,
+            AuthorizationSpec {
+                capability: legacy_capability.get(),
+                ..AuthorizationSpec::standard(1, 1)
+            },
+        )?;
+        assert_eq!(
+            admit(&mut current_kernel, legacy_operation, NOW)?,
+            HostOperationAdmission::ResultReady
+        );
+        assert_rejection(
+            take_required_result(&mut current_kernel),
+            ExpectedAdmissionRejection::UnsupportedCapability,
+            request_kind,
+        );
+
+        let mut legacy_kernel = AuthorizedHostOperationKernel::new(
+            CURRENT_LOCAL_WORKER_ID,
+            nonzero_u64(7)?,
+            legacy_capability,
+        )?;
+        let current_operation = operation(request_kind, AuthorizationSpec::standard(2, 2))?;
+        assert_eq!(
+            admit(&mut legacy_kernel, current_operation, NOW)?,
+            HostOperationAdmission::ResultReady
+        );
+        assert_rejection(
+            take_required_result(&mut legacy_kernel),
+            ExpectedAdmissionRejection::UnsupportedCapability,
+            request_kind,
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn retained_binding_capacity_has_exact_1023_1024_1025_boundaries() -> TestResult {
+    assert_eq!(MAXIMUM_RETAINED_TERMINAL_BINDINGS, 1_024);
+    let limit = u16::try_from(MAXIMUM_RETAINED_TERMINAL_BINDINGS)?;
+    for request_kind in [RequestKind::Launch, RequestKind::Start] {
+        let mut kernel = kernel()?;
+        for terminal in 1..limit {
+            let operation = capacity_operation(request_kind, terminal, terminal, 1)?;
+            let _result = retain_pre_handoff_failure(&mut kernel, operation)?;
+        }
+
+        let boundary = capacity_operation(request_kind, limit, limit, 1)?;
+        let boundary_result = retain_pre_handoff_failure(&mut kernel, boundary.clone())?;
+
+        let overflow_terminal = limit + 1;
+        let overflow = capacity_operation(request_kind, overflow_terminal, overflow_terminal, 1)?;
+        assert_eq!(
+            admit(&mut kernel, overflow.clone(), NOW)?,
+            HostOperationAdmission::ResultReady
+        );
+        let result = take_required_result(&mut kernel);
+        assert_result_binding(&result, &overflow);
+        assert_rejection(
+            result,
+            ExpectedAdmissionRejection::CapacityExceeded,
+            request_kind,
+        );
+
+        let higher_after_rejection =
+            capacity_operation(request_kind, overflow_terminal, overflow_terminal + 1, 2)?;
+        assert_eq!(
+            admit(&mut kernel, higher_after_rejection.clone(), NOW)?,
+            HostOperationAdmission::ResultReady
+        );
+        let result = take_required_result(&mut kernel);
+        assert_result_binding(&result, &higher_after_rejection);
+        assert_rejection(
+            result,
+            ExpectedAdmissionRejection::CapacityExceeded,
+            request_kind,
+        );
+        assert_eq!(
+            admit(&mut kernel, boundary, LIVE_EXPIRY)?,
+            HostOperationAdmission::ResultReady
+        );
+        assert_eq!(take_required_result(&mut kernel), boundary_result);
+    }
+    Ok(())
+}
+
+#[test]
+fn full_capacity_preserves_exact_replay_and_higher_fence_replacement() -> TestResult {
+    let limit = u16::try_from(MAXIMUM_RETAINED_TERMINAL_BINDINGS)?;
+    for request_kind in [RequestKind::Launch, RequestKind::Start] {
+        let mut kernel = kernel()?;
+        let first = capacity_operation(request_kind, 1, 1, 1)?;
+        let first_result = retain_pre_handoff_failure(&mut kernel, first.clone())?;
+        for terminal in 2..=limit {
+            let operation = capacity_operation(request_kind, terminal, terminal, 1)?;
+            let _result = retain_pre_handoff_failure(&mut kernel, operation)?;
+        }
+
+        assert_eq!(
+            admit(&mut kernel, first.clone(), LIVE_EXPIRY)?,
+            HostOperationAdmission::ResultReady
+        );
+        assert_eq!(take_required_result(&mut kernel), first_result);
+
+        let replacement =
+            capacity_operation_with_expiry(request_kind, 1, limit + 2, 2, LIVE_EXPIRY + 1)?;
+        let replacement_dispatch = expect_dispatch(admit(&mut kernel, replacement.clone(), NOW)?);
+        let unseen = capacity_operation(request_kind, limit + 1, limit + 3, 1)?;
+        assert_eq!(
+            admit(&mut kernel, unseen, NOW)?,
+            HostOperationAdmission::SlotOccupied
+        );
+        kernel.record_pre_handoff_failure(&replacement_dispatch, NOW)?;
+        let replacement_result = take_required_result(&mut kernel);
+        assert_result_binding(&replacement_result, &replacement);
+
+        assert_eq!(
+            admit(&mut kernel, first, NOW)?,
+            HostOperationAdmission::ResultReady
+        );
+        assert_rejection(
+            take_required_result(&mut kernel),
+            ExpectedAdmissionRejection::LeaseExpired,
+            request_kind,
+        );
+        assert_eq!(
+            admit(&mut kernel, replacement, LIVE_EXPIRY)?,
+            HostOperationAdmission::ResultReady
+        );
+        assert_eq!(take_required_result(&mut kernel), replacement_result);
+    }
+    Ok(())
+}
+
+#[test]
+fn capacity_rejection_preserves_authority_and_start_identity_priority() -> TestResult {
+    let mut kernel = kernel()?;
+    let limit = u16::try_from(MAXIMUM_RETAINED_TERMINAL_BINDINGS)?;
+    for terminal in 1..=limit {
+        let operation = capacity_operation(RequestKind::Launch, terminal, terminal, 1)?;
+        let _result = retain_pre_handoff_failure(&mut kernel, operation)?;
+    }
+
+    let cases = [
+        (
+            AuthorizationSpec {
+                worker: 9,
+                ..AuthorizationSpec::standard(9, 201)
+            },
+            ExpectedAdmissionRejection::WrongWorker,
+        ),
+        (
+            AuthorizationSpec {
+                generation: 6,
+                ..AuthorizationSpec::standard(9, 202)
+            },
+            ExpectedAdmissionRejection::StaleWorkerGeneration,
+        ),
+        (
+            AuthorizationSpec {
+                capability: 1,
+                ..AuthorizationSpec::standard(9, 203)
+            },
+            ExpectedAdmissionRejection::UnsupportedCapability,
+        ),
+        (
+            AuthorizationSpec {
+                capability: 3,
+                ..AuthorizationSpec::standard(9, 204)
+            },
+            ExpectedAdmissionRejection::UnsupportedCapability,
+        ),
+        (
+            AuthorizationSpec {
+                expiry: NOW,
+                ..AuthorizationSpec::standard(9, 205)
+            },
+            ExpectedAdmissionRejection::LeaseExpired,
+        ),
+    ];
+    for (spec, expected) in cases {
+        let request = launch(spec)?;
+        assert_eq!(
+            kernel.admit_launch(request, NOW)?,
+            HostOperationAdmission::ResultReady
+        );
+        assert_rejection(
+            take_required_result(&mut kernel),
+            expected,
+            RequestKind::Launch,
+        );
+    }
+
+    let start = start(
+        AuthorizationSpec::standard(9, 206),
+        host_identity(5, 6, 7)?,
+        geometry(80)?,
+    )?;
+    let replacement_epoch = host_epoch(8)?;
+    assert_eq!(
+        kernel.admit_start(start, NOW, replacement_epoch)?,
+        HostOperationAdmission::ResultReady
+    );
+    assert_rejection(
+        take_required_result(&mut kernel),
+        ExpectedAdmissionRejection::CapacityExceeded,
+        RequestKind::Start,
+    );
+
+    let higher_after_capacity = launch(AuthorizationSpec {
+        fence: 2,
+        lease: 207,
+        operation: 207,
+        ..AuthorizationSpec::standard(9, 207)
+    })?;
+    assert_eq!(
+        kernel.admit_launch(higher_after_capacity.clone(), NOW)?,
+        HostOperationAdmission::ResultReady
+    );
+    let result = take_required_result(&mut kernel);
+    assert_result_binding(
+        &result,
+        &AuthorizedHostOperation::Launch(higher_after_capacity),
+    );
+    assert_rejection(
+        result,
+        ExpectedAdmissionRejection::CapacityExceeded,
+        RequestKind::Launch,
+    );
+    Ok(())
+}
+
+#[test]
 fn same_fence_conflicts_cover_complete_bindings_and_fences_are_per_terminal() -> TestResult {
     let mut kernel = kernel()?;
     let base_spec = AuthorizationSpec {
@@ -134,7 +378,7 @@ fn same_fence_conflicts_cover_complete_bindings_and_fences_are_per_terminal() ->
 
     let lower_unsupported = launch_with(
         AuthorizationSpec {
-            capability: 2,
+            capability: 3,
             expiry: NOW,
             fence: 1,
             ..base_spec
@@ -192,7 +436,7 @@ fn same_fence_conflicts_cover_complete_bindings_and_fences_are_per_terminal() ->
     for (changed_authority, expected) in [
         (
             AuthorizationSpec {
-                capability: 2,
+                capability: 3,
                 ..base_spec
             },
             ExpectedAdmissionRejection::UnsupportedCapability,
@@ -529,7 +773,7 @@ fn higher_fence_rebinds_authority_clears_cache_and_rejects_old_dispatch() -> Tes
     let _low_cached_result = take_required_result(&mut kernel);
 
     let unsupported_higher = launch(AuthorizationSpec {
-        capability: 2,
+        capability: 3,
         fence: 3,
         lease: 3,
         operation: 3,
@@ -1067,6 +1311,59 @@ fn admit(
     }
 }
 
+fn capacity_operation(
+    kind: RequestKind,
+    terminal: u16,
+    operation: u16,
+    fence: u64,
+) -> Result<AuthorizedHostOperation, ProtocolError> {
+    capacity_operation_with_expiry(kind, terminal, operation, fence, LIVE_EXPIRY)
+}
+
+fn capacity_operation_with_expiry(
+    kind: RequestKind,
+    terminal: u16,
+    operation: u16,
+    fence: u64,
+    expiry: u64,
+) -> Result<AuthorizedHostOperation, ProtocolError> {
+    let authorization = TerminalOperationAuthorization::new(
+        TerminalId::from_bytes(capacity_identity(terminal))?,
+        OperationId::from_bytes(capacity_identity(operation))?,
+        WorkerId::from_bytes(CURRENT_LOCAL_WORKER_ID.as_bytes())?,
+        WorkerGeneration::new(nonzero_u64(7)?),
+        TerminalFence::new(nonzero_u64(fence)?),
+        TerminalOperationLease::new(
+            LeaseId::from_bytes(capacity_identity(operation))?,
+            LeaseExpiresAtUnixMilliseconds::new(nonzero_u64(expiry)?),
+        ),
+        TERMINAL_LAUNCH_CAPABILITY_VERSION,
+    );
+    match kind {
+        RequestKind::Launch => Ok(AuthorizedHostOperation::Launch(
+            AuthorizedTerminalLaunch::new(authorization, None, TerminalLaunchMode::Deferred),
+        )),
+        RequestKind::Start => Ok(AuthorizedHostOperation::Start(
+            AuthorizedTerminalStart::new(authorization, host_identity(5, 6, 7)?, geometry(80)?),
+        )),
+    }
+}
+
+fn capacity_identity(value: u16) -> [u8; 16] {
+    let mut identity = [0_u8; 16];
+    identity[14..].copy_from_slice(&value.to_be_bytes());
+    identity
+}
+
+fn retain_pre_handoff_failure(
+    kernel: &mut AuthorizedHostOperationKernel,
+    operation: AuthorizedHostOperation,
+) -> Result<AuthorizedHostOperationResult, AuthorizationKernelError> {
+    let dispatch = expect_dispatch(admit(kernel, operation, NOW)?);
+    kernel.record_pre_handoff_failure(&dispatch, NOW)?;
+    Ok(take_required_result(kernel))
+}
+
 fn authorization(spec: AuthorizationSpec) -> Result<TerminalOperationAuthorization, ProtocolError> {
     Ok(TerminalOperationAuthorization::new(
         TerminalId::from_bytes([spec.terminal; 16])?,
@@ -1213,6 +1510,7 @@ const fn launch_rejection(expected: ExpectedAdmissionRejection) -> TerminalLaunc
         ExpectedAdmissionRejection::UnsupportedCapability => {
             TerminalLaunchRejection::UnsupportedCapability
         }
+        ExpectedAdmissionRejection::CapacityExceeded => TerminalLaunchRejection::CapacityExceeded,
     }
 }
 
@@ -1228,6 +1526,7 @@ const fn start_rejection(expected: ExpectedAdmissionRejection) -> TerminalStartR
         ExpectedAdmissionRejection::UnsupportedCapability => {
             TerminalStartRejection::UnsupportedCapability
         }
+        ExpectedAdmissionRejection::CapacityExceeded => TerminalStartRejection::CapacityExceeded,
     }
 }
 

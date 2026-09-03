@@ -419,6 +419,7 @@ fn encode_launch_rejection(payload: &mut Vec<u8>, reason: TerminalLaunchRejectio
             payload.push(7);
             payload.extend_from_slice(&host_epoch.as_bytes());
         }
+        TerminalLaunchRejection::CapacityExceeded => payload.push(8),
     }
 }
 
@@ -435,6 +436,7 @@ fn decode_launch_rejection(
         7 => Ok(TerminalLaunchRejection::HostRejected {
             host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
         }),
+        8 => Ok(TerminalLaunchRejection::CapacityExceeded),
         _ => Err(ProtocolError::InvalidPayload),
     }
 }
@@ -457,6 +459,7 @@ fn encode_start_rejection(payload: &mut Vec<u8>, reason: TerminalStartRejection)
             payload.push(8);
             payload.extend_from_slice(&observed_host_epoch.as_bytes());
         }
+        TerminalStartRejection::CapacityExceeded => payload.push(9),
     }
 }
 
@@ -476,6 +479,7 @@ fn decode_start_rejection(
         8 => Ok(TerminalStartRejection::HostIdentityChanged {
             observed_host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
         }),
+        9 => Ok(TerminalStartRejection::CapacityExceeded),
         _ => Err(ProtocolError::InvalidPayload),
     }
 }

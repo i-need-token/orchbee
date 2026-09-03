@@ -14,11 +14,18 @@ English remains canonical.
 One canonical frame contains the fixed `OBCN` magic, an unsigned big-endian frame version, an
 unsigned big-endian payload length, and at most 8 KiB of payload. The frame codec rejects unknown
 magic, version, message or enum tags, malformed or incomplete values, excess bytes, and oversized
-payloads. Frame version 1 and terminal-launch capability version 1 are separate version domains.
+payloads. Frame version 1 and terminal-launch capability version 2 are separate version domains.
 Bounded streaming helpers read the complete eight-byte header before validating it and allocating
 the declared payload, then read exactly that payload; writes tolerate partial progress. I/O failure
 is distinct from a syntactically invalid protocol frame. Writing one frame does not flush a
 caller-owned buffer; that carrier policy remains with the adapter.
+
+Capability version 2 adds the generation-local Worker binding bound and its typed capacity result
+without changing the frame envelope. A Worker admits only its exact supported capability version;
+version 1 and version 2 requests therefore reject each other as `UnsupportedCapability`. Both
+versions use the same rejection tag for that outcome, while a version 1 decoder rejects the new
+capacity tag as unknown. Mixed versions consequently fail closed instead of silently using version
+1's unbounded binding behavior.
 
 | Message                    | Direction                 | Closed semantic payload                                                                                                                                               |
 | -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -53,8 +60,11 @@ explicitly and preserve validation.
 ## Authorization outcomes
 
 Pre-admission rejection distinguishes wrong Worker, stale generation, expired lease, stale fence,
-conflicting same-fence replay, and unsupported capability. Host-side rejection and failure retain
-the observed Host epoch. `HostUnavailableBeforeHandoff` is a definite pre-effect failure;
+conflicting same-fence replay, unsupported capability, and retained-binding capacity. A
+`CapacityExceeded` result is valid only for a previously unseen `TerminalId` after one Worker
+generation has retained 1,024 bindings; it inserts no tombstone and changes no binding. Host-side
+rejection and failure retain the observed Host epoch. `HostUnavailableBeforeHandoff` is a definite
+pre-effect failure;
 `OutcomeUnknown` is the conservative result when a dispatched request has no observable result,
 because the Server cannot infer the Worker's internal handoff stage from carrier write completion.
 Launch success returns complete Host creation, epoch, and terminal identity plus either
@@ -124,6 +134,16 @@ effects are retained. The model does not enumerate the cross-terminal and cross-
 a successor Server-authority transition. Future runtime adapters require separate refinement
 evidence.
 
+The Worker-owned registered
+[`WorkerTerminalBindingCapacity`](../../apps/orchbee-worker/formal/tla/WorkerTerminalBindingCapacity.tla)
+refinement checks the cross-terminal bound separately from the single-terminal Server authority
+model. Its TLC configuration uses capacity two and three terminal identities to exhaustively cover
+below-limit admission, the full threshold, rejection of one new identity, exact cached replay,
+higher-fence replacement, rejection preservation, and classification priority. The production
+constant is exactly 1,024 retained bindings per Worker generation. There is no release, TTL, LRU,
+or eviction path; explicit retirement remains required before production. This bounded model is
+not a proof over 1,024 concrete entries or of the Rust implementation.
+
 ## Verification
 
 Run from the repository root:
@@ -131,7 +151,7 @@ Run from the repository root:
 ```sh
 cargo test -p orchbee-capability-node-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models terminal-launch-authorization
+node scripts/tla/run-models.mjs --models terminal-launch-authorization,worker-terminal-binding-capacity
 pnpm test:tla:inventory
 pnpm lint:documentation
 pnpm lint:projects

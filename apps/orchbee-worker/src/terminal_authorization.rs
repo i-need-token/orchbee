@@ -10,6 +10,8 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_site_protocol::WorkerId as LocalSiteWorkerId;
 
+const MAXIMUM_RETAINED_TERMINAL_BINDINGS: usize = 1_024;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AuthorizedHostOperation {
     Launch(AuthorizedTerminalLaunch),
@@ -144,6 +146,7 @@ enum AdmissionRejection {
     StaleFence,
     ConflictingReplay,
     UnsupportedCapability,
+    CapacityExceeded,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -314,6 +317,11 @@ impl AuthorizedHostOperationKernel {
                 }
                 Ordering::Greater => {}
             }
+        }
+        if existing_binding.is_none() && self.bindings.len() >= MAXIMUM_RETAINED_TERMINAL_BINDINGS {
+            return Ok(AdmissionAction::Reject(
+                AdmissionRejection::CapacityExceeded,
+            ));
         }
         Ok(AdmissionAction::Dispatch)
     }
@@ -588,6 +596,9 @@ fn rejected_result(
                     AdmissionRejection::UnsupportedCapability => {
                         TerminalLaunchRejection::UnsupportedCapability
                     }
+                    AdmissionRejection::CapacityExceeded => {
+                        TerminalLaunchRejection::CapacityExceeded
+                    }
                 }),
             ),
         )),
@@ -607,6 +618,9 @@ fn rejected_result(
                     }
                     AdmissionRejection::UnsupportedCapability => {
                         TerminalStartRejection::UnsupportedCapability
+                    }
+                    AdmissionRejection::CapacityExceeded => {
+                        TerminalStartRejection::CapacityExceeded
                     }
                 }),
             )?,
