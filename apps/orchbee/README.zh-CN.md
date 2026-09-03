@@ -2,8 +2,9 @@
 
 这是已接受 native-command foundation 与 local-terminal milestone 的 experimental、尚未发布 Rust
 process entry、application-private 本机 Client transport 与 rendezvous primitive，以及已检查的
-Client-side 本机 Site activation refinement。产出的 executable 名为 `orchbee`。它参与根 Cargo
-verification gate，但不被 Desktop、packaging、installer 或 package manager 消费。
+Client-side 本机 Site activation refinement，以及已暂存但尚未调用的 TUI shell foundation。产出的
+executable 名为 `orchbee`。它参与根 Cargo verification gate，但不被 Desktop、packaging、installer
+或 package manager 消费。
 
 英文规范原文：
 [README.md](README.md)。
@@ -19,13 +20,14 @@ orchbee --help
 orchbee --version
 ```
 
-裸调用选择未来 TUI route，目前会报告本地化的 development-unavailable result。它不会进入
-terminal mode，也不会渲染占位 interface。`--help` 与 `--version` 不初始化 TUI 或 backend
-就会完成。其他、额外或非 Unicode argument 都是 usage failure。不存在 short flag、alias、
-abbreviation、业务命令、target discovery、current-directory inference 或 compatibility behavior。
+裸调用选择未来 TUI route，并报告本地化的 development-unavailable result。它不检查 terminal
+device、不进入 terminal mode、不注册 signal，也不渲染已暂存的 shell。`--help` 与 `--version`
+保持完全一致的输出，同样无需初始化 TUI 或 backend 就会完成。其他、额外或非 Unicode argument
+都是 usage failure。不存在 short flag、alias、abbreviation、业务命令、target discovery、
+current-directory inference 或 compatibility behavior。
 
 Help 只写 stdout。Unavailable 与 usage result 只写 stderr。Version 向 stdout 写一行与 locale
-无关的 `orchbee <version>`。Development exit status 中，help 与 version 为 `0`，不可用的裸 TUI
+无关的 `orchbee <version>`。Development exit status 仍为：help 与 version 为 `0`，不可用的裸 TUI
 route 为 `1`，usage failure 为 `2`。这些值不是未来 stable public exit table。
 
 ## 私有本机 Client transport
@@ -93,6 +95,44 @@ Client Session carrier，读取 generation，并通过这两个 method 提交 ty
 | LC-03：possible handoff 后的每种 failure 都是 unknown，并让 Session 退役。                                      | Write/read、EOF、incompatible frame、wrong kind 与 wrong identity branch 都调用 `retire_with_unknown`；focused test 断言 generation 消失。                                | `WriteFails`、`WriteDeadlineExpires`、`ReadFails`、全部 retire action；`UnknownRequiresHandoffAndRetirement`。  |
 | LC-04：只有 exact kind 与 identity 才完成；correlated Server `outcome-unknown` 是数据而非 transport ambiguity。 | Exact Create/Start、wrong-kind、wrong-ID 与 correlated-unknown fake-Server test 覆盖 result classifier。                                                                  | Matching 与 wrong-result arrival action；`AcceptedResultIsExactAndBeforeDeadline`。                             |
 | LC-05：一个 monotonic deadline 覆盖完整 write 与 read，progress 不会续期。                                      | `SubmissionDeadline` 只创建一次；每个 readiness boundary 重新计算余量。Stepping-clock test 在 read 与 write 两侧制造 sub-deadline byte progress，直到 total budget 用尽。 | `WriteDeadlineExpires`、`ResultDeadlineExpires`、`RetireTimedOutResult`；`TimeoutCannotProduceAcceptedResult`。 |
+
+## 已暂存的 TUI shell 底座
+
+以下 application-private module 会被编译并测试为 integration seam，但当前没有 invocation 进入它们：
+
+| 关注点      | 当前契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 准入        | 已暂存的 Unix adapter 要求继承的 stdin 与 stdout 都是 TTY，且具有相同 terminal-device identity；它只复制这些已准入 descriptor，并从复制后的 stdout descriptor 读取 cell 与 pixel dimension。它没有 `/dev/tty`、Crossterm global size 或 process fallback。                                                                                                                                                                                                                                                                                                                                                       |
+| 生命周期    | 一个已暂存 guard 拥有 raw mode、alternate screen 与 cursor visibility。它会在 operation 可能部分成功前标记 cleanup responsibility，在 inverse 成功前保留每个 flag，并为每个失败的 inverse 最多尝试两次，随后返回一个 aggregate error。Process-lifetime singleton panic hook 只在发生 panic 的 thread 是 active guard owner 时派发，因此其他 thread 无法在保存 terminal state 前清除 setup lease；guard drop 不会移除后来安装的 hook。正常返回、initialization/event/draw failure、owner-thread panic，以及 `SIGHUP`/`SIGINT`/`SIGQUIT`/`SIGTERM` 中的每一种，都有确定性 restoration 或 signal-observation 证据。 |
+| Client View | 每个 invocation 拥有 prefix mode、viewport class、sidebar projection、active overlay 与 transient notice。它不拥有任何共享 Tab、Panel、Workspace、Site 或 Terminal fact，也不持久化任何内容。                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 布局        | 96 列及以上时，30 列 Orchbee business sidebar 停靠在 Workbench region 左侧。更窄 viewport 让 Workbench 占满宽度，sidebar 只作为左侧 overlay 显示。Workbench projection 包含 Tab strip 与 Panel/Terminal region，但会将其标记为不可用，而不会伪造共享数据。                                                                                                                                                                                                                                                                                                                                                       |
+| 输入        | 已暂存 adapter 每次最多从已准入 stdin descriptor poll 并读取 4,096 个 raw byte。每次完整 read 都会先依序 dispatch，之后才允许后续 signal、viewport query 或 resize decision 结束本轮 loop。`Ctrl+B` 进入可见 prefix mode。`b`、`w`、`?`、`q` 与 `d` 只驱动本地 shell state 或退出。Typed Tab 与 Panel action 保持不可用。在 prefix mode 外，所有 byte——包括 `Ctrl+C`、`Ctrl+D`、escape sequence、UTF-8，以及 overlay 可见时的输入——都会依序到达可注入 terminal-input port；prefix 后的 `Ctrl+B` 会 forwarding 一个 literal byte。                                                                                |
+| 结果        | 当前没有 command 进入此 shell。此 seam 不宣称 Server、Client Session、真实 terminal、detach、attachment、retained-terminal、activation、Workbench mutation 或 Site-lifetime behavior。                                                                                                                                                                                                                                                                                                                                                                                                                           |
+
+确定性 Client View transition model 如下：
+
+| 状态与事件                                     | 下一状态、命令与可见结果                                                                                                                                                                                             |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Normal + `Ctrl+B`                              | 进入 Prefix；不发出 terminal input；渲染 prefix indicator。                                                                                                                                                          |
+| Normal + 其他 byte，无论 overlay 是否存在      | 保留本地 view state，并将确切、有序的 byte 提供给 terminal-input port。Unavailable port 会在无副作用的情况下拒绝，已暂存 renderer 会报告 input 未发送。                                                              |
+| Prefix + `b`                                   | 离开 Prefix，并为此 Client View 切换停靠的宽屏 sidebar 或窄屏 sidebar overlay。                                                                                                                                      |
+| Prefix + `w` 或 `?`                            | 离开 Prefix，并在本地打开 Workbench navigator 或 shortcut-help overlay。                                                                                                                                             |
+| Prefix + `c`、`n`、`p`、`1` … `9` 或 `h/j/k/l` | 离开 Prefix，保持共享状态不变，并把映射后的 backend-dependent action 显示为不可用；不提交 command。                                                                                                                  |
+| Prefix + `Ctrl+B`                              | 离开 Prefix，并向 terminal-input port 提供一个 literal `Ctrl+B` event。                                                                                                                                              |
+| Prefix + `q` 或 `d`                            | 离开 Prefix，并关闭这个 unavailable shell。                                                                                                                                                                          |
+| Prefix + `Esc`                                 | 取消 Prefix，且不改变 overlay。在 Prefix 外，`Esc` 及其后续 byte 都是普通 terminal input。                                                                                                                           |
+| Resize                                         | 查询已准入 stdout descriptor，更新 fixed backend viewport，并且只重新计算 Client-local viewport class。进入 narrow mode 会隐藏停靠 sidebar；回到 wide 会关闭 sidebar overlay，并恢复此前的 wide-sidebar preference。 |
+| Event/draw error、panic 或 termination signal  | 停止 loop，并尝试恢复 cursor、alternate-screen 与 raw-mode，不启动或停止其他 process。                                                                                                                               |
+
+不变量是：每个 prefix sequence 至多产生一个 typed command；非 prefix byte 保持顺序；shared
+Workbench 与 terminal state 在本 application 中绝不会改变；每个可能取得的 terminal mode 都会
+保留一个有界 restoration owner。Unit test 覆盖 state、input-port、fixed-backend、layout、renderer、
+真实 PTY 的 same-terminal admission、实际 panic hook、全部四种 signal、cross-thread setup
+interleaving、post-read viewport/resize failure 与 lifecycle fault injection。Native PTY process test
+则分别证明当前 bare/help/version path 不改变 terminal mode、Linux PTY master 在最后一个 slave
+关闭后的 `EIO` 是正常 hangup，并且 linked public binary 不包含 `/dev/tty` 或 `tput` fallback token。
+已暂存 runtime 及其全部 third-party dependency 仅支持 Unix；Windows target dependency tree 让当前
+one-shot CLI 不包含这些 dependency，且不宣称 Windows TUI runtime 或 signal-restoration 支持。
 
 ## 本地化与权威
 
@@ -225,6 +265,14 @@ lazy-activation workflow 的 maintained design evidence。它不改变 runtime b
 | LA-04：connection 释放 Client activation ownership；Client exit 不 supervise 或 stop Site。   | `RecheckCompatible`、`ObserveReady`、`ExitClient`；`SettledClientReleasesItsActivationResource`、`ReadySiteOwnsItsServiceLifetime`、`NoClientSupervisesServiceLifetime`、`ClientExitPreservesSite`、`ActivationResourceEventuallyReleases`。 | 只对 ready-service ownership 建模；不选择 process 如何 detach 或 service lifetime 如何实现。                                    |
 | LA-05：每个 started TUI 都会结算，且不假设 external process 响应。                            | `EveryPendingTuiEventuallySettles`，且只有每个 Client 的 `DeadlineExpires` 具备 weak fairness；external cohort 与 launcher completion 不含 fairness clause。                                                                                 | 假设未来 adapter 确实保证观察到一个 finite monotonic total deadline；不选择 numeric value、OS scheduling 或 external liveness。 |
 
+当前 one-shot process path 只使用 Rust standard-library argument、environment、stdout 与 stderr
+capability。它不打开 file 或 socket，不启动 process 或 thread，不读取 product state，也绝不会
+进入已暂存 shell。已暂存 module 使用 Ratatui 完成 stateful rendering，只使用 Crossterm queue
+ANSI output，只让 Nix/Rustix 操作继承的 descriptor，并使用 signal-hook 设置 atomic flag。它们不
+依赖 Server、Worker 或 Terminal Host，且所有这些 third-party dependency 都只针对 Unix target
+声明。在另行接受的 packaged cutover 前，已交付 TypeScript [`apps/cli`](../cli/README.zh-CN.md)
+继续作为当前 CLI 权威。
+
 ## 测量
 
 从仓库根目录收集 reference release baseline：
@@ -238,16 +286,17 @@ node apps/orchbee/scripts/measure-release-baseline.mjs
 输出中注明的 host、toolchain、profile 与 invocation。它不是 acceptance budget、cold-cache
 guarantee，也不是未来 TUI performance 的证据。
 
-当前 reference run 于 2026-09-03 在 Apple M1 arm64、Darwin 23.6.0、Rust 1.97.0、默认 Cargo
-release profile 上完成，包含 5 次 warmup 与 50 次 measured invocation：
+已暂存 shell、当前 public path 的 reference run 于 2026-09-03 在 Apple M1 arm64、Darwin
+23.6.0、Rust 1.97.0、默认 Cargo release profile 上完成，包含 5 次 warmup 与 50 次 measured
+invocation：
 
 | 测量项               | Reference observation |
 | -------------------- | --------------------- |
 | Executable size      | 432,144 bytes         |
-| Warm startup minimum | 1.161 ms              |
-| Warm startup p50     | 1.552 ms              |
-| Warm startup p95     | 2.294 ms              |
-| Warm startup maximum | 2.628 ms              |
+| Warm startup minimum | 1.216 ms              |
+| Warm startup p50     | 1.564 ms              |
+| Warm startup p95     | 1.936 ms              |
+| Warm startup maximum | 2.151 ms              |
 | Peak resident memory | 1,343,488 bytes       |
 
 后续已接受切片只要改变 executable 的 reachable dependency graph 或 invoked startup path，就重新运行
@@ -263,5 +312,6 @@ cargo test -p orchbee --all-targets --all-features --locked
 cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
 node scripts/tla/check-inventory.mjs
 node scripts/tla/run-models.mjs --models local-client-submission,local-site-activation
+cargo tree -p orchbee --target x86_64-pc-windows-msvc --locked
 pnpm verify
 ```

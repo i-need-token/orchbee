@@ -1,10 +1,10 @@
 # Orchbee Native Entry
 
 Experimental, unshipped Rust process entry, application-private local Client transport and
-rendezvous primitive, and checked Client-side local Site activation refinement for the accepted
-native-command foundation and local-terminal milestone. The emitted executable is named `orchbee`.
-It participates in the root Cargo verification gate but is not consumed by Desktop, packaging, an
-installer, or a package manager.
+rendezvous primitive, checked Client-side local Site activation refinement, and staged uninvoked
+TUI shell foundation for the accepted native-command and local-terminal milestone. The emitted
+executable is named `orchbee`. It participates in the root Cargo verification gate but is not
+consumed by Desktop, packaging, an installer, or a package manager.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -20,16 +20,17 @@ orchbee --help
 orchbee --version
 ```
 
-Bare invocation selects the future TUI route and currently reports a localized
-development-unavailable result. It does not enter terminal mode or render a placeholder interface.
-`--help` and `--version` complete without TUI or backend initialization. Every other, additional,
-or non-Unicode argument is a usage failure. There are no short flags, aliases, abbreviations,
-business commands, target discovery, current-directory inference, or compatibility behavior.
+Bare invocation selects the future TUI route and reports a localized development-unavailable
+result. It does not inspect terminal devices, enter terminal mode, register signals, or render the
+staged shell. `--help` and `--version` retain their exact output and likewise complete without TUI
+or backend initialization. Every other, additional, or non-Unicode argument is a usage failure.
+There are no short flags, aliases, abbreviations, business commands, target discovery,
+current-directory inference, or compatibility behavior.
 
 Help writes only stdout. The unavailable and usage results write only stderr. Version writes one
-locale-neutral `orchbee <version>` line to stdout. Development exit statuses are `0` for help and
-version, `1` for the unavailable bare TUI route, and `2` for usage failure. They are not the future
-stable public exit table.
+locale-neutral `orchbee <version>` line to stdout. Development exit statuses remain `0` for help
+and version, `1` for the unavailable bare TUI route, and `2` for usage failure. They are not the
+future stable public exit table.
 
 ## Private local Client transport
 
@@ -99,6 +100,47 @@ generation, and submit typed Create or Start intent through these two methods.
 | LC-03: every failure after possible handoff is unknown and retires the Session.                                                    | Write/read, EOF, incompatible frame, wrong kind, and wrong identity branches all call `retire_with_unknown`; focused tests assert the generation disappears.                                              | `WriteFails`, `WriteDeadlineExpires`, `ReadFails`, all retire actions; `UnknownRequiresHandoffAndRetirement`.  |
 | LC-04: only exact kind and identity complete, while a correlated Server `outcome-unknown` is data rather than transport ambiguity. | Exact Create/Start, wrong-kind, wrong-ID, and correlated-unknown fake-Server tests exercise the result classifier.                                                                                        | Matching and wrong-result arrival actions; `AcceptedResultIsExactAndBeforeDeadline`.                           |
 | LC-05: one monotonic deadline covers the full write and read and is not renewed by progress.                                       | `SubmissionDeadline` is created once; every readiness boundary recomputes its remainder. Stepping-clock tests force sub-deadline byte progress across both read and write until the total budget expires. | `WriteDeadlineExpires`, `ResultDeadlineExpires`, `RetireTimedOutResult`; `TimeoutCannotProduceAcceptedResult`. |
+
+## Staged TUI shell foundation
+
+The following application-private modules are compiled and tested as an integration seam, but no
+current invocation enters them:
+
+| Concern     | Current contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admission   | The staged Unix adapter requires inherited stdin and stdout to be TTYs with the same terminal-device identity, duplicates only those admitted descriptors, and reads cell and pixel dimensions from the duplicated stdout descriptor. It has no `/dev/tty`, global Crossterm size, or process fallback.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Lifecycle   | One staged guard owns raw mode, the alternate screen, and cursor visibility. It marks cleanup responsibility before an operation may partially succeed, retains each flag until its inverse succeeds, and attempts each failed inverse at most twice before returning one aggregate error. A process-lifetime singleton panic hook dispatches only when the panicking thread is the active guard's owner, so another thread cannot clear a setup lease before its terminal state is saved; guard drop does not remove a later hook. Normal return, initialization/event/draw failure, owner-thread panic, and each of `SIGHUP`/`SIGINT`/`SIGQUIT`/`SIGTERM` have deterministic restoration or signal-observation evidence. |
+| Client View | One invocation owns prefix mode, viewport class, sidebar projection, active overlay, and transient notice. It owns no shared Tab, Panel, Workspace, Site, or Terminal fact and persists nothing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Layout      | At 96 columns or wider, a 30-column Orchbee business sidebar is docked beside the Workbench region. Narrower viewports keep the Workbench full width and expose the sidebar only as a left overlay. The Workbench projection contains a Tab strip and Panel/Terminal region but labels them as unavailable rather than fabricating shared data.                                                                                                                                                                                                                                                                                                                                                                            |
+| Input       | The staged adapter polls and reads at most 4,096 raw bytes at a time from the admitted stdin descriptor. Every completed read is dispatched in order before any subsequent signal, viewport query, or resize decision can terminate that loop iteration. `Ctrl+B` enters visible prefix mode. `b`, `w`, `?`, `q`, and `d` drive only local shell state or exit. Typed Tab and Panel actions remain unavailable. Outside prefix mode, all bytes—including `Ctrl+C`, `Ctrl+D`, escape sequences, UTF-8, and input while an overlay is visible—reach an injectable terminal-input port in order; prefix then `Ctrl+B` forwards one literal byte.                                                                              |
+| Outcome     | No current command reaches this shell. The seam does not claim a Server, Client Session, real terminal, detach, attachment, retained-terminal, activation, Workbench mutation, or Site-lifetime behavior.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+
+The deterministic Client View transition model is:
+
+| State and event                                  | Next state, command, and visible result                                                                                                                                                                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Normal + `Ctrl+B`                                | Enter Prefix; emit no terminal input; render the prefix indicator.                                                                                                                                                                                                       |
+| Normal + other bytes, with or without an overlay | Preserve local view state and offer the exact ordered bytes to the terminal-input port. The unavailable port rejects them without side effects and the staged renderer reports that input was not sent.                                                                  |
+| Prefix + `b`                                     | Leave Prefix and toggle the docked wide sidebar or narrow sidebar overlay for this Client View.                                                                                                                                                                          |
+| Prefix + `w` or `?`                              | Leave Prefix and open the Workbench navigator or shortcut-help overlay locally.                                                                                                                                                                                          |
+| Prefix + `c`, `n`, `p`, `1` … `9`, or `h/j/k/l`  | Leave Prefix, preserve shared state, and surface the mapped backend-dependent action as unavailable; no command is submitted.                                                                                                                                            |
+| Prefix + `Ctrl+B`                                | Leave Prefix and offer one literal `Ctrl+B` event to the terminal-input port.                                                                                                                                                                                            |
+| Prefix + `q` or `d`                              | Leave Prefix and close this unavailable shell.                                                                                                                                                                                                                           |
+| Prefix + `Esc`                                   | Cancel Prefix without changing an overlay. Outside Prefix, `Esc` and its following bytes are ordinary terminal input.                                                                                                                                                    |
+| Resize                                           | Query the admitted stdout descriptor, update the fixed backend viewport, and recompute only the Client-local viewport class. Crossing into narrow mode hides the docked sidebar; returning wide closes a sidebar overlay and restores the prior wide-sidebar preference. |
+| Event/draw error, panic, or termination signal   | Stop the loop and attempt cursor, alternate-screen, and raw-mode restoration without starting or stopping another process.                                                                                                                                               |
+
+The invariant is that every prefix sequence produces at most one typed command, non-prefix bytes
+remain ordered, shared Workbench and terminal state never changes in this application, and every
+possibly acquired terminal mode retains one bounded restoration owner. Unit tests cover state,
+input-port, fixed-backend, layout, renderer, real-PTY same-terminal admission, an actual panic hook,
+all four signals, cross-thread setup interleaving, post-read viewport/resize failures, and lifecycle
+fault injection. Native PTY process tests separately prove that the current bare/help/version paths
+leave terminal modes untouched, that Linux PTY-master `EIO` after the final slave closes is a normal
+hangup, and that the linked public binary contains no `/dev/tty` or `tput` fallback token. The staged
+runtime and all of its third-party dependencies are Unix-only; the Windows target dependency tree
+keeps the current one-shot CLI free of those dependencies, and no Windows TUI or signal-restoration
+claim is made.
 
 ## Localization and authority
 
@@ -239,6 +281,15 @@ Future wiring must add deterministic process tests before claiming the model map
 | LA-04: connection releases Client activation ownership; Client exit does not supervise or stop Site.     | `RecheckCompatible`, `ObserveReady`, `ExitClient`; `SettledClientReleasesItsActivationResource`, `ReadySiteOwnsItsServiceLifetime`, `NoClientSupervisesServiceLifetime`, `ClientExitPreservesSite`, `ActivationResourceEventuallyReleases`. | Models ready-service ownership only; it does not select how processes detach or how service lifetime is implemented.                                        |
 | LA-05: every started TUI settles without assuming that an external process responds.                     | `EveryPendingTuiEventuallySettles` under only per-Client weak fairness for `DeadlineExpires`; external cohort and launcher completions have no fairness clause.                                                                             | Assumes the future adapter actually guarantees observation of one finite monotonic total deadline; no numerical value, OS scheduling, or external liveness. |
 
+The current one-shot process path uses only Rust standard-library argument, environment, stdout,
+and stderr capabilities. It opens no file or socket, starts no process or thread, reads no product
+state, and never reaches the staged shell. The staged modules use Ratatui for stateful rendering,
+Crossterm only for queued ANSI output, Nix/Rustix only against inherited descriptors, and
+signal-hook for atomic flags. They have no Server, Worker, or Terminal Host dependency, and all of
+these third-party dependencies are declared only for Unix targets. The delivered TypeScript
+[`apps/cli`](../cli/README.md) remains the current CLI authority until a separately accepted
+packaged cutover.
+
 ## Measurement
 
 Collect the reference release baseline from the repository root:
@@ -253,16 +304,16 @@ memory where `/usr/bin/time` exposes it. Results describe only the printed host,
 and invocation. They are not acceptance budgets, cold-cache guarantees, or evidence for future TUI
 performance.
 
-The current reference run on 2026-09-03 used Apple M1 arm64, Darwin 23.6.0, Rust 1.97.0, the
-default Cargo release profile, 5 warmups, and 50 measured invocations:
+The staged-shell, current-public-path reference run on 2026-09-03 used Apple M1 arm64, Darwin
+23.6.0, Rust 1.97.0, the default Cargo release profile, 5 warmups, and 50 measured invocations:
 
 | Measurement          | Reference observation |
 | -------------------- | --------------------- |
 | Executable size      | 432,144 bytes         |
-| Warm startup minimum | 1.161 ms              |
-| Warm startup p50     | 1.552 ms              |
-| Warm startup p95     | 2.294 ms              |
-| Warm startup maximum | 2.628 ms              |
+| Warm startup minimum | 1.216 ms              |
+| Warm startup p50     | 1.564 ms              |
+| Warm startup p95     | 1.936 ms              |
+| Warm startup maximum | 2.151 ms              |
 | Peak resident memory | 1,343,488 bytes       |
 
 Rerun and replace this reference after a later accepted slice changes the executable's reachable
@@ -278,5 +329,6 @@ cargo test -p orchbee --all-targets --all-features --locked
 cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
 node scripts/tla/check-inventory.mjs
 node scripts/tla/run-models.mjs --models local-client-submission,local-site-activation
+cargo tree -p orchbee --target x86_64-pc-windows-msvc --locked
 pnpm verify
 ```

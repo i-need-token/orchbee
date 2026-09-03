@@ -1,3 +1,4 @@
+mod client_view;
 mod invocation;
 #[cfg(unix)]
 #[cfg_attr(
@@ -19,6 +20,22 @@ mod local_client;
 mod local_site_rendezvous;
 mod localization;
 mod presentation;
+#[cfg(unix)]
+mod terminal_device;
+#[cfg(unix)]
+mod terminal_input;
+#[cfg(unix)]
+mod terminal_lifecycle;
+#[cfg(unix)]
+mod termination_signal;
+#[cfg(unix)]
+mod tui_backend;
+#[cfg(unix)]
+mod tui_layout;
+#[cfg(unix)]
+mod tui_render;
+#[cfg(unix)]
+mod tui_shell;
 
 use std::{
     env,
@@ -28,12 +45,18 @@ use std::{
 
 use invocation::parse_invocation;
 use localization::select_locale;
-use presentation::present;
+use presentation::{ProcessResult, present};
+
+// Keep the additive shell integration seam type-checked without making it an invocation route.
+#[cfg(unix)]
+const _: fn(localization::Locale) -> Result<(), tui_shell::TuiFailure> = tui_shell::run;
 
 fn main() -> ExitCode {
     let locale = select_locale(|name| env::var_os(name));
-    let result = present(parse_invocation(env::args_os().skip(1)), locale);
+    emit(present(parse_invocation(env::args_os().skip(1)), locale))
+}
 
+fn emit(result: ProcessResult) -> ExitCode {
     if write_stream(io::stdout().lock(), result.stdout).is_err()
         || write_stream(io::stderr().lock(), result.stderr).is_err()
     {

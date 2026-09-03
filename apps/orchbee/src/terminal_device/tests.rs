@@ -1,0 +1,113 @@
+use std::os::fd::AsFd;
+
+use nix::{
+    pty::{Winsize, openpty},
+    unistd::dup,
+};
+
+use super::{InheritedTerminal, TerminalAdmissionError, require_same_terminal_identity};
+
+#[test]
+fn admits_only_two_terminal_streams_with_the_same_device_identity() {
+    for (stdin_is_terminal, stdout_is_terminal, stdin_id, stdout_id, expected) in [
+        (true, true, 7_u64, 7_u64, Ok(())),
+        (
+            true,
+            true,
+            7,
+            8,
+            Err(TerminalAdmissionError::DifferentTerminals),
+        ),
+        (
+            false,
+            true,
+            7,
+            7,
+            Err(TerminalAdmissionError::NotInteractive),
+        ),
+        (
+            true,
+            false,
+            7,
+            7,
+            Err(TerminalAdmissionError::NotInteractive),
+        ),
+    ] {
+        let result = require_same_terminal_identity(
+            stdin_is_terminal,
+            stdout_is_terminal,
+            stdin_id,
+            stdout_id,
+        );
+        assert_eq!(
+            result.map_err(|error| error.to_string()),
+            expected.map_err(|error| error.to_string())
+        );
+    }
+}
+
+#[test]
+fn admits_matching_real_pty_descriptors_and_rejects_different_ptys()
+-> Result<(), Box<dyn std::error::Error>> {
+    let window = Winsize {
+        ws_col: 113,
+        ws_row: 31,
+        ws_xpixel: 904,
+        ws_ypixel: 620,
+    };
+    let first = openpty(Some(&window), None)?;
+    let first_output = dup(&first.slave)?;
+    let second = openpty(Some(&window), None)?;
+
+    let admitted = InheritedTerminal::admit_from(first.slave.as_fd(), first_output.as_fd())?;
+    assert_eq!(
+        admitted.window_dimensions()?,
+        super::WindowDimensions {
+            columns: 113,
+            pixel_height: 620,
+            pixel_width: 904,
+            rows: 31,
+        }
+    );
+
+    assert!(matches!(
+        InheritedTerminal::admit_from(first.slave.as_fd(), second.slave.as_fd()),
+        Err(TerminalAdmissionError::DifferentTerminals)
+    ));
+    Ok(())
+}
+
+#[test]
+fn inherited_terminal_adapter_has_no_path_process_or_global_size_fallback() {
+    let source = [
+        include_str!("../terminal_device.rs"),
+        include_str!("../terminal_lifecycle.rs"),
+        include_str!("../tui_backend.rs"),
+        include_str!("../tui_shell.rs"),
+    ]
+    .concat();
+
+    for forbidden in [
+        "/dev/tty",
+        "Command::new",
+        "File::open",
+        "OpenOptions",
+        "process::Command",
+        "std::process",
+        "crossterm::terminal::size",
+        "crossterm::terminal::window_size",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "inherited-terminal adapter contains forbidden fallback: {forbidden}"
+        );
+    }
+
+    let manifest = include_str!("../../Cargo.toml");
+    for forbidden_feature in ["features = [\"events\"", "features = [\"crossterm\""] {
+        assert!(
+            !manifest.contains(forbidden_feature),
+            "orchbee enables a dependency path that can acquire a different terminal: {forbidden_feature}"
+        );
+    }
+}
