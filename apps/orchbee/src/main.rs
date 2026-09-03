@@ -4,10 +4,19 @@ mod invocation;
     not(test),
     expect(
         dead_code,
-        reason = "the local Site rendezvous primitive is staged before activation integration"
+        reason = "the accepted private foundations are staged before TUI and activation integration"
     )
 )]
 mod local_site_rendezvous;
+#[cfg(unix)]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the accepted private foundations are staged before TUI and activation integration"
+    )
+)]
+mod local_client;
 mod localization;
 mod presentation;
 

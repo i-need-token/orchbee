@@ -1,8 +1,8 @@
 # Orchbee 原生入口
 
-这是已接受 Phase 3A 原生命令底座的 experimental、尚未发布 Rust process entry。产出的
-executable 名为 `orchbee`。它参与根 Cargo verification gate，但不被 Desktop、packaging、
-installer 或 package manager 消费。
+这是已接受 native-command foundation 与 local-terminal milestone 的 experimental、尚未发布 Rust
+process entry 与 application-private 本机 Client transport。产出的 executable 名为 `orchbee`。
+它参与根 Cargo verification gate，但不被 Desktop、packaging、installer 或 package manager 消费。
 
 英文规范原文：
 [README.md](README.md)。
@@ -27,6 +27,26 @@ Help 只写 stdout。Unavailable 与 usage result 只写 stderr。Version 向 st
 无关的 `orchbee <version>`。Development exit status 中，help 与 version 为 `0`，不可用的裸 TUI
 route 为 `1`，usage failure 为 `2`。这些值不是未来 stable public exit table。
 
+## 私有本机 Client transport
+
+在 Unix 上，application-private `LocalClient` 只从 internal caller 接收 endpoint 与 executable
+cohort。它把 admission 委托给 `orchbee-local-client-protocol`：该 crate 在连接前验证 cohort，证明
+Server 与当前进程具有相同 effective operating-system user，以两秒 read/write timeout 执行确切
+`OBLC` handshake，并返回 accepted generation 与同一条无 buffer stream。application 随后为
+`OBCS` phase 应用两秒 read/write timeout。
+
+`submit_terminal_create` 与 `submit_terminal_start` 各自取得一条已经验证的 typed request 的
+ownership，调用一次完整 OBCS frame write，并等待一条 Server frame。只有 message kind 与
+`requestId` 都和已提交 request 精确匹配时，result 才会返回。write 或 read failure、malformed 或
+incompatible result、错误 result kind 或错误 correlation 都会使 effect outcome 成为 typed
+`OutcomeUnknown` 并让 connection 退役；transport 绝不 retry，也不返回 request 供 replay。Server
+返回的正确 correlated `outcome-unknown` 仍是有效 OBCS result。
+
+当前 invocation 不会到达该 transport。Endpoint selection 或 discovery、activation、reconnection、
+request-identity generation 或 reconciliation、public command grammar、TUI composition 与 terminal
+relay 不在本切片内。后续 TUI adapter 可以接收已经选择的 endpoint，把 `LocalClient` 保留为其
+Client Session carrier，读取 generation，并通过这两个 method 提交 typed Create 或 Start intent。
+
 ## 本地化与权威
 
 Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection 依次检查非空
@@ -34,8 +54,9 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 均 fallback 到 canonical `en-US`。Locale data 只影响 presentation，绝不会持久化或用作 authority。
 
 三个已交付 invocation route 只使用 Rust standard-library argument、environment、stdout 与
-stderr capability。它们不调用 rendezvous code、不打开 file 或 socket、不启动 process 或
-thread、不初始化 terminal mode，也不读取 product state。在另行接受的 packaged cutover 前，
+stderr capability。它们不会选择任一 private module、不打开 file 或 socket、不启动 process 或
+thread、不初始化 terminal mode，也不读取 product state。local Client transport 与 rendezvous
+primitive 会在 Unix 上编译，但 public dispatch 无法到达它们。在另行接受的 packaged cutover 前，
 已交付 TypeScript [`apps/cli`](../cli/README.zh-CN.md) 继续作为当前 CLI 权威。
 
 ## POSIX 本机 Site rendezvous 底座
@@ -125,16 +146,16 @@ node apps/orchbee/scripts/measure-release-baseline.mjs
 输出中注明的 host、toolchain、profile 与 invocation。它不是 acceptance budget、cold-cache
 guarantee，也不是未来 TUI performance 的证据。
 
-Phase 3A reference run 于 2026-09-02 在 Apple M1 arm64、Darwin 23.6.0、Rust 1.97.0、默认 Cargo
+当前 reference run 于 2026-09-03 在 Apple M1 arm64、Darwin 23.6.0、Rust 1.97.0、默认 Cargo
 release profile 上完成，包含 5 次 warmup 与 50 次 measured invocation：
 
 | 测量项               | Reference observation |
 | -------------------- | --------------------- |
 | Executable size      | 432,144 bytes         |
-| Warm startup minimum | 1.179 ms              |
-| Warm startup p50     | 1.466 ms              |
-| Warm startup p95     | 2.921 ms              |
-| Warm startup maximum | 4.046 ms              |
+| Warm startup minimum | 1.415 ms              |
+| Warm startup p50     | 1.796 ms              |
+| Warm startup p95     | 2.782 ms              |
+| Warm startup maximum | 3.047 ms              |
 | Peak resident memory | 1,343,488 bytes       |
 
 后续已接受切片只要改变 executable 的 reachable dependency graph 或 invoked startup path，就重新运行

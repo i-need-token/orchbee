@@ -49,6 +49,11 @@ impl ClientSessionConnection {
         self.generation
     }
 
+    pub fn set_io_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        self.stream.set_read_timeout(timeout)?;
+        self.stream.set_write_timeout(timeout)
+    }
+
     pub fn wait_for_server_loss(&mut self) -> io::Result<()> {
         let mut byte = [0_u8; 1];
         loop {

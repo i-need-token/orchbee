@@ -1,8 +1,9 @@
 # Orchbee Native Entry
 
-Experimental, unshipped Rust process entry for the accepted Phase 3A native-command foundation.
-The emitted executable is named `orchbee`. It participates in the root Cargo verification gate but
-is not consumed by Desktop, packaging, an installer, or a package manager.
+Experimental, unshipped Rust process entry and application-private local Client transport for the
+accepted native-command foundation and local-terminal milestone. The emitted executable is named
+`orchbee`. It participates in the root Cargo verification gate but is not consumed by Desktop,
+packaging, an installer, or a package manager.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -29,6 +30,29 @@ locale-neutral `orchbee <version>` line to stdout. Development exit statuses are
 version, `1` for the unavailable bare TUI route, and `2` for usage failure. They are not the future
 stable public exit table.
 
+## Private local Client transport
+
+On Unix, the application-private `LocalClient` accepts an endpoint and executable cohort only from
+an internal caller. It delegates admission to `orchbee-local-client-protocol`, which validates the
+cohort before connecting, proves the Server has the same effective operating-system user, performs
+the exact `OBLC` handshake with two-second read/write timeouts, and returns the accepted generation
+plus the same unbuffered stream. The application then applies a two-second read/write timeout to
+the `OBCS` phase.
+
+`submit_terminal_create` and `submit_terminal_start` each take ownership of one already validated
+typed request, invoke one complete OBCS frame write, and wait for one Server frame. A result is
+returned only when its message kind and `requestId` exactly match the submitted request. A write or
+read failure, malformed or incompatible result, wrong result kind, or wrong correlation makes the
+effect outcome typed `OutcomeUnknown` and retires the connection; the transport never retries or
+returns the request for replay. A correctly correlated Server `outcome-unknown` result remains a
+valid OBCS result.
+
+No current invocation reaches this transport. Endpoint selection or discovery, activation,
+reconnection, request-identity generation or reconciliation, public command grammar, TUI
+composition, and terminal relay remain outside this slice. A later TUI adapter may receive an
+already selected endpoint, retain `LocalClient` as its Client Session carrier, inspect its
+generation, and submit typed Create or Start intent through these two methods.
+
 ## Localization and authority
 
 Authored help and diagnostics ship in `en-US` and `zh-CN`. Locale selection checks nonempty
@@ -37,8 +61,10 @@ falls back to canonical `en-US`. Locale data affects presentation only and is ne
 used as authority.
 
 The three delivered invocation routes use only Rust standard-library argument, environment,
-stdout, and stderr capabilities. They call no rendezvous code, open no file or socket, start no
-process or thread, initialize no terminal mode, and read no product state. The delivered TypeScript
+stdout, and stderr capabilities. They select neither private module, open no file or socket, start
+no process or thread, initialize no terminal mode, and read no product state. The local Client
+transport and rendezvous primitive are compiled on Unix but remain unreachable from public
+dispatch. The delivered TypeScript
 [`apps/cli`](../cli/README.md) remains the current CLI authority until a separately accepted
 packaged cutover.
 
@@ -134,16 +160,16 @@ memory where `/usr/bin/time` exposes it. Results describe only the printed host,
 and invocation. They are not acceptance budgets, cold-cache guarantees, or evidence for future TUI
 performance.
 
-The Phase 3A reference run on 2026-09-02 used Apple M1 arm64, Darwin 23.6.0, Rust 1.97.0, the
+The current reference run on 2026-09-03 used Apple M1 arm64, Darwin 23.6.0, Rust 1.97.0, the
 default Cargo release profile, 5 warmups, and 50 measured invocations:
 
 | Measurement          | Reference observation |
 | -------------------- | --------------------- |
 | Executable size      | 432,144 bytes         |
-| Warm startup minimum | 1.179 ms              |
-| Warm startup p50     | 1.466 ms              |
-| Warm startup p95     | 2.921 ms              |
-| Warm startup maximum | 4.046 ms              |
+| Warm startup minimum | 1.415 ms              |
+| Warm startup p50     | 1.796 ms              |
+| Warm startup p95     | 2.782 ms              |
+| Warm startup maximum | 3.047 ms              |
 | Peak resident memory | 1,343,488 bytes       |
 
 Rerun and replace this reference after a later accepted slice changes the executable's reachable
