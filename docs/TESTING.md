@@ -68,6 +68,10 @@ Traditional Chinese fallback. The authoritative message and visual-review requir
 
 ## Native application tests
 
+- Keep Rust unit-test bodies in adjacent test-module files or the crate's `tests/` tree, expose only
+  the narrow conditional module declaration from production source, and run every Cargo member
+  through the root test gate. Rust-specific layout and failure-boundary rules are authoritative in
+  [`docs/RUST.md`](RUST.md#testing).
 - Keep every Zig test and test-only helper under the owning source tree's `__tests__` directory,
   and expose every test root through the application's non-interactive `test` script. Zig-specific
   layout, naming, and white-box access are authoritative in [`docs/ZIG.md`](ZIG.md#testing).
@@ -75,7 +79,7 @@ Traditional Chinese fallback. The authoritative message and visual-review requir
   ABI, PTY, IPC, packaging, or installer behavior from cross-compilation alone.
 - Run platform behavior and integration tests on their native operating system before claiming
   support for that behavior.
-- Pin every native source dependency and compiler input used by required tests; machine-local
+- Pin every native dependency resolution and compiler input used by required tests; machine-local
   sibling checkouts and mutable revisions are not test fixtures.
 
 ## Package contracts

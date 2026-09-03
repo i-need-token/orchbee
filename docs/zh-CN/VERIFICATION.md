@@ -16,21 +16,25 @@
 
 ## 必需任务
 
-| 任务                 | 契约                                                                                                                                   |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `format:check`       | Oxfmt 管理的文件与 `.oxfmtrc.json` 一致，并且每个原生工作区格式化器都接受其所属文件。                                                  |
-| `lint`               | 代码、文档配对、样式、存储、架构、依赖、项目契约、体验目录、导出和清单规则全部通过。                                                   |
-| `test:tla:inventory` | TLA+ 执行清单、产物登记、owner 命令、触发映射以及 runner 负向控制彼此一致。                                                            |
-| `build`              | 每个可构建工作区都使用其固定工具链和依赖生成所支持的产物。                                                                             |
-| `typecheck`          | 每个具有 TypeScript 契约的工作区都满足该契约。                                                                                         |
-| `test`               | 契约检查器测试、文档配对负向测试、自定义 lint 规则测试、默认工作区测试套件、必需的受控本地系统见证和已声明的原生交叉编译检查全部通过。 |
-| `test:exports`       | 每个库的打包导出、运行时格式和声明均可被使用。                                                                                         |
+| 任务                 | 契约                                                                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check`       | Oxfmt 管理的文件与 `.oxfmtrc.json` 一致，并且 rustfmt 与每个应用自有原生 formatter 都接受其所属文件。                                    |
+| `lint`               | 代码、Rust workspace 与 Clippy、文档配对、样式、存储、架构、依赖、项目契约、体验目录、导出和清单规则全部通过。                           |
+| `test:tla:inventory` | TLA+ 执行清单、产物登记、owner 命令、触发映射以及 runner 负向控制彼此一致。                                                              |
+| `build`              | 每个可构建 pnpm 与 Cargo workspace 都使用其固定工具链和依赖生成所支持的产物。                                                            |
+| `typecheck`          | 每个具有 TypeScript 契约的工作区都满足该契约。                                                                                           |
+| `test`               | 契约检查器测试、文档配对负向测试、自定义 lint 规则测试、pnpm 与 Cargo 测试套件、必需的受控本地系统见证和已声明原生交叉编译检查全部通过。 |
+| `test:exports`       | 每个库的打包导出、运行时格式和声明均可被使用。                                                                                           |
 
 - `build` 先于 `typecheck`，因为验证和生产使用方解析库产物，不解析另一个包的源码。
 - 递归构建采用拓扑顺序：全新检出先构建依赖，再让依赖方解析其导出。
 - 应用模块开发不消费库的 `dist`；Rsbuild 把已声明源码入口解析到开发图中。通过 Node 执行、且消费库 runtime export 的开发准备流程，必须在进程启动前显式构建该依赖。
 - `pnpm verify` 可以重建包输出而不中断正在运行的应用服务器；验证和生产继续使用按拓扑顺序构建的产物。
-- 原生工作区构建只能解析通过不可变 URL 和内容哈希固定的依赖。构建必须在生成产物前拒绝不同的编译器或依赖摘要。
+- Rust workspace 工作使用精确的根工具链与已提交 Cargo lockfile；Zig 源码依赖使用不可变 URL 与
+  content hash。必需 build 必须在生成 artifact 前拒绝不同 compiler 或 dependency resolution。
+- `scripts/run-rust-workspace.mjs` 把根 pnpm 门禁连接到 Cargo。第一个已接受 Rust member 存在前，
+  它验证固定工具链和 empty workspace metadata；之后同一批 task 使用 `--locked` 对每个 member
+  运行 rustfmt、Clippy、build 与 test。
 - 原生交叉编译检查只证明源码和依赖可为已声明目标编译；平台行为仍然需要原生 runner。
 - 必需的 Desktop SSH Project-enrollment 见证会打包真实 Dev profile，并在 macOS arm64 或 glibc
   Linux x64 上针对临时 loopback `sshd` 运行。不支持的本地平台会明确报告跳过；必需的 Linux CI
@@ -72,7 +76,8 @@ SHA-256 的副本，设置 `ORCHBEE_TLA_TIMEOUT_MILLISECONDS` 可对所有选中
 - `.github/workflows/verify.yml` 安装冻结的 lockfile，并在 Pull Request、向 `main` 推送和手动运行时执行 `pnpm verify`。
 - 必需的 `verify` Job 不运行 TLC。必需的 `tla` Job 从已跟踪清单中选择并运行变更触发检查；
   无关变更会在不配置 Java 或 TLC 的情况下完成该 Job。
-- 工作流安装每个已跟踪原生工作区要求的精确编译器版本，并在加入 `PATH` 前验证官方工具链归档。
+- 工作流通过固定的官方工具链机制安装每个已跟踪原生 workspace 要求的精确 compiler version。
+  直接下载的 archive 在加入 `PATH` 前必须校验 digest。
 - 在仓库 ruleset 中要求工作流的 `verify` 和 `tla` Job。
 - CI 在验证后运行 `git diff --exit-code`；已跟踪的生成变更在提交前会导致失败。
 - 工作流使用只读仓库权限。

@@ -1255,10 +1255,7 @@
 			"workspace": "apps/desktop",
 			"module": "apps/desktop/formal/tla/TerminalSemanticRead.tla",
 			"config": "apps/desktop/formal/tla/TerminalSemanticRead.cfg",
-			"claims": [
-				"apps/desktop/docs/semantic-command-execution.md",
-				"proposals/cli/agent-control-surface.md"
-			],
+			"claims": ["apps/desktop/docs/semantic-command-execution.md", "apps/cli/README.md"],
 			"triggers": [
 				"apps/desktop/src/main/composition/composeDesktopTerminalRuntime.ts",
 				"apps/desktop/src/main/remote-terminal/DesktopSshEnvironmentTerminalRuntimeOwner.ts",
@@ -1572,6 +1569,43 @@
 				"CloseSocket",
 				"RuntimeServerError",
 				"DisposeActive"
+			]
+		},
+		{
+			"id": "local-site-process-spine",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/LocalSiteProcessSpine.tla",
+			"config": "apps/orchbee-server/formal/tla/LocalSiteProcessSpine.cfg",
+			"claims": [
+				"apps/orchbee-server/README.md",
+				"apps/orchbee-worker/README.md",
+				"crates/local-site-protocol/README.md"
+			],
+			"triggers": [
+				"apps/orchbee-server/src/**",
+				"apps/orchbee-server/tests/**",
+				"apps/orchbee-worker/src/**",
+				"apps/orchbee-worker/tests/**",
+				"crates/local-site-protocol/src/**",
+				"crates/local-site-protocol/tests/**"
+			],
+			"requiredCoverage": [
+				"StartServer",
+				"RejectSecondServer",
+				"BeginCompatible",
+				"BeginWrongUser",
+				"BeginMalformed",
+				"BeginIncompatible",
+				"AdmitWorker",
+				"RejectDuplicate",
+				"RejectWrongUser",
+				"RejectMalformed",
+				"RejectIncompatible",
+				"HandshakeTimeout",
+				"WorkerDisconnect",
+				"StaleWorkerCleanup",
+				"StopServer"
 			]
 		},
 		{

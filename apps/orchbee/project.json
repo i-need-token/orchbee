@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "orchbee",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Unshipped native Orchbee process entry with exact Phase 3A TUI/help/version dispatch, bilingual development presentation, and no backend authority.",
+	"nonGoals": [
+		"Implementing a TUI renderer, Workbench or terminal commands, Server or Worker discovery, service activation, IPC, networking, authentication, persistence, or child-process supervision.",
+		"Replacing, packaging, migrating, or deleting the delivered TypeScript CLI, its Desktop launcher, Agent Skill, commands, outputs, or compatibility contract.",
+		"Defining the future stable command tree, output schemas, exit categories, shell completion, package-manager distribution, release targets, update cohort, or rollback policy."
+	]
+}

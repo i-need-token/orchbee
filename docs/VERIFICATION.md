@@ -16,22 +16,26 @@ A focused command is useful while iterating, but completion requires the root ga
 
 ## Required tasks
 
-| Task                 | Contract                                                                                                                                                                                                            |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format:check`       | Oxfmt-managed files match `.oxfmtrc.json`, and every native workspace formatter accepts its owned files.                                                                                                            |
-| `lint`               | Code, documentation pairing, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.                                                                       |
-| `test:tla:inventory` | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree.                                                                                           |
-| `build`              | Every buildable workspace produces its supported artifacts with its pinned toolchain and dependencies.                                                                                                              |
-| `typecheck`          | Every workspace with a TypeScript contract satisfies it.                                                                                                                                                            |
-| `test`               | Contract-checker tests, documentation-pairing negative tests, custom lint-rule tests, default workspace test suites, required controlled local system witnesses, and declared native cross-compilation checks pass. |
-| `test:exports`       | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                                                                   |
+| Task                 | Contract                                                                                                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check`       | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                                                                    |
+| `lint`               | Code, Rust workspace and Clippy, documentation pairing, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.                                         |
+| `test:tla:inventory` | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree.                                                                                        |
+| `build`              | Every buildable pnpm and Cargo workspace produces its supported artifacts with its pinned toolchain and dependencies.                                                                                            |
+| `typecheck`          | Every workspace with a TypeScript contract satisfies it.                                                                                                                                                         |
+| `test`               | Contract-checker tests, documentation-pairing negative tests, custom lint-rule tests, pnpm and Cargo test suites, required controlled local system witnesses, and declared native cross-compilation checks pass. |
+| `test:exports`       | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                                                                |
 
 - `build` precedes `typecheck` because verification and production consumers resolve library artifacts, not another package's source.
 - Recursive builds are topological: a clean checkout builds dependencies before dependents resolve their exports.
 - Application module development does not consume library `dist`; Rsbuild resolves declared source entries into the development graph. Node-executed development preparation that consumes a library's runtime export must explicitly build that dependency before process startup.
 - `pnpm verify` may rebuild package output without interrupting a running application server; verification and production continue to consume topologically built artifacts.
-- Native workspace builds may resolve only dependencies pinned by immutable URL and content hash.
-  The build must reject a different compiler or dependency digest before producing an artifact.
+- Rust workspace work uses the exact root toolchain and committed Cargo lockfile; Zig source
+  dependencies use immutable URLs and content hashes. Required builds reject a different compiler
+  or dependency resolution before producing an artifact.
+- `scripts/run-rust-workspace.mjs` connects the root pnpm gate to Cargo. Before the first accepted
+  Rust member exists, it validates the pinned toolchain and empty workspace metadata; afterward the
+  same tasks run rustfmt, Clippy, build, and tests over every member with `--locked`.
 - Native cross-compilation checks prove source and dependency compilation for the declared target;
   platform behavior still requires a native runner.
 - The required Desktop SSH Project-enrollment witness packages the actual Dev profile and runs against
@@ -82,8 +86,9 @@ report identifies the checked model and bounds.
 - The required `verify` job does not run TLC. The required `tla` job selects and runs
   change-triggered checks from the tracked inventory; an unrelated change completes that job
   without provisioning Java or TLC.
-- The workflow installs every exact compiler version required by a tracked native workspace and
-  verifies the official toolchain archive before adding it to `PATH`.
+- The workflow installs every exact compiler version required by a tracked native workspace through
+  its pinned official toolchain mechanism. Directly downloaded archives require a checked digest
+  before they are added to `PATH`.
 - Require the workflow's `verify` and `tla` jobs in the repository ruleset.
 - CI runs `git diff --exit-code` after verification; tracked generated changes fail until committed.
 - The workflow uses read-only repository permissions.

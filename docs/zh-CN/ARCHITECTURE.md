@@ -3,12 +3,15 @@
 ## 依赖方向
 
 ```text
-apps/* -> packages/* -> 外部依赖
+apps/*（JavaScript / TypeScript）-> packages/* -> 外部依赖
+apps/*（Rust）                 -> crates/*   -> 外部依赖
 ```
 
-- 应用是运行时入口，绝不能成为包或其他应用的依赖。
+- 应用是运行时入口，绝不能成为 package、crate 或其他应用的依赖。
 - 包只能通过其他包声明的包导出来依赖它们。
-- 多个应用共享的代码应放入包中。
+- Rust crate 只能通过声明的 Cargo dependency 依赖其他 crate。
+- 多个应用共享的代码只有具备稳定 semantic owner 和真实 consumer 后，才进入语言对应的 package
+  或 crate。跨语言共享使用已接受的 serialized contract，不使用源码 import。
 
 ## 产品运行时模块
 
@@ -36,9 +39,10 @@ flowchart TB
 
 - 可运行的产品和开发工作区遵循 [`docs/APPLICATIONS.md`](APPLICATIONS.md)。
 - 包的命名、清单、公共导出、构建、依赖和版本管理遵循 [`docs/PACKAGES.md`](PACKAGES.md)。
+- Rust crate 的位置、清单、可见性、依赖和验证遵循 [`docs/RUST.md`](RUST.md)。
 - 前端产品 UI 和平台适配器遵循 [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md)。
 - `orchbee/no-cross-workspace-source-imports`：通过其他工作区包的公共包导入来使用它；绝不能跨入其他 `apps/*/src` 或 `packages/*/src` 源码树。
-- 同一个应用或包内的相对导入遵循 [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md)。
+- 同一个应用、package 或 crate 内的相对 import 遵循 [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md)。
 - 每个包通过 `package.json#exports` 定义公共 API；存在根导出时，由 `src/index.ts` 实现。
 
 ## 源模块边界

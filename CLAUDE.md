@@ -35,6 +35,7 @@
 - **Development**: `docs/DEVELOPMENT.md` — change classification, decision authority, staged governed-write control, and convergence
 - **Modeling and Correctness**: `docs/MODELING-AND-CORRECTNESS.md` — model-first behavior design and risk-based correctness evidence
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
+- **Rust**: `docs/RUST.md` — Cargo workspace placement, ownership, safety, concurrency, contracts, and verification
 - **Zig**: `docs/ZIG.md` — native naming, resource ownership, safety, concurrency, and testing
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
 - **Frontend Package Boundaries**: `docs/frontend/package-boundaries.md` — frontend workspace placement, semantic ownership, dependency direction, and platform ports
@@ -57,7 +58,8 @@
 
 ```
 apps/           # Independently runnable product and development applications
-packages/       # Shared libraries, their public guides, and package-local references
+crates/         # Reusable Rust libraries admitted for real cross-crate consumers
+packages/       # Shared JavaScript and TypeScript libraries, guides, and local references
 docs/           # Repository-wide standards and cross-workspace architecture contracts
 proposals/      # Future design under review; never current authority
 research/       # Time-bounded investigations; never an authoritative source
@@ -71,9 +73,9 @@ schemas/        # Machine-readable repository contract schemas
 - **Routing**: TanStack Router
 - **Client State**: Zustand
 - **UI**: shadcn/ui with Base UI primitives
-- **Native Runtime**: Zig 0.16.0 + pinned Ghostty VT
+- **Native Toolchains**: Rust 1.97.0 + Zig 0.16.0 with pinned Ghostty VT
 - **Tooling Runtime**: Node.js (>=22)
 - **Lint**: oxlint (with typescript, unicorn, oxc, react, import plugins)
-- **Format**: oxfmt + `zig fmt`
+- **Format**: oxfmt + rustfmt + `zig fmt`
 - **Schema**: Zod 4 (parse at boundaries, trust inside)
-- **Monorepo**: pnpm workspaces (`apps/*`, `packages/*`)
+- **Monorepo**: pnpm workspaces (`apps/*`, `packages/*`) + one root Cargo workspace (`apps/*`, `crates/*` Rust members)

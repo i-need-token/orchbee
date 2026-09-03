@@ -2,6 +2,7 @@ node_modules/
 dist/
 out/
 dogfood-output/
+/target/
 .zig-cache/
 zig-pkg/
 zig-out/

@@ -61,12 +61,19 @@ async function fileExists(path) {
 
 async function workspaceDirectories(collection) {
 	const collectionRoot = join(REPOSITORY_ROOT, collection);
+	if (!(await fileExists(collectionRoot))) return [];
 	const entries = await readdir(collectionRoot, { withFileTypes: true });
 	const candidates = entries
 		.filter((entry) => entry.isDirectory())
 		.map((entry) => join(collectionRoot, entry.name));
 	const manifests = await Promise.all(
-		candidates.map((directory) => fileExists(join(directory, 'package.json'))),
+		candidates.map(async (directory) => {
+			const [hasPackageManifest, hasCargoManifest] = await Promise.all([
+				fileExists(join(directory, 'package.json')),
+				fileExists(join(directory, 'Cargo.toml')),
+			]);
+			return hasPackageManifest || hasCargoManifest;
+		}),
 	);
 	return candidates.filter((_directory, index) => manifests[index]);
 }
@@ -90,15 +97,26 @@ function verifyLibraryManifest(projectRoot, manifest, contractPath) {
 
 async function verifyProject(projectRoot, collection) {
 	const contractPath = join(projectRoot, 'project.json');
-	const [contract, manifest] = await Promise.all([
+	const packageManifestPath = join(projectRoot, 'package.json');
+	const cargoManifestPath = join(projectRoot, 'Cargo.toml');
+	const [contract, hasPackageManifest, hasCargoManifest] = await Promise.all([
 		readJson(contractPath, projectContractSchema),
-		readJson(join(projectRoot, 'package.json'), packageManifestSchema),
+		fileExists(packageManifestPath),
+		fileExists(cargoManifestPath),
 	]);
 	const expectedSchemaPath = relative(projectRoot, PROJECT_SCHEMA_PATH).split('\\').join('/');
 	if (contract.$schema !== expectedSchemaPath) {
 		fail(`${relative(REPOSITORY_ROOT, contractPath)}: $schema must be "${expectedSchemaPath}"`);
 	}
-	if (collection === 'packages') verifyLibraryManifest(projectRoot, manifest, contractPath);
+	if (collection === 'packages') {
+		if (!hasPackageManifest)
+			fail(`${relative(REPOSITORY_ROOT, projectRoot)} requires package.json`);
+		const manifest = await readJson(packageManifestPath, packageManifestSchema);
+		verifyLibraryManifest(projectRoot, manifest, contractPath);
+	}
+	if (collection === 'crates' && !hasCargoManifest) {
+		fail(`${relative(REPOSITORY_ROOT, projectRoot)} requires Cargo.toml`);
+	}
 }
 
 function schemaDocument() {
@@ -117,7 +135,7 @@ async function main() {
 		fail('schemas/project-contract.schema.json is stale; regenerate it from the Zod contract');
 	}
 
-	const collections = ['apps', 'packages'];
+	const collections = ['apps', 'crates', 'packages'];
 	const projects = await Promise.all(
 		collections.map(async (collection) => ({
 			collection,

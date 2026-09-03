@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "workbench-protocol",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Independent Rust binding and pure delta refinement for the language-neutral version-1 Workbench read-only projection contract.",
+	"nonGoals": [
+		"Owning canonical Workbench transitions, Server state, persistence, transport, authentication, authorization, rendering, CLI grammar, terminal data, or platform effects.",
+		"Defining Environment, Directory, Checkout, Worktree, Agent, Launch Profile, Archive, SSH, lease, fence, Host epoch, attachment, or Client-local state contracts."
+	]
+}

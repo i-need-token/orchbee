@@ -3,12 +3,16 @@
 ## Dependency direction
 
 ```text
-apps/* -> packages/* -> external dependencies
+apps/* (JavaScript / TypeScript) -> packages/* -> external dependencies
+apps/* (Rust)                  -> crates/*   -> external dependencies
 ```
 
-- Apps are runtime entry points and never dependencies of packages or other apps.
+- Apps are runtime entry points and never dependencies of packages, crates, or other apps.
 - Packages may depend on other packages only through their declared package exports.
-- Code shared by multiple apps belongs in a package.
+- Rust crates may depend on other crates only through declared Cargo dependencies.
+- Code shared by multiple apps belongs in the language-appropriate package or crate after it has a
+  stable semantic owner and real consumers. Cross-language sharing uses an accepted serialized
+  contract, not source imports.
 
 ## Product runtime modules
 
@@ -36,9 +40,10 @@ flowchart TB
 
 - Runnable product and development workspaces follow [`docs/APPLICATIONS.md`](APPLICATIONS.md).
 - Package naming, manifests, public exports, builds, dependencies, and versioning follow [`docs/PACKAGES.md`](PACKAGES.md).
+- Rust crate placement, manifests, visibility, dependencies, and verification follow [`docs/RUST.md`](RUST.md).
 - Frontend product UI and platform adapters follow [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md).
 - `orchbee/no-cross-workspace-source-imports`: Import another workspace package through its public package exports; never cross into another `apps/*/src` or `packages/*/src` tree.
-- Relative imports inside one app or package follow [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md).
+- Relative imports inside one app, package, or crate follow [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md).
 - Each package defines its public API through `package.json#exports`; `src/index.ts` implements the root export when present.
 
 ## Source module boundaries

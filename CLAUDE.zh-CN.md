@@ -35,6 +35,7 @@
 - **开发**：`docs/DEVELOPMENT.md` — 变更分类、决策权、分阶段受治理写入控制和收敛
 - **建模与正确性**：`docs/MODELING-AND-CORRECTNESS.md` — 模型优先的行为设计和基于风险的正确性证据
 - **TypeScript**：`docs/TYPESCRIPT.md` — 零妥协类型安全和禁用模式
+- **Rust**：`docs/RUST.md` — Cargo 工作区位置、所有权、安全性、并发、契约和验证
 - **Zig**：`docs/ZIG.md` — 原生命名、资源所有权、安全性、并发和测试
 - **测试**：`docs/TESTING.md` — 测试布局、执行和回归要求
 - **前端包边界**：`docs/frontend/package-boundaries.md` — 前端工作区位置、语义所有权、依赖方向和平台端口
@@ -57,7 +58,8 @@
 
 ```
 apps/           # 可独立运行的产品与开发应用
-packages/       # 共享库及其公共指南和包本地参考
+crates/         # 为真实跨 crate 使用方准入的可复用 Rust 库
+packages/       # 共享 JavaScript 和 TypeScript 库、指南和包本地参考
 docs/           # 仓库级规范和跨工作区架构契约
 proposals/      # 审查中的未来设计；绝不是当前权威来源
 research/       # 有时间边界的研究；绝不是权威来源
@@ -71,9 +73,9 @@ schemas/        # 机器可读的仓库契约 Schema
 - **路由**：TanStack Router
 - **客户端状态**：Zustand
 - **UI**：使用 Base UI 原语的 shadcn/ui
-- **原生运行时**：Zig 0.16.0 + 固定版本的 Ghostty VT
+- **原生工具链**：Rust 1.97.0 + Zig 0.16.0 和固定版本的 Ghostty VT
 - **工具运行时**：Node.js（>=22）
 - **Lint**：oxlint（使用 typescript、unicorn、oxc、react、import 插件）
-- **格式化**：oxfmt + `zig fmt`
+- **格式化**：oxfmt + rustfmt + `zig fmt`
 - **Schema**：Zod 4（在边界 parse，内部信任）
-- **Monorepo**：pnpm workspaces（`apps/*`、`packages/*`）
+- **Monorepo**：pnpm workspaces（`apps/*`、`packages/*`）+ 一个根 Cargo workspace（`apps/*`、`crates/*` Rust member）

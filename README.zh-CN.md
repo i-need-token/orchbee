@@ -74,7 +74,7 @@ Agent 可以直接从终端启动和控制浏览器、检查页面、截图并�
 <details>
 <summary>从源码构建并验证</summary>
 
-**前置条件：** Node.js >=22、Java >=17、Zig 0.16.0、Corepack、Git
+**前置条件：** Node.js >=22、Java >=17、通过 rustup 安装的 Rust 1.97.0、Zig 0.16.0、Corepack、Git
 
 ```bash
 git clone https://github.com/orchbee/orchbee.git
@@ -118,6 +118,7 @@ Desktop 会打印一个 `ORCHBEE_BROWSER_CLIENT_URL`。在浏览器中打开这�
 - **React** — 桌面端与 Web 端界面
 - **TypeScript** — 应用与共享包代码
 - **Node.js** — 仓库工具和 Electron 特权运行时
+- **Rust** — 固定版本的原生应用 workspace 与工具链
 - **Zig** — 原生终端 Host 运行时
 - **Ghostty VT** — 由原生 Terminal Host 负责的终端模拟
 - **WebGPU** — GPU 加速终端渲染

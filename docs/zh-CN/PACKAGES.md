@@ -2,14 +2,14 @@
 
 ## 范围和分类
 
-- 当可复用代码已有工作区使用方，或者有意将其作为可独立使用的公共库开发时，把它放入 `packages/*`。
+- 当可复用 JavaScript 或 TypeScript 代码已有工作区使用方，或者有意将其作为可独立使用的公共库开发时，把它放入 `packages/*`。可复用 Rust 库遵循 [`docs/RUST.md`](RUST.md)，放在 `crates/*` 下。
 - 在包边界拥有具体使用方之前，把应用专属代码留在该应用的 `src` 树中。
 - 按照 [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md) 放置前端产品 UI 和平台适配器。
 - 把 `packages/*` 下的每个运行时包都视为库包。库包使用 Rslib 并公开构建产物。生产使用方使用这些产物；根据工作区开发契约，仓库应用在开发期间可以编译已声明的公共源码入口。
 - 对仅供工作区使用的库设置 `"private": true`。准备发布到 npm 的包省略 `private`，并且必须包含版本、`"publishConfig": { "access": "public" }`、包 README、项目许可证选定后的许可证元数据以及 `files` 允许列表。
 - 按照 [`docs/PROJECTS.md`](PROJECTS.md)，在基于 Schema 的 `project.json` 中声明每个包的职责、非目标、运行时和稳定性。
 
-仅供仓库使用的脚本和应用入口点不是库包，不属于 `packages/*`。
+仅供仓库使用的脚本、Cargo crate 和应用入口点不是 npm 库包，不属于 `packages/*`。
 
 ## 命名
 

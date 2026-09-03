@@ -55,7 +55,9 @@ and the owning language standard.
 its executable and importable module roots through its pinned native build graph and never adds a
 placeholder `index.ts`. Before a native workspace grows beyond one source module, its owner must
 define the language-specific visibility and lateral-import contract in an accepted owner-local
-authority; relative-path reachability alone does not make another native subtree public.
+authority; relative-path reachability alone does not make another native subtree public. Rust
+crate and module visibility follows [`docs/RUST.md`](RUST.md#modules-and-visibility); Zig visibility
+follows [`docs/ZIG.md`](ZIG.md#naming-and-modules).
 
 ## Structural component groups
 

@@ -104,18 +104,29 @@ describe('Environment registry state', () => {
 	});
 
 	it('rejects aggregate encoded-byte capacity before the record-count limit', () => {
-		let document = createEmptyEnvironmentRegistryDocument();
-		let finalDecision: ReturnType<typeof decideEnvironmentRegistryCreate> | undefined;
-		for (let index = 0; index < 100; index += 1) {
-			const decision = decideEnvironmentRegistryCreate(document, largeEnvironment(index));
-			if (decision.kind !== 'append') {
-				finalDecision = decision;
-				break;
-			}
-			document = decision.document;
-		}
+		const environments = Array.from({ length: 32 }, (_, index) => largeEnvironment(index));
+		const document = EnvironmentRegistryDocumentSchema.parse({
+			environments,
+			revision: environments.length,
+			schemaVersion: 2,
+		});
+		const requested = largeEnvironment(environments.length);
+		const oversizedDocument = {
+			environments: [...document.environments, requested],
+			revision: document.revision + 1,
+			schemaVersion: 2,
+		};
 
-		expect(finalDecision).toEqual({ kind: 'rejected', reason: 'capacity' });
+		expect(Buffer.byteLength(JSON.stringify(document))).toBeLessThanOrEqual(
+			DESKTOP_ENVIRONMENT_REGISTRY_LIMITS.maximumDocumentBytes,
+		);
+		expect(Buffer.byteLength(JSON.stringify(oversizedDocument))).toBeGreaterThan(
+			DESKTOP_ENVIRONMENT_REGISTRY_LIMITS.maximumDocumentBytes,
+		);
+		expect(decideEnvironmentRegistryCreate(document, requested)).toEqual({
+			kind: 'rejected',
+			reason: 'capacity',
+		});
 		expect(document.environments.length).toBeLessThan(
 			DESKTOP_ENVIRONMENT_REGISTRY_LIMITS.maximumEnvironmentCount,
 		);

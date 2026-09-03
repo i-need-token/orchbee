@@ -75,7 +75,7 @@ Agents can launch and control browsers directly from the terminal, inspect pages
 <details>
 <summary>Build and verify from source</summary>
 
-**Prerequisites:** Node.js >=22, Java >=17, Zig 0.16.0, Corepack, Git
+**Prerequisites:** Node.js >=22, Java >=17, Rust 1.97.0 through rustup, Zig 0.16.0, Corepack, Git
 
 ```bash
 git clone https://github.com/orchbee/orchbee.git
@@ -119,6 +119,7 @@ not install it globally or add it to `PATH`.
 - **React** — desktop and web interfaces
 - **TypeScript** — application and shared package code
 - **Node.js** — repository tooling and Electron privileged runtime
+- **Rust** — pinned native application workspace and toolchain
 - **Zig** — native terminal Host runtime
 - **Ghostty VT** — terminal emulation owned by the native Terminal Host
 - **WebGPU** — GPU-accelerated terminal rendering

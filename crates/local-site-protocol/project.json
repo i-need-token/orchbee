@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "local-site-protocol",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Private bounded Rust framing and mutual same-user POSIX peer proof for the concrete local Orchbee Server-Worker handshake.",
+	"nonGoals": [
+		"Owning Server admission state, Worker lifecycle, endpoint selection, listener binding, process supervision, retry, persistence, or discovery.",
+		"Defining Client, Workbench, Terminal Host, PTY, terminal stream, Agent, remote Worker, SSH, TLS, enrollment, or arbitrary-command semantics.",
+		"Providing a public or cross-version compatibility contract, Windows named-pipe transport, remote transport, encryption, or multi-user isolation."
+	]
+}

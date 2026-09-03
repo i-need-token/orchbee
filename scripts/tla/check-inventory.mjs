@@ -107,14 +107,20 @@ if (orphaned.length > 0) {
 }
 
 for (const workspace of workspaces) {
-	const packageJson = JSON.parse(await requireFile(`${workspace}/package.json`));
-	const command = packageJson.scripts?.['test:tla'];
-	if (
-		typeof command !== 'string' ||
-		!command.includes('scripts/tla/run-models.mjs') ||
-		!command.includes(`--workspace ${workspace}`)
-	) {
-		throw new Error(`${workspace}/package.json must delegate test:tla to the shared TLA+ runner`);
+	if (await fileExists(`${workspace}/package.json`)) {
+		const packageJson = JSON.parse(await requireFile(`${workspace}/package.json`));
+		const command = packageJson.scripts?.['test:tla'];
+		if (
+			typeof command !== 'string' ||
+			!command.includes('scripts/tla/run-models.mjs') ||
+			!command.includes(`--workspace ${workspace}`)
+		) {
+			throw new Error(`${workspace}/package.json must delegate test:tla to the shared TLA+ runner`);
+		}
+		continue;
+	}
+	if (!(await fileExists(`${workspace}/Cargo.toml`))) {
+		throw new Error(`${workspace} must provide package.json or Cargo.toml for its TLA+ owner`);
 	}
 }
 

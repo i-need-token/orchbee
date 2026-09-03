@@ -4,22 +4,50 @@
 
 它不会打开套接字或命名管道、生成进程、解析 VT、路由 Electron IPC、渲染终端或拥有终端生命周期、交付、恢复、项目、工作区、工作台、选项卡、面板、代理或产品会话状态。
 
+尚未发布的独立 Rust binding 位于
+[`crates/terminal-protocol`](../../crates/terminal-protocol)，目前镜像完整 message registry、固定
+OBTP transport envelope，以及 `Hello`、`HelloAccepted`、`ProtocolRejected`、`Ping` 和
+`TypedFailure` connection-control payload，以及 kind-10 `ListTerminals` request、`TerminalList`
+response、nested inventory fact、现有 kind 12 到 19 的非创建 lifecycle control、kind 20 到 25
+的 attachment control、kind 30 和 31 的 raw `WriteInput`/`InputAccepted` 交换，以及 kind 32 和 33
+的 `ResizeTerminal`/`ResizeAccepted` control 交换，以及 kind 34 到 38 的 semantic `KeyInput`、
+`TextInput`、`MouseInput`、`FocusInput` 与 `PasteInput` request。本 package、其 reference 与
+fixture 仍是唯一 wire authority。该 binding 还覆盖 kind 43 与 44 的双向 `FrameApplied` 和
+`NeedSnapshot` projection-feedback control、kind 47 到 49 的 projection-demand request、
+acceptance 与 blocked event，以及 kind 51 到 54 的 history-demand、change 与 observation
+control。其 row-access control binding 覆盖 kind-45 `ReadRows` request 与 kind-50 `RowsApplied`
+的两个方向；二进制 kind-46 `RowsSnapshot` 仍不属于 Rust binding。它还覆盖 kind 55 到 58 的
+仅 event `TerminalBell`、`TerminalClipboardWriteRequest`、`TerminalMetadataChanged` 与
+`TerminalApplicationSignal` 表示；所有 audible、clipboard、metadata、application-signal 与
+notification effect 仍在 binding 之外。Rust crate 还覆盖 kind 60 到 62 的四种
+`SelectionGesture` request、四种 `SelectionCommand` request，以及全部三种 `SelectionChanged`
+state 的两个合法 role。其 selection-export control binding 覆盖 kind 63、64、66、67 和 68 的
+每个合法方向，其 raw binding 还覆盖 kind-65 `SelectionExportChunk` 的精确 header、route metadata
+与 opaque bounded body。Rust crate 还覆盖 kind 70 到 73 的 terminal-default 与 retained-terminal
+configuration 两组 exchange。它不实现 handshake state、inventory pagination 或 reconciliation、
+terminal creation 或 launch、
+attachment、lifecycle、input、resize、projection-feedback、
+projection-demand、history、row capture 或 anchor、terminal-effect delivery、gesture
+interpretation、selection state 或 export behavior、export-chunk sequencing 或 acknowledgement
+behavior、queue state 或 effect、semantic-input terminal encoding、terminal-default 或
+configuration mutation 与 persistence、terminal output、IPC 或 Worker 行为。
+
 ## 公共 API
 
-| 领域           | 公共契约                                                                                                                                              |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 标识           | 严格非零的 128 位 Host、创建、终端、客户端、附件、关联及终端主题操作标识                                                                              |
-| 兼容性         | 精确校验当前协议 `0.0.23`；拒绝不同版本，不做适配                                                                                                     |
-| 消息注册表     | 当前版本中从每种 kind 到其合法角色、载荷编码及成功响应 kind 的唯一映射                                                                                |
-| 控制           | 由消息 kind 选择的请求编码，以及严格的握手、配置/主题、清单、生命周期/启动 overlay、附件、投影/历史、响铃、剪贴板写入、应用 signal、选择和失败 Schema |
-| 传输           | 有界的 64 字节信封；对于 JSON、输入、终端帧和行窗口，拒绝生产方的角色或编码不匹配                                                                     |
-| 投影           | OBTF 格式 `0.0.3` 与 OBPB 格式 `0.0.2` 缓冲区，提供严格的外部解码以及显式的不可变本地零重打包视图                                                     |
-| 图形           | OBKG 格式 `0.0.2` 的自有解码图像、已解析放置、有符号 z 分层、动画 tick，以及严格的快照/仅放置更新准入                                                 |
-| 历史           | OBRW 格式 `0.0.3` 的渲染/文本行窗口、render-detail 图形快照、稳定原点、已应用锚点及显式淘汰术语                                                       |
-| 选择           | 手势、命令、固定头部分块路由，以及有界且需确认的纯文本导出线协议结构                                                                                  |
-| 输入           | 以 `AttachmentId` 为作用域、由消息 kind 选择的有界原始输入、按键、已提交文本、鼠标、焦点及审核模式粘贴编解码器，以及对应的正数能力修订                |
-| 生命周期线协议 | 互斥的终端阶段、正常退出、运行时失败、遏制及失败结果 Schema                                                                                           |
-| 正确性证据     | 固定种子的编解码器属性测试、畸形输入语料库、生成文件比对及 Zig 一致性测试                                                                             |
+| 领域           | 公共契约                                                                                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 标识           | 严格非零的 128 位 Host、创建、终端、客户端、附件、关联及终端主题操作标识                                                                                      |
+| 兼容性         | 精确校验当前协议 `0.0.23`；拒绝不同版本，不做适配                                                                                                             |
+| 消息注册表     | 当前版本中从每种 kind 到其合法角色、载荷编码及成功响应 kind 的唯一映射                                                                                        |
+| 控制           | 由消息 kind 选择的请求编码，以及严格的握手、配置/主题、清单、生命周期/启动 overlay、附件、投影/历史、响铃、剪贴板写入、元数据、应用 signal、选择和失败 Schema |
+| 传输           | 有界的 64 字节信封；对于 JSON、输入、终端帧和行窗口，拒绝生产方的角色或编码不匹配                                                                             |
+| 投影           | OBTF 格式 `0.0.3` 与 OBPB 格式 `0.0.2` 缓冲区，提供严格的外部解码以及显式的不可变本地零重打包视图                                                             |
+| 图形           | OBKG 格式 `0.0.2` 的自有解码图像、已解析放置、有符号 z 分层、动画 tick，以及严格的快照/仅放置更新准入                                                         |
+| 历史           | OBRW 格式 `0.0.3` 的渲染/文本行窗口、render-detail 图形快照、稳定原点、已应用锚点及显式淘汰术语                                                               |
+| 选择           | 手势、命令、固定头部分块路由，以及有界且需确认的纯文本导出线协议结构                                                                                          |
+| 输入           | 以 `AttachmentId` 为作用域、由消息 kind 选择的有界原始输入、按键、已提交文本、鼠标、焦点及审核模式粘贴编解码器，以及对应的正数能力修订                        |
+| 生命周期线协议 | 互斥的终端阶段、正常退出、运行时失败、遏制及失败结果 Schema                                                                                                   |
+| 正确性证据     | 固定种子的编解码器属性测试、畸形输入语料库、生成文件比对及 Zig 一致性测试                                                                                     |
 
 每个解码器都返回 `ProtocolResult`。格式错误或不受支持的对端输入属于预期失败变体，无需捕获抛出的异常。
 
@@ -100,12 +128,13 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 - `@orchbee/terminal-protocol/fixtures/text-input-v0.0.23.bin`
 - `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.23.bin`
 - `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.23.bin`
+- `@orchbee/terminal-protocol/fixtures/selection-export-chunk-v0.0.23.bin`
 - `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.23.json`
 - `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`
 
-`canonical.json` 只是当前二进制格式的语言无关生成器输入，因此没有兼容版本。`control-conformance-v0.0.23.json` 包含由 Schema 生成的命令、回复、事件、可辨识联合、失败，以及原生类型适配器使用的完整 kind/role/encoding/success-response 契约。`fixtures:generate` 使用构建后的 TypeScript codec 和 Schema 生成这些已跟踪记录、权威 `TerminalFailed` 控制记录、当前 OBTF format-`0.0.3`、OBPB format-`0.0.2`、OBRW format-`0.0.3` 与 OBKG format-`0.0.2` 夹具、其严格一致性语料库，以及帧和行窗口畸形语料库。`test:fixtures` 会拒绝任何缺失或字节已过时的生成输出。每个兼容性夹具都携带其所属线协议或二进制格式的精确语义版本；不使用通配符或仅含主版本号的夹具名。
+`canonical.json` 只是当前二进制格式的语言无关生成器输入，因此没有兼容版本。`control-conformance-v0.0.23.json` 包含由 Schema 生成的命令、回复、事件、可辨识联合、失败，以及原生类型适配器使用的完整 kind/role/encoding/success-response 契约。`fixtures:generate` 使用构建后的 TypeScript codec 和 Schema 生成这些已跟踪记录、权威 `TerminalFailed` 控制记录、protocol-`0.0.23` selection-export-chunk 记录、当前 OBTF format-`0.0.3`、OBPB format-`0.0.2`、OBRW format-`0.0.3` 与 OBKG format-`0.0.2` 夹具、其严格一致性语料库，以及帧和行窗口畸形语料库。`test:fixtures` 会拒绝任何缺失或字节已过时的生成输出。每个兼容性夹具都携带其所属线协议或二进制格式的精确语义版本；不使用通配符或仅含主版本号的夹具名。
 
 `packed-projection-conformance-v0.0.3.json` 是 OBPB format `0.0.2` 与 OBRW format `0.0.3` 的语言无关严格边界判定语料。每个命名用例都保存完整规范字节、负责该用例的严格边界以及依据契约编写的结果；被接受的用例还保存语料 Schema 要求的全部观察值。预期结果不由任一解码器生成。TypeScript 严格解码器会消费每个用例；`apps/terminal-host` 则解析已声明的包导出，把有界 JSON 字节传入 Zig 一致性测试，并通过匹配的原生严格验证器运行每个用例。
 

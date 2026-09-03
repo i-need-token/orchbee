@@ -4,22 +4,53 @@
 
 It does not open sockets or named pipes, spawn processes, parse VT, route Electron IPC, render a terminal, or own terminal lifecycle, delivery, recovery, Project, Workspace, Workbench, Tab, Panel, agent, or product-session state.
 
+The unpublished independent Rust binding at
+[`crates/terminal-protocol`](../../crates/terminal-protocol) currently mirrors the complete message
+registry, fixed OBTP transport envelope, and the `Hello`, `HelloAccepted`, `ProtocolRejected`,
+`Ping`, and `TypedFailure` connection-control payloads, plus the kind-10 `ListTerminals` request,
+`TerminalList` response, nested inventory facts, and the existing non-creation lifecycle controls
+and observations for kinds 12 through 19, attachment controls for kinds 20 through 25, the raw
+`WriteInput`/`InputAccepted` exchange for kinds 30 and 31, and the `ResizeTerminal`/
+`ResizeAccepted` control exchange for kinds 32 and 33, plus the semantic `KeyInput`, `TextInput`,
+`MouseInput`, `FocusInput`, and `PasteInput` requests for kinds 34 through 38. This package, its
+reference, and its fixtures remain the sole wire authority. The binding also covers the
+bidirectional `FrameApplied` and `NeedSnapshot` projection-feedback controls for kinds 43 and 44,
+the projection-demand request, acceptance, and blocked event for kinds 47 through 49, and the
+history-demand, change, and observation controls for kinds 51 through 54. Its row-access control
+binding covers the kind-45 `ReadRows` request and both directions of kind-50 `RowsApplied`; binary
+kind-46 `RowsSnapshot` remains outside the Rust binding. It also covers the event-only
+`TerminalBell`, `TerminalClipboardWriteRequest`, `TerminalMetadataChanged`, and
+`TerminalApplicationSignal` representations for kinds 55 through 58; every audible, clipboard,
+metadata, application-signal, and notification effect remains outside the binding. The Rust crate
+also covers the four `SelectionGesture` requests, four `SelectionCommand` requests, and both legal
+roles of all three `SelectionChanged` states for kinds 60 through 62. Its selection-export control
+binding covers kinds 63, 64, 66, 67, and 68 in every legal direction, and its raw binding covers
+the exact kind-65 `SelectionExportChunk` header, route metadata, and opaque bounded body. The Rust
+crate also covers both terminal-default and retained-terminal configuration exchanges for kinds 70
+through 73. It does not implement handshake state, inventory pagination or reconciliation,
+terminal creation or launch,
+attachment, lifecycle, input, resize, projection-feedback, projection-demand, history, row capture
+or anchor, terminal-effect delivery, gesture interpretation, selection state or export behavior,
+export-chunk sequencing or acknowledgement behavior, queue state or effects, semantic-input
+terminal encoding, terminal-default or configuration mutation and persistence, terminal output,
+IPC, or Worker behavior.
+
 ## Public API
 
-| Area                 | Public contract                                                                                                                                                                                                                   |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity             | Strict non-zero 128-bit host, creation, terminal, client, attachment, correlation, and terminal-theme operation identities                                                                                                        |
-| Compatibility        | Exact current protocol `0.0.23` validation; a different version is rejected rather than adapted                                                                                                                                   |
-| Message registry     | One current-version mapping from every kind to its legal role, payload encoding, and successful response kind                                                                                                                     |
-| Control              | Message-kind-selected request encoding plus strict handshake, configuration/theme, inventory, lifecycle/launch-overlay, attachment, projection/history, bell, clipboard-write, application-signal, selection, and failure schemas |
-| Transport            | A bounded 64-byte envelope that rejects producer-side role or encoding mismatches for JSON, input, terminal frames, and row windows                                                                                               |
-| Projection           | OBTF format `0.0.3` and OBPB format `0.0.2` buffers with strict external decode and an explicit immutable-local zero-repack view                                                                                                  |
-| Graphics             | OBKG format `0.0.2` owned decoded images, resolved placements, signed-z layers, animation ticks, and strict snapshot/placement-update admission                                                                                   |
-| History              | OBRW format `0.0.3` render/text row windows, render-detail graphics snapshots, stable origins, applied anchors, and explicit eviction vocabulary                                                                                  |
-| Selection            | Gesture, command, fixed-header chunk-routing, and bounded acknowledged plain-text-only export wire shapes                                                                                                                         |
-| Input                | Message-kind-selected bounded raw, key, committed-text, mouse, focus, and reviewed-mode paste codecs scoped by `AttachmentId` and its positive capability revision                                                                |
-| Lifecycle wire       | Mutually exclusive terminal phase, normal-exit, runtime-failure, containment, and failed-outcome schemas                                                                                                                          |
-| Correctness evidence | Stable-seed codec properties, malformed corpora, generated-file comparison, and Zig conformance tests                                                                                                                             |
+| Area                 | Public contract                                                                                                                                                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity             | Strict non-zero 128-bit host, creation, terminal, client, attachment, correlation, and terminal-theme operation identities                                                                                                                  |
+| Compatibility        | Exact current protocol `0.0.23` validation; a different version is rejected rather than adapted                                                                                                                                             |
+| Message registry     | One current-version mapping from every kind to its legal role, payload encoding, and successful response kind                                                                                                                               |
+| Control              | Message-kind-selected request encoding plus strict handshake, configuration/theme, inventory, lifecycle/launch-overlay, attachment, projection/history, bell, clipboard-write, metadata, application-signal, selection, and failure schemas |
+| Transport            | A bounded 64-byte envelope that rejects producer-side role or encoding mismatches for JSON, input, terminal frames, and row windows                                                                                                         |
+| Projection           | OBTF format `0.0.3` and OBPB format `0.0.2` buffers with strict external decode and an explicit immutable-local zero-repack view                                                                                                            |
+| Graphics             | OBKG format `0.0.2` owned decoded images, resolved placements, signed-z layers, animation ticks, and strict snapshot/placement-update admission                                                                                             |
+| History              | OBRW format `0.0.3` render/text row windows, render-detail graphics snapshots, stable origins, applied anchors, and explicit eviction vocabulary                                                                                            |
+| Selection            | Gesture, command, fixed-header chunk-routing, and bounded acknowledged plain-text-only export wire shapes                                                                                                                                   |
+| Input                | Message-kind-selected bounded raw, key, committed-text, mouse, focus, and reviewed-mode paste codecs scoped by `AttachmentId` and its positive capability revision                                                                          |
+| Lifecycle wire       | Mutually exclusive terminal phase, normal-exit, runtime-failure, containment, and failed-outcome schemas                                                                                                                                    |
+| Correctness evidence | Stable-seed codec properties, malformed corpora, generated-file comparison, and Zig conformance tests                                                                                                                                       |
 
 Every decoder returns a `ProtocolResult`. Malformed or unsupported peer input is an expected failure variant and never requires catching a thrown exception.
 
@@ -127,12 +158,13 @@ The package explicitly exports:
 - `@orchbee/terminal-protocol/fixtures/text-input-v0.0.23.bin`
 - `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.23.bin`
 - `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.23.bin`
+- `@orchbee/terminal-protocol/fixtures/selection-export-chunk-v0.0.23.bin`
 - `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.23.json`
 - `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`
 
-`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.23.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3`, OBPB format-`0.0.2`, OBRW format-`0.0.3`, and OBKG format-`0.0.2` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
+`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.23.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the protocol-`0.0.23` selection-export-chunk record, the current OBTF format-`0.0.3`, OBPB format-`0.0.2`, OBRW format-`0.0.3`, and OBKG format-`0.0.2` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
 
 `packed-projection-conformance-v0.0.3.json` is the language-neutral strict-boundary oracle for OBPB format `0.0.2` and OBRW format `0.0.3`. Each named case stores complete canonical bytes, its owning strict boundary, and a contract-authored outcome; accepted cases also store all observations required by the corpus schema. Neither decoder generates the expected result. The TypeScript strict decoders consume every case, while `apps/terminal-host` resolves the declared package export, passes the bounded JSON bytes into Zig conformance, and runs every case through the matching native strict validator.
 

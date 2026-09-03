@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = [
+	"apps/orchbee",
+	"apps/orchbee-server",
+	"apps/orchbee-worker",
+	"crates/local-site-protocol",
+	"crates/terminal-protocol",
+	"crates/workbench-protocol",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.97.0"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }

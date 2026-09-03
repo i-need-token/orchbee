@@ -279,7 +279,7 @@ test "root child exit rejects new client input without stopping terminal replies
         .executable = executable,
         .rows = 24,
     });
-    defer runtime.destroy();
+    defer destroyRuntimeWithIdentityRetry(runtime);
 
     closeClientInput(runtime);
     try std.testing.expectError(

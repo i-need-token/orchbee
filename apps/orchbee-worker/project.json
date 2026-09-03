@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "orchbee-worker",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Unshipped private Rust Worker process that authenticates and registers one bounded local same-user POSIX connection with the exact compatible Orchbee Server.",
+	"nonGoals": [
+		"Discovering or activating Server, retrying connections, supervising processes, or owning production service installation, update, rollback, or recovery.",
+		"Connecting to Terminal Host, creating a PTY, resolving a shell or working directory, launching arbitrary commands, or owning terminal state and history.",
+		"Owning Client sessions, product state, Project, Environment, Checkout, Worktree, Agent, Files, Git, SSH, remote enrollment, scheduling, or durable state."
+	]
+}

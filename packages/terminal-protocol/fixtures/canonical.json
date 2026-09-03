@@ -303,6 +303,13 @@
 		"capabilityRevision": "7",
 		"text": "line 1\nline 2"
 	},
+	"selectionExportChunk": {
+		"attachmentId": "22222222222222222222222222222222",
+		"bytesBase64": "AP+AYQ==",
+		"chunkSequence": 16909060,
+		"exportSequence": "72623859790382856",
+		"final": true
+	},
 	"textInput": {
 		"attachmentId": "22222222222222222222222222222222",
 		"capabilityRevision": "7",

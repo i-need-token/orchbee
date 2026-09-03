@@ -32,6 +32,7 @@
 		"./fixtures/mouse-input-v0.0.23.bin": "./fixtures/mouse-input-v0.0.23.bin",
 		"./fixtures/packed-projection-conformance-v0.0.3.json": "./fixtures/packed-projection-conformance-v0.0.3.json",
 		"./fixtures/paste-input-v0.0.23.bin": "./fixtures/paste-input-v0.0.23.bin",
+		"./fixtures/selection-export-chunk-v0.0.23.bin": "./fixtures/selection-export-chunk-v0.0.23.bin",
 		"./fixtures/terminal-frame-v0.0.3.bin": "./fixtures/terminal-frame-v0.0.3.bin",
 		"./fixtures/terminal-failed-v0.0.23.json": "./fixtures/terminal-failed-v0.0.23.json",
 		"./fixtures/terminal-projection-buffer-v0.0.2.bin": "./fixtures/terminal-projection-buffer-v0.0.2.bin",

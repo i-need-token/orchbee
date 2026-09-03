@@ -3,10 +3,10 @@
 	"domain": "workbench-client-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Strict transport-neutral data contracts for a Workbench page client session, terminal projection control, and projected terminal attachment stream.",
+	"responsibility": "Strict transport-neutral data contracts for a Workbench page client session, the independent TypeScript binding and pure delta refinement for the language-neutral version-1 read-only Workbench projection contract, terminal projection control, and the projected terminal attachment stream.",
 	"nonGoals": [
 		"Owning Electron, Browser, Gateway, network, authentication, IPC, transport lifecycle, renderer, or UI implementations.",
-		"Owning Workbench document, TerminalPresentation, PTY, VT, terminal process, persistence, or product-interface semantics.",
+		"Owning current Workbench document persistence or transitions, legacy TerminalPresentation behavior, PTY, VT, terminal process, persistence, or product-interface rendering.",
 		"Providing application-lifetime control, network framing, compatibility aliases, or arbitrary message transport."
 	]
 }

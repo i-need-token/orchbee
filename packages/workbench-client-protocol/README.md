@@ -6,6 +6,15 @@ Strict, runtime-neutral data contracts for one Orchbee Workbench page client.
 
 The package owns validated messages for a shared Workbench client session, terminal projection control, and the projected attachment stream opened for one visible terminal viewport. Electron, ordinary Browser pages, and future mobile clients may carry these messages through different transports without changing their Workbench-client meaning.
 
+The package also supplies the independent TypeScript binding for the additive version-1 read-only
+Workbench projection kernel. The language-neutral authority and canonical conformance corpus live
+under [`schemas/workbench`](../../schemas/workbench/README.md). The binding parses one strict
+`workbench.snapshot.read` intent, complete bounded snapshots, and revision-chained aggregate deltas;
+`applyWorkbenchDelta` applies a delta atomically or returns one typed recovery reason. This contract
+contains Project, Workspace, Tab, Panel, and Terminal Presentation product semantics, but excludes
+Environment, Directory, Worktree, Agent, Launch Profile, terminal content, persistence, transport,
+and every Client-local view fact. No current client-session consumer uses this new contract yet.
+
 Every `terminal-projection-open-requested` command carries one complete positive
 `TerminalGeometry`. It is the caller's measured mounted geometry for a visual surface, not an
 optional resize hint or fallback. Request identity therefore includes presentation identity and
@@ -57,7 +66,7 @@ settles, and leaves the shared control transport and unrelated requests availabl
 transferred port, conflicting identity, or duplicate open remains invalid control traffic and retires
 the affected control transport.
 
-It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, Gateway, authentication, PTY, or VT implementation. Workbench and TerminalPresentation semantics remain with `@orchbee/workbench`; Terminal Host wire semantics remain with `@orchbee/terminal-protocol`.
+It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, Gateway, authentication, PTY, or VT implementation. Current shared-document and legacy TerminalPresentation semantics remain with `@orchbee/workbench` until their accepted migration; the additive version-1 projection semantics come from the language-neutral schema authority. Terminal Host wire semantics remain with `@orchbee/terminal-protocol`.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.
 

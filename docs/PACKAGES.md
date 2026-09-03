@@ -2,14 +2,14 @@
 
 ## Scope and classification
 
-- Put reusable code in `packages/*` when it has a workspace consumer or is intentionally developed as an independently consumable public library.
+- Put reusable JavaScript or TypeScript code in `packages/*` when it has a workspace consumer or is intentionally developed as an independently consumable public library. Reusable Rust libraries follow [`docs/RUST.md`](RUST.md) and live under `crates/*`.
 - Keep application-specific code under that application's `src` tree until a package boundary has a concrete consumer.
 - Place frontend product UI and platform adapters according to [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md).
 - Treat every runtime package under `packages/*` as a library package. Library packages use Rslib and expose built artifacts. Production consumers use those artifacts; repository applications may compile declared public source entries during development according to the workspace-development contract.
 - Set `"private": true` on workspace-only libraries. A package intended for npm publication omits `private` and must include a version, `"publishConfig": { "access": "public" }`, a package README, license metadata once the project license is selected, and a `files` allowlist.
 - Declare every package's responsibility, non-goals, runtime, and stability in its schema-backed `project.json` according to [`docs/PROJECTS.md`](PROJECTS.md).
 
-Repository-only scripts and application entry points are not library packages and do not belong under `packages/*`.
+Repository-only scripts, Cargo crates, and application entry points are not npm library packages and do not belong under `packages/*`.
 
 ## Naming
 

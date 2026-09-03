@@ -38,7 +38,8 @@
 `orchbee/module-boundaries` 只管理 TypeScript 和 TSX 导入。原生应用通过其固定的原生构建图声明
 可执行和可导入模块根，绝不添加占位 `index.ts`。原生工作区在增长到一个以上源码模块前，其所有者
 必须在已接受的所属本地权威中定义语言专属的可见性和横向导入契约；仅凭相对路径可达性不能让另一棵
-原生子树成为公共边界。
+原生子树成为公共边界。Rust crate 和 module 可见性遵循 [`docs/RUST.md`](RUST.md#模块和可见性)；
+Zig 可见性遵循 [`docs/ZIG.md`](ZIG.md#命名和模块)。
 
 ## 结构化组件分组
 

@@ -16,6 +16,7 @@ import {
 	encodeControlRequest,
 	encodeInputRequest,
 	encodeProtocolEnvelope,
+	encodeSelectionExportChunk,
 	encodeTerminalProjectionBuffer,
 	encodeTerminalRowWindow,
 	encodeTerminalFrame,
@@ -84,6 +85,10 @@ const textInputPath = path.join(fixturesDirectory, `text-input-v${protocolVersio
 const mouseInputPath = path.join(fixturesDirectory, `mouse-input-v${protocolVersion}.bin`);
 const focusInputPath = path.join(fixturesDirectory, `focus-input-v${protocolVersion}.bin`);
 const pasteInputPath = path.join(fixturesDirectory, `paste-input-v${protocolVersion}.bin`);
+const selectionExportChunkPath = path.join(
+	fixturesDirectory,
+	`selection-export-chunk-v${protocolVersion}.bin`,
+);
 const terminalFailedPath = path.join(fixturesDirectory, `terminal-failed-v${protocolVersion}.json`);
 const controlConformancePath = path.join(
 	fixturesDirectory,
@@ -1780,6 +1785,16 @@ const pasteInputBytes = encodeOrThrow(
 	encodeInputRequest(MessageKind.pasteInput, canonical.pasteInput),
 	'paste input',
 );
+const selectionExportChunkBytes = encodeOrThrow(
+	encodeSelectionExportChunk({
+		attachmentId: canonical.selectionExportChunk.attachmentId,
+		bytes: bytesFromBase64(canonical.selectionExportChunk.bytesBase64),
+		chunkSequence: canonical.selectionExportChunk.chunkSequence,
+		exportSequence: BigInt(canonical.selectionExportChunk.exportSequence),
+		final: canonical.selectionExportChunk.final,
+	}),
+	'selection export chunk',
+);
 const terminalFailedBytes = new TextEncoder().encode(
 	`${JSON.stringify(TerminalFailedSchema.parse(canonical.terminalFailed), null, '\t')}\n`,
 );
@@ -1816,6 +1831,7 @@ if (checkOnly) {
 	await compareFile(mouseInputPath, mouseInputBytes);
 	await compareFile(focusInputPath, focusInputBytes);
 	await compareFile(pasteInputPath, pasteInputBytes);
+	await compareFile(selectionExportChunkPath, selectionExportChunkBytes);
 	await compareFile(terminalFailedPath, terminalFailedBytes);
 	await compareFile(controlConformancePath, controlConformanceBytes);
 	await compareFile(utf8BomConformancePath, utf8BomConformanceBytes);
@@ -1833,6 +1849,7 @@ if (checkOnly) {
 	await writeFile(mouseInputPath, mouseInputBytes);
 	await writeFile(focusInputPath, focusInputBytes);
 	await writeFile(pasteInputPath, pasteInputBytes);
+	await writeFile(selectionExportChunkPath, selectionExportChunkBytes);
 	await writeFile(terminalFailedPath, terminalFailedBytes);
 	await writeFile(controlConformancePath, controlConformanceBytes);
 	await writeFile(utf8BomConformancePath, utf8BomConformanceBytes);
