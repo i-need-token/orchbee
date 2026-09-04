@@ -1,0 +1,60 @@
+{
+	"schemaVersion": 1,
+	"terminalFrameFormat": "0.0.3",
+	"cases": [
+		{
+			"name": "rejected-recovery-snapshot-after-gap",
+			"operation": "malformed-snapshot-body",
+			"initialSequence": "6",
+			"initialRevision": "41",
+			"inputSequence": "9",
+			"inputRevision": "43",
+			"expectedKind": "snapshot-required",
+			"expectedReason": "decoder-rejected",
+			"expectedSequence": "9"
+		},
+		{
+			"name": "uninspectable-fixed-header",
+			"operation": "truncate-fixed-header",
+			"initialSequence": "6",
+			"initialRevision": "41",
+			"inputSequence": "9",
+			"inputRevision": "43",
+			"expectedKind": "connection-terminal",
+			"expectedReason": "truncated"
+		},
+		{
+			"name": "maximum-sequence-body-rejection",
+			"operation": "malformed-snapshot-body",
+			"initialSequence": "18446744073709551615",
+			"initialRevision": "18446744073709551615",
+			"inputSequence": "18446744073709551615",
+			"inputRevision": "18446744073709551615",
+			"expectedKind": "snapshot-required",
+			"expectedReason": "decoder-rejected",
+			"expectedSequence": "18446744073709551615"
+		},
+		{
+			"name": "cell-pixel-width-continuity",
+			"operation": "increment-cell-pixel-width",
+			"initialSequence": "6",
+			"initialRevision": "41",
+			"inputSequence": "7",
+			"inputRevision": "42",
+			"expectedKind": "snapshot-required",
+			"expectedReason": "dimensions-mismatch",
+			"expectedSequence": "7"
+		},
+		{
+			"name": "cell-pixel-height-continuity",
+			"operation": "increment-cell-pixel-height",
+			"initialSequence": "6",
+			"initialRevision": "41",
+			"inputSequence": "7",
+			"inputRevision": "42",
+			"expectedKind": "snapshot-required",
+			"expectedReason": "dimensions-mismatch",
+			"expectedSequence": "7"
+		}
+	]
+}

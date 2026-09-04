@@ -746,6 +746,9 @@ importers:
       '@webgpu/types':
         specifier: ^0.1.71
         version: 0.1.71
+      fast-check:
+        specifier: 4.9.0
+        version: 4.9.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))

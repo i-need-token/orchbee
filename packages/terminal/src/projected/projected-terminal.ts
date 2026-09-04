@@ -606,6 +606,7 @@ export interface ProjectedTerminalFrameTelemetry extends RendererFrameTelemetry 
 
 export type ProjectedFrameResult =
 	| 'committed'
+	| 'connection-terminal'
 	| 'disposed'
 	| 'duplicate'
 	| 'snapshot-required'
@@ -1051,6 +1052,7 @@ export class ProjectedTerminal {
 	#openingPresentationSnapshot: ProjectedTerminalPresentationSnapshot | undefined;
 	#pendingExit: TerminalExited | undefined;
 	#latestExitFinalRevision: bigint | undefined;
+	#frameConnectionTerminal = false;
 	#terminalControlSealed = false;
 	#themePresentationStage: ThemePresentationStage | undefined;
 	#trimTrailingBlankRows: boolean;
@@ -1674,6 +1676,7 @@ export class ProjectedTerminal {
 
 	applyFrame(frame: ArrayBuffer | Uint8Array): ProjectedFrameResult {
 		if (this.#isDisposed()) return 'disposed';
+		if (this.#frameConnectionTerminal) return 'connection-terminal';
 		const stage = this.#themePresentationStage;
 		const targetStore = stage?.store ?? this.#store;
 		const previousGeneration = this.#historyGeneration;
@@ -1683,18 +1686,18 @@ export class ProjectedTerminal {
 		try {
 			result = targetStore.apply(bytes);
 		} catch (error) {
-			this.#errorEmitter.fire({ error, operation: 'frame' });
-			this.#send({
-				kind: 'need-snapshot',
-				payload: {
-					attachmentId: this.#attachmentId,
-					reason: 'decoder-rejected',
-					sequence: CanonicalUint64TextSchema.parse('1'),
-				},
-			});
-			return 'snapshot-required';
+			this.#enterFrameConnectionTerminal(stage, error);
+			return 'connection-terminal';
 		}
 		if (result.kind === 'disposed') return 'disposed';
+		if (result.kind === 'connection-terminal') {
+			const detail =
+				result.reason.kind === 'protocol'
+					? `${result.reason.failure.code}: ${result.reason.failure.detail}`
+					: `presentation-${result.reason.limit} ${result.reason.actual} exceeds ${result.reason.maximum}`;
+			this.#enterFrameConnectionTerminal(stage, new Error(detail));
+			return 'connection-terminal';
+		}
 		if (result.kind === 'snapshot-required') {
 			this.#sendCloseActivityBarrierSnapshotRequest(result.request);
 			return 'snapshot-required';
@@ -1742,6 +1745,14 @@ export class ProjectedTerminal {
 		this.#send({ kind: 'frame-applied', payload: result.acknowledgement });
 		this.#finalizeExitIfCaughtUp();
 		return result.kind;
+	}
+
+	#enterFrameConnectionTerminal(stage: ThemePresentationStage | undefined, error: unknown): void {
+		this.#frameConnectionTerminal = true;
+		if (stage !== undefined && this.#themePresentationStage === stage) {
+			this.#failThemePresentationStage(stage, 'frame-connection-terminal', false);
+		}
+		this.#errorEmitter.fire({ error, operation: 'frame' });
 	}
 
 	setProjectionDemand(demand: ProjectionDemand): void {

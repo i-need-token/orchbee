@@ -358,20 +358,20 @@
 			"zhCnSha256": "e4ee56945df135b88c770c28d81bc7968742448ceabc43304ce8a5b8b771fa4d"
 		},
 		"packages/terminal-protocol/README.md": {
-			"englishSha256": "26f1265fce3ee8d269629db12c6f2433307fa53299dd184f8bc23297e77bb103",
-			"zhCnSha256": "3390ecea03a24254bfc400d51e5b7450b8075c07dad320547faf795342ccf7e7"
+			"englishSha256": "f24bd4014fc8f4b85005368fd6692018195e707384ba4f4e1d42e9581c7f0aa6",
+			"zhCnSha256": "68a50bfbda2e787f0638c7c2dc2f1691468e899b36d78131f0add27f7424ff7e"
 		},
 		"packages/terminal-protocol/docs/version-history.md": {
 			"englishSha256": "2bba59a9211c636b05f5d1a25a88d006db121b4422ef7baa1c1a309fc9ae7997",
 			"zhCnSha256": "359b412a19f9a7d8852cf6ef0b3ab21cf5c4eea1ab22127c688a13b9146b34a7"
 		},
 		"packages/terminal-protocol/references/protocol.md": {
-			"englishSha256": "f54858808cbb72b182bd0f2fd5a70b60f1111af91c835f654429a99cbb38a933",
-			"zhCnSha256": "f43b7f0c9374a28086f232f3ab5c68af26e0d08ee8dbafdcd22204b77ed073c4"
+			"englishSha256": "b6471494c5c0e9c88de54a982e53275d191a42ca4bc5f9232c8982904f4a7aea",
+			"zhCnSha256": "23a3cbe182548f429bbf0d2ca7b758176c21de014d12f283046a697ab84c18a1"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "7f67b699acd8400225c50c46efcd09008eeae6b4169e221d6bcad1e789ea9c2f",
-			"zhCnSha256": "3ce36d6d28cb225b31fd42a83561b2c65f31396ba321492161c7a56e890143a8"
+			"englishSha256": "0ed3aa03c610fc9dd9f20a93916095ed0ab01aa6227b46902a27dc59ecd7e627",
+			"zhCnSha256": "8de68b1a3bcd79de9ab59f095dfac26ca6583a69b5d1279d99c969349d152d9e"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "8598488d8854fd01091f61f3d80870362284aba3003d7b9b41426be1c08e3405",

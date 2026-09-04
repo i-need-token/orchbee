@@ -3,6 +3,8 @@ import {
 	CanonicalUint64TextSchema,
 	FrameAppliedSchema,
 	inspectTerminalFrameHeader,
+	PROTOCOL_LIMITS,
+	ProtocolErrorCode,
 	TerminalCellWidthCode,
 	TerminalCloseActivityCode,
 	TerminalFrameExtensionKind,
@@ -17,6 +19,7 @@ import {
 	type HostEpoch,
 	type InspectedTerminalFrameHeader,
 	type NeedSnapshot,
+	type ProtocolFailure,
 	type TerminalInteraction,
 	type TerminalGraphics,
 	type TerminalGraphicsImage,
@@ -32,6 +35,7 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 
 export const ProjectedStorePhase = {
+	connectionTerminal: 'connection-terminal',
 	disposed: 'disposed',
 	empty: 'empty',
 	snapshotRequired: 'snapshot-required',
@@ -49,8 +53,20 @@ export type ProjectedFrameApplyResult =
 			readonly acknowledgement: ProjectedFrameAcknowledgement;
 			readonly kind: 'committed' | 'duplicate';
 	  }
+	| { readonly kind: 'connection-terminal'; readonly reason: ProjectedFrameConnectionTerminal }
 	| { readonly kind: 'snapshot-required'; readonly request: NeedSnapshot }
 	| { readonly kind: 'disposed' };
+
+export type ProjectedFrameConnectionTerminal =
+	| { readonly failure: ProtocolFailure; readonly kind: 'protocol' }
+	| {
+			readonly actual: number;
+			readonly kind: 'presentation-limit-exceeded';
+			readonly limit: 'aggregate-bytes' | 'strings' | 'styles';
+			readonly maximum: number;
+	  };
+
+export const MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES = PROTOCOL_LIMITS.maxFrameBytes;
 
 export type ProjectedSnapshotReplaceResult =
 	| {
@@ -328,6 +344,7 @@ class PackedTerminalPresentationRow implements PackedRendererRow {
 }
 
 interface PackedGrid {
+	readonly backings: PackedTerminalRowBacking[];
 	readonly directByteLength?: number;
 	readonly rows: readonly PackedTerminalRowView[];
 }
@@ -633,6 +650,254 @@ function closeActivityFromExtensions(
 	}
 }
 
+function candidateRowsHaveValidTopology(rows: readonly PackedTerminalRowBacking[]): boolean {
+	for (let index = 1; index < rows.length; index += 1) {
+		const previous = rows[index - 1];
+		const next = rows[index];
+		if (previous === undefined || next === undefined) return false;
+		if ((previous.rowFlags & 0x01) !== (next.rowFlags & 0x02) >> 1) return false;
+		if (
+			previous.widths.at(-1) === TerminalCellWidthCode.spacerHead &&
+			next.widths[0] !== TerminalCellWidthCode.wide
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+interface RetainedPresentationBudget {
+	aggregateBytes: number;
+	encodedBytes: number;
+	readonly strings: Map<string, number>;
+	readonly styles: Map<string, number>;
+}
+
+function createRetainedPresentationBudget(
+	metadata: ProjectedTerminalMetadata,
+	rows: readonly PackedTerminalRowBacking[],
+	graphics: ProjectedTerminalGraphics,
+): RetainedPresentationBudget {
+	const cellCount = rows.reduce((total, row) => total + row.widths.length, 0);
+	const directBytes =
+		160 +
+		rows.length * 8 +
+		cellCount * 8 +
+		metadataExtensionBytes(metadata) +
+		graphicsSnapshotEncodedBytes(graphics);
+	const budget: RetainedPresentationBudget = {
+		aggregateBytes: directBytes,
+		encodedBytes: directBytes,
+		strings: new Map(),
+		styles: new Map(),
+	};
+	addBudgetMetadata(budget, metadata);
+	for (const row of rows) addBudgetRow(budget, row);
+	return budget;
+}
+
+function validateRetainedPresentationBudget(
+	budget: RetainedPresentationBudget,
+): ProjectedFrameConnectionTerminal | null {
+	if (budget.strings.size > PROTOCOL_LIMITS.maxFrameStrings) {
+		return {
+			actual: budget.strings.size,
+			kind: 'presentation-limit-exceeded',
+			limit: 'strings',
+			maximum: PROTOCOL_LIMITS.maxFrameStrings,
+		};
+	}
+	if (budget.styles.size > PROTOCOL_LIMITS.maxFrameStyles) {
+		return {
+			actual: budget.styles.size,
+			kind: 'presentation-limit-exceeded',
+			limit: 'styles',
+			maximum: PROTOCOL_LIMITS.maxFrameStyles,
+		};
+	}
+	const byteCharge = Math.max(budget.aggregateBytes, budget.encodedBytes);
+	if (byteCharge > MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES) {
+		return {
+			actual: byteCharge,
+			kind: 'presentation-limit-exceeded',
+			limit: 'aggregate-bytes',
+			maximum: MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES,
+		};
+	}
+	return null;
+}
+
+function cloneRetainedPresentationBudget(
+	budget: RetainedPresentationBudget,
+): RetainedPresentationBudget {
+	return {
+		aggregateBytes: budget.aggregateBytes,
+		encodedBytes: budget.encodedBytes,
+		strings: new Map(budget.strings),
+		styles: new Map(budget.styles),
+	};
+}
+
+function replaceBudgetMetadata(
+	budget: RetainedPresentationBudget,
+	previous: ProjectedTerminalMetadata,
+	replacement: ProjectedTerminalMetadata,
+): void {
+	removeBudgetOptionalString(budget, previous.title);
+	removeBudgetOptionalString(budget, previous.currentDirectory);
+	addBudgetMetadata(budget, replacement);
+	const directDifference = metadataExtensionBytes(replacement) - metadataExtensionBytes(previous);
+	budget.aggregateBytes += directDifference;
+	budget.encodedBytes += directDifference;
+}
+
+function replaceBudgetRow(
+	budget: RetainedPresentationBudget,
+	previous: PackedTerminalRowBacking,
+	replacement: PackedTerminalRowBacking,
+): void {
+	removeBudgetRow(budget, previous);
+	addBudgetRow(budget, replacement);
+}
+
+function replaceBudgetGraphics(
+	budget: RetainedPresentationBudget,
+	previous: ProjectedTerminalGraphics,
+	replacement: ProjectedTerminalGraphics,
+): void {
+	const directDifference =
+		graphicsSnapshotEncodedBytes(replacement) - graphicsSnapshotEncodedBytes(previous);
+	budget.aggregateBytes += directDifference;
+	budget.encodedBytes += directDifference;
+}
+
+function addBudgetMetadata(
+	budget: RetainedPresentationBudget,
+	metadata: ProjectedTerminalMetadata,
+): void {
+	addBudgetOptionalString(budget, metadata.title);
+	addBudgetOptionalString(budget, metadata.currentDirectory);
+}
+
+function addBudgetRow(budget: RetainedPresentationBudget, row: PackedTerminalRowBacking): void {
+	for (let column = 0; column < row.widths.length; column += 1) {
+		const grapheme = decodeRowString(row, row.graphemeOffsets, row.graphemeLengths, column);
+		addBudgetString(budget, grapheme);
+		const hyperlink = budgetRowHyperlink(row, column);
+		addBudgetOptionalString(budget, hyperlink);
+		addBudgetStyle(budget, budgetRowStyleKey(row, column, hyperlink));
+	}
+}
+
+function removeBudgetRow(budget: RetainedPresentationBudget, row: PackedTerminalRowBacking): void {
+	for (let column = 0; column < row.widths.length; column += 1) {
+		const grapheme = decodeRowString(row, row.graphemeOffsets, row.graphemeLengths, column);
+		removeBudgetString(budget, grapheme);
+		const hyperlink = budgetRowHyperlink(row, column);
+		removeBudgetOptionalString(budget, hyperlink);
+		removeBudgetStyle(budget, budgetRowStyleKey(row, column, hyperlink));
+	}
+}
+
+function budgetRowHyperlink(row: PackedTerminalRowBacking, column: number): string | null {
+	const hyperlinkOffset = row.hyperlinkOffsets[column];
+	return hyperlinkOffset === undefined || hyperlinkOffset === NO_STRING_OFFSET
+		? null
+		: decodeRowString(row, row.hyperlinkOffsets, row.hyperlinkLengths, column);
+}
+
+function budgetRowStyleKey(
+	row: PackedTerminalRowBacking,
+	column: number,
+	hyperlink: string | null,
+): string {
+	return JSON.stringify([
+		row.foregroundColors[column] ?? 0,
+		row.backgroundColors[column] ?? 0,
+		row.underlineColors[column] ?? 0,
+		row.styleFlags[column] ?? 0,
+		row.underlineKinds[column] ?? 0,
+		hyperlink,
+	]);
+}
+
+function addBudgetOptionalString(budget: RetainedPresentationBudget, value: string | null): void {
+	if (value !== null) addBudgetString(budget, value);
+}
+
+function removeBudgetOptionalString(
+	budget: RetainedPresentationBudget,
+	value: string | null,
+): void {
+	if (value !== null) removeBudgetString(budget, value);
+}
+
+function addBudgetString(budget: RetainedPresentationBudget, value: string): void {
+	const occurrenceBytes = 4 + textEncoder.encode(value).byteLength;
+	budget.aggregateBytes += occurrenceBytes;
+	const count = budget.strings.get(value) ?? 0;
+	if (count === 0) budget.encodedBytes += occurrenceBytes;
+	budget.strings.set(value, count + 1);
+}
+
+function removeBudgetString(budget: RetainedPresentationBudget, value: string): void {
+	const count = budget.strings.get(value);
+	if (count === undefined || count < 1) throw new Error('Retained string budget is inconsistent');
+	const occurrenceBytes = 4 + textEncoder.encode(value).byteLength;
+	budget.aggregateBytes -= occurrenceBytes;
+	if (count === 1) {
+		budget.strings.delete(value);
+		budget.encodedBytes -= occurrenceBytes;
+		return;
+	}
+	budget.strings.set(value, count - 1);
+}
+
+function addBudgetStyle(budget: RetainedPresentationBudget, value: string): void {
+	budget.aggregateBytes += 20;
+	const count = budget.styles.get(value) ?? 0;
+	if (count === 0) budget.encodedBytes += 20;
+	budget.styles.set(value, count + 1);
+}
+
+function removeBudgetStyle(budget: RetainedPresentationBudget, value: string): void {
+	const count = budget.styles.get(value);
+	if (count === undefined || count < 1) throw new Error('Retained style budget is inconsistent');
+	budget.aggregateBytes -= 20;
+	if (count === 1) {
+		budget.styles.delete(value);
+		budget.encodedBytes -= 20;
+		return;
+	}
+	budget.styles.set(value, count - 1);
+}
+
+function metadataExtensionBytes(metadata: ProjectedTerminalMetadata): number {
+	return (
+		(metadata.closeActivity === 'unknown' ? 0 : 8 + 1) +
+		(metadata.progress.state === 'remove' && metadata.progress.value === null ? 0 : 8 + 2) +
+		(metadata.commandCompletion === null ? 0 : 8 + 25)
+	);
+}
+
+function graphicsSnapshotEncodedBytes(graphics: ProjectedTerminalGraphics): number {
+	if (
+		graphics.resourceRevision === 0n &&
+		graphics.animationTick === 0n &&
+		graphics.images.size === 0 &&
+		graphics.placements.length === 0
+	) {
+		return 0;
+	}
+	return (
+		8 +
+		40 +
+		graphics.images.size * 32 +
+		graphicsByteLength(graphics) +
+		graphics.placements.length * 56
+	);
+}
+
 function acknowledgement(
 	frame: DecodedTerminalFrame | DecodedTerminalProjectionBuffer | InspectedTerminalFrameHeader,
 ): ProjectedFrameAcknowledgement {
@@ -645,6 +910,8 @@ function acknowledgement(
 }
 
 export class PackedTerminalStore {
+	#budget: RetainedPresentationBudget | null = null;
+	#connectionTerminal: ProjectedFrameConnectionTerminal | null = null;
 	#fullRedraw = false;
 	#graphics: ProjectedTerminalGraphics = EMPTY_TERMINAL_GRAPHICS;
 	#grid: PackedGrid | null = null;
@@ -686,6 +953,16 @@ export class PackedTerminalStore {
 		);
 	}
 
+	/** Canonical OBTF Snapshot bytes required to encode the retained presentation. */
+	get retainedSnapshotBytes(): number {
+		return this.#budget?.encodedBytes ?? 0;
+	}
+
+	/** Conservative aggregate charge for every retained presentation value occurrence. */
+	get retainedAggregateBytes(): number {
+		return this.#budget?.aggregateBytes ?? 0;
+	}
+
 	get lastFrameKind(): string | null {
 		return this.#lastCommit?.kind ?? null;
 	}
@@ -706,32 +983,43 @@ export class PackedTerminalStore {
 
 	apply(bytes: Uint8Array): ProjectedFrameApplyResult {
 		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
+		if (this.#connectionTerminal !== null) {
+			return { kind: 'connection-terminal', reason: this.#connectionTerminal };
+		}
 		const inspected = inspectTerminalFrameHeader(bytes);
-		if (!inspected.ok) return this.#requireSnapshot('decoder-rejected', this.#expectedSequence());
+		if (!inspected.ok) return this.#terminateConnection({ failure: inspected, kind: 'protocol' });
 		const header = inspected.value;
 		if (header.hostEpoch !== this.hostEpoch || header.attachmentId !== this.attachmentId) {
-			return this.#requireSnapshot('identity-mismatch', header.sequence);
+			return this.#terminateConnection({
+				failure: {
+					code: ProtocolErrorCode.invalidIdentifier,
+					detail: 'Terminal frame header cannot be associated with this presentation store',
+					ok: false,
+				},
+				kind: 'protocol',
+			});
 		}
-		if (this.#lastCommit && header.sequence === this.#lastCommit.sequence) {
-			if (
-				header.revision === this.#lastCommit.revision &&
-				header.generation === this.#lastCommit.generation &&
-				header.baseRevision === this.#lastCommit.baseRevision &&
-				header.kind === this.#lastCommit.kind &&
-				header.themeRevision === this.#lastCommit.themeRevision
-			) {
-				return { acknowledgement: acknowledgement(header), kind: 'duplicate' };
-			}
-			return this.#requireSnapshot('sequence-gap', header.sequence);
-		}
-
 		const decoded = decodeTerminalFrame(bytes);
-		if (!decoded.ok) return this.#requireSnapshot('decoder-rejected', this.#expectedSequence());
+		if (!decoded.ok) return this.#requireSnapshot('decoder-rejected', header.sequence);
 		const frame = decoded.value;
-		const expectedSequence = this.#expectedSequence();
+		if (this.#lastCommit && frame.sequence === this.#lastCommit.sequence) {
+			if (
+				frame.revision === this.#lastCommit.revision &&
+				frame.generation === this.#lastCommit.generation &&
+				frame.baseRevision === this.#lastCommit.baseRevision &&
+				frame.kind === this.#lastCommit.kind &&
+				frame.themeRevision === this.#lastCommit.themeRevision
+			) {
+				return { acknowledgement: acknowledgement(frame), kind: 'duplicate' };
+			}
+			return this.#requireSnapshot('sequence-gap', frame.sequence);
+		}
 		if (
-			(frame.kind === TerminalFrameKind.snapshot && frame.sequence < expectedSequence) ||
-			(frame.kind === TerminalFrameKind.delta && frame.sequence !== expectedSequence)
+			(frame.kind === TerminalFrameKind.snapshot &&
+				this.#lastCommit !== null &&
+				frame.sequence <= this.#lastCommit.sequence) ||
+			(frame.kind === TerminalFrameKind.delta &&
+				(frame.sequence === 0n || frame.sequence - 1n !== (this.#lastCommit?.sequence ?? 0n)))
 		) {
 			return this.#requireSnapshot('sequence-gap', frame.sequence);
 		}
@@ -742,26 +1030,49 @@ export class PackedTerminalStore {
 			}
 			const buildContext = createPackedFrameBuildContext(frame, false);
 			const stagedGraphics = graphicsFromSnapshot(frame.graphics);
+			const stagedBackings = Array.from(frame.rowData.indices, (_rowIndex, rowOffset) =>
+				buildRowBacking(frame, rowOffset, buildContext, false),
+			);
 			const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
-				const backing = buildRowBacking(frame, rowOffset, buildContext, false);
+				const backing = stagedBackings[rowOffset];
+				if (backing === undefined) throw new Error('Decoded frame omitted a staged row backing');
 				return new PackedTerminalRowView(rowIndex, backing);
 			});
-			this.#grid = { rows: stagedRows };
+			const stagedMetadata = metadataFromFrame(frame);
+			const budget = createRetainedPresentationBudget(
+				stagedMetadata,
+				stagedBackings,
+				stagedGraphics,
+			);
+			const limit = validateRetainedPresentationBudget(budget);
+			if (limit !== null) return this.#terminateConnection(limit);
+			this.#budget = budget;
+			this.#grid = { backings: stagedBackings, rows: stagedRows };
 			this.#graphics = stagedGraphics;
-			this.#metadata = metadataFromFrame(frame);
+			this.#metadata = stagedMetadata;
 			this.#phase = ProjectedStorePhase.synchronized;
 			this.#fullRedraw = true;
 			this.#recordCommit(frame);
 			return { acknowledgement: acknowledgement(frame), kind: 'committed' };
 		}
 
-		if (this.#phase !== ProjectedStorePhase.synchronized || !this.#grid || !this.#metadata) {
+		if (
+			this.#phase !== ProjectedStorePhase.synchronized ||
+			!this.#grid ||
+			!this.#metadata ||
+			!this.#budget
+		) {
 			return this.#requireSnapshot('store-reset', frame.sequence);
 		}
 		if (frame.generation !== this.#metadata.generation) {
 			return this.#requireSnapshot('generation-mismatch', frame.sequence);
 		}
-		if (frame.columns !== this.#metadata.columns || frame.rows !== this.#metadata.rows) {
+		if (
+			frame.columns !== this.#metadata.columns ||
+			frame.rows !== this.#metadata.rows ||
+			frame.cellPixelWidth !== this.#metadata.cellPixelWidth ||
+			frame.cellPixelHeight !== this.#metadata.cellPixelHeight
+		) {
 			return this.#requireSnapshot('dimensions-mismatch', frame.sequence);
 		}
 		if (frame.activeScreen !== this.#metadata.activeScreen) {
@@ -780,25 +1091,48 @@ export class PackedTerminalStore {
 			backing: buildRowBacking(frame, rowOffset, buildContext, false),
 			rowIndex,
 		}));
+		const candidateBackings = [...this.#grid.backings];
 		const replacements = staged.map((replacement) => {
 			const row = this.#grid?.rows[replacement.rowIndex];
-			return row === undefined ? null : { backing: replacement.backing, row };
+			if (row === undefined || candidateBackings[replacement.rowIndex] === undefined) return null;
+			candidateBackings[replacement.rowIndex] = replacement.backing;
+			return { backing: replacement.backing, row, rowIndex: replacement.rowIndex };
 		});
 		if (replacements.some((replacement) => replacement === null)) {
 			return this.#requireSnapshot('dimensions-mismatch', frame.sequence);
 		}
+		if (!candidateRowsHaveValidTopology(candidateBackings)) {
+			return this.#requireSnapshot('base-mismatch', frame.sequence);
+		}
+		const stagedMetadata = metadataFromFrame(frame);
+		const budget = cloneRetainedPresentationBudget(this.#budget);
+		replaceBudgetMetadata(budget, this.#metadata, stagedMetadata);
+		for (const replacement of replacements) {
+			if (replacement === null) return this.#requireSnapshot('dimensions-mismatch', frame.sequence);
+			const previous = this.#grid.backings[replacement.rowIndex];
+			if (previous === undefined) {
+				return this.#requireSnapshot('dimensions-mismatch', frame.sequence);
+			}
+			replaceBudgetRow(budget, previous, replacement.backing);
+		}
+		replaceBudgetGraphics(budget, this.#graphics, stagedGraphics);
+		const limit = validateRetainedPresentationBudget(budget);
+		if (limit !== null) return this.#terminateConnection(limit);
 		for (const replacement of replacements) {
 			if (replacement === null) return this.#requireSnapshot('dimensions-mismatch', frame.sequence);
 			replacement.row.replace(replacement.backing);
+			this.#grid.backings[replacement.rowIndex] = replacement.backing;
 		}
 		this.#graphics = stagedGraphics;
-		this.#metadata = metadataFromFrame(frame);
+		this.#metadata = stagedMetadata;
+		this.#budget = budget;
 		this.#recordCommit(frame);
 		return { acknowledgement: acknowledgement(frame), kind: 'committed' };
 	}
 
 	replaceSnapshot(bytes: Uint8Array, maximumBytes: number): ProjectedSnapshotReplaceResult {
 		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
+		if (this.#phase === ProjectedStorePhase.connectionTerminal) return { kind: 'invalid' };
 		const decoded = decodeTerminalFrame(bytes);
 		if (!decoded.ok) return { kind: 'invalid' };
 		return this.#replaceSnapshot(decoded.value, maximumBytes, bytes);
@@ -810,6 +1144,7 @@ export class PackedTerminalStore {
 		maximumBytes: number,
 	): ProjectedSnapshotReplaceResult {
 		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
+		if (this.#phase === ProjectedStorePhase.connectionTerminal) return { kind: 'invalid' };
 		return this.#replaceSnapshot(frame, maximumBytes, null);
 	}
 
@@ -820,6 +1155,7 @@ export class PackedTerminalStore {
 		graphics: TerminalGraphics | null = null,
 	): ProjectedSnapshotReplaceResult {
 		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
+		if (this.#phase === ProjectedStorePhase.connectionTerminal) return { kind: 'invalid' };
 		if (
 			frame.kind !== TerminalFrameKind.snapshot ||
 			frame.hostEpoch !== this.hostEpoch ||
@@ -833,10 +1169,10 @@ export class PackedTerminalStore {
 		const stagedGraphics = graphicsFromSnapshot(graphics);
 		const byteLength = frame.bytes.byteLength + graphicsByteLength(stagedGraphics);
 		if (byteLength > maximumBytes) return { kind: 'too-large' };
-		const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
+		const stagedBackings = Array.from(frame.rowData.indices, (_rowIndex, rowOffset) => {
 			const cellOffset = rowOffset * frame.columns;
 			const cellEnd = cellOffset + frame.columns;
-			return new PackedTerminalRowView(rowIndex, {
+			return {
 				backgroundColors: frame.cells.backgroundColors.subarray(cellOffset, cellEnd),
 				foregroundColors: frame.cells.foregroundColors.subarray(cellOffset, cellEnd),
 				graphemeLengths: frame.cells.graphemeLengths.subarray(cellOffset, cellEnd),
@@ -852,11 +1188,24 @@ export class PackedTerminalStore {
 				underlineColors: frame.cells.underlineColors.subarray(cellOffset, cellEnd),
 				underlineKinds: frame.cells.underlineKinds.subarray(cellOffset, cellEnd),
 				widths: frame.cells.widths.subarray(cellOffset, cellEnd),
-			});
+			};
 		});
-		this.#grid = { directByteLength: frame.bytes.byteLength, rows: stagedRows };
+		const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
+			const backing = stagedBackings[rowOffset];
+			if (backing === undefined) throw new Error('Projection buffer omitted a row backing');
+			return new PackedTerminalRowView(rowIndex, backing);
+		});
+		const stagedMetadata = metadataFromProjectionBuffer(frame);
+		const budget = createRetainedPresentationBudget(stagedMetadata, stagedBackings, stagedGraphics);
+		if (validateRetainedPresentationBudget(budget) !== null) return { kind: 'too-large' };
+		this.#grid = {
+			backings: stagedBackings,
+			directByteLength: frame.bytes.byteLength,
+			rows: stagedRows,
+		};
 		this.#graphics = stagedGraphics;
-		this.#metadata = metadataFromProjectionBuffer(frame);
+		this.#metadata = stagedMetadata;
+		this.#budget = budget;
 		this.#phase = ProjectedStorePhase.synchronized;
 		this.#fullRedraw = true;
 		this.#lastCommit = {
@@ -888,17 +1237,25 @@ export class PackedTerminalStore {
 		}
 		const buildContext = createPackedFrameBuildContext(frame, sourceBytes === null);
 		const stagedGraphics = graphicsFromSnapshot(frame.graphics);
+		const stagedBackings = Array.from(frame.rowData.indices, (_rowIndex, rowOffset) =>
+			buildRowBacking(frame, rowOffset, buildContext, sourceBytes === null),
+		);
 		const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
-			const backing = buildRowBacking(frame, rowOffset, buildContext, sourceBytes === null);
+			const backing = stagedBackings[rowOffset];
+			if (backing === undefined) throw new Error('Decoded snapshot omitted a row backing');
 			return new PackedTerminalRowView(rowIndex, backing);
 		});
 		const byteLength =
 			stagedRows.reduce((total, row) => total + row.byteLength, 0) +
 			graphicsByteLength(stagedGraphics);
 		if (byteLength > maximumBytes) return { kind: 'too-large' };
-		this.#grid = { rows: stagedRows };
+		const stagedMetadata = metadataFromFrame(frame);
+		const budget = createRetainedPresentationBudget(stagedMetadata, stagedBackings, stagedGraphics);
+		if (validateRetainedPresentationBudget(budget) !== null) return { kind: 'too-large' };
+		this.#grid = { backings: stagedBackings, rows: stagedRows };
 		this.#graphics = stagedGraphics;
-		this.#metadata = metadataFromFrame(frame);
+		this.#metadata = stagedMetadata;
+		this.#budget = budget;
 		this.#phase = ProjectedStorePhase.synchronized;
 		this.#fullRedraw = true;
 		this.#recordCommit(frame);
@@ -911,16 +1268,14 @@ export class PackedTerminalStore {
 	}
 
 	dispose(): void {
+		this.#budget = null;
+		this.#connectionTerminal = null;
 		this.#grid = null;
 		this.#graphics = EMPTY_TERMINAL_GRAPHICS;
 		this.#metadata = null;
 		this.#lastCommit = null;
 		this.#fullRedraw = false;
 		this.#phase = ProjectedStorePhase.disposed;
-	}
-
-	#expectedSequence(): bigint {
-		return (this.#lastCommit?.sequence ?? 0n) + 1n;
 	}
 
 	#recordCommit(frame: DecodedTerminalFrame): void {
@@ -944,6 +1299,12 @@ export class PackedTerminalStore {
 				sequence: CanonicalUint64TextSchema.parse(sequence.toString()),
 			},
 		};
+	}
+
+	#terminateConnection(reason: ProjectedFrameConnectionTerminal): ProjectedFrameApplyResult {
+		this.#connectionTerminal = reason;
+		this.#phase = ProjectedStorePhase.connectionTerminal;
+		return { kind: 'connection-terminal', reason };
 	}
 }
 

@@ -540,8 +540,9 @@ or unresolved Ghostty pin.
 A snapshot has no base and contains every visible row in canonical order. A delta names the exact
 acknowledged base and replaces complete, unique dirty rows in increasing row order; it never carries
 partial cells. A delta may contain zero rows when no grid row is dirty while still carrying its
-metadata and revision transition. Dimension, active-screen, or generation changes require a snapshot. The TypeScript
-decoder first validates and scans all tables and rows, then allocates exact typed columns and reads
+metadata and revision transition. Column count, grid-row count, cell-pixel width, cell-pixel height,
+active-screen, or generation changes require a snapshot. The TypeScript decoder first validates and
+scans all tables and rows, then allocates exact typed columns and reads
 cells without constructing a JavaScript object per cell. The projected store stages a full snapshot
 or every delta row before mutating the committed grid. Frame sequences are monotonically emitted,
 but an abandoned frame may leave a gap in the committed client sequence. A delta must be the exact
@@ -555,12 +556,17 @@ higher OBTF format-`0.0.3` sequence, and every frame arriving outside that trust
 still requires the full decoder before any payload data is exposed or committed. OBPB format `0.0.2`
 projection buffers provide separately named strict-decode and local structural-view boundaries
 below. A repeated sequence with different header commit metadata is a protocol-state conflict and
-requires recovery; consumers do not hash or rescan the duplicate payload to defend against a
-producer violation of the immutable-sequence contract.
+requires recovery. The explicitly trusted local duplicate path may rely on immutable commit metadata
+without hashing the body; external and relayed consumers may instead fully decode a duplicate before
+acknowledging it. If a full body decode fails after fixed-header validation and exact scope association,
+`NeedSnapshot(decoder-rejected)` names that header's exact sequence. If the fixed header itself cannot
+be validated or associated, the consumer fails the connection closed and never guesses a sequence.
 For every pair of adjacent rows present in one frame, the prior row's wrap flag equals the next
 row's wrap-continuation flag. A spacer-head is valid only in the final column of a wrapped row; if
 the following row is present, it begins with the corresponding wide cell. These relationships are
-validated before a frame is exposed or committed.
+validated before a frame is exposed or committed. Before a sparse delta mutates retained state, its
+consumer additionally validates the complete candidate's wrap and spacer-head/wide topology across
+each replaced row's retained predecessor and successor.
 
 The native surface evidence set contains exported `ghostty-surface-v0.0.3.bin`,
 `ghostty-alternate-surface-v0.0.3.bin`, and `ghostty-render-row-window-v0.0.3.bin`. Terminal Host

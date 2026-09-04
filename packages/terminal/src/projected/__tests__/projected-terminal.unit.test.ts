@@ -1115,6 +1115,60 @@ function wheelEvent(
 }
 
 describe('ProjectedTerminal', () => {
+	it('publishes the rejected recovery snapshot sequence without guessing the next flight', () => {
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		expect(terminal.applyFrame(terminalFrame('snapshot', 6n, 41n, ['a', 'b']))).toBe('committed');
+		const recovery = terminalFrame('snapshot', 9n, 43n, ['x', 'y']);
+		recovery[recovery.length - 1] = 1;
+
+		expect(terminal.applyFrame(recovery)).toBe('snapshot-required');
+		expect(commands.at(-1)).toEqual({
+			kind: 'need-snapshot',
+			payload: { attachmentId, reason: 'decoder-rejected', sequence: '9' },
+		});
+		terminal.dispose();
+	});
+
+	it('fails closed without publishing a snapshot request when the fixed header is untrusted', () => {
+		const commands: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+
+		expect(terminal.applyFrame(new Uint8Array(80))).toBe('connection-terminal');
+		expect(commands.some((command) => command.kind === 'need-snapshot')).toBe(false);
+		expect(terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['ignored', '']))).toBe(
+			'connection-terminal',
+		);
+		expect(errors).toEqual([
+			expect.objectContaining({ error: expect.any(Error), operation: 'frame' }),
+		]);
+		terminal.dispose();
+	});
+
 	it('emits each scoped bell sequence once and stops after freeze', () => {
 		const terminal = new ProjectedTerminal({
 			attachmentId,

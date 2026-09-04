@@ -2,12 +2,14 @@ export {
 	PackedTerminalRowView,
 	PackedTerminalStore,
 	PackedTerminalViewport,
+	MAXIMUM_PACKED_TERMINAL_PRESENTATION_BYTES,
 	projectedCellDisplayWidth,
 	ProjectedStorePhase,
 } from './packed-terminal-store';
 export type {
 	ProjectedFrameAcknowledgement,
 	ProjectedFrameApplyResult,
+	ProjectedFrameConnectionTerminal,
 	ProjectedSnapshotReplaceResult,
 	ProjectedStorePhase as ProjectedStorePhaseValue,
 	ProjectedTerminalMetadata,

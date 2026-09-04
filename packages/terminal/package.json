@@ -49,6 +49,7 @@
 		"@rslib/core": "catalog:",
 		"@types/node": "^26.1.1",
 		"@webgpu/types": "^0.1.71",
+		"fast-check": "4.9.0",
 		"vitest": "catalog:"
 	}
 }

@@ -311,6 +311,12 @@ export async function startProjectedTerminalRenderer(
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
 	}
+	let transportClosed = false;
+	const closeTransport = (): void => {
+		if (transportClosed) return;
+		transportClosed = true;
+		transport.close();
+	};
 	const locale = applicationLocaleSource?.current() ?? resolveOrchbeeLocale(preferredLocales);
 	let intl = createOrchbeeIntl(locale);
 	documentElement.lang = locale;
@@ -329,7 +335,7 @@ export async function startProjectedTerminalRenderer(
 		initialInteractionConfiguration = interactionConfigurationSource.current();
 		initialTrimTrailingBlankRows = trailingBlankRowsPresentationSource.current();
 	} catch (error) {
-		runCleanup([() => transport.close()]);
+		runCleanup([closeTransport]);
 		throw error;
 	}
 	const status = (() => {
@@ -342,7 +348,7 @@ export async function startProjectedTerminalRenderer(
 			rootElement.appendChild(element);
 			return element;
 		} catch (error) {
-			runCleanup([() => element?.remove(), () => transport.close()]);
+			runCleanup([() => element?.remove(), closeTransport]);
 			throw error;
 		}
 	})();
@@ -363,7 +369,7 @@ export async function startProjectedTerminalRenderer(
 			rootElement.appendChild(element);
 			return element;
 		} catch (error) {
-			runCleanup([() => element?.remove(), () => status.remove(), () => transport.close()]);
+			runCleanup([() => element?.remove(), () => status.remove(), closeTransport]);
 			throw error;
 		}
 	})();
@@ -713,11 +719,11 @@ export async function startProjectedTerminalRenderer(
 			terminalId: bootstrap.terminalId,
 		});
 	} catch (error) {
-		runCleanup([() => progress.remove(), () => status.remove(), () => transport.close()]);
+		runCleanup([() => progress.remove(), () => status.remove(), closeTransport]);
 		throw error;
 	}
 	if (terminalThemeSource !== undefined && !isProjectedTerminalThemeDriver(terminal)) {
-		runCleanup([() => terminal.dispose(), () => transport.close()]);
+		runCleanup([() => terminal.dispose(), closeTransport]);
 		throw new TypeError('The projected terminal does not support runtime theme transactions.');
 	}
 	const themeParticipant =
@@ -852,7 +858,7 @@ export async function startProjectedTerminalRenderer(
 			() => terminal.dispose(),
 			() => progress.remove(),
 			() => status.remove(),
-			() => transport.close(),
+			closeTransport,
 		]);
 		throw error;
 	}
@@ -1207,7 +1213,7 @@ export async function startProjectedTerminalRenderer(
 				() => terminal.dispose(),
 				() => progress.remove(),
 				() => status.remove(),
-				() => transport.close(),
+				closeTransport,
 			]);
 			throw error;
 		}
@@ -1272,6 +1278,12 @@ export async function startProjectedTerminalRenderer(
 				return;
 			case 'frame': {
 				const result = terminal.applyFrame(event.data.frame);
+				if (result === 'connection-terminal') {
+					reportFailure();
+					reportTransportUnavailable();
+					runCleanup([closeTransport]);
+					return;
+				}
 				if (result === 'committed' || result === 'duplicate') {
 					committedFrames += 1;
 					rootElement.dataset['projectedTerminalCommittedFrames'] = String(committedFrames);
@@ -1354,7 +1366,7 @@ export async function startProjectedTerminalRenderer(
 			() => terminal.dispose(),
 			() => progress.remove(),
 			() => status.remove(),
-			() => transport.close(),
+			closeTransport,
 		]);
 		throw error;
 	}
@@ -1490,7 +1502,7 @@ export async function startProjectedTerminalRenderer(
 			disposeActions,
 			() => findController.dispose(),
 			() => terminal.dispose(),
-			() => transport.close(),
+			closeTransport,
 			() => progress.remove(),
 			() => status.remove(),
 		]);
@@ -1533,7 +1545,7 @@ export async function startProjectedTerminalRenderer(
 				disposeActions,
 				() => findController.dispose(),
 				() => terminal.dispose(),
-				() => transport.close(),
+				closeTransport,
 				() => status.remove(),
 				() => progress.remove(),
 				() => textViewerRoot?.remove(),
@@ -1580,7 +1592,7 @@ export async function startProjectedTerminalRenderer(
 				disposeActions,
 				() => findController.dispose(),
 				() => terminal.freeze(),
-				() => transport.close(),
+				closeTransport,
 				() => status.remove(),
 				() => progress.remove(),
 				() => textViewerRoot?.remove(),

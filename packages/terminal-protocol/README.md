@@ -133,11 +133,12 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 	forwardToAttachment(route.value.attachmentId, envelope.value.payload);
 
 	const header = inspectTerminalFrameHeader(envelope.value.payload);
-	if (!header.ok) return requestSnapshot(header.code);
-	if (isAlreadyCommitted(header.value)) return acknowledgeDuplicate(header.value);
+	if (!header.ok) return closePeer(header.code);
+	if (!isExpectedAttachmentScope(header.value)) return closePeer('invalid-identifier');
 
 	const frame = decodeTerminalFrame(envelope.value.payload);
-	if (!frame.ok) return requestSnapshot(frame.code);
+	if (!frame.ok) return requestSnapshot(header.value.sequence, frame.code);
+	if (isAlreadyCommitted(frame.value)) return acknowledgeDuplicate(frame.value);
 	projectTypedColumns(frame.value.cells, frame.value.rowData);
 }
 ```

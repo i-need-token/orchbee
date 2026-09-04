@@ -1084,6 +1084,35 @@ describe('startProjectedTerminalRenderer', () => {
 				theme: bootstrap.theme,
 			};
 
+			const terminalConnectionElements = createAdditionalRoot();
+			const terminalConnectionTransport = createAdditionalTransport();
+			applyFrame.mockReturnValueOnce('connection-terminal');
+			const terminalConnectionSession = await startProjectedTerminalRenderer(
+				terminalConnectionElements.additionalRoot,
+				documentElement,
+				['en-US'],
+				'apple',
+				liveBootstrap,
+				terminalConnectionTransport.additionalTransport,
+				dependencies,
+			);
+			terminalConnectionTransport.emitMessage({
+				frame: new Uint8Array([4, 5, 6]).buffer,
+				kind: 'frame',
+			});
+			await expect(terminalConnectionSession.transportUnavailable).resolves.toBeUndefined();
+			expect(terminalConnectionSession.isTransportAvailable()).toBe(false);
+			expect(terminalConnectionElements.additionalRoot.dataset['projectedTerminalState']).toBe(
+				'failed',
+			);
+			expect(terminalConnectionElements.additionalStatus).toMatchObject({
+				hidden: false,
+				textContent: 'The terminal connection failed.',
+			});
+			expect(terminalConnectionTransport.close).toHaveBeenCalledOnce();
+			terminalConnectionSession.dispose();
+			expect(terminalConnectionTransport.close).toHaveBeenCalledOnce();
+
 			vi.mocked(dependencies.createTerminal).mockClear();
 			disposeTerminal.mockClear();
 			openTerminal.mockClear();
