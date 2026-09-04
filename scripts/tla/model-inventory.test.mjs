@@ -204,6 +204,48 @@ test('local Client bootstrap owners select the Site activation model', () => {
 	}
 });
 
+test('Server Worker OBCN carrier refinement paths select its carrier model', () => {
+	for (const changedPath of [
+		'apps/orchbee-server/Cargo.toml',
+		'apps/orchbee-server/README.md',
+		'apps/orchbee-server/README.zh-CN.md',
+		'apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.cfg',
+		'apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla',
+		'apps/orchbee-server/project.json',
+		'apps/orchbee-server/src/local_site_service.rs',
+		'apps/orchbee-server/src/local_site_service/tests.rs',
+		'apps/orchbee-server/src/main.rs',
+		'apps/orchbee-server/src/worker_obcn_carrier.rs',
+		'apps/orchbee-server/src/worker_obcn_carrier/tests.rs',
+		'apps/orchbee-server/src/worker_registry.rs',
+		'apps/orchbee-server/src/worker_registry/tests.rs',
+		'apps/orchbee-server/tests/process.rs',
+		'apps/orchbee-server/tests/process/worker_obcn_carrier.rs',
+		'apps/orchbee-server/tests/worker_obcn_carrier.rs',
+		'apps/orchbee-server/tests/worker_obcn_carrier/process.rs',
+		'crates/capability-node-protocol/Cargo.toml',
+		'crates/capability-node-protocol/README.md',
+		'crates/capability-node-protocol/README.zh-CN.md',
+		'crates/capability-node-protocol/project.json',
+		'crates/capability-node-protocol/src/codec.rs',
+		'crates/capability-node-protocol/tests/conformance.rs',
+		'crates/local-site-protocol/Cargo.toml',
+		'crates/local-site-protocol/README.md',
+		'crates/local-site-protocol/README.zh-CN.md',
+		'crates/local-site-protocol/project.json',
+		'crates/local-site-protocol/src/codec.rs',
+		'crates/local-site-protocol/tests/conformance.rs',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'local-worker-obcn-carrier',
+			),
+			true,
+			changedPath,
+		);
+	}
+});
+
 test('configuration variants replace one declared constant and reject ambiguous input', () => {
 	assert.equal(
 		variantConfigFileName('formal/tla/ActionExecution.cfg', 'reject-duplicate'),
@@ -224,10 +266,10 @@ test('configuration variants replace one declared constant and reject ambiguous 
 
 test('coverage enforcement rejects missing and zero-count semantic actions', () => {
 	assert.doesNotThrow(() =>
-		assertRequiredCoverage('example', ['<Advance line 1>: 0:1'], ['Advance']),
+		assertRequiredCoverage('example', ['<Advance line 1>: 1:0'], ['Advance']),
 	);
 	assert.throws(
-		() => assertRequiredCoverage('example', ['<Advance line 1>: 0:0'], ['Advance']),
+		() => assertRequiredCoverage('example', ['<Advance line 1>: 0:1'], ['Advance']),
 		/unreached markers/u,
 	);
 	assert.throws(

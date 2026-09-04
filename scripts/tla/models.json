@@ -1897,6 +1897,119 @@
 			]
 		},
 		{
+			"id": "local-worker-obcn-carrier",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/LocalWorkerObcnCarrier.tla",
+			"config": "apps/orchbee-server/formal/tla/LocalWorkerObcnCarrier.cfg",
+			"claims": ["apps/orchbee-server/README.md"],
+			"triggers": [
+				"apps/orchbee-server/Cargo.toml",
+				"apps/orchbee-server/README.zh-CN.md",
+				"apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.cfg",
+				"apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla",
+				"apps/orchbee-server/project.json",
+				"apps/orchbee-server/src/local_site_service.rs",
+				"apps/orchbee-server/src/local_site_service/**",
+				"apps/orchbee-server/src/main.rs",
+				"apps/orchbee-server/src/worker_obcn_carrier.rs",
+				"apps/orchbee-server/src/worker_obcn_carrier/**",
+				"apps/orchbee-server/src/worker_registry.rs",
+				"apps/orchbee-server/src/worker_registry/**",
+				"apps/orchbee-server/tests/process.rs",
+				"apps/orchbee-server/tests/process/**",
+				"apps/orchbee-server/tests/worker_obcn_carrier.rs",
+				"apps/orchbee-server/tests/worker_obcn_carrier/**",
+				"crates/capability-node-protocol/Cargo.toml",
+				"crates/capability-node-protocol/README.md",
+				"crates/capability-node-protocol/README.zh-CN.md",
+				"crates/capability-node-protocol/project.json",
+				"crates/capability-node-protocol/src/**",
+				"crates/capability-node-protocol/tests/**",
+				"crates/local-site-protocol/Cargo.toml",
+				"crates/local-site-protocol/README.md",
+				"crates/local-site-protocol/README.zh-CN.md",
+				"crates/local-site-protocol/project.json",
+				"crates/local-site-protocol/src/**",
+				"crates/local-site-protocol/tests/**"
+			],
+			"requiredCoverage": [
+				"ActivateInitialCarrier",
+				"ActivateReplacementCarrier",
+				"RejectStaleCarrierActivation",
+				"SubmitFirstLaunch",
+				"SubmitSecondLaunch",
+				"SubmitStart",
+				"QueueBehindInFlight",
+				"RejectWrongWorkerRoute",
+				"RejectWrongGenerationRoute",
+				"RejectStaleHandleSubmission",
+				"RejectStaleHandleWhileInactive",
+				"RejectBackpressure",
+				"RejectFullCarrierBackpressure",
+				"DequeueRequest",
+				"CompleteRequestWrite",
+				"AdvanceMonotonicTime",
+				"ArriveExactDefiniteResult",
+				"ArriveExactLaunchUnknownResult",
+				"ArriveExactStartUnknownResult",
+				"ArriveWrongDirection",
+				"ArriveWrongResultKind",
+				"ArriveWrongOperationCorrelation",
+				"ArriveWrongTerminalEcho",
+				"ArriveWrongWorkerEcho",
+				"ArriveWrongGenerationEcho",
+				"ArriveWrongFenceEcho",
+				"ArriveWrongLeaseIdEcho",
+				"ArriveWrongLeaseExpiryEcho",
+				"ArriveWrongCapabilityEcho",
+				"ArriveWrongStartTarget",
+				"ArriveInvalidLaunchUnknownPayload",
+				"ReceiveExactWorkerResult",
+				"RejectMismatchedWorkerResult",
+				"ExpireBeforeCompleteWrite",
+				"ExpireAfterCompleteWrite",
+				"ExpireAfterCompleteWriteWithQueuedRequest",
+				"DisconnectIdle",
+				"DisconnectBeforeWrite",
+				"DisconnectAfterWrite",
+				"DisconnectAfterWriteWithQueuedRequest",
+				"DisconnectAfterResult",
+				"PublishKnownUnchanged",
+				"PublishExactResult",
+				"PublishEffectUnknown",
+				"DiscardLateResultAfterReplacement",
+				"CleanupAnyWorkerGeneration",
+				"CleanupStaleAfterReplacement"
+			],
+			"variants": [
+				{
+					"name": "response-validation",
+					"constants": {
+						"Scenario": "response-validation"
+					}
+				},
+				{
+					"name": "disconnect-order",
+					"constants": {
+						"Scenario": "disconnect-order"
+					}
+				},
+				{
+					"name": "stale-routing",
+					"constants": {
+						"Scenario": "stale-routing"
+					}
+				},
+				{
+					"name": "capacity",
+					"constants": {
+						"Scenario": "capacity"
+					}
+				}
+			]
+		},
+		{
 			"id": "terminal-launch-authorization",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",
