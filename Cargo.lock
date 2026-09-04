@@ -653,6 +653,8 @@ version = "0.1.0"
 name = "orchbee-server"
 version = "0.1.0"
 dependencies = [
+ "nix",
+ "orchbee-capability-node-protocol",
  "orchbee-client-server-protocol",
  "orchbee-local-client-protocol",
  "orchbee-local-peer-credentials",

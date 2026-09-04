@@ -2,8 +2,9 @@
 
 Private, experimental Rust semantic contract for authorized terminal operations between Orchbee
 Server and a Capability Node. The initial Capability Node is the Worker, but this crate does not
-bind the messages to a local socket or any other carrier. No runtime consumes this protocol yet,
-and it is not a public API or a compatibility promise.
+bind the messages to a local socket or any other carrier. The local Server adapter now consumes its
+codec in an application-private post-OBLS carrier, but no Server business coordinator or current
+Worker runtime consumes requests end to end. It is not a public API or a compatibility promise.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -95,16 +96,27 @@ Its streaming helpers borrow a caller-owned `Read` or `Write` only for one frame
 socket, buffer, connection, or phase state.
 Unix-domain sockets, same-user peer credentials, executable cohort, the `OBLS` admission handshake,
 remote transport, encryption, and connection state machines belong to carrier adapters and their
-own protocols. Server owns product authorization and reconciliation; a future Capability Node
-adapter owns explicit mapping to its Worker admission identity and Terminal Host protocol. This
-crate depends on neither protocol.
+own protocols. The current local Server adapter owns a capacity-one submitted slot behind at most
+one wire request, serializes complete request/result exchanges, validates exact correlation and
+echoed authorization, and distinguishes failures before and after a complete request write. It
+does not map OBCS, synthesize semantic outcomes, retry, or reconcile. Server owns future product
+authorization and reconciliation; a Capability Node adapter owns explicit mapping to its Worker
+admission identity and Terminal Host protocol. This crate depends on neither protocol.
+
+For the current adapter, an attached generation remains registered until its sole wire owner has
+settled or conservatively abandoned the current exchange and drained the submitted slot. Only then
+does a lifetime guard remove that exact generation, so no replacement overlaps an old write or
+exact-result publication. Normal return, completion-receiver loss, thread-spawn failure, and panic
+unwinding follow the same ordering. Abandonment after a complete write remains a typed carrier-level
+post-delivery unknown; the adapter does not manufacture an OBCN result.
 
 ## Checked authorization model
 
 The registered
 [`TerminalLaunchAuthorization`](../../apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla)
-model is the Server-owned behavioral authority for this unconsumed contract. It explores current
-and stale Worker generations, lease expiry before admission, between admission and Host handoff,
+model is the Server-owned behavioral authority for this not-yet-end-to-end-consumed contract. It
+explores current and stale Worker generations, lease expiry before admission, between admission
+and Host handoff,
 and after handoff, lower/exact/conflicting fences, definite pre-handoff failure, post-handoff
 unknown outcomes, Host epoch replacement—including an admitted Start whose target epoch changes
 before handoff—deferred launch followed by separate authorized start, stale result suppression,

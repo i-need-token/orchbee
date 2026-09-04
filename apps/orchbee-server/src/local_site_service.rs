@@ -1,7 +1,7 @@
 use std::{
     ffi::OsString,
     fs,
-    io::{self, Read, Write},
+    io::{self, Write},
     os::unix::{fs::PermissionsExt, net::UnixListener, net::UnixStream},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use orchbee_capability_node_protocol::WorkerId as CapabilityWorkerId;
 use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_local_site_protocol::{
     LocalSiteMessage, ProtocolError, ReadMessageError, RejectionReason, read_message, write_message,
@@ -16,6 +17,7 @@ use orchbee_local_site_protocol::{
 
 use crate::{
     local_client_service,
+    worker_obcn_carrier::create_worker_carrier,
     worker_registry::{WorkerAdmission, WorkerRegistry},
 };
 
@@ -150,6 +152,10 @@ fn handle_candidate(
         send_rejection(&mut stream, RejectionReason::IncompatibleCohort);
         return;
     }
+    if CapabilityWorkerId::from_bytes(hello.worker_id().as_bytes()).is_err() {
+        send_rejection(&mut stream, RejectionReason::MalformedFrame);
+        return;
+    }
 
     let admission = match registry.lock() {
         Ok(mut registry) => registry.admit(hello.worker_id()),
@@ -168,46 +174,36 @@ fn handle_candidate(
         &LocalSiteMessage::WorkerAccepted { generation },
     )
     .is_err()
-        || stream.set_read_timeout(None).is_err()
-        || stream.set_write_timeout(None).is_err()
     {
-        disconnect(registry, generation);
+        cancel_pending_admission(registry, generation);
         return;
     }
 
-    let monitor_registry = Arc::clone(registry);
-    if thread::Builder::new()
+    let carrier = create_worker_carrier(hello.worker_id(), generation);
+    let Some(registered_owner) = WorkerRegistry::register_carrier(registry, generation, carrier)
+    else {
+        cancel_pending_admission(registry, generation);
+        return;
+    };
+    let _owner_thread = thread::Builder::new()
         .name("orchbee-local-worker".to_owned())
-        .spawn(move || monitor_worker(stream, monitor_registry, generation))
-        .is_err()
-    {
-        disconnect(registry, generation);
-    }
+        .spawn(move || {
+            let _exit = registered_owner.run(stream);
+        });
 }
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {
     let _result = write_message(stream, &LocalSiteMessage::Rejected { reason });
 }
 
-fn monitor_worker(
-    mut stream: UnixStream,
-    registry: Arc<Mutex<WorkerRegistry>>,
+fn cancel_pending_admission(
+    registry: &Arc<Mutex<WorkerRegistry>>,
     generation: std::num::NonZeroU64,
 ) {
-    let mut byte = [0_u8; 1];
-    loop {
-        match stream.read(&mut byte) {
-            Ok(0 | 1) => break,
-            Ok(_count) => {}
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(_error) => break,
-        }
+    if let Ok(mut registry) = registry.lock() {
+        let _cancelled = registry.cancel_pending_admission(generation);
     }
-    disconnect(&registry, generation);
 }
 
-fn disconnect(registry: &Arc<Mutex<WorkerRegistry>>, generation: std::num::NonZeroU64) {
-    if let Ok(mut registry) = registry.lock() {
-        registry.disconnect(generation);
-    }
-}
+#[cfg(test)]
+mod tests;

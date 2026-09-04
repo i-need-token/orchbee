@@ -1,10 +1,10 @@
 # Rust Orchbee Server
 
 Experimental, unshipped private Rust Server application. It owns the in-memory Workbench
-projection kernel, the first POSIX local Server-Worker process spine, and an additive local Human
-Client/Client Session admission spine. The emitted executable is named `orchbee-server`; it
-participates in the root Cargo verification gate but is not consumed by public `orchbee`, Desktop,
-packaging, an installer, or a service manager.
+projection kernel, the first POSIX local Server-Worker process spine and serialized post-admission
+OBCN carrier, and an additive local Human Client/Client Session admission spine. The emitted
+executable is named `orchbee-server`; it participates in the root Cargo verification gate but is
+not consumed by public `orchbee`, Desktop, packaging, an installer, or a service manager.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -54,9 +54,45 @@ Unix-socket credentials. A credential mismatch or handshake transport-setup fail
 candidate without a protocol response. One listener admits at most one compatible Worker at a time
 and assigns a strictly increasing process-local generation. A duplicate, malformed, timed-out,
 wrong-message, protocol-incompatible, or cohort-incompatible attempt does not change the active
-Worker. Disconnect removes only the matching generation, so delayed cleanup cannot retire a later
-Worker. Handshakes are read synchronously under a finite timeout; only the accepted Worker receives
-one monitor thread. There is no unbounded connection thread or message queue.
+Worker. Although OBLS decodes its Worker identity as an opaque 16-byte value, Server rejects the
+all-zero value as `MalformedFrame` before registry admission or `WorkerAccepted`: that value cannot
+map to OBCN's nonzero Worker identity, and the rejection consumes no generation. Handshakes are read
+synchronously under a finite timeout. After Server completely writes `WorkerAccepted`, it gives
+that same unbuffered stream to exactly one generation-scoped OBCN wire owner and exposes a cloneable
+request handle through the Worker registry. The owner, not a caller or the registry, serializes every
+write/read exchange; no registry lock is held across wire I/O.
+
+The handle rejects a request for another Worker or generation before touching the wire. It admits
+at most one submitted request behind the one request possibly in flight, and additional submissions
+receive immediate backpressure. `Unavailable` and `Backpressure` both mean that the addressed
+request did not cross the complete-write boundary. The owner writes one complete OBCN Launch or
+Start request before reading exactly one result. It accepts only the matching result direction and
+kind, operation ID, complete authorization echo, and, for Start, target identity. A malformed,
+mismatched, timed-out, or disconnected exchange retires that Worker generation and makes queued
+work unavailable.
+
+An attached carrier remains the active registry entry for the wire owner's entire lifetime. The
+only callable admission cancellation rejects attached carriers; neither the request handle nor the
+registry exposes independent active-generation deactivation. Thus no replacement can be admitted
+while the old owner can still write, read, validate, or publish an exact result. Owner settlement
+gates retirement: on normal exit, completion-receiver loss, thread-spawn failure, or panic
+unwinding, owner destruction first marks the handle inactive, conservatively settles any in-flight
+request from its complete-write marker, and drains the submitted slot. Only then does its RAII
+registration guard remove the matching generation; that removal is the retirement linearization
+point at which replacement becomes admissible. A stale guard cannot remove a replacement.
+
+Each complete request write and complete result read has its own two-second monotonic deadline;
+partial progress does not restart either deadline. Failure before the request frame is completely
+written is reported as `NotDelivered` and is known unchanged: strict Worker decoding cannot dispatch
+an incomplete frame, and the owner retires that connection. After the complete write, any failure is
+the distinct `PostDeliveryOutcomeUnknown` carrier error: Server neither fabricates the semantic OBCN
+`OutcomeUnknown` value nor retries the request. An exact Worker result, including a Worker-reported
+semantic unknown outcome, is preserved; the carrier does not branch on capability-version or
+outcome variants. Bytes received while no request is outstanding are invalid and retire the
+connection. Dropping the whole registry requests private shutdown but cannot admit a replacement;
+the owner observes it within the 25-millisecond idle poll or the bounded current exchange, which has
+at most its remaining write deadline plus one result-read deadline. There is no unbounded connection
+thread or message queue.
 
 The endpoint path is supplied by the controlled development witness. Discovery, stale-endpoint
 recovery, a default runtime directory, singleton activation across candidate paths, daemonization,
@@ -72,8 +108,12 @@ remain reserved.
 The private [`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.md) crate owns
 Worker framing, handshake, cohort rejection, and bounds;
 [`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.md) owns kernel
-same-user proof. Server owns listener lifetime, Worker admission state, generations, and cleanup. The
-[`orchbee-worker`](../orchbee-worker/README.md) application owns the connecting process lifecycle.
+same-user proof. The private
+[`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.md) crate owns OBCN
+semantic values and frame encoding. Server owns listener lifetime, Worker admission state,
+generations, bounded submission, serialized carrier validation, and generation-matched cleanup. The
+[`orchbee-worker`](../orchbee-worker/README.md) application owns the connecting process lifecycle;
+its current runtime does not yet consume post-admission requests end to end.
 
 ## Local Client Session service
 
@@ -129,11 +169,11 @@ admission, `activeWorker` and `activeGeneration` to the registry, stale cleanup 
 generation-scoped disconnect, and Server stop to transport loss. It proves only the bounded model;
 deterministic and process tests own implementation refinement.
 
-## Accepted local Worker OBCN carrier modeling record
+## Local Worker OBCN carrier model and runtime refinement record
 
 This model-first record fixes the smallest Server-owned carrier contract after the accepted OBLS
-response is completely written. It is the accepted runtime refinement target. This record alone is
-not runtime evidence and specifies no OBCS business policy.
+response is completely written. The model is the accepted refinement target; the service
+implementation above supplies its runtime evidence but specifies no OBCS business policy.
 
 | Field        | Accepted refinement target                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -150,7 +190,7 @@ not runtime evidence and specifies no OBCS business policy.
 | Verification | The registered `local-worker-obcn-carrier` model requires nonzero TLC coverage for 47 semantic actions across `response-validation`, `disconnect-order`, `stale-routing`, and `capacity` variants. The variants cover both same-kind correlations, every response field/payload mismatch, deadline expiry on each write side, every disconnect ordering, active and inactive stale handles, replacement gating, cleanup, and a fresh third request against an occupied submitted slot plus in-flight wire request. Safety invariants and eventual settlement of admitted attempts, pending publications, and cleanup are checked; weak fairness applies only to local dequeue, time, expiry, validation, publication, and cleanup actions.                                                                                            |
 | Limits       | This is bounded formal evidence, not runtime-refinement evidence. It abstracts the complete-frame write as one boundary and uses one-tick finite write and read deadlines rather than a concrete duration; it does not prove partial-I/O code, system clock implementation, thread scheduling, panic cleanup, OS behavior, codec correctness, OBCS-to-OBCN policy, Host effects, durable recovery, or whether another authorized owner should retry a known-unchanged request. The two sequential phase deadlines correspond to at most twice the configured per-I/O timeout.                                                                                                                                                                                                                                                         |
 
-A direct runtime refinement maps `WorkerRequestHandle` to `requestHandleRef` plus `submittedSlot`
+The implemented runtime refinement maps `WorkerRequestHandle` to `requestHandleRef` plus `submittedSlot`
 and maps the sole `WorkerWireOwner` to `wireOwnerRef`, `wireRequest`, `wirePhase`, `now`, and
 `wireExpiry`. The scalar expiry is phase-indexed: `DequeueRequest` starts the total write deadline,
 and `CompleteRequestWrite` replaces it with the total read deadline. `WrongWorker` and
@@ -229,25 +269,36 @@ the Server survives, not that authority is automatically reassigned.
 ## Ownership
 
 This application owns projection mechanics for its injected in-memory snapshot copy plus the
-experimental local Worker and Client Session registries and deny-only OBCS phase. It is not a
-second current product writer: every successfully decoded terminal intent is assigned a denial
-decision without an effect, no Client or current runtime can submit a projection candidate, and no
-publication leaves the application. The current Desktop/Workbench composition remains the
-delivered Workbench writer, and the Node
+experimental local Worker and Client Session registries, the application-private OBCN Worker
+carrier, and the deny-only OBCS phase. It is not a second current product writer: every successfully
+decoded Client terminal intent is assigned a denial decision without an effect, OBCS does not call
+the Worker request handle, no Client or current runtime can submit a projection candidate, and no
+publication leaves the application. The current Desktop/Workbench composition remains the delivered
+Workbench writer, and the Node
 [`apps/server`](../server/README.md) remains authoritative for its existing Browser ingress
 behavior.
 
-Semantic business transitions, authorized or successful terminal processing, terminal relay,
-product authorization, persistence, recovery, external publication, endpoint discovery and
-activation, production service lifecycle, Terminal Host authority/runtime integration, packaging,
-migration, and cutover require later implementation slices.
+OBCS-to-OBCN mapping, semantic business transitions, authorized or successful terminal processing,
+terminal relay, product authorization, persistence, recovery, external publication, endpoint
+discovery and activation, production service lifecycle, Terminal Host authority/runtime
+integration, retry or reconciliation policy, packaging, migration, and cutover require later
+implementation slices.
 
 The native source tree has two roots: `src/lib.rs` is the importable projection root, while
 `src/main.rs` is the private binary composition root. The binary's exhaustive lateral import
-directions are `main -> local_site_service`, `local_site_service -> worker_registry` plus
-`local_client_service::start`, and `local_client_service -> client_session_registry` plus its
-private `obcs_session`. Reverse imports, cousin imports, and every other lateral direction are
-forbidden. Tests may access owner-private state without expanding a production direction.
+directions are `main -> local_site_service`, `worker_registry`, and `worker_obcn_carrier`;
+`local_site_service -> worker_registry`, `worker_obcn_carrier`, and
+`local_client_service::start`; `worker_registry -> worker_obcn_carrier`; and
+`local_client_service -> client_session_registry` plus its private `obcs_session`. Reverse imports,
+cousin imports, and every other lateral direction are forbidden. Tests may access owner-private
+state without expanding a production direction.
+
+`worker_obcn_carrier` is not re-exported. Its cloneable request handle is available only through
+the private Worker registry, and its registered wire owner receives the already admitted stream.
+Only that owner's lifetime guard may retire an attached generation, after wire settlement and queue
+drain; the registry may cancel only an admission that has not attached a carrier. It must not import
+OBCS, Client Session, Host, projection, product authorization, effect, retry, or recovery policy.
+Mapping an OBCS request into this handle requires a later accepted slice.
 
 `obcs_session` is not re-exported. Its only entry point is a `pub(super)` runner that receives the
 already admitted stream, and its only non-standard-library dependency is

@@ -2,8 +2,9 @@
 
 这是 Orchbee Server 与 Capability Node 之间 authorized terminal operation 的私有实验性 Rust
 semantic contract。首个 Capability Node 是 Worker，但本 crate 不会把 message 绑定到本机 socket
-或任何其他 carrier。当前尚无 runtime 消费本 protocol；它不是 public API 或 compatibility
-promise。
+或任何其他 carrier。本机 Server adapter 现在会在 application-private post-OBLS carrier 中消费其
+codec，但尚无 Server business coordinator 或当前 Worker runtime end-to-end 消费 request。它不是
+public API 或 compatibility promise。
 
 英文规范原文：
 [README.md](README.md)。
@@ -89,15 +90,24 @@ admit、retain、retry、reconnect、multiplex connection，也不向 connection
 buffer、connection 或 phase state。
 Unix-domain socket、same-user peer credential、executable cohort、`OBLS` admission handshake、
 remote transport、encryption 与 connection state machine 属于 carrier adapter 及其独立
-protocol。Server 拥有 product authorization 与 reconciliation；未来 Capability Node adapter
-拥有到其 Worker admission identity 与 Terminal Host protocol 的显式 mapping。本 crate 不依赖
-这两个 protocol。
+protocol。当前本机 Server adapter 在最多一条 wire request 后拥有一个 capacity-one submitted
+slot，序列化完整 request/result exchange，校验确切 correlation 与 echoed authorization，并区分
+完整写出 request 前后的 failure。它不映射 OBCS、不合成 semantic outcome、不 retry，也不
+reconcile。Server 拥有未来 product authorization 与 reconciliation；Capability Node adapter 拥有
+到其 Worker admission identity 与 Terminal Host protocol 的显式 mapping。本 crate 不依赖这两个
+protocol。
+
+对当前 adapter 而言，attached generation 会保持 registered，直到唯一 wire owner 已结算或保守放弃
+current exchange，并 drain submitted slot。之后 lifetime guard 才移除该确切 generation，因此
+replacement 不会与旧 write 或 exact-result publication 重叠。Normal return、completion receiver
+消失、thread spawn failure 与 panic unwind 都遵循相同顺序。完整写出后的 abandonment 仍是 typed
+carrier-level post-delivery unknown；adapter 不会制造 OBCN result。
 
 ## 已检查的 authorization model
 
 已注册的
 [`TerminalLaunchAuthorization`](../../apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla)
-model 是这个尚未消费 contract 的 Server-owned behavioral authority。它探索 current 与 stale
+model 是这个尚未 end-to-end 消费 contract 的 Server-owned behavioral authority。它探索 current 与 stale
 Worker generation、lease 在 admission 前、admission 与 Host handoff 之间以及 handoff 后过期、
 lower/exact/conflicting fence、确定的 pre-handoff failure、post-handoff unknown outcome、Host
 epoch replacement（包括已 admitted Start 的 target epoch 在 handoff 前变化）、deferred launch 后单独

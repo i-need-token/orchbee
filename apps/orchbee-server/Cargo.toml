@@ -6,11 +6,15 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+orchbee-capability-node-protocol = { path = "../../crates/capability-node-protocol" }
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }
 orchbee-local-client-protocol = { path = "../../crates/local-client-protocol" }
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
 orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
 orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", default-features = false, features = ["poll"] }
 
 [dev-dependencies]
 serde_json = "1.0.151"

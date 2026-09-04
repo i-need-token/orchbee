@@ -1,9 +1,10 @@
 # Rust Orchbee Server
 
 这是实验性且尚未发布的私有 Rust Server application。它拥有内存 Workbench projection
-kernel、第一条 POSIX 本机 Server-Worker process spine，以及增量的本机 Human Client/Client
-Session admission spine。产出的 executable 名为 `orchbee-server`；它参与根 Cargo verification
-gate，但不被公开 `orchbee`、Desktop、packaging、installer 或 service manager 消费。
+kernel、第一条 POSIX 本机 Server-Worker process spine 及 serialized post-admission OBCN carrier，
+以及增量的本机 Human Client/Client Session admission spine。产出的 executable 名为
+`orchbee-server`；它参与根 Cargo verification gate，但不被公开 `orchbee`、Desktop、packaging、
+installer 或 service manager 消费。
 
 英文规范原文：
 [README.md](README.md)。
@@ -47,9 +48,41 @@ Server 与 Worker 通过 kernel Unix-socket credential 相互要求 peer 的 eff
 user。Credential mismatch 或 handshake transport-setup failure 会关闭 candidate，不返回 protocol
 response。一个 listener 同时最多准入一个 compatible Worker，并分配严格递增的 process-local
 generation。Duplicate、malformed、timed-out、wrong-message、protocol-incompatible 或
-cohort-incompatible attempt 都不会改变 active Worker。Disconnect 只移除 matching generation，
-因此 delayed cleanup 无法退役后续 Worker。Handshake 在有限 timeout 下同步读取；只有已接受
-Worker 获得一个 monitor thread。不存在无界 connection thread 或 message queue。
+cohort-incompatible attempt 都不会改变 active Worker。虽然 OBLS 把 Worker identity decode 为 opaque
+16-byte value，Server 仍会在 registry admission 或 `WorkerAccepted` 之前把全零值拒绝为
+`MalformedFrame`：该值无法映射到 OBCN 的 nonzero Worker identity，且 rejection 不消耗 generation。
+Handshake 在有限 timeout 下同步读取。Server 完整写出 `WorkerAccepted` 后，会把同一个 unbuffered
+stream 交给恰好一个 generation-scoped OBCN wire owner，并通过 Worker registry 暴露 cloneable
+request handle。由该 owner 而非 caller 或 registry 序列化每次 write/read exchange；wire I/O 期间
+不会持有 registry lock。
+
+Handle 会在触碰 wire 前拒绝指向其他 Worker 或 generation 的 request。除了可能正在 in-flight 的一条
+request，它最多再准入一条 submitted request；更多 submission 会立即收到 backpressure。
+`Unavailable` 与 `Backpressure` 均表示 addressed request 没有跨过 complete-write boundary。Owner
+会先完整写出一条 OBCN Launch 或 Start request，再读取恰好一条 result。它只接受匹配的 result
+direction 与 kind、operation ID、完整 authorization echo，以及 Start 的 target identity。
+Malformed、mismatched、timed-out 或 disconnected exchange 会退役该 Worker generation，并使
+queued work 变为 unavailable。
+
+Attached carrier 会在 wire owner 的整个 lifetime 内保持为 active registry entry。唯一可调用的
+admission cancellation 会拒绝 attached carrier；request handle 与 registry 都不暴露独立的 active-
+generation deactivation。因此，只要旧 owner 仍可能 write、read、validate 或 publish exact result，
+就不能准入 replacement。Owner settlement 会 gate retirement：无论 normal exit、completion receiver
+消失、thread spawn failure 还是 panic unwind，owner destruction 都会先把 handle 标为 inactive，根据
+complete-write marker 保守结算任何 in-flight request，并 drain submitted slot；之后，其 RAII
+registration guard 才移除 matching generation。该 removal 是允许准入 replacement 的 retirement
+linearization point。Stale guard 无法移除 replacement。
+
+每次完整 request write 和完整 result read 都有各自两秒的 monotonic deadline；partial progress
+不会重置 deadline。Request frame 完整写出前的 failure 会被报告为 `NotDelivered`，且为 known
+unchanged：strict Worker decoding 无法 dispatch incomplete frame，owner 还会退役该 connection。
+完整写出后，任何 failure 都是不同类型的 `PostDeliveryOutcomeUnknown` carrier error：Server 不会
+伪造 semantic OBCN `OutcomeUnknown` value，也不会 retry request。来自 Worker 的确切 result
+（包括 Worker 报告的 semantic unknown outcome）会原样保留；carrier 不会依据 capability-version
+或 outcome variant 分支。没有 outstanding request 时收到 byte 属于 invalid，会退役 connection。
+Drop 整个 registry 会请求私有 shutdown，但无法准入 replacement；owner 会在 25-millisecond idle
+poll 或 bounded current exchange 内观察到它，后者最多包含剩余 write deadline 加一段 result-read
+deadline。不存在无界 connection thread 或 message queue。
 
 Endpoint path 由受控开发 witness 提供。Discovery、stale-endpoint recovery、default runtime
 directory、跨 candidate path 的 singleton activation、daemonization、Windows named pipe、production
@@ -63,8 +96,12 @@ Worker loop 协调；production fault supervision 与 restart 仍属保留事项
 私有 [`orchbee-local-site-protocol`](../../crates/local-site-protocol/README.zh-CN.md) crate 拥有
 Worker framing、handshake、cohort rejection 与 bound；
 [`orchbee-local-peer-credentials`](../../crates/local-peer-credentials/README.zh-CN.md) 拥有 kernel
-same-user proof。Server 拥有 listener lifetime、Worker admission state、generation 与 cleanup。
-[`orchbee-worker`](../orchbee-worker/README.zh-CN.md) application 拥有连接进程 lifecycle。
+same-user proof。私有
+[`orchbee-capability-node-protocol`](../../crates/capability-node-protocol/README.zh-CN.md) crate 拥有
+OBCN semantic value 与 frame encoding。Server 拥有 listener lifetime、Worker admission state、
+generation、bounded submission、serialized carrier validation 与 generation-matched cleanup。
+[`orchbee-worker`](../orchbee-worker/README.zh-CN.md) application 拥有连接进程 lifecycle；其当前
+runtime 尚未 end-to-end 消费 post-admission request。
 
 ## 本机 Client Session service
 
@@ -117,11 +154,11 @@ identity 与三个 generation。其 abstraction 把 candidate action 映射到 h
 generation-scoped disconnect，并把 Server stop 映射到 transport loss。它只证明 bounded model；
 deterministic 与 process test 负责 implementation refinement。
 
-## 已接受的本机 Worker OBCN carrier 建模记录
+## 本机 Worker OBCN carrier 模型与 runtime refinement 记录
 
 这份 model-first 记录固定了完整写出 accepted OBLS response 后最小的 Server-owned carrier
-contract。它是已接受的 runtime refinement target。本记录本身不是 runtime evidence，也不规定 OBCS
-business policy。
+contract。该 model 是已接受的 refinement target；上面的 service implementation 提供对应 runtime
+evidence，但不规定 OBCS business policy。
 
 | 字段   | 已接受的 refinement target                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -138,7 +175,7 @@ business policy。
 | 验证   | 已注册的 `local-worker-obcn-carrier` model 在 `response-validation`、`disconnect-order`、`stale-routing` 与 `capacity` variant 中要求 47 个 semantic action 都具有非零 TLC coverage。这些 variant 覆盖两条 same-kind correlation、每个 response field/payload mismatch、write 两侧的 deadline expiry、每种 disconnect ordering、active 与 inactive stale handle、replacement gating、cleanup，以及 submitted slot 与 in-flight wire request 都占用时的一条新鲜第三 request。它检查 safety invariant 以及 admitted attempt、pending publication 与 cleanup 的 eventual settlement；weak fairness 只施加于 local dequeue、time、expiry、validation、publication 与 cleanup action。                                 |
 | 限制   | 这是 bounded formal evidence，而不是 runtime-refinement evidence。它把 complete-frame write 抽象成一个 boundary，并使用 one-tick finite write/read deadline 而非 concrete duration；它不证明 partial-I/O code、system clock implementation、thread scheduling、panic cleanup、OS behavior、codec correctness、OBCS-to-OBCN policy、Host effect、durable recovery，或其他 authorized owner 是否应 retry 一条 known-unchanged request。两个串行 phase deadline 对应最多两倍 configured per-I/O timeout。                                                                                                                                                                                                            |
 
-直接的 runtime refinement 可把 `WorkerRequestHandle` 映射到 `requestHandleRef` 加
+已实现的 runtime refinement 把 `WorkerRequestHandle` 映射到 `requestHandleRef` 加
 `submittedSlot`，并把唯一 `WorkerWireOwner` 映射到 `wireOwnerRef`、`wireRequest`、`wirePhase`、
 `now` 与 `wireExpiry`。这个 scalar expiry 按 phase 解释：`DequeueRequest` 启动 total write
 deadline，`CompleteRequestWrite` 用 total read deadline 替换它。`WrongWorker` 与
@@ -214,23 +251,32 @@ retained terminal。只有 Host loss 会把 terminal 改为 `lost`。其 progres
 ## 所有权
 
 该 application 拥有其注入 in-memory snapshot copy 的 projection mechanics、实验性本机 Worker 与
-Client Session registry，以及 deny-only OBCS phase。它不是第二个 current product writer：每个成功
-decode 的 terminal intent 都会获得不产生 effect 的 denial decision，没有 Client 或当前 runtime 能
-提交 projection candidate，也没有 publication 离开该 application。当前 Desktop/Workbench
-composition 继续作为已交付 Workbench writer，Node
+Client Session registry、application-private OBCN Worker carrier，以及 deny-only OBCS phase。它
+不是第二个 current product writer：每个成功 decode 的 Client terminal intent 都会获得不产生
+effect 的 denial decision，OBCS 不会调用 Worker request handle，没有 Client 或当前 runtime 能提交
+projection candidate，也没有 publication 离开该 application。当前 Desktop/Workbench composition
+继续作为已交付 Workbench writer，Node
 [`apps/server`](../server/README.zh-CN.md) 继续作为既有 Browser ingress 行为的权威。
 
-Semantic business transition、authorized 或 successful terminal processing、terminal relay、
-product authorization、persistence、recovery、external publication、endpoint discovery 与
-activation、production service lifecycle、Terminal Host authority/runtime integration、packaging、
-migration 与 cutover 都需要后续 implementation slice。
+OBCS-to-OBCN mapping、semantic business transition、authorized 或 successful terminal
+processing、terminal relay、product authorization、persistence、recovery、external publication、
+endpoint discovery 与 activation、production service lifecycle、Terminal Host authority/runtime
+integration、retry 或 reconciliation policy、packaging、migration 与 cutover 都需要后续
+implementation slice。
 
 原生 source tree 有两个 root：`src/lib.rs` 是可导入的 projection root，`src/main.rs` 是私有 binary
 composition root。Binary 的穷尽 lateral import 方向是 `main -> local_site_service`、
-`local_site_service -> worker_registry` 加 `local_client_service::start`，以及
+`worker_registry` 与 `worker_obcn_carrier`；`local_site_service -> worker_registry`、
+`worker_obcn_carrier` 与 `local_client_service::start`；`worker_registry -> worker_obcn_carrier`；以及
 `local_client_service -> client_session_registry` 加其私有 `obcs_session`。Reverse import、cousin
 import 与其他所有 lateral 方向均被禁止。Test 可以访问 owner-private state，但不得扩大 production
 方向。
+
+`worker_obcn_carrier` 不会被 re-export。其 cloneable request handle 只能通过私有 Worker registry
+取得，其 registered wire owner 接收 already admitted stream。只有该 owner 的 lifetime guard 可以在
+wire settlement 与 queue drain 后退役 attached generation；registry 只能取消尚未 attached carrier 的
+admission。它不得 import OBCS、Client Session、Host、projection、product authorization、effect、
+retry 或 recovery policy。把 OBCS request 映射到该 handle 需要后续已接受切片。
 
 `obcs_session` 不会被 re-export。它唯一的入口是一个接收已准入 stream 的 `pub(super)` runner，
 唯一的非标准库依赖是 `orchbee-client-server-protocol`。它不得导入 Worker registry、Host、

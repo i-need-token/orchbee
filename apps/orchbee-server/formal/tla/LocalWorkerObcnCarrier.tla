@@ -190,7 +190,7 @@ ExpectedAuthorization(ref, operation) == Authorization(
   FenceForOperation(operation),
   LeaseForOperation(operation),
   LeaseExpiryForOperation(operation),
-  1
+  2
 )
 
 NoAuthorization == Authorization(

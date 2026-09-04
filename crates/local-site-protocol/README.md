@@ -10,16 +10,17 @@ English remains canonical.
 
 ## Framing and messages
 
-Each connection carries exactly one handshake frame from Worker to Server and one response frame
-from Server to Worker, then remains open only as a process-liveness attachment. A frame contains the
-fixed `OBLS` magic, unsigned big-endian protocol version, unsigned big-endian payload length, and a
-payload of at most 256 bytes. Unknown magic, version, kind, enum value, missing byte, extra byte,
-oversized payload, zero generation, invalid UTF-8, empty cohort, non-ASCII cohort, or a cohort over
-64 bytes is rejected.
+The OBLS portion of each connection carries exactly one handshake frame from Worker to Server and
+one response frame from Server to Worker. After acceptance, a local Server adapter may retain that
+same stream as a separately owned OBCN carrier; no further OBLS frame is valid. An OBLS frame
+contains the fixed `OBLS` magic, unsigned big-endian protocol version, unsigned big-endian payload
+length, and a payload of at most 256 bytes. Unknown magic, version, kind, enum value, missing byte,
+extra byte, oversized payload, zero generation, invalid UTF-8, empty cohort, non-ASCII cohort, or a
+cohort over 64 bytes is rejected.
 
 | Message          | Fields and meaning                                                                                                                                  |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WorkerHello`    | Exact executable cohort plus a 16-byte opaque development Worker identity. It requests no work or capability.                                       |
+| `WorkerHello`    | Exact executable cohort plus a 16-byte opaque development Worker identity. The codec admits all bit patterns; it requests no work or capability.     |
 | `WorkerAccepted` | One nonzero process-local Server generation. It acknowledges the exact connection only.                                                             |
 | `Rejected`       | One typed reason: incompatible protocol, incompatible cohort, duplicate Worker, wrong message, malformed frame, or timeout. It grants no authority. |
 
@@ -36,18 +37,25 @@ evidence covers macOS and Linux. Directory and socket modes remain defense in de
 a path or valid bytes never replaces peer authentication.
 
 Reads and writes use finite frame bounds and reject partial EOF. Server additionally supplies the
-finite handshake timeout. After `WorkerAccepted`, no application message is admitted in this slice;
-any received byte is a protocol violation and closes the Worker attachment. The current protocol
-version is private and may be replaced atomically with the unshipped cohort.
+finite handshake timeout. After `WorkerAccepted`, OBLS admits no further local-site frame. The
+Server adapter currently permits only its serialized OBCN request/result exchange while one request
+is outstanding; unsolicited bytes or another protocol violate that carrier and close the Worker
+attachment. This crate does not parse or own the post-OBLS phase. The current protocol version is
+private and may be replaced atomically with the unshipped cohort.
+
+The current Server adapter must map the OBLS Worker identity into OBCN's nonzero Worker identity.
+It therefore rejects an all-zero `WorkerHello` identity as `MalformedFrame` before admission or
+`WorkerAccepted`, without consuming a Server generation. This is an adapter compatibility
+precondition, not a new OBLS codec restriction.
 
 ## Ownership and exclusions
 
-This crate owns only the encoded local Worker handshake. Server owns Worker admission and
-generations; Worker owns connection order; `orchbee-local-peer-credentials` owns same-user proof;
-Terminal Host and Human Clients retain separate protocols. Client Sessions, Workbench semantics,
-terminal creation and streaming, activation, endpoint discovery, remote transport, encryption,
-enrollment, persistence, Windows named pipes, and compatibility negotiation remain outside this
-crate.
+This crate owns only the encoded local Worker handshake. Server owns Worker admission, generations,
+and its post-acceptance carrier; Worker owns connection order;
+`orchbee-local-peer-credentials` owns same-user proof; Terminal Host and Human Clients retain
+separate protocols. Client Sessions, Workbench semantics, terminal creation and streaming,
+activation, endpoint discovery, remote transport, encryption, enrollment, persistence, Windows
+named pipes, and compatibility negotiation remain outside this crate.
 
 ## Verification
 
