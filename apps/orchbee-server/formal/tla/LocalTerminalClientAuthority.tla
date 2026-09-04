@@ -23,7 +23,8 @@ Actions == {
   "attach-first-viewer", "attach-additional-viewer",
   "acquire-unowned-controller", "accept-controller-input",
   "reject-non-controller-input", "accept-controller-resize",
-  "reject-non-controller-resize", "disconnect-controller",
+  "reject-non-controller-resize", "detach-controller",
+  "detach-viewer", "disconnect-controller",
   "disconnect-viewer", "disconnect-unattached-session",
   "cleanup-disconnected-session",
   "cleanup-stale-session", "cleanup-stale-after-regrant",
@@ -251,6 +252,31 @@ RejectNonControllerResize(client) ==
        /\ Record("reject-non-controller-resize", session)
   /\ UNCHANGED DomainVars
 
+DetachControllerAttachment(client) ==
+  /\ serverUp
+  /\ sessionOpen[client]
+  /\ LET session == CurrentSession(client)
+     IN
+       /\ session = controller
+       /\ viewers' = viewers \ {session}
+       /\ controller' = NoController
+       /\ Record("detach-controller", session)
+  /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
+       sessionGeneration, pendingCleanup, inputSequence, geometryRevision>>
+
+DetachViewerAttachment(client) ==
+  /\ serverUp
+  /\ sessionOpen[client]
+  /\ LET session == CurrentSession(client)
+     IN
+       /\ session \in viewers
+       /\ session # controller
+       /\ viewers' = viewers \ {session}
+       /\ Record("detach-viewer", session)
+  /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
+       sessionGeneration, controller, pendingCleanup, inputSequence,
+       geometryRevision>>
+
 DisconnectController(client) ==
   /\ serverUp
   /\ sessionOpen[client]
@@ -379,6 +405,8 @@ Next ==
   \/ \E client \in Clients: RejectNonControllerInput(client)
   \/ \E client \in Clients: AcceptControllerResize(client)
   \/ \E client \in Clients: RejectNonControllerResize(client)
+  \/ \E client \in Clients: DetachControllerAttachment(client)
+  \/ \E client \in Clients: DetachViewerAttachment(client)
   \/ \E client \in Clients: DisconnectController(client)
   \/ \E client \in Clients: DisconnectViewer(client)
   \/ \E client \in Clients: DisconnectUnattachedSession(client)
@@ -441,6 +469,9 @@ NoAutomaticControllerTransfer ==
     \/ /\ lastAction = "disconnect-controller"
        /\ priorController = lastSession
        /\ controller = NoController
+    \/ /\ lastAction = "detach-controller"
+       /\ priorController = lastSession
+       /\ controller = NoController
     \/ /\ lastAction \in {"lose-server", "lose-worker"}
        /\ controller = NoController
 
@@ -480,6 +511,18 @@ ControllerDisconnectReleasesAuthority ==
     /\ controller = NoController
     /\ lastSession \notin viewers
 
+ControllerDetachReleasesAuthority ==
+  lastAction = "detach-controller" =>
+    /\ priorController = lastSession
+    /\ controller = NoController
+    /\ lastSession \notin viewers
+    /\ SessionRecordIsCurrent(lastSession)
+
+ViewerDetachPreservesSession ==
+  lastAction = "detach-viewer" =>
+    /\ lastSession \notin viewers
+    /\ SessionRecordIsCurrent(lastSession)
+
 StaleCleanupPreservesNewAuthority ==
   lastAction = "cleanup-stale-after-regrant" =>
     /\ priorController # NoController
@@ -492,6 +535,7 @@ ServerAndWorkerLossNeverTransferAuthority ==
 
 NonHostLossRetainsTerminal ==
   lastAction \in {
+    "detach-controller", "detach-viewer",
     "disconnect-controller", "disconnect-viewer",
     "disconnect-unattached-session",
     "lose-server", "lose-worker"

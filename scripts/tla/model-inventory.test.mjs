@@ -69,6 +69,22 @@ test('inventory validation rejects a module or configuration registered more tha
 	assert.throws(() => validateInventory(duplicateConfig), /duplicate model config/u);
 });
 
+test('inventory validation constrains explicit supporting modules', () => {
+	const repeatedModule = fixtureInventory();
+	repeatedModule.models[0].supportingModules = [repeatedModule.models[0].module];
+	assert.throws(
+		() => validateInventory(repeatedModule),
+		/supportingModules\[\] must not repeat its model module/u,
+	);
+
+	const remoteModule = fixtureInventory();
+	remoteModule.models[0].supportingModules = ['packages/other/formal/tla/Other.tla'];
+	assert.throws(
+		() => validateInventory(remoteModule),
+		/supportingModules\[\] must be alongside its model module/u,
+	);
+});
+
 test('changed-path selection is model-scoped and shared infrastructure selects every model', () => {
 	const inventory = validateInventory(fixtureInventory());
 	assert.deepEqual(
@@ -84,6 +100,17 @@ test('changed-path selection is model-scoped and shared infrastructure selects e
 		['example'],
 	);
 	assert.equal(globMatches('packages/*/README.md', 'packages/example/README.md'), true);
+
+	const inventoryWithSupport = fixtureInventory();
+	inventoryWithSupport.models[0].supportingModules = [
+		'packages/example/formal/tla/ExampleAuthority.tla',
+	];
+	assert.deepEqual(
+		selectModelsForChangedPaths(validateInventory(inventoryWithSupport), [
+			'packages/example/formal/tla/ExampleAuthority.tla',
+		]).map(({ id }) => id),
+		['example'],
+	);
 });
 
 test('projected terminal selection, Find, projection, and recovery owners select the IPC model', () => {

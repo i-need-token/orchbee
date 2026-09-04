@@ -41,6 +41,14 @@ for (const model of inventory.models) {
 	if (!new RegExp(`\\bMODULE\\s+${moduleName}\\b`, 'u').test(module)) {
 		throw new Error(`${model.module} does not declare MODULE ${moduleName}`);
 	}
+	for (const supportingModulePath of model.supportingModules ?? []) {
+		const supportingModule = await requireFile(supportingModulePath);
+		const supportingModuleName = path.basename(supportingModulePath, '.tla');
+		if (!new RegExp(`\\bMODULE\\s+${supportingModuleName}\\b`, 'u').test(supportingModule)) {
+			throw new Error(`${supportingModulePath} does not declare MODULE ${supportingModuleName}`);
+		}
+		referencedModules.add(supportingModulePath);
+	}
 	if (!/^\s*(?:SPECIFICATION|INIT)\b/mu.test(config)) {
 		throw new Error(`${model.config} does not select a TLC specification or INIT/NEXT pair`);
 	}

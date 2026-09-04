@@ -179,6 +179,7 @@ function runChild(arguments_, timeoutMilliseconds, modelId, workingDirectory) {
 
 async function runVariant(model, variant) {
 	const modulePath = path.join(repositoryRoot, model.module);
+	const sourceModulePaths = [model.module, ...(model.supportingModules ?? [])];
 	const configuredConfigPath = path.join(repositoryRoot, model.config);
 	await mkdir(toolsDirectory, { recursive: true });
 	const temporaryDirectory = await mkdtemp(path.join(toolsDirectory, `tla-${model.id}-`));
@@ -193,8 +194,15 @@ async function runVariant(model, variant) {
 			configPath = path.join(temporaryDirectory, variantConfigFileName(model.config, variant.name));
 			const config = await readFile(configuredConfigPath, 'utf8');
 			await writeFile(configPath, applyConfigConstants(config, variant.constants));
+			await Promise.all(
+				sourceModulePaths.map(async (sourceModulePath) => {
+					await writeFile(
+						path.join(temporaryDirectory, path.basename(sourceModulePath)),
+						await readFile(path.join(repositoryRoot, sourceModulePath)),
+					);
+				}),
+			);
 			const temporaryModulePath = path.join(temporaryDirectory, path.basename(model.module));
-			await writeFile(temporaryModulePath, await readFile(modulePath));
 			configArgument = path.basename(configPath);
 			moduleArgument = path.basename(temporaryModulePath);
 			workingDirectory = temporaryDirectory;
@@ -224,8 +232,17 @@ async function runVariant(model, variant) {
 			label,
 			workingDirectory,
 		);
-		const digest = createHash('sha256')
-			.update(await readFile(modulePath))
+		const digestBuilder = createHash('sha256');
+		for (const sourceModulePath of sourceModulePaths) {
+			digestBuilder
+				.update(sourceModulePath)
+				.update('\0')
+				.update(await readFile(path.join(repositoryRoot, sourceModulePath)))
+				.update('\0');
+		}
+		const digest = digestBuilder
+			.update(model.config)
+			.update('\0')
 			.update(await readFile(configPath))
 			.digest('hex');
 		const report = {

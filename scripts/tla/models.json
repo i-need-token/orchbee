@@ -1885,6 +1885,8 @@
 				"RejectNonControllerInput",
 				"AcceptControllerResize",
 				"RejectNonControllerResize",
+				"DetachControllerAttachment",
+				"DetachViewerAttachment",
 				"DisconnectController",
 				"DisconnectViewer",
 				"DisconnectUnattachedSession",
@@ -1894,6 +1896,132 @@
 				"LoseServer",
 				"LoseWorker",
 				"LoseHost"
+			]
+		},
+		{
+			"id": "local-terminal-relay",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/LocalTerminalRelay.tla",
+			"config": "apps/orchbee-server/formal/tla/LocalTerminalRelay.cfg",
+			"supportingModules": ["apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.tla"],
+			"claims": [
+				"apps/orchbee-server/README.md",
+				"packages/terminal-protocol/references/protocol.md",
+				"proposals/platform/native-runtime-topology.md"
+			],
+			"triggers": [
+				"apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.cfg",
+				"apps/orchbee-server/src/**",
+				"apps/orchbee-worker/src/**",
+				"apps/terminal-host/src/core/attachment_projection.zig",
+				"apps/terminal-host/src/core/broker_session.zig",
+				"apps/terminal-host/src/core/state/attachments.zig",
+				"apps/terminal-host/src/core/state/projection.zig",
+				"apps/terminal-host/src/engine/input_ownership.zig",
+				"apps/terminal-host/src/engine/input_queue.zig",
+				"apps/terminal-host/src/engine/runtime/resize.zig",
+				"apps/terminal-host/src/service/projection.zig",
+				"apps/terminal-host/src/service/projection_requests.zig",
+				"apps/terminal-host/src/service/runtime_aggregate/attachments.zig",
+				"crates/terminal-protocol/src/attachment.rs",
+				"crates/terminal-protocol/src/input.rs",
+				"crates/terminal-protocol/src/input_authority.rs",
+				"crates/terminal-protocol/src/projection_demand.rs",
+				"crates/terminal-protocol/src/projection_feedback.rs",
+				"crates/terminal-protocol/src/resize.rs",
+				"crates/terminal-protocol/src/semantic_input.rs",
+				"packages/terminal-protocol/src/control.ts",
+				"packages/terminal-protocol/src/frame.ts",
+				"packages/terminal-protocol/src/input.ts"
+			],
+			"timeoutMilliseconds": 300000,
+			"requiredCoverage": [
+				"OpenRelaySession",
+				"ReconnectRelaySession",
+				"AttachRelayViewer",
+				"ReattachRelayViewer",
+				"AcquireRelayController",
+				"SubmitControllerInput",
+				"SubmitControllerResize",
+				"RejectNonControllerInputRelay",
+				"RejectNonControllerResizeRelay",
+				"RejectOutOfOrderControlSequence",
+				"RejectUsedControlIdentity",
+				"ForwardControlToWorker",
+				"CommitInputEffect",
+				"CommitResizeEffect",
+				"ReturnControlResultToServer",
+				"AcceptControlResult",
+				"LoseUnknownControlOutcome",
+				"RetireUnknownControl",
+				"HostEmitSnapshot",
+				"HostEmitDelta",
+				"HostEmitProjectionBlocked",
+				"HostRecoverBlockedProjection",
+				"RelayHostToWorker",
+				"RelayWorkerToServer",
+				"RelayServerToClient",
+				"ClientNeedsSnapshot",
+				"RelayFeedbackToWorker",
+				"RelayFeedbackToHost",
+				"HostAcceptFrameApplied",
+				"HostAcceptNeedSnapshot",
+				"DropStaleFeedback",
+				"PauseBackpressuredAttachment",
+				"CloseBackpressuredAttachment",
+				"DetachRelayController",
+				"DetachRelayViewer",
+				"DisconnectRelayClient",
+				"DisconnectEscapedControlOwner",
+				"RelayCleanupAny",
+				"LoseRelayServer",
+				"LoseRelayWorker",
+				"LoseRelayHost",
+				"LoseRelayServerDuringFlight",
+				"LoseRelayWorkerDuringFlight",
+				"LoseRelayHostDuringFlight",
+				"AdvanceWorkerProgress"
+			],
+			"variants": [
+				{
+					"name": "control-outcomes",
+					"constants": {
+						"Scenario": "control-outcomes"
+					}
+				},
+				{
+					"name": "projection-feedback",
+					"constants": {
+						"Scenario": "projection-feedback"
+					}
+				},
+				{
+					"name": "backpressure-isolation",
+					"constants": {
+						"Scenario": "backpressure-isolation"
+					}
+				},
+				{
+					"name": "reattach-feedback",
+					"constants": {
+						"Scenario": "reattach-feedback"
+					}
+				},
+				{
+					"name": "attachment-lifecycle",
+					"constants": {
+						"Scenario": "attachment-lifecycle"
+					}
+				},
+				{
+					"name": "failure-interleavings",
+					"constants": {
+						"Scenario": "failure-interleavings",
+						"MaxAttachmentGeneration": 1,
+						"MaxRequestSequence": 1
+					}
+				}
 			]
 		},
 		{

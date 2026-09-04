@@ -121,6 +121,21 @@ export function validateInventory(inventory) {
 			model.config.startsWith(`${model.workspace}/formal/tla/`),
 			`${field}.config must belong to its workspace formal/tla directory`,
 		);
+		if (model.supportingModules !== undefined) {
+			assertStringArray(model.supportingModules, `${field}.supportingModules`);
+			for (const supportingModule of model.supportingModules) {
+				assertRepositoryPath(supportingModule, `${field}.supportingModules[]`);
+				assert(supportingModule.endsWith('.tla'), `${field}.supportingModules[] must end in .tla`);
+				assert(
+					path.dirname(supportingModule) === path.dirname(model.module),
+					`${field}.supportingModules[] must be alongside its model module`,
+				);
+				assert(
+					supportingModule !== model.module,
+					`${field}.supportingModules[] must not repeat its model module`,
+				);
+			}
+		}
 		assertStringArray(model.claims, `${field}.claims`);
 		for (const claim of model.claims) assertRepositoryPath(claim, `${field}.claims[]`);
 		assertStringArray(model.triggers, `${field}.triggers`);
@@ -187,7 +202,13 @@ export function selectModelsForChangedPaths(inventory, changedPaths) {
 	}
 
 	return inventory.models.filter((model) => {
-		const triggers = [model.module, model.config, ...model.claims, ...model.triggers];
+		const triggers = [
+			model.module,
+			model.config,
+			...(model.supportingModules ?? []),
+			...model.claims,
+			...model.triggers,
+		];
 		return normalizedPaths.some((changedPath) =>
 			triggers.some((trigger) => globMatches(trigger, changedPath)),
 		);
