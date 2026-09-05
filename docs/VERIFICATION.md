@@ -14,6 +14,39 @@
 
 A focused command is useful while iterating, but completion requires the root gate.
 
+## Check output
+
+The root `test` and `verify` commands, Node test wrappers, and Rust workspace runner default to
+stage summaries. `scripts/run-checks.mjs` owns the root command sequences;
+`scripts/check-output.mjs` owns their shared presentation. This is an output-only boundary:
+checks remain sequential and fail fast, with the same workspace scope, compiler flags, and
+manual-test exclusions. Only the child process result determines success, never parsed log text.
+
+- Each stage reports its start, result, and duration. Recognized test totals and bounded warning
+  or skip notices supplement the result; these are advisory, not a complete test inventory.
+- Complete combined stdout/stderr goes directly to private files in an OS temporary directory,
+  whose path is printed before execution. Logs stay outside the worktree, survive failure or
+  interruption, and remain until the user or OS removes them. They are not automatically uploaded;
+  review them for sensitive diagnostics before sharing.
+- A failure reports its log path, bounded recognized error headlines, and a beginning/end excerpt
+  with explicit omission markers. Nonzero child exit codes are preserved; child signals produce a nonzero conventional
+  signal exit code. Failure to launch a check or retain/read its log also fails the command.
+- Nested wrappers inherit the outer capture instead of allocating duplicate logs or summaries.
+  `pnpm test --verbose`, `pnpm verify --verbose`, and
+  `node scripts/run-rust-workspace.mjs test --verbose` stream the underlying output without capture.
+  The wrapped Node test commands accept the same `--verbose` option.
+- The wrapper uses synchronous child execution, inherits stdin and the existing process group,
+  and introduces no retry, timeout, background execution, or cancellation supervisor. Existing
+  terminal/job cancellation still owns interruption; a printed start without a result is not a pass.
+
+The execution model is a fixed ordered list: start one stage, retain its output, inspect its
+process result, then either advance on zero or stop on failure. Summary and verbose modes execute
+the same list. `scripts/check-output.test.mjs` exercises this public operation with successful,
+failing, signalled, missing-executable, nested, and large-output children, plus lossless logs and
+bounded diagnostics. It does not establish arbitrary descendant cancellation or platform behavior
+on runners where those cases were not exercised. Standalone TLC output and its machine-readable
+results remain unchanged.
+
 ## Required tasks
 
 | Task                 | Contract                                                                                                                                                                                                         |
@@ -83,6 +116,8 @@ report identifies the checked model and bounds.
 ## CI contract
 
 - `.github/workflows/verify.yml` installs the frozen lockfile and runs `pnpm verify` for pull requests, pushes to `main`, and manual runs.
+- CI supplies `--verbose` so complete diagnostics remain in the existing job log after the
+  temporary runner is removed; a local temporary-log path alone is not durable CI evidence.
 - The required `verify` job does not run TLC. The required `tla` job selects and runs
   change-triggered checks from the tracked inventory; an unrelated change completes that job
   without provisioning Java or TLC.

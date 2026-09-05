@@ -20,7 +20,7 @@ cohort over 64 bytes is rejected.
 
 | Message          | Fields and meaning                                                                                                                                  |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WorkerHello`    | Exact executable cohort plus a 16-byte opaque development Worker identity. The codec admits all bit patterns; it requests no work or capability.     |
+| `WorkerHello`    | Exact executable cohort plus a 16-byte opaque development Worker identity. The codec admits all bit patterns; it requests no work or capability.    |
 | `WorkerAccepted` | One nonzero process-local Server generation. It acknowledges the exact connection only.                                                             |
 | `Rejected`       | One typed reason: incompatible protocol, incompatible cohort, duplicate Worker, wrong message, malformed frame, or timeout. It grants no authority. |
 

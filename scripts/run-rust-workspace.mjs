@@ -2,8 +2,11 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { checkVerbose, runChecks } from './check-output.mjs';
+
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const task = process.argv[2];
+const verbose = checkVerbose(process.argv.slice(3));
 const commands = new Map([
 	['build', ['build', '--workspace', '--all-targets', '--all-features', '--locked']],
 	['format:check', ['fmt', '--all', '--', '--check']],
@@ -57,8 +60,10 @@ if (!Array.isArray(metadata.packages)) {
 if (metadata.packages.length === 0) {
 	process.stdout.write(`Verified empty Rust workspace for ${task}\n`);
 } else {
-	execFileSync('cargo', command, {
+	process.exitCode = runChecks({
+		name: `rust:${task}`,
+		steps: [{ name: `cargo ${task}`, command: 'cargo', args: command }],
 		cwd: repositoryRoot,
-		stdio: 'inherit',
+		verbose,
 	});
 }

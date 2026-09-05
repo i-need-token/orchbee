@@ -19,7 +19,7 @@ UTF-8、empty cohort、non-ASCII cohort 或超过 64 byte 的 cohort 均被拒�
 
 | Message          | 字段与含义                                                                                                                                       |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `WorkerHello`    | 确切 executable cohort 加 16-byte opaque development Worker identity。Codec 接受所有 bit pattern；它不请求 work 或 capability。                 |
+| `WorkerHello`    | 确切 executable cohort 加 16-byte opaque development Worker identity。Codec 接受所有 bit pattern；它不请求 work 或 capability。                  |
 | `WorkerAccepted` | 一条 nonzero process-local Server generation。只确认这条确切 connection。                                                                        |
 | `Rejected`       | 一项 typed reason：incompatible protocol、incompatible cohort、duplicate Worker、wrong message、malformed frame 或 timeout。它不授予 authority。 |
 

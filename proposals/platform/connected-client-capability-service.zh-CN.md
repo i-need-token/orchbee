@@ -13,7 +13,8 @@
 
 ## 产品方向
 
-一个 Orchbee 安装实例是一个站点，将来服务的范围可以超出本地 Electron 窗口。站点最终必须支持：
+Orchbee Site 是由一个活跃 Server 权威拥有的产品状态与协调边界，可以服务多台机器和多个 Client
+实例。仅安装 Client 的机器连接已有 Site，不会因此创建另一个 Site 或成为 Worker。产品最终必须支持：
 
 - Desktop、Browser、TUI、手机与 CLI 客户端只能观察或控制其获得授权的产品 session；
 - 性能相对较弱的工作电脑只作为远程站点的产品客户端；
@@ -27,6 +28,40 @@
 变成网络服务。在分别接受替代实现或 adapter 之前，这些现有边界继续有效。目标形态在 Server 接管
 受支持 Browser session、terminal relay 与 backpressure 行为后，删除 `apps/gateway` 与
 `@orchbee/gateway-protocol`；其 framing 与进程拆分不是兼容目标。
+
+## 产品结果与验收边界
+
+用户应当能把工作留在性能足够的机器上持续运行，并通过已授权 Client 回到同一份工作。
+增加执行机器与远程访问一台机器是两个独立结果；两者都不要求所有 Client 形态同时发布。
+
+| 用户场景                     | 可观察的验收结果                                                                                                              | 边界                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 用弱电脑访问主力机           | 已鉴权 Client 打开所选 Site 已有的 Workbench 与保留终端，收到真实输出，并可请求控制权；本机不需要 Worker 或源码 Checkout。    | 属于连接客户端的产品结果；生产网络身份与传输仍需各自已接受的切片。             |
+| 在多个 Client 打开同一份工作 | Client 看到同一份已授权共享结构与相同终端身份，同时保留独立焦点和视口；多个观察者不会创建另一个终端或另一个输入与尺寸控制者。 | 本机终端证据先覆盖同级 TUI Session；Web/Desktop 迁移验证跨 Client 共享的结果。 |
+| 关闭 Client 或丢失连接       | Host 健康时，保留的执行继续运行；后续已授权连接回到同一个终端；不重放结果未知的输入。                                         | Client／传输连续性不承诺 Host 故障或操作系统重启后的恢复。                     |
+| 不打开 Electron 窗口也能运行 | 本机 Site 与保留终端的生命周期独立于任意 Desktop 或 TUI Client。                                                              | 属于已接受的本机原生方向；仅进程握手成功不足以证明这一点。                     |
+| 让另一台机器贡献能力         | 单独登记的 Worker 执行一种明确准入的工作，准入、结果、失败与撤销行为均可观察。                                                | 属于后续分布式能力纵向链路；仅完成登记不足以证明有效调度。                     |
+
+远程查看与控制需要所选 Site 的 Server 及执行 Worker，不需要远程 Worker 登记、自动放置、
+源码同步或通用 Agent 调度器。共享 Project 身份也不意味着文件已在另一 Worker 上可用，
+或活跃终端可以在机器间迁移。
+
+## 里程碑与发布边界
+
+当前已接受的直接工程里程碑仍是
+[本机终端纵向链路](native-runtime-topology.zh-CN.md#已接受的本机终端纵向里程碑)：裸 `orchbee` 通过 Client、Server、Worker、
+Host 到达真实的保留 shell；第二次调用加入同一 Site；输出、输入、尺寸调整、断开与重新连接
+通过这条路径工作。进程、故障与性能证据必须覆盖组合后的运行时。模型、编解码器、握手和
+尚待接线的 UI 模块是支撑证据，不等于这个用户结果已经完成。
+
+该里程碑是尚未发布的增量实现，不证明生产重启恢复、远程访问或现有 Desktop 迁移已经完成。
+其中，对无法匹配的保留 Host inventory 返回 `RecoveryRequired` 是开发阶段边界，不是生产连续性
+体验。公开切换仍须满足原生拓扑中规定的恢复、迁移、打包与性能要求。
+
+建议后续先验证一个人通过远程 Web 或 Desktop Client 使用一个 Site 及其本地 Worker，
+在增加已登记远程 Worker 或调度之前验证连接工作台的产品价值。首个远程 Client、支持的网络与
+身份契约，以及它相对其他迁移的顺序，仍属于产品决策；这个建议不会接受这些契约，
+也不会扩大当前本机里程碑。
 
 ## 已接受的分布式工作台拓扑
 
@@ -112,13 +147,19 @@ Browser-ingress preview，不是目标原生进程；它只在受支持行为迁
 
 Human Client 与 Worker 通信边界保持分离，并且只能随具体 consumer 落地：
 
-| Package                           | 创建时机与职责                                                                                                                                                                                                                            |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/remote-client-protocol` | 已由接受的人类 Browser 鉴权切片创建。当前负责个人访问令牌交换与签名 Cookie session 建立契约；更广泛的生产 transport、协商与授权仍为保留决策。                                                                                             |
-| 未来 Server-Worker contract       | 只随第一个已接受的具体远程 capability 创建 language-neutral authority 与真实 consumer 所需 binding。负责 node 登记与 identity 交换、capability/版本声明、lease、heartbeat、progress、result、failure、cancellation、fencing、限制与错误。 |
+| Package                                                    | 创建时机与职责                                                                                                                                                                   |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/remote-client-protocol`                          | 已由接受的人类 Browser 鉴权切片创建。当前负责个人访问令牌交换与签名 Cookie session 建立契约；更广泛的生产 transport、协商与授权仍为保留决策。                                    |
+| `schemas/client-server` 与 `crates/client-server-protocol` | 已有的实验性 OBCS Create/Start 意图与结果契约，服务于本机终端纵向链路。本机准入独立存在；它不是完整的实时终端或生产远程 Client 协议。                                            |
+| `crates/capability-node-protocol`                          | 已有的实验性 OBCN 已授权终端 Launch/Start 值与编解码器，用于 Server-Worker 集成。不提供登记或通用调度器；确切现行权威由所属指南维护。                                            |
+| 未来远程扩展                                               | 只增加已接受远程 Client 或具体远程 Worker 能力所需的契约。生产身份、登记、能力声明、进度、取消、数据传输与兼容性必须针对该 consumer 定义；已有本机编解码器不会隐含提供这些能力。 |
 
-两个 contract 必须分开，因为人类产品客户端与 Worker 具有不同的 identity、credential、authority、撤销范围和
-兼容性生命周期。两个 contract 都不是 Server 实现，不拥有产品 state，也不能授予通用远程 shell。
+Client 与 Worker 边界必须分开，因为人类产品客户端与 Worker 具有不同的 identity、credential、
+authority、撤销范围和兼容性生命周期。两个边界都不是 Server 实现，不拥有产品 state，
+也不能授予通用远程 shell。当前本机契约由
+[Client-Server schema](../../schemas/client-server/README.zh-CN.md)、
+[Client-Server binding](../../crates/client-server-protocol/README.zh-CN.md) 与
+[Capability Node 指南](../../crates/capability-node-protocol/README.zh-CN.md) 维护。
 
 当前 `apps/gateway` 与 `@orchbee/gateway-protocol` 继续明确作为仅限预览的 Browser transport，直到
 生产 external-client 切片迁移并删除它们。它们可以绑定 loopback 或用户明确选择的 trusted-LAN interface。
@@ -160,26 +201,13 @@ path、QUIC/WebTransport adapter、relay service 与 Internet ingress 仍是保�
 
 ## 已接受的初始入口基础
 
-第一个边界清晰的 Server 切片创建 `apps/server`，作为基于 Fastify 的 Node 应用。一个 HTTP/1.1 listener
-在同一个 origin 和端口上同时拥有普通 HTTP 请求与 WebSocket Upgrade。初始路由 namespace 预留如下：
+已交付 Node 预览的 HTTP 路由、Fastify 组合、session 交换、listener 默认值与静态资源行为归
+[Server 指南](../../apps/server/README.zh-CN.md) 所有。Desktop 所属的启用流程、精确 Origin
+Browser 准入、终端转发与背压归 [Gateway 指南](../../apps/gateway/README.zh-CN.md) 所有。
+这些是迁移输入，不是要求在原生 Server 旁重新建设第二套 Node 底座。
 
-| Path          | 初始职责                                                                                             |
-| ------------- | ---------------------------------------------------------------------------------------------------- |
-| `/api/*`      | 应用 HTTP API namespace，初始版本位于 `/api/v1`；未实现的 endpoint 返回 JSON，绝不返回 renderer HTML |
-| `/ws/*`       | 应用 WebSocket namespace，初始版本位于 `/ws/v1`；普通 HTTP 请求或未知 Upgrade fail closed            |
-| `/static/*`   | 不可变 renderer asset；缺失 asset 返回 `404`，绝不落入 Browser Router fallback                       |
-| 其他产品 path | 已鉴权的 `GET` 与 `HEAD` HTML navigation 返回 renderer entry；未鉴权 navigation 重定向到 `/login`    |
-
-Fastify 拥有 HTTP lifecycle、路由与 plugin composition。其官方 WebSocket 和 static plugin 分别处理
-Upgrade 与 renderer 交付；应用 schema 继续在各自信任边界由 Zod 拥有。初始基础不定义外部 API 或
-WebSocket message contract。后续有界的人类 Browser 鉴权切片创建了
-`@orchbee/remote-client-protocol`，但没有创建通用产品 API。
-
-loopback 仍是独立 Server 的默认值。已接受的 Desktop 所属 trusted-LAN 预览是唯一的生产前例外：用户必须
-在 UI 中明确操作，Server 与 Gateway 才绑定 `0.0.0.0`；产品只发布枚举得到的 RFC 1918 IPv4 Origin；
-系统要求交换个人访问令牌，并使用得到的签名 Cookie 准入每个 exact-Origin Gateway control connection；
-UI 明确警告 HTTP 可能暴露 credential 与终端流量；停止、切换模式、重置令牌或退出进程都会撤销 session。
-这个例外不是生产 Internet 部署或多用户账号设计。单独启动 Server entry 不等于启用共享。
+可信局域网 HTTP 预览仍是生产加密传输方向之外、必须明确启用并展示风险提示的例外。
+它不证明生产 Internet 部署或独立于 Desktop 的 Site 生命周期。单独启动 Server entry 不会启用共享。
 
 ## 人类用户的 Web 访问方向
 
@@ -191,11 +219,9 @@ session capability 绝不能出现在被分享的 query string 或 fragment 中�
 交换成功后，系统创建有界且可撤销的人类 session，通过范围适当的 Cookie 表示，然后恢复原目标路由。这个
 人类登录流程绝不能登记 capability node，也不能授予设备 credential。
 
-已交付预览使用一个安装范围的 256 位个人访问令牌，只持久化其 verifier，只在创建或重置后展示明文，并在
-内存中按来源限制失败尝试后交换令牌。Session Cookie 包含签名随机 identity，使用 `HttpOnly`、
-`SameSite=Strict`、`Path=/`，并持续到 Browser session 结束。每次 Browser 访问 activation 使用新签名密钥；
-停止、切换模式、重置和退出都会使之前的 session 失效。令牌交换与 Gateway control 准入都要求精确 Origin。
-TLS 要求、生产 session duration 与 revocation storage、多用户授权和账号恢复仍为保留决策。
+已交付预览的 token 与 Cookie 实现继续由上面链接的 Server 和 Gateway 指南拥有。生产 session
+时长与撤销存储、TLS 部署、多用户授权和账号恢复仍为保留决策；不能把预览鉴权描述为
+这些生产契约已经获得接受。
 
 ## 已接受的连接连续性模型
 
@@ -216,6 +242,10 @@ authorization、host verification、compatibility 或 policy 需要用户或管�
 Transport 丢失、远程 runtime 失败与远程机器重启是不同的失败类型。第一种保留远程执行；第二种在可用时与
 独立 retained owner 对账；第三种可能需要明确重启任务，因为操作系统重启无法保留普通 PTY 或进程。
 
+这些是目标连续性要求。首个本机原生里程碑没有持久化 Server 接管能力，当前预览也有各自更窄的
+生命周期。保留执行、恢复观察、恢复控制必须分别在正在交付的边界得到证明；只保留 Host 进程
+不足以证明后继 Server 能安全恢复控制。
+
 ## 已接受的原生运行时细化
 
 [`native-runtime-topology.md`](native-runtime-topology.zh-CN.md) 是本逻辑设计的 canonical physical-process
@@ -235,6 +265,9 @@ Transport 丢失、远程 runtime 失败与远程机器重启是不同的失败�
 multi-user tenancy 与 mobile background behavior 仍未决定。
 
 ## 候选职责拆分
+
+这些是已接受角色内部的语义职责；每一行不代表需要额外进程、workspace、框架或独立部署的服务。
+可执行程序拆分由原生拓扑拥有，进一步的模块边界由具体 consumer 及其行为决定。
 
 | 职责                                          | 候选 owner                                                                                                                |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -273,7 +306,8 @@ credential。
 
 ## Capability 执行模型
 
-远程算力以有类型的 capability 暴露，而不是通用远程命令执行。每个已接受的 capability contract 必须定义：
+远程算力以有类型的 capability 暴露，而不是通用远程命令执行。
+每个已接受的远程 capability 契约必须定义：
 
 - 版本化的 input、progress、result、failure、cancellation 与 compatibility schema；
 - 资源需求和 scheduler 可见的容量，同时不暴露无关设备数据；
@@ -281,6 +315,11 @@ credential。
 - artifact、源码数据、secret、日志与诊断的传输策略；
 - 断连、重新分配、部分结果与迟到结果的行为；
 - 授权工作并提交 durable outcome 的产品 owner。
+
+本机终端基线需要其具体启动与实时终端契约。这个清单不要求在基线完成或人类 Client 远程使用 Site
+之前增加通用任务队列、调度器、artifact 服务或远程登记。新能力必须先明确实际工作、所需的
+节点本地数据与凭据，以及完成证据，再准入通用基础设施。已有终端保留语义绝不意味着实时迁移，
+也不意味着自动把终端输入重新分配给另一 Worker。
 
 站点 coordinator 拥有 placement policy；capability node 拥有已接受 lease 的执行。node 与网络 adapter
 都不能成为 Workbench shared state 的 writer。Product Action 继续是 owner-internal 语义契约。单独评审
@@ -355,15 +394,16 @@ LAN 发现、Internet relay、NAT 穿透、公共 DNS 与云端 rendezvous 是�
 
 现行已交付行为属于其 application guide 与可执行测试，而不再通过本提案中的阶段流水账维护。
 
-| Milestone                       | 可独立审阅的 outcome                                                                                                                                                                                                                                  |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 现有现行路径                    | 在增量原生工作仍未发布期间，让 Node Browser-ingress preview、当前 TypeScript CLI、Desktop-colocated coordinator 与已交付 SSH 路径继续对其受支持行为保持权威。                                                                                         |
-| 原生底座                        | **已经完成且尚未发布：**根 Rust 支持、framework-neutral Workbench projection contract、原生 `orchbee` 入口底座、Rust Server kernel 与 Rust Terminal Host binding。[`native-runtime-topology.md`](native-runtime-topology.zh-CN.md) 链接其现行 owner。 |
-| 本机 terminal 纵向链路          | **正在推进且尚未发布：**真实本机 Server/Worker process spine 已完成；下一步交付最小 Host broker、经 Server relay 的 terminal stream 与真实 TUI Client，随后完成 fault 与 performance 收敛。该路径不改变当前 consumer，也不进行 public cutover。       |
-| 共享 Client 与 Server migration | 把 canonical Workbench coordination 和受支持 Browser session/relay 行为迁入 Rust Server，把 React presentation 迁入 `apps/web`，把 Desktop 缩减为 Client/platform adapter，并且只迁移显式准入的 CLI capability。                                      |
-| 已接受的可选 capability         | 通过各自已接受的 owner-specific vertical migration 实现 Agent observation、managed Worktree、Archive、Launch Profile 与 Connect via SSH。                                                                                                             |
-| 远程与分布式 capability         | 通过单独 vertical capability 审阅 enrolled remote Worker、production identity/authentication、TLS/Internet ingress、mobile background behavior、multi-user policy 与 scheduling。                                                                     |
-| 旧实现退役                      | 只有每个替代或 sunset cohort 证明 compatibility、installed-artifact handling 与 rollback 后，才删除 Node Server preview、Gateway/protocol、SSH Runtime/protocol、混合 Workbench package、旧 CLI 与已移除 Desktop authority。                          |
+| Milestone                       | 可独立审阅的 outcome                                                                                                                                                                                                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 现有现行路径                    | 在增量原生工作仍未发布期间，让 Node Browser-ingress preview、当前 TypeScript CLI、Desktop-colocated coordinator 与已交付 SSH 路径继续对其受支持行为保持权威。                                                                                                        |
+| 原生底座                        | **已经完成且尚未发布：**根 Rust 支持、framework-neutral Workbench projection contract、原生 `orchbee` 入口底座、Rust Server kernel 与 Rust Terminal Host binding。[`native-runtime-topology.md`](native-runtime-topology.zh-CN.md) 链接其现行 owner。                |
+| 本机 terminal 纵向链路          | **正在推进且尚未发布：**把已暂存的 Client transport、Server authority/carrier、Worker authorization/Host adapter、terminal relay 与 TUI 组合成上文定义的真实路径，再证明故障与性能行为。握手就绪不等于终端就绪；该链路不改变当前 consumer，也不进行 public cutover。 |
+| 共享 Client 与 Server migration | 把 canonical Workbench coordination 和受支持 Browser session/relay 行为迁入 Rust Server，把 React presentation 迁入 `apps/web`，把 Desktop 缩减为 Client/platform adapter，并且只迁移显式准入的 CLI capability。                                                     |
+| 已接受的可选 capability         | 通过各自已接受的 owner-specific vertical migration 实现 Agent observation、managed Worktree、Archive、Launch Profile 与 Connect via SSH。                                                                                                                            |
+| 远程连接 Client                 | 验证另一台机器上的人类 Client 使用同一 Site 及其已有执行 Worker。在独立切片中选择身份、网络暴露、Client 范围与重连证据；远程 Worker 登记和调度不是前置条件。优先级遵循上文所述产品决策。                                                                             |
+| 分布式 Worker capability        | 审阅登记与一种具体远程工作，覆盖设备身份、数据／secret 可用性、放置、取消与失败行为。Mobile background、多用户策略与更广调度仅通过各自已接受范围增加。                                                                                                               |
+| 旧实现退役                      | 只有每个替代或 sunset cohort 证明 compatibility、installed-artifact handling 与 rollback 后，才删除 Node Server preview、Gateway/protocol、SSH Runtime/protocol、混合 Workbench package、旧 CLI 与已移除 Desktop authority。                                         |
 
 每个 implementation slice 都必须保留已接受 role boundary，并证明自身 security、privacy、
 compatibility、observability、rollback 与 recovery claim。历史交付细节留在所属现行指南；本提案

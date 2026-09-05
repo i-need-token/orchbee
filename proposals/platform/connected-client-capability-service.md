@@ -14,8 +14,9 @@ English remains canonical.
 
 ## Product direction
 
-One Orchbee installation is a site that may serve more than its local Electron window. The site
-must eventually support:
+An Orchbee Site is a product-state and coordination boundary with one active Server authority. It
+may serve several machines and Client instances. A Client-only installation connects to a Site
+without creating another Site or becoming a Worker. The product must eventually support:
 
 - Desktop, Browser, TUI, mobile, and CLI clients that observe or control only their authorized product
   sessions;
@@ -33,6 +34,46 @@ same-user Terminal Host endpoint into a network service. Those current boundarie
 until separately accepted replacements or adapters exist. The target deletes `apps/gateway` and
 `@orchbee/gateway-protocol` after Server assumes their supported Browser-session, terminal-relay,
 and backpressure behavior; their framing and process split are not compatibility targets.
+
+## Product outcomes and acceptance boundaries
+
+The user should be able to leave work running on a capable machine and use an authorized Client
+to return to that same work. Supporting additional execution machines is a separate outcome from
+accessing one machine remotely. Neither outcome requires every Client form to ship together.
+
+| User scenario                                  | Observable acceptance                                                                                                                                                                                             | Boundary                                                                                                             |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Use a weak computer to reach a capable machine | An authenticated Client opens the selected Site's existing Workbench and retained terminal, receives real output, and may request control. It requires no local Worker or source checkout.                        | Connected-Client outcome; production network identity and transport still need their own accepted slice.             |
+| Open the same work in several Clients          | Clients observe the same authorized shared structure and terminal identity while retaining independent focus and viewport. Several viewers do not create another terminal or another input-and-resize controller. | Local-terminal evidence starts with peer TUI Sessions; Web/Desktop migration proves the shared cross-Client outcome. |
+| Close a Client or lose its connection          | Retained execution continues when its Host remains healthy; a later authorized attachment returns to the same terminal. Unknown input is not replayed.                                                            | Client/transport continuity does not promise recovery after Host failure or OS restart.                              |
+| Run without an Electron window                 | The local Site and retained terminal lifetime are independent of any Desktop or TUI Client.                                                                                                                       | Accepted local-native direction; successful process handshakes alone do not establish it.                            |
+| Contribute another machine's capability        | A separately enrolled Worker executes one explicitly admitted kind of work, with observable admission, result, failure, and revocation behavior.                                                                  | A later distributed-capability vertical; enrollment alone does not establish useful scheduling.                      |
+
+Remote viewing and control need a Server and an execution Worker at the selected Site; they do not
+require remote Worker enrollment, automatic placement, source synchronization, or a general Agent
+scheduler. A shared Project identity also does not make files available on another Worker or make a
+live terminal movable between machines.
+
+## Milestone and release boundaries
+
+The accepted immediate engineering milestone remains the
+[local terminal vertical](native-runtime-topology.md#accepted-local-terminal-vertical-milestone):
+bare `orchbee` reaches a real retained shell through Client, Server, Worker, and Host; a second
+invocation joins the same Site; output, input, resize, detach, and reattach work through that path.
+Its process, fault, and performance evidence must exercise the composed runtime. Models, codecs,
+handshakes, and staged UI modules are supporting evidence, not completion of this user outcome.
+
+This milestone is additive and unshipped. It does not prove production restart recovery, remote
+access, or migration of the existing Desktop. In particular, its accepted `RecoveryRequired`
+behavior for unmatched retained Host inventory is a development boundary, not the production
+continuity experience. Public cutover still requires the recovery, migration, packaging, and
+performance obligations in the native topology.
+
+The recommended subsequent product validation is one person using a remote Web or Desktop Client
+against one Site and its local Worker. This would test the connected-workbench value before adding
+enrolled remote Workers or scheduling. The choice of first remote Client, supported network and
+identity contract, and its order relative to other migrations remains a product decision; this
+recommendation does not accept those contracts or expand the current local milestone.
 
 ## Accepted distributed-workbench topology
 
@@ -130,14 +171,20 @@ one undifferentiated module.
 The human-Client and Worker communication boundaries stay distinct and are materialized only with
 concrete consumers:
 
-| Package                           | Creation trigger and responsibility                                                                                                                                                                                                                                                           |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/remote-client-protocol` | Created by the accepted human Browser authentication slice. Currently owns Personal Access Token exchange and signed Cookie session-establishment contracts; broader production transport, negotiation, and authorization remain reserved.                                                    |
-| Future Server-Worker contract     | Create a language-neutral authority and only the bindings required by the first accepted concrete remote capability. It owns node enrollment and identity exchange, capability/version advertisement, lease, heartbeat, progress, result, failure, cancellation, fencing, limits, and errors. |
+| Package                                                     | Creation trigger and responsibility                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/remote-client-protocol`                           | Created by the accepted human Browser authentication slice. Currently owns Personal Access Token exchange and signed Cookie session-establishment contracts; broader production transport, negotiation, and authorization remain reserved.                                                                  |
+| `schemas/client-server` and `crates/client-server-protocol` | Existing experimental OBCS Create/Start intent and result contract for the local terminal vertical. Local admission is separate; this is not a complete live-terminal or production remote-Client protocol.                                                                                                 |
+| `crates/capability-node-protocol`                           | Existing experimental OBCN authorized terminal Launch/Start values and codec for Server-Worker integration. It does not provide enrollment or a general scheduler; its exact current authority is its owning guide.                                                                                         |
+| Future remote extensions                                    | Add only contracts required by an accepted remote Client or concrete remote Worker capability. Production identity, enrollment, capability advertisement, progress, cancellation, data transfer, and compatibility must be specified for that consumer; none follows merely from the existing local codecs. |
 
-The two contracts remain separate because a human product client and a Worker have
+The Client and Worker boundaries remain separate because a human product client and a Worker have
 different identities, credentials, authorities, revocation scopes, and compatibility lifecycles.
-Neither contract is a Server implementation, owns product state, or grants a generic remote shell.
+Neither boundary is a Server implementation, owns product state, or grants a generic remote shell.
+Current local contracts are maintained by the
+[Client-Server schema](../../schemas/client-server/README.md),
+[Client-Server binding](../../crates/client-server-protocol/README.md), and
+[Capability Node guide](../../crates/capability-node-protocol/README.md).
 
 The current `apps/gateway` and `@orchbee/gateway-protocol` remain explicitly preview-only Browser
 transport until a production external-client slice migrates and deletes them. They may bind loopback
@@ -187,30 +234,15 @@ optimizations or deployment decisions. None may bypass Server-issued authority o
 
 ## Accepted initial ingress foundation
 
-The first bounded Server slice creates `apps/server` as a Fastify-based Node application. One
-HTTP/1.1 listener owns ordinary HTTP requests and WebSocket upgrades on the same origin and port.
-The initial route namespaces are reserved as follows:
+The delivered Node preview's HTTP routes, Fastify composition, session exchange, listener defaults,
+and static-resource behavior belong to the [Server guide](../../apps/server/README.md).
+Its Desktop-owned activation, exact-Origin Browser admission, terminal relay, and backpressure
+belong to the [Gateway guide](../../apps/gateway/README.md). These are migration inputs, not a
+requirement to recreate a second Node foundation beside the native Server.
 
-| Path                | Initial responsibility                                                                                                              |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `/api/*`            | Application HTTP API namespace, initially versioned under `/api/v1`; an unimplemented endpoint returns JSON and never renderer HTML |
-| `/ws/*`             | Application WebSocket namespace, initially versioned under `/ws/v1`; an ordinary HTTP request or unknown upgrade fails closed       |
-| `/static/*`         | Immutable renderer assets; a missing asset returns `404` and never falls through to the Browser Router                              |
-| Other product paths | Authenticated `GET` and `HEAD` HTML navigations receive the renderer entry; unauthenticated navigation redirects to `/login`        |
-
-Fastify owns HTTP lifecycle, routing, and plugin composition. Its official WebSocket and static
-plugins provide Upgrade handling and renderer delivery; application schemas remain Zod-owned at
-their trust boundaries. The initial foundation defined no external API or WebSocket message
-contract. The later bounded human Browser authentication slice created
-`@orchbee/remote-client-protocol` without creating a general product API.
-
-Loopback remains the standalone Server default. The accepted Desktop-owned trusted-LAN preview is
-the only pre-production exception: an explicit UI action binds Server and Gateway to `0.0.0.0`,
-publishes only enumerated RFC 1918 IPv4 Origins, requires a Personal Access Token exchange, admits
-each exact-Origin Gateway control connection with the resulting signed Cookie, warns that HTTP can
-expose credentials and terminal traffic, and revokes sessions on stop, mode change, token reset, or
-process exit. This exception is not a production Internet deployment or multi-user account design.
-Starting the Server entry by itself is not equivalent to enabling sharing.
+The trusted-LAN HTTP preview remains an explicitly enabled and warned exception to the production
+encrypted-transport direction. It establishes neither production Internet deployment nor
+Desktop-independent Site lifetime. Starting the standalone Server entry does not enable sharing.
 
 ## Human Web access direction
 
@@ -224,13 +256,10 @@ The person enters a separately issued access token; a successful exchange create
 revocable human session represented by an appropriately scoped Cookie, then resumes the intended
 route. This human login flow never enrolls a capability node and never grants device credentials.
 
-The delivered preview uses one installation-scoped 256-bit Personal Access Token, persists only its
-verifier, reveals plaintext only after create or reset, and exchanges it under an in-memory
-per-source failure limit. Its session Cookie contains a signed random identity, is `HttpOnly`,
-`SameSite=Strict`, `Path=/`, and lasts for the Browser session. Each Browser-access activation uses
-a fresh signing key; stop, mode switch, reset, and exit invalidate earlier sessions. Exact Origin is
-required for token exchange and Gateway control admission. TLS requirements, production session
-duration and revocation storage, multi-user authorization, and account recovery remain reserved.
+The delivered preview's token and Cookie implementation remains owned by the Server and Gateway
+guides linked above. Production session duration and revocation storage, TLS deployment, multi-user
+authorization, and account recovery remain reserved; preview authentication must not be presented
+as acceptance of those production contracts.
 
 ## Accepted connection-continuity model
 
@@ -259,6 +288,11 @@ The first preserves remote execution, the second reconciles against independentl
 where available, and the third may require explicit task restart because an operating-system reboot
 cannot preserve ordinary PTYs or processes.
 
+These are target continuity requirements. The first local-native milestone has no durable Server
+adoption, and the current preview has its own narrower lifecycle. Retained execution, restored
+observation, and restored control must each be demonstrated at the boundary being delivered;
+preserving a Host process alone does not prove that a successor Server can safely resume control.
+
 ## Accepted native-runtime refinements
 
 [`native-runtime-topology.md`](native-runtime-topology.md) is the canonical physical-process and
@@ -278,6 +312,10 @@ Desktop-co-located runtime. Exact remote Worker enrollment, production human/dev
 TLS/Internet ingress, multi-user tenancy, and mobile background behavior remain undecided.
 
 ## Candidate responsibility split
+
+These are semantic responsibilities within the accepted roles. A row does not require an additional
+process, workspace, framework, or independently deployed service. The native topology owns the
+executable split; a concrete consumer and its behavior determine any further module boundary.
 
 | Responsibility                                       | Candidate owner                                                                                                                                                 |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -320,7 +358,7 @@ rotation and revocation. A browser token must never become a node credential.
 ## Capability execution model
 
 Remote capacity is exposed as typed capabilities rather than generic remote command execution.
-Every accepted capability contract must define:
+Every accepted remote capability contract must define:
 
 - versioned input, progress, result, failure, cancellation, and compatibility schemas;
 - resource requirements and scheduler-visible capacity without exposing unrelated device data;
@@ -328,6 +366,13 @@ Every accepted capability contract must define:
 - artifact, source-data, secret, log, and diagnostic transfer policy;
 - disconnect, reassignment, partial-result, and late-result behavior; and
 - the product owner that authorizes work and commits its durable outcome.
+
+The local terminal baseline needs its concrete launch and live-terminal contracts. This list does
+not require adding a general task queue, scheduler, artifact service, or remote enrollment before
+that baseline or before a human Client can use a Site remotely. A new capability must name actual
+work, its required node-local data and credentials, and its completion evidence before its generic
+infrastructure is admitted. Existing terminal retention never implies live migration or automatic
+reassignment of terminal input to another Worker.
 
 The site coordinator owns placement policy; a capability node owns execution of an accepted lease.
 Neither a node nor a network adapter becomes a writer of Workbench shared state. Product Actions
@@ -414,15 +459,16 @@ accepted and verified.
 Current delivered behavior belongs to its owning application guides and executable tests rather
 than a phase ledger in this proposal.
 
-| Milestone                           | Independently reviewable outcome                                                                                                                                                                                                                                                                      |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Existing current paths              | Keep the Node Browser-ingress preview, current TypeScript CLI, Desktop-colocated coordinator, and delivered SSH path authoritative for their supported behavior while additive native work remains unshipped.                                                                                         |
-| Native foundations                  | **Complete and unshipped:** root Rust support, framework-neutral Workbench projection contracts, native `orchbee` entry foundation, Rust Server kernel, and Rust Terminal Host binding. [`native-runtime-topology.md`](native-runtime-topology.md) links their current owners.                        |
-| Local terminal vertical             | **In progress and unshipped:** the real local Server/Worker process spine is complete; next deliver the minimal Host broker, Server-relayed terminal stream, and real TUI Client, followed by fault and performance convergence. This path changes no current consumer and creates no public cutover. |
-| Shared Client and Server migration  | Move canonical Workbench coordination and supported Browser session/relay behavior into Rust Server, move React presentation into `apps/web`, reduce Desktop to a Client/platform adapter, and migrate only explicitly admitted CLI capabilities.                                                     |
-| Accepted optional capabilities      | Implement Agent observation, managed Worktree, Archive, Launch Profiles, and Connect via SSH through their accepted owner-specific vertical migrations.                                                                                                                                               |
-| Remote and distributed capabilities | Review enrolled remote Workers, production identity/authentication, TLS/Internet ingress, mobile background behavior, multi-user policy, and scheduling through separate vertical capabilities.                                                                                                       |
-| Legacy retirement                   | Delete the Node Server preview, Gateway/protocol, SSH Runtime/protocol, mixed Workbench package, old CLI, and removed Desktop authorities only after each replacement or sunset cohort proves compatibility, installed-artifact handling, and rollback.                                               |
+| Milestone                          | Independently reviewable outcome                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Existing current paths             | Keep the Node Browser-ingress preview, current TypeScript CLI, Desktop-colocated coordinator, and delivered SSH path authoritative for their supported behavior while additive native work remains unshipped.                                                                                                                                        |
+| Native foundations                 | **Complete and unshipped:** root Rust support, framework-neutral Workbench projection contracts, native `orchbee` entry foundation, Rust Server kernel, and Rust Terminal Host binding. [`native-runtime-topology.md`](native-runtime-topology.md) links their current owners.                                                                       |
+| Local terminal vertical            | **In progress and unshipped:** compose the staged Client transport, Server authority/carrier, Worker authorization/Host adapter, terminal relay, and TUI into the real path defined above, then prove fault and performance behavior. Handshake readiness is not terminal readiness. This changes no current consumer and creates no public cutover. |
+| Shared Client and Server migration | Move canonical Workbench coordination and supported Browser session/relay behavior into Rust Server, move React presentation into `apps/web`, reduce Desktop to a Client/platform adapter, and migrate only explicitly admitted CLI capabilities.                                                                                                    |
+| Accepted optional capabilities     | Implement Agent observation, managed Worktree, Archive, Launch Profiles, and Connect via SSH through their accepted owner-specific vertical migrations.                                                                                                                                                                                              |
+| Connected remote Client            | Validate a human Client on another machine against the same Site with its existing execution Worker. Select identity, network exposure, Client scope, and reconnect evidence in its own slice; remote Worker enrollment and scheduling are not prerequisites. Its priority follows the product decision described above.                             |
+| Distributed Worker capabilities    | Review enrollment and one concrete kind of remote work, including device identity, data/secret availability, placement, cancellation, and failure behavior. Add mobile background behavior, multi-user policy, and broader scheduling only through their own accepted scopes.                                                                        |
+| Legacy retirement                  | Delete the Node Server preview, Gateway/protocol, SSH Runtime/protocol, mixed Workbench package, old CLI, and removed Desktop authorities only after each replacement or sunset cohort proves compatibility, installed-artifact handling, and rollback.                                                                                              |
 
 Every implementation slice must preserve the accepted role boundaries and prove its own security,
 privacy, compatibility, observability, rollback, and recovery claims. Historical delivery details

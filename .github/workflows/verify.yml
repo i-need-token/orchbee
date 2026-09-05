@@ -55,7 +55,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes openssh-server xvfb xauth
 
       - name: Verify repository
-        run: pnpm verify
+        run: pnpm verify --verbose
 
       - name: Verify generated state is committed
         run: git diff --exit-code
