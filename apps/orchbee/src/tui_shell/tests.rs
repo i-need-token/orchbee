@@ -12,6 +12,7 @@ use std::{
 use ratatui::{Terminal, TerminalOptions, Viewport, backend::TestBackend};
 
 use crate::{
+    client_view::ClientView,
     localization::Locale,
     terminal_device::WindowDimensions,
     terminal_input::{TerminalInputPort, TerminalInputUnavailable},
@@ -100,6 +101,8 @@ struct RecordingTerminalInput {
     forwarded: Vec<Vec<u8>>,
 }
 
+impl super::TerminalSurface for RecordingTerminalInput {}
+
 impl TerminalInputPort for RecordingTerminalInput {
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.push(input.to_vec());
@@ -122,6 +125,39 @@ const fn dimensions(columns: u16, rows: u16) -> WindowDimensions {
     }
 }
 
+#[test]
+fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()> {
+    let original = dimensions(120, 32);
+    let view = ClientView::new(original.columns);
+    let geometry = super::terminal_geometry(original, &view)?;
+    assert_eq!((geometry.columns(), geometry.rows()), (88, 25));
+    assert_eq!(
+        (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
+        (8, 20)
+    );
+    for incomplete in [
+        WindowDimensions {
+            pixel_width: 0,
+            ..original
+        },
+        WindowDimensions {
+            pixel_height: 0,
+            ..original
+        },
+        WindowDimensions {
+            columns: 0,
+            ..original
+        },
+        WindowDimensions {
+            rows: 0,
+            ..original
+        },
+    ] {
+        assert!(super::terminal_geometry(incomplete, &view).is_err());
+    }
+    Ok(())
+}
+
 fn test_terminal(dimensions: WindowDimensions) -> Terminal<TestBackend> {
     match Terminal::with_options(
         TestBackend::new(dimensions.columns, dimensions.rows),
@@ -138,7 +174,7 @@ fn test_loop(
     terminal: &mut Terminal<TestBackend>,
     locale: Locale,
     inputs: &mut impl InputSource,
-    terminal_input: &mut impl TerminalInputPort,
+    terminal_input: &mut impl super::TerminalSurface,
     termination: &impl TerminationSource,
     viewport: &impl ViewportSource,
     dimensions: WindowDimensions,
@@ -349,4 +385,67 @@ fn applies_explicit_viewport_changes_without_backend_global_queries() -> io::Res
 
 fn infallible_to_io(never: Infallible) -> io::Error {
     match never {}
+}
+
+#[test]
+fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
+    struct Surface {
+        failure: Arc<AtomicBool>,
+        acknowledged: usize,
+    }
+    impl TerminalInputPort for Surface {
+        fn forward(&mut self, _input: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            Ok(())
+        }
+    }
+    impl super::TerminalSurface for Surface {
+        fn tick(&mut self) -> bool {
+            self.failure.store(true, Ordering::Relaxed);
+            true
+        }
+        fn after_draw(&mut self) {
+            self.acknowledged += 1;
+        }
+    }
+    let dimensions = dimensions(120, 32);
+    let failure = Arc::new(AtomicBool::new(false));
+    let backend = FixedViewportBackend::new(
+        SwitchableFailureWriter {
+            failure: failure.clone(),
+        },
+        dimensions,
+    );
+    let mut terminal = Terminal::with_options(
+        backend,
+        TerminalOptions {
+            viewport: Viewport::Fixed(to_area(dimensions)),
+        },
+    )
+    .expect("test backend");
+    let mut surface = Surface {
+        failure,
+        acknowledged: 0,
+    };
+    let mut inputs = QueueInputSource {
+        inputs: VecDeque::from([Ok(None)]),
+    };
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(dimensions)])),
+    };
+    assert!(matches!(
+        run_event_loop(
+            &mut terminal,
+            Locale::EnUs,
+            &mut inputs,
+            &mut surface,
+            &FixedTermination(false),
+            &viewport,
+            dimensions
+        ),
+        Err(LoopFailure::Terminal(_))
+    ));
+    assert_eq!(
+        surface.acknowledged, 1,
+        "only the successful initial draw may publish feedback"
+    );
 }

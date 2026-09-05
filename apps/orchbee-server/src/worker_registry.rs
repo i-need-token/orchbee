@@ -156,13 +156,6 @@ impl WorkerRegistry {
         })
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the OBCN handle is staged before the Server OBCS coordinator"
-        )
-    )]
     pub(crate) fn request_handle(&self) -> Option<WorkerRequestHandle> {
         self.active
             .as_ref()

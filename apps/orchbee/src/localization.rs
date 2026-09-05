@@ -221,3 +221,37 @@ fn locale_from_value(value: &OsString) -> Locale {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(unix)]
+impl Locale {
+    pub(crate) const fn terminal_status(
+        self,
+        status: crate::terminal_session::TerminalStatus,
+    ) -> &'static str {
+        use crate::terminal_session::TerminalStatus;
+        match (self, status) {
+            (Self::EnUs, TerminalStatus::Connecting) => "Connecting terminal…",
+            (Self::ZhCn, TerminalStatus::Connecting) => "正在连接终端…",
+            (Self::EnUs, TerminalStatus::Controlling) => "Terminal connected",
+            (Self::ZhCn, TerminalStatus::Controlling) => "终端已连接",
+            (Self::EnUs, TerminalStatus::ReadOnly) => {
+                "Viewing only · another Client controls this terminal"
+            }
+            (Self::ZhCn, TerminalStatus::ReadOnly) => "仅查看 · 其他 Client 正在控制此终端",
+            (Self::EnUs, TerminalStatus::Blocked) => {
+                "Terminal display paused · waiting for a fresh frame"
+            }
+            (Self::ZhCn, TerminalStatus::Blocked) => "终端显示已暂停 · 正在等待新帧",
+            (Self::EnUs, TerminalStatus::Unavailable) => {
+                "Terminal disconnected · Ctrl+B then q to exit"
+            }
+            (Self::ZhCn, TerminalStatus::Unavailable) => "终端已断连 · 按 Ctrl+B 后按 q 退出",
+            (Self::EnUs, TerminalStatus::OutcomeUnknown) => {
+                "Terminal operation result unknown · no replay · Ctrl+B then q to exit"
+            }
+            (Self::ZhCn, TerminalStatus::OutcomeUnknown) => {
+                "终端操作结果未知 · 不会重放 · 按 Ctrl+B 后按 q 退出"
+            }
+        }
+    }
+}

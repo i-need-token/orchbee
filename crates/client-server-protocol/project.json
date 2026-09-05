@@ -3,10 +3,10 @@
 	"domain": "client-server-terminal-control-protocol",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Independent Rust binding and bounded stream framing for the language-neutral version-1 Client-to-Server terminal-control contract.",
+	"responsibility": "Independent Rust binding and bounded stream framing for the language-neutral version-1 Client-to-Server terminal intent, Session viewer, and exclusive input/resize controller contract.",
 	"nonGoals": [
 		"Owning local Client admission, Client Session state, authentication, authorization, request replay lookup, historical duplicate detection, idempotency ledgers, Worker placement, Worker operations, Host launch, terminal execution, or Workbench projection state.",
-		"Defining attach, terminal data relay, input, resize-after-start, close, cancel, retry, transport selection, persistence, recovery, renderer, command-line, Project, Workspace, Panel, Worktree, profile, configuration, executable, argument, or environment-overlay behavior.",
+		"Defining close, cancel, retry, transport selection, persistence, recovery, renderer, command-line, Project, Workspace, Panel, Worktree, profile, configuration, executable, argument, or environment-overlay behavior.",
 		"Importing or re-exporting the local Client admission protocol, Server-Worker authorization protocol, Terminal Host protocol, or Workbench binding."
 	]
 }

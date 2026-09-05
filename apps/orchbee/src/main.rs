@@ -27,6 +27,10 @@ mod terminal_input;
 #[cfg(unix)]
 mod terminal_lifecycle;
 #[cfg(unix)]
+mod terminal_projection;
+#[cfg(unix)]
+mod terminal_session;
+#[cfg(unix)]
 mod termination_signal;
 #[cfg(unix)]
 mod tui_backend;
@@ -50,6 +54,13 @@ use presentation::{ProcessResult, present};
 // Keep the additive shell integration seam type-checked without making it an invocation route.
 #[cfg(unix)]
 const _: fn(localization::Locale) -> Result<(), tui_shell::TuiFailure> = tui_shell::run;
+
+#[cfg(unix)]
+const _: fn(
+    localization::Locale,
+    local_client::LocalClient,
+    terminal_session::TerminalIntent,
+) -> Result<(), tui_shell::TuiFailure> = tui_shell::run_connected;
 
 fn main() -> ExitCode {
     let locale = select_locale(|name| env::var_os(name));

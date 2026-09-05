@@ -12,6 +12,8 @@ use crate::{
     tui_layout::{SidebarArea, SidebarLayer, centered_overlay, project_shell_areas},
 };
 
+mod terminal_cells;
+
 const BACKGROUND: Color = Color::Rgb(11, 14, 20);
 const BORDER: Color = Color::Rgb(52, 61, 78);
 const EMPHASIS: Color = Color::Rgb(122, 162, 247);
@@ -20,14 +22,45 @@ const SIDEBAR_BACKGROUND: Color = Color::Rgb(18, 23, 32);
 const TEXT: Color = Color::Rgb(211, 218, 232);
 const WARNING: Color = Color::Rgb(232, 179, 95);
 
+#[cfg(test)]
 pub(crate) fn render_shell(frame: &mut Frame<'_>, view: &ClientView, locale: Locale) {
+    render_terminal_shell(frame, view, locale, None, None);
+}
+
+pub(crate) fn render_terminal_shell(
+    frame: &mut Frame<'_>,
+    view: &ClientView,
+    locale: Locale,
+    projection: Option<&crate::terminal_projection::TerminalProjection>,
+    status: Option<crate::terminal_session::TerminalStatus>,
+) {
     let area = frame.area();
-    let text = locale.shell();
+    let mut text = locale.shell();
+    if let Some(status) = status {
+        text.backend_status = locale.terminal_status(status);
+        text.tabs_unavailable = text.workbench_title;
+    }
     frame.render_widget(Block::new().style(Style::new().bg(BACKGROUND)), area);
 
     let areas = project_shell_areas(area, view.sidebar_surface());
     render_workbench(frame, areas.tabs, areas.panel, text);
-    render_status(frame, areas.status, view, locale, text);
+    if let Some(status) = status {
+        let area = crate::tui_layout::terminal_area(areas.panel);
+        frame.render_widget(Clear, area);
+        if let Some(terminal) =
+            projection.and_then(crate::terminal_projection::TerminalProjection::frame)
+        {
+            terminal_cells::render(frame, area, terminal, view.overlay().is_none());
+        } else {
+            frame.render_widget(
+                Paragraph::new(locale.terminal_status(status))
+                    .style(Style::new().fg(MUTED))
+                    .wrap(Wrap { trim: true }),
+                area,
+            );
+        }
+    }
+    render_status(frame, areas.status, view, locale, text, status);
 
     if let Some(sidebar) = areas.sidebar {
         render_sidebar(frame, sidebar, text);
@@ -100,6 +133,7 @@ fn render_status(
     view: &ClientView,
     locale: Locale,
     text: ShellText,
+    status: Option<crate::terminal_session::TerminalStatus>,
 ) {
     let [notice, prefix] =
         Layout::horizontal([Constraint::Min(0), Constraint::Length(24)]).areas(area);
@@ -107,9 +141,16 @@ fn render_status(
         .borders(Borders::TOP)
         .border_style(Style::new().fg(BORDER));
     frame.render_widget(
-        Paragraph::new(locale.shell_notice(view.notice()))
-            .style(Style::new().fg(MUTED))
-            .block(status_block.clone()),
+        Paragraph::new(if view.notice().is_none() {
+            status.map_or_else(
+                || locale.shell_notice(None),
+                |status| locale.terminal_status(status),
+            )
+        } else {
+            locale.shell_notice(view.notice())
+        })
+        .style(Style::new().fg(MUTED))
+        .block(status_block.clone()),
         notice,
     );
     let (label, style) = if view.prefix_active() {

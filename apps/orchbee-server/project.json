@@ -3,11 +3,11 @@
 	"domain": "orchbee-server",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Unshipped private Rust Server with version-1 Workbench projection mechanics, bounded same-user POSIX Worker and Human Client Session admission, a serialized post-OBLS OBCN Worker carrier, and sequential deny-only OBCS processing.",
+	"responsibility": "Unshipped private Rust Server with Workbench projection mechanics, bounded same-user POSIX Worker and Human Client Session admission, a serialized OBCN carrier, local terminal Create/Start authorization and commitment, bounded Client Session viewer relay, and exclusive input/resize controller grants.",
 	"nonGoals": [
-		"Mapping OBCS requests into OBCN, authorizing terminal business outcomes, performing Host dispatch or terminal effects, returning successful terminal results, or adding OBCS queues, ledgers, retries, cancellation, or post-admission timeouts.",
-		"Providing terminal relay, external Workbench mutation or publication, persistence, recovery, endpoint discovery, lazy activation, production supervision, or a durable background lifecycle.",
+		"Providing remote or fine-grained product authorization, request replay ledgers, automatic retry, or cancellation.",
+		"Providing external Workbench mutation or publication, persistence, recovery, endpoint discovery, lazy activation, production supervision, or a durable background lifecycle.",
 		"Migrating the current Node Server, Desktop Workbench writer, Browser ingress, CLI, TUI, Worker, Terminal Host, packaging, release, or installation behavior.",
-		"Owning semantic business transitions, redefining the language-neutral Workbench contract, or exposing this unpublished application crate as a stable cross-application API."
+		"Redefining language-neutral Workbench or terminal contracts, becoming a PTY/VT owner, or exposing this unpublished application crate as a stable cross-application API."
 	]
 }

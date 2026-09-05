@@ -4,40 +4,21 @@ use std::{
 };
 
 use orchbee_client_server_protocol::{
-    ClientMessage, CreateOutcome, CreateRejectedReason, ReadMessageError, ServerMessage,
-    StartOutcome, StartRejectedReason, TerminalCreateResult, TerminalStartResult,
-    WriteMessageError, read_client_message, write_server_message,
+    ClientMessage, ReadMessageError, ServerMessage, WriteMessageError, read_client_message,
+    write_server_message,
 };
 
-pub(super) fn run<Stream>(stream: &mut Stream) -> Result<(), ObcsSessionError>
+pub(super) fn run<Stream>(
+    stream: &mut Stream,
+    mut execute: impl FnMut(ClientMessage) -> ServerMessage,
+) -> Result<(), ObcsSessionError>
 where
     Stream: Read + Write,
 {
     loop {
         let request = read_client_message(stream).map_err(ObcsSessionError::Read)?;
-        let result = deny(request);
+        let result = execute(request);
         write_server_message(stream, &result).map_err(ObcsSessionError::Write)?;
-    }
-}
-
-fn deny(request: ClientMessage) -> ServerMessage {
-    match request {
-        ClientMessage::TerminalCreate(request) => {
-            ServerMessage::TerminalCreateResult(TerminalCreateResult::new(
-                request.request_id().clone(),
-                CreateOutcome::Rejected {
-                    reason: CreateRejectedReason::NotAuthorized,
-                },
-            ))
-        }
-        ClientMessage::TerminalStart(request) => {
-            ServerMessage::TerminalStartResult(TerminalStartResult::new(
-                request.request_id().clone(),
-                StartOutcome::Rejected {
-                    reason: StartRejectedReason::NotAuthorized,
-                },
-            ))
-        }
     }
 }
 

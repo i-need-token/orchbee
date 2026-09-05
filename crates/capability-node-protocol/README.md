@@ -3,8 +3,8 @@
 Private, experimental Rust semantic contract for authorized terminal operations between Orchbee
 Server and a Capability Node. The initial Capability Node is the Worker, but this crate does not
 bind the messages to a local socket or any other carrier. The local Server adapter now consumes its
-codec in an application-private post-OBLS carrier, but no Server business coordinator or current
-Worker runtime consumes requests end to end. It is not a public API or a compatibility promise.
+codec in an application-private post-OBLS carrier. The local Server coordinator now submits
+authorized Create/Start through that carrier to the Worker Host-execution loop. It is not a public API or a compatibility promise.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -60,6 +60,70 @@ cells, and each total pixel extent fits `u16`. These types are Capability Node r
 imports or re-exports of Terminal Host wire payloads; a future Worker adapter must convert them
 explicitly and preserve validation.
 
+## Read-only viewer messages
+
+The Worker now consumes OBCN kind 5 `TerminalViewerRequest` and emits kind 6
+`TerminalViewerResult`. Server now submits these messages for its admitted Client Sessions alongside Launch/Start. These additive messages remain private and unshipped.
+An older decoder rejects the new tags or magic; no fallback or mixed-cohort compatibility is claimed.
+
+Every request contains a fresh request `OperationId`, exact Worker ID and nonzero generation, and a
+Server-issued attachment `OperationId`. Server allocates attachment identities fresh across its
+active authority and never reuses them after detach. They name independent transient viewers, not
+product Terminal identities or Host creation identities. The authenticated Server alone grants
+read access; Worker checks the admitted Worker/generation and exact Host epoch before attaching.
+This path grants neither input nor resize, and never claims the Host resize lease.
+
+The closed actions are `Attach` with Host epoch and Host terminal ID, `Poll`, `FrameApplied` with
+positive sequence/generation and revision, `NeedSnapshot` with positive sequence and the existing
+eight snapshot reasons, and `Detach`. Kind 5 lays out request ID (16 bytes), Worker ID (16),
+generation (8), attachment ID (16), then action tag (1). Tags 1 through 5 select those actions in
+that order. Attach adds two 16-byte identities; FrameApplied adds three 8-byte integers;
+NeedSnapshot adds an 8-byte sequence and reason tag 1 through 8: `ActivityStale`, `BaseMismatch`,
+`DecoderRejected`, `DimensionsMismatch`, `GenerationMismatch`, `IdentityMismatch`, `SequenceGap`,
+and `StoreReset`.
+All integers are unsigned big-endian. Kind 6 contains request and attachment IDs followed by
+`Attached`, `Empty`, `FeedbackAccepted`, `Detached`, or `Rejected` tags 1 through 5. Rejection tags
+1 through 8 are wrong Worker, stale Worker generation, stale Host epoch, capacity exceeded,
+attachment unavailable, attachment already exists, feedback mismatch, and Host rejected.
+Results always echo both request and attachment IDs. A poll never waits for future Host output.
+
+A record result uses the separate `OBNR` envelope: four-byte magic, big-endian version 1 (`u16`),
+zero reserved field (`u16`), and big-endian payload length (`u32`), then request ID (16), attachment
+ID (16), and one unchanged OBTP record. Its record is 64 through `64 + 36 MiB` bytes, matching the
+Host envelope plus maximum OBTF payload. The codec validates the complete 12-byte header and bound
+before allocating payload; consumers validate the opaque record's Host envelope, route, role,
+identity, and negotiated size. This does not enlarge the 8 KiB OBCN control bound or decode frame
+content. Strict in-memory decoding rejects trailing bytes; streaming decoding consumes exactly one
+record and preserves the following frame boundary. No acknowledgement, retry, or queue policy is
+hidden in these codecs. Viewer carrier failure retires transient state; callers never replay an
+ambiguous attachment or feedback exchange automatically.
+
+## Controller messages
+
+OBCN kind 7 `TerminalControlRequest` and kind 8 `TerminalControlResult` extend the same serialized
+Server-Worker stream. Server is the actual producer and Worker maps the granted controller to a
+separate non-reading Host attachment. Server allocates fresh request and controller identities;
+Viewer and control identities never alias, and all requests pin the admitted Worker generation.
+
+A request contains request ID (16 bytes), Worker ID (16), Worker generation (u64), viewer ID (16),
+controller ID (16), then action: 1 Acquire, 2 Input, 3 Resize, or 4 Release. Input adds a positive u64
+sequence, u16 length, and 1 through 4,096 raw bytes. Resize adds a positive u64 sequence and the four
+u16 geometry fields in the existing columns/rows/cell-width/cell-height order. Other actions add no
+field. Integers use big-endian encoding; all IDs are nonzero. Input and resize share a strictly
+increasing per-grant sequence; admission consumes it even on a definite Host rejection.
+
+A result contains request, viewer, and controller IDs (16 bytes each), then outcome: 1 Acquired,
+2 Released, 3 InputAccepted, 4 Resized with the same complete geometry, or 5 Rejected with a reason
+byte: 1 WrongWorker, 2 StaleWorkerGeneration, 3 ViewerUnavailable, 4 ControllerBusy, 5 NotController,
+6 SequenceMismatch, 7 HostRejected. Exact IDs and action/outcome compatibility are required; Resize
+must echo geometry. Release is internal cleanup and is idempotent if that viewer has no controller;
+a different current grant rejects. An ambiguous Host exchange closes the Worker carrier instead
+of fabricating acceptance, and Server classifies complete delivery without a result as unknown.
+
+The 8 KiB OBCN limit, exact-length decoding, and direction rules remain unchanged. Codec tests cover
+all actions/outcomes/reasons, raw byte preservation, maximum input and invalid scope bounds. The
+Server and Worker guides own single-controller reservation, cleanup and real PTY evidence.
+
 ## Authorization outcomes
 
 Pre-admission rejection distinguishes wrong Worker, stale generation, expired lease, stale fence,
@@ -99,8 +163,8 @@ remote transport, encryption, and connection state machines belong to carrier ad
 own protocols. The current local Server adapter owns a capacity-one submitted slot behind at most
 one wire request, serializes complete request/result exchanges, validates exact correlation and
 echoed authorization, and distinguishes failures before and after a complete request write. It
-does not map OBCS, synthesize semantic outcomes, retry, or reconcile. Server owns future product
-authorization and reconciliation; a Capability Node adapter owns explicit mapping to its Worker
+does not map OBCS, synthesize semantic outcomes, retry, or reconcile. Server owns local terminal authorization and
+reconciliation; a Capability Node adapter owns explicit mapping to its Worker
 admission identity and Terminal Host protocol. This crate depends on neither protocol.
 
 For the current adapter, an attached generation remains registered until its sole wire owner has
@@ -114,7 +178,7 @@ post-delivery unknown; the adapter does not manufacture an OBCN result.
 
 The registered
 [`TerminalLaunchAuthorization`](../../apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla)
-model is the Server-owned behavioral authority for this not-yet-end-to-end-consumed contract. It
+model is the Server-owned behavioral authority for this experimental contract. It
 explores current and stale Worker generations, lease expiry before admission, between admission
 and Host handoff,
 and after handoff, lower/exact/conflicting fences, definite pre-handoff failure, post-handoff

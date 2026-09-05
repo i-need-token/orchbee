@@ -16,7 +16,7 @@ project Workbench state.
 
 | API                                              | Contract                                                                                              |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `RequestId`, `WorkerId`                          | Parse nonzero opaque 128-bit lowercase hexadecimal identities.                                        |
+| `RequestId`, `WorkerId`, `ControllerId`          | Parse nonzero opaque 128-bit lowercase hexadecimal identities.                                        |
 | `WorkingDirectory`                               | Validate an absolute POSIX UTF-8 path of at most 4,096 encoded bytes with no NUL.                     |
 | `Geometry`                                       | Construct complete geometry only when all scalar and product bounds hold.                             |
 | `TerminalCreateRequest`, `TerminalStartRequest`  | Construct validated Client requests; start rejects equal start/create request identities.             |
@@ -28,10 +28,32 @@ project Workbench state.
 
 All decoded objects and enums are closed. Missing explicit nullable create fields, unknown fields or
 tags, duplicate keys, BOM, invalid UTF-8, trailing JSON values, direction mismatches, invalid
-identities, paths, or geometry, and frames outside the exact length or 32 KiB payload bound are
+identities, paths, or geometry, and JSON frames outside the exact length or 32 KiB payload bound are
 rejected. Protocol and geometry numbers use the schema-owned finite binary64 safe-integer
 refinement, so equivalent integral decimal and exponent spellings decode to the same value.
 Canonical encoding uses compact deterministic JSON with ordinary integer tokens.
+
+## Viewer binding
+
+`TerminalViewerRequest`, `TerminalViewerAction`, `TerminalViewerResult`, and `TerminalViewerOutcome`
+provide session-scoped read-only Attach, Poll, FrameApplied, NeedSnapshot, and Detach values.
+`ViewerId` and `HostEpoch` represent Server-issued attachment scope. Feedback counters use canonical
+u64 decimal strings; the JSON corpus tests every action, outcome and reason. Record results use the
+schema-owner's OBSR binary framing and `MAXIMUM_VIEWER_RECORD_BYTES` bound; the same Server frame
+functions dispatch either JSON control or an opaque binary record. Client-direction readers reject
+OBSR. This crate does not decode OBTP or terminal presentation; Server and the eventual renderer
+own their respective routing and presentation validation. Large-record tests cover byte equality,
+partial reads, following-frame alignment, direction, and invalid header/length/identity rejection.
+
+## Controller binding
+
+`TerminalControlRequest`, `TerminalControlAction`, `TerminalControlResult`, and `TerminalControlOutcome`
+carry explicit Acquire and grant-scoped Input/Resize. `ControllerId` is a Server-issued identity;
+`ControlInput` validates 1 through `MAXIMUM_CONTROL_INPUT_BYTES` (4,096) bytes and serializes canonical
+lowercase hex. Shared number adapters validate positive decimal u64 sequences. These controls use
+the existing 32 KiB OBCS JSON framing; they introduce no binary input carrier or Host dependency.
+The schema-owner's corpus checks each action/outcome/reason and malformed, maximum, and excessive
+inputs. This binding grants no controller authority and never retries an unknown effect.
 
 ## Request boundary
 

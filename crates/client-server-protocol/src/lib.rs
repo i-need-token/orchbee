@@ -1,9 +1,12 @@
 mod codec;
+mod control;
 mod error;
 mod geometry;
 mod identity;
 mod model;
 mod number;
+mod viewer;
+mod viewer_record;
 mod wire;
 mod working_directory;
 
@@ -14,18 +17,27 @@ pub use codec::{
     decode_client_frame, decode_server_frame, encode_client_frame, encode_server_frame,
     read_client_message, read_server_message, write_client_message, write_server_message,
 };
+pub use control::{
+    ControlInput, ControlRejectedReason, ControlUnavailableReason, MAXIMUM_CONTROL_INPUT_BYTES,
+    TerminalControlAction, TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
+};
 pub use error::{ProtocolError, ReadMessageError, WriteMessageError};
 pub use geometry::{
     Geometry, GeometryError, GeometryField, MAXIMUM_GEOMETRY_VALUE, MAXIMUM_PIXEL_EXTENT,
     MAXIMUM_TERMINAL_CELLS,
 };
-pub use identity::{IdentityError, RequestId, WorkerId};
+pub use identity::{ControllerId, HostEpoch, IdentityError, RequestId, ViewerId, WorkerId};
 pub use model::{
     ClientMessage, CreateAcceptedState, CreateFailureReason, CreateOutcome, CreateRejectedReason,
     CreateUnavailableReason, ServerMessage, StartFailureReason, StartMode, StartOutcome,
     StartRejectedReason, StartRequestError, StartTransition, StartUnavailableReason,
     TerminalCreateRequest, TerminalCreateResult, TerminalStartRequest, TerminalStartResult,
     WorkerConstraint,
+};
+pub use viewer::{
+    MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerRequest, TerminalViewerResult, ViewerRejectedReason, ViewerSnapshotReason,
+    ViewerUnavailableReason,
 };
 pub use working_directory::{
     MAXIMUM_WORKING_DIRECTORY_BYTES, WorkingDirectory, WorkingDirectoryError,

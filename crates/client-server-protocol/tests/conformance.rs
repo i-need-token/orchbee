@@ -118,7 +118,7 @@ fn schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips()
             .pointer("/oneOf")
             .and_then(Value::as_array)
             .map(Vec::len),
-        Some(4)
+        Some(8)
     );
     assert!(jsonschema::draft202012::meta::is_valid(&schema));
     let schema_validator = jsonschema::draft202012::new(&schema)?;
@@ -179,6 +179,34 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
     }
 
     let expected = BTreeSet::from([
+        "control-acquire",
+        "control-input",
+        "control-resize",
+        "control-acquired",
+        "control-input-accepted",
+        "control-resized",
+        "control-outcome-unknown",
+        "control-rejected-viewer-unavailable",
+        "control-rejected-controller-busy",
+        "control-rejected-not-controller",
+        "control-rejected-sequence-mismatch",
+        "control-rejected-host-rejected",
+        "control-unavailable-server-busy",
+        "control-unavailable-terminal-runtime-unavailable",
+        "viewer-attach",
+        "viewer-poll",
+        "viewer-frame-applied",
+        "viewer-need-snapshot",
+        "viewer-detach",
+        "viewer-attached",
+        "viewer-empty",
+        "viewer-feedback-accepted",
+        "viewer-detached",
+        "viewer-rejected-already-attached",
+        "viewer-rejected-terminal-unavailable",
+        "viewer-rejected-feedback-mismatch",
+        "viewer-unavailable-server-busy",
+        "viewer-unavailable-terminal-runtime",
         "create-accepted-awaiting-start",
         "create-accepted-started",
         "create-failed-terminal-create-failed",
@@ -469,6 +497,74 @@ fn encode(direction: Direction, message: &DecodedMessage) -> Result<Vec<u8>, Pro
 
 fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str>) {
     match message {
+        DecodedMessage::Client(ClientMessage::TerminalControl(request)) => {
+            use orchbee_client_server_protocol::TerminalControlAction as Action;
+            reached.insert(match request.action() {
+                Action::Acquire {} => "control-acquire",
+                Action::Input { .. } => "control-input",
+                Action::Resize { .. } => "control-resize",
+            });
+        }
+        DecodedMessage::Server(ServerMessage::TerminalControlResult(result)) => {
+            use orchbee_client_server_protocol::{
+                ControlRejectedReason as Rejected, ControlUnavailableReason as Unavailable,
+                TerminalControlOutcome as Outcome,
+            };
+            reached.insert(match result.outcome() {
+                Outcome::Acquired { .. } => "control-acquired",
+                Outcome::InputAccepted {} => "control-input-accepted",
+                Outcome::Resized { .. } => "control-resized",
+                Outcome::OutcomeUnknown {} => "control-outcome-unknown",
+                Outcome::Rejected { reason } => match reason {
+                    Rejected::ViewerUnavailable => "control-rejected-viewer-unavailable",
+                    Rejected::ControllerBusy => "control-rejected-controller-busy",
+                    Rejected::NotController => "control-rejected-not-controller",
+                    Rejected::SequenceMismatch => "control-rejected-sequence-mismatch",
+                    Rejected::HostRejected => "control-rejected-host-rejected",
+                },
+                Outcome::Unavailable { reason } => match reason {
+                    Unavailable::ServerBusy => "control-unavailable-server-busy",
+                    Unavailable::TerminalRuntimeUnavailable => {
+                        "control-unavailable-terminal-runtime-unavailable"
+                    }
+                },
+            });
+        }
+        DecodedMessage::Client(ClientMessage::TerminalViewer(request)) => {
+            use orchbee_client_server_protocol::TerminalViewerAction;
+            reached.insert(match request.action() {
+                TerminalViewerAction::Attach { .. } => "viewer-attach",
+                TerminalViewerAction::Poll {} => "viewer-poll",
+                TerminalViewerAction::FrameApplied { .. } => "viewer-frame-applied",
+                TerminalViewerAction::NeedSnapshot { .. } => "viewer-need-snapshot",
+                TerminalViewerAction::Detach {} => "viewer-detach",
+            });
+        }
+        DecodedMessage::Server(ServerMessage::TerminalViewerResult(result)) => {
+            use orchbee_client_server_protocol::{
+                TerminalViewerOutcome, ViewerRejectedReason, ViewerUnavailableReason,
+            };
+            reached.insert(match result.outcome() {
+                TerminalViewerOutcome::Attached { .. } => "viewer-attached",
+                TerminalViewerOutcome::Empty {} => "viewer-empty",
+                TerminalViewerOutcome::FeedbackAccepted {} => "viewer-feedback-accepted",
+                TerminalViewerOutcome::Detached {} => "viewer-detached",
+                TerminalViewerOutcome::Rejected { reason } => match reason {
+                    ViewerRejectedReason::AlreadyAttached => "viewer-rejected-already-attached",
+                    ViewerRejectedReason::TerminalUnavailable => {
+                        "viewer-rejected-terminal-unavailable"
+                    }
+                    ViewerRejectedReason::FeedbackMismatch => "viewer-rejected-feedback-mismatch",
+                },
+                TerminalViewerOutcome::Unavailable { reason } => match reason {
+                    ViewerUnavailableReason::ServerBusy => "viewer-unavailable-server-busy",
+                    ViewerUnavailableReason::TerminalRuntimeUnavailable => {
+                        "viewer-unavailable-terminal-runtime"
+                    }
+                },
+                TerminalViewerOutcome::Record(_) => "viewer-binary-record",
+            });
+        }
         DecodedMessage::Client(ClientMessage::TerminalCreate(request)) => {
             reached.insert("message-terminal-create");
             match request.worker_constraint() {

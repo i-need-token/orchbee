@@ -123,6 +123,13 @@ semantic action is missing or has no reached witness and emits a machine-readabl
 duration, and model/config SHA-256 report. Configuration bounds and TLC's finite-state assumption
 remain evidence limits; action coverage is not implementation refinement evidence.
 
+For the pinned TLC action-header format, coverage requires a positive generated-state count from
+`distinct:generated`, or the sole count of a single-count header. A transition to an already
+discovered state is still a reached witness; expression evaluation costs are not action evidence.
+This interpretation follows the pinned [TLC action reporter](https://github.com/tlaplus/tlaplus/blob/v1.7.4/tlatools/org.lamport.tlatools/src/tlc2/tool/coverage/ActionWrapper.java).
+`scripts/tla/model-inventory.test.mjs` pins the return-to-existing-state regression and missing,
+zero-generated, and expression-only negative controls without changing any model or required action.
+
 Local TLC execution requires Java 17 or newer and uses `java` from `PATH`. Set
 `ORCHBEE_TLA_JAVA` for an explicit executable, `ORCHBEE_TLA2TOOLS_JAR` for an already provisioned
 copy with the pinned SHA-256, or `ORCHBEE_TLA_TIMEOUT_MILLISECONDS` to apply a positive timeout

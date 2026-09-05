@@ -63,6 +63,8 @@ macro_rules! define_identity {
 
 define_identity!(RequestId);
 define_identity!(WorkerId);
+define_identity!(HostEpoch);
+define_identity!(ViewerId);
 
 fn validate_identity(value: &str) -> Result<(), IdentityError> {
     if value.len() != IDENTITY_TEXT_LENGTH
@@ -80,3 +82,5 @@ fn validate_identity(value: &str) -> Result<(), IdentityError> {
 
 #[cfg(test)]
 mod tests;
+
+define_identity!(ControllerId);

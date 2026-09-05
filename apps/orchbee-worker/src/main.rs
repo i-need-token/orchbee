@@ -1,32 +1,22 @@
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "default launch resolution is staged for the authorized Host adapter"
-    )
-)]
 #[cfg(unix)]
 mod default_interactive_launch;
 #[cfg(unix)]
 mod host_connection;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the authorized Host-operation kernel is staged before its carrier adapter"
-    )
-)]
+#[cfg(any(unix, test))]
 mod terminal_authorization;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the pure Host launch adapter is staged before carrier integration"
-    )
-)]
+mod terminal_control_operation;
+#[cfg(any(unix, test))]
 mod terminal_host_launch_adapter;
 #[cfg(unix)]
+mod terminal_host_operation;
+#[cfg(unix)]
+mod terminal_operations;
+#[cfg(unix)]
+mod terminal_viewer_operation;
+#[cfg(unix)]
 mod worker_connection;
+#[cfg(unix)]
+mod worker_identity;
 #[cfg(unix)]
 mod worker_options;
 

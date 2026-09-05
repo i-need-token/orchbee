@@ -19,6 +19,9 @@ use crate::{
     },
 };
 
+mod control;
+mod viewer;
+
 const FRAME_MAGIC: [u8; 4] = *b"OBCN";
 const FRAME_HEADER_BYTES: usize = 8;
 const IMMEDIATE_LAUNCH_KIND: u8 = 1;
@@ -39,13 +42,24 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    TerminalControlRequest(crate::TerminalControlRequest),
+    TerminalControlResult(crate::TerminalControlResult),
     AuthorizedTerminalLaunch(AuthorizedTerminalLaunch),
     TerminalLaunchResult(TerminalLaunchResult),
     AuthorizedTerminalStart(AuthorizedTerminalStart),
     TerminalStartResult(TerminalStartResult),
+    TerminalViewerRequest(crate::TerminalViewerRequest),
+    TerminalViewerResult(crate::TerminalViewerResult),
 }
 
 pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
+    if let CapabilityNodeMessage::TerminalViewerResult(crate::TerminalViewerResult {
+        outcome: crate::TerminalViewerOutcome::Record(_),
+        ..
+    }) = message
+    {
+        return viewer::encode_record(message);
+    }
     let payload = encode_payload(message);
     if payload.len() > MAXIMUM_FRAME_PAYLOAD_BYTES {
         return Err(ProtocolError::PayloadTooLarge {
@@ -67,6 +81,9 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
 }
 
 pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
+    if frame.starts_with(b"OBNR") {
+        return viewer::decode_record(frame);
+    }
     let header: &[u8; FRAME_HEADER_BYTES] = frame
         .get(..FRAME_HEADER_BYTES)
         .ok_or(ProtocolError::InvalidPayload)?
@@ -85,6 +102,9 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
 pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, ReadMessageError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header)?;
+    if header.starts_with(b"OBNR") {
+        return viewer::read_record(reader, header);
+    }
     let payload_length = decode_header(&header)?;
     let mut payload = vec![0_u8; payload_length];
     reader.read_exact(&mut payload)?;
@@ -101,6 +121,8 @@ pub fn write_message(
 
 fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
     match message {
+        CapabilityNodeMessage::TerminalControlRequest(value) => control::encode_request(value),
+        CapabilityNodeMessage::TerminalControlResult(value) => control::encode_result(*value),
         CapabilityNodeMessage::AuthorizedTerminalLaunch(value) => {
             encode_authorized_terminal_launch(value)
         }
@@ -109,6 +131,8 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
             encode_authorized_terminal_start(*value)
         }
         CapabilityNodeMessage::TerminalStartResult(value) => encode_terminal_start_result(*value),
+        CapabilityNodeMessage::TerminalViewerRequest(value) => viewer::encode_request(*value),
+        CapabilityNodeMessage::TerminalViewerResult(value) => viewer::encode_result(value),
     }
 }
 
@@ -132,6 +156,16 @@ fn decode_header(header: &[u8; FRAME_HEADER_BYTES]) -> Result<usize, ProtocolErr
 
 fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     match payload.first().copied() {
+        Some(7) => {
+            control::decode_request(payload).map(CapabilityNodeMessage::TerminalControlRequest)
+        }
+        Some(8) => {
+            control::decode_result(payload).map(CapabilityNodeMessage::TerminalControlResult)
+        }
+        Some(5) => {
+            viewer::decode_request(payload).map(CapabilityNodeMessage::TerminalViewerRequest)
+        }
+        Some(6) => viewer::decode_result(payload).map(CapabilityNodeMessage::TerminalViewerResult),
         Some(AUTHORIZED_TERMINAL_LAUNCH_KIND) => decode_authorized_terminal_launch(payload)
             .map(CapabilityNodeMessage::AuthorizedTerminalLaunch),
         Some(TERMINAL_LAUNCH_RESULT_KIND) => {

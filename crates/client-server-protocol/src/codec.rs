@@ -21,10 +21,18 @@ pub fn decode_client_frame(frame: &[u8]) -> Result<ClientMessage, ProtocolError>
 }
 
 pub fn encode_server_frame(message: &ServerMessage) -> Result<Vec<u8>, ProtocolError> {
+    if let ServerMessage::TerminalViewerResult(result) = message
+        && let crate::TerminalViewerOutcome::Record(record) = result.outcome()
+    {
+        return crate::viewer_record::encode(result, record);
+    }
     encode_frame(&encode_server_payload(message)?)
 }
 
 pub fn decode_server_frame(frame: &[u8]) -> Result<ServerMessage, ProtocolError> {
+    if frame.starts_with(b"OBSR") {
+        return crate::viewer_record::decode(frame);
+    }
     decode_frame(frame).and_then(decode_server_payload)
 }
 
@@ -34,7 +42,12 @@ pub fn read_client_message(reader: &mut impl Read) -> Result<ClientMessage, Read
 }
 
 pub fn read_server_message(reader: &mut impl Read) -> Result<ServerMessage, ReadMessageError> {
-    let payload = read_payload(reader)?;
+    let mut header = [0; FRAME_HEADER_BYTES];
+    reader.read_exact(&mut header)?;
+    if header.starts_with(b"OBSR") {
+        return crate::viewer_record::read(reader, header);
+    }
+    let payload = read_payload_after_header(reader, header)?;
     decode_server_payload(&payload).map_err(Into::into)
 }
 
@@ -100,6 +113,13 @@ fn decode_frame(frame: &[u8]) -> Result<&[u8], ProtocolError> {
 fn read_payload(reader: &mut impl Read) -> Result<Vec<u8>, ReadMessageError> {
     let mut header = [0_u8; FRAME_HEADER_BYTES];
     reader.read_exact(&mut header)?;
+    read_payload_after_header(reader, header)
+}
+
+fn read_payload_after_header(
+    reader: &mut impl Read,
+    header: [u8; FRAME_HEADER_BYTES],
+) -> Result<Vec<u8>, ReadMessageError> {
     let payload_length = validate_header(&header)?;
     let mut payload = vec![0_u8; payload_length];
     reader.read_exact(&mut payload)?;

@@ -1,15 +1,12 @@
 use std::{
-    fs,
     io::{self, Read, Write},
     num::NonZeroU64,
     os::unix::net::{UnixListener, UnixStream},
-    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
         mpsc::{Receiver, SyncSender, sync_channel},
     },
-    thread,
     time::{Duration, Instant},
 };
 
@@ -37,7 +34,7 @@ const SECOND_REQUEST_ID: &str = "22222222222222222222222222222222";
 const TEST_REQUEST_TIMEOUT: Duration = Duration::from_millis(40);
 const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 
-static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
+use super::test_server::{FakeServer, TestDirectory};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -266,8 +263,8 @@ fn retires_the_session_when_create_receives_a_start_result() -> TestResult {
         SubmissionError::OutcomeUnknown {
             request_id,
             reason: OutcomeUnknownReason::UnexpectedResult {
-                expected: ResultKind::TerminalCreate,
-                received: ResultKind::TerminalStart,
+                expected: ResultKind::Create,
+                received: ResultKind::Start,
             },
         } if request_id.as_str() == FIRST_REQUEST_ID
     ));
@@ -658,74 +655,6 @@ fn require_message(actual: ClientMessage, expected: ClientMessage) -> io::Result
     }
 }
 
-struct FakeServer {
-    _directory: TestDirectory,
-    endpoint: PathBuf,
-    thread: thread::JoinHandle<io::Result<()>>,
-}
-
-impl FakeServer {
-    fn start(
-        handler: impl FnOnce(UnixStream) -> io::Result<()> + Send + 'static,
-    ) -> io::Result<Self> {
-        let directory = TestDirectory::new()?;
-        let endpoint = directory.path.join("client.sock");
-        let listener = UnixListener::bind(&endpoint)?;
-        let thread = thread::spawn(move || {
-            let (stream, _address) = listener.accept()?;
-            stream.set_read_timeout(Some(SERVER_GUARD_TIMEOUT))?;
-            stream.set_write_timeout(Some(SERVER_GUARD_TIMEOUT))?;
-            handler(stream)
-        });
-        Ok(Self {
-            _directory: directory,
-            endpoint,
-            thread,
-        })
-    }
-
-    fn endpoint(&self) -> &Path {
-        &self.endpoint
-    }
-
-    fn finish(self) -> io::Result<()> {
-        self.thread
-            .join()
-            .map_err(|_panic| io::Error::other("fake Server panicked"))?
-    }
-}
-
-struct TestDirectory {
-    path: PathBuf,
-}
-
-impl TestDirectory {
-    fn new() -> io::Result<Self> {
-        for _attempt in 0..100 {
-            let fixture_id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
-            let path = std::env::temp_dir().join(format!(
-                "orchbee-local-client-{}-{fixture_id}",
-                std::process::id()
-            ));
-            match fs::create_dir(&path) {
-                Ok(()) => return Ok(Self { path }),
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-                Err(error) => return Err(error),
-            }
-        }
-        Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "could not allocate a unique local Client test directory",
-        ))
-    }
-}
-
-impl Drop for TestDirectory {
-    fn drop(&mut self) {
-        let _result = fs::remove_dir_all(&self.path);
-    }
-}
-
 struct ChunkedStream {
     stream: UnixStream,
     maximum_read_chunk: usize,
@@ -819,4 +748,121 @@ impl Write for ChunkedStream {
     fn flush(&mut self) -> io::Result<()> {
         self.stream.flush()
     }
+}
+
+#[test]
+fn viewer_reads_large_records_and_retires_on_an_incompatible_result() -> TestResult {
+    use orchbee_client_server_protocol::{
+        TerminalViewerAction as Action, TerminalViewerOutcome as Outcome, TerminalViewerRequest,
+        TerminalViewerResult,
+    };
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 9)?;
+        for outcome in [Outcome::Record(vec![0xa5; 100_000]), Outcome::Detached {}] {
+            let ClientMessage::TerminalViewer(request) =
+                read_client_message(&mut stream).map_err(io::Error::other)?
+            else {
+                return Err(io::Error::other("expected viewer request"));
+            };
+            write_server_message(
+                &mut stream,
+                &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                    request.request_id().clone(),
+                    outcome,
+                )),
+            )
+            .map_err(io::Error::other)?;
+        }
+        let mut byte = [0];
+        assert_eq!(
+            stream.read(&mut byte)?,
+            0,
+            "invalid result must retire without resubmission"
+        );
+        Ok(())
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let request = TerminalViewerRequest::new(RequestId::parse(FIRST_REQUEST_ID)?, Action::Poll {});
+    assert_eq!(
+        client.submit_terminal_viewer(request.clone())?.outcome(),
+        &Outcome::Record(vec![0xa5; 100_000])
+    );
+    assert!(matches!(
+        client.submit_terminal_viewer(request.clone()),
+        Err(SubmissionError::OutcomeUnknown {
+            reason: OutcomeUnknownReason::InvalidResult(_),
+            ..
+        })
+    ));
+    assert!(matches!(
+        client.submit_terminal_viewer(request),
+        Err(SubmissionError::SessionUnavailable)
+    ));
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn control_accepts_exact_unknown_and_retires_on_a_wrong_resize_geometry() -> TestResult {
+    use orchbee_client_server_protocol::{
+        ControllerId, Geometry, TerminalControlAction as Action, TerminalControlOutcome as Outcome,
+        TerminalControlRequest, TerminalControlResult,
+    };
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 10)?;
+        for outcome in [
+            Outcome::OutcomeUnknown {},
+            Outcome::Resized {
+                geometry: Geometry::new(81, 24, 8, 16).map_err(io::Error::other)?,
+            },
+        ] {
+            let ClientMessage::TerminalControl(request) =
+                read_client_message(&mut stream).map_err(io::Error::other)?
+            else {
+                return Err(io::Error::other("expected control"));
+            };
+            write_server_message(
+                &mut stream,
+                &ServerMessage::TerminalControlResult(TerminalControlResult::new(
+                    request.request_id().clone(),
+                    outcome,
+                )),
+            )
+            .map_err(io::Error::other)?;
+        }
+        let mut byte = [0];
+        assert_eq!(stream.read(&mut byte)?, 0);
+        Ok(())
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    let action = Action::Resize {
+        controller_id: ControllerId::parse(FIRST_REQUEST_ID)?,
+        sequence: NonZeroU64::MIN,
+        geometry: Geometry::new(80, 24, 8, 16)?,
+    };
+    assert_eq!(
+        client
+            .submit_terminal_control(TerminalControlRequest::new(
+                RequestId::parse(FIRST_REQUEST_ID)?,
+                action
+            ))?
+            .outcome(),
+        &Outcome::OutcomeUnknown {}
+    );
+    assert!(matches!(
+        client.submit_terminal_control(TerminalControlRequest::new(
+            RequestId::parse(SECOND_REQUEST_ID)?,
+            Action::Resize {
+                controller_id: ControllerId::parse(SECOND_REQUEST_ID)?,
+                sequence: NonZeroU64::MIN,
+                geometry: Geometry::new(80, 24, 8, 16)?,
+            }
+        )),
+        Err(SubmissionError::OutcomeUnknown { .. })
+    ));
+    assert_eq!(client.generation(), None);
+    server.finish()?;
+    Ok(())
 }

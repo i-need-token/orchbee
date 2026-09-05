@@ -4,10 +4,30 @@
 	"title": "Orchbee Client-Server terminal-control contract version 1",
 	"$comment": "JSON numeric values refine through finite IEEE 754 binary64 safe integers before protocol and geometry bounds are applied; canonical encoding emits ordinary integer tokens.",
 	"oneOf": [
-		{ "$ref": "#/$defs/terminalCreate" },
-		{ "$ref": "#/$defs/terminalCreateResult" },
-		{ "$ref": "#/$defs/terminalStart" },
-		{ "$ref": "#/$defs/terminalStartResult" }
+		{
+			"$ref": "#/$defs/terminalCreate"
+		},
+		{
+			"$ref": "#/$defs/terminalCreateResult"
+		},
+		{
+			"$ref": "#/$defs/terminalStart"
+		},
+		{
+			"$ref": "#/$defs/terminalStartResult"
+		},
+		{
+			"$ref": "#/$defs/terminalViewer"
+		},
+		{
+			"$ref": "#/$defs/terminalViewerResult"
+		},
+		{
+			"$ref": "#/$defs/terminalControl"
+		},
+		{
+			"$ref": "#/$defs/terminalControlResult"
+		}
 	],
 	"$defs": {
 		"identity": {
@@ -15,7 +35,9 @@
 			"minLength": 32,
 			"maxLength": 32,
 			"pattern": "^[0-9a-f]{32}$",
-			"not": { "const": "00000000000000000000000000000000" }
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
 		},
 		"requestId": {
 			"title": "ClientServerRequestId",
@@ -38,10 +60,26 @@
 			"additionalProperties": false,
 			"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
 			"properties": {
-				"columns": { "type": "integer", "minimum": 1, "maximum": 4096 },
-				"rows": { "type": "integer", "minimum": 1, "maximum": 4096 },
-				"cellPixelWidth": { "type": "integer", "minimum": 1, "maximum": 4096 },
-				"cellPixelHeight": { "type": "integer", "minimum": 1, "maximum": 4096 }
+				"columns": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"rows": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"cellPixelWidth": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"cellPixelHeight": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				}
 			},
 			"$comment": "The semantic contract additionally requires columns*rows <= 262144, columns*cellPixelWidth <= 65535, and rows*cellPixelHeight <= 65535."
 		},
@@ -50,8 +88,12 @@
 			"additionalProperties": false,
 			"required": ["kind", "workerId"],
 			"properties": {
-				"kind": { "const": "exact" },
-				"workerId": { "$ref": "#/$defs/workerId" }
+				"kind": {
+					"const": "exact"
+				},
+				"workerId": {
+					"$ref": "#/$defs/workerId"
+				}
 			}
 		},
 		"immediateStartMode": {
@@ -59,8 +101,12 @@
 			"additionalProperties": false,
 			"required": ["kind", "geometry"],
 			"properties": {
-				"kind": { "const": "immediate" },
-				"geometry": { "$ref": "#/$defs/geometry" }
+				"kind": {
+					"const": "immediate"
+				},
+				"geometry": {
+					"$ref": "#/$defs/geometry"
+				}
 			}
 		},
 		"deferredStartMode": {
@@ -68,27 +114,58 @@
 			"additionalProperties": false,
 			"required": ["kind"],
 			"properties": {
-				"kind": { "const": "deferred" }
+				"kind": {
+					"const": "deferred"
+				}
 			}
 		},
 		"startMode": {
-			"oneOf": [{ "$ref": "#/$defs/immediateStartMode" }, { "$ref": "#/$defs/deferredStartMode" }]
+			"oneOf": [
+				{
+					"$ref": "#/$defs/immediateStartMode"
+				},
+				{
+					"$ref": "#/$defs/deferredStartMode"
+				}
+			]
 		},
 		"terminalCreate": {
 			"type": "object",
 			"additionalProperties": false,
 			"required": ["kind", "protocolVersion", "requestId", "workerConstraint", "cwd", "startMode"],
 			"properties": {
-				"kind": { "const": "terminal.create" },
-				"protocolVersion": { "const": 1 },
-				"requestId": { "$ref": "#/$defs/requestId" },
+				"kind": {
+					"const": "terminal.create"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
 				"workerConstraint": {
-					"oneOf": [{ "type": "null" }, { "$ref": "#/$defs/workerConstraint" }]
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/workerConstraint"
+						}
+					]
 				},
 				"cwd": {
-					"oneOf": [{ "type": "null" }, { "$ref": "#/$defs/cwd" }]
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/cwd"
+						}
+					]
 				},
-				"startMode": { "$ref": "#/$defs/startMode" }
+				"startMode": {
+					"$ref": "#/$defs/startMode"
+				}
 			}
 		},
 		"terminalStart": {
@@ -96,11 +173,21 @@
 			"additionalProperties": false,
 			"required": ["kind", "protocolVersion", "requestId", "terminalCreateRequestId", "geometry"],
 			"properties": {
-				"kind": { "const": "terminal.start" },
-				"protocolVersion": { "const": 1 },
-				"requestId": { "$ref": "#/$defs/requestId" },
-				"terminalCreateRequestId": { "$ref": "#/$defs/requestId" },
-				"geometry": { "$ref": "#/$defs/geometry" }
+				"kind": {
+					"const": "terminal.start"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"terminalCreateRequestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"geometry": {
+					"$ref": "#/$defs/geometry"
+				}
 			},
 			"$comment": "requestId and terminalCreateRequestId must be distinct decoded identities."
 		},
@@ -110,15 +197,23 @@
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["kind"],
-					"properties": { "kind": { "const": "awaiting-start" } }
+					"properties": {
+						"kind": {
+							"const": "awaiting-start"
+						}
+					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["kind", "geometry"],
 					"properties": {
-						"kind": { "const": "started" },
-						"geometry": { "$ref": "#/$defs/geometry" }
+						"kind": {
+							"const": "started"
+						},
+						"geometry": {
+							"$ref": "#/$defs/geometry"
+						}
 					}
 				}
 			]
@@ -136,8 +231,12 @@
 					"additionalProperties": false,
 					"required": ["kind", "state"],
 					"properties": {
-						"kind": { "const": "accepted" },
-						"state": { "$ref": "#/$defs/createAcceptedState" }
+						"kind": {
+							"const": "accepted"
+						},
+						"state": {
+							"$ref": "#/$defs/createAcceptedState"
+						}
 					}
 				},
 				{
@@ -145,8 +244,12 @@
 					"additionalProperties": false,
 					"required": ["kind", "reason"],
 					"properties": {
-						"kind": { "const": "rejected" },
-						"reason": { "$ref": "#/$defs/createRejectedReason" }
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"$ref": "#/$defs/createRejectedReason"
+						}
 					}
 				},
 				{
@@ -154,8 +257,12 @@
 					"additionalProperties": false,
 					"required": ["kind", "reason"],
 					"properties": {
-						"kind": { "const": "unavailable" },
-						"reason": { "$ref": "#/$defs/createUnavailableReason" }
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/createUnavailableReason"
+						}
 					}
 				},
 				{
@@ -163,15 +270,23 @@
 					"additionalProperties": false,
 					"required": ["kind", "reason"],
 					"properties": {
-						"kind": { "const": "failed" },
-						"reason": { "const": "terminal-create-failed" }
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"const": "terminal-create-failed"
+						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["kind"],
-					"properties": { "kind": { "const": "outcome-unknown" } }
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
+						}
+					}
 				}
 			]
 		},
@@ -180,10 +295,18 @@
 			"additionalProperties": false,
 			"required": ["kind", "protocolVersion", "requestId", "outcome"],
 			"properties": {
-				"kind": { "const": "terminal.create.result" },
-				"protocolVersion": { "const": 1 },
-				"requestId": { "$ref": "#/$defs/requestId" },
-				"outcome": { "$ref": "#/$defs/createOutcome" }
+				"kind": {
+					"const": "terminal.create.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/createOutcome"
+				}
 			}
 		},
 		"startTransition": {
@@ -207,9 +330,15 @@
 					"additionalProperties": false,
 					"required": ["kind", "geometry", "transition"],
 					"properties": {
-						"kind": { "const": "accepted" },
-						"geometry": { "$ref": "#/$defs/geometry" },
-						"transition": { "$ref": "#/$defs/startTransition" }
+						"kind": {
+							"const": "accepted"
+						},
+						"geometry": {
+							"$ref": "#/$defs/geometry"
+						},
+						"transition": {
+							"$ref": "#/$defs/startTransition"
+						}
 					}
 				},
 				{
@@ -217,8 +346,12 @@
 					"additionalProperties": false,
 					"required": ["kind", "reason"],
 					"properties": {
-						"kind": { "const": "rejected" },
-						"reason": { "$ref": "#/$defs/startRejectedReason" }
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"$ref": "#/$defs/startRejectedReason"
+						}
 					}
 				},
 				{
@@ -226,8 +359,12 @@
 					"additionalProperties": false,
 					"required": ["kind", "reason"],
 					"properties": {
-						"kind": { "const": "unavailable" },
-						"reason": { "$ref": "#/$defs/startUnavailableReason" }
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/startUnavailableReason"
+						}
 					}
 				},
 				{
@@ -235,15 +372,23 @@
 					"additionalProperties": false,
 					"required": ["kind", "reason"],
 					"properties": {
-						"kind": { "const": "failed" },
-						"reason": { "const": "terminal-start-failed" }
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"const": "terminal-start-failed"
+						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["kind"],
-					"properties": { "kind": { "const": "outcome-unknown" } }
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
+						}
+					}
 				}
 			]
 		},
@@ -252,10 +397,401 @@
 			"additionalProperties": false,
 			"required": ["kind", "protocolVersion", "requestId", "outcome"],
 			"properties": {
-				"kind": { "const": "terminal.start.result" },
-				"protocolVersion": { "const": 1 },
-				"requestId": { "$ref": "#/$defs/requestId" },
-				"outcome": { "$ref": "#/$defs/startOutcome" }
+				"kind": {
+					"const": "terminal.start.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/startOutcome"
+				}
+			}
+		},
+		"projectionUnsigned": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]{0,19})$",
+			"$comment": "Canonical decimal u64 text; semantic validation additionally rejects values above 18446744073709551615."
+		},
+		"projectionPositive": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]{0,19}$",
+			"$comment": "Canonical positive u64 text; semantic validation additionally rejects values above 18446744073709551615."
+		},
+		"viewerAction": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "terminalCreateRequestId"],
+					"properties": {
+						"kind": {
+							"const": "attach"
+						},
+						"terminalCreateRequestId": {
+							"$ref": "#/$defs/requestId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "poll"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "sequence", "generation", "revision"],
+					"properties": {
+						"kind": {
+							"const": "frame-applied"
+						},
+						"sequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionUnsigned"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "sequence", "reason"],
+					"properties": {
+						"kind": {
+							"const": "need-snapshot"
+						},
+						"sequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"reason": {
+							"enum": [
+								"activity-stale",
+								"base-mismatch",
+								"decoder-rejected",
+								"dimensions-mismatch",
+								"generation-mismatch",
+								"identity-mismatch",
+								"sequence-gap",
+								"store-reset"
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "detach"
+						}
+					}
+				}
+			]
+		},
+		"viewerOutcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "attachmentId", "hostEpoch"],
+					"properties": {
+						"kind": {
+							"const": "attached"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/identity"
+						},
+						"hostEpoch": {
+							"$ref": "#/$defs/identity"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "empty"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "feedback-accepted"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "detached"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "reason"],
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"enum": ["already-attached", "terminal-unavailable", "feedback-mismatch"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "reason"],
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["server-busy", "terminal-runtime-unavailable"]
+						}
+					}
+				}
+			]
+		},
+		"terminalViewer": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "action"],
+			"properties": {
+				"kind": {
+					"const": "terminal.viewer"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"action": {
+					"$ref": "#/$defs/viewerAction"
+				}
+			}
+		},
+		"terminalViewerResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "terminal.viewer.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/viewerOutcome"
+				}
+			}
+		},
+		"controlInput": {
+			"type": "string",
+			"minLength": 2,
+			"maxLength": 8192,
+			"pattern": "^(?:[0-9a-f]{2})+$"
+		},
+		"controlAction": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "acquire"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "controllerId", "sequence", "bytes"],
+					"properties": {
+						"kind": {
+							"const": "input"
+						},
+						"controllerId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"sequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"bytes": {
+							"$ref": "#/$defs/controlInput"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "controllerId", "sequence", "geometry"],
+					"properties": {
+						"kind": {
+							"const": "resize"
+						},
+						"controllerId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"sequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"geometry": {
+							"$ref": "#/$defs/geometry"
+						}
+					}
+				}
+			]
+		},
+		"controlOutcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "controllerId"],
+					"properties": {
+						"kind": {
+							"const": "acquired"
+						},
+						"controllerId": {
+							"$ref": "#/$defs/requestId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "input-accepted"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "geometry"],
+					"properties": {
+						"kind": {
+							"const": "resized"
+						},
+						"geometry": {
+							"$ref": "#/$defs/geometry"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "reason"],
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"enum": [
+								"viewer-unavailable",
+								"controller-busy",
+								"not-controller",
+								"sequence-mismatch",
+								"host-rejected"
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "reason"],
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["server-busy", "terminal-runtime-unavailable"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
+						}
+					}
+				}
+			]
+		},
+		"terminalControl": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "action"],
+			"properties": {
+				"kind": {
+					"const": "terminal.control"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"action": {
+					"$ref": "#/$defs/controlAction"
+				}
+			}
+		},
+		"terminalControlResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "terminal.control.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/controlOutcome"
+				}
 			}
 		}
 	}

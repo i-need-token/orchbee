@@ -418,18 +418,6 @@ fn start_failure_rejects_a_host_epoch_other_than_the_authorized_target() -> Test
 }
 
 #[test]
-fn transport_outcomes_keep_the_handoff_uncertainty_boundary_exact() {
-    assert_eq!(
-        map_host_transport_outcome(TerminalHostTransportOutcome::UnavailableBeforeHandoff),
-        HostKernelTransportObservation::PreHandoffFailure
-    );
-    assert_eq!(
-        map_host_transport_outcome(TerminalHostTransportOutcome::ResponseUnknownAfterHandoff),
-        HostKernelTransportObservation::OutcomeUnknown
-    );
-}
-
-#[test]
 fn launch_request_reuses_terminal_protocol_argument_and_environment_bounds() -> TestResult {
     let dispatch = launch_dispatch(None, TerminalLaunchMode::Deferred)?;
 

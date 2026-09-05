@@ -3,10 +3,10 @@
 	"domain": "orchbee-worker",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Unshipped private Rust Worker process that authenticates and registers one bounded local same-user POSIX Server connection, owns one authenticated exact-version Terminal Host broker connection and their coupled liveness, and provides an unintegrated deterministic Worker-local authorization, replay, and Host-dispatch kernel plus a bounded default-interactive-launch resolver and pure Terminal Host launch adapter without terminal effects.",
+	"responsibility": "Unshipped private POSIX Rust Worker that authenticates one local same-user Server, owns one exact-version Terminal Host broker, executes authorized Create/Start with bounded replay, relays independent read-only viewer records and feedback, and applies grant-scoped input and resize without owning terminal execution or presentation.",
 	"nonGoals": [
 		"Discovering or activating Server, retrying connections, supervising processes, or owning production service installation, update, rollback, or recovery.",
-		"Opening an OBCN carrier or constructing or invoking the staged authorization kernel, default-interactive-launch resolver, or Terminal Host launch adapter from the current runtime; activating Terminal Host, creating or attaching a terminal, sending terminal commands, resolving a working directory or launch profile, accepting caller-authored executables, arguments, or environment, spawning a process, or owning PTY, VT, terminal state, attachments, and history.",
+		"Activating Terminal Host, adopting retained inventory after reconnect, accepting caller-authored executables, arguments, or environment, granting product Client authority, or owning PTY, VT, terminal state, history, or product attachment policy.",
 		"Owning Client sessions, product state, Project, Environment, Checkout, Worktree, Agent, Files, Git, SSH, remote enrollment, scheduling, or durable state."
 	]
 }

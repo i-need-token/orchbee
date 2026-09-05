@@ -2,6 +2,12 @@ mod codec;
 mod error;
 mod identity;
 mod terminal_launch;
+mod terminal_viewer;
+
+pub use terminal_viewer::{
+    MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerRequest, TerminalViewerResult, ViewerRejection, ViewerSnapshotReason,
+};
 
 pub use codec::{
     CapabilityNodeMessage, MAXIMUM_FRAME_PAYLOAD_BYTES, PROTOCOL_VERSION, decode_message,
@@ -24,3 +30,9 @@ pub use terminal_launch::{
 
 #[cfg(test)]
 mod tests;
+
+mod terminal_control;
+pub use terminal_control::{
+    ControlInput, ControlRejection, MAXIMUM_CONTROL_INPUT_BYTES, TerminalControlAction,
+    TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
+};

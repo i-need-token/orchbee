@@ -127,8 +127,10 @@ impl TerminalStartRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientMessage {
+    TerminalControl(crate::TerminalControlRequest),
     TerminalCreate(TerminalCreateRequest),
     TerminalStart(TerminalStartRequest),
+    TerminalViewer(crate::TerminalViewerRequest),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -287,8 +289,10 @@ impl TerminalStartResult {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ServerMessage {
+    TerminalControlResult(crate::TerminalControlResult),
     TerminalCreateResult(TerminalCreateResult),
     TerminalStartResult(TerminalStartResult),
+    TerminalViewerResult(crate::TerminalViewerResult),
 }
 
 #[cfg(test)]

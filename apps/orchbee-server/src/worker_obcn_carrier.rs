@@ -28,32 +28,53 @@ const OWNER_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationRequest {
+    Control(orchbee_capability_node_protocol::TerminalControlRequest),
     Launch(AuthorizedTerminalLaunch),
     Start(AuthorizedTerminalStart),
+    Viewer(orchbee_capability_node_protocol::TerminalViewerRequest),
 }
 
 impl WorkerOperationRequest {
-    const fn authorization(&self) -> TerminalOperationAuthorization {
+    const fn worker(
+        &self,
+    ) -> (
+        orchbee_capability_node_protocol::WorkerId,
+        orchbee_capability_node_protocol::WorkerGeneration,
+    ) {
         match self {
-            Self::Launch(request) => request.authorization(),
-            Self::Start(request) => request.authorization(),
+            Self::Control(request) => (request.worker_id, request.worker_generation),
+            Self::Launch(request) => (
+                request.authorization().worker_id(),
+                request.authorization().worker_generation(),
+            ),
+            Self::Start(request) => (
+                request.authorization().worker_id(),
+                request.authorization().worker_generation(),
+            ),
+            Self::Viewer(request) => (request.worker_id, request.worker_generation),
         }
     }
 
     fn message(&self) -> CapabilityNodeMessage {
         match self {
+            Self::Control(request) => {
+                CapabilityNodeMessage::TerminalControlRequest(request.clone())
+            }
             Self::Launch(request) => {
                 CapabilityNodeMessage::AuthorizedTerminalLaunch(request.clone())
             }
             Self::Start(request) => CapabilityNodeMessage::AuthorizedTerminalStart(*request),
+            Self::Viewer(request) => CapabilityNodeMessage::TerminalViewerRequest(*request),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationResult {
+    Control(orchbee_capability_node_protocol::TerminalControlResult),
     Launch(TerminalLaunchResult),
     Start(TerminalStartResult),
+    Viewer(orchbee_capability_node_protocol::TerminalViewerResult),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -109,9 +130,7 @@ impl fmt::Display for WorkerResponseFailure {
             Self::MismatchedAuthorization => {
                 formatter.write_str("Worker result authorization echo did not match")
             }
-            Self::MismatchedTarget => {
-                formatter.write_str("Worker Start result target did not match")
-            }
+            Self::MismatchedTarget => formatter.write_str("Worker result target did not match"),
         }
     }
 }
@@ -163,14 +182,37 @@ impl WorkerRequestHandle {
         &self,
         request: WorkerOperationRequest,
     ) -> Result<WorkerOperationResult, WorkerRequestError> {
+        self.submit(request, false)
+    }
+
+    pub(crate) fn cleanup_control(
+        &self,
+        request: orchbee_capability_node_protocol::TerminalControlRequest,
+    ) -> Result<WorkerOperationResult, WorkerRequestError> {
+        if !matches!(
+            request.action,
+            orchbee_capability_node_protocol::TerminalControlAction::Release
+        ) {
+            return Err(WorkerRequestError::InvalidRequest(
+                ProtocolError::InvalidPayload,
+            ));
+        }
+        self.submit(WorkerOperationRequest::Control(request), true)
+    }
+
+    fn submit(
+        &self,
+        request: WorkerOperationRequest,
+        cleanup: bool,
+    ) -> Result<WorkerOperationResult, WorkerRequestError> {
         if !self.is_active() {
             return Err(WorkerRequestError::Unavailable);
         }
-        let authorization = request.authorization();
-        if authorization.worker_id().as_bytes() != self.worker_id.as_bytes() {
+        let (worker_id, generation) = request.worker();
+        if worker_id.as_bytes() != self.worker_id.as_bytes() {
             return Err(WorkerRequestError::WrongWorker);
         }
-        if authorization.worker_generation().get() != self.generation.get() {
+        if generation.get() != self.generation.get() {
             return Err(WorkerRequestError::WrongGeneration);
         }
         let encoded =
@@ -178,12 +220,19 @@ impl WorkerRequestHandle {
         let (completion, result) = mpsc::sync_channel(1);
         let complete_write = Arc::new(AtomicBool::new(false));
         let pending = PendingRequest {
-            completion,
+            completion: Some(completion),
             complete_write: Arc::clone(&complete_write),
             encoded,
             request,
         };
-        match self.sender.try_send(pending) {
+        let admitted = if cleanup {
+            self.sender
+                .send(pending)
+                .map_err(|error| TrySendError::Disconnected(error.0))
+        } else {
+            self.sender.try_send(pending)
+        };
+        match admitted {
             Ok(()) => match result.recv() {
                 Ok(result) => result,
                 Err(_disconnected) if complete_write.load(Ordering::Acquire) => {
@@ -202,6 +251,34 @@ impl WorkerRequestHandle {
         }
     }
 
+    // The retiring Client handler retains its bounded Session slot until the
+    // existing queue admits this one cleanup. No shared service lock is held.
+    pub(crate) fn enqueue_detach(
+        &self,
+        request: orchbee_capability_node_protocol::TerminalViewerRequest,
+    ) {
+        if !self.is_active()
+            || !matches!(
+                request.action,
+                orchbee_capability_node_protocol::TerminalViewerAction::Detach
+            )
+            || request.worker_id.as_bytes() != self.worker_id.as_bytes()
+            || request.worker_generation.get() != self.generation.get()
+        {
+            return;
+        }
+        let request = WorkerOperationRequest::Viewer(request);
+        let Ok(encoded) = encode_message(&request.message()) else {
+            return;
+        };
+        let _admitted = self.sender.send(PendingRequest {
+            completion: None,
+            complete_write: Arc::new(AtomicBool::new(false)),
+            encoded,
+            request,
+        });
+    }
+
     pub(crate) fn generation(&self) -> NonZeroU64 {
         self.generation
     }
@@ -216,7 +293,7 @@ impl WorkerRequestHandle {
 }
 
 struct PendingRequest {
-    completion: SyncSender<Result<WorkerOperationResult, WorkerRequestError>>,
+    completion: Option<SyncSender<Result<WorkerOperationResult, WorkerRequestError>>>,
     complete_write: Arc<AtomicBool>,
     encoded: Vec<u8>,
     request: WorkerOperationRequest,
@@ -241,6 +318,7 @@ impl WorkerCarrier {
         self.request_handle.is_active()
     }
 
+    #[cfg(test)]
     pub(crate) fn request_handle(&self) -> WorkerRequestHandle {
         self.request_handle.clone()
     }
@@ -273,6 +351,7 @@ pub(crate) struct WorkerWireOwner {
 #[derive(Clone, Copy)]
 struct WorkerCarrierLimits {
     io_timeout: Duration,
+    response_timeout: Duration,
     poll_interval: Duration,
 }
 
@@ -291,6 +370,7 @@ pub(crate) fn create_worker_carrier(worker_id: WorkerId, generation: NonZeroU64)
         generation,
         WorkerCarrierLimits {
             io_timeout: OPERATION_IO_TIMEOUT,
+            response_timeout: Duration::from_secs(20),
             poll_interval: OWNER_POLL_INTERVAL,
         },
     )
@@ -406,7 +486,7 @@ impl WorkerWireOwner {
         }
         pending.complete_write.store(true, Ordering::Release);
 
-        let response_deadline = match Instant::now().checked_add(self.limits.io_timeout) {
+        let response_deadline = match Instant::now().checked_add(self.limits.response_timeout) {
             Some(deadline) => deadline,
             None => {
                 self.complete_in_flight(Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
@@ -475,7 +555,9 @@ fn send_completion(
     pending: PendingRequest,
     result: Result<WorkerOperationResult, WorkerRequestError>,
 ) -> bool {
-    pending.completion.send(result).is_ok()
+    pending
+        .completion
+        .is_none_or(|completion| completion.send(result).is_ok())
 }
 
 fn configure_idle_stream(stream: &UnixStream) -> Result<(), WorkerTransportFailure> {
@@ -597,6 +679,72 @@ fn validate_response(
 ) -> Result<WorkerOperationResult, WorkerResponseFailure> {
     match (request, response) {
         (
+            WorkerOperationRequest::Control(expected),
+            CapabilityNodeMessage::TerminalControlResult(actual),
+        ) => {
+            use orchbee_capability_node_protocol::{
+                TerminalControlAction as Action, TerminalControlOutcome as Outcome,
+            };
+            if actual.request_id != expected.request_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if actual.viewer_id != expected.viewer_id
+                || actual.controller_id != expected.controller_id
+            {
+                return Err(WorkerResponseFailure::MismatchedTarget);
+            }
+            let compatible = match (&expected.action, actual.outcome) {
+                (_, Outcome::Rejected(_))
+                | (Action::Acquire, Outcome::Acquired)
+                | (Action::Release, Outcome::Released)
+                | (Action::Input { .. }, Outcome::InputAccepted) => true,
+                (Action::Resize { geometry, .. }, Outcome::Resized(actual)) => *geometry == actual,
+                _ => false,
+            };
+            if !compatible {
+                return Err(WorkerResponseFailure::WrongResultKind);
+            }
+            Ok(WorkerOperationResult::Control(actual))
+        }
+        (_, CapabilityNodeMessage::TerminalControlRequest(_)) => {
+            Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::TerminalControlResult(_))
+        | (
+            WorkerOperationRequest::Control(_),
+            CapabilityNodeMessage::TerminalLaunchResult(_)
+            | CapabilityNodeMessage::TerminalStartResult(_)
+            | CapabilityNodeMessage::TerminalViewerResult(_),
+        ) => Err(WorkerResponseFailure::WrongResultKind),
+        (
+            WorkerOperationRequest::Viewer(expected),
+            CapabilityNodeMessage::TerminalViewerResult(actual),
+        ) => {
+            use orchbee_capability_node_protocol::{
+                TerminalViewerAction as Action, TerminalViewerOutcome as Outcome,
+            };
+            if actual.request_id != expected.request_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if actual.attachment_id != expected.attachment_id {
+                return Err(WorkerResponseFailure::MismatchedTarget);
+            }
+            if !matches!(
+                (&expected.action, &actual.outcome),
+                (Action::Attach { .. }, Outcome::Attached)
+                    | (Action::Poll, Outcome::Empty | Outcome::Record(_))
+                    | (
+                        Action::FrameApplied { .. } | Action::NeedSnapshot { .. },
+                        Outcome::FeedbackAccepted
+                    )
+                    | (Action::Detach, Outcome::Detached)
+                    | (_, Outcome::Rejected(_))
+            ) {
+                return Err(WorkerResponseFailure::WrongResultKind);
+            }
+            Ok(WorkerOperationResult::Viewer(actual))
+        }
+        (
             WorkerOperationRequest::Launch(expected),
             CapabilityNodeMessage::TerminalLaunchResult(actual),
         ) => {
@@ -616,9 +764,16 @@ fn validate_response(
         (
             _,
             CapabilityNodeMessage::AuthorizedTerminalLaunch(_)
-            | CapabilityNodeMessage::AuthorizedTerminalStart(_),
+            | CapabilityNodeMessage::AuthorizedTerminalStart(_)
+            | CapabilityNodeMessage::TerminalViewerRequest(_),
         ) => Err(WorkerResponseFailure::WrongDirection),
-        (WorkerOperationRequest::Launch(_), CapabilityNodeMessage::TerminalStartResult(_))
+        (
+            WorkerOperationRequest::Viewer(_),
+            CapabilityNodeMessage::TerminalLaunchResult(_)
+            | CapabilityNodeMessage::TerminalStartResult(_),
+        )
+        | (_, CapabilityNodeMessage::TerminalViewerResult(_))
+        | (WorkerOperationRequest::Launch(_), CapabilityNodeMessage::TerminalStartResult(_))
         | (WorkerOperationRequest::Start(_), CapabilityNodeMessage::TerminalLaunchResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }

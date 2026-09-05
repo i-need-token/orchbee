@@ -106,6 +106,13 @@ Job 会把 Git diff 映射到已登记模型，并只运行这些检查。diff b
 并输出机器可读的状态数、耗时以及模型/配置 SHA-256 报告。配置边界和 TLC 的有限状态假设
 仍是证据限制；action coverage 不是实现精化证据。
 
+对于固定 TLC 的 action-header 格式，coverage 要求 `distinct:generated` 中的 generated-state
+count 为正数；单计数 header 则使用唯一的 count。转移到已经发现的 state 仍然是可达 witness；
+expression evaluation cost 不构成 action evidence。此解释遵循固定版本的
+[TLC action reporter](https://github.com/tlaplus/tlaplus/blob/v1.7.4/tlatools/org.lamport.tlatools/src/tlc2/tool/coverage/ActionWrapper.java)。
+`scripts/tla/model-inventory.test.mjs` 固定了返回已有 state 的回归案例，以及 missing、
+zero-generated、expression-only negative control，不改变任何 model 或 required action。
+
 本地 TLC 执行需要 Java 17 或更高版本，并使用 `PATH` 中的 `java`。设置
 `ORCHBEE_TLA_JAVA` 可指定可执行文件，设置 `ORCHBEE_TLA2TOOLS_JAR` 可使用已配置且具有固定
 SHA-256 的副本，设置 `ORCHBEE_TLA_TIMEOUT_MILLISECONDS` 可对所有选中检查应用正整数超时覆盖。

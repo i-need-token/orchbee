@@ -3,7 +3,8 @@
 这是 Orchbee Server 与 Capability Node 之间 authorized terminal operation 的私有实验性 Rust
 semantic contract。首个 Capability Node 是 Worker，但本 crate 不会把 message 绑定到本机 socket
 或任何其他 carrier。本机 Server adapter 现在会在 application-private post-OBLS carrier 中消费其
-codec，但尚无 Server business coordinator 或当前 Worker runtime end-to-end 消费 request。它不是
+codec。本机 Server coordinator 现在通过该 carrier 向 Worker Host 执行循环提交
+获授权的 Create/Start。它不是
 public API 或 compatibility promise。
 
 英文规范原文：
@@ -57,6 +58,65 @@ authority 正确签发为前提，并不声称能够遏制违反 invariant 的 i
 是 Capability Node refinement，不 import 或 re-export Terminal Host wire payload；未来 Worker
 adapter 必须显式转换并保留 validation。
 
+## 只读查看附件消息
+
+Worker 现在消费 OBCN kind 5 `TerminalViewerRequest` 并发出 kind 6 `TerminalViewerResult`。
+Server 现在为已准入 Client Session 提交这些消息，与 Launch/Start 共用载体。
+这些新增消息仍然私有且未发布。旧 decoder 拒绝新 tag 或 magic；不提供 fallback 或混合 cohort
+兼容性承诺。
+
+每个 request 包含新鲜 request `OperationId`、精确 Worker ID 与非零 generation，以及 Server
+签发的 attachment `OperationId`。Server 在活动 authority 范围内分配全新的 attachment identity，
+分离后也绝不复用。它们命名独立的临时查看附件，不是 product Terminal identity 或 Host creation
+identity。只有已认证 Server 授予读取权限；Worker 在附着前检查已接纳的 Worker/generation 与
+精确 Host epoch。此路径不授予 input 或 resize，也绝不申请 Host resize lease。
+
+闭合 action 为携带 Host epoch 和 Host terminal ID 的 `Attach`、`Poll`、携带正数 sequence/
+generation 与 revision 的 `FrameApplied`、携带正数 sequence 与现有八种 snapshot reason 的
+`NeedSnapshot`，以及 `Detach`。Kind 5 按顺序包含 request ID（16 字节）、Worker ID（16）、
+generation（8）、attachment ID（16）和 action tag（1）。Tag 1 到 5 按上述顺序选择 action。
+Attach 追加两个 16 字节 identity；FrameApplied 追加三个 8 字节整数；NeedSnapshot 追加一个
+8 字节 sequence 和 1 到 8 reason tag，依次为 `ActivityStale`、`BaseMismatch`、`DecoderRejected`、
+`DimensionsMismatch`、`GenerationMismatch`、`IdentityMismatch`、`SequenceGap` 与 `StoreReset`。所有整数均为
+unsigned big-endian。Kind 6 包含 request 与 attachment ID，随后是 `Attached`、`Empty`、
+`FeedbackAccepted`、`Detached` 或 `Rejected`，依次使用 tag 1 到 5。Rejection tag 1 到 8 分别
+表示错误 Worker、过期 Worker generation、过期 Host epoch、超出容量、附件不可用、附件已存在、
+反馈不匹配和 Host 拒绝。Result 始终回显 request 与 attachment ID。轮询绝不等待未来 Host 输出。
+
+Record result 使用独立 `OBNR` envelope：四字节 magic、big-endian version 1（`u16`）、零值
+reserved field（`u16`）、big-endian payload length（`u32`），随后是 request ID（16）、attachment
+ID（16）和一条未经修改的 OBTP record。Record 长度为 64 到 `64 + 36 MiB` 字节，与 Host envelope
+加最大 OBTF payload 一致。Codec 在分配 payload 前校验完整的 12 字节 header 和边界；消费者
+校验不透明 record 的 Host envelope、route、role、identity 和 negotiated size。这不扩大 8 KiB
+OBCN control 边界，也不解码帧内容。严格的内存 decode 拒绝尾随字节；streaming decode 精确消费
+一条 record，并保留下一 frame 边界。Codec 不隐含 acknowledgement、retry 或 queue policy。
+查看附件 carrier 失败后退役临时 state；调用方绝不自动重放结果不明确的附着或反馈 exchange。
+
+## Controller 消息
+
+OBCN kind 7 `TerminalControlRequest` 和 kind 8 `TerminalControlResult` 扩展同一串行 Server-Worker
+stream。实际 producer 是 Server；Worker 将获授权 controller 映射为独立、不可读取的 Host 附件。
+Server 分配新的 request 和 controller 身份；viewer 与 control 身份不共用，所有请求固定已准入
+Worker 代次。
+
+Request 包含 request ID（16 byte）、Worker ID（16）、Worker generation（u64）、viewer ID（16）、
+controller ID（16），然后是 action：1 Acquire、2 Input、3 Resize 或 4 Release。Input 增加一个
+正 u64 sequence、u16 length 和 1 至 4,096 个原始 byte。Resize 增加一个正 u64 sequence 和四个
+u16 geometry 字段，沿用 columns/rows/cell-width/cell-height 顺序。其他 action 没有附加字段。
+整数使用 big-endian 编码，所有 ID 非零。Input 与 resize 共用每 grant 严格递增 sequence；
+即使 Host 明确拒绝，admission 也会消费该 sequence。
+
+Result 包含 request、viewer、controller ID（各 16 byte），然后是 outcome：1 Acquired、2 Released、
+3 InputAccepted、4 Resized 并带相同完整 geometry，或 5 Rejected 并带 reason byte：1 WrongWorker、
+2 StaleWorkerGeneration、3 ViewerUnavailable、4 ControllerBusy、5 NotController、6 SequenceMismatch、
+7 HostRejected。必须精确匹配 ID 与 action/outcome；Resize 必须回显 geometry。Release 是内部
+cleanup；对应 viewer 没有 controller 时幂等，存在不同 current grant 时拒绝。Host exchange
+含糊时关闭 Worker carrier，不伪造接受；Server 将完整交付后无结果归类为 unknown。
+
+8 KiB OBCN 限制、精确长度解码和方向规则保持不变。Codec test 覆盖全部 action/outcome/reason、
+原始字节保留、最大 input 和非法 scope bound。Server 与 Worker 指南拥有单 controller 预留、
+cleanup 和真实 PTY 证据。
+
 ## Authorization outcome
 
 Pre-admission rejection 区分 wrong Worker、stale generation、expired lease、stale fence、
@@ -93,7 +153,7 @@ remote transport、encryption 与 connection state machine 属于 carrier adapte
 protocol。当前本机 Server adapter 在最多一条 wire request 后拥有一个 capacity-one submitted
 slot，序列化完整 request/result exchange，校验确切 correlation 与 echoed authorization，并区分
 完整写出 request 前后的 failure。它不映射 OBCS、不合成 semantic outcome、不 retry，也不
-reconcile。Server 拥有未来 product authorization 与 reconciliation；Capability Node adapter 拥有
+reconcile。Server 拥有本机终端授权与未来 reconciliation；Capability Node adapter 拥有
 到其 Worker admission identity 与 Terminal Host protocol 的显式 mapping。本 crate 不依赖这两个
 protocol。
 
@@ -107,7 +167,7 @@ carrier-level post-delivery unknown；adapter 不会制造 OBCN result。
 
 已注册的
 [`TerminalLaunchAuthorization`](../../apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla)
-model 是这个尚未 end-to-end 消费 contract 的 Server-owned behavioral authority。它探索 current 与 stale
+model 是这个实验性 contract 的 Server-owned behavioral authority。它探索 current 与 stale
 Worker generation、lease 在 admission 前、admission 与 Host handoff 之间以及 handoff 后过期、
 lower/exact/conflicting fence、确定的 pre-handoff failure、post-handoff unknown outcome、Host
 epoch replacement（包括已 admitted Start 的 target epoch 在 handoff 前变化）、deferred launch 后单独

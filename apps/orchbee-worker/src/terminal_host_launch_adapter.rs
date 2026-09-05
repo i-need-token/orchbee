@@ -76,18 +76,6 @@ impl ObservedTerminalHostResponse {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TerminalHostTransportOutcome {
-    UnavailableBeforeHandoff,
-    ResponseUnknownAfterHandoff,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum HostKernelTransportObservation {
-    PreHandoffFailure,
-    OutcomeUnknown,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HostLaunchAdapterError {
     OperationKindMismatch,
     UnexpectedHostResponse,
@@ -251,20 +239,6 @@ pub(crate) fn map_start_host_response(
         }
         TerminalHostResponse::TerminalCreated(_) => {
             Err(HostLaunchAdapterError::UnexpectedHostResponse)
-        }
-    }
-}
-
-#[must_use]
-pub(crate) const fn map_host_transport_outcome(
-    outcome: TerminalHostTransportOutcome,
-) -> HostKernelTransportObservation {
-    match outcome {
-        TerminalHostTransportOutcome::UnavailableBeforeHandoff => {
-            HostKernelTransportObservation::PreHandoffFailure
-        }
-        TerminalHostTransportOutcome::ResponseUnknownAfterHandoff => {
-            HostKernelTransportObservation::OutcomeUnknown
         }
     }
 }

@@ -33,7 +33,7 @@ impl fmt::Display for ProtocolError {
             Self::InvalidUtf8 => {
                 formatter.write_str("Client-Server JSON payload is not valid UTF-8")
             }
-            Self::InvalidPayload => formatter.write_str("invalid Client-Server JSON payload"),
+            Self::InvalidPayload => formatter.write_str("invalid Client-Server payload"),
         }
     }
 }

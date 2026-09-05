@@ -78,3 +78,34 @@ impl de::Visitor<'_> for Binary64SafeIntegerVisitor {
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) mod decimal {
+    use serde::{Deserialize, Deserializer, Serializer, de};
+    pub(crate) fn serialize<S: Serializer>(value: &u64, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&value.to_string())
+    }
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        let value = text.parse::<u64>().map_err(de::Error::custom)?;
+        if value.to_string() != text {
+            return Err(de::Error::custom("expected canonical decimal u64"));
+        }
+        Ok(value)
+    }
+}
+pub(crate) mod positive_decimal {
+    use serde::{Deserializer, Serializer, de};
+    use std::num::NonZeroU64;
+    pub(crate) fn serialize<S: Serializer>(
+        value: &NonZeroU64,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        super::decimal::serialize(&value.get(), serializer)
+    }
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<NonZeroU64, D::Error> {
+        NonZeroU64::new(super::decimal::deserialize(deserializer)?)
+            .ok_or_else(|| de::Error::custom("expected positive decimal u64"))
+    }
+}

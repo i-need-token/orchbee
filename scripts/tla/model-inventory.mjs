@@ -239,7 +239,9 @@ export function parseCoverage(output) {
 	const coverage = new Map();
 	const expression = /^\s*<([^\s>]+)\b[^>]*>:\s*([\d,]+)(?::([\d,]+))?\s*$/gmu;
 	for (const match of output.matchAll(expression)) {
-		const counts = [Number.parseInt(match[2].replaceAll(',', ''), 10)];
+		// Pinned TLC action headers report distinct:generated states. A transition
+		// back to an already discovered state is still a reached action witness.
+		const counts = [Number.parseInt((match[3] ?? match[2]).replaceAll(',', ''), 10)];
 		const previous = coverage.get(match[1]) ?? [];
 		coverage.set(match[1], [...previous, ...counts]);
 	}

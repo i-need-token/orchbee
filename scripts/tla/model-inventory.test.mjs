@@ -291,13 +291,34 @@ test('configuration variants replace one declared constant and reject ambiguous 
 	);
 });
 
-test('coverage enforcement rejects missing and zero-count semantic actions', () => {
+test('coverage accepts generated successors even when every state was already discovered', () => {
 	assert.doesNotThrow(() =>
-		assertRequiredCoverage('example', ['<Advance line 1>: 1:0'], ['Advance']),
+		assertRequiredCoverage(
+			'example',
+			['<RestoreServerConnection line 711>: 0:141,180'],
+			['RestoreServerConnection'],
+		),
 	);
+	assert.doesNotThrow(() =>
+		assertRequiredCoverage('example', ['<Advance line 1>: 1'], ['Advance']),
+	);
+});
+
+test('coverage enforcement rejects missing and zero-generated semantic actions', () => {
+	for (const counts of ['0:0', '0', '1:0']) {
+		assert.throws(
+			() => assertRequiredCoverage('example', [`<Advance line 1>: ${counts}`], ['Advance']),
+			/unreached markers/u,
+		);
+	}
 	assert.throws(
-		() => assertRequiredCoverage('example', ['<Advance line 1>: 0:1'], ['Advance']),
-		/unreached markers/u,
+		() =>
+			assertRequiredCoverage(
+				'example',
+				['line 1, col 1 to line 2, col 1 of module Example: 100:200'],
+				['Advance'],
+			),
+		/missing markers/u,
 	);
 	assert.throws(
 		() => assertRequiredCoverage('example', ['<Different line 1>: 1:1'], ['Advance']),
@@ -329,4 +350,35 @@ test('TLC exit classification preserves an elapsed timeout when Java exits with 
 		tlcExitError('example', 120_000, { code: 0, signal: null, timedOut: false }),
 		undefined,
 	);
+});
+
+test('viewer/controller protocol and routing owners select the terminal relay model', () => {
+	for (const changedPath of [
+		'apps/orchbee/src/terminal_projection.rs',
+		'apps/orchbee/src/terminal_session/connection.rs',
+		'apps/orchbee/src/tui_shell.rs',
+		'apps/orchbee/src/tui_render/terminal_cells.rs',
+		'crates/terminal-protocol/src/text_frame/rows.rs',
+		'apps/orchbee-server/src/local_terminal_service/viewer_session.rs',
+		'apps/orchbee-server/src/local_terminal_service/controller_session.rs',
+		'apps/orchbee-worker/src/terminal_control_operation.rs',
+		'crates/client-server-protocol/src/control.rs',
+		'crates/capability-node-protocol/src/terminal_control.rs',
+		'crates/capability-node-protocol/src/codec/control.rs',
+		'apps/orchbee-worker/src/terminal_viewer_operation.rs',
+		'crates/client-server-protocol/src/viewer.rs',
+		'crates/client-server-protocol/src/viewer_record.rs',
+		'crates/client-server-protocol/tests/viewer_record.rs',
+		'crates/capability-node-protocol/src/codec/viewer.rs',
+		'crates/terminal-protocol/src/frame_route.rs',
+		'schemas/client-server/v1/client-server.schema.json',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'local-terminal-relay',
+			),
+			true,
+			changedPath,
+		);
+	}
 });

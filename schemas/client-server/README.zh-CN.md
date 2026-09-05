@@ -17,8 +17,9 @@ OBCS 有以下相邻边界：
 | `OBCN`               | 负责 Server-to-Worker placement authorization、operation、generation、lease 与 fence fact。      |
 | Workbench projection | 只读 authorized product projection；它不是 terminal-control writer。                             |
 
-Version 1 只准入 `terminal.create`、`terminal.create.result`、`terminal.start` 与
-`terminal.start.result`。它不定义 attach、input、start 后 resize、close、cancel、retry transport、
+Version 1 准入 `terminal.create`、`terminal.create.result`、`terminal.start`、
+`terminal.start.result`、`terminal.viewer`、`terminal.viewer.result`、`terminal.control` 和
+`terminal.control.result`。它不定义 close、cancel、retry transport、
 authentication、authorization policy、Server state store、Worker operation、Host launch 或
 Workbench mutation。
 
@@ -90,8 +91,8 @@ Client generation、profile 或 configuration fact。
 
 ## Server result
 
-每个 result 都包含 `protocolVersion`、确切 request 的 `requestId`，以及一个 closed `outcome`。
-Result 不暴露内部 Terminal、Worker、operation、lease、fence、Host 或 placement fact。
+每个 JSON result 都包含 `protocolVersion`、确切 request 的 `requestId`，以及一个 closed `outcome`。
+Create/Start result 不暴露内部 Terminal、Worker、operation、lease、fence、Host 或 placement fact。
 
 | Create outcome    | Closed detail                                                                   |
 | ----------------- | ------------------------------------------------------------------------------- |
@@ -108,6 +109,66 @@ Result 不暴露内部 Terminal、Worker、operation、lease、fence、Host 或 
 | `unavailable`     | `terminal-runtime-unavailable` 或 `server-busy`。                                                       |
 | `failed`          | `terminal-start-failed`。                                                                               |
 | `outcome-unknown` | 没有额外 field。Client 必须 reconcile，不能推断 transition。                                            |
+
+## Session 查看附件控制与二进制记录
+
+`terminal.viewer` 包含 `protocolVersion`、新的 `requestId` 和一个封闭 `action`。每个已准入
+Client Session 最多拥有一个只读查看附件。`attach` 只提供 `terminalCreateRequestId`；Server
+解析同一 authority 与主体下已接受的终端，固定其既有 Worker 代次和 Host epoch，并签发新的
+附件身份。`poll` 和 `detach` 没有其他字段。请求不能提供或转移附件身份。
+Session 丢失会分离临时查看状态，绝不终止保留的终端。
+
+`frame-applied` 携带 `sequence`、`generation` 和 `revision`；`need-snapshot` 携带 `sequence`
+和 `reason`。计数器使用 unsigned 64-bit 范围内的规范十进制字符串，无前导零或符号；sequence
+和 generation 必须为正。Reason 为 `activity-stale`、`base-mismatch`、`decoder-rejected`、
+`dimensions-mismatch`、`generation-mismatch`、`identity-mismatch`、`sequence-gap` 和 `store-reset`。
+只有对应 Session 唯一待确认帧的精确反馈才能到达其 Worker 附件。等待反馈期间 Poll 返回
+`empty`，不会交付另一帧。新附件需要新 baseline；查看附件不授予 input 或 resize 权限。
+
+JSON 查看附件 outcome 包括：带 `attachmentId` 和 `hostEpoch`（非零 32 字符小写 hex）的
+`attached`；无其他字段的 `empty`、`feedback-accepted`、`detached`；reason 为 `already-attached`、
+`terminal-unavailable` 或 `feedback-mismatch` 的 `rejected`；reason 为 `server-busy` 或
+`terminal-runtime-unavailable` 的 `unavailable`。Attached 回答 Attach；Empty 或二进制记录回答
+Poll；FeedbackAccepted 回答两种反馈；Detached 回答 Detach，包括附件已不存在的情况。Rejected
+和 Unavailable 可回答任意 action。错误 kind 或 correlation 会让 Client carrier 退役。
+查看失败绝不授权自动 replay 或 retargeting。
+
+记录结果使用二进制 `OBSR`，不使用 JSON：四个 magic byte、big-endian u16 version 1、两个为零
+的保留字节，以及 big-endian u32 payload length。Payload 是以 16 个 big-endian byte 表示的确切
+request ID，后接一条长度为 64 至 `64 + 36 * 1024 * 1024` byte 的 opaque OBTP event record。
+分配 payload 前校验 12-byte header 和 bound；stream reader 消费一帧，内存 decoder 拒绝截断或
+多余字节。只有 Server-to-Client reader 接受 OBSR。Server 校验 Host epoch、附件、role、frame
+路由元数据和反馈；呈现解码仍由 Client 负责。OBSR 没有 JSON `record` outcome，也不扩大 32 KiB
+OBCS JSON 限制。其字节契约由本节定义；JSON corpus 拥有控制消息，binding test 覆盖二进制边界
+和 opaque byte 保留。
+
+## Session controller
+
+`terminal.control` 包含 `protocolVersion`、新的 `requestId` 和一个封闭 `action`。`acquire`
+没有其他字段，并要求已附着的 viewer。Server 为每个终端显式授予一个输入与调整大小共用的
+controller，不接管或自动提升。`acquired` 结果携带新的 `controllerId`，采用非零 32 字符小写
+hex 身份格式。Grant 绑定该 Session、viewer、Worker 代次与 Host 终端。
+
+`input` 包含 `controllerId`、`sequence` 和 `bytes`；`resize` 包含 `controllerId`、`sequence`
+及完整 `geometry`。输入为 1 至 4,096 个原始 byte，以无前缀、偶数长度的小写十六进制字符串
+编码；不是 UTF-8 文本、Base64 或 executable metadata。两个 action 共用严格递增的正 u64
+sequence，以规范十进制字符串编码。允许跳号；有效提交即消费 sequence，即使下游交付失败或
+拒绝。Grant 不匹配或过时 sequence 不产生终端副作用。新 grant 没有已消费的 sequence；旧 grant
+不能通过重置 sequence 重新获得权限。
+
+`terminal.control.result` 使用普通关联 JSON envelope。Outcome 包括：带 `controllerId` 的
+`acquired`、无其他字段的 `input-accepted`、带精确接受 `geometry` 的 `resized`、无其他字段的
+`outcome-unknown`；reason 为 `viewer-unavailable`、`controller-busy`、`not-controller`、
+`sequence-mismatch` 或 `host-rejected` 的 `rejected`；reason 为 `server-busy` 或
+`terminal-runtime-unavailable` 的 `unavailable`。InputAccepted 表示完整进入 Host 有界输入
+queue，不表示 shell 已执行。Rejected、Unavailable 和 OutcomeUnknown 可回答任意 action；
+其他 outcome 必须匹配所提交 action，Resize 还必须匹配其 geometry。
+
+Detach 或 Session 丢失在退役 viewer 前释放共用 grant。本切片没有独立 Client release action。
+待定 acquisition 与 cleanup 排斥竞争 grant；cleanup 可以超过 Client submission deadline。
+未知 input/resize 绝不自动重放，包括 reconnect 或新 grant 后。明确拒绝也不授予重试策略。
+Conformance corpus 覆盖全部 control action、outcome、reason、byte bound 和非法 scope 字段。
+Runtime 所有权与 Host admission 仍由 Server 和 Worker 归属指南负责。
 
 ## Submission、reference 与 cancellation obligation
 

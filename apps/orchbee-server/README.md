@@ -2,7 +2,7 @@
 
 Experimental, unshipped private Rust Server application. It owns the in-memory Workbench
 projection kernel, the first POSIX local Server-Worker process spine and serialized post-admission
-OBCN carrier, and an additive local Human Client/Client Session admission spine. The emitted
+OBCN carrier, local Human Client/Client Session admission, and an in-memory terminal coordinator. The emitted
 executable is named `orchbee-server`; it participates in the root Cargo verification gate but is
 not consumed by public `orchbee`, Desktop, packaging, an installer, or a service manager.
 
@@ -65,8 +65,8 @@ write/read exchange; no registry lock is held across wire I/O.
 The handle rejects a request for another Worker or generation before touching the wire. It admits
 at most one submitted request behind the one request possibly in flight, and additional submissions
 receive immediate backpressure. `Unavailable` and `Backpressure` both mean that the addressed
-request did not cross the complete-write boundary. The owner writes one complete OBCN Launch or
-Start request before reading exactly one result. It accepts only the matching result direction and
+request did not cross the complete-write boundary. The owner writes one complete OBCN Launch,
+Start, or viewer request before reading exactly one result. It accepts only the matching result direction and
 kind, operation ID, complete authorization echo, and, for Start, target identity. A malformed,
 mismatched, timed-out, or disconnected exchange retires that Worker generation and makes queued
 work unavailable.
@@ -81,14 +81,14 @@ request from its complete-write marker, and drains the submitted slot. Only then
 registration guard remove the matching generation; that removal is the retirement linearization
 point at which replacement becomes admissible. A stale guard cannot remove a replacement.
 
-Each complete request write and complete result read has its own two-second monotonic deadline;
+Each complete request write has a two-second and each complete result read a twenty-second monotonic deadline;
 partial progress does not restart either deadline. Failure before the request frame is completely
 written is reported as `NotDelivered` and is known unchanged: strict Worker decoding cannot dispatch
 an incomplete frame, and the owner retires that connection. After the complete write, any failure is
 the distinct `PostDeliveryOutcomeUnknown` carrier error: Server neither fabricates the semantic OBCN
 `OutcomeUnknown` value nor retries the request. An exact Worker result, including a Worker-reported
-semantic unknown outcome, is preserved; the carrier does not branch on capability-version or
-outcome variants. Bytes received while no request is outstanding are invalid and retire the
+semantic unknown outcome, is preserved; the carrier does not interpret launch capability-version or
+lifecycle outcome variants. Viewer results additionally match the attachment identity and action/outcome kind. Bytes received while no request is outstanding are invalid and retire the
 connection. Dropping the whole registry requests private shutdown but cannot admit a replacement;
 the owner observes it within the 25-millisecond idle poll or the bounded current exchange, which has
 at most its remaining write deadline plus one result-read deadline. There is no unbounded connection
@@ -113,7 +113,7 @@ same-user proof. The private
 semantic values and frame encoding. Server owns listener lifetime, Worker admission state,
 generations, bounded submission, serialized carrier validation, and generation-matched cleanup. The
 [`orchbee-worker`](../orchbee-worker/README.md) application owns the connecting process lifecycle;
-its current runtime does not yet consume post-admission requests end to end.
+its current runtime consumes authorized Launch/Start and read-only viewer requests through the Host broker.
 
 ## Local Client Session service
 
@@ -127,25 +127,28 @@ without allocating more threads. Handler slots and admitted-Session registration
 lifetime-owned guards, so normal completion, faults, and unwinding release both bounds.
 
 An authenticated candidate receives a typed rejection for protocol/cohort incompatibility,
-malformed or wrong messages, timeout, or active-Session capacity. After Server completely writes
-`ClientAccepted`, it removes the handshake timeouts and reads strict OBCS on that same unbuffered
-stream. It reads one request, constructs and attempts to write its complete correlated denial, and
-only a completed write permits the next read. For every successfully decoded Create-immediate,
-Create-deferred, and Start request, the constructed result has its exact result kind and `requestId`
-with `rejected/not-authorized`; request fields and Worker presence do not change that decision. EOF,
-malformed, wrong-direction, oversized, truncated, read, or write failure closes only that Session.
-Disconnect cleanup matches the exact generation and cannot remove another or replacement Session.
-It does not stop Server, disturb the independent Worker registry, or imply any terminal action.
-Server process loss closes every Client liveness attachment.
+malformed or wrong messages, timeout, or active-Session capacity. After completely writing
+`ClientAccepted`, Server removes handshake timeouts and reads strict OBCS on that same unbuffered
+stream. The private service grants its single local effective-user subject default-shell Create and
+Start, plus viewing and explicit acquisition of an exclusive input/resize controller for those terminals. It reads one request, invokes the Server-owned service, and writes the complete
+correlated result before reading another request from that Session. The result is committed before
+Client output; a stalled writer holds only its Session handler, never a coordinator or Worker lock.
+Idle reads have no deadline until the first byte; thereafter the whole record has two seconds. Each
+complete Client write also has two seconds, including large OBSR records. Expiry retires that Session.
 
-The private
-[`orchbee-local-client-protocol`](../../crates/local-client-protocol/README.md) crate owns Client
-framing and the real Rust connecting adapter. The independent
+Create selects the current local Worker and validates any exact Worker constraint. Start resolves
+a successful deferred Create by its request ID across Sessions of this same subject. Server retains
+the exact Worker generation and complete Host identity. Worker loss or replacement never authorizes
+retargeting, re-creation, or replay. EOF, malformed, wrong-direction, oversized, truncated, read, or
+write failure closes only the affected Session; generation-scoped cleanup preserves terminal state.
+
+The private [`orchbee-local-client-protocol`](../../crates/local-client-protocol/README.md) owns
+Client framing and its connecting adapter. The independent
 [`orchbee-client-server-protocol`](../../crates/client-server-protocol/README.md) binding owns OBCS
-validation and frame I/O. Server owns listener, handler-slot, admission, sequential denial,
-generation, and cleanup state. Public `orchbee` does not yet call the adapter, so bare, help, and
-version behavior remains unchanged. This slice adds no Workbench command, successful terminal
-result, terminal relay, TUI, activation, endpoint discovery, persistence, or remote ingress.
+validation and frame I/O. Server owns subject policy, placement, operation/lease/fence issuance,
+terminal binding state, bounded submission and correlated semantic results. Public `orchbee` does
+not yet call this path; TUI activation, persistence and production ingress remain
+outside this slice.
 
 ## Local Worker process-spine modeling record
 
@@ -188,7 +191,7 @@ implementation above supplies its runtime evidence but specifies no OBCS busines
 | Dependencies | The target composes the existing Server Worker registry and post-`WorkerAccepted` stream with the private local-site and capability-node protocol contracts. The local-site protocol owns OBLS framing, the capability-node protocol owns OBCN values and strict framing, and the carrier composes them. `AllAttemptsSettled` is the carrier counterpart of the pending-result replacement guard in `TerminalLaunchAuthorization`. No OBCS mapping, authorization decision, Host dispatch, terminal retention, persistence, endpoint discovery, or remote ingress participates.                                                                                                                                                                                                                                                       |
 | Ownership    | Server's registry owns current Worker generation and request-handle publication. One `WorkerWireOwner` equivalent exclusively owns stream reads and writes plus queue draining; request-handle clones can only submit. The codec owns byte validity, Worker owns the semantic OBCN result, and a later Server policy owner—not this carrier—owns authorization, reconciliation, or any permitted retry of a separately proven known-unchanged operation.                                                                                                                                                                                                                                                                                                                                                                              |
 | Verification | The registered `local-worker-obcn-carrier` model requires nonzero TLC coverage for 47 semantic actions across `response-validation`, `disconnect-order`, `stale-routing`, and `capacity` variants. The variants cover both same-kind correlations, every response field/payload mismatch, deadline expiry on each write side, every disconnect ordering, active and inactive stale handles, replacement gating, cleanup, and a fresh third request against an occupied submitted slot plus in-flight wire request. Safety invariants and eventual settlement of admitted attempts, pending publications, and cleanup are checked; weak fairness applies only to local dequeue, time, expiry, validation, publication, and cleanup actions.                                                                                            |
-| Limits       | This is bounded formal evidence, not runtime-refinement evidence. It abstracts the complete-frame write as one boundary and uses one-tick finite write and read deadlines rather than a concrete duration; it does not prove partial-I/O code, system clock implementation, thread scheduling, panic cleanup, OS behavior, codec correctness, OBCS-to-OBCN policy, Host effects, durable recovery, or whether another authorized owner should retry a known-unchanged request. The two sequential phase deadlines correspond to at most twice the configured per-I/O timeout.                                                                                                                                                                                                                                                         |
+| Limits       | This is bounded formal evidence, not runtime-refinement evidence. It abstracts the complete-frame write as one boundary and uses one-tick finite write and read deadlines rather than a concrete duration; it does not prove partial-I/O code, system clock implementation, thread scheduling, panic cleanup, OS behavior, codec correctness, OBCS-to-OBCN policy, Host effects, durable recovery, or whether another authorized owner should retry a known-unchanged request. The two sequential phase deadlines correspond to the configured write timeout plus response timeout.                                                                                                                                                                                                                                                   |
 
 The implemented runtime refinement maps `WorkerRequestHandle` to `requestHandleRef` plus `submittedSlot`
 and maps the sole `WorkerWireOwner` to `wireOwnerRef`, `wireRequest`, `wirePhase`, `now`, and
@@ -207,32 +210,99 @@ classification into a successful or failed OBCN result.
 
 ## Local Client Session and OBCS modeling record
 
-The Rust handler now refines the checked deny-only phase below. It consumes strict OBCS after the
-accepted OBLC response is completely written, but it gains no terminal capability and produces no
-terminal or Worker effect.
+`LocalClientSessions` owns bounded admission, handler accounting, generation cleanup and Server
+loss. `LocalClientObcsSessions` checks the same-stream framing and sequential result publication
+with an injected denial handler. That handler is an explicit test instance, not the service's
+terminal authorization policy. Its no-terminal-effect and not-authorized invariants apply only to
+that instance. Runtime `obcs_session` now delegates semantic work through a callback; its unit tests
+retain this instance to verify correlation, duplicate carrier records, partial I/O, failure and
+read-after-complete-write ordering independently of terminal effects.
 
-| Field        | Current runtime and checked refinement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | Keep the implemented same-user OBLC admission boundary and prove the smallest next same-stream phase: only after the OBLC accepted frame has been queued and written may that exact generation read OBCS. OBLC admission is not terminal capability.                                                                                                                                                                                                                                                                                                                                              |
-| Inputs       | Runtime and model consume the optional absolute endpoint, kernel peer credentials, a bounded OBLC frame decoded under the current per-I/O two-second handshake timeout, and strictly decoded complete Create-immediate, Create-deferred, and Start request classes. The model additionally abstracts one or two typed frames already buffered by the carrier; idle, partial-header, partial-payload, and result-write stalls; strict malformed, wrong-direction, oversized, truncated, clean EOF, I/O failure, and Server loss. The OBCS schema, corpus, and binding own byte and field validity. |
-| Data         | The runtime owns at most eight active Session generations and sixteen candidate/session handlers. The bounded models use three Client slots, at most two Sessions, three handlers, four globally fresh generations, and two request-ID equivalence classes. An active Session and a slow candidate each occupy one handler. The OBCS refinement holds at most one outstanding request per Session; up to two carrier-buffered frames are an environment fact, not a Server request queue.                                                                                                         |
-| Outputs      | Runtime and model map valid Create to `terminal.create.result` and valid Start to `terminal.start.result`, always `rejected/not-authorized` with the exact request `requestId`; an actual write still depends on carrier writability. No output exposes or creates Terminal, Worker, Host, generation, operation, lease, fence, shell, executable, environment, or Workbench authority.                                                                                                                                                                                                           |
-| Invariants   | OBLC accepted is written before OBCS decode; each active generation owns exactly one handler; Session and handler bounds are independent; at most one request/result is outstanding per Session; malformed input or transport loss closes only the addressed current generation and releases its handler; stale EOF or cleanup cannot remove a replacement; Server stop clears all Sessions; stalled Client work preserves another Client and the Worker registry; every modeled terminal- and Worker-request effect counter remains zero.                                                        |
-| Decisions    | Valid Create and Start inputs are denied without consulting Worker presence, exact Worker constraint, `cwd`, Create start mode, geometry, or the Start `terminalCreateRequestId`. The Start correlation `requestId` is distinct from that reference, and the reference is not looked up. A repeated request ID is decided again from current state; no replay lookup, historical conflict detection, cancellation, retry, or idempotency ledger exists.                                                                                                                                           |
-| Model        | [`LocalClientSessions`](formal/tla/LocalClientSessions.tla) owns OBLC admission, generation, and the separate Session/handler bounds. [`LocalClientObcsSessions`](formal/tla/LocalClientObcsSessions.tla) refines each non-closed phase to one active generation and handler, derives the deny result directly from its one outstanding correlation record, and retains generation-scoped cleanup. Its `stream-faults` and `correlation` configurations share the same state machine but avoid multiplying unrelated carrier-pair histories by every fault/stall ordering.                        |
-| Transitions  | Candidate `none -> slow -> released` or Session `closed -> OBLC-accepted-queued -> OBCS-idle`; read may stall or advance through partial header/payload; one complete request becomes one ready or write-stalled result; a successful result write clears that request before read re-entry. Fault, EOF, I/O failure, or result-write failure closes the current generation. A later admission receives a fresh generation, and stale events preserve it. Server loss closes all generations.                                                                                                     |
-| Dependencies | Runtime composes the Server-owned local Client admission workflow with the OBLC and independent OBCS Rust bindings; the model composes their contracts. Neither performs Worker lookup, OBCN mapping, Host dispatch, PTY operation, terminal retention, shell selection, product projection, persistence, or network ingress.                                                                                                                                                                                                                                                                     |
-| Ownership    | Server owns Client Session generation, handler accounting, same-stream ordering, deny result construction, and generation-scoped cleanup. The carrier owns byte arrival, buffering, EOF, and writability. OBCS owns strict framing and message validity. Worker/Host authority and future OBCS-to-OBCN mapping remain outside this slice.                                                                                                                                                                                                                                                         |
-| Verification | Deterministic session tests cover every request class, exact correlation, partial I/O, two-frame ordering, duplicate IDs, strict failure classes, deterministic write failure, and RAII cleanup during unwinding. Real process tests cover coalesced OBLC plus OBCS, sequential Create/Start, capacity cleanup, post-admission stall recovery, and Worker non-interference. Both registered models require nonzero TLC coverage for their semantic actions and check the bounded admission and OBCS state spaces described below.                                                                 |
-| Limits       | This is bounded safety and native process evidence, not a successful terminal effect or codec reimplementation. Runtime adds no OBCS timeout, queue, retry, cancellation, ledger, or fairness promise; a stalled Session may remain stalled forever. It proves neither eventual response nor terminal creation. The Client protocol still requires a fresh `requestId` for each submitted request under the active Server authority and authenticated subject; repeated IDs are processed statelessly and do not create a Server history obligation.                                              |
+The Session model explores three Clients, two active Sessions, three handlers and bounded
+generations. OBCS stream-fault and correlation configurations include coalesced handshake/request,
+partial frames, stalled output, malformed direction, duplicate and distinct requests. Neither model
+proves terminal authorization, Worker dispatch, cancellation, replay, persistence or live relay.
+The coordinator model and process tests below own the added effect boundary.
 
-The admission model uses `MaxSessions = 2` and `MaxHandlers = 3`, so a slow candidate can consume
-the spare handler independently of two active Sessions. The OBCS model uses two distinct request
-IDs; Start always uses one as its result-correlation ID and the other as its distinct Create
-reference. Carrier-pair annotations exist only to prove duplicate-versus-distinct ordering and are
-never consulted by the Server denial decision. A buffered Start retains its distinct Create
-reference until decode, while denial and result correlation ignore that reference. Neither model
-has a temporal fairness clause.
+The carrier model configurations instantiate Launch/Start only. Viewer/controller scope/outcome checks and
+cleanup with an internally consumed completion reuse its bounded queue and owner lifetime, with
+socket tests as their concrete refinement evidence. Viewer cleanup has no external completion receiver; validated settlement is its publication, so
+success keeps the shared carrier alive. Controller cleanup retains an internal completion receiver
+until the exact grant is released or its Worker retires. The read-only
+projection path is separately mapped to `LocalTerminalRelay`; neither model proves presentation
+decoding or controller runtime behavior.
+
+## Local Client viewer relay refinement
+
+The accepted local-terminal milestone now connects the Server's Client Sessions to the Worker's
+existing read-only viewer loop. The staged native LocalClient adapter consumes the viewer protocol. A process witness proves
+two independently admitted Clients receiving real Host projections through Server and Worker. The controller refinement below adds input/resize; TUI activation remains a separate boundary.
+
+One admitted Session owns at most one transient viewer. Attach references an accepted terminal
+Create in the same local subject; Server resolves its retained Host identity and exact current
+Worker/generation, allocates fresh request, attachment, and cleanup identities, and pins that Worker
+handle. Clients never supply authoritative Worker, Host, or attachment identities. Each poll moves
+one complete opaque Host record; Server validates its envelope, route, and exact feedback scope,
+without decoding terminal presentation. Frame delivery and feedback cannot cross Session slots.
+Attach commits before Client publication. Disconnect, failed publication, or explicit detach release
+the viewer and any owned controller; they never terminate or retarget the retained terminal. Unknown exchanges are not
+replayed. Reattachment receives a new attachment identity and requires a snapshot.
+
+No coordinator or registry lock spans Worker or Client I/O. Drop cleanup uses blocking admission to
+the existing one-entry Worker request queue, without waiting for a Client response or adding an
+unbounded queue. Retiring handlers retain their existing bounded Client Session/connection slots
+until cleanup admission completes. The wire owner observes completion internally. A stopped carrier
+closes the broker and all its transient attachments. Worker responses allow twenty seconds for up
+to sixteen pending Host viewer/control detaches, two Attach exchanges, and result delivery; control
+writes retain their two-second limit. The one queued plus one in-flight bound requires a forty-six-second launch
+lease. Client record reads are idle until their first byte, then use a total two-second deadline;
+Client writes also have a total two-second deadline and retire only that Session on expiry.
+
+The existing `LocalTerminalRelay` remains the authority for attachment scope, one frame flight,
+exact feedback, queue isolation, and detach lifetime. This slice maps those transitions to OBCS
+viewer controls, OBSR opaque records, the existing OBCN/OBNR carrier, and Session-owned cleanup.
+Evidence includes strict protocol fixtures, deterministic stale-scope/feedback tests, carrier
+cleanup/backpressure tests, and real two-Client/Server/Worker/Host process traces. These establish
+the private read-only path, not TUI rendering, controller authority, release performance budgets,
+or independent review evidence.
+
+## Local terminal controller refinement
+
+The accepted milestone extends the Session viewer with explicit acquisition of one combined input
+and resize controller per retained Host terminal. Server reserves the grant before Worker I/O;
+other Sessions cannot acquire while that grant is pending, active, or being cleaned up. A fresh
+Server-issued controller identity scopes a strictly increasing sequence shared by input and resize.
+Client-supplied identities must equal that Session's grant. Rejected non-controllers and stale
+sequences never dispatch; valid submitted sequences are consumed even if delivery fails. Unknown
+effects are reported without replay, and authority loss never retargets a retained terminal.
+
+Worker maps the grant to a distinct Host attachment with input and resize enabled, read disabled,
+and the resize lease requested. Existing viewer attachments remain read-only and keep their frame
+baseline. Worker also enforces one grant per Host terminal, its exact viewer/grant scope, and
+increasing sequences. Only the Host's exact capability revision authorizes raw input. Input contains
+1 through 4,096 bytes; acceptance means admission to Host's bounded input queue, not shell execution.
+Resize acknowledges the exact complete geometry. No new Host wire contract or VT owner is added.
+
+Detach and Session loss release the control attachment before the viewer. The Server reservation
+remains occupied until generation-pinned cleanup completes or that Worker becomes unavailable;
+cleanup admission uses the existing bounded request queue, with no lock held across I/O. A stale
+cleanup cannot clear a new grant. Failed or contradictory Host exchanges end the Worker connection;
+the Server reports an unknown control outcome after complete delivery. No other viewer is promoted.
+Independent release while retaining the viewing attachment and forced takeover remain later work.
+
+At most eight viewers imply at most eight control attachments. Cleanup can therefore perform sixteen
+one-second Host exchanges before the next request. The Worker response budget is twenty seconds,
+launch leases last forty-six seconds, and native Client submissions allow fifty seconds. Request
+writes and Client record reads/writes retain their existing two-second bounds. These are local
+implementation limits, not release performance budgets.
+
+`LocalTerminalClientAuthority` owns acquisition, controller input/resize, detach, loss, and stale
+cleanup; `LocalTerminalRelay` owns increasing requests and unknown-effect retirement. Concrete
+reservation, cleanup, protocol and process tests refine these claims, including competing Sessions,
+wrong grant/sequence, input queue acknowledgement, observable shell output, accepted resize,
+disconnect and re-acquisition. The challenge pass uses the current context and is not independent
+review evidence. TUI activation, public cutover, durable recovery and full milestone acceptance
+remain separate boundaries.
 
 ## Accepted terminal Client authority and relay modeling record
 
@@ -243,20 +313,20 @@ accepted refinement target; they do not claim that the current runtime, wire con
 UI implement it. A viewer attachment associates one Client Session generation with a retained
 terminal, while the controller is that terminal's one combined input-and-resize grant.
 
-| Field        | Accepted refinement target                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | Several peer TUI, Web, Desktop, or mobile Client Sessions must be able to read one retained terminal concurrently without creating several input or geometry writers. A slow Client must not block another Client or Worker progress, and Client exit must detach transient authority without ending the terminal.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Inputs       | Server-owned Client Session identity and generation; Worker, Host, and terminal availability; viewer attach, explicit controller acquire, input, resize, detach, disconnect, reconnect, and cleanup; opaque Host-produced OBTF snapshot/delta bytes; and the existing attachment-scoped `FrameApplied`, `NeedSnapshot`, and `ProjectionBlocked` meanings. The relay model adds abstract request identity and strictly increasing attachment-local request sequence, without selecting their wire fields or encoding.                                                                                                                                                                                                                                                                                    |
-| Data         | The imported Server authority state plus one attachment generation and projection phase per modeled Session, three bounded per-attachment downstream queues for Host-to-Worker, Worker-to-Server, and Server-to-Client delivery, opaque frame values, exact feedback scope, one control request flight, used and effect-unknown request identities, and an independent Worker progress counter. One attachment-scoped projection flight occupies at most one downstream queue until Client feedback starts its return path. No Server or Worker VT, screen, row, scrollback, or history state exists in the model.                                                                                                                                                                                      |
-| Outputs      | Every live viewer can receive attachment-scoped snapshots, deltas, or `ProjectionBlocked`; applied-frame acknowledgements and `NeedSnapshot` return on the same attachment scope. Input and resize reach Host effect only for the one imported controller; non-controller, out-of-order, and reused-identity requests are rejected. A full downstream queue can only pause or close that attachment, without changing another attachment's queues or disabling independent Worker progress.                                                                                                                                                                                                                                                                                                             |
-| Invariants   | `LocalTerminalClientAuthority` remains the sole authority: viewers are its imported viewer set, and effective input and resize authority are the same derived set with cardinality at most one. Acquire never replaces an owner and no loss, detach, or cleanup auto-promotes a viewer. Every downstream queue is bounded and attachment-scoped; relay hops preserve the complete opaque record; feedback is attachment-scoped; applied sequence never exceeds emitted sequence; an effect-unknown request is retired and can never re-enter a send phase; detach, disconnect, and stale cleanup preserve a retained terminal.                                                                                                                                                                          |
-| Decisions    | A controller owns input and resize together. Another viewer may acquire only after explicit release leaves the grant unowned; there is no automatic promotion, implicit claim, or modeled forced takeover. Server selects product authority, Worker remains the sole Host broker, and Host remains the PTY, VT, projection, and history owner. Unknown input or resize outcome consumes its abstract request identity and is never automatically replayed. `NeedSnapshot` abandons queued delivery for that attachment and requests a fresh snapshot; `ProjectionBlocked` blocks only that attachment until Host emits a later-revision snapshot rather than moving projection ownership into the relay.                                                                                                |
-| Model        | [`LocalTerminalRelay`](formal/tla/LocalTerminalRelay.tla) explicitly `EXTENDS LocalTerminalClientAuthority` and derives read, input, and resize attachments from the imported `viewers` and `controller`; it does not create a parallel authority machine. Its control-outcome, projection-feedback, backpressure-isolation, reattach-feedback, attachment-lifecycle, and failure-interleavings configurations split unrelated finite histories while exercising one state machine. The registered source digest includes the imported authority module.                                                                                                                                                                                                                                                |
-| Transitions  | Session open and attachment establish `needs-snapshot`; exact opaque records traverse the three queues without decoding; Client apply creates a `FrameApplied` acknowledgement; `NeedSnapshot` clears that attachment's in-flight records; `ProjectionBlocked` can arise before the first snapshot or during streaming, enters a blocked phase, and recovers only through a later-revision snapshot. Queue saturation can pause and then close only the addressed attachment. Detach clears delivery and the controller grant if owned while retaining the terminal; re-attach advances the attachment generation, resets attachment-local relay state, and requires a new snapshot. Disconnect/reconnect and stale cleanup remain generation-scoped.                                                   |
-| Dependencies | The model maps the package-owned Terminal Protocol attachment, input, resize, OBTF, projection-demand, and projection-feedback semantics onto the existing Server-Worker spine and Worker-owned Host broker. This slice adds no codec, wire message, runtime dependency, direct Client-Worker path, or UI behavior. A future implementation must refine these actions to concrete carriers and Host commands without giving Server or Worker VT/history authority.                                                                                                                                                                                                                                                                                                                                      |
-| Ownership    | Server owns Client Session generations, viewer membership, combined controller selection, relay queue admission, rejection, and stale cleanup. Worker owns Host connection brokering but not terminal presentation state. Host owns retained PTY lifetime, Ghostty VT, immutable attachment-scoped OBTF production, projection/history state, and low-level capability enforcement. The existing Host resize-owner promotion mechanism is not adopted as Server product policy.                                                                                                                                                                                                                                                                                                                         |
-| Verification | The authority configuration checks three Client slots, two Session generations, bounded input/geometry revisions, all semantic actions, safety, and cleanup progress. Relay configurations check two Clients and attachment generations, two request identities and request/frame sequences, two distinct opaque records, depth-one queues, exact source-record equality across every relay hop, blocked-projection recovery, stale-feedback rejection, and control/output interleavings with Client, Server, Worker, and Host loss. Independent Worker progress remains queue-independent and completes under weak fairness unless Worker is lost. Every relay action requires nonzero coverage. These are exhaustive finite-model bounds, not release budgets; no runtime refinement test exists yet. |
-| Limits       | The models cover one retained terminal, one attachment per modeled Client Session, one abstract control flight, and record-count queues. They do not define or prove wire schema/encoding, concrete request fields, production queue count or byte budgets, slow-Client thresholds or pause-versus-close policy, production scheduler/fairness guarantees, timeout values, runtime/PTY retention, restart/durable recovery, direct attachment, forced takeover, collaborative input, controller fairness, or public UX.                                                                                                                                                                                                                                                                                 |
+| Field        | Accepted refinement target                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | Several peer TUI, Web, Desktop, or mobile Client Sessions must be able to read one retained terminal concurrently without creating several input or geometry writers. A slow Client must not block another Client or Worker progress, and Client exit must detach transient authority without ending the terminal.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Inputs       | Server-owned Client Session identity and generation; Worker, Host, and terminal availability; viewer attach, explicit controller acquire, input, resize, detach, disconnect, reconnect, and cleanup; opaque Host-produced OBTF snapshot/delta bytes; and the existing attachment-scoped `FrameApplied`, `NeedSnapshot`, and `ProjectionBlocked` meanings. The relay model adds abstract request identity and strictly increasing attachment-local request sequence, without selecting their wire fields or encoding.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Data         | The imported Server authority state plus one attachment generation and projection phase per modeled Session, three bounded per-attachment downstream queues for Host-to-Worker, Worker-to-Server, and Server-to-Client delivery, opaque frame values, exact feedback scope, one control request flight, used and effect-unknown request identities, and an independent Worker progress counter. One attachment-scoped projection flight occupies at most one downstream queue until Client feedback starts its return path. No Server or Worker VT, screen, row, scrollback, or history state exists in the model.                                                                                                                                                                                                                                                                                                                                                                                         |
+| Outputs      | Every live viewer can receive attachment-scoped snapshots, deltas, or `ProjectionBlocked`; applied-frame acknowledgements and `NeedSnapshot` return on the same attachment scope. Input and resize reach Host effect only for the one imported controller; non-controller, out-of-order, and reused-identity requests are rejected. A full downstream queue can only pause or close that attachment, without changing another attachment's queues or disabling independent Worker progress.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Invariants   | `LocalTerminalClientAuthority` remains the sole authority: viewers are its imported viewer set, and effective input and resize authority are the same derived set with cardinality at most one. Acquire never replaces an owner and no loss, detach, or cleanup auto-promotes a viewer. Every downstream queue is bounded and attachment-scoped; relay hops preserve the complete opaque record; feedback is attachment-scoped; applied sequence never exceeds emitted sequence; an effect-unknown request is retired and can never re-enter a send phase; detach, disconnect, and stale cleanup preserve a retained terminal.                                                                                                                                                                                                                                                                                                                                                                             |
+| Decisions    | A controller owns input and resize together. Another viewer may acquire only after explicit release leaves the grant unowned; there is no automatic promotion, implicit claim, or modeled forced takeover. Server selects product authority, Worker remains the sole Host broker, and Host remains the PTY, VT, projection, and history owner. Unknown input or resize outcome consumes its abstract request identity and is never automatically replayed. `NeedSnapshot` abandons queued delivery for that attachment and requests a fresh snapshot; `ProjectionBlocked` blocks only that attachment until Host emits a later-revision snapshot rather than moving projection ownership into the relay.                                                                                                                                                                                                                                                                                                   |
+| Model        | [`LocalTerminalRelay`](formal/tla/LocalTerminalRelay.tla) explicitly `EXTENDS LocalTerminalClientAuthority` and derives read, input, and resize attachments from the imported `viewers` and `controller`; it does not create a parallel authority machine. Its control-outcome, projection-feedback, backpressure-isolation, reattach-feedback, attachment-lifecycle, and failure-interleavings configurations split unrelated finite histories while exercising one state machine. The registered source digest includes the imported authority module.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Transitions  | Session open and attachment establish `needs-snapshot`; exact opaque records traverse the three queues without decoding; Client apply creates a `FrameApplied` acknowledgement; `NeedSnapshot` clears that attachment's in-flight records; `ProjectionBlocked` can arise before the first snapshot or during streaming, enters a blocked phase, and recovers only through a later-revision snapshot. Queue saturation can pause and then close only the addressed attachment. Detach clears delivery and the controller grant if owned while retaining the terminal; re-attach advances the attachment generation, resets attachment-local relay state, and requires a new snapshot. Disconnect/reconnect and stale cleanup remain generation-scoped.                                                                                                                                                                                                                                                      |
+| Dependencies | The model maps the package-owned Terminal Protocol attachment, input, resize, OBTF, projection-demand, and projection-feedback semantics onto the existing Server-Worker spine and Worker-owned Host broker. This slice adds no codec, wire message, runtime dependency, direct Client-Worker path, or UI behavior. A future implementation must refine these actions to concrete carriers and Host commands without giving Server or Worker VT/history authority.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Ownership    | Server owns Client Session generations, viewer membership, combined controller selection, relay queue admission, rejection, and stale cleanup. Worker owns Host connection brokering but not terminal presentation state. Host owns retained PTY lifetime, Ghostty VT, immutable attachment-scoped OBTF production, projection/history state, and low-level capability enforcement. The existing Host resize-owner promotion mechanism is not adopted as Server product policy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Verification | The authority configuration checks three Client slots, two Session generations, bounded input/geometry revisions, all semantic actions, safety, and cleanup progress. Relay configurations check two Clients and attachment generations, two request identities and request/frame sequences, two distinct opaque records, depth-one queues, exact source-record equality across every relay hop, blocked-projection recovery, stale-feedback rejection, and control/output interleavings with Client, Server, Worker, and Host loss. Independent Worker progress remains queue-independent and completes under weak fairness unless Worker is lost. Every relay action requires nonzero coverage. These are exhaustive finite-model bounds, not release budgets; viewer and controller runtime evidence is recorded above. The authority configuration still has an unresolved 300-second timeout in the current acceptance evidence; all six relay configurations complete with required action coverage. |
+| Limits       | The models cover one retained terminal, one attachment per modeled Client Session, one abstract control flight, and record-count queues. They do not define or prove wire schema/encoding, concrete request fields, production queue count or byte budgets, slow-Client thresholds or pause-versus-close policy, production scheduler/fairness guarantees, timeout values, runtime/PTY retention, restart/durable recovery, direct attachment, forced takeover, collaborative input, controller fairness, or public UX.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 The checked
 [`LocalTerminalClientAuthority`](formal/tla/LocalTerminalClientAuthority.tla) model remains the
@@ -265,53 +335,78 @@ the terminal. [`LocalTerminalRelay`](formal/tla/LocalTerminalRelay.tla) composes
 transport-only queues and feedback. Server or Worker loss can make authority ineffective but cannot
 transfer it or change the retained terminal; Host loss alone can change the terminal to `lost`.
 
+## Local terminal coordinator modeling record
+
+The accepted local milestone grants the Server's single effective-user subject default-shell
+Create and Start through admitted local Human Client Sessions. OBLC alone remains only transport
+admission; this private service explicitly selects that policy after peer and cohort validation.
+No grant is inferred for another endpoint, remote identity, Worker peer, or renderer kind.
+
+| Field        | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | Connect admitted Client Create/Start intent to the existing Worker carrier without transferring placement authority, replaying effects, or losing retained bindings when a Client disconnects.                                                                                                                                                                                                                                                                                            |
+| Inputs       | Strict OBCS intent, the current admitted Worker identity/generation, and an adapter-supplied absolute lease expiry. No Client field becomes an operation, terminal, lease, generation, or fence.                                                                                                                                                                                                                                                                                          |
+| Data         | One Server-owned in-memory map of at most 1,024 create references for its single local subject; each retains exact placement, last authorization, launch mode, and pending, awaiting-start, started, unknown, or unavailable state. No eviction or durable recovery.                                                                                                                                                                                                                      |
+| Outputs      | A correlated OBCS result or one exact OBCN command. Missing Worker and unsatisfied constraints are effect-free. Start resolves a successful deferred Create across Sessions; unknown/missing creates cannot dispatch.                                                                                                                                                                                                                                                                     |
+| Invariants   | A checked monotonic 128-bit allocator never reuses operation identity across terminals or Worker generations. Each dispatched Start advances its terminal fence and uses a fresh lease. One terminal has at most one pending operation. No synchronous lock spans Worker I/O or Client output.                                                                                                                                                                                            |
+| Decisions    | Known create-reference collisions reject; full retained capacity and concurrent operations return server-busy. Same-geometry Start after confirmed deferred Start returns already-started without another command; different geometry rejects. Immediate creates reject Start. Worker replacement never retargets a retained binding.                                                                                                                                                     |
+| Model        | A pure prepare/complete state machine reserves a binding before effects and commits through exact results or explicit delivery failures. Independent Session output cannot block another Session’s next operation.                                                                                                                                                                                                                                                                        |
+| Transitions  | Prepare reserves state before carrier submission. Exact current success commits Host identity and geometry before Client publication. Known pre-delivery Start failure restores awaiting-start; ambiguous delivery or contradictory success freezes the binding as unknown. Previously confirmed Host identity survives failed or unknown Start. Client loss cannot cancel the submitted operation or remove the binding.                                                                 |
+| Dependencies | The pure coordinator consumes protocol values and explicit time/placement facts. A private service owns short mutex sections, wall-clock sampling, Worker-handle selection and one carrier call. The existing carrier owns wire serialization and complete-write classification.                                                                                                                                                                                                          |
+| Ownership    | Server owns subject policy, create references, placement, operation/lease/fence issuance and result commitment. Worker owns launch defaults, admission and Host effects. Host owns PTY/VT and retained execution. No new public or cross-workspace contract.                                                                                                                                                                                                                              |
+| Verification | Deterministic coordinator traces check allocation, pending exclusion, exact result commitment, unknown quarantine, capacity, geometry, and replacement. Socket/process traces check cross-Session Start, serialization, malformed peers and Client loss. The registered launch-authorization and coordinator models check their finite safety/progress claims.                                                                                                                            |
+| Limits       | Additive unshipped POSIX local authority only. The 1,024-record bound follows the accepted Worker generation limit and requires explicit retirement before production. Lease lifetime is forty-six seconds, derived from the carrier's one queued plus one in-flight exchange with a two-second write and twenty-second result deadline each; expiry can reject without retry. No replay ledger, fine-grained permissions, UI activation, restart reconciliation, or production recovery. |
+
+The coordinator's actual consumer is the post-admission OBCS handler. Its integrated witness is a
+Client issuing Create and Start through the real Server, Worker, and Host processes. The next
+missing user-visible boundary is TUI activation.
+
+[`LocalTerminalCoordinator`](formal/tla/LocalTerminalCoordinator.tla) checks one deferred binding,
+two peer Sessions, three operation identities and two Worker generations. Prepare maps to
+IssueCreate/IssueStart, complete maps to exact/not-delivered/rejected/unknown/stale settlement, and each
+Session's independent publication can interleave another Session's operation. Progress assumes
+bounded carrier completion and weak fairness for settlement and publication/abandonment; it does
+not promise delivery to a disconnected Client. Geometry, capacity, type conversion and real PTY
+behavior belong to deterministic tests and the process witness.
+
 ## Ownership
 
-This application owns projection mechanics for its injected in-memory snapshot copy plus the
-experimental local Worker and Client Session registries, the application-private OBCN Worker
-carrier, and the deny-only OBCS phase. It is not a second current product writer: every successfully
-decoded Client terminal intent is assigned a denial decision without an effect, OBCS does not call
-the Worker request handle, no Client or current runtime can submit a projection candidate, and no
-publication leaves the application. The current Desktop/Workbench composition remains the delivered
-Workbench writer, and the Node
-[`apps/server`](../server/README.md) remains authoritative for its existing Browser ingress
-behavior.
+This application owns projection mechanics for its injected snapshot, local Worker and Client
+registries, the private OBCN carrier, local terminal coordinator, and Session viewer/controller relay. It publishes no Workbench
+mutation and changes no delivered consumer. Desktop/Workbench remains the delivered Workbench
+writer and [`apps/server`](../server/README.md) retains its existing Browser ingress authority.
+Persistence, restart reconciliation, activation, production service lifecycle,
+packaging, migration and public cutover remain later slices.
 
-OBCS-to-OBCN mapping, semantic business transitions, authorized or successful terminal processing,
-terminal relay, product authorization, persistence, recovery, external publication, endpoint
-discovery and activation, production service lifecycle, Terminal Host authority/runtime
-integration, retry or reconciliation policy, packaging, migration, and cutover require later
-implementation slices.
+The source tree has an importable projection root (`src/lib.rs`) and a private binary composition
+root (`src/main.rs`). The exhaustive lateral directions are `local_site_service -> worker_registry`,
+`worker_obcn_carrier`, `local_client_service::start` and `local_terminal_service`;
+`local_client_service -> client_session_registry`, `local_terminal_service` and its private
+`obcs_session`; `local_terminal_service -> terminal_coordinator`, `worker_registry` and
+`worker_obcn_carrier`; and `worker_registry -> worker_obcn_carrier`. The coordinator's private
+`outcomes` child owns Worker-observation projection. The service's `viewer_session` child owns
+attachment lifetime; `controller_session` owns per-terminal reservation, Session grants, increasing
+effect sequences, and exact release settlement; `projection` owns routing/feedback state. The Client service's `record_stream`
+child owns post-admission I/O deadlines. Reverse and other lateral imports remain
+forbidden; tests access owner-private state without widening production visibility.
 
-The native source tree has two roots: `src/lib.rs` is the importable projection root, while
-`src/main.rs` is the private binary composition root. The binary's exhaustive lateral import
-directions are `main -> local_site_service`, `worker_registry`, and `worker_obcn_carrier`;
-`local_site_service -> worker_registry`, `worker_obcn_carrier`, and
-`local_client_service::start`; `worker_registry -> worker_obcn_carrier`; and
-`local_client_service -> client_session_registry` plus its private `obcs_session`. Reverse imports,
-cousin imports, and every other lateral direction are forbidden. Tests may access owner-private
-state without expanding a production direction.
-
-`worker_obcn_carrier` is not re-exported. Its cloneable request handle is available only through
-the private Worker registry, and its registered wire owner receives the already admitted stream.
-Only that owner's lifetime guard may retire an attached generation, after wire settlement and queue
-drain; the registry may cancel only an admission that has not attached a carrier. It must not import
-OBCS, Client Session, Host, projection, product authorization, effect, retry, or recovery policy.
-Mapping an OBCS request into this handle requires a later accepted slice.
-
-`obcs_session` is not re-exported. Its only entry point is a `pub(super)` runner that receives the
-already admitted stream, and its only non-standard-library dependency is
-`orchbee-client-server-protocol`. It must not import the Worker registry, Host, projection,
-effect, or dispatch authority. Any wider visibility or dependency, including OBCS-to-OBCN
-mapping, requires a later accepted slice.
+The carrier owns serialized I/O, exact echo validation and generation retirement; it imports no
+OBCS or coordinator policy. The pure coordinator imports only protocol values and the standard
+library, never a transport, clock or process adapter. The service takes registry then coordinator
+locks for terminal reservation and commitment, or registry then controller-map locks for grant
+reservation. It releases all locks for I/O and never retries. The private
+`obcs_session` runner imports only OBCS and standard-library I/O and invokes an injected semantic
+handler. No module is re-exported through the projection library.
 
 ## Verification
 
 Run from the repository root:
 
 ```sh
+pnpm --filter @orchbee/terminal-host build
+cargo build -p orchbee-worker --locked
 cargo test -p orchbee-server --all-targets --all-features --locked
 cargo clippy -p orchbee-server --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models local-client-sessions,local-client-sessions-obcs,local-site-process-spine,local-terminal-client-authority,local-terminal-relay,local-worker-obcn-carrier
+node scripts/tla/run-models.mjs --models local-client-sessions,local-client-sessions-obcs,local-site-process-spine,local-terminal-client-authority,local-terminal-relay,local-worker-obcn-carrier,local-terminal-coordinator,terminal-launch-authorization
 pnpm verify
 ```

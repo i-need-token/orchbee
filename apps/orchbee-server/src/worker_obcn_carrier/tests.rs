@@ -251,7 +251,7 @@ fn distinguishes_response_timeout_and_disconnect_after_complete_delivery() -> Te
     )?)?);
     let (queued_completion, queued_result) = mpsc::sync_channel(1);
     handle.sender.try_send(PendingRequest {
-        completion: queued_completion,
+        completion: Some(queued_completion),
         complete_write: Arc::new(AtomicBool::new(false)),
         encoded: orchbee_capability_node_protocol::encode_message(&queued_request.message())?,
         request: queued_request,
@@ -292,7 +292,7 @@ fn reports_a_preexisting_peer_record_before_any_request_byte_as_not_delivered() 
     )?)?);
     let (completion, receiver) = mpsc::sync_channel(1);
     handle.sender.try_send(PendingRequest {
-        completion,
+        completion: Some(completion),
         complete_write: Arc::new(AtomicBool::new(false)),
         encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
         request,
@@ -322,7 +322,7 @@ fn partial_request_frame_write_is_not_delivered() -> TestResult {
     )?)?);
     let (completion, result) = mpsc::sync_channel(1);
     let pending = PendingRequest {
-        completion,
+        completion: Some(completion),
         complete_write: Arc::new(AtomicBool::new(false)),
         encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
         request,
@@ -332,6 +332,7 @@ fn partial_request_frame_write_is_not_delivered() -> TestResult {
         GENERATION,
         WorkerCarrierLimits {
             io_timeout: TEST_IO_TIMEOUT,
+            response_timeout: TEST_IO_TIMEOUT,
             poll_interval: TEST_POLL_INTERVAL,
         },
     );
@@ -466,7 +467,7 @@ fn bounds_one_wire_request_one_queued_request_and_rejects_more_work() -> TestRes
     )?)?);
     let (second_completion, second_receiver) = mpsc::sync_channel(1);
     handle.sender.try_send(PendingRequest {
-        completion: second_completion,
+        completion: Some(second_completion),
         complete_write: Arc::new(AtomicBool::new(false)),
         encoded: orchbee_capability_node_protocol::encode_message(&second_request.message())?,
         request: second_request,
@@ -792,6 +793,7 @@ fn test_carrier() -> TestResult<(
         GENERATION,
         WorkerCarrierLimits {
             io_timeout: TEST_IO_TIMEOUT,
+            response_timeout: TEST_IO_TIMEOUT,
             poll_interval: TEST_POLL_INTERVAL,
         },
     );
@@ -830,6 +832,7 @@ fn registered_test_carrier() -> TestResult<(
         generation,
         WorkerCarrierLimits {
             io_timeout: TEST_IO_TIMEOUT,
+            response_timeout: TEST_IO_TIMEOUT,
             poll_interval: TEST_POLL_INTERVAL,
         },
     );
@@ -847,7 +850,7 @@ fn enqueue_request(
     handle
         .sender
         .try_send(PendingRequest {
-            completion,
+            completion: Some(completion),
             complete_write: Arc::new(AtomicBool::new(false)),
             encoded: orchbee_capability_node_protocol::encode_message(&request.message())?,
             request,
@@ -1095,4 +1098,197 @@ fn host_identity(value: u8) -> TestResult<HostTerminalIdentity> {
 
 fn nonzero(value: u64) -> TestResult<NonZeroU64> {
     NonZeroU64::new(value).ok_or_else(|| "test value must be nonzero".into())
+}
+
+#[test]
+fn queued_detach_is_not_lost_when_the_single_submission_slot_is_full() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
+    };
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let request = TerminalViewerRequest {
+        request_id: OperationId::from_bytes([1; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        attachment_id: OperationId::from_bytes([2; 16])?,
+        action: TerminalViewerAction::Poll,
+    };
+    // Hold the owner before start so the submission slot is deterministically full.
+    let pending = enqueue_request(&handle, WorkerOperationRequest::Viewer(request))?;
+    let cleanup = TerminalViewerRequest {
+        request_id: OperationId::from_bytes([3; 16])?,
+        action: TerminalViewerAction::Detach,
+        ..request
+    };
+    let cleanup_handle = handle.clone();
+    let cleanup_thread = thread::spawn(move || cleanup_handle.enqueue_detach(cleanup));
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    assert_eq!(
+        read_message(&mut worker)?,
+        CapabilityNodeMessage::TerminalViewerRequest(request)
+    );
+    write_message(
+        &mut worker,
+        &CapabilityNodeMessage::TerminalViewerResult(TerminalViewerResult {
+            request_id: request.request_id,
+            attachment_id: request.attachment_id,
+            outcome: TerminalViewerOutcome::Empty,
+        }),
+    )?;
+    assert!(pending.recv_timeout(TEST_COMPLETION_TIMEOUT)?.is_ok());
+    assert_eq!(
+        read_message(&mut worker)?,
+        CapabilityNodeMessage::TerminalViewerRequest(cleanup)
+    );
+    write_message(
+        &mut worker,
+        &CapabilityNodeMessage::TerminalViewerResult(TerminalViewerResult {
+            request_id: cleanup.request_id,
+            attachment_id: cleanup.attachment_id,
+            outcome: TerminalViewerOutcome::Detached,
+        }),
+    )?;
+    cleanup_thread
+        .join()
+        .map_err(|_| "cleanup thread panicked")?;
+    let next = enqueue_request(&handle, WorkerOperationRequest::Viewer(request))?;
+    assert_eq!(
+        read_message(&mut worker)?,
+        CapabilityNodeMessage::TerminalViewerRequest(request)
+    );
+    write_message(
+        &mut worker,
+        &CapabilityNodeMessage::TerminalViewerResult(TerminalViewerResult {
+            request_id: request.request_id,
+            attachment_id: request.attachment_id,
+            outcome: TerminalViewerOutcome::Empty,
+        }),
+    )?;
+    assert!(
+        next.recv_timeout(TEST_COMPLETION_TIMEOUT)?.is_ok(),
+        "cleanup completion must keep the shared carrier alive"
+    );
+    drop(worker);
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    owner_thread.join().map_err(|_| "owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn viewer_scope_and_outcome_mismatch_retire_the_carrier() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
+    };
+    let request = TerminalViewerRequest {
+        request_id: OperationId::from_bytes([1; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        attachment_id: OperationId::from_bytes([2; 16])?,
+        action: TerminalViewerAction::Poll,
+    };
+    let result = TerminalViewerResult {
+        request_id: request.request_id,
+        attachment_id: request.attachment_id,
+        outcome: TerminalViewerOutcome::Empty,
+    };
+    for (actual, expected) in [
+        (
+            TerminalViewerResult {
+                request_id: OperationId::from_bytes([9; 16])?,
+                ..result.clone()
+            },
+            WorkerResponseFailure::MismatchedCorrelation,
+        ),
+        (
+            TerminalViewerResult {
+                attachment_id: OperationId::from_bytes([9; 16])?,
+                ..result.clone()
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+        (
+            TerminalViewerResult {
+                outcome: TerminalViewerOutcome::Attached,
+                ..result
+            },
+            WorkerResponseFailure::WrongResultKind,
+        ),
+    ] {
+        assert_post_delivery_failure(
+            WorkerOperationRequest::Viewer(request),
+            CapabilityNodeMessage::TerminalViewerResult(actual),
+            expected,
+        )?;
+    }
+    Ok(())
+}
+
+#[test]
+fn controller_results_require_exact_request_viewer_grant_and_geometry() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        TerminalControlAction, TerminalControlOutcome, TerminalControlRequest,
+        TerminalControlResult,
+    };
+    let geometry = TerminalPixelGeometry::new(80, 24, 8, 16)?;
+    let request = TerminalControlRequest {
+        request_id: OperationId::from_bytes([1; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+        worker_generation: WorkerGeneration::new(GENERATION),
+        viewer_id: OperationId::from_bytes([2; 16])?,
+        controller_id: OperationId::from_bytes([3; 16])?,
+        action: TerminalControlAction::Resize {
+            sequence: NonZeroU64::MIN,
+            geometry,
+        },
+    };
+    let result = TerminalControlResult {
+        request_id: request.request_id,
+        viewer_id: request.viewer_id,
+        controller_id: request.controller_id,
+        outcome: TerminalControlOutcome::Resized(geometry),
+    };
+    let wrong = OperationId::from_bytes([9; 16])?;
+    for (result, failure) in [
+        (
+            TerminalControlResult {
+                request_id: wrong,
+                ..result
+            },
+            WorkerResponseFailure::MismatchedCorrelation,
+        ),
+        (
+            TerminalControlResult {
+                viewer_id: wrong,
+                ..result
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+        (
+            TerminalControlResult {
+                controller_id: wrong,
+                ..result
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+        (
+            TerminalControlResult {
+                outcome: TerminalControlOutcome::Resized(TerminalPixelGeometry::new(
+                    81, 24, 8, 16,
+                )?),
+                ..result
+            },
+            WorkerResponseFailure::WrongResultKind,
+        ),
+    ] {
+        assert_post_delivery_failure(
+            WorkerOperationRequest::Control(request.clone()),
+            CapabilityNodeMessage::TerminalControlResult(result),
+            failure,
+        )?;
+    }
+    Ok(())
 }

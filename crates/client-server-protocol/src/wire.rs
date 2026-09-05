@@ -118,8 +118,22 @@ enum DecodedStartOutcome {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
 enum DecodedClientMessage {
+    #[serde(rename = "terminal.control")]
+    Control {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        action: crate::TerminalControlAction,
+    },
+    #[serde(rename = "terminal.viewer")]
+    Viewer {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        action: crate::TerminalViewerAction,
+    },
     #[serde(rename = "terminal.create")]
-    TerminalCreate {
+    Create {
         #[serde(rename = "protocolVersion")]
         _protocol_version: ProtocolVersion,
         request_id: RequestId,
@@ -130,7 +144,7 @@ enum DecodedClientMessage {
         start_mode: DecodedStartMode,
     },
     #[serde(rename = "terminal.start")]
-    TerminalStart {
+    Start {
         #[serde(rename = "protocolVersion")]
         _protocol_version: ProtocolVersion,
         request_id: RequestId,
@@ -142,8 +156,20 @@ enum DecodedClientMessage {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
 enum EncodedClientMessage<'a> {
+    #[serde(rename = "terminal.control")]
+    Control {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        action: &'a crate::TerminalControlAction,
+    },
+    #[serde(rename = "terminal.viewer")]
+    Viewer {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        action: &'a crate::TerminalViewerAction,
+    },
     #[serde(rename = "terminal.create")]
-    TerminalCreate {
+    Create {
         protocol_version: ProtocolVersion,
         request_id: &'a RequestId,
         worker_constraint: &'a Option<WorkerConstraint>,
@@ -151,7 +177,7 @@ enum EncodedClientMessage<'a> {
         start_mode: &'a StartMode,
     },
     #[serde(rename = "terminal.start")]
-    TerminalStart {
+    Start {
         protocol_version: ProtocolVersion,
         request_id: &'a RequestId,
         terminal_create_request_id: &'a RequestId,
@@ -162,15 +188,29 @@ enum EncodedClientMessage<'a> {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase", deny_unknown_fields)]
 enum DecodedServerMessage {
+    #[serde(rename = "terminal.control.result")]
+    Control {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        outcome: crate::TerminalControlOutcome,
+    },
+    #[serde(rename = "terminal.viewer.result")]
+    Viewer {
+        #[serde(rename = "protocolVersion")]
+        _protocol_version: ProtocolVersion,
+        request_id: RequestId,
+        outcome: crate::TerminalViewerOutcome,
+    },
     #[serde(rename = "terminal.create.result")]
-    TerminalCreateResult {
+    Create {
         #[serde(rename = "protocolVersion")]
         _protocol_version: ProtocolVersion,
         request_id: RequestId,
         outcome: DecodedCreateOutcome,
     },
     #[serde(rename = "terminal.start.result")]
-    TerminalStartResult {
+    Start {
         #[serde(rename = "protocolVersion")]
         _protocol_version: ProtocolVersion,
         request_id: RequestId,
@@ -181,14 +221,26 @@ enum DecodedServerMessage {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
 enum EncodedServerMessage<'a> {
+    #[serde(rename = "terminal.control.result")]
+    Control {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        outcome: &'a crate::TerminalControlOutcome,
+    },
+    #[serde(rename = "terminal.viewer.result")]
+    Viewer {
+        protocol_version: ProtocolVersion,
+        request_id: &'a RequestId,
+        outcome: &'a crate::TerminalViewerOutcome,
+    },
     #[serde(rename = "terminal.create.result")]
-    TerminalCreateResult {
+    Create {
         protocol_version: ProtocolVersion,
         request_id: &'a RequestId,
         outcome: CreateOutcome,
     },
     #[serde(rename = "terminal.start.result")]
-    TerminalStartResult {
+    Start {
         protocol_version: ProtocolVersion,
         request_id: &'a RequestId,
         outcome: StartOutcome,
@@ -200,7 +252,21 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
     let decoded = serde_json::from_str::<DecodedClientMessage>(text)
         .map_err(|_error| ProtocolError::InvalidPayload)?;
     match decoded {
-        DecodedClientMessage::TerminalCreate {
+        DecodedClientMessage::Control {
+            _protocol_version: _,
+            request_id,
+            action,
+        } => Ok(ClientMessage::TerminalControl(
+            crate::TerminalControlRequest::new(request_id, action),
+        )),
+        DecodedClientMessage::Viewer {
+            _protocol_version: _,
+            request_id,
+            action,
+        } => Ok(ClientMessage::TerminalViewer(
+            crate::TerminalViewerRequest::new(request_id, action),
+        )),
+        DecodedClientMessage::Create {
             _protocol_version: _,
             request_id,
             worker_constraint,
@@ -212,7 +278,7 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
             cwd,
             start_mode.into(),
         ))),
-        DecodedClientMessage::TerminalStart {
+        DecodedClientMessage::Start {
             _protocol_version: _,
             request_id,
             terminal_create_request_id,
@@ -225,14 +291,24 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
 
 pub(crate) fn encode_client_payload(message: &ClientMessage) -> Result<Vec<u8>, ProtocolError> {
     let encoded = match message {
-        ClientMessage::TerminalCreate(request) => EncodedClientMessage::TerminalCreate {
+        ClientMessage::TerminalControl(request) => EncodedClientMessage::Control {
+            protocol_version: ProtocolVersion,
+            request_id: &request.request_id,
+            action: &request.action,
+        },
+        ClientMessage::TerminalViewer(request) => EncodedClientMessage::Viewer {
+            protocol_version: ProtocolVersion,
+            request_id: &request.request_id,
+            action: &request.action,
+        },
+        ClientMessage::TerminalCreate(request) => EncodedClientMessage::Create {
             protocol_version: ProtocolVersion,
             request_id: &request.request_id,
             worker_constraint: &request.worker_constraint,
             cwd: &request.cwd,
             start_mode: &request.start_mode,
         },
-        ClientMessage::TerminalStart(request) => EncodedClientMessage::TerminalStart {
+        ClientMessage::TerminalStart(request) => EncodedClientMessage::Start {
             protocol_version: ProtocolVersion,
             request_id: &request.request_id,
             terminal_create_request_id: &request.terminal_create_request_id,
@@ -247,7 +323,21 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
     let decoded = serde_json::from_str::<DecodedServerMessage>(text)
         .map_err(|_error| ProtocolError::InvalidPayload)?;
     Ok(match decoded {
-        DecodedServerMessage::TerminalCreateResult {
+        DecodedServerMessage::Control {
+            _protocol_version: _,
+            request_id,
+            outcome,
+        } => ServerMessage::TerminalControlResult(crate::TerminalControlResult::new(
+            request_id, outcome,
+        )),
+        DecodedServerMessage::Viewer {
+            _protocol_version: _,
+            request_id,
+            outcome,
+        } => ServerMessage::TerminalViewerResult(crate::TerminalViewerResult::new(
+            request_id, outcome,
+        )),
+        DecodedServerMessage::Create {
             _protocol_version: _,
             request_id,
             outcome,
@@ -255,7 +345,7 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
             request_id,
             outcome.into(),
         )),
-        DecodedServerMessage::TerminalStartResult {
+        DecodedServerMessage::Start {
             _protocol_version: _,
             request_id,
             outcome,
@@ -267,12 +357,22 @@ pub(crate) fn decode_server_payload(payload: &[u8]) -> Result<ServerMessage, Pro
 
 pub(crate) fn encode_server_payload(message: &ServerMessage) -> Result<Vec<u8>, ProtocolError> {
     let encoded = match message {
-        ServerMessage::TerminalCreateResult(result) => EncodedServerMessage::TerminalCreateResult {
+        ServerMessage::TerminalControlResult(result) => EncodedServerMessage::Control {
+            protocol_version: ProtocolVersion,
+            request_id: &result.request_id,
+            outcome: &result.outcome,
+        },
+        ServerMessage::TerminalViewerResult(result) => EncodedServerMessage::Viewer {
+            protocol_version: ProtocolVersion,
+            request_id: &result.request_id,
+            outcome: &result.outcome,
+        },
+        ServerMessage::TerminalCreateResult(result) => EncodedServerMessage::Create {
             protocol_version: ProtocolVersion,
             request_id: &result.request_id,
             outcome: result.outcome,
         },
-        ServerMessage::TerminalStartResult(result) => EncodedServerMessage::TerminalStartResult {
+        ServerMessage::TerminalStartResult(result) => EncodedServerMessage::Start {
             protocol_version: ProtocolVersion,
             request_id: &result.request_id,
             outcome: result.outcome,

@@ -3,6 +3,7 @@ mod control;
 mod creation;
 mod envelope;
 mod error;
+mod frame_route;
 mod geometry;
 mod history;
 mod identity;
@@ -44,6 +45,9 @@ pub use envelope::{
     DecodedEnvelope, Envelope, decode_transport_envelope, encode_transport_envelope,
 };
 pub use error::{ProtocolError, ProtocolErrorCode};
+pub use frame_route::{
+    TERMINAL_FRAME_HEADER_BYTES, TerminalFrameRoute, inspect_terminal_frame_route,
+};
 pub use geometry::TerminalPixelGeometry;
 pub use history::{
     EncodedHistoryControl, HistoryAnchorStatus, HistoryChanged, HistoryControl, HistoryDemand,
@@ -145,3 +149,9 @@ pub use terminal_fact::{
     ExitResult, ProcessObservation, RuntimeCleanupFailure, RuntimeFailure, TerminalIdentity,
 };
 pub use version::{CURRENT_PROTOCOL_VERSION, ProtocolVersion};
+
+mod text_frame;
+pub use text_frame::{
+    TerminalTextCell, TerminalTextCursor, TerminalTextFrame, TerminalTextRow, TerminalTextStyle,
+    decode_terminal_text_frame,
+};

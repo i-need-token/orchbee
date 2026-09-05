@@ -64,16 +64,40 @@ pub(crate) enum AuthorizedHostOperationResult {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LaunchHostCompletion {
-    Accepted { identity: HostTerminalIdentity },
-    Rejected { host_epoch: HostEpoch },
-    Failed { host_epoch: HostEpoch },
+    Accepted {
+        identity: HostTerminalIdentity,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "reserved until Host supplies an explicit rejection discriminator"
+        )
+    )]
+    Rejected {
+        host_epoch: HostEpoch,
+    },
+    Failed {
+        host_epoch: HostEpoch,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum StartHostCompletion {
     Accepted(HostStartAccepted),
-    Rejected { host_epoch: HostEpoch },
-    Failed { host_epoch: HostEpoch },
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "reserved until Host supplies an explicit rejection discriminator"
+        )
+    )]
+    Rejected {
+        host_epoch: HostEpoch,
+    },
+    Failed {
+        host_epoch: HostEpoch,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

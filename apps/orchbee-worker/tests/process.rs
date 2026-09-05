@@ -38,6 +38,9 @@ static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
 
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
+#[path = "process/terminal_operations.rs"]
+mod terminal_operations;
+
 #[test]
 fn rejects_every_invalid_private_invocation_without_output() -> TestResult {
     let valid_server = "/tmp/orchbee-site.sock";
@@ -510,6 +513,9 @@ impl RunningWorker {
     fn start(fixture: &RuntimeFixture) -> io::Result<Self> {
         let mut command = Command::new(env!("CARGO_BIN_EXE_orchbee-worker"));
         command
+            .env("SHELL", "/bin/sh")
+            .env("HOME", "/not-the-worker-account-home")
+            .current_dir(fixture._directory.path())
             .arg("--local-endpoint")
             .arg(&fixture.server_endpoint)
             .arg("--terminal-host-runtime-directory")

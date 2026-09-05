@@ -84,3 +84,12 @@ pub(crate) fn centered_overlay(area: Rect, maximum_width: u16, maximum_height: u
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) const fn terminal_area(panel: Rect) -> Rect {
+    Rect::new(
+        panel.x.saturating_add(1),
+        panel.y.saturating_add(1),
+        panel.width.saturating_sub(2),
+        panel.height.saturating_sub(2),
+    )
+}

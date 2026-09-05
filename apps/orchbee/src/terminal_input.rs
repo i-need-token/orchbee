@@ -27,7 +27,7 @@ pub(crate) enum DispatchOutcome {
 pub(crate) fn dispatch_input(
     view: &mut ClientView,
     input: &[u8],
-    terminal_input: &mut impl TerminalInputPort,
+    terminal_input: &mut (impl TerminalInputPort + ?Sized),
 ) -> DispatchOutcome {
     let mut ordinary_start = 0;
     let mut offset = 0;
@@ -66,7 +66,7 @@ pub(crate) fn dispatch_input(
 fn forward_or_report(
     view: &mut ClientView,
     input: &[u8],
-    terminal_input: &mut impl TerminalInputPort,
+    terminal_input: &mut (impl TerminalInputPort + ?Sized),
 ) {
     if terminal_input.forward(input).is_err() {
         view.report_terminal_input_unavailable();

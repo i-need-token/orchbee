@@ -15,7 +15,7 @@ Workbench state。
 
 | API                                             | Contract                                                                        |
 | ----------------------------------------------- | ------------------------------------------------------------------------------- |
-| `RequestId`、`WorkerId`                         | 解析 nonzero opaque 128-bit 小写十六进制 identity。                             |
+| `RequestId`、`WorkerId`、`ControllerId`         | 解析 nonzero opaque 128-bit 小写十六进制 identity。                             |
 | `WorkingDirectory`                              | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute POSIX UTF-8 path。           |
 | `Geometry`                                      | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。               |
 | `TerminalCreateRequest`、`TerminalStartRequest` | 构造 validated Client request；start 拒绝相同的 start/create request identity。 |
@@ -27,10 +27,30 @@ Workbench state。
 
 所有 decoded object 与 enum 都是 closed。缺失显式 nullable create field、未知 field 或 tag、重复
 key、BOM、无效 UTF-8、尾随 JSON value、direction mismatch、无效 identity、path 或 geometry，以及
-不符合精确长度或 32 KiB payload bound 的 frame 都会被拒绝。Protocol 与 geometry number 使用
+不符合精确长度或 32 KiB payload bound 的 JSON frame 都会被拒绝。Protocol 与 geometry number 使用
 schema 所有的有限 binary64 safe-integer refinement，因此等价的 integral decimal 与 exponent
 spelling 会 decode 为同一个 value。Canonical encoding 使用带普通 integer token 的 compact
 deterministic JSON。
+
+## 查看附件 binding
+
+`TerminalViewerRequest`、`TerminalViewerAction`、`TerminalViewerResult` 和 `TerminalViewerOutcome`
+提供 Session scope 内只读 Attach、Poll、FrameApplied、NeedSnapshot 和 Detach value。
+`ViewerId` 与 `HostEpoch` 表示 Server 签发的附件 scope。反馈计数器使用规范 u64 十进制字符串；
+JSON corpus 测试每个 action、outcome 与 reason。记录结果使用 schema owner 定义的 OBSR 二进制
+framing 和 `MAXIMUM_VIEWER_RECORD_BYTES` bound；同一组 Server frame function 可分派 JSON control
+或 opaque 二进制记录。Client 方向 reader 拒绝 OBSR。本 crate 不解码 OBTP 或终端呈现；Server
+和后续 renderer 分别负责路由与呈现验证。大记录测试覆盖字节相等、partial read、后继帧对齐、
+方向，以及非法 header、length、identity 的拒绝。
+
+## Controller binding
+
+`TerminalControlRequest`、`TerminalControlAction`、`TerminalControlResult` 和 `TerminalControlOutcome`
+携带显式 Acquire 与 grant scope 内的 Input/Resize。`ControllerId` 是 Server 签发的身份；
+`ControlInput` 验证 1 至 `MAXIMUM_CONTROL_INPUT_BYTES`（4,096）byte，并序列化为规范小写 hex。
+共用 number adapter 验证正十进制 u64 sequence。这些控制使用既有 32 KiB OBCS JSON framing；
+不增加二进制 input carrier 或 Host 依赖。Schema owner 的 corpus 检查每个 action/outcome/reason
+以及畸形、最大和超限 input。本 binding 不授予 controller 权限，绝不重试未知副作用。
 
 ## Request boundary
 

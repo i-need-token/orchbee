@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     error::Error,
     io::{self, Read, Write},
     os::unix::net::UnixStream,
@@ -15,6 +16,15 @@ use orchbee_terminal_protocol::{
     encode_transport_envelope,
 };
 
+mod events;
+pub(crate) use events::{consume_event, validate_event};
+
+mod controllers;
+mod exchange;
+mod viewers;
+pub(crate) use exchange::{HostExchange, PeerFailure, exchange};
+use viewers::HostViewers;
+
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const CLIENT_ID_BYTES: [u8; 16] = *b"orchbee-worker-1";
 const HELLO_CORRELATION_BYTES: [u8; 16] = *b"worker-host-hi-1";
@@ -23,6 +33,8 @@ pub(crate) struct HostBrokerConnection {
     host_epoch: orchbee_terminal_protocol::HostEpoch,
     negotiated_limits: NegotiatedHostLimits,
     stream: UnixStream,
+    pub(crate) viewers: RefCell<HostViewers>,
+    pub(crate) controllers: RefCell<controllers::HostControllers>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -51,6 +63,8 @@ impl HostBrokerConnection {
             host_epoch,
             negotiated_limits,
             stream,
+            viewers: RefCell::new(HostViewers::default()),
+            controllers: RefCell::new(controllers::HostControllers::default()),
         })
     }
 
@@ -60,6 +74,35 @@ impl HostBrokerConnection {
 
     pub(crate) const fn negotiated_limits(&self) -> NegotiatedHostLimits {
         self.negotiated_limits
+    }
+
+    pub(crate) fn receive_event(&self, record: Vec<u8>) -> io::Result<()> {
+        let envelope = orchbee_terminal_protocol::decode_transport_envelope(&record)
+            .map_err(io::Error::other)?;
+        if envelope.kind == 23 {
+            if envelope.host_epoch != Some(self.host_epoch)
+                || envelope.protocol != CURRENT_PROTOCOL_VERSION
+                || envelope.correlation_id.is_some()
+                || envelope.optional_message
+                || envelope.payload_encoding
+                    != orchbee_terminal_protocol::PayloadEncoding::ControlJson
+            {
+                return Err(io::Error::other("unexpected controller event envelope"));
+            }
+            let event = orchbee_terminal_protocol::decode_attachment_control(
+                envelope.kind,
+                envelope.role,
+                envelope.payload,
+            )
+            .map_err(io::Error::other)?;
+            if let orchbee_terminal_protocol::AttachmentControl::ResizeLeaseChanged(event) = event
+                && self.controllers.borrow().validate_lease_event(event)
+            {
+                return Ok(());
+            }
+            return Err(io::Error::other("unexpected controller resize lease event"));
+        }
+        self.viewers.borrow_mut().receive(record, self.host_epoch)
     }
 
     pub(crate) const fn stream(&self) -> &UnixStream {
@@ -104,7 +147,7 @@ fn validate_hello_accepted(
     correlation_id: CorrelationId,
 ) -> Result<(orchbee_terminal_protocol::HostEpoch, NegotiatedHostLimits), Box<dyn Error>> {
     let record = read_transport_record(stream)?;
-    let envelope = decode_transport_envelope(&record)?;
+    let envelope = decode_transport_envelope(&record).map_err(io::Error::other)?;
     if envelope.role != MessageRole::Response
         || envelope.correlation_id != Some(correlation_id)
         || envelope.host_epoch.is_none()

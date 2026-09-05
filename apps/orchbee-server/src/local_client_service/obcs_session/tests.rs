@@ -9,14 +9,18 @@ use orchbee_client_server_protocol::{
     encode_server_frame,
 };
 
-use super::{ObcsSessionError, run};
+use super::ObcsSessionError;
+
+fn run<Stream: Read + Write>(stream: &mut Stream) -> Result<(), ObcsSessionError> {
+    super::run(stream, |request| denied_result(&request))
+}
 
 const FIRST_REQUEST_ID: &str = "11111111111111111111111111111111";
 const SECOND_REQUEST_ID: &str = "22222222222222222222222222222222";
 const WORKER_ID: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 #[test]
-fn denies_every_supported_request_with_only_its_correlation_identity()
+fn writes_injected_results_with_only_their_correlation_identity()
 -> Result<(), Box<dyn std::error::Error>> {
     let requests = [immediate_create()?, deferred_create()?, start()?];
 
@@ -36,7 +40,7 @@ fn denies_every_supported_request_with_only_its_correlation_identity()
 }
 
 #[test]
-fn writes_each_correlated_denial_before_reading_the_next_distinct_request()
+fn writes_each_injected_result_before_reading_the_next_distinct_request()
 -> Result<(), Box<dyn std::error::Error>> {
     let first = deferred_create()?;
     let second = immediate_create()?;
@@ -194,6 +198,9 @@ fn start() -> Result<ClientMessage, Box<dyn std::error::Error>> {
 
 fn denied_result(request: &ClientMessage) -> ServerMessage {
     match request {
+        ClientMessage::TerminalControl(_) | ClientMessage::TerminalViewer(_) => {
+            unreachable!("launch-only test fixture")
+        }
         ClientMessage::TerminalCreate(request) => {
             ServerMessage::TerminalCreateResult(TerminalCreateResult::new(
                 request.request_id().clone(),

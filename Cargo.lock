@@ -613,6 +613,7 @@ dependencies = [
  "nix",
  "orchbee-client-server-protocol",
  "orchbee-local-client-protocol",
+ "orchbee-terminal-protocol",
  "ratatui",
  "rustix",
  "signal-hook",
@@ -659,6 +660,7 @@ dependencies = [
  "orchbee-local-client-protocol",
  "orchbee-local-peer-credentials",
  "orchbee-local-site-protocol",
+ "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
  "serde_json",
 ]

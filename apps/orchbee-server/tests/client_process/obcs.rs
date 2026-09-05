@@ -1,7 +1,7 @@
 use std::{io::Write, thread, time::Duration};
 
 use orchbee_client_server_protocol::{
-    ClientMessage, CreateOutcome, CreateRejectedReason, Geometry, RequestId, ServerMessage,
+    ClientMessage, CreateOutcome, CreateUnavailableReason, Geometry, RequestId, ServerMessage,
     StartMode, StartOutcome, StartRejectedReason, TerminalCreateRequest, TerminalCreateResult,
     TerminalStartRequest, TerminalStartResult, encode_client_frame, read_server_message,
     write_client_message as write_obcs_message,
@@ -22,7 +22,7 @@ const SECOND_REQUEST_ID: &str = "22222222222222222222222222222222";
 const POST_ADMISSION_STALL: Duration = Duration::from_millis(2_500);
 
 #[test]
-fn coalesced_oblc_hello_and_start_observe_acceptance_before_denial() -> TestResult {
+fn coalesced_oblc_hello_and_start_observe_acceptance_before_missing_reference() -> TestResult {
     let server = RunningServer::start()?;
     let start = start_request()?;
     let mut bytes = Vec::new();
@@ -44,7 +44,7 @@ fn coalesced_oblc_hello_and_start_observe_acceptance_before_denial() -> TestResu
 }
 
 #[test]
-fn sequential_create_and_start_are_denied_without_worker_or_reference_authority() -> TestResult {
+fn sequential_create_and_start_report_missing_worker_and_reference() -> TestResult {
     let server = RunningServer::start()?;
     let (mut client, _generation) = connect_bounded_client(server.client_endpoint())?;
 
@@ -53,8 +53,6 @@ fn sequential_create_and_start_are_denied_without_worker_or_reference_authority(
     assert_eq!(read_server_message(&mut client)?, denied_result(&create));
 
     let worker = connect_worker(server.worker_endpoint(), FIRST_WORKER)?;
-    write_obcs_message(&mut client, &create)?;
-    assert_eq!(read_server_message(&mut client)?, denied_result(&create));
 
     let start = start_request()?;
     write_obcs_message(&mut client, &start)?;
@@ -78,7 +76,6 @@ fn post_admission_stall_has_no_timeout_and_does_not_block_other_peers() -> TestR
     let (mut stalled, _stalled_generation) = connect_bounded_client(server.client_endpoint())?;
     thread::sleep(POST_ADMISSION_STALL);
 
-    let worker = connect_worker(server.worker_endpoint(), FIRST_WORKER)?;
     let (mut other, _other_generation) = connect_bounded_client(server.client_endpoint())?;
     let other_create = immediate_create()?;
     write_obcs_message(&mut other, &other_create)?;
@@ -93,7 +90,6 @@ fn post_admission_stall_has_no_timeout_and_does_not_block_other_peers() -> TestR
         read_server_message(&mut stalled)?,
         denied_result(&recovered_start)
     );
-    drop(worker);
     Ok(())
 }
 
@@ -127,11 +123,14 @@ fn start_request() -> Result<ClientMessage, Box<dyn std::error::Error>> {
 
 fn denied_result(request: &ClientMessage) -> ServerMessage {
     match request {
+        ClientMessage::TerminalControl(_) | ClientMessage::TerminalViewer(_) => {
+            unreachable!("launch-only test fixture")
+        }
         ClientMessage::TerminalCreate(request) => {
             ServerMessage::TerminalCreateResult(TerminalCreateResult::new(
                 request.request_id().clone(),
-                CreateOutcome::Rejected {
-                    reason: CreateRejectedReason::NotAuthorized,
+                CreateOutcome::Unavailable {
+                    reason: CreateUnavailableReason::NoCompatibleWorker,
                 },
             ))
         }
@@ -139,9 +138,25 @@ fn denied_result(request: &ClientMessage) -> ServerMessage {
             ServerMessage::TerminalStartResult(TerminalStartResult::new(
                 request.request_id().clone(),
                 StartOutcome::Rejected {
-                    reason: StartRejectedReason::NotAuthorized,
+                    reason: StartRejectedReason::TerminalCreateUnavailable,
                 },
             ))
         }
     }
+}
+
+#[test]
+fn partial_post_admission_record_expires_without_blocking_another_session() -> TestResult {
+    let server = RunningServer::start()?;
+    let (mut partial, _) = connect_bounded_client(server.client_endpoint())?;
+    partial.write_all(b"O")?;
+    let (mut active, _) = connect_bounded_client(server.client_endpoint())?;
+    let create = deferred_create()?;
+    write_obcs_message(&mut active, &create)?;
+    assert_eq!(read_server_message(&mut active)?, denied_result(&create));
+    expect_connection_closed(&mut partial)?;
+    let start = start_request()?;
+    write_obcs_message(&mut active, &start)?;
+    assert_eq!(read_server_message(&mut active)?, denied_result(&start));
+    Ok(())
 }

@@ -14,9 +14,14 @@ and observations for kinds 12 through 19, attachment controls for kinds 20 throu
 `ResizeAccepted` control exchange for kinds 32 and 33, plus the semantic `KeyInput`, `TextInput`,
 `MouseInput`, `FocusInput`, and `PasteInput` requests for kinds 34 through 38. This package, its
 reference, and its fixtures remain the sole wire authority. The unshipped
-[`orchbee-worker`](../../apps/orchbee-worker/README.md) application now consumes only the Rust
-envelope and connection-control codecs to perform the existing exact-version Host handshake; the
-Worker, not this binding, owns socket authentication, handshake state, and connection liveness.
+[`orchbee-worker`](../../apps/orchbee-worker/README.md) application consumes the Rust envelope, connection, launch/lifecycle, attachment, projection-demand,
+and feedback codecs for its actual Host broker. Worker owns socket authentication, handshake state,
+connection liveness, and viewer relay behavior. The binding includes kind-11 `CreateTerminal` and
+kind-12 `TerminalCreated` launch controls. Its `inspect_terminal_frame_route` reads only the OBTF
+0.0.3 routing prefix: exact framing/version, kind/base-revision relationship, nonzero Host/attachment
+identity, sequence, generation, and revision. It does not validate presentation fields, tables,
+cells, or extensions; Client projection decoding remains a separate boundary. Existing TypeScript
+and real Ghostty fixtures verify this zero-copy route inspection.
 The binding also covers the
 bidirectional `FrameApplied` and `NeedSnapshot` projection-feedback controls for kinds 43 and 44,
 the projection-demand request, acceptance, and blocked event for kinds 47 through 49, and the
@@ -38,6 +43,24 @@ or anchor, terminal-effect delivery, gesture interpretation, selection state or 
 export-chunk sequencing or acknowledgement behavior, queue state or effects, semantic-input
 terminal encoding, terminal-default or configuration mutation and persistence, terminal output,
 IPC, or Worker behavior.
+
+## Rust text-frame binding
+
+`decode_terminal_text_frame` consumes the unchanged OBTF 0.0.3 encoding for the private native TUI.
+It validates the routing/header, geometry, strict UTF-8 string bounds, styles, sorted row/cell tables,
+wide-cell and adjacent-wrap relationships, exact length, and bounded optional extension envelopes
+before returning `TerminalTextFrame`. The output carries rows of shared `Arc<str>` graphemes and
+text styles, cursor position/visibility, complete geometry, screen, colors, theme revision, and
+routing facts. Sharing strings prevents repeated cell references from expanding one wire string
+into one allocation per cell.
+
+This is a text-table decoder, not a full graphics/extension decoder or a Client state machine.
+Optional extension contents are skipped without interpretation or retention; every required
+extension still rejects. It never executes VT, activates hyperlinks, performs clipboard effects,
+applies deltas, sends feedback, or renders. Existing TypeScript and real Ghostty fixtures plus the
+owner's malformed-frame corpus and byte-boundary tests maintain conformance. The native TUI owns
+atomic snapshot/delta application, retained-memory admission, escape-safe cell rendering and exact
+feedback after a successful draw. Worker and Server continue to use only route inspection.
 
 ## Public API
 

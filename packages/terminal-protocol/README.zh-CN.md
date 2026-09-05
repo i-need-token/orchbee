@@ -13,9 +13,13 @@ response、nested inventory fact、现有 kind 12 到 19 的非创建 lifecycle 
 的 `ResizeTerminal`/`ResizeAccepted` control 交换，以及 kind 34 到 38 的 semantic `KeyInput`、
 `TextInput`、`MouseInput`、`FocusInput` 与 `PasteInput` request。本 package、其 reference 与
 fixture 仍是唯一 wire authority。尚未发布的
-[`orchbee-worker`](../../apps/orchbee-worker/README.zh-CN.md) application 现在只消费 Rust envelope
-与 connection-control codec，以执行现有的精确版本 Host handshake；socket authentication、
-handshake state 与 connection liveness 归 Worker 而非该 binding 所有。该 binding 还覆盖 kind
+[`orchbee-worker`](../../apps/orchbee-worker/README.zh-CN.md) application 消费 Rust envelope、connection、launch/lifecycle、attachment、projection-demand
+和 feedback codec，供实际 Host broker 使用。Socket authentication、handshake state、connection
+liveness 与查看附件 relay behavior 归 Worker 所有。Binding 包含 kind-11 `CreateTerminal` 与
+kind-12 `TerminalCreated` launch control。其 `inspect_terminal_frame_route` 只读取 OBTF 0.0.3
+routing prefix：精确 framing/version、kind/base-revision 关系、非零 Host/attachment identity、
+sequence、generation 和 revision。它不校验 presentation field、table、cell 或 extension；Client
+projection decode 仍是独立边界。现有 TypeScript 与真实 Ghostty fixture 验证此零拷贝路由检查。该 binding 还覆盖 kind
 43 与 44 的双向 `FrameApplied` 和
 `NeedSnapshot` projection-feedback control、kind 47 到 49 的 projection-demand request、
 acceptance 与 blocked event，以及 kind 51 到 54 的 history-demand、change 与 observation
@@ -35,6 +39,22 @@ projection-demand、history、row capture 或 anchor、terminal-effect delivery�
 interpretation、selection state 或 export behavior、export-chunk sequencing 或 acknowledgement
 behavior、queue state 或 effect、semantic-input terminal encoding、terminal-default 或
 configuration mutation 与 persistence、terminal output、IPC 或 Worker 行为。
+
+## Rust 文本帧 binding
+
+`decode_terminal_text_frame` 为私有原生 TUI 消费未改变的 OBTF 0.0.3 编码。返回
+`TerminalTextFrame` 前，它验证 routing/header、geometry、严格 UTF-8 string bound、style、
+排序后的 row/cell table、wide cell 和相邻 wrap 关系、精确长度，以及有界 optional extension
+envelope。输出携带共享 `Arc<str>` grapheme 与文本 style 的行、cursor 位置／可见性、完整
+geometry、screen、color、theme revision 和 routing fact。共享 string 防止同一个 wire string
+因多个 cell 引用而放大为每 cell 一次分配。
+
+这是 text table decoder，不是完整 graphics/extension decoder 或 Client 状态机。Optional
+extension 内容跳过且不解释、不保留；任何 required extension 仍拒绝。它不执行 VT、激活
+hyperlink、产生 clipboard effect、应用 delta、发送 feedback 或渲染。现有 TypeScript 和真实
+Ghostty fixture，以及 owner 的 malformed-frame corpus 和 byte-boundary test 维护一致性。
+原生 TUI 拥有原子的 snapshot/delta 应用、保留内存准入、避免 escape 注入的 cell 呈现，以及
+成功 draw 后的精确 feedback。Worker 和 Server 继续只使用 route inspection。
 
 ## 公共 API
 

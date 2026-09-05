@@ -3,20 +3,18 @@ use std::{
     ffi::OsString,
     io::{self, Write},
     num::NonZeroU64,
-    os::{fd::AsFd, unix::net::UnixStream},
+    os::unix::net::UnixStream,
     time::Duration,
 };
 
-use nix::{
-    errno::Errno,
-    poll::{PollFd, PollFlags, PollTimeout, poll},
-};
 use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_local_site_protocol::{
     LocalSiteMessage, WorkerHello, WorkerId, read_message, write_message,
 };
 
-use crate::{host_connection::HostBrokerConnection, worker_options::WorkerOptions};
+use crate::{
+    host_connection::HostBrokerConnection, terminal_operations, worker_options::WorkerOptions,
+};
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const LOCAL_WORKER_ID: WorkerId = WorkerId::from_bytes(*b"orchbee-local-v1");
@@ -42,9 +40,14 @@ pub(crate) fn run(
 ) -> Result<(), Box<dyn Error>> {
     let options = WorkerOptions::parse(arguments)?;
     let server = connect_to_server(&options.server_endpoint, cohort)?;
-    let host = HostBrokerConnection::connect(&options.terminal_host_endpoint)?;
+    let mut host = HostBrokerConnection::connect(&options.terminal_host_endpoint)?;
     write_ready_marker(&server, &host)?;
-    wait_for_peer_loss(&server, &host)
+    terminal_operations::run(
+        server.stream(),
+        &mut host,
+        LOCAL_WORKER_ID,
+        server.generation(),
+    )
 }
 
 fn connect_to_server(
@@ -76,32 +79,4 @@ fn write_ready_marker(server: &ServerConnection, host: &HostBrokerConnection) ->
     let mut stdout = io::stdout().lock();
     stdout.write_all(b"ready\n")?;
     stdout.flush()
-}
-
-fn wait_for_peer_loss(
-    server: &ServerConnection,
-    host: &HostBrokerConnection,
-) -> Result<(), Box<dyn Error>> {
-    loop {
-        let events = {
-            let mut descriptors = [
-                PollFd::new(server.stream().as_fd(), PollFlags::POLLIN),
-                PollFd::new(host.stream().as_fd(), PollFlags::POLLIN),
-            ];
-            match poll(&mut descriptors, PollTimeout::NONE) {
-                Ok(_ready_count) => (descriptors[0].revents(), descriptors[1].revents()),
-                Err(Errno::EINTR) => continue,
-                Err(error) => return Err(error.into()),
-            }
-        };
-        if events.0.is_none_or(|flags| !flags.is_empty())
-            || events.1.is_none_or(|flags| !flags.is_empty())
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::ConnectionAborted,
-                "Worker peer connection ended or sent an unexpected post-handshake record",
-            )
-            .into());
-        }
-    }
 }

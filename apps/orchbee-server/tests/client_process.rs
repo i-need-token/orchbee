@@ -34,6 +34,9 @@ static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
 
 type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
+#[path = "client_process/terminal_operations.rs"]
+mod terminal_operations;
+
 #[path = "client_process/obcs.rs"]
 mod obcs;
 

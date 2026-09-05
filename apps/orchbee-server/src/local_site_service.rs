@@ -17,6 +17,7 @@ use orchbee_local_site_protocol::{
 
 use crate::{
     local_client_service,
+    local_terminal_service::LocalTerminalService,
     worker_obcn_carrier::create_worker_carrier,
     worker_registry::{WorkerAdmission, WorkerRegistry},
 };
@@ -30,14 +31,17 @@ pub(crate) fn run(
     let endpoints = parse_endpoints(arguments)?;
     let listener = UnixListener::bind(&endpoints.worker)?;
     fs::set_permissions(&endpoints.worker, fs::Permissions::from_mode(0o600))?;
+    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
+    let terminals = Arc::new(LocalTerminalService::new(Arc::clone(&registry)));
     let _client_service = endpoints
         .client
         .as_deref()
-        .map(|endpoint| local_client_service::start(endpoint, expected_cohort))
+        .map(|endpoint| {
+            local_client_service::start(endpoint, expected_cohort, Arc::clone(&terminals))
+        })
         .transpose()?;
     write_ready_marker()?;
 
-    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     loop {
         match listener.accept() {
             Ok((stream, _address)) => handle_candidate(stream, &registry, expected_cohort),

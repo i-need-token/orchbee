@@ -2,7 +2,7 @@
 
 这是已接受 native-command foundation 与 local-terminal milestone 的 experimental、尚未发布 Rust
 process entry、application-private 本机 Client transport 与 rendezvous primitive，以及已检查的
-Client-side 本机 Site activation refinement，以及已暂存但尚未调用的 TUI shell foundation。产出的
+Client-side 本机 Site activation refinement，以及已暂存但尚未通过入口调用、带已连接单终端 adapter 的 TUI shell。产出的
 executable 名为 `orchbee`。它参与根 Cargo verification gate，但不被 Desktop、packaging、installer
 或 package manager 消费。
 
@@ -39,9 +39,9 @@ Server 与当前进程具有相同 effective operating-system user，以两秒 r
 timeout 仍是独立的 OBLC boundary；本切片不为 connect 加 handshake 增加单一 total deadline。
 application 在进入 `OBCS` phase 前把 admitted stream 切换为 nonblocking I/O。
 
-`submit_terminal_create` 与 `submit_terminal_start` 各自取得一条已经验证的 typed request 的
+`submit_terminal_create`、`submit_terminal_start`、`submit_terminal_viewer` 与 `submit_terminal_control` 各自取得一条已经验证的 typed request 的
 ownership，并在提交前 encode 完整 OBCS frame。Encoding failure 是 definite failure，并保留
-Session。Encoding 成功后启动一个两秒 monotonic deadline，覆盖完整 frame write 与一次 Server-frame
+Session。Encoding 成功后启动一个五十秒 monotonic deadline，覆盖完整 frame write 与一次 Server-frame
 read；每次 readiness wait 都重新计算剩余 budget，因此 partial progress 不会续期。第一次 write
 syscall 之前的 failure 是 definite failure。该 syscall 一旦开始，任何 write 或 read failure、
 deadline expiry、malformed 或 incompatible result、错误 result kind 或错误 correlation，都会使
@@ -49,27 +49,35 @@ effect outcome 成为 typed `OutcomeUnknown` 并让 connection 退役。transpor
 request 供 replay。Server 返回的正确 correlated `outcome-unknown` 是有效 OBCS result，而不是
 transport ambiguity。
 
-当前 invocation 不会到达该 transport。Endpoint selection 或 discovery、activation、reconnection、
-request-identity generation 或 reconciliation、public command grammar、TUI composition 与 terminal
-relay 不在本切片内。后续 TUI adapter 可以接收已经选择的 endpoint，把 `LocalClient` 保留为其
-Client Session carrier，读取 generation，并通过这两个 method 提交 typed Create 或 Start intent。
+当前 invocation 不会到达该 transport。私有已连接 TUI 现已消费已准入 `LocalClient`、分配新的
+request identity 并提交 Create、查看和控制意图。Endpoint selection/discovery、activation、
+reconnection、reconciliation 与公开入口接线仍是独立边界。仅允许关闭的 `LocalClientShutdown`
+handle 让 TUI 可以停止阻塞的 exchange，而不获得额外 stream reader 或 writer。
+
+五十秒提交上限容纳 Server 一个排队及一个在途 Worker exchange（各自最多两秒 write 加二十秒
+read）和 Client 结果交付。Handshake 限制保持独立。查看提交验证 action/outcome 兼容性与精确
+correlation，并保留 opaque OBSR byte 供已连接的 projection consumer 使用；它不授予 controller 权限，
+也不执行终端呈现解码。控制提交针对其 action 验证精确 grant 获取、input acknowledgement 和
+完整 resize geometry。Server 报告的 unknown control outcome 原样返回且不重试；不匹配的 outcome
+让 transport 退役。Caller 拥有新的 request identity、绑定 grant 的递增 sequence 和后续显式获取。
+Session 丢失后的 cleanup 可超出单次提交 deadline。
 
 ### 提交正确性记录
 
-| 字段   | 契约                                                                                                                                                                                                                                                                                      |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题   | 持有 already admitted same-user Session 的 internal Client 必须提交一条 typed Create 或 Start request，并在 transport completion 含糊时避免重复 effect。Endpoint acquisition、process activation 与 presentation 不在范围内。                                                             |
-| 输入   | Trusted typed `TerminalCreateRequest` 或 `TerminalStartRequest`、admitted `ClientSessionConnection`、accepted generation、finite request budget 与 monotonic time。Server byte 与 readiness outcome 不可信。connection 缺失表示 `SessionUnavailable`。                                    |
-| 数据   | 一次 invocation 拥有一个 `requestId`、encoded frame、absolute deadline、connection state、possible-handoff boundary、expected result kind 与 decoded result class。`LocalClient` 独占其 Session。                                                                                         |
-| 输出   | Exact correlated typed result；definite `RequestEncoding` 或 `RequestNotSubmitted`；带 submitted identity 的 typed `OutcomeUnknown`；或 `SessionUnavailable`。不存在 cancellation、retry、replay return 或 optimistic terminal mutation。                                                 |
-| 不变量 | Encoding 先于 deadline 与 transport；一次 invocation 至多开始一次 frame handoff；只有 exact kind 与 identity 才完成；possible handoff 后的每种 ambiguity 都让 Session 退役；retired Session 不发送 byte。                                                                                 |
-| 决策   | 第一次 possible handoff 前或后；write 未完成或完成；result 在 deadline 前或等于/晚于 deadline；exact 或错误 kind/identity；有效或 malformed frame；known 或 Server-reported unknown outcome。若 acceptance 尚未完成，deadline observation 胜出。                                          |
-| 模型   | `LocalClientSubmission` 是 bounded one-invocation state refinement。`LocalClient::exchange` 是 implementation workflow；其 deadline-aware nonblocking stream wrapper 是 time 与 I/O adapter。                                                                                             |
-| 转换   | 下方 transition record 定义 serializable abstract phase 与 guard。Runtime phase 是 call-local；只有 live-or-retired connection state 跨 call 保留。                                                                                                                                       |
-| 依赖   | 一条 already admitted Unix stream、monotonic time、readiness polling、OBCS encoding/decoding 与 same-stream OBLC admission。OBCS workflow 没有 filesystem、process、endpoint-selection、randomness、localization 或 UI capability。                                                       |
-| 所有权 | `LocalClient` 是唯一 stream 与 retirement owner。OBCS 拥有 frame 与 result semantics；OBLC 拥有 admission、credential、cohort、generation 与既有 handshake timeout。                                                                                                                      |
-| 验证   | Fake-Server test 覆盖 exact Create/Start、correlation、protocol 与 EOF failure、silent timeout、deterministic partial read/write deadline exhaustion、pre-write expiry、retirement 与无 duplicate send。TLC 要求每个 registered semantic action 都有 witness。                            |
-| 正确性 | 下方 LC-01 至 LC-05 把 implementation branch 与 deterministic test refine 到 registered model。TLC 对一条 request 与一个 Session 穷举 49 个 bounded state；它不证明 OS scheduling、codec correctness、OBLC connect timing、activation、reconnection、reconciliation 或未来 TUI behavior。 |
+| 字段   | 契约                                                                                                                                                                                                                                                                                                                                    |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | 持有 already admitted same-user Session 的 internal Client 必须提交一条 typed Create、Start、查看或控制 request，并在 transport completion 含糊时避免重复 effect。Endpoint acquisition、process activation 与 presentation 不在范围内。                                                                                                 |
+| 输入   | Trusted typed `TerminalCreateRequest`、`TerminalStartRequest`、`TerminalViewerRequest` 或 `TerminalControlRequest`、admitted `ClientSessionConnection`、accepted generation、finite request budget 与 monotonic time。Server byte 与 readiness outcome 不可信。connection 缺失表示 `SessionUnavailable`。                               |
+| 数据   | 一次 invocation 拥有一个 `requestId`、encoded frame、absolute deadline、connection state、possible-handoff boundary、expected result kind 与 decoded result class。`LocalClient` 独占其 Session。                                                                                                                                       |
+| 输出   | Exact correlated typed result；definite `RequestEncoding` 或 `RequestNotSubmitted`；带 submitted identity 的 typed `OutcomeUnknown`；或 `SessionUnavailable`。不存在 cancellation、retry、replay return 或 optimistic terminal mutation。                                                                                               |
+| 不变量 | Encoding 先于 deadline 与 transport；一次 invocation 至多开始一次 frame handoff；只有 exact kind 与 identity 才完成；possible handoff 后的每种 ambiguity 都让 Session 退役；retired Session 不发送 byte。                                                                                                                               |
+| 决策   | 第一次 possible handoff 前或后；write 未完成或完成；result 在 deadline 前或等于/晚于 deadline；exact 或错误 kind/identity；有效或 malformed frame；known 或 Server-reported unknown outcome。若 acceptance 尚未完成，deadline observation 胜出。                                                                                        |
+| 模型   | `LocalClientSubmission` 是 bounded one-invocation state refinement。`LocalClient::exchange` 是 implementation workflow；其 deadline-aware nonblocking stream wrapper 是 time 与 I/O adapter。                                                                                                                                           |
+| 转换   | 下方 transition record 定义 serializable abstract phase 与 guard。Runtime phase 是 call-local；只有 live-or-retired connection state 跨 call 保留。                                                                                                                                                                                     |
+| 依赖   | 一条 already admitted Unix stream、monotonic time、readiness polling、OBCS encoding/decoding 与 same-stream OBLC admission。OBCS workflow 没有 filesystem、process、endpoint-selection、randomness、localization 或 UI capability。                                                                                                     |
+| 所有权 | `LocalClient` 是唯一 stream 与 retirement owner。OBCS 拥有 frame 与 result semantics；OBLC 拥有 admission、credential、cohort、generation 与既有 handshake timeout。                                                                                                                                                                    |
+| 验证   | Fake-Server test 覆盖 exact Create/Start、大 OBSR record、不兼容查看 outcome、精确控制 outcome 和 resize geometry、correlation、protocol 与 EOF failure、silent timeout、deterministic partial read/write deadline exhaustion、pre-write expiry、retirement 与无 duplicate send。TLC 要求每个 registered semantic action 都有 witness。 |
+| 正确性 | 下方 LC-01 至 LC-05 把 implementation branch 与 deterministic test refine 到 registered model。TLC 对一条 request 与一个 Session 穷举 49 个 bounded state；它不证明 OS scheduling、codec correctness、OBLC connect timing、activation、reconnection、reconciliation 或未来 TUI behavior。                                               |
 
 ### 提交转换记录
 
@@ -98,7 +106,8 @@ Client Session carrier，读取 generation，并通过这两个 method 提交 ty
 
 ## 已暂存的 TUI shell 底座
 
-以下 application-private module 会被编译并测试为 integration seam，但当前没有 invocation 进入它们：
+以下 application-private module 会编译和测试，但当前 invocation 不会进入它们。未连接的 `run`
+adapter 保留下面的 unavailable shell 行为；`run_connected` 组合下一节已接受的终端细化：
 
 | 关注点      | 当前契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -124,8 +133,7 @@ Client Session carrier，读取 generation，并通过这两个 method 提交 ty
 | Resize                                         | 查询已准入 stdout descriptor，更新 fixed backend viewport，并且只重新计算 Client-local viewport class。进入 narrow mode 会隐藏停靠 sidebar；回到 wide 会关闭 sidebar overlay，并恢复此前的 wide-sidebar preference。 |
 | Event/draw error、panic 或 termination signal  | 停止 loop，并尝试恢复 cursor、alternate-screen 与 raw-mode，不启动或停止其他 process。                                                                                                                               |
 
-不变量是：每个 prefix sequence 至多产生一个 typed command；非 prefix byte 保持顺序；shared
-Workbench 与 terminal state 在本 application 中绝不会改变；每个可能取得的 terminal mode 都会
+不变量是：每个 prefix sequence 至多产生一个 typed command；非 prefix byte 保持顺序；未连接 adapter 绝不改变 shared Workbench 与 terminal state；每个可能取得的 terminal mode 都会
 保留一个有界 restoration owner。Unit test 覆盖 state、input-port、fixed-backend、layout、renderer、
 真实 PTY 的 same-terminal admission、实际 panic hook、全部四种 signal、cross-thread setup
 interleaving、post-read viewport/resize failure 与 lifecycle fault injection。Native PTY process test
@@ -133,6 +141,28 @@ interleaving、post-read viewport/resize failure 与 lifecycle fault injection�
 关闭后的 `EIO` 是正常 hangup，并且 linked public binary 不包含 `/dev/tty` 或 `tput` fallback token。
 已暂存 runtime 及其全部 third-party dependency 仅支持 Unix；Windows target dependency tree 让当前
 one-shot CLI 不包含这些 dependency，且不宣称 Windows TUI runtime 或 signal-restoration 支持。
+
+## 已连接单终端 TUI 细化
+
+已接受的本地终端里程碑让私有 TUI 成为 `LocalClient` 的实际消费者：`run_connected` 接收已准入
+Client 和显式创建或附着意图。它不选择 endpoint、激活服务、改变公开语法或发布共享 Workbench
+事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；裸入口 rendezvous 和
+lazy activation 仍是后续缺失的集成边界。
+
+| 字段   | 契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | Shell 已有输入和生命周期端口，但不能显示或控制保留终端。接入一个 Session，同时保留及时退出、有界队列、精确反馈和终端生命周期。                                                                                                                                                                                                                                                                                                                                                                            |
+| 输入   | 已准入 LocalClient、可选默认 Shell cwd 或已接受 create 引用、继承终端的 geometry 和原始输入、不可信 OBCS/OBSR 响应，以及终止信号。                                                                                                                                                                                                                                                                                                                                                                        |
+| 数据   | 一个拥有连接的 task、八条排队 command（每条 input 最多 4,096 byte）、一个 response slot、一个待发 frame feedback、一个有界文本投影、新 request ID 和一个 controller sequence。只有 Host 拥有 VT 和 history。获取已有终端也提交初始 panel geometry；input 与后续 resize 共用同一递增 sequence。                                                                                                                                                                                                            |
+| 输出   | Create/attach 和显式 acquire、按序准入的原始输入和 geometry、文本／style／cursor 呈现、精确 applied feedback 或 NeedSnapshot、本地化连接中／只读／blocked／失败状态，以及仅针对 Session 的清理。                                                                                                                                                                                                                                                                                                          |
+| 不变量 | UI 线程不执行 Server I/O。Task 串行交换且不重试副作用。队列已满的输入被明确判定为未提交。Unknown outcome 关闭 task 并丢弃未发送 command。没有 task 超过其 TUI owner 的生命周期。                                                                                                                                                                                                                                                                                                                          |
+| 模型   | Opening -> 已附着 controller 或只读 viewer -> polling -> 收到 record -> 原子文本投影提交 -> draw -> feedback -> polling。控制意图与单一 projection flight 分开排队。关闭会 shutdown 已准入 socket 并 join task；Server 拥有按代次划分的 detach cleanup。                                                                                                                                                                                                                                                  |
+| 决策   | Snapshot 替换全部行且不回退已提交 revision（包括 projection reset 后）；delta 要求精确 attachment、epoch、sequence、generation、base revision、screen 和 geometry。无效内容请求新 snapshot 且不应用任何行。错误 envelope 或 scope 让 Session 退役。ProjectionBlocked 清除呈现，直到更高 revision 的 snapshot。没有自动提升 controller、reconnect 或 unknown input 重放。                                                                                                                                  |
+| 依赖   | 既有 OBCS 和 Rust Terminal Protocol binding、有界 channel、POSIX socket shutdown、已准入 descriptor、现有 Ratatui renderer 和本地化文案。不增加三方依赖、直连 Host 路径或 VT 模拟器。                                                                                                                                                                                                                                                                                                                     |
+| 所有权 | `terminal_session` 拥有连接 task 和输入准入；`terminal_projection` 拥有 Client 文本状态和反馈；Terminal Protocol binding 拥有有界 OBTF 文本解码；shell 拥有 mode 与 draw 顺序。                                                                                                                                                                                                                                                                                                                           |
+| 验证   | Canonical OBTF fixture、畸形／边界分区、确定性的 snapshot/delta 和队列／退役轨迹、render buffer 断言，以及真实进程／PTY 见证。既有 LocalClientSubmission 和 LocalTerminalRelay 映射 transport 退役及 projection/control 顺序；其有限边界不是性能保证。                                                                                                                                                                                                                                                    |
+| 限制   | 投影文本 cell 和基本 style/cursor；排除 graphics、hyperlink 激活、history、selection、terminal interaction-mode negotiation、cursor shape 对齐和完整 Workbench 行为。不支持的 cell width 使用替代字形。缺失或无效的继承 cell/pixel geometry 会在 Create 或初始 attach 前拒绝，或经恢复边界结束活动 TUI；绝不编造 pixel size。Optional extension 内容保持 opaque，文本 decoder 不保留它们。投影按共享文本分配计数，在提交前拒绝超过 36 MiB 的保留文本。显示 cell 中的控制字符绝不成为终端 escape command。 |
+| 审查   | 当前上下文内的挑战检查覆盖内存放大、至多一次副作用、draw 失败反馈和 join 取消；不构成独立审查证据。完整里程碑验收及此前报告的 authority model 超时仍未关闭。                                                                                                                                                                                                                                                                                                                                              |
 
 ## 本地化与权威
 
@@ -308,6 +338,8 @@ invocation：
 从仓库根目录运行：
 
 ```sh
+pnpm --filter @orchbee/terminal-host build
+cargo build -p orchbee-server -p orchbee-worker --locked
 cargo test -p orchbee --all-targets --all-features --locked
 cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
 node scripts/tla/check-inventory.mjs

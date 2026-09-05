@@ -17,8 +17,9 @@ OBCS has these adjacent boundaries:
 | `OBCN`               | Server-to-Worker placement authorization, operation, generation, lease, and fence facts.        |
 | Workbench projection | Read-only authorized product projection; it is not a terminal-control writer.                   |
 
-Version 1 admits only `terminal.create`, `terminal.create.result`, `terminal.start`, and
-`terminal.start.result`. It defines no attach, input, resize-after-start, close, cancel, retry
+Version 1 admits `terminal.create`, `terminal.create.result`, `terminal.start`,
+`terminal.start.result`, `terminal.viewer`, `terminal.viewer.result`, `terminal.control`, and
+`terminal.control.result`. It defines no close, cancel, retry
 transport, authentication, authorization policy, Server state store, Worker operation, Host launch,
 or Workbench mutation.
 
@@ -93,8 +94,8 @@ Panel, Worktree, Client generation, profile, or configuration fact.
 
 ## Server results
 
-Every result contains `protocolVersion`, the exact request's `requestId`, and one closed `outcome`.
-The result exposes no internal Terminal, Worker, operation, lease, fence, Host, or placement fact.
+Every JSON result contains `protocolVersion`, the exact request's `requestId`, and one closed `outcome`.
+Create/Start results expose no internal Terminal, Worker, operation, lease, fence, Host, or placement fact.
 
 | Create outcome    | Closed detail                                                                                      |
 | ----------------- | -------------------------------------------------------------------------------------------------- |
@@ -111,6 +112,72 @@ The result exposes no internal Terminal, Worker, operation, lease, fence, Host, 
 | `unavailable`     | `terminal-runtime-unavailable` or `server-busy`.                                                        |
 | `failed`          | `terminal-start-failed`.                                                                                |
 | `outcome-unknown` | No additional field. The Client must reconcile rather than infer a transition.                          |
+
+## Session viewer control and binary records
+
+`terminal.viewer` contains `protocolVersion`, a fresh `requestId`, and one closed `action`. Each
+admitted Client Session owns at most one read-only viewer. `attach` supplies only
+`terminalCreateRequestId`; Server resolves an accepted terminal in the same authority and subject,
+pins its existing Worker generation and Host epoch, and issues a fresh attachment identity. `poll`
+and `detach` have no additional fields. No request can supply or transfer an attachment identity.
+Session loss detaches transient viewing state and never terminates the retained terminal.
+
+`frame-applied` carries `sequence`, `generation`, and `revision`; `need-snapshot` carries `sequence`
+and `reason`. These counters are canonical decimal strings in the unsigned 64-bit range, with no
+leading zero or sign; sequence and generation are positive. Reasons are `activity-stale`,
+`base-mismatch`, `decoder-rejected`, `dimensions-mismatch`, `generation-mismatch`, `identity-mismatch`,
+`sequence-gap`, and `store-reset`. Only exact feedback for that Session's single outstanding frame
+may reach its Worker attachment. Poll while awaiting feedback returns `empty` without another frame.
+A new attachment requires a new baseline; viewer attachment grants neither input nor resize authority.
+
+JSON viewer outcomes are `attached` with `attachmentId` and `hostEpoch` (nonzero 32-character
+lowercase hex), fieldless `empty`, `feedback-accepted`, or `detached`, `rejected` with reason
+`already-attached`, `terminal-unavailable`, or `feedback-mismatch`, and `unavailable` with reason
+`server-busy` or `terminal-runtime-unavailable`. Attached answers Attach; Empty or a binary record
+answers Poll; FeedbackAccepted answers either feedback action; Detached answers Detach, including
+an already absent viewer. Rejected and Unavailable can answer any action. Wrong kind or correlation
+retires the Client carrier. Viewer failure never authorizes automatic replay or retargeting.
+
+A record result uses binary `OBSR`, not JSON: four magic bytes, big-endian u16 version 1, two zero
+reserved bytes, then big-endian u32 payload length. The payload is the exact request ID as 16
+big-endian bytes followed by one opaque OBTP event record of 64 through `64 + 36 * 1024 * 1024`
+bytes. The 12-byte header and bound are checked before payload allocation; stream readers consume
+one frame, and in-memory decoders reject truncation or trailing bytes. Only Server-to-Client readers
+accept OBSR. Server validates Host epoch, attachment, role, frame routing metadata and feedback;
+presentation decoding remains the Client's responsibility. OBSR has no JSON `record` outcome and
+does not enlarge the 32 KiB OBCS JSON limit. Its byte contract is this section; the JSON corpus owns
+control messages, while binding tests cover binary boundaries and opaque byte preservation.
+
+## Session controller
+
+`terminal.control` contains `protocolVersion`, a fresh `requestId`, and one closed `action`.
+`acquire` has no additional field and requires an attached viewer. Server explicitly grants one
+combined input-and-resize controller per terminal, without takeover or automatic promotion. The
+`acquired` result carries a fresh `controllerId`, using the nonzero 32-character lowercase hex
+identity format. The grant is bound to that Session, viewer, Worker generation, and Host terminal.
+
+`input` contains `controllerId`, `sequence`, and `bytes`; `resize` contains `controllerId`,
+`sequence`, and complete `geometry`. Input bytes are 1 through 4,096 raw bytes encoded as an even,
+lowercase hexadecimal string, with no prefix; they are not UTF-8 text, Base64, or executable metadata.
+Both actions share a strictly increasing positive u64 sequence encoded as a canonical decimal
+string. Gaps are allowed; an accepted submission consumes the sequence even if downstream delivery
+fails or is rejected. Grant mismatch or stale sequence has no terminal effect. A new grant starts
+with no consumed sequence; an old grant never regains authority by resetting its sequence.
+
+`terminal.control.result` uses the ordinary correlated JSON envelope. Outcomes are `acquired`
+with `controllerId`, fieldless `input-accepted`, `resized` with exact accepted `geometry`, fieldless
+`outcome-unknown`, `rejected` with reason `viewer-unavailable`, `controller-busy`, `not-controller`,
+`sequence-mismatch`, or `host-rejected`, and `unavailable` with reason `server-busy` or
+`terminal-runtime-unavailable`. InputAccepted means complete admission to Host's bounded input queue,
+not that the shell has executed it. Rejected, Unavailable and OutcomeUnknown may answer any action;
+other outcomes must match the submitted action, and Resize must match its geometry.
+
+Detach or Session loss releases the combined grant before retiring the viewer. There is no separate
+Client release action in this slice. Pending acquisition and cleanup exclude competing grants;
+cleanup can outlive the Client submission deadline. Unknown input/resize is never automatically
+replayed, including after reconnect or a new grant. Definite rejection grants no retry policy.
+The conformance corpus covers all control actions, outcomes, reasons, byte bounds and invalid scope
+fields. Runtime ownership and Host admission remain with their owning Server and Worker guides.
 
 ## Submission, reference, and cancellation obligations
 

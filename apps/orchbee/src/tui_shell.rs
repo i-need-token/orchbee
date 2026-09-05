@@ -20,7 +20,7 @@ use crate::{
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
     termination_signal::{TerminationSignal, TerminationSource},
     tui_backend::{FixedViewportBackend, ResizableBackend},
-    tui_render::render_shell,
+    tui_render::render_terminal_shell,
 };
 
 const EVENT_POLL_INTERVAL_MILLISECONDS: u16 = 50;
@@ -143,8 +143,37 @@ impl ViewportSource for InheritedTerminal {
 }
 
 pub(crate) fn run(locale: Locale) -> Result<(), TuiFailure> {
+    run_with_client(locale, None)
+}
+
+pub(crate) fn run_connected(
+    locale: Locale,
+    client: crate::local_client::LocalClient,
+    intent: crate::terminal_session::TerminalIntent,
+) -> Result<(), TuiFailure> {
+    run_with_client(locale, Some((client, intent)))
+}
+
+fn run_with_client(
+    locale: Locale,
+    connection: Option<(
+        crate::local_client::LocalClient,
+        crate::terminal_session::TerminalIntent,
+    )>,
+) -> Result<(), TuiFailure> {
     let inherited = InheritedTerminal::admit().map_err(TuiFailure::Admission)?;
     let dimensions = inherited.window_dimensions().map_err(TuiFailure::Runtime)?;
+    let mut terminal_input: Box<dyn TerminalSurface> = match connection {
+        Some((client, intent)) => {
+            let geometry = terminal_geometry(dimensions, &ClientView::new(dimensions.columns))
+                .map_err(TuiFailure::Runtime)?;
+            Box::new(
+                crate::terminal_session::TerminalSession::start(client, intent, geometry)
+                    .map_err(TuiFailure::Runtime)?,
+            )
+        }
+        None => Box::new(UnavailableTerminalInputPort),
+    };
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
     let mut modes = TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone()))
         .map_err(TuiFailure::Runtime)?;
@@ -159,19 +188,19 @@ pub(crate) fn run(locale: Locale) -> Result<(), TuiFailure> {
     .map_err(TuiFailure::Runtime)?;
     let input = File::from(inherited.duplicate_input().map_err(TuiFailure::Runtime)?);
     let mut inputs = InheritedInputSource::new(input);
-    let mut terminal_input = UnavailableTerminalInputPort;
 
     let run_result = run_event_loop(
         &mut terminal,
         locale,
         &mut inputs,
-        &mut terminal_input,
+        terminal_input.as_mut(),
         &termination,
         &inherited,
         dimensions,
     )
     .map_err(LoopFailure::into_io_error);
     drop(terminal);
+    drop(terminal_input);
     let restore_result = modes.restore().map_err(io::Error::other);
 
     match (run_result, restore_result) {
@@ -188,16 +217,25 @@ fn run_event_loop<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
     locale: Locale,
     inputs: &mut impl InputSource,
-    terminal_input: &mut impl crate::terminal_input::TerminalInputPort,
+    terminal_input: &mut (impl TerminalSurface + ?Sized),
     termination: &impl TerminationSource,
     viewport: &impl ViewportSource,
     mut dimensions: WindowDimensions,
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
     let mut view = ClientView::new(dimensions.columns);
     terminal
-        .draw(|frame| render_shell(frame, &view, locale))
+        .draw(|frame| {
+            render_terminal_shell(
+                frame,
+                &view,
+                locale,
+                terminal_input.projection(),
+                terminal_input.status(),
+            )
+        })
         .map_err(LoopFailure::Terminal)?;
 
+    terminal_input.after_draw();
     loop {
         if termination.requested() {
             return Ok(LoopExit::Signal);
@@ -207,7 +245,7 @@ fn run_event_loop<B: Backend + ResizableBackend>(
                 EVENT_POLL_INTERVAL_MILLISECONDS,
             )))
             .map_err(LoopFailure::Input)?;
-        let mut redraw = false;
+        let mut redraw = terminal_input.tick();
         if let Some(input) = input {
             if dispatch_input(&mut view, &input, terminal_input) == DispatchOutcome::Exit {
                 return Ok(LoopExit::User);
@@ -232,11 +270,75 @@ fn run_event_loop<B: Backend + ResizableBackend>(
             dimensions = next_dimensions;
             redraw = true;
         }
+        if terminal_input.status().is_some() {
+            let geometry = terminal_geometry(dimensions, &view).map_err(LoopFailure::Viewport)?;
+            terminal_input.resize(geometry);
+        }
         if redraw {
             terminal
-                .draw(|frame| render_shell(frame, &view, locale))
+                .draw(|frame| {
+                    render_terminal_shell(
+                        frame,
+                        &view,
+                        locale,
+                        terminal_input.projection(),
+                        terminal_input.status(),
+                    )
+                })
                 .map_err(LoopFailure::Terminal)?;
+            terminal_input.after_draw();
         }
+    }
+}
+
+fn terminal_geometry(
+    dimensions: WindowDimensions,
+    view: &ClientView,
+) -> io::Result<orchbee_client_server_protocol::Geometry> {
+    let panel =
+        crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface()).panel;
+    let area = crate::tui_layout::terminal_area(panel);
+    let width = dimensions
+        .pixel_width
+        .checked_div(dimensions.columns)
+        .unwrap_or(0);
+    let height = dimensions
+        .pixel_height
+        .checked_div(dimensions.rows)
+        .unwrap_or(0);
+    orchbee_client_server_protocol::Geometry::new(area.width, area.height, width, height)
+        .map_err(io::Error::other)
+}
+
+trait TerminalSurface: crate::terminal_input::TerminalInputPort {
+    fn tick(&mut self) -> bool {
+        false
+    }
+    fn after_draw(&mut self) {}
+    fn resize(&mut self, _geometry: orchbee_client_server_protocol::Geometry) {}
+    fn projection(&self) -> Option<&crate::terminal_projection::TerminalProjection> {
+        None
+    }
+    fn status(&self) -> Option<crate::terminal_session::TerminalStatus> {
+        None
+    }
+}
+impl TerminalSurface for UnavailableTerminalInputPort {}
+impl TerminalSurface for crate::terminal_session::TerminalSession {
+    fn tick(&mut self) -> bool {
+        self.tick()
+    }
+    fn after_draw(&mut self) {
+        self.after_draw()
+    }
+    fn resize(&mut self, geometry: orchbee_client_server_protocol::Geometry) {
+        self.resize(geometry)
+    }
+    fn projection(&self) -> Option<&crate::terminal_projection::TerminalProjection> {
+        self.projection()
+    }
+    fn status(&self) -> Option<crate::terminal_session::TerminalStatus> {
+        Some(self.status())
     }
 }
 
@@ -246,3 +348,6 @@ const fn to_area(dimensions: WindowDimensions) -> Rect {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod connected_tests;

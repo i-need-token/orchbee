@@ -12,12 +12,21 @@ use nix::{
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, ServerMessage,
+    TerminalControlAction, TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
     TerminalCreateRequest, TerminalCreateResult, TerminalStartRequest, TerminalStartResult,
+    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
     encode_client_frame, read_server_message,
 };
 use orchbee_local_client_protocol::{ClientSessionConnection, ConnectClientError};
 
-const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(2);
+const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(50);
+
+pub(crate) struct LocalClientShutdown(std::os::unix::net::UnixStream);
+impl LocalClientShutdown {
+    pub(crate) fn close(&self) -> io::Result<()> {
+        self.0.shutdown(std::net::Shutdown::Both)
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct LocalClient {
@@ -66,6 +75,16 @@ impl LocalClient {
         })
     }
 
+    pub(crate) fn shutdown_handle(&self) -> io::Result<LocalClientShutdown> {
+        let connection = self
+            .connection
+            .as_ref()
+            .ok_or_else(|| io::Error::other("Client Session unavailable"))?;
+        Ok(LocalClientShutdown(std::os::unix::net::UnixStream::from(
+            connection.as_fd().try_clone_to_owned()?,
+        )))
+    }
+
     #[must_use]
     pub(crate) fn generation(&self) -> Option<std::num::NonZeroU64> {
         self.connection
@@ -83,8 +102,8 @@ impl LocalClient {
             return self.retire_with_unknown(
                 request_id,
                 OutcomeUnknownReason::UnexpectedResult {
-                    expected: ResultKind::TerminalCreate,
-                    received: ResultKind::TerminalStart,
+                    expected: ResultKind::Create,
+                    received: result_kind(&result),
                 },
             );
         };
@@ -111,8 +130,8 @@ impl LocalClient {
             return self.retire_with_unknown(
                 request_id,
                 OutcomeUnknownReason::UnexpectedResult {
-                    expected: ResultKind::TerminalStart,
-                    received: ResultKind::TerminalCreate,
+                    expected: ResultKind::Start,
+                    received: result_kind(&result),
                 },
             );
         };
@@ -124,6 +143,113 @@ impl LocalClient {
                     expected: request_id,
                     received,
                 },
+            );
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn submit_terminal_viewer(
+        &mut self,
+        request: TerminalViewerRequest,
+    ) -> Result<TerminalViewerResult, SubmissionError> {
+        let request_id = request.request_id().clone();
+        let action = request.action().clone();
+        let result = self.exchange(ClientMessage::TerminalViewer(request), &request_id)?;
+        let ServerMessage::TerminalViewerResult(result) = result else {
+            return self.retire_with_unknown(
+                request_id,
+                OutcomeUnknownReason::UnexpectedResult {
+                    expected: ResultKind::Viewer,
+                    received: result_kind(&result),
+                },
+            );
+        };
+        if result.request_id() != &request_id {
+            let received = result.request_id().clone();
+            return self.retire_with_unknown(
+                request_id.clone(),
+                OutcomeUnknownReason::CorrelationMismatch {
+                    expected: request_id,
+                    received,
+                },
+            );
+        }
+        let compatible = matches!(
+            (&action, result.outcome()),
+            (
+                _,
+                TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. }
+            ) | (
+                TerminalViewerAction::Attach { .. },
+                TerminalViewerOutcome::Attached { .. }
+            ) | (
+                TerminalViewerAction::Poll {},
+                TerminalViewerOutcome::Empty {} | TerminalViewerOutcome::Record(_)
+            ) | (
+                TerminalViewerAction::FrameApplied { .. }
+                    | TerminalViewerAction::NeedSnapshot { .. },
+                TerminalViewerOutcome::FeedbackAccepted {}
+            ) | (
+                TerminalViewerAction::Detach {},
+                TerminalViewerOutcome::Detached {}
+            )
+        );
+        if !compatible {
+            return self.retire_with_unknown(
+                request_id,
+                OutcomeUnknownReason::InvalidResult(ProtocolError::InvalidPayload),
+            );
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn submit_terminal_control(
+        &mut self,
+        request: TerminalControlRequest,
+    ) -> Result<TerminalControlResult, SubmissionError> {
+        let request_id = request.request_id().clone();
+        let action = request.action().clone();
+        let result = self.exchange(ClientMessage::TerminalControl(request), &request_id)?;
+        let ServerMessage::TerminalControlResult(result) = result else {
+            return self.retire_with_unknown(
+                request_id,
+                OutcomeUnknownReason::UnexpectedResult {
+                    expected: ResultKind::Control,
+                    received: result_kind(&result),
+                },
+            );
+        };
+        if result.request_id() != &request_id {
+            let received = result.request_id().clone();
+            return self.retire_with_unknown(
+                request_id.clone(),
+                OutcomeUnknownReason::CorrelationMismatch {
+                    expected: request_id,
+                    received,
+                },
+            );
+        }
+        let compatible = match (&action, result.outcome()) {
+            (
+                _,
+                TerminalControlOutcome::Rejected { .. }
+                | TerminalControlOutcome::Unavailable { .. }
+                | TerminalControlOutcome::OutcomeUnknown {},
+            )
+            | (TerminalControlAction::Acquire {}, TerminalControlOutcome::Acquired { .. })
+            | (TerminalControlAction::Input { .. }, TerminalControlOutcome::InputAccepted {}) => {
+                true
+            }
+            (
+                TerminalControlAction::Resize { geometry, .. },
+                TerminalControlOutcome::Resized { geometry: actual },
+            ) => geometry == actual,
+            _ => false,
+        };
+        if !compatible {
+            return self.retire_with_unknown(
+                request_id,
+                OutcomeUnknownReason::InvalidResult(ProtocolError::InvalidPayload),
             );
         }
         Ok(result)
@@ -291,16 +417,29 @@ impl std::error::Error for OutcomeUnknownReason {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ResultKind {
-    TerminalCreate,
-    TerminalStart,
+    Create,
+    Start,
+    Viewer,
+    Control,
 }
 
 impl fmt::Display for ResultKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
-            Self::TerminalCreate => "terminal.create.result",
-            Self::TerminalStart => "terminal.start.result",
+            Self::Create => "terminal.create.result",
+            Self::Start => "terminal.start.result",
+            Self::Viewer => "terminal.viewer.result",
+            Self::Control => "terminal.control.result",
         })
+    }
+}
+
+fn result_kind(result: &ServerMessage) -> ResultKind {
+    match result {
+        ServerMessage::TerminalCreateResult(_) => ResultKind::Create,
+        ServerMessage::TerminalStartResult(_) => ResultKind::Start,
+        ServerMessage::TerminalViewerResult(_) => ResultKind::Viewer,
+        ServerMessage::TerminalControlResult(_) => ResultKind::Control,
     }
 }
 
@@ -480,3 +619,6 @@ impl Write for DeadlineIo<'_> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+pub(crate) mod test_server;

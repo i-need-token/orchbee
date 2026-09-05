@@ -15,7 +15,10 @@ use orchbee_local_peer_credentials::require_same_effective_user;
 
 use crate::client_session_registry::{ClientSessionAdmission, ClientSessionRegistry};
 
+use crate::local_terminal_service::LocalTerminalService;
+
 mod obcs_session;
+mod record_stream;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const MAXIMUM_CLIENT_CONNECTIONS: usize = 16;
@@ -23,6 +26,7 @@ const MAXIMUM_CLIENT_CONNECTIONS: usize = 16;
 pub(crate) fn start(
     endpoint: &Path,
     expected_cohort: &str,
+    terminals: Arc<LocalTerminalService>,
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
     let listener = UnixListener::bind(endpoint)?;
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
@@ -31,7 +35,15 @@ pub(crate) fn start(
     let expected_cohort: Arc<str> = Arc::from(expected_cohort);
     thread::Builder::new()
         .name("orchbee-local-client-listener".to_owned())
-        .spawn(move || serve(listener, registry, connection_slots, expected_cohort))
+        .spawn(move || {
+            serve(
+                listener,
+                registry,
+                connection_slots,
+                expected_cohort,
+                terminals,
+            )
+        })
 }
 
 fn serve(
@@ -39,6 +51,7 @@ fn serve(
     registry: Arc<Mutex<ClientSessionRegistry>>,
     connection_slots: Arc<ConnectionSlots>,
     expected_cohort: Arc<str>,
+    terminals: Arc<LocalTerminalService>,
 ) -> io::Result<()> {
     loop {
         match listener.accept() {
@@ -48,6 +61,7 @@ fn serve(
                 };
                 let candidate_registry = Arc::clone(&registry);
                 let candidate_cohort = Arc::clone(&expected_cohort);
+                let candidate_terminals = Arc::clone(&terminals);
                 let _candidate = thread::Builder::new()
                     .name("orchbee-local-client".to_owned())
                     .spawn(move || {
@@ -56,6 +70,7 @@ fn serve(
                             &candidate_registry,
                             &candidate_cohort,
                             connection_slot,
+                            &candidate_terminals,
                         );
                     });
             }
@@ -70,6 +85,7 @@ fn handle_candidate(
     registry: &Arc<Mutex<ClientSessionRegistry>>,
     expected_cohort: &str,
     _connection_slot: ConnectionSlot,
+    terminals: &LocalTerminalService,
 ) {
     if stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
@@ -132,7 +148,11 @@ fn handle_candidate(
         return;
     }
 
-    let _session_result = obcs_session::run(&mut stream);
+    let Ok(mut records) = record_stream::ClientRecordStream::new(&stream) else {
+        return;
+    };
+    let mut session = terminals.session();
+    let _session_result = obcs_session::run(&mut records, |request| session.execute(request));
 }
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {

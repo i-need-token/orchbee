@@ -886,27 +886,39 @@
 			"variants": [
 				{
 					"name": "admission-rejection",
-					"constants": { "Scenario": "admission-rejection" }
+					"constants": {
+						"Scenario": "admission-rejection"
+					}
 				},
 				{
 					"name": "exit-retry",
-					"constants": { "Scenario": "exit-retry" }
+					"constants": {
+						"Scenario": "exit-retry"
+					}
 				},
 				{
 					"name": "failure",
-					"constants": { "Scenario": "failure" }
+					"constants": {
+						"Scenario": "failure"
+					}
 				},
 				{
 					"name": "isolation",
-					"constants": { "Scenario": "isolation" }
+					"constants": {
+						"Scenario": "isolation"
+					}
 				},
 				{
 					"name": "metadata",
-					"constants": { "Scenario": "metadata" }
+					"constants": {
+						"Scenario": "metadata"
+					}
 				},
 				{
 					"name": "restart",
-					"constants": { "Scenario": "restart" }
+					"constants": {
+						"Scenario": "restart"
+					}
 				}
 			]
 		},
@@ -1899,6 +1911,34 @@
 			]
 		},
 		{
+			"id": "local-terminal-coordinator",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/LocalTerminalCoordinator.tla",
+			"config": "apps/orchbee-server/formal/tla/LocalTerminalCoordinator.cfg",
+			"claims": ["apps/orchbee-server/README.md"],
+			"triggers": [
+				"apps/orchbee-server/src/terminal_coordinator.rs",
+				"apps/orchbee-server/src/terminal_coordinator/**",
+				"apps/orchbee-server/src/local_terminal_service.rs",
+				"apps/orchbee-server/tests/client_process/terminal_operations.rs"
+			],
+			"requiredCoverage": [
+				"IssueCreate",
+				"IssueStart",
+				"RejectConcurrent",
+				"CompleteExact",
+				"CompleteUnknown",
+				"CompleteNotDelivered",
+				"CompleteStale",
+				"Publish",
+				"AbandonPublication",
+				"Disconnect",
+				"ReplaceWorker",
+				"CompleteRejected"
+			]
+		},
+		{
 			"id": "local-terminal-relay",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",
@@ -1908,7 +1948,8 @@
 			"claims": [
 				"apps/orchbee-server/README.md",
 				"packages/terminal-protocol/references/protocol.md",
-				"proposals/platform/native-runtime-topology.md"
+				"proposals/platform/native-runtime-topology.md",
+				"apps/orchbee-worker/README.md"
 			],
 			"triggers": [
 				"apps/orchbee-server/formal/tla/LocalTerminalClientAuthority.cfg",
@@ -1933,7 +1974,25 @@
 				"crates/terminal-protocol/src/semantic_input.rs",
 				"packages/terminal-protocol/src/control.ts",
 				"packages/terminal-protocol/src/frame.ts",
-				"packages/terminal-protocol/src/input.ts"
+				"packages/terminal-protocol/src/input.ts",
+				"crates/terminal-protocol/src/frame_route.rs",
+				"apps/orchbee/src/terminal_projection.rs",
+				"apps/orchbee/src/terminal_projection/**",
+				"apps/orchbee/src/terminal_session.rs",
+				"apps/orchbee/src/terminal_session/**",
+				"apps/orchbee/src/tui_shell.rs",
+				"apps/orchbee/src/tui_shell/**",
+				"apps/orchbee/src/tui_render.rs",
+				"apps/orchbee/src/tui_render/**",
+				"crates/terminal-protocol/src/text_frame.rs",
+				"crates/terminal-protocol/src/text_frame/**",
+				"crates/capability-node-protocol/src/terminal_viewer.rs",
+				"crates/capability-node-protocol/src/terminal_control.rs",
+				"crates/capability-node-protocol/src/codec/viewer.rs",
+				"crates/capability-node-protocol/src/codec/control.rs",
+				"crates/client-server-protocol/src/**",
+				"crates/client-server-protocol/tests/**",
+				"schemas/client-server/**"
 			],
 			"timeoutMilliseconds": 300000,
 			"requiredCoverage": [
@@ -2143,7 +2202,11 @@
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla",
 			"config": "apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.cfg",
-			"claims": ["apps/orchbee-worker/README.md", "crates/capability-node-protocol/README.md"],
+			"claims": [
+				"apps/orchbee-worker/README.md",
+				"crates/capability-node-protocol/README.md",
+				"apps/orchbee-server/README.md"
+			],
 			"triggers": [
 				"apps/orchbee-worker/Cargo.toml",
 				"apps/orchbee-worker/README.md",
@@ -2153,7 +2216,10 @@
 				"apps/orchbee-worker/src/terminal_authorization/tests.rs",
 				"crates/capability-node-protocol/src/**",
 				"crates/capability-node-protocol/README.md",
-				"crates/capability-node-protocol/README.zh-CN.md"
+				"crates/capability-node-protocol/README.zh-CN.md",
+				"apps/orchbee-server/src/terminal_coordinator.rs",
+				"apps/orchbee-server/src/terminal_coordinator/**",
+				"apps/orchbee-server/src/local_terminal_service.rs"
 			],
 			"timeoutMilliseconds": 300000,
 			"requiredCoverage": [

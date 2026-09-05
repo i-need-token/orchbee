@@ -120,6 +120,186 @@
 			"direction": "server-to-client",
 			"name": "start-outcome-unknown",
 			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"outcome-unknown\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-attach",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"attach\",\"terminalCreateRequestId\":\"22222222222222222222222222222222\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-poll",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"poll\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-frame-applied",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"frame-applied\",\"sequence\":\"18446744073709551615\",\"generation\":\"9007199254740993\",\"revision\":\"0\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-detach",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"detach\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-need-snapshot-activity-stale",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"sequence\":\"1\",\"reason\":\"activity-stale\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-need-snapshot-base-mismatch",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"sequence\":\"1\",\"reason\":\"base-mismatch\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-need-snapshot-decoder-rejected",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"sequence\":\"1\",\"reason\":\"decoder-rejected\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-need-snapshot-dimensions-mismatch",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"sequence\":\"1\",\"reason\":\"dimensions-mismatch\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-need-snapshot-generation-mismatch",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"sequence\":\"1\",\"reason\":\"generation-mismatch\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-need-snapshot-identity-mismatch",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"sequence\":\"1\",\"reason\":\"identity-mismatch\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-need-snapshot-sequence-gap",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"sequence\":\"1\",\"reason\":\"sequence-gap\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-need-snapshot-store-reset",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"need-snapshot\",\"sequence\":\"1\",\"reason\":\"store-reset\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-attached",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"attached\",\"attachmentId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"44444444444444444444444444444444\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-empty",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"empty\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-feedback-accepted",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"feedback-accepted\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-detached",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"detached\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-rejected-already-attached",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"already-attached\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-rejected-terminal-unavailable",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-rejected-feedback-mismatch",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"feedback-mismatch\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-unavailable-server-busy",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-unavailable-terminal-runtime-unavailable",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"terminal-runtime-unavailable\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-acquire",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"acquire\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-input",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"1\",\"bytes\":\"001b7fff\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-resize",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"resize\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"18446744073709551615\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-max-input",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"2\",\"bytes\":\"abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-acquired",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"acquired\",\"controllerId\":\"22222222222222222222222222222222\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-input-accepted",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"input-accepted\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-resized",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"resized\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-outcome-unknown",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"outcome-unknown\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-rejected-viewer-unavailable",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"viewer-unavailable\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-rejected-controller-busy",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"controller-busy\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-rejected-not-controller",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"not-controller\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-rejected-sequence-mismatch",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"sequence-mismatch\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-rejected-host-rejected",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-unavailable-server-busy",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-unavailable-terminal-runtime-unavailable",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"terminal-runtime-unavailable\"}}"
 		}
 	],
 	"equivalentMessages": [
@@ -418,6 +598,138 @@
 			"direction": "server-to-client",
 			"name": "removed-start-request-id-conflict",
 			"payload": "{\"kind\":\"terminal.start.result\",\"protocolVersion\":1,\"requestId\":\"44444444444444444444444444444444\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"request-id-conflict\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-authoritative-attachment",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"poll\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-unknown-action",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"bytes\":\"hello\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-missing-reference",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"attach\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-sequence-number",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"frame-applied\",\"sequence\":1,\"generation\":\"1\",\"revision\":\"0\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-sequence-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"frame-applied\",\"sequence\":\"0\",\"generation\":\"1\",\"revision\":\"0\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-sequence-leading-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"frame-applied\",\"sequence\":\"01\",\"generation\":\"1\",\"revision\":\"0\"}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "viewer-sequence-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"frame-applied\",\"sequence\":\"18446744073709551616\",\"generation\":\"1\",\"revision\":\"0\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-sequence-plus",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"frame-applied\",\"sequence\":\"+1\",\"generation\":\"1\",\"revision\":\"0\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "viewer-record-is-not-json",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"record\",\"bytes\":[]}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-empty",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"1\",\"bytes\":\"\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-uppercase",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"1\",\"bytes\":\"AB\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-odd",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"1\",\"bytes\":\"abc\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-invalid-hex",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"1\",\"bytes\":\"zz\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-overflow-input",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"1\",\"bytes\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-numeric-sequence",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":1,\"bytes\":\"ab\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-zero-sequence",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"0\",\"bytes\":\"ab\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-padded-sequence",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"01\",\"bytes\":\"ab\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-overflow-sequence",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"18446744073709551616\",\"bytes\":\"ab\"}}",
+			"boundary": "semantic"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-zero-grant",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"00000000000000000000000000000000\",\"sequence\":\"1\",\"bytes\":\"ab\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-authority-field",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"input\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"1\",\"bytes\":\"ab\",\"workerId\":\"22222222222222222222222222222222\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-acquire-injected-grant",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"acquire\",\"controllerId\":\"22222222222222222222222222222222\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-release-not-admitted",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"release\",\"controllerId\":\"22222222222222222222222222222222\"}}",
+			"boundary": "schema"
 		}
 	],
 	"workingDirectoryCases": [
@@ -481,72 +793,142 @@
 	"geometryCases": [
 		{
 			"name": "minimum-scalars",
-			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"geometry": {
+				"columns": 1,
+				"rows": 1,
+				"cellPixelWidth": 1,
+				"cellPixelHeight": 1
+			},
 			"valid": true
 		},
 		{
 			"name": "exact-product-boundaries",
-			"geometry": { "columns": 255, "rows": 255, "cellPixelWidth": 257, "cellPixelHeight": 257 },
+			"geometry": {
+				"columns": 255,
+				"rows": 255,
+				"cellPixelWidth": 257,
+				"cellPixelHeight": 257
+			},
 			"valid": true
 		},
 		{
 			"name": "maximum-scalar-boundaries",
-			"geometry": { "columns": 4096, "rows": 1, "cellPixelWidth": 15, "cellPixelHeight": 4096 },
+			"geometry": {
+				"columns": 4096,
+				"rows": 1,
+				"cellPixelWidth": 15,
+				"cellPixelHeight": 4096
+			},
 			"valid": true
 		},
 		{
 			"name": "zero-columns",
-			"geometry": { "columns": 0, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"geometry": {
+				"columns": 0,
+				"rows": 1,
+				"cellPixelWidth": 1,
+				"cellPixelHeight": 1
+			},
 			"valid": false
 		},
 		{
 			"name": "zero-rows",
-			"geometry": { "columns": 1, "rows": 0, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"geometry": {
+				"columns": 1,
+				"rows": 0,
+				"cellPixelWidth": 1,
+				"cellPixelHeight": 1
+			},
 			"valid": false
 		},
 		{
 			"name": "zero-cell-pixel-width",
-			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 0, "cellPixelHeight": 1 },
+			"geometry": {
+				"columns": 1,
+				"rows": 1,
+				"cellPixelWidth": 0,
+				"cellPixelHeight": 1
+			},
 			"valid": false
 		},
 		{
 			"name": "zero-cell-pixel-height",
-			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 0 },
+			"geometry": {
+				"columns": 1,
+				"rows": 1,
+				"cellPixelWidth": 1,
+				"cellPixelHeight": 0
+			},
 			"valid": false
 		},
 		{
 			"name": "columns-over-scalar-bound",
-			"geometry": { "columns": 4097, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"geometry": {
+				"columns": 4097,
+				"rows": 1,
+				"cellPixelWidth": 1,
+				"cellPixelHeight": 1
+			},
 			"valid": false
 		},
 		{
 			"name": "rows-over-scalar-bound",
-			"geometry": { "columns": 1, "rows": 4097, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"geometry": {
+				"columns": 1,
+				"rows": 4097,
+				"cellPixelWidth": 1,
+				"cellPixelHeight": 1
+			},
 			"valid": false
 		},
 		{
 			"name": "cell-pixel-width-over-scalar-bound",
-			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 4097, "cellPixelHeight": 1 },
+			"geometry": {
+				"columns": 1,
+				"rows": 1,
+				"cellPixelWidth": 4097,
+				"cellPixelHeight": 1
+			},
 			"valid": false
 		},
 		{
 			"name": "cell-pixel-height-over-scalar-bound",
-			"geometry": { "columns": 1, "rows": 1, "cellPixelWidth": 1, "cellPixelHeight": 4097 },
+			"geometry": {
+				"columns": 1,
+				"rows": 1,
+				"cellPixelWidth": 1,
+				"cellPixelHeight": 4097
+			},
 			"valid": false
 		},
 		{
 			"name": "terminal-cell-count-overflow",
-			"geometry": { "columns": 512, "rows": 513, "cellPixelWidth": 1, "cellPixelHeight": 1 },
+			"geometry": {
+				"columns": 512,
+				"rows": 513,
+				"cellPixelWidth": 1,
+				"cellPixelHeight": 1
+			},
 			"valid": false
 		},
 		{
 			"name": "pixel-width-overflow",
-			"geometry": { "columns": 4096, "rows": 1, "cellPixelWidth": 16, "cellPixelHeight": 1 },
+			"geometry": {
+				"columns": 4096,
+				"rows": 1,
+				"cellPixelWidth": 16,
+				"cellPixelHeight": 1
+			},
 			"valid": false
 		},
 		{
 			"name": "pixel-height-overflow",
-			"geometry": { "columns": 1, "rows": 4096, "cellPixelWidth": 1, "cellPixelHeight": 16 },
+			"geometry": {
+				"columns": 1,
+				"rows": 4096,
+				"cellPixelWidth": 1,
+				"cellPixelHeight": 16
+			},
 			"valid": false
 		}
 	],
@@ -561,21 +943,69 @@
 			"name": "authoritative-worker-placement",
 			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		},
-		{ "field": "workerGeneration", "name": "worker-generation", "value": 1 },
-		{ "field": "operation", "name": "worker-operation", "value": { "kind": "launch" } },
+		{
+			"field": "workerGeneration",
+			"name": "worker-generation",
+			"value": 1
+		},
+		{
+			"field": "operation",
+			"name": "worker-operation",
+			"value": {
+				"kind": "launch"
+			}
+		},
 		{
 			"field": "operationId",
 			"name": "operation-identity",
 			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		},
-		{ "field": "lease", "name": "worker-lease", "value": { "generation": 1 } },
-		{ "field": "fence", "name": "worker-fence", "value": 1 },
-		{ "field": "hostId", "name": "host-identity", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
-		{ "field": "hostEpoch", "name": "host-epoch", "value": 1 },
-		{ "field": "executable", "name": "executable", "value": "/bin/sh" },
-		{ "field": "argv", "name": "argument-vector", "value": ["sh", "-c", "pwd"] },
-		{ "field": "env", "name": "environment", "value": { "TOKEN": "secret" } },
-		{ "field": "environmentOverlay", "name": "environment-overlay", "value": { "LANG": "C" } },
+		{
+			"field": "lease",
+			"name": "worker-lease",
+			"value": {
+				"generation": 1
+			}
+		},
+		{
+			"field": "fence",
+			"name": "worker-fence",
+			"value": 1
+		},
+		{
+			"field": "hostId",
+			"name": "host-identity",
+			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		},
+		{
+			"field": "hostEpoch",
+			"name": "host-epoch",
+			"value": 1
+		},
+		{
+			"field": "executable",
+			"name": "executable",
+			"value": "/bin/sh"
+		},
+		{
+			"field": "argv",
+			"name": "argument-vector",
+			"value": ["sh", "-c", "pwd"]
+		},
+		{
+			"field": "env",
+			"name": "environment",
+			"value": {
+				"TOKEN": "secret"
+			}
+		},
+		{
+			"field": "environmentOverlay",
+			"name": "environment-overlay",
+			"value": {
+				"LANG": "C"
+			}
+		},
 		{
 			"field": "projectId",
 			"name": "project-identity",
@@ -586,14 +1016,30 @@
 			"name": "workspace-identity",
 			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		},
-		{ "field": "panelId", "name": "panel-identity", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+		{
+			"field": "panelId",
+			"name": "panel-identity",
+			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		},
 		{
 			"field": "worktreeId",
 			"name": "worktree-identity",
 			"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 		},
-		{ "field": "clientGeneration", "name": "client-generation", "value": 1 },
-		{ "field": "profileId", "name": "launch-profile", "value": "default" },
-		{ "field": "config", "name": "launch-configuration", "value": {} }
+		{
+			"field": "clientGeneration",
+			"name": "client-generation",
+			"value": 1
+		},
+		{
+			"field": "profileId",
+			"name": "launch-profile",
+			"value": "default"
+		},
+		{
+			"field": "config",
+			"name": "launch-configuration",
+			"value": {}
+		}
 	]
 }
