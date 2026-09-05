@@ -25,14 +25,14 @@
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Brevity        | If one sentence can say it, do not write two. Delete boilerplate, transitions, and summary paragraphs.                                                                                    |
 | Filler         | Do not use filler openings such as “The principle is…”, “In other words…”, or “It should be noted that…”.                                                                                 |
-| Representation | Prefer tables to prose and lists to paragraphs. Use prose only for necessary reasoning and code only when syntax changes meaning.                                                         |
+| Representation | Use the smallest clear form: prose for a compact rule, lists for independent items, and tables for actual comparisons or mappings. Use code only when syntax changes meaning.             |
 | Scope          | Write each file for one task category and each H2 section to answer one independently retrievable question.                                                                               |
 | Intent         | Express the exact intent completely and unambiguously: state the decision, scope, constraints, exceptions, prerequisites, and verification; never rely on implication or assumed context. |
 | Order          | Put required actions and constraints before rationale; include rationale only when it changes a decision.                                                                                 |
 | Structure      | Use one H1. Omit introductions, summaries, and tables of contents when the rules can begin immediately.                                                                                   |
 | Precision      | Use exact, searchable identifiers. Write commands from the repository root and state a different working directory explicitly.                                                            |
 | Current truth  | Remove history, repetition, commentary, and unverifiable guidance. Verify time-sensitive facts against primary sources and keep them with their owner.                                    |
-| Enforced rules | Name the exact lint rule or compiler option and describe the compliant state in one sentence.                                                                                             |
+| Enforced rules | Name the exact enforcing lint rule or compiler option; distinguish review requirements from automated checks.                                                                             |
 | Examples       | Add one minimal failing and passing example only when prose could be misread; use neutral placeholders, current syntax, and no product inventory or commitment.                           |
 
 ## File and directory contract

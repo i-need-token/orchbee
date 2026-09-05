@@ -186,12 +186,12 @@
 			"zhCnSha256": "e635694fcaa1b721085c60c26c9656737ff5cffbdda072f383f0c29cceab95fc"
 		},
 		"docs/DEVELOPMENT.md": {
-			"englishSha256": "ea683b2d39080e0b015ced3f34c1d38dd74331948bdfb392713690893cc7fc8b",
-			"zhCnSha256": "bd300f22c432da8d63f97ba31b47c10716c2296001f25584370c148641457498"
+			"englishSha256": "0163df4639d34a486fbda3e34dd79c91b42d8f705e56150f479c6906eccc7a39",
+			"zhCnSha256": "2e16d32d28049d57dd7b1e385fe00c681d6e704c87c587a7be52807e52194b31"
 		},
 		"docs/DOCUMENTATION.md": {
-			"englishSha256": "f224a44a06f322fe65e991a4ea170e6e4fed02a313c617e51e5813a82cf94e3f",
-			"zhCnSha256": "5674eedbdd10fd2db9f623f1de959edaeb297e35e9474eb9452f7f2c89e6c99f"
+			"englishSha256": "159c7a27d21c5542bfded11d036413890009eb10e5e711205f4b7857a7193298",
+			"zhCnSha256": "fc49880437f54464b9d45dd4cab5583e66082e406c1868ab87a6572019ef8fa0"
 		},
 		"docs/LINTING.md": {
 			"englishSha256": "7a45e602236b7d74586aed82876cbd8d80202628b2de7dbfabd348ac1b59af4d",
@@ -230,8 +230,8 @@
 			"zhCnSha256": "b9ea5c0be7b4c44c6aab2e71afc33737c645564933fc3e41ad3d9f783b5a28d8"
 		},
 		"docs/VERIFICATION.md": {
-			"englishSha256": "fd5dba35ed4fcde248f9b1a0f5d1df6d4ae593bf326aca2799d8fb867b75c8a0",
-			"zhCnSha256": "5046de069dc7eee6ce899150513e5dedc1af50fa75da1e5936e3ffa970030237"
+			"englishSha256": "b0601bb0c06d5f656c0b8160a95d1304582747688495cb22f90a921ba7f0d41e",
+			"zhCnSha256": "8ededd75dbe7e4b94d78695176be4f9c8a1efba64cbbfc261abf18fdc1a70cb9"
 		},
 		"docs/ZIG.md": {
 			"englishSha256": "6907e1c0cb6e2be32a15dc16482d9986b289cd83c929821fda0f0d927e9d7980",

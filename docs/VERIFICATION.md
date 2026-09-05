@@ -14,7 +14,28 @@
 
 A focused command is useful while iterating, but completion requires the root gate.
 
+## Execution and evidence
+
+- Do not overlap `pnpm verify` with another root gate, `pnpm test`, or a build in the same checkout.
+  Independently scheduled checks may run in parallel only when their writable artifacts and
+  fixtures are isolated. This does not disable parallelism already owned by a workspace task.
+- Finish governed edits before the final gate. If relevant inputs change during or after a run,
+  identify the stale evidence and rerun the required gate against the final inputs before claiming
+  completion. A command's success is evidence for its checked inputs, not for later edits.
+- Preserve the first failure's command, source state, platform/toolchain, seed when available,
+  and full log outside tracked source. A later pass does not diagnose the failure or prove a fix;
+  report unresolved failures alongside subsequent results. Diagnostic reruns require a stated
+  question and retain prior outcomes; never retry until green or classify a failure as environment
+  or test instability without evidence.
+- Distinguish failed, interrupted, skipped, and unexecuted checks from passing checks. Partial gate
+  success does not establish completion, and an aggregate summary is not a complete test inventory.
+
 ## Check output
+
+New or changed human-facing verification output must define a bounded summary, actionable
+failure diagnostics, and access to full detail. Reuse the existing output layer when compatible;
+preserve machine-readable output contracts and explicit verbose modes. Reducing output never
+authorizes dropping checks, swallowing warnings, or replacing a process failure with parsed success.
 
 The root `test` and `verify` commands, Node test wrappers, and Rust workspace runner default to
 stage summaries. `scripts/run-checks.mjs` owns the root command sequences;
@@ -137,6 +158,10 @@ report identifies the checked model and bounds.
 - Promote an audit to a separate CI job only when it pins and provisions every external input, has a stable owner, and adds no side effects to the required merge gate.
 
 ## Scaling threshold
+
+Measure elapsed time by stage separately from output bytes and lines. Compare equivalent command
+scope, toolchain, and cold or warm cache conditions; quieter output alone is not a runtime saving.
+The threshold below opens a design review, not permission to skip required checks.
 
 | Decision                | Contract                                                                                                          |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------- |

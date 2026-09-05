@@ -9,6 +9,10 @@ Current authorities continue to govern existing facts. Proposals may carry accep
 but they never become current authority until their decisions are integrated into the owning
 standards, contracts, source, or tests.
 
+A tool or model upgrade does not by itself reopen accepted decisions or replace correctness
+evidence. Reassess a decision through its owner when a concrete contradiction, risk, or better
+supported alternative is found.
+
 When the change tier or a current authority requires behavior modeling or correctness evidence,
 apply every matching requirement in
 [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md). That
@@ -163,6 +167,11 @@ Each implementation slice must:
 - be independently reviewable and leave the repository in a verified or explicitly staged state;
 - stop before the next slice instead of opportunistically completing adjacent work.
 
+Before extending a staged foundation, name its actual consumer, next integrated observable
+witness, and missing integration boundary in the existing change record. A kernel, adapter, or
+protocol may satisfy its bounded claim without delivering the user outcome; report those states
+separately. Do not add a parallel progress ledger or speculative infrastructure to close that gap.
+
 Split work by semantic responsibility and feedback boundary, not by line count, file count, or
 framework category. Do not use tasks such as “implement the feature,” “refactor the Hook,” or “fix
 the tests.” A task graph is execution state and remains in the active tool, issue, or review unless
@@ -185,7 +194,9 @@ evidence.
 
 ## Implementation discipline
 
-- Retrieve only the authorities, model, source, and evidence required by the active slice.
+- Retrieve only the authorities, model, source, and evidence required by the active slice; reuse
+  already-read sources while their relevant contents remain unchanged. Summaries guide retrieval,
+  but never replace required instruction reads or semantic review of affected documentation pairs.
 - Before composing a product interface that meets the admission signals in
   [`frontend/experience-components.md`](frontend/experience-components.md), query the experience
   catalog, inspect plausible Manifest and Story evidence, and choose reuse, extend, replace, or new.
