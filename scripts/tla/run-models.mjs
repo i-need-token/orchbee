@@ -199,7 +199,9 @@ async function runVariant(model, variant, recordFailure) {
 	await mkdir(toolsDirectory, { recursive: true });
 	const temporaryDirectory = await mkdtemp(path.join(toolsDirectory, `tla-${model.id}-`));
 	const metadataDirectory = path.join(temporaryDirectory, 'states');
+	const jvmTemporaryDirectory = path.join(temporaryDirectory, 'jvm-temp');
 	await mkdir(metadataDirectory);
+	await mkdir(jvmTemporaryDirectory);
 	let configPath = configuredConfigPath;
 	let configArgument = configPath;
 	let moduleArgument = modulePath;
@@ -245,6 +247,7 @@ async function runVariant(model, variant, recordFailure) {
 		const childResult = await runChild(
 			[
 				'-XX:+UseParallelGC',
+				`-Djava.io.tmpdir=${jvmTemporaryDirectory}`,
 				'-jar',
 				jarPath,
 				'-fp',

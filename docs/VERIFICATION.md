@@ -169,6 +169,13 @@ Local TLC execution requires Java 17 or newer and uses `java` from `PATH`. Set
 copy with the pinned SHA-256, or `ORCHBEE_TLA_TIMEOUT_MILLISECONDS` to apply a positive timeout
 override to every selected check.
 
+Each TLC invocation, including concurrent variants of one model, owns a unique temporary directory
+for both model-checking state and `java.io.tmpdir`. The pinned resolver extracts standard modules
+under fixed filenames and deletes them when its JVM exits; sharing the JVM temporary directory can
+truncate or remove another invocation's modules. Keep the directory until its child closes, then
+clean it through the existing runner lifecycle. This isolation does not change model concurrency,
+worker counts, deadlines, configuration, or coverage requirements.
+
 An unrelated implementation change does not require replaying an unchanged model. Passing an
 unchanged model also does not establish that its abstraction still corresponds to the
 implementation; deterministic tests and traceability evidence own that correspondence. A
