@@ -1559,6 +1559,7 @@ impl CommandMailbox {
                 | QueuedCommand::Refresh(_)
                 | QueuedCommand::ReconcileClose(_)
                 | QueuedCommand::Move(_)
+                | QueuedCommand::Rename(_)
         );
         if !marker_parent
             || state.active_lease

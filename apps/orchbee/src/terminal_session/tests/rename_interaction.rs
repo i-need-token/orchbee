@@ -9,6 +9,7 @@ struct RenameServer {
     teardown: Arc<AtomicBool>,
     snapshots: Arc<AtomicU8>,
     detached: Arc<AtomicBool>,
+    successor_ready: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Copy)]
@@ -19,6 +20,7 @@ enum RenameResponse {
     Recover,
     Removed,
     Successor,
+    SuccessorReady,
     WrongLabel,
     Unknown,
     LostSnapshot,
@@ -43,10 +45,13 @@ impl RenameServer {
         let snapshot_count = Arc::clone(&snapshots);
         let detached = Arc::new(AtomicBool::new(false));
         let saw_detach = Arc::clone(&detached);
+        let successor_ready = Arc::new(AtomicBool::new(false));
+        let saw_successor_feedback = Arc::clone(&successor_ready);
         let server = FakeServer::start(move |mut stream| {
             let result = (|| {
                 serve_native_controlling_frame(&mut stream, geometry)?;
                 accept_native_frame_feedback(&mut stream)?;
+                let mut successor_stage = 0;
                 loop {
                     let mut magic = [0; 4];
                     if stream.read_exact(&mut magic).is_err() {
@@ -88,7 +93,10 @@ impl RenameServer {
                                 };
                                 snapshot.revision =
                                     WorkbenchRevision::new(if ordinal == 0 { 2 } else { 3 });
-                                if matches!(response, RenameResponse::Successor) {
+                                if matches!(
+                                    response,
+                                    RenameResponse::Successor | RenameResponse::SuccessorReady
+                                ) {
                                     snapshot = super::move_refinements::two_tabs();
                                     snapshot.revision = WorkbenchRevision::new(3);
                                     snapshot.terminal_contexts[0].tabs.remove(0);
@@ -158,7 +166,9 @@ impl RenameServer {
                         {
                             assert!(matches!(
                                 response,
-                                RenameResponse::Removed | RenameResponse::Successor
+                                RenameResponse::Removed
+                                    | RenameResponse::Successor
+                                    | RenameResponse::SuccessorReady
                             ));
                             assert!(!saw_detach.swap(true, Ordering::SeqCst));
                             ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
@@ -172,36 +182,83 @@ impl RenameServer {
                                 TerminalViewerAction::AttachBinding { .. }
                             ) =>
                         {
-                            assert!(matches!(response, RenameResponse::Successor));
+                            assert!(matches!(
+                                response,
+                                RenameResponse::Successor | RenameResponse::SuccessorReady
+                            ));
                             assert!(saw_detach.load(Ordering::SeqCst));
                             assert!(
                                 matches!(request.action(), TerminalViewerAction::AttachBinding { terminal_id, .. } if terminal_id.as_str() == CREATED_TAB_ID)
                             );
-                            ServerMessage::TerminalViewerResult(TerminalViewerResult::new(request.request_id().clone(), TerminalViewerOutcome::Rejected { reason: orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable }))
+                            let outcome = if matches!(response, RenameResponse::SuccessorReady) {
+                                assert_eq!(successor_stage, 0);
+                                successor_stage = 1;
+                                TerminalViewerOutcome::Attached {
+                                    attachment_id: ViewerId::parse(SITE_ID)
+                                        .map_err(io::Error::other)?,
+                                    host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
+                                }
+                            } else {
+                                TerminalViewerOutcome::Rejected { reason: orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable }
+                            };
+                            ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                                request.request_id().clone(),
+                                outcome,
+                            ))
                         }
                         ClientMessage::TerminalViewer(request)
                             if request.action() == &TerminalViewerAction::Poll {} =>
                         {
+                            let outcome = if successor_stage == 3 {
+                                successor_stage = 4;
+                                TerminalViewerOutcome::Record(
+                                    full_frame_record(1, 1, geometry)
+                                        .map_err(|error| io::Error::other(error.to_string()))?,
+                                )
+                            } else {
+                                TerminalViewerOutcome::Empty {}
+                            };
                             ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
                                 request.request_id().clone(),
-                                TerminalViewerOutcome::Empty {},
+                                outcome,
+                            ))
+                        }
+                        ClientMessage::TerminalViewer(request)
+                            if matches!(
+                                request.action(),
+                                TerminalViewerAction::FrameApplied { .. }
+                            ) =>
+                        {
+                            assert_eq!(successor_stage, 4);
+                            successor_stage = 5;
+                            saw_successor_feedback.store(true, Ordering::SeqCst);
+                            ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                                request.request_id().clone(),
+                                TerminalViewerOutcome::FeedbackAccepted {},
                             ))
                         }
                         ClientMessage::TerminalControl(request) => {
                             let outcome = match request.action() {
+                                TerminalControlAction::Acquire {} => {
+                                    assert_eq!(successor_stage, 1);
+                                    successor_stage = 2;
+                                    TerminalControlOutcome::Acquired {
+                                        controller_id:
+                                            orchbee_client_server_protocol::ControllerId::parse(ID)
+                                                .map_err(io::Error::other)?,
+                                    }
+                                }
                                 TerminalControlAction::Input { bytes, .. } => {
                                     forwarded.lock().unwrap().extend(bytes.as_bytes());
                                     TerminalControlOutcome::InputAccepted {}
                                 }
                                 TerminalControlAction::Resize { geometry, .. } => {
+                                    if successor_stage == 2 {
+                                        successor_stage = 3;
+                                    }
                                     TerminalControlOutcome::Resized {
                                         geometry: *geometry,
                                     }
-                                }
-                                other => {
-                                    return Err(io::Error::other(format!(
-                                        "unexpected control {other:?}"
-                                    )));
                                 }
                             };
                             ServerMessage::TerminalControlResult(TerminalControlResult::new(
@@ -230,6 +287,7 @@ impl RenameServer {
             teardown,
             snapshots,
             detached,
+            successor_ready,
         })
     }
 
@@ -638,6 +696,57 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
         assert_eq!(server.commands.lock().unwrap().len(), 1);
         server.finish(session)?;
     }
+    Ok(())
+}
+
+#[test]
+fn renamed_removed_target_successor_finishes_setup_feedback_and_accepts_input() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let server = RenameServer::with_response(geometry, RenameResponse::SuccessorReady)?;
+    let (mut session, _) = native_session_with_identity(native_client(&server.server)?, geometry)?;
+    assert!(spin_with_draw(&mut session, |session| session.status()
+        == TerminalStatus::Controlling));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    let now = Instant::now();
+    input(
+        &mut dispatcher,
+        &mut session,
+        &mut view,
+        b"\x02,\x15renamed",
+        now,
+    );
+    draw(&mut session, &view, Locale::EnUs, 120, 32)?;
+    input(&mut dispatcher, &mut session, &mut view, b"\r", now);
+    assert!(
+        spin_with_draw(&mut session, |session| {
+            server.successor_ready.load(Ordering::SeqCst)
+                && session.status() == TerminalStatus::Controlling
+        }),
+        "successor must complete setup Poll and accepted draw feedback before Ready"
+    );
+    assert!(server.detached.load(Ordering::SeqCst));
+    assert!(
+        matches!(session.view(), TerminalSessionView::Native(view) if view.active_position() == Some(1))
+    );
+    assert_eq!(server.snapshots.load(Ordering::SeqCst), 1);
+    assert_eq!(server.commands.lock().unwrap().len(), 1);
+    let SessionBackend::Native(native) = &session.backend else {
+        unreachable!()
+    };
+    let (pending, known, unknown) = native.rename_receipts_for_test();
+    assert!(pending.is_none() && unknown.is_none());
+    assert_eq!(known.unwrap().revision(), WorkbenchRevision::new(2));
+    input(
+        &mut dispatcher,
+        &mut session,
+        &mut view,
+        b"successor-input",
+        now + Duration::from_secs(1),
+    );
+    spin(&mut session, |_| !server.inputs.lock().unwrap().is_empty());
+    assert_eq!(*server.inputs.lock().unwrap(), b"successor-input");
+    server.finish(session)?;
     Ok(())
 }
 
