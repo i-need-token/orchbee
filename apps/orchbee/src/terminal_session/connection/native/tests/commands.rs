@@ -970,35 +970,16 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
 fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_own_budget()
 -> TestResult {
     let geometry = fixture_geometry()?;
-    let mut harness = Harness::start(
-        vec![
-            WireKind::Obcs,
-            WireKind::Workbench,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Workbench,
-            WireKind::Workbench,
-            WireKind::Workbench,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Workbench,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-            WireKind::Obcs,
-        ],
-        geometry,
-    )?;
+    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 5]); // Initial Attach through accepted setup feedback.
+    // Pending Create validates its Snapshot before cleaning up the old viewer.
+    kinds.extend([WireKind::Workbench, WireKind::Workbench, WireKind::Obcs]);
+    kinds.push(WireKind::Workbench); // Restored Switch Snapshot; no viewer remains to detach.
+    kinds.extend([WireKind::Obcs; 5]);
+    kinds.push(WireKind::Obcs); // Held Poll spans both Switch admissions.
+    kinds.push(WireKind::Workbench); // Only the newest queued Switch reads a Snapshot.
+    kinds.extend([WireKind::Obcs; 6]); // Exact old-viewer Detach, then successor setup.
+    let mut harness = Harness::start(kinds, geometry)?;
     let (initial_key, _controller) = drive_controlling_ready(&mut harness, geometry)?;
     let (pending_key, _candidate) =
         drive_pending_create_to_selected_without_attachment(&mut harness, &initial_key)?;
@@ -1178,7 +1159,12 @@ fn drive_pending_create_to_selected_without_attachment(
         operation: ref actual, decision: CreateProjectionDecision::Cleanup(_),
     } if actual == &operation)
     );
-    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs().map_err(|error| {
+        test_error(&format!(
+            "committed Create cleanup after Snapshot must read Detach: {error}"
+        ))
+    })?
+    else {
         return Err(test_error("committed Create must detach the old viewer"));
     };
     assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
