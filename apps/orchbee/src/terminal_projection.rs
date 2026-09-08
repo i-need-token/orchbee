@@ -30,12 +30,14 @@ impl TerminalProjection {
     pub(crate) const fn frame(&self) -> Option<&TerminalTextFrame> {
         self.frame.as_ref()
     }
+    #[cfg(test)]
     pub(crate) const fn blocked(&self) -> bool {
         self.frame.is_none()
     }
     pub(crate) fn clear_frame(&mut self) {
         self.frame = None;
     }
+    #[cfg(test)]
     pub(crate) fn receive(&mut self, record: &[u8]) -> Result<Option<Feedback>, ()> {
         self.receive_for_geometry(record, None)
     }

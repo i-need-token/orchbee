@@ -1,21 +1,24 @@
+#[cfg(test)]
+use crate::terminal_projection::TerminalProjection;
 use crate::{
     client_view::{ClientAction, SessionActionDisposition},
     local_client::{LocalClient, LocalClientShutdown},
     terminal_input::{TerminalInputPort, TerminalInputUnavailable},
-    terminal_projection::TerminalProjection,
 };
+use orchbee_client_server_protocol::Geometry;
+#[cfg(test)]
 use orchbee_client_server_protocol::{
-    ControlInput, Geometry, RequestId, TerminalViewerAction, WorkingDirectory,
+    ControlInput, RequestId, TerminalViewerAction, WorkingDirectory,
 };
 use std::{
     fs::File,
     io::{self, Read},
-    sync::{
-        Arc,
-        mpsc::{self, Receiver, SyncSender, TryRecvError},
-    },
+    sync::Arc,
     thread::{self, JoinHandle},
 };
+
+#[cfg(test)]
+use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 
 mod connection;
 mod mailbox;
@@ -37,10 +40,15 @@ pub(crate) use ui::{
 #[derive(Clone, Debug)]
 pub(crate) enum TerminalIntent {
     Standalone,
-    Create { cwd: Option<WorkingDirectory> },
+    #[cfg(test)]
+    Create {
+        cwd: Option<WorkingDirectory>,
+    },
+    #[cfg(test)]
     Attach(RequestId),
 }
 
+#[cfg(test)]
 #[derive(Clone, Debug)]
 pub(super) enum LegacyIntent {
     Create { cwd: Option<WorkingDirectory> },
@@ -58,6 +66,7 @@ pub(crate) enum TerminalStatus {
 }
 
 pub(crate) enum TerminalSessionView<'a> {
+    #[cfg(test)]
     Legacy {
         projection: Option<&'a TerminalProjection>,
         status: TerminalStatus,
@@ -65,6 +74,7 @@ pub(crate) enum TerminalSessionView<'a> {
     Native(NativeSessionView<'a>),
 }
 
+#[cfg(test)]
 pub(super) enum LegacyCommand {
     Input(ControlInput),
     Resize(Geometry),
@@ -72,6 +82,7 @@ pub(super) enum LegacyCommand {
     Feedback(TerminalViewerAction),
 }
 
+#[cfg(test)]
 pub(super) enum LegacyEvent {
     Opened(TerminalProjection, bool),
     Polled(Option<Vec<u8>>),
@@ -79,6 +90,7 @@ pub(super) enum LegacyEvent {
     Failed(TerminalStatus),
 }
 
+#[cfg(test)]
 struct LegacySession {
     commands: Option<SyncSender<LegacyCommand>>,
     events: Option<Receiver<LegacyEvent>>,
@@ -91,11 +103,23 @@ struct LegacySession {
 
 enum SessionBackend {
     Native(Box<ui::NativeUi>),
+    #[cfg(test)]
     Legacy(Box<LegacySession>),
+}
+
+impl SessionBackend {
+    fn native_mut(&mut self) -> Option<&mut ui::NativeUi> {
+        match self {
+            Self::Native(native) => Some(native),
+            #[cfg(test)]
+            Self::Legacy(_) => None,
+        }
+    }
 }
 
 enum SessionTask {
     Native(JoinHandle<connection::NativeWorkerExit>),
+    #[cfg(test)]
     Legacy(JoinHandle<()>),
 }
 
@@ -139,6 +163,7 @@ impl TerminalSession {
                     recovery_shutdown: None,
                 })
             }
+            #[cfg(test)]
             TerminalIntent::Create { cwd } => Self::start_legacy(
                 client,
                 shutdown,
@@ -146,6 +171,7 @@ impl TerminalSession {
                 geometry,
                 identity_seed,
             ),
+            #[cfg(test)]
             TerminalIntent::Attach(request_id) => Self::start_legacy(
                 client,
                 shutdown,
@@ -156,6 +182,7 @@ impl TerminalSession {
         }
     }
 
+    #[cfg(test)]
     fn start_legacy(
         client: LocalClient,
         shutdown: LocalClientShutdown,
@@ -209,6 +236,7 @@ impl TerminalSession {
     pub(crate) fn view(&self) -> TerminalSessionView<'_> {
         match &self.backend {
             SessionBackend::Native(native) => TerminalSessionView::Native(native.view()),
+            #[cfg(test)]
             SessionBackend::Legacy(legacy) => TerminalSessionView::Legacy {
                 projection: legacy.projection.as_ref(),
                 status: legacy.status(),
@@ -219,6 +247,7 @@ impl TerminalSession {
     pub(crate) fn status(&self) -> TerminalStatus {
         match &self.backend {
             SessionBackend::Native(native) => native.status(),
+            #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.status(),
         }
     }
@@ -227,6 +256,7 @@ impl TerminalSession {
     pub(crate) fn projection(&self) -> Option<&TerminalProjection> {
         match &self.backend {
             SessionBackend::Native(native) => native.projection(),
+            #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.projection.as_ref(),
         }
     }
@@ -234,6 +264,7 @@ impl TerminalSession {
     pub(crate) fn tick(&mut self) -> bool {
         let changed = match &mut self.backend {
             SessionBackend::Native(native) => native.tick(),
+            #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.tick(&self.shutdown),
         };
         self.finalize_native_retirement();
@@ -245,13 +276,14 @@ impl TerminalSession {
         self.retirement_redraw_pending = false;
         match &mut self.backend {
             SessionBackend::Native(native) => native.after_draw(),
+            #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.after_draw(),
         }
         self.finalize_native_retirement();
     }
 
     pub(crate) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
-        if let SessionBackend::Native(native) = &mut self.backend {
+        if let Some(native) = self.backend.native_mut() {
             native.after_close_draw(receipt);
         }
     }
@@ -283,6 +315,7 @@ impl TerminalSession {
                 Err(_) => {
                     let evidence = match &self.backend {
                         SessionBackend::Native(native) => native.close_worker_loss(),
+                        #[cfg(test)]
                         SessionBackend::Legacy(_) => state::CloseWorkerReturn::Missing {
                             queued: None,
                             deposited: None,
@@ -290,18 +323,20 @@ impl TerminalSession {
                     };
                     let renamed = match &self.backend {
                         SessionBackend::Native(native) => native.rename_worker_loss(),
+                        #[cfg(test)]
                         SessionBackend::Legacy(_) => None,
                     };
                     (None, None, evidence, renamed)
                 }
             },
+            #[cfg(test)]
             Some(task @ SessionTask::Legacy(_)) => {
                 self.task = Some(task);
                 return;
             }
             None => return,
         };
-        let SessionBackend::Native(native) = &mut self.backend else {
+        let Some(native) = self.backend.native_mut() else {
             return;
         };
         let _rename_accepted = native.finalize_rename_worker(rename_return);
@@ -316,6 +351,7 @@ impl TerminalInputPort for TerminalSession {
     fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
         match &mut self.backend {
             SessionBackend::Native(native) => native.rename_input_context(),
+            #[cfg(test)]
             SessionBackend::Legacy(_) => None,
         }
     }
@@ -327,12 +363,13 @@ impl TerminalInputPort for TerminalSession {
     ) -> bool {
         match &mut self.backend {
             SessionBackend::Native(native) => native.edit_rename_draft(token, edit),
+            #[cfg(test)]
             SessionBackend::Legacy(_) => false,
         }
     }
 
     fn cancel_rename_draft(&mut self, token: NativeRenameDraftToken) {
-        if let SessionBackend::Native(native) = &mut self.backend {
+        if let Some(native) = self.backend.native_mut() {
             native.cancel_rename_draft(token);
         }
     }
@@ -343,6 +380,7 @@ impl TerminalInputPort for TerminalSession {
     ) -> Option<SessionActionDisposition> {
         let disposition = match &mut self.backend {
             SessionBackend::Native(native) => Some(native.submit_rename_draft(token)),
+            #[cfg(test)]
             SessionBackend::Legacy(_) => None,
         };
         self.finalize_native_retirement();
@@ -350,7 +388,7 @@ impl TerminalInputPort for TerminalSession {
     }
 
     fn invalidate_rename_display(&mut self) {
-        if let SessionBackend::Native(native) = &mut self.backend {
+        if let Some(native) = self.backend.native_mut() {
             native.invalidate_rename_display();
         }
     }
@@ -358,6 +396,7 @@ impl TerminalInputPort for TerminalSession {
     fn capture_confirmation_key(&mut self, key: crate::client_view::ClientKey) -> bool {
         let captured = match &mut self.backend {
             SessionBackend::Native(native) => native.capture_confirmation_key(key),
+            #[cfg(test)]
             SessionBackend::Legacy(_) => false,
         };
         self.finalize_native_retirement();
@@ -365,13 +404,14 @@ impl TerminalInputPort for TerminalSession {
     }
 
     fn invalidate_close_display(&mut self) {
-        if let SessionBackend::Native(native) = &mut self.backend {
+        if let Some(native) = self.backend.native_mut() {
             native.invalidate_close_display();
         }
     }
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         let accepted = match &mut self.backend {
             SessionBackend::Native(native) => native.forward(input),
+            #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.forward(input).is_ok(),
         };
         self.finalize_native_retirement();
@@ -388,6 +428,7 @@ impl TerminalInputPort for TerminalSession {
         }
         let disposition = match &mut self.backend {
             SessionBackend::Native(native) => Some(native.apply_client_action(action)),
+            #[cfg(test)]
             SessionBackend::Legacy(_) => None,
         };
         self.finalize_native_retirement();
@@ -397,6 +438,7 @@ impl TerminalInputPort for TerminalSession {
     fn observe_geometry(&mut self, geometry: Geometry) {
         match &mut self.backend {
             SessionBackend::Native(native) => native.observe_geometry(geometry),
+            #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.resize(geometry),
         }
         self.finalize_native_retirement();
@@ -407,16 +449,19 @@ impl Drop for TerminalSession {
     fn drop(&mut self) {
         match &mut self.backend {
             SessionBackend::Native(native) => native.close(state::CarrierFailure::Closed),
+            #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.retire(legacy.status, &self.shutdown),
         }
         self.finalize_native_retirement();
         let _closed = self.shutdown.close();
+        #[cfg(test)]
         if let Some(SessionTask::Legacy(task)) = self.task.take() {
             let _joined = task.join();
         }
     }
 }
 
+#[cfg(test)]
 impl LegacySession {
     fn status(&self) -> TerminalStatus {
         if self
@@ -541,8 +586,10 @@ fn random_identity_seed() -> io::Result<u128> {
     Ok(u128::from_be_bytes(seed))
 }
 
+#[cfg(test)]
 pub(super) struct Identities(u128);
 
+#[cfg(test)]
 impl Identities {
     pub(super) fn next(&mut self) -> Result<RequestId, TerminalStatus> {
         self.0 = self.0.checked_add(1).ok_or(TerminalStatus::Unavailable)?;

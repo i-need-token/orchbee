@@ -11,9 +11,10 @@ use orchbee_workbench_protocol::{
 
 mod flight;
 mod reconciliation;
+#[cfg(test)]
+pub(in crate::terminal_session) use flight::CloseReadMode;
 pub(in crate::terminal_session) use flight::{
-    CloseOperation, CloseOperationKind, CloseReadMode, CloseResult, CloseWorkerReturn,
-    PendingCloseResult,
+    CloseOperation, CloseOperationKind, CloseResult, CloseWorkerReturn, PendingCloseResult,
 };
 pub(in crate::terminal_session) use reconciliation::CloseLeaseAcknowledgement;
 pub(super) use reconciliation::PreparedCloseConsumption;

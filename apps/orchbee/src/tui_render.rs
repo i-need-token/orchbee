@@ -11,10 +11,12 @@ use crate::{
     localization::{Locale, ShellText},
     terminal_session::{
         NativeDisplayPhase, NativeDrawReceipt, NativeProjectionStatus, NativeRefreshStatus,
-        NativeSessionView, NativeTabView, TerminalSessionView, TerminalStatus,
+        NativeSessionView, NativeTabView, TerminalSessionView,
     },
     tui_layout::{ShellAreas, SidebarArea, SidebarLayer, centered_overlay, project_shell_areas},
 };
+
+use crate::terminal_session::TerminalStatus;
 
 mod tab_close;
 mod tab_rename;
@@ -66,6 +68,7 @@ pub(crate) fn render_terminal_shell(
             );
             text.backend_status.to_owned()
         }
+        #[cfg(test)]
         Some(TerminalSessionView::Legacy { projection, status }) => {
             render_unavailable_workbench(
                 frame,
@@ -115,9 +118,11 @@ pub(crate) fn render_terminal_shell(
             Some(TerminalSessionView::Native(native)) => {
                 render_native_workbench_navigator(frame, area, text, locale, native)
             }
-            None | Some(TerminalSessionView::Legacy { .. }) => {
+            #[cfg(test)]
+            Some(TerminalSessionView::Legacy { .. }) => {
                 render_unavailable_workbench_navigator(frame, area, text)
             }
+            None => render_unavailable_workbench_navigator(frame, area, text),
         }),
         Some(Overlay::BusinessSidebar) => areas.sidebar.map(|sidebar| sidebar.area),
         None => None,
@@ -205,6 +210,7 @@ fn render_unavailable_workbench(
     );
 }
 
+#[cfg(test)]
 fn render_legacy_terminal(
     frame: &mut Frame<'_>,
     panel: Rect,

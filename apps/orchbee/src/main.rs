@@ -50,13 +50,6 @@ use presentation::{ProcessResult, present};
 #[cfg(unix)]
 const _: fn(localization::Locale) -> Result<(), tui_shell::TuiFailure> = tui_shell::run;
 
-#[cfg(unix)]
-const _: fn(
-    localization::Locale,
-    local_client::LocalClient,
-    terminal_session::TerminalIntent,
-) -> Result<(), tui_shell::TuiFailure> = tui_shell::run_connected;
-
 fn main() -> ExitCode {
     let locale = select_locale(|name| env::var_os(name));
     let invocation = parse_invocation(env::args_os().skip(1));

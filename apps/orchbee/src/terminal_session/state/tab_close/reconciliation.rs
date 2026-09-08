@@ -27,9 +27,11 @@ impl CloseReconciliationOrigin {
     pub(in crate::terminal_session) const fn key(&self) -> &CloseFlightKey {
         &self.key
     }
+    #[cfg(test)]
     pub(in crate::terminal_session) const fn operation(&self) -> &WorkbenchRequestId {
         &self.operation
     }
+    #[cfg(test)]
     pub(in crate::terminal_session) const fn attempt_generation(
         &self,
     ) -> WorkbenchTabCloseAttemptGeneration {
@@ -486,6 +488,7 @@ impl NativeSessionState {
         })
     }
 
+    #[cfg(test)]
     pub(in crate::terminal_session) fn definitive_closed_attachment_for(
         &self,
         attachment: &AttachmentKey,

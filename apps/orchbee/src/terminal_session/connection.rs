@@ -1,28 +1,36 @@
+use super::TerminalStatus;
 use super::workbench_projection::NativeTerminalBinding;
-use super::{Identities, LegacyCommand, LegacyEvent, LegacyIntent, TerminalStatus};
+#[cfg(test)]
+use super::{Identities, LegacyCommand, LegacyEvent, LegacyIntent};
 use crate::{
-    local_client::{LocalClient, SubmissionError},
-    terminal_projection::TerminalProjection,
+    local_client::LocalClient,
     terminal_session::state::{PendingCloseResult, PendingCreateCommit, PendingMoveCommit},
 };
+#[cfg(test)]
+use crate::{local_client::SubmissionError, terminal_projection::TerminalProjection};
+#[cfg(test)]
 use orchbee_client_server_protocol::{
-    ControlRejectedReason, CreateAcceptedState, CreateOutcome, Geometry, SiteId as ObcsSiteId,
-    StartMode, TerminalControlAction as Control, TerminalControlOutcome as ControlOutcome,
-    TerminalCreateRequest, TerminalId as ObcsTerminalId, TerminalViewerAction as Viewer,
-    TerminalViewerOutcome as ViewerOutcome, WorkerId as ObcsWorkerId,
+    ControlRejectedReason, CreateAcceptedState, CreateOutcome, StartMode,
+    TerminalControlAction as Control, TerminalControlOutcome as ControlOutcome,
+    TerminalCreateRequest, TerminalViewerOutcome as ViewerOutcome,
 };
+use orchbee_client_server_protocol::{
+    Geometry, SiteId as ObcsSiteId, TerminalId as ObcsTerminalId, TerminalViewerAction as Viewer,
+    WorkerId as ObcsWorkerId,
+};
+#[cfg(test)]
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::SiteId as WorkbenchSiteId;
+use std::sync::Arc;
+#[cfg(test)]
 use std::{
     num::NonZeroU64,
-    sync::{
-        Arc,
-        mpsc::{Receiver, SyncSender},
-    },
+    sync::mpsc::{Receiver, SyncSender},
 };
-
+#[cfg(test)]
 mod backpressure;
 mod native;
+#[cfg(test)]
 use backpressure::{control, viewer};
 #[cfg(target_os = "linux")]
 pub(super) use native::{RecoveryShutdown, run_status_recovery};
@@ -95,6 +103,7 @@ impl NativeWorkerExit {
     }
 }
 
+#[cfg(test)]
 pub(super) fn run_legacy(
     mut client: LocalClient,
     intent: LegacyIntent,
@@ -234,6 +243,7 @@ fn attach_binding(site_id: &WorkbenchSiteId, binding: &NativeTerminalBinding) ->
     })
 }
 
+#[cfg(test)]
 fn submission(error: SubmissionError) -> TerminalStatus {
     match error {
         SubmissionError::OutcomeUnknown { .. } => TerminalStatus::OutcomeUnknown,

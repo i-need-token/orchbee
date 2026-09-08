@@ -34,11 +34,12 @@ pub(crate) use tab_close::{
     CloseConfirmationKind, CloseConfirmationToken, CloseStatusKind, CloseStatusToken,
 };
 pub(super) use tab_close::{
-    CloseConfirmationView, CloseFlightKey, CloseIntent, CloseLeaseAcknowledgement, CloseOperation,
-    CloseOperationKind, CloseReadMode, CloseReconciliationMarker, CloseResult, CloseSelection,
-    CloseState, CloseStateError, CloseStatusView, CloseTarget, CloseWorkerReturn,
-    DefinitiveClosedAttachment, PendingCloseResult,
+    CloseConfirmationView, CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation,
+    CloseOperationKind, CloseReconciliationMarker, CloseResult, CloseState, CloseStateError,
+    CloseStatusView, CloseWorkerReturn, DefinitiveClosedAttachment, PendingCloseResult,
 };
+#[cfg(test)]
+pub(super) use tab_close::{CloseIntent, CloseReadMode, CloseSelection, CloseTarget};
 
 pub(super) const OPERATION_TOTAL: Duration = Duration::from_secs(50);
 pub(super) const CLEANUP_RESERVE: Duration = Duration::from_secs(5);

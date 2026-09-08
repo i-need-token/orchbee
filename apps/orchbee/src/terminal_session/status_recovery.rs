@@ -8,7 +8,7 @@ impl TerminalSession {
         let Some(origin) = self.origin.clone() else {
             return false;
         };
-        let SessionBackend::Native(native) = &mut self.backend else {
+        let Some(native) = self.backend.native_mut() else {
             return false;
         };
         let Some((mailbox, clock)) = native.begin_status_recovery() else {

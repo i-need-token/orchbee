@@ -661,9 +661,12 @@ old Input and Resize emitted no request. It also checks still-owned pre-Switch I
 recovery. Run `cargo test --locked -p orchbee --bin orchbee terminal_session::` for these state and
 consumer checks. Full native binary tests also require the existing Server, Worker and terminal-host
 process binaries. These checks do not construct a Gone proof or establish complete Close integration.
-Strict Clippy currently reports 27 independent diagnostics in the staged Rename interfaces, legacy
-`TerminalIntent::{Create, Attach}` and `AwaitingCommittedProjection` paths, and Close state names or
-helpers used only by tests. These warnings are not suppressed or counted as a passing lint gate.
+The production entry is `TerminalIntent::Standalone`. Legacy `Create`/`Attach`, their executor and
+renderer, and the connected legacy TUI entry are compiled only for tests. Their existing process
+witness retains its rendering, input, resize and terminal-mode restoration assertions; it does not
+establish the production startup path. Close inspection helpers and reexports used only by tests
+have the same explicit boundary. The obsolete `AwaitingCommittedProjection` fixture state still
+requires migration before strict Clippy can pass; no warning is suppressed.
 
 Required owner-model extensions are ID/provenance remapping and structural flight/recovery in
 `NativeClientRefreshFence`, created-member moved before correlated projection in

@@ -150,6 +150,7 @@ pub(crate) fn run(locale: Locale) -> Result<(), TuiFailure> {
     run_with_client(locale, None)
 }
 
+#[cfg(test)]
 pub(crate) fn run_connected(
     locale: Locale,
     client: crate::local_client::LocalClient,
