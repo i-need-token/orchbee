@@ -1,6 +1,16 @@
 ------------------------- MODULE DesktopTerminalArchive -------------------------
 EXTENDS Naturals, TLC
 
+\* This machine covers disposal of one retiring terminal generation. host is
+\* that retired generation's Host; StartFresh is the terminal cleanup
+\* postcondition and does not create the next generation or its Host. Fresh
+\* identity/provisioning is checked by TerminalPresentationStop.
+\*
+\* capture and its row/byte summary denote the product association that the
+\* retiring presentation can address. "removed" means logical detachment, not
+\* successful deletion of every physical archive file. Post-rename artifacts,
+\* best-effort unlink, and orphan reconciliation remain outside this model.
+
 MaxRows == 3
 MaxBytes == 3
 
@@ -214,6 +224,9 @@ StoppedProjection ==
     /\ surface = IF capture = "stored" THEN "archive" ELSE "empty"
 
 FreshNeverMergesArchive ==
+  \* Scoped to clearing the retired generation's logical archive association.
+  \* Content provenance for a separately identified fresh generation is not
+  \* represented by mergedHistory in this one-generation model.
   presentation = "fresh" =>
     /\ capture = "removed"
     /\ archivedRows = 0
@@ -225,6 +238,7 @@ FreshNeverMergesArchive ==
 NoTransitionMergesHistory == ~mergedHistory
 
 ClosedHasNoArchive ==
+  \* "No archive" means no product-addressable association in this abstraction.
   presentation = "closed" =>
     /\ capture = "removed"
     /\ archivedRows = 0

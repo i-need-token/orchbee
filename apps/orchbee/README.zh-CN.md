@@ -1,10 +1,9 @@
 # Orchbee 原生入口
 
-这是已接受 native-command foundation 与 local-terminal milestone 的 experimental、尚未发布 Rust
-process entry、application-private 本机 Client transport 与 rendezvous primitive，以及已检查的
-Client-side 本机 Site activation refinement，以及已暂存但尚未通过入口调用、带已连接单终端 adapter 的 TUI shell。产出的
-executable 名为 `orchbee`。它参与根 Cargo verification gate，但不被 Desktop、packaging、installer
-或 package manager 消费。
+实验性、尚未打包发布的原生 Rust Client。在 Linux 上，裸命令从已校验的开发 cohort
+连接或启动本地 Site，取得第一个已校验的终端 projection frame 后进入 TUI。原生 Client 可以创建、
+选择、移动和刷新共享 Tab，同时保持独立选择与保留的终端进程。远程和完整 Workbench 操作尚未接入。
+产物名为 `orchbee`，参与根 Cargo 验证；Desktop、安装器和包管理器尚未消费它。
 
 英文规范原文：
 [README.md](README.md)。
@@ -20,15 +19,65 @@ orchbee --help
 orchbee --version
 ```
 
-裸调用选择未来 TUI route，并报告本地化的 development-unavailable result。它不检查 terminal
-device、不进入 terminal mode、不注册 signal，也不渲染已暂存的 shell。`--help` 与 `--version`
-保持完全一致的输出，同样无需初始化 TUI 或 backend 就会完成。其他、额外或非 Unicode argument
-都是 usage failure。不存在 short flag、alias、abbreviation、业务命令、target discovery、
-current-directory inference 或 compatibility behavior。
+Linux 裸调用先准入继承的同一输入/输出 TTY 和有效 cell/pixel geometry，再运行下面的本地启动流程。
+其他平台仍返回本地化不可用结果。`--help` 与 `--version` 不初始化 TUI 或服务。
+其他、额外或非 Unicode 参数都是 usage failure；不提供缩写、业务命令或远程选择。
 
-Help 只写 stdout。Unavailable 与 usage result 只写 stderr。Version 向 stdout 写一行与 locale
-无关的 `orchbee <version>`。Development exit status 仍为：help 与 version 为 `0`，不可用的裸 TUI
-route 为 `1`，usage failure 为 `2`。这些值不是未来 stable public exit table。
+Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关的 `orchbee <version>`。
+正常关闭 TUI、help、version 的开发退出状态为 `0`；启动/运行失败为 `1`；usage failure 为 `2`。
+这些不是未来稳定公开退出状态表。
+
+## Linux 本地启动
+
+从仓库根目录构建一个新的开发 cohort：
+
+```sh
+node scripts/stage-native-site.mjs --output /tmp/orchbee-native-dev
+# Windows 主机使用 WSL Linux：
+node scripts/stage-native-site.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
+```
+
+随后在交互式 Linux 终端执行 `/tmp/orchbee-native-dev/orchbee`。
+脚本从锁定输入重新构建三个 Rust release 二进制和 Zig ReleaseSafe Host；
+已有输出目录会被拒绝。可用 `--cargo-target-dir <absolute-directory>` 复用 Cargo 构建缓存。
+这不是系统安装，也不替换现有 TypeScript CLI。
+
+默认 Site 位于 `/tmp/orchbee-native-<effective-uid>`；开发和测试可将
+`ORCHBEE_RUNTIME_BASE` 指向另一个已有绝对目录来隔离 Site。
+[共享运行时契约](../../crates/local-site-runtime/README.zh-CN.md) 定义 0700 目录、
+0600 锁/socket/不可变启动标记、四产物精确 cohort、20 秒共用截止时间和 500 毫秒延迟提示。
+Server + Worker 就绪与终端首帧就绪是不同阶段。初始 Open、snapshot read、attach、acquire、
+获权后的 resize 以及首帧 Poll 都使用原启动截止时间。原生 Ready 要求完整帧已绘制、其精确反馈已获接受，
+并满足当前控制模式尺寸。Worker 消费 Ready reply 后才恢复常规请求预算。
+未绘制的 FrameApplied 不会提前发送；NeedSnapshot 恢复反馈可以继续推进首帧获取。
+
+Client 不重启或接管异常 Site。失败/残留运行时明确要求恢复，不自动删除。
+`Ctrl+B q` 或 `Ctrl+B d` 只关闭 Client；再次打开连接同一个保留 shell。
+同时打开的其他 Client 只读，除非它取得独立 controller grant。
+TTY 只准入一次，所有复制描述符均带 CLOEXEC，准备好的 Session 和同一 TTY 交给界面。
+当前要求终端报告真实且有效的 cell/pixel 尺寸；不推测缺失的像素值。
+Linux 是唯一已有公共启动进程证据的平台；尚不承诺发布性能预算。
+
+## 原生 Tab 交互
+
+Standalone 原生 Session 呈现 Server 的有序 Tab 和 canonical 标签。每个 Client 独立拥有活动选择、
+navigator 与 viewport；另一 Client 新建的 Tab 在显式刷新后可见。以下操作沿用 `Ctrl+B` 前缀：
+
+| 按键      | 已连接原生行为                                            |
+| --------- | --------------------------------------------------------- |
+| `c`       | 请求一次 Server 拥有的 Tab 创建，再选择已验证的提交成员。 |
+| `n` / `p` | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。        |
+| `1` … `9` | 该位置存在时选择它。                                      |
+| `<` / `>` | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。            |
+| `w`       | 打开 navigator 并刷新共享 Tab，保留活动终端身份。         |
+| `q` / `d` | 关闭此 Client，保留的执行继续运行。                       |
+
+创建会排空此前已接受的工作，并在截止时间或 Client 退役时保留已知提交事实。
+切换先释放旧 viewer，再附着所选 binding；不会停止或重建任一终端。
+移动改变共享顺序，同时保留活动终端及其 viewer/controller。如果 Move 已提交且快照返回明确的 denied/unavailable 结果，
+Client 保留终端交互，并通过 `w` 显式恢复快照后才允许下一次结构操作。
+[原生 Session 契约](docs/native-tab-session.zh-CN.md) 定义准入、尺寸、反馈、失败、恢复与证据边界。
+本 cohort 尚不提供 Tab Close 和 Panel 操作。
 
 ## 私有本机 Client transport
 
@@ -36,10 +85,13 @@ route 为 `1`，usage failure 为 `2`。这些值不是未来 stable public exit
 cohort。它把 admission 委托给 `orchbee-local-client-protocol`：该 crate 在连接前验证 cohort，证明
 Server 与当前进程具有相同 effective operating-system user，以两秒 read/write timeout 执行确切
 `OBLC` handshake，并返回 accepted generation 与同一条无 buffer stream。这些既有 handshake
-timeout 仍是独立的 OBLC boundary；本切片不为 connect 加 handshake 增加单一 total deadline。
-application 在进入 `OBCS` phase 前把 admitted stream 切换为 nonblocking I/O。
+timeout 仍是独立的 OBLC boundary。在 Linux 上，私有 `LocalClient::connect_before` 将调用方的
+绝对单调时钟截止时间贯穿连接、peer proof、hello、响应与最终准入。
+[所属 adapter 与正确性记录](../../crates/local-client-protocol/README.zh-CN.md#linux-有截止时间的连接准入)
+定义失败清理与截止时间不续期保证。两条路径都在 `OBCS` 前将 admitted stream 切换为
+nonblocking I/O。常规请求有独立预算；本地初始请求受原启动截止时间约束。macOS 截止时间准入尚未完成。
 
-`submit_terminal_create`、`submit_terminal_start`、`submit_terminal_viewer` 与 `submit_terminal_control` 各自取得一条已经验证的 typed request 的
+`submit_terminal_open`、`submit_terminal_create`、`submit_terminal_start`、`submit_terminal_viewer` 与 `submit_terminal_control` 各自取得一条已经验证的 typed request 的
 ownership，并在提交前 encode 完整 OBCS frame。Encoding failure 是 definite failure，并保留
 Session。Encoding 成功后启动一个五十秒 monotonic deadline，覆盖完整 frame write 与一次 Server-frame
 read；每次 readiness wait 都重新计算剩余 budget，因此 partial progress 不会续期。第一次 write
@@ -49,10 +101,8 @@ effect outcome 成为 typed `OutcomeUnknown` 并让 connection 退役。transpor
 request 供 replay。Server 返回的正确 correlated `outcome-unknown` 是有效 OBCS result，而不是
 transport ambiguity。
 
-当前 invocation 不会到达该 transport。私有已连接 TUI 现已消费已准入 `LocalClient`、分配新的
-request identity 并提交 Create、查看和控制意图。Endpoint selection/discovery、activation、
-reconnection、reconciliation 与公开入口接线仍是独立边界。仅允许关闭的 `LocalClientShutdown`
-handle 让 TUI 可以停止阻塞的 exchange，而不获得额外 stream reader 或 writer。
+Linux 裸入口通过该 transport 提交独立 Open、查看和控制意图。仅允许关闭的 `LocalClientShutdown`
+handle 停止阻塞 exchange，不增加 stream reader 或 writer。重连和结果协调仍未提供。
 
 五十秒提交上限容纳 Server 一个排队及一个在途 Worker exchange（各自最多两秒 write 加二十秒
 read）和 Client 结果交付。Handshake 限制保持独立。查看提交验证 action/outcome 兼容性与精确
@@ -104,10 +154,12 @@ Session 丢失后的 cleanup 可超出单次提交 deadline。
 | LC-04：只有 exact kind 与 identity 才完成；correlated Server `outcome-unknown` 是数据而非 transport ambiguity。 | Exact Create/Start、wrong-kind、wrong-ID 与 correlated-unknown fake-Server test 覆盖 result classifier。                                                                  | Matching 与 wrong-result arrival action；`AcceptedResultIsExactAndBeforeDeadline`。                             |
 | LC-05：一个 monotonic deadline 覆盖完整 write 与 read，progress 不会续期。                                      | `SubmissionDeadline` 只创建一次；每个 readiness boundary 重新计算余量。Stepping-clock test 在 read 与 write 两侧制造 sub-deadline byte progress，直到 total budget 用尽。 | `WriteDeadlineExpires`、`ResultDeadlineExpires`、`RetireTimedOutResult`；`TimeoutCannotProduceAcceptedResult`。 |
 
-## 已暂存的 TUI shell 底座
+## TUI shell 底座
 
-以下 application-private module 会编译和测试，但当前 invocation 不会进入它们。未连接的 `run`
-adapter 保留下面的 unavailable shell 行为；`run_connected` 组合下一节已接受的终端细化：
+Linux 启动流程将同一已准入 TTY 和准备好的 Session 交给这些 application-private module。
+未连接的 `run` 与显式 `run_connected` adapter 保留为内部测试接缝：
+
+下面的输入与转换表描述未连接时的 fallback。已连接 standalone Tab 操作由上文的原生 Session 处理。
 
 | 关注点      | 当前契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -116,7 +168,7 @@ adapter 保留下面的 unavailable shell 行为；`run_connected` 组合下一�
 | Client View | 每个 invocation 拥有 prefix mode、viewport class、sidebar projection、active overlay 与 transient notice。它不拥有任何共享 Tab、Panel、Workspace、Site 或 Terminal fact，也不持久化任何内容。                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 布局        | 96 列及以上时，30 列 Orchbee business sidebar 停靠在 Workbench region 左侧。更窄 viewport 让 Workbench 占满宽度，sidebar 只作为左侧 overlay 显示。Workbench projection 包含 Tab strip 与 Panel/Terminal region，但会将其标记为不可用，而不会伪造共享数据。                                                                                                                                                                                                                                                                                                                                                       |
 | 输入        | 已暂存 adapter 每次最多从已准入 stdin descriptor poll 并读取 4,096 个 raw byte。每次完整 read 都会先依序 dispatch，之后才允许后续 signal、viewport query 或 resize decision 结束本轮 loop。`Ctrl+B` 进入可见 prefix mode。`b`、`w`、`?`、`q` 与 `d` 只驱动本地 shell state 或退出。Typed Tab 与 Panel action 保持不可用。在 prefix mode 外，所有 byte——包括 `Ctrl+C`、`Ctrl+D`、escape sequence、UTF-8，以及 overlay 可见时的输入——都会依序到达可注入 terminal-input port；prefix 后的 `Ctrl+B` 会 forwarding 一个 literal byte。                                                                                |
-| 结果        | 当前没有 command 进入此 shell。此 seam 不宣称 Server、Client Session、真实 terminal、detach、attachment、retained-terminal、activation、Workbench mutation 或 Site-lifetime behavior。                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 结果        | Shell 消费准备好的 Session。Bootstrap 拥有激活，Server 拥有终端身份，Host 拥有终端生命周期。Shell 不改变 Workbench 状态。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 确定性 Client View transition model 如下：
 
@@ -128,7 +180,7 @@ adapter 保留下面的 unavailable shell 行为；`run_connected` 组合下一�
 | Prefix + `w` 或 `?`                            | 离开 Prefix，并在本地打开 Workbench navigator 或 shortcut-help overlay。                                                                                                                                             |
 | Prefix + `c`、`n`、`p`、`1` … `9` 或 `h/j/k/l` | 离开 Prefix，保持共享状态不变，并把映射后的 backend-dependent action 显示为不可用；不提交 command。                                                                                                                  |
 | Prefix + `Ctrl+B`                              | 离开 Prefix，并向 terminal-input port 提供一个 literal `Ctrl+B` event。                                                                                                                                              |
-| Prefix + `q` 或 `d`                            | 离开 Prefix，并关闭这个 unavailable shell。                                                                                                                                                                          |
+| Prefix + `q` 或 `d`                            | 离开 Prefix，并关闭此 Client shell。                                                                                                                                                                                 |
 | Prefix + `Esc`                                 | 取消 Prefix，且不改变 overlay。在 Prefix 外，`Esc` 及其后续 byte 都是普通 terminal input。                                                                                                                           |
 | Resize                                         | 查询已准入 stdout descriptor，更新 fixed backend viewport，并且只重新计算 Client-local viewport class。进入 narrow mode 会隐藏停靠 sidebar；回到 wide 会关闭 sidebar overlay，并恢复此前的 wide-sidebar preference。 |
 | Event/draw error、panic 或 termination signal  | 停止 loop，并尝试恢复 cursor、alternate-screen 与 raw-mode，不启动或停止其他 process。                                                                                                                               |
@@ -137,7 +189,7 @@ adapter 保留下面的 unavailable shell 行为；`run_connected` 组合下一�
 保留一个有界 restoration owner。Unit test 覆盖 state、input-port、fixed-backend、layout、renderer、
 真实 PTY 的 same-terminal admission、实际 panic hook、全部四种 signal、cross-thread setup
 interleaving、post-read viewport/resize failure 与 lifecycle fault injection。Native PTY process test
-则分别证明当前 bare/help/version path 不改变 terminal mode、Linux PTY master 在最后一个 slave
+则分别证明缺失 cohort 的 bare 与 help/version path 不改变 terminal mode、Linux PTY master 在最后一个 slave
 关闭后的 `EIO` 是正常 hangup，并且 linked public binary 不包含 `/dev/tty` 或 `tput` fallback token。
 已暂存 runtime 及其全部 third-party dependency 仅支持 Unix；Windows target dependency tree 让当前
 one-shot CLI 不包含这些 dependency，且不宣称 Windows TUI runtime 或 signal-restoration 支持。
@@ -146,8 +198,10 @@ one-shot CLI 不包含这些 dependency，且不宣称 Windows TUI runtime 或 s
 
 已接受的本地终端里程碑让私有 TUI 成为 `LocalClient` 的实际消费者：`run_connected` 接收已准入
 Client 和显式创建或附着意图。它不选择 endpoint、激活服务、改变公开语法或发布共享 Workbench
-事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；裸入口 rendezvous 和
-lazy activation 仍是后续缺失的集成边界。
+事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；Linux 裸入口在完成有界 Site 激活后，通过同一准备接缝进入 shell。
+
+下面的记录保留显式私有 Create/Attach adapter 及其回归测试。Standalone 启动使用原生 Tab Session，
+不使用该 adapter 的单终端队列。
 
 | 字段   | 契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -156,13 +210,44 @@ lazy activation 仍是后续缺失的集成边界。
 | 数据   | 一个拥有连接的 task、八条排队 command（每条 input 最多 4,096 byte）、一个 response slot、一个待发 frame feedback、一个有界文本投影、新 request ID 和一个 controller sequence。只有 Host 拥有 VT 和 history。获取已有终端也提交初始 panel geometry；input 与后续 resize 共用同一递增 sequence。                                                                                                                                                                                                            |
 | 输出   | Create/attach 和显式 acquire、按序准入的原始输入和 geometry、文本／style／cursor 呈现、精确 applied feedback 或 NeedSnapshot、本地化连接中／只读／blocked／失败状态，以及仅针对 Session 的清理。                                                                                                                                                                                                                                                                                                          |
 | 不变量 | UI 线程不执行 Server I/O。Task 串行交换且不重试副作用。队列已满的输入被明确判定为未提交。Unknown outcome 关闭 task 并丢弃未发送 command。没有 task 超过其 TUI owner 的生命周期。                                                                                                                                                                                                                                                                                                                          |
-| 模型   | Opening -> 已附着 controller 或只读 viewer -> polling -> 收到 record -> 原子文本投影提交 -> draw -> feedback -> polling。控制意图与单一 projection flight 分开排队。关闭会 shutdown 已准入 socket 并 join task；Server 拥有按代次划分的 detach cleanup。                                                                                                                                                                                                                                                  |
+| 模型   | Opening -> 按需执行 standalone snapshot selection -> 已附着 controller 或只读 viewer -> polling -> 收到 record -> 原子文本投影提交 -> draw -> feedback -> polling。控制意图与单一 projection flight 分开排队。关闭会 shutdown 已准入 socket 并 join task；Server 拥有按代次划分的 detach cleanup。                                                                                                                                                                                                        |
 | 决策   | Snapshot 替换全部行且不回退已提交 revision（包括 projection reset 后）；delta 要求精确 attachment、epoch、sequence、generation、base revision、screen 和 geometry。无效内容请求新 snapshot 且不应用任何行。错误 envelope 或 scope 让 Session 退役。ProjectionBlocked 清除呈现，直到更高 revision 的 snapshot。没有自动提升 controller、reconnect 或 unknown input 重放。                                                                                                                                  |
 | 依赖   | 既有 OBCS 和 Rust Terminal Protocol binding、有界 channel、POSIX socket shutdown、已准入 descriptor、现有 Ratatui renderer 和本地化文案。不增加三方依赖、直连 Host 路径或 VT 模拟器。                                                                                                                                                                                                                                                                                                                     |
 | 所有权 | `terminal_session` 拥有连接 task 和输入准入；`terminal_projection` 拥有 Client 文本状态和反馈；Terminal Protocol binding 拥有有界 OBTF 文本解码；shell 拥有 mode 与 draw 顺序。                                                                                                                                                                                                                                                                                                                           |
 | 验证   | Canonical OBTF fixture、畸形／边界分区、确定性的 snapshot/delta 和队列／退役轨迹、render buffer 断言，以及真实进程／PTY 见证。既有 LocalClientSubmission 和 LocalTerminalRelay 映射 transport 退役及 projection/control 顺序；其有限边界不是性能保证。                                                                                                                                                                                                                                                    |
 | 限制   | 投影文本 cell 和基本 style/cursor；排除 graphics、hyperlink 激活、history、selection、terminal interaction-mode negotiation、cursor shape 对齐和完整 Workbench 行为。不支持的 cell width 使用替代字形。缺失或无效的继承 cell/pixel geometry 会在 Create 或初始 attach 前拒绝，或经恢复边界结束活动 TUI；绝不编造 pixel size。Optional extension 内容保持 opaque，文本 decoder 不保留它们。投影按共享文本分配计数，在提交前拒绝超过 36 MiB 的保留文本。显示 cell 中的控制字符绝不成为终端 escape command。 |
-| 审查   | 当前上下文内的挑战检查覆盖内存放大、至多一次副作用、draw 失败反馈和 join 取消；不构成独立审查证据。完整里程碑验收及此前报告的 authority model 超时仍未关闭。                                                                                                                                                                                                                                                                                                                                              |
+| 审查   | 检查覆盖内存放大、至多一次副作用、draw 失败反馈和 join 取消。原 authority model 已通过；启动链路另有独立审查与 Linux 进程证据。                                                                                                                                                                                                                                                                                                                                                                           |
+
+`terminal_text` 拥有禁止显示的 Unicode 标量规则：Unicode 控制字符及 U+2028/U+2029。
+终端单元格渲染将该规则与既有宽度检查一起使用，后端最终的 `Print` 还会独立地把禁止标量替换为
+U+FFFD。安全文本通过借用使用，不产生分配；规范字符串保持不变。捕获输出测试验证单元格载荷
+不能注入终端命令，同时保留后端自身的光标与样式命令。
+
+## Client 已知未改变结果的背压处理
+
+Carrier 保留一个排队请求和一个 wire owner；即使 wire 空闲，队列也可能短暂已满。
+Terminal Session 为精确的 viewer/control ServerBusy 结果提供有界处理：
+每次都是已完成、已关联且没有派发 Host action 的请求。等待 10 毫秒后，以新 ID 发起新请求。
+Input 和 Resize 还使用新的递增 controller sequence，因为 Server 在队列准入前已消耗前一个序号。
+Carrier Backpressure 在 OBCN dispatch 前拒绝；Attach 的 Worker 容量拒绝可能已完成 OBCN exchange，
+但在创建 Host attachment 前拒绝。逻辑操作只保留一个绝对截止时间；首帧前受原启动截止时间约束，之后使用常规 50 秒预算。
+每次底层 LocalClient 提交仍只写入一次。
+
+Create、Open 和 Start 绝不重新提交。普通拒绝、controller 竞争、运行时不可用、错误响应、
+transport 失败和未知结果均为最终结果。Feedback 在接受前保持同一个精确的待确认内容；
+此策略不能确认未绘制帧。Client 取消关闭 stream、打断 exchange，在正常调度下至多等待一次
+10 毫秒退避后 join。到期或身份耗尽会结束操作。
+
+| 声明                                 | 细化映射和证据                                                                                                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 只有已知未改变的容量结果允许再次尝试 | Server viewer/control 的 ServerBusy 分支证明 Host effect 未发生；Client 仅匹配这个精确结果。Fake Server 分区检查 busy、拒绝、不可用和未知结果。 |
+| 不重放任何可能已发生的副作用         | LocalClientSubmission 仍拥有每个只写一次的 wire exchange；LocalClientBackpressure 仅在已知未改变响应后允许再次提交。                            |
+| 截止时间与身份不重置                 | 同一操作截止时间覆盖全部尝试；请求 ID 与 controller sequence 递增；有界 fake Server 轨迹覆盖到期和 busy Resize。                                |
+| 保留反馈与取消仍有界                 | Session 只有一个活跃 command，并沿用八槽队列；fake Server 测试与真实并发 Client 轨迹覆盖保留及 join 后释放。                                    |
+
+LocalClientBackpressure 抽象一个 viewer/control 操作、最多三个新请求身份和有限截止时间。
+它信任 ServerBusy 到无 dispatch 的分类、精确响应校验及已有 transport 模型；
+不证明操作系统调度，也不向其他 caller 或协议授予新的重试权限。
 
 ## 本地化与权威
 
@@ -170,91 +255,19 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 `LC_ALL`、`LC_MESSAGES` 与 `LANG`；以 `zh` 开头的 language prefix 选择 `zh-CN`，其他 value
 均 fallback 到 canonical `en-US`。Locale data 只影响 presentation，绝不会持久化或用作 authority。
 
-三个已交付 invocation route 只使用 Rust standard-library argument、environment、stdout 与
-stderr capability。它们不会选择任一 private module、不打开 file 或 socket、不启动 process 或
-thread、不初始化 terminal mode，也不读取 product state。local Client transport 与 rendezvous
-primitive 会在 Unix 上编译，但 public dispatch 无法到达它们。在另行接受的 packaged cutover 前，
-已交付 TypeScript [`apps/cli`](../cli/README.zh-CN.md) 继续作为当前 CLI 权威。
+只有 help/version/usage 的 one-shot 路径仅使用标准库参数、环境与标准流。
+Linux 裸入口组合共享运行时、私有 Client transport 和 TUI；第三方终端依赖仍只针对 Unix。
+在另行接受的打包切换前，TypeScript [`apps/cli`](../cli/README.zh-CN.md) 仍是已交付 CLI 权威。
 
 ## POSIX 本机 Site rendezvous 底座
 
-application-private 的 `local_site_rendezvous` module 为后续已接受 activation workflow 暂存了一个
-经过 mode 检查的 macOS/Linux rendezvous primitive。未来 installation composition 必须提供稳定的
-`SiteScope`；cohort version 与 digest 不属于该 scope，因此 update 会保留同一个 Site identity，
-release、local 与 checkout-scoped development installation 则可以彼此隔离。`SiteScope` 接受
-`[a-z][a-z0-9]*(?:-[a-z0-9]+)*` canonical form 的 1 到 63 个 ASCII byte，因此不能加入 path
-separator、dot component 或依赖平台的 encoding。
-
-对于一个可信、已存在且为 exactly normalized absolute 的 per-user runtime base，确切 derived
-path 是：
-
-| 角色               | 稳定路径                                         |
-| ------------------ | ------------------------------------------------ |
-| Scope directory    | `<runtime-base>/<site-scope>`                    |
-| Activation lock    | `<runtime-base>/<site-scope>/activation.lock`    |
-| Site lifetime lock | `<runtime-base>/<site-scope>/site-lifetime.lock` |
-| Client socket      | `<runtime-base>/<site-scope>/client.sock`        |
-| Worker socket      | `<runtime-base>/<site-scope>/worker.sock`        |
-
-`ModeCheckedLocalSiteRendezvous` 刻意在名称中标明尚未完整的 security boundary。Preparation 只会在
-scope directory 不存在时创建它。Preparation 与 validation 把 `/` 作为 trusted root 打开，然后用
-`O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC` 逐个 descriptor-relative 地打开 runtime-base component 与
-受控 scope。它们既不 canonicalize，也不让 operating system 对传入 base 执行 normalization。除 `/`
-本身外，可接受 base 只含一个 leading slash、由单个 slash 分隔的一个或多个 nonempty normal
-component，不含 trailing slash、`.` 或 `..` component，也不含 NUL byte。Malformed base 在 trusted
-root 之外的 filesystem access 发生前被拒绝；symbolic-link 或 non-directory component 会在该
-component 处被拒绝。保留的 scope 必须是 effective UID 拥有且 exact mode 为 `0700` 的 directory。
-新 scope 会在不 follow leaf 的情况下接受检查，验证其 directory type 与 effective-UID ownership，在
-依赖 permission 的 open 之前以 descriptor-relative 方式改为 `0700`，然后仅在打开 descriptor 的
-device 与 inode 和 chmod 前检查的 entry 一致时才 admission。即使 process umask 移除了全部请求的
-permission，这也能在不改变 process umask 的情况下达到 exact `0700`。已有的错误 mode 会被拒绝且
-不会修复。
-
-每项 lock operation 都通过保留的 directory descriptor，以
-`O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC` 只打开或创建固定 leaf。Leaf 必须是 effective UID 拥有且
-exact mode 为 `0600` 且 hard link 数恰好为一的 regular file。已有且有效的 stale file 会被复用，
-不会被 truncate 或 replace。`try_acquire_activation_lock` 与 `try_acquire_site_lifetime_lock` 各自只执行一次
-nonblocking exclusive kernel lock attempt，并返回 owned guard 或 `Contended`；它们不会 wait、
-retry 或推断 process health。File creation 与 advisory-lock acquisition 是分开的：返回 `Contended`
-的 caller 可能先创建并规范化了此前缺失的 durable lock inode，之后另一个 descriptor 才赢得 lock。
-Contended attempt 绝不会 truncate、replace、unlink 或改变 existing inode 的 ownership，也不会修复
-pre-existing invalid entry。Drop guard 只释放其 advisory lock。该 module 绝不移除 runtime
-directory、durable lock file、socket path 或这些 path 上的任何 entry。
-
-在 inherited 或 extended ACL 可以授予 mode bit 之外访问权限的 filesystem 上，这个底座尚未建立
-production-private runtime boundary：它既不检查也不移除 ACL。在具备 ACL 能力的 boundary 补齐
-这一缺口之前，public activation 必须保持 unwired。它也不选择 runtime base 或 scope，不验证
-Unix-socket path length 或 socket metadata，不 bind、connect、认证 peer、启动 process、等待
-readiness、unlink endpoint，也不声称 stale-process recovery。
-
-该 primitive 仍由 `apps/orchbee` 拥有，因为本切片中只有 public Client-side activation boundary
-具备已接纳的需求；不存在第二个 source consumer。
-`apps/orchbee-server` 不能导入另一个 application，而且尚未获取 `site-lifetime.lock`；后续 Server
-lifecycle slice 必须先接纳一个真实 shared owner 或 explicit composition seam，两个 application
-才能使用同一 contract。
-
-### 建模与证据
-
-| 字段         | 当前暂存 contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | 为后续 local Client activation workflow 提供一个 path-component-safe、same-effective-UID、经过 mode 检查的 rendezvous identity，同时不提前实现 process activation、readiness、cleanup 或 recovery。                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Inputs       | 一个可信、已存在且为 exactly normalized absolute 的 runtime base；在 63-byte ASCII boundary 解析的 installation-owned scope string；effective UID；以及 adversarial directory 和 lock entry。Relative 与 non-normal base、scope 缺失、link、错误 type/owner/mode、stale file 与已持有 lock 都是显式 case。                                                                                                                                                                                                                                                                                                                                                       |
-| Data         | Canonical `SiteScope`、确切 derived path、一个保留的 scope-directory descriptor，以及每个 acquired advisory lock 的一个 owned file descriptor。不包含 PID、readiness marker、process identity、durable record payload 或 socket state。                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Outputs      | Preparation 或 validation 返回保留的 rendezvous 或 typed failure。每次 lock attempt 返回 `Acquired`、`Contended` 或 typed filesystem failure。Client 与 Worker socket method 返回确切 stable path且不执行 I/O。                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Invariants   | 每个 runtime-base component 与被打开的受控 directory 或 lock entry 都使用 no-follow；新初始化 scope 的 opened identity 与 chmod 前检查的 entry 一致；已接受 entry 在 admission 时具有 exact type、effective-UID ownership、mode 与 lock link count；已接受的 activation 与 lifetime leaf 在 admission 时无法 alias 同一个 inode；contended lock attempt 绝不 truncate、replace、unlink、改变 existing inode 的 ownership 或修复 pre-existing invalid entry，但可以创建并 mode-normalize 缺失 lock inode；drop resource 不移除任何内容；scope identity 独立于 executable cohort。                                                                                 |
-| Decisions    | Exact normalized-base syntax、每个 descriptor-relative base-component result、scope syntax 与 length、create-versus-validate policy、descriptor metadata、lock kind、create-versus-existing lock file，以及一次 kernel lock outcome 完全决定结果。                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Model        | 一个纯粹且有界的 scope/path resolver 向一个从 trusted root descriptor 开始且不执行 canonicalization 的 POSIX adapter 提供输入，随后保留 validated scope descriptor。该 adapter 不包含 retry loop、clock、process observer 或 recovery branch。                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Transitions  | 即使 umask 完全 restrictive，缺失 scope 也可以变成一个 identity-matched validated directory。缺失 lock leaf 可以变成一个 durable validated regular file，包括其 creator 最终返回 `Contended` 的情况；creation winner 与 advisory-lock winner 不必是同一个 caller。Unlocked leaf 可以变成 guard-held，并在 guard drop 时回到 unlocked。已有 invalid entry 保持不变。                                                                                                                                                                                                                                                                                              |
-| Dependencies | Rust path/value operation、用于 effective UID 与 descriptor-relative POSIX call 的 safe `nix` wrapper，以及用于一次 advisory exclusive attempt 的 `File::try_lock`。不存在 network、socket、child-process、thread、time、randomness、persistence payload 或 Server dependency。                                                                                                                                                                                                                                                                                                                                                                                  |
-| Ownership    | Typed scope 来自未来 installation composition；本 application 拥有 derivation、directory validation、lock-file validation 与 guard lifetime。未来 activation workflow 将拥有 deadline 与 process sequencing；Server 必须另外获得已接受的 lifetime-lock seam。                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Verification | Owner-local deterministic test 覆盖 valid/invalid scope name、确切 path、relative 与 malformed lexical base、trailing slash 与 dot/parent component、intermediate/final base link、scope link、restrictive-umask initialization、concurrent permissive-umask creation、non-directory、错误 owner/mode、lock symbolic/hard link、directory、FIFO、错误 metadata、独立 contention、stale inode/content preservation、reacquisition 与 cleanup non-ownership。                                                                                                                                                                                                      |
-| Limits       | Test 在一个 effective user 下运行，并信任 kernel metadata 与 advisory-lock semantics。它们注入不同的 expected UID，而不是执行 cross-user。Concurrent creation 在 permissive umask 下执行；如果另一个 process 的 umask 限制 user bit，本 primitive 不会在 separate caller 观察到其短暂 pre-chmod window 时 retry。Durable 表示该 owner 绝不 unlink 或 truncate lock file，并不表示对其执行 fsync；kernel filesystem call 不具有 wall-clock guarantee。此 atomic primitive 不选择 TLA+ model；`LocalSiteActivation` 拥有已接受 workflow 的 bounded singleton/process-order 与 abstract total-deadline claim，但不 refine 这个 POSIX adapter，也不实现 activation。 |
+共享所有权与完整原语建模记录现由
+[local-site-runtime](../../crates/local-site-runtime/README.zh-CN.md) 维护；应用不再保留重复实现。
 
 ## 已接受的本机 Site activation 建模记录
 
 [`LocalSiteActivation`](formal/tla/LocalSiteActivation.tla) 是已接受 connect-first 与
-lazy-activation workflow 的 maintained design evidence。它不改变 runtime behavior：bare invocation
-仍返回 development-unavailable TUI 结果，public activation 继续保持 unwired。
+lazy-activation workflow 的 maintained design evidence。此抽象模型独立于后续运行时细化；具体启动标记、进程、生命周期锁和首帧截止时间由共享运行时记录维护。
 
 | 字段   | 已接受的 refinement target                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -267,7 +280,7 @@ lazy-activation workflow 的 maintained design evidence。它不改变 runtime b
 | 模型   | 对恰好两个 Client slot 与四种受支持 initial Site class 建模的 bounded workflow。一个 scalar `activationOwner` 对 `activation.lock` 建模；`launchCount` 与 `launchedCohort` 暴露 singleton exact-cohort launch；`serviceLifetimeOwner` 把 ready Site 与每个 Client 区分。External launcher/readiness action 是 nondeterministic，且没有 fairness assumption。                                                                         |
 | 转换   | Present compatible Site 下为 `idle -> connecting -> connected`；present incompatible 或 partial state 下为 `connecting -> failed`；launch winner 为 `connecting -> lock-ready -> lock-held -> waiting-readiness`；contention 为 `lock-ready -> waiting-readiness`；waiting 或 recheck state 会结算为 connected 或一种 typed failure；`connected -> exited` 保留 Site state。Help/version 从 `idle` 直接进入 information completion。 |
 | 依赖   | Model 仅在具名 abstraction 上组合已接受 command contract、当前 private `LocalClient` admission boundary 与 `ModeCheckedLocalSiteRendezvous` lock semantics。未来 runtime refinement 必须提供 installation-owned cohort selection、typed readiness 与一个 monotonic total deadline。本 slice 不增加 process、socket、filesystem、localization 或 public-command implementation。                                                      |
-| 所有权 | `apps/orchbee` 拥有未来 Client bootstrap workflow、deadline、activation guard 与 typed Client result。Installation composition 拥有 exact cohort capability。Server 与 Worker 在成功后拥有各自 readiness 与 service lifetime。Model 不向 Client 授予 supervise、stop、replace、downgrade、clean up 或 recover Site 的 authority。                                                                                                    |
+| 所有权 | `apps/orchbee` 拥有 Client bootstrap workflow、deadline、activation guard 与 typed Client result。Installation composition 拥有 exact cohort capability。Server 与 Worker 在成功后拥有各自 readiness 与 service lifetime。Model 不向 Client 授予 supervise、stop、replace、downgrade、clean up 或 recover Site 的 authority。                                                                                                        |
 | 验证   | 注册的 TLC configuration 探索四种 initial Site class 与恰好两个 Client identity，覆盖每个 maintained semantic action，并检查 safety 与 Client-local deadline progress。它检查 850 个 distinct state，depth 为 13。Symmetry reduction 被刻意禁用，因为 TLC 在使用 symmetry 时进行 liveness checking 可能漏报 violation。这个 model-only slice 的 runtime refinement evidence 为 N/A，并且在接线前仍为必需。                           |
 | 正确性 | 下方 LA-01 至 LA-05 把已接受 claim 映射到 action、invariant 与 progress property。`WF_vars(DeadlineExpires(client))` 是唯一 fairness clause：它表示 contract-guaranteed local total deadline。`CohortBecomesReady`、typed cohort failure 与 `LauncherFails` 被刻意设为 unfair，因此永远静默的 external process 仍产生 bounded Client failure，而不是被假设会响应。                                                                   |
 | 限制   | 该 abstraction 只证明 checked two-Client、one-Site state space。它不证明 runtime refinement、operating-system scheduling、process creation 或 detachment、daemonization、service-manager behavior、runtime base 或 scope、ACL、socket metadata、cleanup、recovery、retry、update、concrete deadline 或 progress threshold、localization、TUI behavior、packaging、public wiring 或 external process progress。                       |
@@ -284,8 +297,8 @@ lazy-activation workflow 的 maintained design evidence。它不改变 runtime b
 | Pending Client       | 观察到 typed result 或 total deadline                            | 连接或返回 `incompatible`、`partial-cohort`、`launcher-failure` 或 `timeout`；释放 caller 拥有的 activation guard |
 | Connected Client     | Client exits                                                     | 只结束 Client Session；保留 Site、cohort、readiness、launch 与 service-lifetime state                             |
 
-因为没有 invocation 能到达 activation，这个 slice 的 runtime refinement 被刻意标为 N/A。未来接线必须先
-加入 deterministic process test，才能声称 model 映射到 implementation。
+该抽象模型不直接证明 POSIX 实现。共享运行时的 `LocalSiteStartup` 记录及 Linux 真实进程测试
+负责具体标记、锁、cohort、延迟 Host 启动和首帧截止时间的细化。
 
 | Claim                                                                                         | TLA+ evidence                                                                                                                                                                                                                                | Bound                                                                                                                           |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -294,14 +307,6 @@ lazy-activation workflow 的 maintained design evidence。它不改变 runtime b
 | LA-03：incompatibility、partial cohort、launcher failure 与 timeout 均显式，且不会停止 Site。 | Direct、recheck 与 readiness failure action，加上 `DeadlineExpires`；`ClientShapeIsExact`、`ExplicitFailureHasNoServiceStopEffect`。                                                                                                         | Failure presentation、cleanup、recovery、retry 与 stale-artifact policy 仍不在范围内。                                          |
 | LA-04：connection 释放 Client activation ownership；Client exit 不 supervise 或 stop Site。   | `RecheckCompatible`、`ObserveReady`、`ExitClient`；`SettledClientReleasesItsActivationResource`、`ReadySiteOwnsItsServiceLifetime`、`NoClientSupervisesServiceLifetime`、`ClientExitPreservesSite`、`ActivationResourceEventuallyReleases`。 | 只对 ready-service ownership 建模；不选择 process 如何 detach 或 service lifetime 如何实现。                                    |
 | LA-05：每个 started TUI 都会结算，且不假设 external process 响应。                            | `EveryPendingTuiEventuallySettles`，且只有每个 Client 的 `DeadlineExpires` 具备 weak fairness；external cohort 与 launcher completion 不含 fairness clause。                                                                                 | 假设未来 adapter 确实保证观察到一个 finite monotonic total deadline；不选择 numeric value、OS scheduling 或 external liveness。 |
-
-当前 one-shot process path 只使用 Rust standard-library argument、environment、stdout 与 stderr
-capability。它不打开 file 或 socket，不启动 process 或 thread，不读取 product state，也绝不会
-进入已暂存 shell。已暂存 module 使用 Ratatui 完成 stateful rendering，只使用 Crossterm queue
-ANSI output，只让 Nix/Rustix 操作继承的 descriptor，并使用 signal-hook 设置 atomic flag。它们不
-依赖 Server、Worker 或 Terminal Host，且所有这些 third-party dependency 都只针对 Unix target
-声明。在另行接受的 packaged cutover 前，已交付 TypeScript [`apps/cli`](../cli/README.zh-CN.md)
-继续作为当前 CLI 权威。
 
 ## 测量
 
@@ -316,22 +321,34 @@ node apps/orchbee/scripts/measure-release-baseline.mjs
 输出中注明的 host、toolchain、profile 与 invocation。它不是 acceptance budget、cold-cache
 guarantee，也不是未来 TUI performance 的证据。
 
-已暂存 shell、当前 public path 的 reference run 于 2026-09-03 在 Apple M1 arm64、Darwin
-23.6.0、Rust 1.97.0、默认 Cargo release profile 上完成，包含 5 次 warmup 与 50 次 measured
-invocation：
+2026-09-07 的当前 Linux reference 使用源码提交 `ac620e35`、x86_64 WSL2、
+Linux 6.18.33.2、Rust 1.97.0、默认 Cargo release profile 和同 cohort Zig ReleaseSafe
+Host。Python 3.14.4 驱动测量：version 先预热 5 次再测量 50 次；PTY 为 120×32 cell、
+960×640 pixel，测量 5 个全新 Site 和每个 Site 3 次重连。隔离调用环境仅包含账号的
+HOME/USER/LOGNAME、Cargo 和标准可执行文件路径、仓库根目录 PWD、
+`LANG=LC_ALL=en_US.UTF-8`、`SHELL=/usr/bin/zsh`、`TERM=xterm-256color` 和唯一的
+`ORCHBEE_RUNTIME_BASE`。文件系统缓存已预热；新 Site 不代表冷 OS 缓存。
 
-| 测量项               | Reference observation |
-| -------------------- | --------------------- |
-| Executable size      | 432,144 bytes         |
-| Warm startup minimum | 1.216 ms              |
-| Warm startup p50     | 1.564 ms              |
-| Warm startup p95     | 1.936 ms              |
-| Warm startup maximum | 2.151 ms              |
-| Peak resident memory | 1,343,488 bytes       |
+界面计时从 Client spawn 到一次完整绘制，其中包含 `[*1 1]` 和底行的
+`Tab 1 · Ready · controlling` footer。该节点位于完整帧绘制、精确 FrameApplied /
+FeedbackAccepted exchange 及最新尺寸的 UI Ready 发布之后；不证明 Worker 已消费 Ready reply
+或清除启动上限。Client VmHWM 在该节点采样：它衡量截至 Ready 的驻留内存峰值，
+不代表整个 TUI 生命周期的峰值。每次关闭均验证 terminal mode 精确恢复并退出
+alternate screen。每次热重连之前，在计时区间之外按条件等待，确认先前 Server Session task
+和 socket 已退出。排队中的 viewer Detach 没有公开完成见证；残余 detach 工作可能计入下次
+attachment 的测量延迟。此前单终端 reference 使用了不同的就绪见证，因此这些观察不构成严格的前后对照。
 
-后续已接受切片只要改变 executable 的 reachable dependency graph 或 invoked startup path，就重新运行
-并替换这份 reference。这个 staged module 无法从任何 invocation route 到达。受支持平台的 acceptance budget
-仍为保留决策。
+| 测量                                                | 参考观察                         |
+| --------------------------------------------------- | -------------------------------- |
+| Client 可执行文件大小                               | 2,989,768 bytes                  |
+| Version 启动 min / p50 / p95 / max                  | 0.791 / 0.834 / 1.176 / 1.406 ms |
+| Version 峰值驻留内存                                | 2,818,048 bytes                  |
+| 新 Site 完整 Ready 帧 p50 / p95（5 次）             | 485.526 / 501.903 ms             |
+| 热 Site 完整 Ready 帧 p50 / p95（15 次）            | 439.502 / 486.007 ms             |
+| Client 截至 Ready 的峰值驻留内存 p50 / max（20 次） | 4,792,320 / 4,894,720 bytes      |
+
+这些是该主机的实际观察，不是性能承诺，也不适合直接和其他 OS、driver 或旧 one-shot 产物比较。
+后续改变可达依赖或启动路径时重新测量并替换 reference；支持平台的发布验收预算仍待确定。
 
 ## 验证
 
@@ -343,7 +360,71 @@ cargo build -p orchbee-server -p orchbee-worker --locked
 cargo test -p orchbee --all-targets --all-features --locked
 cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
 node scripts/tla/check-inventory.mjs
-node scripts/tla/run-models.mjs --models local-client-submission,local-site-activation
+node scripts/tla/run-models.mjs --models local-client-admission,local-client-submission,local-client-backpressure,local-site-activation,local-site-startup,workbench-terminal-selection
 cargo tree -p orchbee --target x86_64-pc-windows-msvc --locked
 pnpm verify
 ```
+
+使用 `ORCHBEE_TEST_NATIVE_COHORT` 指向已暂存的绝对路径，可对实际 Release 产物运行同一套
+真实进程验收。Fixture 先校验该 cohort，再复制到各自隔离目录；测试不改变源产物或默认 Site。
+
+```sh
+ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test local_startup_process --locked
+```
+
+## 独立终端意图
+
+私有的已连接 TUI 接受 `TerminalIntent::Standalone`。它提交一次
+`submit_terminal_open` 并要求 Opened，然后在同一条已准入连接上读取相关联的 OBWP snapshot。
+它使用 snapshot 中确切的 Site/Worker/Server-terminal binding 提交 OBCS `attach-binding`；
+Open create reference 仍是显式旧路径的值，不用于选择此 viewer。Linux 裸入口通过已校验的
+本地 Site 激活与 Worker 按需启动 Host 消费此路径。显式 Create 与 Attach intent
+保留现有 Create-reference attachment 行为。
+
+纯投影器要求恰好一个 context 匹配 standalone context ID，没有 group，并包含零到 256 个按序、
+未分组、未固定的 Tab。每个 root 都必须是 Panel，没有 child Presentation，且 primary
+Presentation 具有 binding。它精确保留两种标签、全部成员身份与各自 binding；任一不受支持的
+成员都会使整个投影被拒绝。冷启动另外要求存在第一个有序 Tab，并使用其 binding。Canonical
+OBWP validation 拥有全局唯一性和引用完整性。纯刷新与已创建成员验证器校验修订号、成员不可变事实
+及关联创建事实。交互式创建、切换、刷新及 Workbench 渲染已接入；原生 Session 记录区分其已验证基线
+与待实现的 Move 细化。
+
+终端投影适配器还为原生 Session 提供控制模式下的完整帧尺寸门。传入期望尺寸时，四个字段必须
+全部匹配；不匹配会清除可见帧并请求快照，但不会重置序号、修订号或阻塞修订号栅栏。原生控制模式
+建立流程使用该尺寸门；保留的显式 Create/Attach adapter 不传入期望尺寸。针对性测试覆盖每个字段，
+以及通过新的匹配完整帧恢复。
+
+Open、snapshot read、attach、controller 获取、首次获权 Resize 和第一个已校验的终端
+projection frame 共用现有 startup ceiling。Observer 不调整大小。Snapshot exchange
+保持单一 carrier 及现有非阻塞 deadline I/O owner；Workbench request ID 与 OBCS correlation
+及逻辑终端 ID 保持独立。
+
+| 条件                                                                                 | Carrier 状态及 standalone 行为                                                         |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| 本地编码或确定的首次写入前失败                                                       | 保留 carrier，返回明确的 not-submitted 失败；workflow 以 unavailable 退出，不重试。    |
+| 可能 handoff 后发生 I/O 错误；畸形、超限、截断、错误 kind 或错误关联的 snapshot 响应 | 退役混合 carrier，报告 snapshot-read 失败；已经成功的 Open 不变成未知 launch。         |
+| 有效的 denied 或 unavailable snapshot 结果                                           | 返回有类型的结果，不执行协议 retirement；workflow 以 unavailable 退出并丢弃 Session。  |
+| 有效 snapshot 的 standalone 结构不受支持                                             | 以 unavailable 退出，不再次选择，也不退回 Open reference。                             |
+| 已知未改变状态的 viewer server-busy 结果                                             | 现有 retry 保留确切 binding 三元组，使用新 OBCS request ID，并保留同一个逻辑截止时间。 |
+| Unknown Open/submission 或不明确的 attachment 结果                                   | 停止，不重放 Open、不改为 Create，也不退回 Create-reference attachment。               |
+
+Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projection 准入，
+持有 binding 不授予 controller 权限。独立 Site/Worker/Terminal 身份域中的相同编码字节是
+有效的；每个字段独立拥有类型并接受校验。
+
+[Server 所有的记录](../orchbee-server/docs/workbench-authority.zh-CN.md#从-workbench-绑定选择终端)
+定义确切 membership lookup、失败优先级、保留 Worker generation 与 attachment 线性化。
+此 Client 不拥有独立终端，也不写入 Workbench 成员关系。Session trace 覆盖混合请求顺序、
+确切选择三元组、结构拒绝、有界 I/O 和不存在 fallback；新构建 release 的 PTY 测试覆盖
+首次打开及返回保留 shell。Server 的 WorkbenchTerminalSelection 模型证明有界 selection safety；
+现有 carrier 和 Client deadline 模型及运行时测试拥有 progress。远程访问、重启后接管、
+持久化及完整 Workbench Client 不属于此切片。
+
+已接受的[原生 Tab 会话契约](docs/native-tab-session.zh-CN.md)负责定义多 Tab 创建、本地选择、
+显式刷新及其共享载体上的操作屏障，并规定相应的实现与进程验证要求。纯投影与分类 TabCreate
+适配器已经实现。适配器区分明确提交前、已提交及未知结果；调用方截止时间方法从同一个注入的
+共享时钟计算普通、调用方与启动上限，采用其中最早者。确定性的会话状态与有界邮箱实现原子的
+选择准入、Create/刷新屏障、精确事件结算、尺寸门及载体退役。退役保留首个原因，并区分明确的
+未知结果与确定失败。这些核心实现仍处于分阶段集成状态：原生连接执行器与 UI 消费方是下一步
+集成边界。在声明多 Tab 交付前，仍须补齐完整的屏障生成覆盖、脚本化载体轨迹，以及真实的双
+Client Tab/刷新见证。

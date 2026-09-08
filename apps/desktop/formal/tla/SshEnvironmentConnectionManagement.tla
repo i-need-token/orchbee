@@ -9,15 +9,20 @@ EXTENDS FiniteSets, Naturals, TLC
 \* start a connection, and only its exact interaction lease may answer a
 \* prompt. A newer catalog request fences an older asynchronous completion.
 
-CONSTANT Renderers, MaxCatalogGeneration, Scenario
+CONSTANT Renderers, Handles, MaxCatalogGeneration, Scenario
 
 ASSUME Cardinality(Renderers) = 2
+ASSUME Cardinality(Handles) = 2
 ASSUME MaxCatalogGeneration >= 1
 ASSUME Scenario \in {"catalog", "connection"}
 
 NoRenderer == "no-renderer"
+NoHandle == "no-handle"
 NoGeneration == MaxCatalogGeneration + 1
 RendererSymmetry == Permutations(Renderers)
+
+ASSUME NoRenderer \notin Renderers
+ASSUME NoHandle \notin Handles
 
 RequestKinds == {"none", "add", "connect", "disconnect"}
 RequestPhases == {
@@ -57,6 +62,7 @@ Init ==
     interactionGeneration |-> 0,
     promptOwner |-> NoRenderer,
     promptGeneration |-> NoGeneration,
+    promptHandle |-> NoHandle,
     catalogRequested |-> [renderer \in Renderers |-> 0],
     catalogPublished |-> [renderer \in Renderers |-> 0],
     catalogManaged |-> [renderer \in Renderers |-> FALSE],
@@ -74,6 +80,7 @@ Init ==
     addEffectsSafe |-> TRUE,
     catalogAuthoritySafe |-> TRUE,
     staleCatalogSafe |-> TRUE,
+    promptResponseSafe |-> TRUE,
     connectionStartSafe |-> TRUE,
     disconnectSafe |-> TRUE
   ]
@@ -142,40 +149,49 @@ RequestCatalog(renderer) ==
        "request-catalog",
        renderer)
 
-RejectStaleCatalog(renderer) ==
+RejectStaleCatalog(renderer, completionGeneration) ==
   /\ Scenario = "catalog"
   /\ renderer \in s.openPorts
-  /\ s.catalogRequested[renderer] >= 2
-  /\ s.staleCatalogRejected[renderer] < s.catalogRequested[renderer] - 1
+  /\ completionGeneration \in 1..MaxCatalogGeneration
+  /\ completionGeneration < s.catalogRequested[renderer]
+  /\ s.staleCatalogRejected[renderer] < completionGeneration
   /\ s' = Record(
        [s EXCEPT
-         !.staleCatalogRejected[renderer] = s.catalogRequested[renderer] - 1],
+         !.staleCatalogRejected[renderer] = completionGeneration],
        "reject-stale-catalog",
        renderer)
 
-PublishCatalogHealthy(renderer) ==
+PublishCatalogHealthy(renderer, completionGeneration) ==
   /\ Scenario = "catalog"
   /\ renderer \in s.openPorts
-  /\ s.catalogPublished[renderer] < s.catalogRequested[renderer]
+  /\ completionGeneration \in 1..MaxCatalogGeneration
+  /\ completionGeneration = s.catalogRequested[renderer]
+  /\ s.catalogPublished[renderer] < completionGeneration
   /\ s' = Record(
        [s EXCEPT
-         !.catalogPublished[renderer] = s.catalogRequested[renderer],
+         !.catalogPublished[renderer] = completionGeneration,
          !.catalogManaged[renderer] = (s.registryState = "present"),
          !.catalogConnection[renderer] = s.connectionPhase,
-         !.catalogIssue[renderer] = "none"],
+         !.catalogIssue[renderer] = "none",
+         !.staleCatalogSafe = @ /\
+           completionGeneration = s.catalogRequested[renderer]],
        "publish-catalog-healthy",
        renderer)
 
-PublishCatalogPartial(renderer) ==
+PublishCatalogPartial(renderer, completionGeneration) ==
   /\ Scenario = "catalog"
   /\ renderer \in s.openPorts
-  /\ s.catalogPublished[renderer] < s.catalogRequested[renderer]
+  /\ completionGeneration \in 1..MaxCatalogGeneration
+  /\ completionGeneration = s.catalogRequested[renderer]
+  /\ s.catalogPublished[renderer] < completionGeneration
   /\ s' = Record(
        [s EXCEPT
-         !.catalogPublished[renderer] = s.catalogRequested[renderer],
+         !.catalogPublished[renderer] = completionGeneration,
          !.catalogManaged[renderer] = (s.registryState = "present"),
          !.catalogConnection[renderer] = s.connectionPhase,
-         !.catalogIssue[renderer] = "partial"],
+         !.catalogIssue[renderer] = "partial",
+         !.staleCatalogSafe = @ /\
+           completionGeneration = s.catalogRequested[renderer]],
        "publish-catalog-partial",
        renderer)
 
@@ -274,8 +290,9 @@ RejectEnvironmentBusy(renderer) ==
        "reject-environment-busy",
        renderer)
 
-RequestPrompt(renderer) ==
+RequestPrompt(renderer, handle) ==
   /\ Scenario = "connection"
+  /\ handle \in Handles
   /\ s.connectionOwner = renderer
   /\ s.requestKind[renderer] = "connect"
   /\ s.requestPhase[renderer] = "connecting"
@@ -285,31 +302,44 @@ RequestPrompt(renderer) ==
          !.requestPhase[renderer] = "interaction",
          !.connectionPhase = "interaction",
          !.promptOwner = renderer,
-         !.promptGeneration = s.interactionGeneration],
+         !.promptGeneration = s.interactionGeneration,
+         !.promptHandle = handle],
        "request-prompt",
        renderer)
 
-SubmitPrompt(renderer) ==
+SubmitPrompt(renderer, responseGeneration, responseHandle) ==
   /\ Scenario = "connection"
+  /\ responseGeneration \in 1..MaxCatalogGeneration
+  /\ responseHandle \in Handles
   /\ s.connectionOwner = renderer
   /\ s.promptOwner = renderer
-  /\ s.promptGeneration = s.interactionGeneration
+  /\ responseGeneration = s.promptGeneration
+  /\ responseGeneration = s.interactionGeneration
+  /\ responseHandle = s.promptHandle
   /\ s.requestPhase[renderer] = "interaction"
   /\ s' = Record(
        [s EXCEPT
          !.requestPhase[renderer] = "connecting",
          !.connectionPhase = "connecting",
          !.promptOwner = NoRenderer,
-         !.promptGeneration = NoGeneration],
+         !.promptGeneration = NoGeneration,
+         !.promptHandle = NoHandle,
+         !.promptResponseSafe = @ /\
+           responseGeneration = s.promptGeneration /\
+           responseGeneration = s.interactionGeneration /\
+           responseHandle = s.promptHandle],
        "submit-prompt",
        renderer)
 
-RejectStalePrompt(renderer) ==
+RejectStalePrompt(renderer, responseGeneration, responseHandle) ==
   /\ Scenario = "connection"
   /\ renderer \in s.openPorts
-  /\ s.requestPhase[renderer] = "idle"
+  /\ responseGeneration \in 1..MaxCatalogGeneration
+  /\ responseHandle \in Handles
   /\ s.promptOwner # NoRenderer
-  /\ s.promptOwner # renderer
+  /\ \/ renderer # s.promptOwner
+     \/ responseGeneration # s.promptGeneration
+     \/ responseHandle # s.promptHandle
   /\ s.stalePromptRejected[renderer] < MaxCatalogGeneration
   /\ s' = Record(
        [s EXCEPT !.stalePromptRejected[renderer] = @ + 1],
@@ -341,7 +371,8 @@ ConnectionFails(renderer) ==
          !.connectionPhase = "blocked",
          !.connectionOwner = NoRenderer,
          !.promptOwner = NoRenderer,
-         !.promptGeneration = NoGeneration],
+         !.promptGeneration = NoGeneration,
+         !.promptHandle = NoHandle],
        "connection-fails",
        renderer)
 
@@ -360,7 +391,8 @@ CancelConnection(renderer) ==
             !.connectionPhase = nextConnection,
             !.connectionOwner = NoRenderer,
             !.promptOwner = NoRenderer,
-            !.promptGeneration = NoGeneration],
+            !.promptGeneration = NoGeneration,
+            !.promptHandle = NoHandle],
           "cancel-connection",
           renderer)
 
@@ -401,6 +433,18 @@ CompleteDisconnect(renderer) ==
        "complete-disconnect",
        renderer)
 
+DisconnectFails(renderer) ==
+  /\ Scenario = "connection"
+  /\ s.connectionOwner = renderer
+  /\ s.requestKind[renderer] = "disconnect"
+  /\ s.requestPhase[renderer] = "disconnecting"
+  /\ s' = Record(
+       [s EXCEPT
+         !.requestPhase[renderer] = "failed",
+         !.connectionOwner = NoRenderer],
+       "disconnect-fails",
+       renderer)
+
 RetirePort(renderer) ==
   /\ Scenario = "connection"
   /\ renderer \in s.openPorts
@@ -420,7 +464,9 @@ RetirePort(renderer) ==
               !.promptOwner =
                 IF @ = renderer THEN NoRenderer ELSE @,
               !.promptGeneration =
-                IF s.promptOwner = renderer THEN NoGeneration ELSE @],
+                IF s.promptOwner = renderer THEN NoGeneration ELSE @,
+              !.promptHandle =
+                IF s.promptOwner = renderer THEN NoHandle ELSE @],
             "retire-port",
             renderer)
 
@@ -452,9 +498,12 @@ Next ==
   \/ \E renderer \in Renderers : OpenPort(renderer)
   \/ StartupNoOp
   \/ \E renderer \in Renderers : RequestCatalog(renderer)
-  \/ \E renderer \in Renderers : RejectStaleCatalog(renderer)
-  \/ \E renderer \in Renderers : PublishCatalogHealthy(renderer)
-  \/ \E renderer \in Renderers : PublishCatalogPartial(renderer)
+  \/ \E renderer \in Renderers, generation \in 1..MaxCatalogGeneration :
+       RejectStaleCatalog(renderer, generation)
+  \/ \E renderer \in Renderers, generation \in 1..MaxCatalogGeneration :
+       PublishCatalogHealthy(renderer, generation)
+  \/ \E renderer \in Renderers, generation \in 1..MaxCatalogGeneration :
+       PublishCatalogPartial(renderer, generation)
   \/ \E renderer \in Renderers : RequestAdd(renderer)
   \/ \E renderer \in Renderers : ResolveAdd(renderer)
   \/ \E renderer \in Renderers : AddResolutionFails(renderer)
@@ -464,15 +513,21 @@ Next ==
   \/ \E renderer \in Renderers : CancelAdd(renderer)
   \/ \E renderer \in Renderers : RequestConnect(renderer)
   \/ \E renderer \in Renderers : RejectEnvironmentBusy(renderer)
-  \/ \E renderer \in Renderers : RequestPrompt(renderer)
-  \/ \E renderer \in Renderers : SubmitPrompt(renderer)
-  \/ \E renderer \in Renderers : RejectStalePrompt(renderer)
+  \/ \E renderer \in Renderers, handle \in Handles :
+       RequestPrompt(renderer, handle)
+  \/ \E renderer \in Renderers,
+         generation \in 1..MaxCatalogGeneration, handle \in Handles :
+       SubmitPrompt(renderer, generation, handle)
+  \/ \E renderer \in Renderers,
+         generation \in 1..MaxCatalogGeneration, handle \in Handles :
+       RejectStalePrompt(renderer, generation, handle)
   \/ \E renderer \in Renderers : ConnectionReady(renderer)
   \/ \E renderer \in Renderers : ConnectionFails(renderer)
   \/ \E renderer \in Renderers : CancelConnection(renderer)
   \/ ConnectionReadyWithoutRequest
   \/ \E renderer \in Renderers : RequestDisconnect(renderer)
   \/ \E renderer \in Renderers : CompleteDisconnect(renderer)
+  \/ \E renderer \in Renderers : DisconnectFails(renderer)
   \/ \E renderer \in Renderers : RetirePort(renderer)
   \/ \E renderer \in Renderers : ReplacePort(renderer)
   \/ \E renderer \in Renderers : ResetRequest(renderer)
@@ -489,6 +544,7 @@ TypeOK ==
   /\ s.interactionGeneration \in 0..MaxCatalogGeneration
   /\ s.promptOwner \in Renderers \cup {NoRenderer}
   /\ s.promptGeneration \in (0..MaxCatalogGeneration) \cup {NoGeneration}
+  /\ s.promptHandle \in Handles \cup {NoHandle}
   /\ s.catalogRequested \in [Renderers -> 0..MaxCatalogGeneration]
   /\ s.catalogPublished \in [Renderers -> 0..MaxCatalogGeneration]
   /\ s.catalogManaged \in [Renderers -> BOOLEAN]
@@ -506,6 +562,7 @@ TypeOK ==
   /\ s.addEffectsSafe \in BOOLEAN
   /\ s.catalogAuthoritySafe \in BOOLEAN
   /\ s.staleCatalogSafe \in BOOLEAN
+  /\ s.promptResponseSafe \in BOOLEAN
   /\ s.connectionStartSafe \in BOOLEAN
   /\ s.disconnectSafe \in BOOLEAN
 
@@ -523,8 +580,17 @@ PromptHasExactLiveLease ==
     /\ s.connectionOwner = s.promptOwner
     /\ s.requestKind[s.promptOwner] = "connect"
     /\ s.requestPhase[s.promptOwner] = "interaction"
-    /\ s.connectionPhase = "interaction"
-    /\ s.promptGeneration = s.interactionGeneration
+     /\ s.connectionPhase = "interaction"
+     /\ s.promptGeneration = s.interactionGeneration
+     /\ s.promptHandle \in Handles
+
+PromptLeaseIsAbsentOutsideInteraction ==
+  s.promptOwner = NoRenderer =>
+    /\ s.promptGeneration = NoGeneration
+    /\ s.promptHandle = NoHandle
+
+OnlyExactPromptResponseIsAccepted ==
+  s.promptResponseSafe
 
 RegistryGrowthRequiresResolvedAdd ==
   s.registryGrowthSafe

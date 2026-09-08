@@ -11,7 +11,7 @@ RequestStates == {"idle", "queued", "active", "completed"}
 Outcomes == {"none", "available", "missing", "committed", "conflict",
   "rejected", "unavailable", "suppressed"}
 Actions == {"init", "load", "submit", "start", "committed", "conflict",
-  "rejected", "unavailable", "dispose"}
+  "rejected", "unavailable", "drop-disconnected", "dispose"}
 
 VARIABLES
   storedRevision,
@@ -79,12 +79,28 @@ StartNext ==
   /\ activeClient = NoClient
   /\ Len(queue) > 0
   /\ LET client == Head(queue) IN
+       /\ connected[client]
        /\ activeClient' = client
        /\ queue' = Tail(queue)
        /\ requestState' = [requestState EXCEPT ![client] = "active"]
        /\ UNCHANGED <<storedRevision, writable, connected, expectedRevision,
             proposedRevision, outcome>>
        /\ Record("start", client)
+
+DropDisconnectedHead ==
+  /\ activeClient = NoClient
+  /\ Len(queue) > 0
+  /\ LET client == Head(queue) IN
+       /\ ~connected[client]
+       /\ activeClient' = NoClient
+       /\ queue' = Tail(queue)
+       /\ requestState' = [requestState EXCEPT ![client] = "completed"]
+       /\ outcome' = [outcome EXCEPT ![client] = "suppressed"]
+       /\ UNCHANGED <<storedRevision, writable, connected, expectedRevision,
+            proposedRevision>>
+       /\ Record("drop-disconnected", client)
+
+AdvanceQueue == StartNext \/ DropDisconnectedHead
 
 CompletionResult(client) ==
   IF ~writable
@@ -120,13 +136,14 @@ Next ==
   \/ \E client \in Clients, expected \in ExpectedRevisions, proposed \in Revisions:
        Submit(client, expected, proposed)
   \/ StartNext
+  \/ DropDisconnectedHead
   \/ \E client \in Clients: Complete(client)
   \/ \E client \in Clients: Dispose(client)
 
 Spec ==
   /\ Init
   /\ [][Next]_vars
-  /\ WF_vars(StartNext)
+  /\ WF_vars(AdvanceQueue)
   /\ \A client \in Clients: WF_vars(Complete(client))
 
 QueueClients == {queue[index] : index \in 1..Len(queue)}
@@ -170,7 +187,18 @@ DisposedCompletionIsSuppressed ==
   lastAction \in {"committed", "conflict", "rejected", "unavailable"} /\
     ~connected[lastClient] => outcome[lastClient] = "suppressed"
 
-QueuedCommitEventuallyCompletes ==
+StartedRequestWasConnected ==
+  lastAction = "start" => connected[lastClient]
+
+DroppedDisconnectedRequestIsSuppressed ==
+  lastAction = "drop-disconnected" =>
+    /\ ~connected[lastClient]
+    /\ requestState[lastClient] = "completed"
+    /\ outcome[lastClient] = "suppressed"
+    /\ activeClient = NoClient
+    /\ storedRevision = previousStoredRevision
+
+QueuedRequestEventuallySettles ==
   \A client \in Clients:
     requestState[client] = "queued" ~> requestState[client] = "completed"
 

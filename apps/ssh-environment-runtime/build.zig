@@ -19,7 +19,15 @@ pub fn build(builder: *std.Build) void {
         );
     }
 
-    const target = builder.standardTargetOptions(.{});
+    var target = builder.standardTargetOptions(.{});
+    // Zig's bundled MSVC headers fail to compile on some Windows SDK
+    // configurations, and Zig links with its own lld anyway, so fall back to
+    // the GNU ABI unless one was requested explicitly.
+    if (target.result.os.tag == .windows and target.query.abi == null) {
+        var query = target.query;
+        query.abi = .gnu;
+        target = builder.resolveTargetQuery(query);
+    }
     const optimize = builder.standardOptimizeOption(.{});
     const strip = builder.option(
         bool,

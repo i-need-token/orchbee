@@ -13,7 +13,7 @@ Phases == {
 }
 Results == {
   "none", "success", "stale", "cancelled",
-  "unavailable", "target-retired"
+  "unavailable", "target-retired", "cleanup-failed"
 }
 
 VARIABLES
@@ -29,6 +29,7 @@ VARIABLES
   requestRevision,
   pendingResult,
   pendingText,
+  cleanupAttempted,
   leaseDisposed,
   publishedResult,
   publishedText,
@@ -38,8 +39,8 @@ VARIABLES
 vars == <<phase, targetCurrent, leaseAcquired, readCapability,
   inputCapability, resizeCapability, frameGeneration, frameRevision,
   requestGeneration, requestRevision, pendingResult, pendingText,
-  leaseDisposed, publishedResult, publishedText, settlementCount,
-  lastAction>>
+  cleanupAttempted, leaseDisposed, publishedResult, publishedText,
+  settlementCount, lastAction>>
 
 Init ==
   /\ phase = "absent"
@@ -54,6 +55,7 @@ Init ==
   /\ requestRevision = 0
   /\ pendingResult = "none"
   /\ pendingText = FALSE
+  /\ cleanupAttempted = FALSE
   /\ leaseDisposed = FALSE
   /\ publishedResult = "none"
   /\ publishedText = FALSE
@@ -66,7 +68,8 @@ BeginRead ==
   /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, frameGeneration, frameRevision,
        requestGeneration, requestRevision, pendingResult, pendingText,
-       leaseDisposed, publishedResult, publishedText, settlementCount>>
+       cleanupAttempted, leaseDisposed, publishedResult, publishedText,
+       settlementCount>>
   /\ lastAction' = "begin-read"
 
 OpenReadOnlyLease ==
@@ -79,7 +82,8 @@ OpenReadOnlyLease ==
   /\ resizeCapability' = FALSE
   /\ UNCHANGED <<targetCurrent, frameGeneration, frameRevision,
        requestGeneration, requestRevision, pendingResult, pendingText,
-       leaseDisposed, publishedResult, publishedText, settlementCount>>
+       cleanupAttempted, leaseDisposed, publishedResult, publishedText,
+       settlementCount>>
   /\ lastAction' = "open-read-only-lease"
 
 OpenUnavailable ==
@@ -89,9 +93,32 @@ OpenUnavailable ==
   /\ pendingText' = FALSE
   /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, frameGeneration, frameRevision,
+       requestGeneration, requestRevision, cleanupAttempted, leaseDisposed,
+       publishedResult, publishedText, settlementCount>>
+  /\ lastAction' = "open-unavailable"
+
+OpenCleanupFailed ==
+  /\ phase = "opening"
+  /\ phase' = "cleaning"
+  /\ pendingResult' = "cleanup-failed"
+  /\ pendingText' = FALSE
+  /\ cleanupAttempted' = TRUE
+  /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
+       inputCapability, resizeCapability, frameGeneration, frameRevision,
        requestGeneration, requestRevision, leaseDisposed, publishedResult,
        publishedText, settlementCount>>
-  /\ lastAction' = "open-unavailable"
+  /\ lastAction' = "open-cleanup-failed"
+
+DeadlineExpires ==
+  /\ phase \in {"opening", "waiting-frame", "ready", "waiting-rows"}
+  /\ phase' = "cleaning"
+  /\ pendingResult' = "unavailable"
+  /\ pendingText' = FALSE
+  /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
+       inputCapability, resizeCapability, frameGeneration, frameRevision,
+       requestGeneration, requestRevision, cleanupAttempted, leaseDisposed,
+       publishedResult, publishedText, settlementCount>>
+  /\ lastAction' = "deadline-expires"
 
 ObserveFrame(generation, revision) ==
   /\ phase = "waiting-frame"
@@ -102,8 +129,8 @@ ObserveFrame(generation, revision) ==
   /\ frameRevision' = revision
   /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, requestGeneration,
-       requestRevision, pendingResult, pendingText, leaseDisposed,
-       publishedResult, publishedText, settlementCount>>
+       requestRevision, pendingResult, pendingText, cleanupAttempted,
+       leaseDisposed, publishedResult, publishedText, settlementCount>>
   /\ lastAction' = "observe-frame"
 
 RequestRows ==
@@ -113,8 +140,8 @@ RequestRows ==
   /\ requestRevision' = frameRevision
   /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, frameGeneration, frameRevision,
-       pendingResult, pendingText, leaseDisposed, publishedResult,
-       publishedText, settlementCount>>
+       pendingResult, pendingText, cleanupAttempted, leaseDisposed,
+       publishedResult, publishedText, settlementCount>>
   /\ lastAction' = "request-rows"
 
 AdvanceFrame ==
@@ -127,8 +154,8 @@ AdvanceFrame ==
         /\ frameRevision' = 1
   /\ UNCHANGED <<phase, targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, requestGeneration,
-       requestRevision, pendingResult, pendingText, leaseDisposed,
-       publishedResult, publishedText, settlementCount>>
+       requestRevision, pendingResult, pendingText, cleanupAttempted,
+       leaseDisposed, publishedResult, publishedText, settlementCount>>
   /\ lastAction' = "advance-frame"
 
 RowsMatched ==
@@ -141,8 +168,8 @@ RowsMatched ==
   /\ pendingText' = TRUE
   /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, frameGeneration, frameRevision,
-       requestGeneration, requestRevision, leaseDisposed, publishedResult,
-       publishedText, settlementCount>>
+       requestGeneration, requestRevision, cleanupAttempted, leaseDisposed,
+       publishedResult, publishedText, settlementCount>>
   /\ lastAction' = "rows-matched"
 
 RowsStale ==
@@ -154,38 +181,41 @@ RowsStale ==
   /\ pendingText' = FALSE
   /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, frameGeneration, frameRevision,
-       requestGeneration, requestRevision, leaseDisposed, publishedResult,
-       publishedText, settlementCount>>
+       requestGeneration, requestRevision, cleanupAttempted, leaseDisposed,
+       publishedResult, publishedText, settlementCount>>
   /\ lastAction' = "rows-stale"
 
 Cancel ==
   /\ phase \in {"opening", "waiting-frame", "ready", "waiting-rows", "cleaning"}
+  /\ pendingResult # "cleanup-failed"
   /\ phase' = "cleaning"
   /\ pendingResult' = "cancelled"
   /\ pendingText' = FALSE
   /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, frameGeneration, frameRevision,
-       requestGeneration, requestRevision, leaseDisposed, publishedResult,
-       publishedText, settlementCount>>
+       requestGeneration, requestRevision, cleanupAttempted, leaseDisposed,
+       publishedResult, publishedText, settlementCount>>
   /\ lastAction' = "cancel"
 
 TargetRetired ==
   /\ targetCurrent
   /\ phase \in {"opening", "waiting-frame", "ready", "waiting-rows", "cleaning"}
+  /\ pendingResult # "cleanup-failed"
   /\ targetCurrent' = FALSE
   /\ phase' = "cleaning"
   /\ pendingResult' = "target-retired"
   /\ pendingText' = FALSE
   /\ UNCHANGED <<leaseAcquired, readCapability, inputCapability,
        resizeCapability, frameGeneration, frameRevision, requestGeneration,
-       requestRevision, leaseDisposed, publishedResult, publishedText,
-       settlementCount>>
+       requestRevision, cleanupAttempted, leaseDisposed, publishedResult,
+       publishedText, settlementCount>>
   /\ lastAction' = "target-retired"
 
 DisposeLease ==
   /\ phase = "cleaning"
   /\ leaseAcquired
-  /\ ~leaseDisposed
+  /\ ~cleanupAttempted
+  /\ cleanupAttempted' = TRUE
   /\ leaseDisposed' = TRUE
   /\ UNCHANGED <<phase, targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, frameGeneration, frameRevision,
@@ -193,10 +223,26 @@ DisposeLease ==
        publishedResult, publishedText, settlementCount>>
   /\ lastAction' = "dispose-lease"
 
+DisposeLeaseFails ==
+  /\ phase = "cleaning"
+  /\ leaseAcquired
+  /\ ~cleanupAttempted
+  /\ cleanupAttempted' = TRUE
+  /\ pendingResult' = "cleanup-failed"
+  /\ pendingText' = FALSE
+  /\ UNCHANGED <<phase, targetCurrent, leaseAcquired, readCapability,
+       inputCapability, resizeCapability, frameGeneration, frameRevision,
+       requestGeneration, requestRevision, leaseDisposed, publishedResult,
+       publishedText, settlementCount>>
+  /\ lastAction' = "dispose-lease-fails"
+
 PublishResult ==
   /\ phase = "cleaning"
   /\ pendingResult # "none"
-  /\ ~leaseAcquired \/ leaseDisposed
+  /\ \/ ~leaseAcquired
+     \/ leaseDisposed
+     \/ /\ pendingResult = "cleanup-failed"
+        /\ cleanupAttempted
   /\ phase' = "settled"
   /\ publishedResult' = pendingResult
   /\ publishedText' = pendingText
@@ -204,13 +250,15 @@ PublishResult ==
   /\ UNCHANGED <<targetCurrent, leaseAcquired, readCapability,
        inputCapability, resizeCapability, frameGeneration, frameRevision,
        requestGeneration, requestRevision, pendingResult, pendingText,
-       leaseDisposed>>
+       cleanupAttempted, leaseDisposed>>
   /\ lastAction' = "publish-result"
 
 Next ==
   \/ BeginRead
   \/ OpenReadOnlyLease
   \/ OpenUnavailable
+  \/ OpenCleanupFailed
+  \/ DeadlineExpires
   \/ \E generation \in 1..MaxGeneration, revision \in 1..MaxRevision:
        ObserveFrame(generation, revision)
   \/ RequestRows
@@ -220,6 +268,7 @@ Next ==
   \/ Cancel
   \/ TargetRetired
   \/ DisposeLease
+  \/ DisposeLeaseFails
   \/ PublishResult
 
 Spec == Init /\ [][Next]_vars
@@ -237,6 +286,7 @@ TypeOK ==
   /\ requestRevision \in 0..MaxRevision
   /\ pendingResult \in Results
   /\ pendingText \in BOOLEAN
+  /\ cleanupAttempted \in BOOLEAN
   /\ leaseDisposed \in BOOLEAN
   /\ publishedResult \in Results
   /\ publishedText \in BOOLEAN
@@ -260,8 +310,22 @@ PublishedSuccessIsExact ==
 NonSuccessNeverPublishesText ==
   publishedResult # "success" => ~publishedText
 
-AcquiredLeaseIsDisposedBeforeSettlement ==
-  phase = "settled" /\ leaseAcquired => leaseDisposed
+FailedCleanupCannotBeOverwritten ==
+  cleanupAttempted /\ ~leaseDisposed =>
+    /\ pendingResult = "cleanup-failed"
+    /\ ~pendingText
+
+CleanupFailureRequiresAttempt ==
+  pendingResult = "cleanup-failed" => cleanupAttempted
+
+CleanupSuccessRequiresAttempt ==
+  leaseDisposed => cleanupAttempted
+
+AcquiredLeaseCleanupPrecedesSettlement ==
+  phase = "settled" /\ leaseAcquired =>
+    /\ cleanupAttempted
+    /\ \/ leaseDisposed
+       \/ publishedResult = "cleanup-failed"
 
 SettlementIsSingleAndTerminal ==
   /\ settlementCount <= 1

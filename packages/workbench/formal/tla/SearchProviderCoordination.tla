@@ -69,7 +69,6 @@ Init ==
   /\ previousVisibleRevision = visibleRevision
 
 Open ==
-  /\ ~open
   /\ session < MaxSession
   /\ open' = TRUE
   /\ session' = session + 1

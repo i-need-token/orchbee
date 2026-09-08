@@ -26,6 +26,7 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
     let geometry = geometry()?;
     let identity = host_identity()?;
     let launch_rejections = [
+        TerminalLaunchRejection::LifecycleActive,
         TerminalLaunchRejection::WrongWorker,
         TerminalLaunchRejection::StaleWorkerGeneration,
         TerminalLaunchRejection::LeaseExpired,
@@ -38,6 +39,7 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
         },
     ];
     let start_rejections = [
+        TerminalStartRejection::LifecycleActive,
         TerminalStartRejection::WrongWorker,
         TerminalStartRejection::StaleWorkerGeneration,
         TerminalStartRejection::LeaseExpired,
@@ -158,6 +160,35 @@ fn round_trips_every_authorized_message_canonically() -> Result<(), Box<dyn std:
         let decoded = decode_message(&encoded)?;
         assert_eq!(decoded, expected);
         assert_eq!(encode(&decoded)?, encoded);
+    }
+    Ok(())
+}
+
+#[test]
+fn lifecycle_active_rejections_use_distinct_documented_launch_and_start_tags()
+-> Result<(), Box<dyn std::error::Error>> {
+    let authorization = authorization(TERMINAL_LAUNCH_CAPABILITY_VERSION)?;
+    let messages = [
+        (
+            CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
+                authorization,
+                TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::LifecycleActive),
+            )?),
+            9,
+        ),
+        (
+            CapabilityNodeMessage::TerminalStartResult(TerminalStartResult::new(
+                authorization,
+                host_identity()?,
+                TerminalStartOutcome::Rejected(TerminalStartRejection::LifecycleActive),
+            )?),
+            10,
+        ),
+    ];
+    for (message, tag) in messages {
+        let bytes = encode_message(&message)?;
+        assert_eq!(bytes.last(), Some(&tag));
+        assert_eq!(decode_message(&bytes)?, message);
     }
     Ok(())
 }
@@ -667,16 +698,16 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
         Err(ProtocolError::InvalidPayload)
     );
 
-    let mut unknown_after_launch_capacity = encode(&CapabilityNodeMessage::TerminalLaunchResult(
+    let mut unknown_after_launch_lifecycle = encode(&CapabilityNodeMessage::TerminalLaunchResult(
         TerminalLaunchResult::new(
             authorization,
             TerminalLaunchOutcome::Rejected(TerminalLaunchRejection::CapacityExceeded),
         )?,
     ))?;
-    let launch_capacity_tag_offset = unknown_after_launch_capacity.len() - 1;
-    unknown_after_launch_capacity[launch_capacity_tag_offset] = 9;
+    let launch_lifecycle_tag_offset = unknown_after_launch_lifecycle.len() - 1;
+    unknown_after_launch_lifecycle[launch_lifecycle_tag_offset] = 10;
     assert_eq!(
-        decode_message(&unknown_after_launch_capacity),
+        decode_message(&unknown_after_launch_lifecycle),
         Err(ProtocolError::InvalidPayload)
     );
 
@@ -707,17 +738,17 @@ fn rejects_unknown_outcomes_transitions_and_truncated_payloads()
         Err(ProtocolError::InvalidPayload)
     );
 
-    let mut unknown_after_start_capacity = encode(&CapabilityNodeMessage::TerminalStartResult(
+    let mut unknown_after_start_lifecycle = encode(&CapabilityNodeMessage::TerminalStartResult(
         TerminalStartResult::new(
             authorization,
             host_identity()?,
             TerminalStartOutcome::Rejected(TerminalStartRejection::CapacityExceeded),
         )?,
     ))?;
-    let start_capacity_tag_offset = unknown_after_start_capacity.len() - 1;
-    unknown_after_start_capacity[start_capacity_tag_offset] = 10;
+    let start_lifecycle_tag_offset = unknown_after_start_lifecycle.len() - 1;
+    unknown_after_start_lifecycle[start_lifecycle_tag_offset] = 11;
     assert_eq!(
-        decode_message(&unknown_after_start_capacity),
+        decode_message(&unknown_after_start_lifecycle),
         Err(ProtocolError::InvalidPayload)
     );
 

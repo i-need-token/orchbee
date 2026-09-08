@@ -1,4 +1,4 @@
-use crate::{HostEpoch, RequestId, ViewerId};
+use crate::{HostEpoch, RequestId, SiteId, TerminalId, ViewerId, WorkerId};
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 
@@ -27,6 +27,11 @@ pub enum ViewerSnapshotReason {
 pub enum TerminalViewerAction {
     Attach {
         terminal_create_request_id: RequestId,
+    },
+    AttachBinding {
+        site_id: SiteId,
+        worker_id: WorkerId,
+        terminal_id: TerminalId,
     },
     Poll {},
     FrameApplied {
@@ -78,7 +83,11 @@ pub enum ViewerRejectedReason {
 pub enum ViewerUnavailableReason {
     ServerBusy,
     TerminalRuntimeUnavailable,
+    WorkbenchUnavailable,
 }
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(

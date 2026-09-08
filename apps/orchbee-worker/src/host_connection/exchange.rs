@@ -185,6 +185,10 @@ impl<'a> HostExchange<'a> {
             let _closed = self.server.shutdown(Shutdown::Both);
         }
     }
+
+    pub(crate) fn deadline_elapsed(&self) -> bool {
+        Instant::now() >= self.deadline
+    }
 }
 
 fn transient(error: &io::Error) -> bool {

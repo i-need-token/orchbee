@@ -192,3 +192,6 @@ impl WorkerRegistry {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+pub(crate) use tests::generation_is_retired;

@@ -3,8 +3,9 @@ use std::{error::Error, io};
 use orchbee_terminal_protocol::{
     EncodedLifecycleControl, Envelope, ExitResult, LifecycleControl, MAXIMUM_CONTROL_JSON_BYTES,
     MessageRole, PayloadEncoding, ProcessObservation, ProtocolError, ProtocolErrorCode,
-    RuntimeFailure, StartTransition, TerminalPixelGeometry, decode_lifecycle_control,
-    decode_transport_envelope, encode_lifecycle_control, encode_transport_envelope,
+    RuntimeFailure, StartTransition, TerminalId, TerminalPixelGeometry, TerminalTarget,
+    decode_lifecycle_control, decode_transport_envelope, encode_lifecycle_control,
+    encode_transport_envelope,
 };
 use serde_json::{Map, Value};
 
@@ -12,14 +13,109 @@ const CONTROL_FIXTURE: &str =
     include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.23.json");
 
 #[test]
+fn host_lifecycle_acknowledgements_match_the_canonical_wire_bytes() -> Result<(), Box<dyn Error>> {
+    let fixture = read_fixture()?;
+    let acknowledged = fixture_string(&fixture, "/outputs/terminal_acknowledged")?;
+    for kind in [12, 13, 18] {
+        assert_canonical_round_trip(kind, MessageRole::Response, acknowledged)?;
+    }
+    Ok(())
+}
+
+#[test]
+fn acknowledgement_targets_remain_available_for_pending_request_matching()
+-> Result<(), Box<dyn Error>> {
+    let fixture = read_fixture()?;
+    let acknowledged = fixture_string(&fixture, "/outputs/terminal_acknowledged")?;
+    let pending_target = TerminalId::parse(&"44".repeat(16))?;
+    for kind in [12, 13, 18] {
+        for terminal_id in [
+            "00000000000000000000000000000001",
+            "44444444444444444444444444444444",
+            "ffffffffffffffffffffffffffffffff",
+        ] {
+            let payload = acknowledged.replace(&pending_target.to_text(), terminal_id);
+            let decoded =
+                decode_lifecycle_control(kind, MessageRole::Response, payload.as_bytes())?;
+            let target = match decoded {
+                LifecycleControl::TerminateTerminalAccepted(target)
+                | LifecycleControl::DisposeTerminalAccepted(target)
+                | LifecycleControl::ForceTerminateTerminalAccepted(target) => target,
+                _ => {
+                    return Err(
+                        fixture_error("acknowledgement decoded to the wrong variant").into(),
+                    );
+                }
+            };
+            assert_eq!(target.terminal_id, TerminalId::parse(terminal_id)?);
+            assert_eq!(
+                target.terminal_id == pending_target,
+                terminal_id == pending_target.to_text()
+            );
+            assert_canonical_round_trip(kind, MessageRole::Response, &payload)?;
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn lifecycle_acknowledgements_require_one_canonical_target() -> Result<(), Box<dyn Error>> {
+    let fixture = read_fixture()?;
+    let acknowledged = fixture_string(&fixture, "/outputs/terminal_acknowledged")?;
+    let unknown = acknowledged.replacen('}', ",\"extra\":true}", 1);
+    let duplicate = acknowledged.replacen(
+        "\"terminalId\":",
+        "\"terminalId\":\"44444444444444444444444444444444\",\"terminalId\":",
+        1,
+    );
+    let escaped_duplicate = duplicate.replacen("\"terminalId\":", "\"terminal\\u0049d\":", 1);
+    for kind in [12, 13, 18] {
+        for payload in [
+            "{}",
+            "{\"terminalId\":null}",
+            "{\"terminalId\":1}",
+            &unknown,
+        ] {
+            assert_payload_code(
+                kind,
+                MessageRole::Response,
+                payload,
+                ProtocolErrorCode::InvalidField,
+            );
+        }
+        for payload in [&duplicate, &escaped_duplicate] {
+            assert_payload_code(
+                kind,
+                MessageRole::Response,
+                payload,
+                ProtocolErrorCode::InvalidJson,
+            );
+        }
+        for identity in [
+            "00".repeat(16),
+            "AA".repeat(16),
+            "1".repeat(31),
+            "1".repeat(33),
+        ] {
+            let payload = acknowledged.replacen(&"44".repeat(16), &identity, 1);
+            assert_payload_code(
+                kind,
+                MessageRole::Response,
+                &payload,
+                ProtocolErrorCode::InvalidIdentifier,
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn every_canonical_lifecycle_payload_decodes_and_reencodes_byte_for_byte()
 -> Result<(), Box<dyn Error>> {
     let fixture = read_fixture()?;
     let target = fixture_string(&fixture, "/commands/terminal_target")?;
-    let empty = fixture_string(&fixture, "/outputs/empty")?;
     for kind in [12, 13, 18] {
         assert_canonical_round_trip(kind, MessageRole::Request, target)?;
-        assert_canonical_round_trip(kind, MessageRole::Response, empty)?;
     }
 
     assert_canonical_round_trip(
@@ -112,7 +208,10 @@ fn canonical_payloads_retain_typed_lifecycle_facts() -> Result<(), Box<dyn Error
 fn equal_wire_shapes_preserve_the_selected_operation() -> Result<(), Box<dyn Error>> {
     let fixture = read_fixture()?;
     let target = fixture_string(&fixture, "/commands/terminal_target")?;
-    let empty = fixture_string(&fixture, "/outputs/empty")?;
+    let acknowledged = fixture_string(&fixture, "/outputs/terminal_acknowledged")?;
+    let expected_target = TerminalTarget {
+        terminal_id: TerminalId::parse(&"44".repeat(16))?,
+    };
 
     let terminate = decode_lifecycle_control(12, MessageRole::Request, target.as_bytes())?;
     let dispose = decode_lifecycle_control(13, MessageRole::Request, target.as_bytes())?;
@@ -124,16 +223,16 @@ fn equal_wire_shapes_preserve_the_selected_operation() -> Result<(), Box<dyn Err
     assert_ne!(dispose, force);
 
     assert_eq!(
-        decode_lifecycle_control(12, MessageRole::Response, empty.as_bytes())?,
-        LifecycleControl::TerminateTerminalAccepted
+        decode_lifecycle_control(12, MessageRole::Response, acknowledged.as_bytes())?,
+        LifecycleControl::TerminateTerminalAccepted(expected_target)
     );
     assert_eq!(
-        decode_lifecycle_control(13, MessageRole::Response, empty.as_bytes())?,
-        LifecycleControl::DisposeTerminalAccepted
+        decode_lifecycle_control(13, MessageRole::Response, acknowledged.as_bytes())?,
+        LifecycleControl::DisposeTerminalAccepted(expected_target)
     );
     assert_eq!(
-        decode_lifecycle_control(18, MessageRole::Response, empty.as_bytes())?,
-        LifecycleControl::ForceTerminateTerminalAccepted
+        decode_lifecycle_control(18, MessageRole::Response, acknowledged.as_bytes())?,
+        LifecycleControl::ForceTerminateTerminalAccepted(expected_target)
     );
     Ok(())
 }
@@ -476,12 +575,6 @@ fn lifecycle_kind_role_and_payload_bounds_are_exact() -> Result<(), Box<dyn Erro
     ] {
         assert_payload_code(kind, role, target, ProtocolErrorCode::InvalidField);
     }
-    assert_payload_code(
-        12,
-        MessageRole::Response,
-        target,
-        ProtocolErrorCode::InvalidField,
-    );
     assert_payload_code(
         12,
         MessageRole::Request,

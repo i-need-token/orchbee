@@ -116,25 +116,27 @@ SettleStale ==
 
 ObserveOrigin ==
   /\ phase = "waiting"
-  /\ projectionState = "pending"
-  /\ pendingRequest \notin originObserved
+  /\ \/ projectionState = "ready"
+     \/ pendingRequest \notin originObserved
+  /\ projectionState' = "pending"
   /\ originObserved' = originObserved \cup {pendingRequest}
   /\ lastAction' = "observe-origin"
   /\ UNCHANGED
        <<phase, pendingRequest, latestRequest, settlement, actionAccepted,
-         projectionState, targetPendingObserved, readyObserved,
+         targetPendingObserved, readyObserved,
          unavailableObserved, unrelatedObserved, focusCount,
          focusLatestRequest>>
 
 ObserveTargetPending ==
   /\ phase = "waiting"
-  /\ projectionState = "pending"
-  /\ pendingRequest \notin targetPendingObserved
+  /\ \/ projectionState = "ready"
+     \/ pendingRequest \notin targetPendingObserved
+  /\ projectionState' = "pending"
   /\ targetPendingObserved' = targetPendingObserved \cup {pendingRequest}
   /\ lastAction' = "observe-target-pending"
   /\ UNCHANGED
        <<phase, pendingRequest, latestRequest, settlement, actionAccepted,
-         projectionState, originObserved, readyObserved,
+         originObserved, readyObserved,
          unavailableObserved, unrelatedObserved, focusCount,
          focusLatestRequest>>
 
@@ -261,6 +263,11 @@ ReadyStateHasExactProjectionEvidence ==
     /\ phase = "waiting"
     /\ pendingRequest \in readyObserved
 
+CurrentProjectionMatchesLatestObservation ==
+  /\ lastAction \in {"observe-origin", "observe-target-pending"} =>
+       projectionState = "pending"
+  /\ lastAction = "observe-ready" => projectionState = "ready"
+
 FocusRequiresLatestAcceptedReadyRequest ==
   \A request \in RequestIds:
     focusCount[request] = 1 =>
@@ -275,13 +282,14 @@ InvalidatedRequestNeverFocuses ==
   \A request \in unavailableObserved \cup unrelatedObserved:
     focusCount[request] = 0
 
-AcceptedReadyRequestEventuallyResolves ==
+AcceptedReadyIntervalEventuallyFocusesOrEnds ==
   \A request \in RequestIds:
     []((/\ phase = "waiting"
         /\ pendingRequest = request
         /\ actionAccepted
         /\ projectionState = "ready")
        ~> (\/ focusCount[request] = 1
-           \/ pendingRequest # request))
+           \/ pendingRequest # request
+           \/ projectionState # "ready"))
 
 =============================================================================

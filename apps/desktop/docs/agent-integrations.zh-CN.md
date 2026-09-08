@@ -169,6 +169,22 @@ review，永远不会被覆盖。移除 Orchbee 准确的 managed entry 即为 r
 
 ## 验证
 
+[`AgentIntegrationLaunchReminder`](../formal/tla/AgentIntegrationLaunchReminder.tla) 使用两个有代表性的
+integration ID，并把 launch publication 携带的已检查 eligibility 作为稳定的有界输入。模型中的首次观察
+顺序是 renderer delivery 顺序：provider-scoped inspection 的完成顺序可能不同于 Main 的原始 launch
+观察顺序，而 management response 可能合并 Main 记录的顺序。模型检查去重、delivery merge、包含
+`update-required` 的 eligibility、每个 application session 最多一次 offer、dismissal，以及携带已 offer
+integration ID 的只读 Settings callback。并发 launch publication 与 management response 之间的
+item/revision reconciliation 不在此有界模型内。
+
+[`DesktopAgentIntegrationManagement`](../formal/tla/DesktopAgentIntegrationManagement.tla) 使用两个有代表性的
+provider，并从生产中的全 `unknown`、未检查 snapshot 开始。模型检查显式 Refresh、每个 provider 独立的
+inspection failure projection、一个已准入 operation、与该准入绑定的 authorization、接受 `disabled` 或
+`not-installed` 的 disable verification，以及每次 effect 尝试后的 reconciliation，包括失败和结果不明的
+outcome。`actual` 变量表示 adapter preflight/effect 时稳定的 provider state；snapshot staleness、并发
+third-party edit、same-state no-op response、static availability 与 `manual-only` 准入细节是显式排除项。
+Launch-scoped inspection 与 Settings work 的调度竞争是显式的跨模型排除项。
+
 从仓库根目录运行：
 
 ```sh

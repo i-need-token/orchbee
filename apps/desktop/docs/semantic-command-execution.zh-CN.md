@@ -58,10 +58,12 @@ capture read attachment。它可以从 live local Terminal、已连接的 SSH Te
 当前 tail，而不会启动或重连 runtime。默认值为 80 行，owner 上限为 1,000 行，public text 上限为 128 KiB。
 Reader 针对一个精确 Host generation 与 revision 请求纯文本，拼接 soft-wrapped row，并且不公开 ANSI
 style、graphic、hyperlink、raw VT byte 或未来 output。Input、paste、key、resize、focus、close 与 stop authority
-保持缺失。Frame 变化、target retired、projection unavailable、cancellation、cleanup failure 或五秒 internal
-deadline 都会显式结束，不返回旧文本，也不会暗中重试。每个已获得的 attachment 都会在发布前 dispose。
-文本不会自动脱敏，可能包含 secret；它不会进入 diagnostic、telemetry 或 durable history，但现有有界、
-易失的 execution ledger 可以保留 safe result，直到淘汰或 restart。
+保持缺失。Frame 变化、target retired、projection unavailable、cancellation、cleanup failure，或用于 lease
+acquisition 与 frame/row collection 的五秒 deadline 到期时，都会选择一个不含旧文本且不暗中重试的显式
+result。Lease 一旦 acquired，reader 会在 publication 前等待一次 cleanup attempt。Cleanup 成功后才能发布
+普通 result；dispose rejection 会发布 `cleanup-failed`。Cleanup 没有单独 deadline，因此 publication 可能超过
+五秒。文本不会自动脱敏，可能包含 secret；它不会进入 diagnostic、telemetry 或 durable history，但现有
+有界、易失的 execution ledger 可以保留 safe result，直到淘汰或 restart。
 
 五个 Agent operation 都使用 schema version `1`。List、get 与 explain 从 application-lifetime
 `AgentSnapshotSource` 获取一个 canonical snapshot。List page 经过签名并受 revision fencing；get 与
@@ -77,6 +79,7 @@ environment value、provider error 或 adapter-private correlation data。
 ## 不变量
 
 1. 一个保留中的 request identity 精确映射到一个保留中的 execution 和一个 canonical fingerprint。
+   Execution identity 在一个 process lifetime 中最多准入一次，即使其 receipt 已被淘汰也一样。
 2. 使用相同 fingerprint 重复该 request 会返回已有 snapshot；使用不同 fingerprint 会返回
    `request-identity-conflict`；两者都不会启动另一个 handler。
 3. 无效、不可用、未授权、需要 confirmation、版本不兼容或超容量的 request 都不会分配 execution。
@@ -90,7 +93,8 @@ environment value、provider error 或 adapter-private correlation data。
 8. 单个 execution result 被限制在 local response capacity 以下。Oversize 会变成不带 owner payload 的
    `failed/output-capacity-exceeded`。
 9. 成功的 Terminal output read 会命名请求的 live target 及一个精确 Host generation 与 revision，只返回有界
-   纯文本，并且只有在 capture lease 已 dispose 后才结束。每个 stale、retired、unavailable、cancelled 或
+   纯文本，并且只有在 capture lease 已 dispose 后才结束。每个 acquired read 都会在 publication 前尝试
+   cleanup；dispose rejection 会发布 `cleanup-failed`。每个 stale、retired、unavailable、cancelled 或
    cleanup-failed outcome 都不包含 Terminal text。
 10. Discovery 与 description 精确暴露十三项已组合 operation。Catalog registration 或 UI Action availability
     本身不授予 process authority。
@@ -113,8 +117,8 @@ environment value、provider error 或 adapter-private correlation data。
 | Request 已保留   | Repeat 或 conflict      | Fingerprint 相同或不同                                                                         | 返回已有 snapshot，或返回 conflict 且不启动第二个 handler           |
 | Active execution | Cancel                  | Execution 尚未提交且未转发 cancellation                                                        | 转发一次 cooperative abort                                          |
 | Active execution | 标记 committed          | Canonical Workbench revision 完成 durable storage                                              | 在 post-commit reconciliation 前记录 commit；拒绝后续 cancellation  |
-| Terminal read    | 观察 exact frame        | 精确 target 打开 capture-only lease，且 generation/revision 保持 current                       | 读取有界纯文本 tail、dispose lease，然后发布                        |
-| Terminal read    | Abort 或失效            | 发生 cancellation、deadline、stale frame、target retirement、unavailability 或 cleanup failure | 显式结束，不带 Terminal text，也不重试                              |
+| Terminal read    | 观察 exact frame        | 精确 target 打开 capture-only lease，且 generation/revision 保持 current                       | 读取有界纯文本 tail、尝试 lease cleanup，然后发布                   |
+| Terminal read    | Abort 或失效            | 发生 cancellation、deadline、stale frame、target retirement、unavailability 或 cleanup failure | 选择不带文本的 result；dispose rejection 会替换为 `cleanup-failed`  |
 | Active execution | Settle                  | Settlement 与 commit-marker consistency guard 成立                                             | 保留一个经过验证的 terminal result                                  |
 | Connected        | Client disconnect       | Request 可能已经到达 service                                                                   | 只丢弃 response transport；不 cancel 或 replay 已接受 execution     |
 | 任意状态         | 进程 dispose 或 restart | Coordinator 生命周期结束                                                                       | Retire locator/listener、abort active signal，并丢弃内存 generation |
@@ -136,8 +140,9 @@ runtime 绝不 dispatch provision command；正常 canonical reconciliation 只�
 `DesktopTerminalProjectionRouter` 打开精确 presentation。Local live 与 archived target 来自 Desktop
 Terminal runtime；已连接 SSH target 来自现有 environment runtime owner，不会进行 preparation 或
 reconnection。Reader 拥有五秒 deadline、exact-frame row paging、public text projection、cancellation 与
-lease cleanup。Workbench 拥有严格 operation input 与 output contract；Desktop 拥有 routing 与 execution，
-Terminal Host 则继续对 captured screen row 负责。
+lease cleanup；该 deadline 覆盖 lease acquisition 与 frame/row collection，并在 reader 等待 cleanup 前清除。
+Workbench 拥有严格 operation input 与 output contract；Desktop 拥有 routing 与 execution，Terminal Host
+则继续对 captured screen row 负责。
 
 `createDesktopAgentReadOperations` 通过 Agent-owned projection 与 contract 适配 application-lifetime
 `AgentSnapshotSource` 和 `AgentChangeSource`。Desktop 拥有 signed cursor binding、asynchronous wait 与
@@ -152,23 +157,24 @@ response validation。该 endpoint 与 Terminal Host、Browser access 分离，�
 
 ## 正确性证据
 
-| 声明                                             | 契约           | 形式化或生成式证据                                                                                                                | 确定性或真实 refinement                                                                                                                                   | 边界                                                                                        |
-| ------------------------------------------------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 只允许显式且已授权的 catalog                     | 不变量 1-3、10 | `SemanticCommandExecutionLedger.tla`：`RequestAndExecutionMappingsAgree`                                                          | Catalog/service test 覆盖负向 admission 与精确十三项 composition；HTTP integration 调用全部 Workbench read 及精确 target 的 Terminal 创建                 | 仅十三项已接受 operation                                                                    |
-| 保留期间至多一个 execution                       | 不变量 1-4     | `RetainedRequestHasOneHandlerStart`、`ActiveExecutionCapacity`                                                                    | Ledger boundary test 与固定 seed 的 stateful command property                                                                                             | 淘汰或 restart 后不作声明                                                                   |
-| Cancellation 与 retention 安全                   | 不变量 5-8     | `CommittedExecutionNeverCancels`，以及两个 TLC variant 中的 cancellation、count 与 weight invariant                               | Deferred-handler、commit 前后 cancellation、duplicate request、receipt eviction 及精确 capacity test                                                      | 不声明 handler liveness 或 durable storage 成功后的 rollback                                |
-| Agent wait 匹配 canonical state                  | 不变量 3、10   | `AgentSemanticWait.tla`：exact subscription、eligibility、freshness、output 与 revision invariant                                 | Agent domain 与 Desktop operation test 覆盖 pagination、exact read、status explanation、race-safe recheck、timeout、cancellation 与 future baseline       | 仅有界 volatile runtime；不声明 restart continuity 或 provider truth                        |
-| Agent change 暴露每个 retained revision 或 reset | 不变量 3、10   | `AgentSemanticChanges.tla`：ordered suffix、batch、subscription、gap、reset、timeout、cancellation 与 retirement invariant        | Agent journal 与 Desktop operation test 覆盖 applied-only record、page order、signed cursor、synchronous recheck、overflow/reset、timeout 与 cancellation | Retention 为内存中 512 条；不声明 durable replay、cryptographic proof 或 restart continuity |
-| Terminal output 精确、有界且仅 capture           | 不变量 3、9-10 | `TerminalSemanticRead.tla`：capture-only lease、exact success fence、failure 无文本、settlement 前 cleanup 与单一 terminal result | Reader 与 operation test 覆盖 live/archived routing、HTTP invocation、UTF-8 capacity、wrapping、staleness、retirement、deadline、cancellation 与 cleanup  | 仅一个 current tail；无脱敏、raw VT、matcher、wait、remote reconnect 或 durable history     |
-| Locator 与 peer 保持 current-user                | 不变量 11、13  | Native source 会为维护中的 POSIX 与 Windows family 编译                                                                           | Native Node 与 Electron test 会创建、认证、读取、拒绝不安全 POSIX ownership 并 retire endpoint；维护中的 Windows CI 会执行 DACL/SID path                  | 信任受损 same-user process；cross-user 负向执行需要 platform account fixture                |
-| Framing 与 capacity fail closed                  | 不变量 8、12   | 严格 protocol framing 与 route schema                                                                                             | Unit rejection matrix 与真实 Node/Electron local-transport test 覆盖 trailing input、64 KiB request、1 MiB response、malformed input 与恢复               | Kernel queue scheduling 与 process kill 不属于该声明                                        |
-| Disconnect 不会 cancel 或 replay                 | 不变量 13      | `Disconnect` 与 `Reconnect` 保持 ledger variable 不变                                                                             | 真实 client timeout 证明只交付一次；CLI test 会恢复同一保留 request，并在 generation 变化后报告 unknown 且不重新 invocation                               | 排除跨 machine 或 coordinator restart 的 durable recovery                                   |
+| 声明                                             | 契约           | 形式化或生成式证据                                                                                                                                             | 确定性或真实 refinement                                                                                                                                   | 边界                                                                                                                  |
+| ------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 只允许显式且已授权的 catalog                     | 不变量 3、10   | N/A：execution-ledger abstraction 从 catalog 与 service admission 之后开始                                                                                     | Catalog/service test 覆盖负向 admission 与精确十三项 composition；HTTP integration 调用全部 Workbench read 及精确 target 的 Terminal 创建                 | 仅十三项已接受 operation                                                                                              |
+| Request/execution 映射与 identity 保持唯一       | 不变量 1-4     | `RequestAndExecutionMappingsAgree`、`RetainedRequestHasOneHandlerStart`、`ExecutionIdentityIsProcessUnique` 与 `ActiveExecutionCapacity`                       | Ledger boundary test、淘汰后 duplicate execution identity test 与固定 seed 的 stateful command property                                                   | Request replay 在淘汰后结束；execution identity uniqueness 在 process restart 后结束                                  |
+| Cancellation 与 retention 安全                   | 不变量 5-8     | `CancellationForwardedAtMostOnce`、`CancelCommittedDoesNotForward`、`CommittedExecutionNeverCancels` 与两个 TLC variant 的 count/weight retention invariant    | Deferred-handler、commit 前后 cancellation、duplicate request、receipt eviction 及精确 capacity test                                                      | 不声明 handler liveness 或 durable storage 成功后的 rollback                                                          |
+| Agent wait 匹配 canonical state                  | 不变量 3、10   | `AgentSemanticWait.tla`：exact subscription、eligibility、freshness、output 与 revision invariant                                                              | Agent domain 与 Desktop operation test 覆盖 pagination、exact read、status explanation、race-safe recheck、timeout、cancellation 与 future baseline       | 仅有界 volatile runtime；不声明 restart continuity 或 provider truth                                                  |
+| Agent change 暴露每个 retained revision 或 reset | 不变量 3、10   | `AgentSemanticChanges.tla`：ordered suffix、batch、subscription、`WaitingCursorIsCurrent`、gap、reset、timeout、cancellation 与 retirement invariant           | Agent journal 与 Desktop operation test 覆盖 applied-only record、page order、signed cursor、synchronous recheck、overflow/reset、timeout 与 cancellation | Retention 为内存中 512 条；不声明 durable replay、cryptographic proof 或 restart continuity                           |
+| Terminal output 精确、有界且仅 capture           | 不变量 3、9-10 | `TerminalSemanticRead.tla`：capture-only lease、exact success fence、无文本 failure、cleanup attempt/disposal 区分、cleanup failure 保留与单一 terminal result | Reader 与 operation test 覆盖 live/archived routing、HTTP invocation、UTF-8 capacity、wrapping、staleness、retirement、deadline、cancellation 与 cleanup  | 仅 safety：不声明逐 read settlement progress、cleanup deadline/retry、脱敏、raw VT、wait、remote reconnect 或 history |
+| Locator 与 peer 保持 current-user                | 不变量 11、13  | Native source 会为维护中的 POSIX 与 Windows family 编译                                                                                                        | Native Node 与 Electron test 会创建、认证、读取、拒绝不安全 POSIX ownership 并 retire endpoint；维护中的 Windows CI 会执行 DACL/SID path                  | 信任受损 same-user process；cross-user 负向执行需要 platform account fixture                                          |
+| Framing 与 capacity fail closed                  | 不变量 8、12   | 严格 protocol framing 与 route schema                                                                                                                          | Unit rejection matrix 与真实 Node/Electron local-transport test 覆盖 trailing input、64 KiB request、1 MiB response、malformed input 与恢复               | Kernel queue scheduling 与 process kill 不属于该声明                                                                  |
+| Disconnect 不会 cancel 或 replay                 | 不变量 13      | N/A：encoded transport 与 client connection state 不属于 execution-ledger abstraction                                                                          | `verify-semantic-command-local-http-runtime.mjs` disconnect proof；`SemanticCommandClient` 的 read-only polling 与 generation-mismatch test               | 排除跨 machine 或 coordinator restart 的 durable recovery                                                             |
 
 注册的 TLC model 使用两个 request identity、两个 fingerprint、三个 execution identity、一个 active
 slot、两个 coordinator generation，以及分别限制 count 和 weight 的 retention variant。这些边界会暴露
-replay、conflict、cancellation、completion-order eviction 与 restart interleaving；它们不证明无界状态。
-Native test 会在当前平台的 Node 与 pinned Electron runtime 下运行，而维护中的 macOS 与 Windows CI matrix
-是平台行为 authority。不会运行任何 manual native-window test。
+replay、conflict、cancellation、completion-order eviction 与 restart interleaving，包括 post-commit
+cancellation 与淘汰后的 execution-identity reuse；它们不证明无界状态。Native test 会在当前平台的 Node
+与 pinned Electron runtime 下运行，而维护中的 macOS 与 Windows CI matrix 是平台行为 authority。不会运行
+任何 manual native-window test。
 
 Agent-wait model 还包含两个 Session、两个 semantic status、三个 health value、两次 Agent mutation
 （revision 0 到 2）与两个 coordinator generation。其 action coverage 包含 begin、missing、ahead、update、removal、timeout、
@@ -178,11 +184,13 @@ waiter count、time、revision 或 restart recovery。
 Agent-changes model 使用 revision 0 到 4、retention 2、page bound 2 与两个 coordinator generation。
 Required action coverage 包含 baseline、current follow、immediate batch、overflow reset、invalid cursor、
 update、timeout、cancellation 与 retirement。这些边界会暴露 silent-gap、ordering、batching 与
-subscribe-before-recheck 错误，但不声明无界 retention、reader、revision、cryptographic cursor security
-或 restart recovery。
+subscribe-before-recheck 错误；`WaitingCursorIsCurrent` 会独立拒绝落后于新 revision 的 waiting reader。
+该模型不声明无界 retention、reader、revision、cryptographic cursor security 或 restart recovery。
 
 Terminal-read model 使用一个 target、两个 target epoch、两个 frame generation 与 revision，以及一个 capture
-lease。Required action coverage 包含 opening、unavailable open、frame observation、exact row match、stale
-row、cancellation、target retirement、cleanup 与 result publication。这些边界会暴露 interactive-lease
-leakage、stale-success、带文本 failure、cleanup 前 settlement 与 duplicate-result 错误，但不声明无界 row、
-time、target、Host behavior 或 process recovery。
+lease。Required action coverage 包含 opening、unavailable 与 cleanup-failed open、deadline expiry、frame
+observation、exact row match、stale row、cancellation、target retirement、成功与 rejected cleanup，以及
+result publication。这些边界会暴露 interactive-lease leakage、stale-success、带文本或被覆盖的 cleanup
+failure、cleanup attempt 前 settlement 与 duplicate-result 错误。该模型只检查 safety：它没有 fairness 或
+temporal settlement property，也不声明 bounded cleanup、无界 row、time、target、Host behavior 或 process
+recovery。

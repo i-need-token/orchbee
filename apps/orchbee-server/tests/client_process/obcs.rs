@@ -123,7 +123,9 @@ fn start_request() -> Result<ClientMessage, Box<dyn std::error::Error>> {
 
 fn denied_result(request: &ClientMessage) -> ServerMessage {
     match request {
-        ClientMessage::TerminalControl(_) | ClientMessage::TerminalViewer(_) => {
+        ClientMessage::TerminalOpen(_)
+        | ClientMessage::TerminalControl(_)
+        | ClientMessage::TerminalViewer(_) => {
             unreachable!("launch-only test fixture")
         }
         ClientMessage::TerminalCreate(request) => {

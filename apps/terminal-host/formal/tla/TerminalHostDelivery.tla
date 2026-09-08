@@ -5,6 +5,12 @@ EXTENDS FiniteSets, Naturals, TLC
 \* capability abstracts one attachment-plus-delivery-kind flight; Prepare,
 \* HandoffBatch, WriteSucceeded, WriteFailed, Acknowledge, Pause, and Detach
 \* preserve the same commit boundary as the runtime model.
+\* Broker-originated transitions are post-authorization for the current
+\* physical connection and attachment identity. Reconnect authorization and
+\* rejection of requests from a prior physical connection are owned by the
+\* coordinator model before this module's Next boundary. brokerActive is a
+\* bounded delivery-scope flag, not a wire connection epoch; this module makes
+\* no claim that the runtime lacks its out-of-band monotonic connection id.
 
 CONSTANTS
   SmallCapability,
@@ -316,7 +322,6 @@ Next ==
 Spec ==
   /\ Init
   /\ [][Next]_vars
-  /\ WF_vars(HandoffBatch)
 
 TypeOK ==
   /\ brokerActive \in BOOLEAN

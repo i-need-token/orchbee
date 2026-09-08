@@ -40,7 +40,6 @@ Init ==
     pending |-> <<>>,
     accepted |-> <<>>,
     handedOff |-> <<>>,
-    completed |-> {},
     dropped |-> <<>>,
     rejected |-> <<>>,
     lastAction |-> "init"
@@ -92,7 +91,6 @@ Complete(command) ==
      THEN
        s' = [s EXCEPT
          !.active = @ \ {command},
-         !.completed = @ \cup {command},
          !.lastAction = "complete"]
      ELSE
        LET next == Head(s.pending) IN
@@ -100,7 +98,6 @@ Complete(command) ==
            !.active = (@ \ {command}) \cup {next},
            !.pending = Tail(@),
            !.handedOff = Append(@, next),
-           !.completed = @ \cup {command},
            !.lastAction = "complete"]
 
 SettleRetired(command) ==
@@ -108,7 +105,6 @@ SettleRetired(command) ==
   /\ command \in s.active
   /\ s' = [s EXCEPT
        !.active = @ \ {command},
-       !.completed = @ \cup {command},
        !.lastAction = "settle-retired"]
 
 CompleteAny == \E command \in s.active: Complete(command)
@@ -134,7 +130,6 @@ TypeOK ==
   /\ s.pending \in Seq(Commands)
   /\ s.accepted \in Seq(Commands)
   /\ s.handedOff \in Seq(Commands)
-  /\ s.completed \subseteq Commands
   /\ s.dropped \in Seq(Commands)
   /\ s.rejected \in Seq(Commands)
   /\ s.lastAction \in Actions

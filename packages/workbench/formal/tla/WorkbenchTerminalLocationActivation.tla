@@ -1,4 +1,6 @@
 ---------------- MODULE WorkbenchTerminalLocationActivation ------------------
+\* Exact structured location and presentation resolution is a trusted,
+\* deterministic input boundary. ObserveReady records its normalized result.
 \* Models the initiating-client focus intent created only by a pointer click on
 \* an exact Workbench terminal location entry. Action settlement and the exact
 \* destination terminal projection may arrive in either order; only the latest
@@ -237,7 +239,7 @@ AcceptedStateMatchesCurrentSettlement ==
     /\ phase = "waiting"
     /\ settlement[pendingRequest] = "accepted"
 
-ReadyStateHasExactProjectionEvidence ==
+ReadyStateHasNormalizedProjectionEvidence ==
   terminalProjectionReady =>
     /\ phase = "waiting"
     /\ pendingRequest \in readyObserved

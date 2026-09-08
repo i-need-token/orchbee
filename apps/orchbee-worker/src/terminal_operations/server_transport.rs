@@ -18,11 +18,11 @@ const RECORD_BUDGET: Duration = Duration::from_secs(2);
 
 pub(super) fn receive(
     server: &UnixStream,
-    host: &HostBrokerConnection,
+    host: Option<&HostBrokerConnection>,
 ) -> Result<CapabilityNodeMessage, ReadMessageError> {
     let mut transport = ServerRecord {
         server,
-        host: Some(host),
+        host,
         deadline: None,
         host_closed: false,
     };

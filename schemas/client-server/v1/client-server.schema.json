@@ -27,6 +27,12 @@
 		},
 		{
 			"$ref": "#/$defs/terminalControlResult"
+		},
+		{
+			"$ref": "#/$defs/terminalOpen"
+		},
+		{
+			"$ref": "#/$defs/terminalOpenResult"
 		}
 	],
 	"$defs": {
@@ -43,8 +49,16 @@
 			"title": "ClientServerRequestId",
 			"$ref": "#/$defs/identity"
 		},
+		"siteId": {
+			"title": "SiteId",
+			"$ref": "#/$defs/identity"
+		},
 		"workerId": {
 			"title": "WorkerId",
+			"$ref": "#/$defs/identity"
+		},
+		"terminalId": {
+			"title": "TerminalId",
 			"$ref": "#/$defs/identity"
 		},
 		"cwd": {
@@ -439,6 +453,25 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
+					"required": ["kind", "siteId", "workerId", "terminalId"],
+					"properties": {
+						"kind": {
+							"const": "attach-binding"
+						},
+						"siteId": {
+							"$ref": "#/$defs/siteId"
+						},
+						"workerId": {
+							"$ref": "#/$defs/workerId"
+						},
+						"terminalId": {
+							"$ref": "#/$defs/terminalId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
 					"required": ["kind"],
 					"properties": {
 						"kind": {
@@ -572,7 +605,7 @@
 							"const": "unavailable"
 						},
 						"reason": {
-							"enum": ["server-busy", "terminal-runtime-unavailable"]
+							"enum": ["server-busy", "terminal-runtime-unavailable", "workbench-unavailable"]
 						}
 					}
 				}
@@ -791,6 +824,97 @@
 				},
 				"outcome": {
 					"$ref": "#/$defs/controlOutcome"
+				}
+			}
+		},
+		"openOutcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "terminalCreateRequestId"],
+					"properties": {
+						"kind": {
+							"const": "opened"
+						},
+						"terminalCreateRequestId": {
+							"$ref": "#/$defs/requestId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "reason"],
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"enum": ["no-compatible-worker", "terminal-runtime-unavailable", "server-busy"]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind", "reason"],
+					"properties": {
+						"kind": {
+							"const": "failed"
+						},
+						"reason": {
+							"const": "terminal-create-failed"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["kind"],
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
+						}
+					}
+				}
+			]
+		},
+		"terminalOpen": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "geometry"],
+			"properties": {
+				"kind": {
+					"const": "terminal.open"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"geometry": {
+					"$ref": "#/$defs/geometry"
+				}
+			}
+		},
+		"terminalOpenResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
+			"properties": {
+				"kind": {
+					"const": "terminal.open.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/openOutcome"
 				}
 			}
 		}

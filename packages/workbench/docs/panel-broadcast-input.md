@@ -135,3 +135,10 @@ completion, explicit end, invalidation, re-entry, and stale completion. Weak fai
 only for dispatch and completion already admitted by an active workflow; the model does not prove
 transport availability, PTY consumption, unbounded queues, or recovery from operating-system
 failure.
+
+The model's abstract `partial-delivery` reason quotients every settled non-full target result.
+Accepted count zero refines the concrete `delivery-failed` notice, while a non-empty proper subset
+refines the concrete `partial-delivery` notice. `Dispatch` begins after the coordinator has issued
+the all-target fan-out; the controlled `Promise.all` coordinator test, rather than a second
+attempted-target set in TLA+, is the refinement witness that every preflight target send starts
+before settlement.

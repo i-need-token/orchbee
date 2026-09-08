@@ -48,6 +48,12 @@ The page lifecycle is `awaiting-authentication -> opening-client -> active -> cl
 
 This protocol is a transport refinement of the existing Desktop multi-client session and demand attachment models. It adds no new product lifecycle state or canonical document transition. `apps/gateway/formal/tla/GatewayTransportLifecycle.tla` is authoritative only for the bounded listener-cancellation, authentication-deadline, and heartbeat refinement. Deterministic lifecycle traces, strict codec tests, and the real Electron-plus-two-Browser system trace provide the concrete transport evidence.
 
+`GatewayTransportLifecycle` treats only the Server-owned heartbeat interval as fair: a timer tick
+sends a ping while idle or closes the socket after an unanswered ping. Peer `pong` and socket-close
+events remain nondeterministic. `AuthenticatedHeartbeatRecurs` reapplies after every observed pong
+and proves, within the one-connection bound and without a wall-clock claim, that an authenticated
+idle socket either begins another ping cycle or ceases to be authenticated.
+
 ## Verification
 
 Run from the repository root:

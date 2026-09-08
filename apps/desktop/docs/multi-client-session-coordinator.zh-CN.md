@@ -81,16 +81,21 @@ decideDesktopClientDocumentProposal(canonical, proposal, phase, clientAuthority)
 
 提案进入 Main 的 FIFO 队列。胜出者由准入顺序决定，而不取决于传输方式、平台、焦点或墙上时钟。系统不尝试通用合并或自动重放 Action。完整文档不包含足够的语义意图，无法安全合并 Panel/Split 层级与终端删除生命周期。失败的客户端会应用返回的规范文档、协调本地 Client View、丢弃未获准的共享效果，并保持连接。
 
+Phase、退出所有者权限与候选有效性会在排队请求到达串行判定点时求值。仅接收请求或把它加入
+队列不会保留原有权限。因此，在 accepting 时提交、但在 quiescing 开始后才判定的请求仍会被
+拒绝，除非它是退出所有者获准的 stop 转换。
+
 一个提案在途期间，提案页面仍可继续接收本地语义 Action。该提案的精确发布只确认已提交候选，
 不会替换更新的本地投影；页面会推进已提交基线，再基于下一修订提议更新后的完整文档。分歧发布或
 `stale` 结果仍会用 Main 的规范文档替换本地投影。该规则保留同一页面的快捷键突发操作，同时不
 引入语义合并、Action 重放或先写者胜出冲突处理的例外。
 
-队列只有在与已接受提案匹配的持久效果发布完成后，才会接纳另一个可能取代该意图的提交。陈旧、格式错误或被拒绝的提案可以立即返回，因为它们无法改变规范状态。这一顺序可防止后续仅修改文档的修订遮蔽尚未发布的终端效果。
+每个已接受提案都必须先发布其精确的规范修订，`committed` 响应才能结算。对于非 deferred 的终端结果，Main 只有在把匹配结果发布到有序 session 通道后才释放提案 tail。可信的 `deferred` 结果表示“已释放、仍待处理”：Main 不发布合成终端事件，也不创建结果缓存；只要该意图仍为当前意图，就保留精确的持久操作。重试必须由外部显式请求同一操作；模型不假定自动重试或最终一定重试。Tail 释放后可以接纳后续提交，而该提交可以保留或取代该意图。显式协调使用同一条串行 FIFO tail，不能越过更早排队的提案。陈旧、格式错误或被拒绝的提案可以立即返回，因为它们无法改变规范状态。
 
 Coordinator disposal 会同步封闭新的队列准入，让边界建立时已经 active 的操作完成 commit、publication 与
 reconciliation，拒绝已排队但尚未准入的操作，然后才退役 session attachment capability。Disposal 会等待这条
 已捕获的 tail 后再结算。失败的 session retirement 重试绝不会重新开放提案准入，也不会重复已结算的操作。
+每次失败都会保留精确的 retirement owner；后续尝试可以任意多次失败，且不假定调用方一定重试或最终成功。
 
 Storage 确认 canonical mutation 后，它的即时 callback、archive reconciliation、client publication 与
 document-effect reconciliation 是相互独立的 post-commit observer。任一 observer 失败都不能撤销 durable
@@ -109,14 +114,19 @@ validate proposal
   -> publish matching terminal result
 ```
 
-在一个 Main 生命周期内，每个精确的持久操作最多调度一次。等价副本会加入现有操作或接收其缓存结果。以不同内容复用同一操作标识只会停用违规的 ClientSession。Main 重启后可以借助现有幂等绑定与 CreationId 规则重放仍然持久的操作；本契约不声称跨崩溃恰好执行一次。
+在一个 Main 生命周期内，每个精确的持久操作最多有一个已结算 owner 和缓存结果。等价副本会加入
+在途操作或接收该缓存。Deferred 尝试不会创建这两者，因此只要其持久意图仍为当前值，后续显式
+协调就可以再次派发同一操作标识。以不同内容复用同一操作标识只会停用违规的 ClientSession。
+Main 重启后可以借助现有幂等绑定与 CreationId 规则重放仍然持久的操作；本契约不声称跨崩溃
+恰好执行一次。
 
 `retain` 没有持久操作标识。Main 在恢复后为每个 Presentation 执行一次仅恢复协调，分配瞬态操作标识，并发布所得观察结果。Retain 绝不会创建替代终端。只有对应的持久意图仍为当前意图时，才会缓存当前操作结果；删除或取代意图时会清除缓存，不会保留无限增长的墓碑集合。
 
 协调会先启动已提交文档中每个尚未派发的 Presentation 操作，再等待其结果。因此，不同
-PresentationId 的操作可以按任意顺序完成和发布。一个 PresentationId 仍只有一个当前持久意图，
-而且 Main 会等待当前提交派生的全部操作结算后才接纳后续取代提交，所以这种并发不会让同一
-Presentation 的两个持久意图重叠。
+PresentationId 的操作可以按任意顺序完成和发布。只有当该提交派生的每个操作都已发布匹配的
+非 deferred 结果，或返回“已释放、仍待处理”的 `deferred` 结果时，Main 才释放该提交的屏障。
+Deferred 操作只有在相同标识和意图仍为当前值时才可重试；后续取代提交会使旧操作失去重试
+资格。因此，一个 PresentationId 仍只有一个当前持久意图。
 
 ## 发布与追赶
 
@@ -126,6 +136,10 @@ Presentation 的两个持久意图重叠。
 2. 必要时发布“协调已开始”的观察结果；
 3. 匹配生命周期结果；
 4. 客户端应用该结果后生成的后续规范清理文档。
+
+这里的“发布”表示 Main 已通过 session publisher 同步把事件加入发送队列，不表示 renderer 已经
+处理消息；协议也没有 renderer 交付确认。提案 tail 根据 Main 发布释放，而每个已连接客户端的
+有序观察和追赶独立推进。
 
 会话加入与发布过程串行化。它会收到一个原子 bootstrap，其中包含当前文档状态、文档缺失时的公共初始化种子、当前终端观察，以及该快照之后的序列。实时事件严格从该序列之后开始，因此不存在加入空档。格式错误的事件、错误的身份、被转移的端口或序列空档会使受影响的会话退役。重新连接会创建新会话和完整快照；不会恢复原会话身份或 Client View。
 
@@ -185,7 +199,7 @@ surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim
 ## 失败策略
 
 - 无效的存储状态使协调器不可用，并且永远不会被覆盖或修复。
-- 存储故障会冻结新的共享更改和终端效果，但保留最后的规范文档、现有主机进程和已打开的投影。
+- 存储故障会冻结新的共享更改和终端效果，但保留最后的规范文档、现有主机进程和已打开的投影。只有已准入存储写入发生故障的提案会收到类型化 `unavailable`；已经排在它后面的请求不会再次尝试存储，而是以 control-unavailable 拒绝。
 - 一个格式错误、过时、断开连接或被阻止的客户端永远不会淘汰另一个客户端。
 - 发布失败仅会停用其目标会话。
 - 到达某些会话但在另一个会话上失败的终端退出发布将保留一个序列，并仅重试尚未接受该确切事件的会话；成功的会话不会重播，并且重试不会分配序列间隙。
@@ -210,27 +224,32 @@ surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim
 | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------ |
 | 一条精确修订链只有一个 Main 写入者                                         | 提案决策和队列测试                                                          | `DesktopMultiClientSession` 规范/修订不变量                                 | 完整文档先写者胜出策略                           |
 | 已确认的本地提案绝不会抹掉同一页面稍后产生的意图                           | 在途提案/发布协调器 trace                                                   | `WorkbenchDocumentProposalAcknowledgement` 保留                             | 只适用于精确候选确认；分歧写入仍回滚             |
-| 最终效果遵循匹配的持久意图                                                 | 意图协调器痕迹                                                              | TLA+ `EffectRequiresPublishedIntent`                                        | 主机/账本幂等性可信                              |
-| 独立 Presentation 效果不会相互等待                                         | 延迟双 Presentation 协调器 trace                                            | `DesktopTerminalIntentReconciliation` 批量/进展                             | 后续提交仍等待当前效果集合                       |
-| 等价竞态收敛，分歧的陈旧写入保留规范状态                                   | 双客户端和有状态属性测试                                                    | TLA+ 陈旧/收敛 Action                                                       | 无语义合并                                       |
-| 每个已连接会话都按发布顺序追赶                                             | 会话 bootstrap/广播测试                                                     | TLA+ 发布进度                                                               | 传输暂停/中断时不保证推进                        |
-| 页面断开连接仅释放其附件                                                   | 会话处理和并发投影测试                                                      | TLA+ 附件/会话不变                                                          | OS/进程崩溃清理委托给现有边界                    |
+| 最终效果遵循匹配的持久意图                                                 | 意图协调器痕迹                                                              | TLA+ `EffectRequiresPublishedIntent`                                        | 仅非 deferred 结果；主机/账本幂等性可信          |
+| Deferred remote 工作可释放队列但不制造结果                                 | Deferred owner/reconciler 重试 trace                                        | TLA+ deferred 标识与无合成结果不变量                                        | 仅当意图仍为当前值时才可显式精确重试             |
+| 独立 Presentation 效果不会相互等待                                         | 延迟双 Presentation 协调器 trace                                            | `DesktopTerminalIntentReconciliation` 批量/进展                             | 后续提交等待每个操作发布或 deferred 释放         |
+| 等价竞态收敛，分歧的陈旧写入保留规范状态                                   | 双客户端和有状态属性测试                                                    | TLA+ `ProposalCompletionSemantics`                                          | 无语义合并                                       |
+| 每个已连接会话都按发布顺序追赶                                             | 会话 bootstrap/广播测试                                                     | TLA+ `CanonicalPublicationProgress`                                         | 传输暂停/中断时不保证推进                        |
+| 页面断开连接仅释放其附件                                                   | 会话处理和并发投影测试                                                      | TLA+ 附件不变量与 `TerminalLifetimeSemantics`                               | OS/进程崩溃清理委托给现有边界                    |
 | Coordinator disposal 在退役 session 前排空已接受工作                       | 延迟 commit/publication/reconciliation 与 attachment-retirement trace       | `DesktopMultiClientSessionDisposal` seal 与进度                             | 仅限进程内已捕获的 FIFO tail                     |
 | Canonical remote placement 只到达其 prepared Environment runtime           | Target resolver、router、runtime-owner 与 Electron/Gateway composition test | `SshEnvironmentRemoteTerminalProjection` authority 与 stale-lease invariant | 不 automatic SSH activation 或 local fallback    |
 | Remote terminal outcome 只在 Environment-scoped durable predecessor 后发布 | Observation owner、journal/ledger、routing、coordinator 与 composition test | `SshEnvironmentRemoteTerminalOutcome` ordering 与 isolation invariant       | 仅一个既有 remote terminal；无 lifecycle command |
-| Quiescing 在应用排空前拒绝非所有者变更                                     | 退出所有者转换测试                                                          | TLA+ quiescing 不变式                                                       | 现有不可逆 stop 恢复策略                         |
+| Quiescing 在排队提案被判定时拒绝非所有者变更                               | 退出所有者转换测试                                                          | TLA+ `ProposalAdmissionSemantics`                                           | 现有不可逆 stop 恢复策略                         |
 | 多个查看者仍只有一个调整大小权限；符合条件的活跃查看者可发起 claim         | 租约移交、资格与 claim 串行化测试                                           | Desktop 与 Terminal Host resize lease 模型                                  | 不按客户端类型设置隐式优先级                     |
 | 已发布的投影请求永远不会变为活动状态                                       | 客户端、网关和主要发布竞赛测试                                              | `ProjectedTerminalIpcReliability` 释放竞争不变量                            | 一种订购的实时控制连接                           |
 | 主机附加响应在稍后的入站交付之前安装其使用者                               | 主机响应/帧/关闭排序测试                                                    | TLA+ 响应-屏障安全与进步                                                    | JavaScript microtask-before-`setImmediate` 细化  |
 | 仅在渲染器就绪并允许绘制后才确认首帧                                       | 慢启动帧/传输测试                                                           | TLA+ 就绪帧确认不变式                                                       | 确认客户端提交，不表示绘制已经完成               |
 | 恢复只以已绘制的新附件替换可信冻结帧                                       | 投影表面恢复测试                                                            | TLA+ 恢复与操作标识不变式                                                   | 两次尝试；不假定传输推进                         |
 
-多客户端 TLA+ 配置检查两个客户端、两个文档值、一个附件、缺失与空的可用初始化、等价与分歧的提案、重新排序的断开/提交/效果完成、quiescing 与断开连接所有者的移交、发布，以及两个有界修订（`0` 和 `1`）。`provision` 表示使终端保持活动的效果，`stop` 表示包括 close 在内的终端终结效果，`none` 表示只改变文档。每个抽象客户端身份最多连接和提案一次；依照生产契约，重新连接使用新身份。`WorkbenchDocumentProposalAcknowledgement` 另行检查精确发布前后的本地编辑、无发布时的精确结果确认、分歧发布、陈旧结果，以及跨修订 `0`、`1`、`2` 重新提议保留下来的意图。`DesktopTerminalIntentReconciliation` 另行检查一个双 Presentation 批次、任何结果之前的原子派发、任一完成/发布顺序，以及跨相同三个修订的后续提交屏障。有状态属性测试使用固定 seed 与生成的客户端 Action。真实的 Electron 加两个 Browser 跟踪覆盖 Gateway 认证、独立页面会话、共享规范状态、附件断开/重连、Browser 效果和限定到确切附件的背压恢复。显式 resize 控制传输不在本契约范围内。不增加吞吐量验收门槛；终端帧热路径保持不变。
+多客户端 TLA+ 配置检查两个客户端、两个文档值、一个附件、缺失与空的可用初始化、等价与分歧的提案、重新排序的断开/提交/效果完成、quiescing 与断开连接所有者的移交、发布，以及两个有界修订（`0` 和 `1`）。候选有效性独立于这一探索上限：无效修订请求在每个已表示基线都可准入，而超出 `MaxRevision` 的有效后继位于有限实例之外，不是产品拒绝。`provision` 表示使终端保持活动的效果，`stop` 表示包括 close 在内的终端终结效果，`none` 表示只改变文档。`ProposalCompletionSemantics` 根据提交前的规范文档检查每次完成的 committed、converged、stale、rejected、unavailable 或断开连接后抑制响应的结果，同时检查提交的精确变更、随 committed 完成包含的精确发布，以及非提交时规范状态不变。这个动作性质不增加判定历史状态，也不把 `ProposalResult` 用作判定标准。单独的失败存储 client 标识证明只有已准入且写入失败的操作可以收到 `unavailable`；命名的后续排队完成分支覆盖规范文档保持不变时返回的 `rejected`。
+`TerminalLifetimeSemantics` 只允许已派发效果的完成改变终端存活状态，并由其持久 provision/stop 意图决定结果；断开连接必须保留终端存活状态。`ProposalAdmissionSemantics` 会在 active 排队请求完成时重新检查当前 phase 与 owner，包括 quiescing 开始前已经提交的请求。`CanonicalPublicationProgress` 在声明的弱公平性下检查每个已经入队的事件被仍连接会话按顺序消费；客户端观察不是释放队列的确认。Deferred 效果不发布结果即可释放 tail，保留其修订和意图供精确显式重试，而且该重试没有公平性假设。
+队列抽象允许任意串行提案顺序；FIFO 顺序、退出模式保留和只有新会话可接管退出所有者由实现测试精化，不属于这个抽象。
+每个抽象客户端身份最多连接和提案一次；依照生产契约，重新连接使用新身份。`WorkbenchDocumentProposalAcknowledgement` 另行检查命名的发布前与精确发布后本地编辑分支、无发布时的精确结果确认、分歧发布、陈旧结果，以及跨修订 `0`、`1`、`2` 重新提议保留下来的意图。`DesktopTerminalIntentReconciliation` 另行检查一个双 Presentation 批次、任何结果之前的原子派发、任意顺序的已结算发布和“已释放、仍待处理” deferred 结果、意图仍为当前值时的精确显式重试，以及只有每个成员均已发布或 deferred 后才允许的后续提交。`CommitBatch`、`CommitNext` 与 deferred 重试都是没有公平性假设的外部 Action。有状态属性测试使用固定 seed 与生成的客户端 Action。真实的 Electron 加两个 Browser 跟踪覆盖 Gateway 认证、独立页面会话、共享规范状态、附件断开/重连、Browser 效果和限定到确切附件的背压恢复。显式 resize 控制传输不在本契约范围内。不增加吞吐量验收门槛；终端帧热路径保持不变。
 
 `DesktopMultiClientSessionDisposal` 单独检查一个已接受操作、一个排在其后的操作、一个在同步
 封闭后发起的请求，以及一个代表性的 session retirement。它检查 commit-publication-reconciliation
-排空、队列与封闭后拒绝，以及 retirement 失败后的重试。该模型仅覆盖 `dispose()` 捕获的进程内
-FIFO tail；startup、进程崩溃与 transport teardown 不在其范围内。
+排空、队列与封闭后拒绝、保留所有权的重复 retirement 失败，以及独立启用的成功重试。重试没有
+公平性或最终成功假设。该模型仅覆盖 `dispose()` 捕获的进程内 FIFO tail；startup、进程崩溃与
+transport teardown 不在其范围内。
 
 `SshEnvironmentRemoteTerminalProjection` 单独检查 canonical local-versus-Environment target resolution、
 prepared-runtime admission、可选 retained-terminal start、deletion 与 retarget race、发布前 stale-lease
@@ -245,9 +264,15 @@ restart。Observation-owner 与 Desktop composition test 细化 per-Environment 
 listener-before-runtime ordering、Host-epoch fence、精确 canonical target、Client bootstrap retention 与
 无 local-runtime fallback。
 
-`ProjectedTerminalIpcReliability` 分别检查三个正交配置，而不将状态空间相乘。release-race 配置允许客户端在服务附加前、附加后或 open 事件已发布后释放；清理可能失败，失败的 Main 请求与租约仍由所有者持有，直至退役成功。迟到的 open 事件会因客户端控制能力已关闭而失败，绝不会激活其传输附件。attach-ordering 配置按 Host 线协议顺序将 attach 响应、可选首帧与 close 排入队列。响应屏障必须让 Promise 延续在后续项交付前安装 Broker 与附件监听器。渲染器初始化和首帧交付可以按任意顺序发生，但 `FrameApplied` 同时要求帧已提交且渲染器就绪。弱公平性只适用于已排队、进程内的延续与 Host 交付 Action；渲染器初始化仍是环境 Action，不假定完成期限。
+`ProjectedTerminalIpcReliability` 分别检查三个正交配置，而不将状态空间相乘。release-race 配置允许客户端在服务附加前、附加后或 open 事件已发布后释放；清理可能失败，失败的 Main 请求与租约仍由所有者持有，直至退役成功。有效且 correlation 匹配的 late open 只关闭它传输的精确 attachment port，保留 shared control，而且绝不激活已经 release 的 request。Malformed port cardinality 或 conflicting identity 仍会让 shared control fail closed。attach-ordering 配置按 Host 线协议顺序将 attach 响应、可选首帧与 close 排入队列。响应屏障必须让 Promise 延续在后续项交付前安装 Broker 与附件监听器。渲染器初始化和首帧交付可以按任意顺序发生，但 `FrameApplied` 同时要求帧已提交且渲染器就绪。弱公平性只适用于已排队、进程内的延续与 Host 交付 Action；渲染器初始化仍是环境 Action，不假定完成期限。
 
 恢复操作配置检查两个全新的附件身份、候选项在绘制前丢失、帧就绪但晋升前丢失、冻结帧保留、仅当候选项仍然存活时才晋升，以及预算耗尽。已经获得帧但随后不可用的候选项会被封存，不能替换冻结投影。Selection 与 Find 是两个独立的原子调用标识；它们可以任意排序，也可发生在 Host 交接、Host 完成、客户端交付、传输丢失和重试之间的任意位置。打开 Find 时只快照该附件已经收到的最新 Host 选择。因此，仍在等待中的选择会产生未预填的 Find 操作，而不会查询超时或稍后静默重新绑定。交给已断开附件的操作结果未知，会封存该附件，而且绝不会复制到重试身份；用户可以在恢复后显式创建新调用，但那不是对旧身份的重放。
+
+Finite recovery-operation instance 包含一次 representative Selection invocation 与一次
+representative Find invocation。它证明任一 identity 都固定到其原始 attachment attempt，绝不会
+自动 replay 到 attempt 2。Recovery 后 fresh same-kind invocation、repeated Find、result
+multiplicity 与 manual retry 映射到 deterministic action 和 recovery-controller test，而不增加额外
+TLA+ invocation identity。
 
 该跨边界模型只假设同一个仍存活的 MessagePort、流或 WebSocket 连接内部保持有序交付。它不假设延迟上界、最终重连、断开后的交付、跨连接丢失的恰好一次执行、浏览器调度时长、Terminal Host 内部实现，也不声称每种传输实现都存在细化证明。现有的确定性客户端、Gateway、Broker、Service、HostConnection 和恢复控制器测试负责这种细化。TLC 通过只代表有界安全证据与进程内响应屏障进展，不表示故障网络最终一定恢复。
 
@@ -264,5 +289,14 @@ listener-before-runtime ordering、Host-epoch fence、精确 canonical target、
 网关控制和附件 WebSocket 引导程序当前没有连接期限。因此，既不验证也不发出 `close`/`error` 的套接字可以无限期地离开 `connecting` 中的初始表面；有界自动恢复仅在出现明确的不可用结果后才开始。选择截止日期、用户取消行为以及该截止日期是否废弃一个附件或整个控制功能是产品/协议决策，而不是当前安全改进的一部分。
 
 终端恢复由两个独立检查的 TLA+ 状态机负责，避免一个状态空间掩盖另一个的 Action。`TerminalRecoveryBinding` 负责 Main 获取/释放、同一与跨 Host 纪元的创建恢复、渲染器文档代次、附件替换、最终修订持久化和退出发布。`TerminalExitRecovery` 负责有界易失准入、持久待处理所有权、显式的日志已满拒绝、未知身份观察/拒绝、发布预留与适配器提交、有界实时发布失败、去重，以及跨 Main 释放/重新获取的可见性恢复。其合并配置检查三个退出标识，易失限制为 `1`、待处理日志限制为 `2`，因此易失、仅持久和已拒绝的准入分支都有可达见证。
+
+在 `TerminalRecoveryBinding` 中，`ReleaseMain` 表示一次真实 Electron Main restart：它清除 Main-owned
+renderer-document generation 与 attachment command authority，同时保留 durable binding、exit fact
+以及同一个 surviving Host inventory。Reacquisition 没有 fairness assumption。
+
+`TerminalExitRecovery` 在 publication ledger 已满时分类为 `publicationBlocked`，同时保留
+pending-journal、publication-reservation 与 adapter-commit ownership。Rejection ledger 已满会产生
+`rejectionUnavailable`，保留 durable unknown exit 并 fail closed。两种 state 都不保证 external
+capacity 或 recovery 最终出现。
 
 这两个模型都是比生产协调器更窄、保留所有权的抽象。它们不对会话退役、部分会话交付、序列分配、渲染器传输或文件系统原子性建模。必需的 Action 覆盖只证明所声明的有界配置执行了每个受维护语义分支；通过 TLC 仍只是有界模型证据，而非生产实现的证明。

@@ -295,6 +295,30 @@ CoverageRejectStale ==
   /\ ~lastFailureWasCurrent
   /\ UNCHANGED vars
 
+CoverageRejectStaleAfterCompletion ==
+  /\ lastAction = "reject-async"
+  /\ ~lastFailureWasCurrent
+  /\ priorActive
+  /\ lastTarget \in Lanes
+  /\ priorPhase[lastTarget] = "settled"
+  /\ lastFailureSequence = priorSequence[lastTarget]
+  /\ UNCHANGED vars
+
+CoverageRejectStaleAfterDisposal ==
+  /\ lastAction = "reject-async"
+  /\ ~lastFailureWasCurrent
+  /\ ~priorActive
+  /\ lastTarget \in Lanes
+  /\ UNCHANGED vars
+
+CoverageRejectStaleAfterReadmission ==
+  /\ lastAction = "reject-async"
+  /\ ~lastFailureWasCurrent
+  /\ priorActive
+  /\ lastTarget \in Lanes
+  /\ lastFailureSequence # priorSequence[lastTarget]
+  /\ UNCHANGED vars
+
 Next ==
   \/ AdmitViewport
   \/ AdmitBuffer
@@ -331,6 +355,9 @@ Next ==
   \/ CoverageRejectCurrentBuffer
   \/ CoverageRejectCurrentLink
   \/ CoverageRejectStale
+  \/ CoverageRejectStaleAfterCompletion
+  \/ CoverageRejectStaleAfterDisposal
+  \/ CoverageRejectStaleAfterReadmission
 
 Spec ==
   /\ Init
@@ -371,7 +398,10 @@ CurrentSequencesAreDistinct ==
 
 SettledRequestHasTypedOutcome ==
   \A lane \in Lanes:
-    phase[lane] = "settled" => outcome[lane] \in Outcomes \ {"none", "cancelled"}
+    phase[lane] = "settled" =>
+      CASE lane = "viewport" -> outcome[lane] \in {"rows", "history-recovery"}
+        [] lane = "buffer" -> outcome[lane] \in {"rows", "unavailable"}
+        [] OTHER -> outcome[lane] \in {"completed", "link-send-failed"}
 
 CrossLaneSettlementIsolation ==
   lastTarget \in Lanes =>

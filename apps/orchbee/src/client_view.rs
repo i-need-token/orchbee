@@ -33,11 +33,37 @@ pub(crate) enum PanelDirection {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum BackendAction {
+    CloseTab,
+    MovePreviousTab,
+    MoveNextTab,
     CreateTab,
     MovePanelFocus(PanelDirection),
     SelectNextTab,
     SelectPreviousTab,
     SelectTab(u8),
+}
+
+// This value is shared with the native Session reducer while remaining protocol-free.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ClientAction {
+    RequestCloseTab,
+    ConfirmClose,
+    CancelClose,
+    MovePreviousTab,
+    MoveNextTab,
+    ToggleBusinessSidebar,
+    OpenShortcutHelp,
+    OpenWorkbenchNavigator,
+    CloseWorkbenchNavigator,
+    CreateTab,
+    SelectNextTab,
+    SelectPreviousTab,
+    SelectTab(u8),
+    MovePanelFocus(PanelDirection),
+    ForwardLiteralPrefix,
+    DismissPrefix,
+    UnknownPrefix,
+    Exit,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -57,10 +83,62 @@ pub(crate) enum ClientKey {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ShellCommand {
-    Backend(BackendAction),
     Exit,
     ForwardTerminal,
     None,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SessionActionDisposition {
+    KeepNavigator,
+    DismissNavigator,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ClientTransition {
+    next: ClientView,
+    action: Option<ClientAction>,
+    shell: ShellCommand,
+    layout_changed: bool,
+}
+
+impl ClientTransition {
+    pub(crate) const fn action(self) -> Option<ClientAction> {
+        self.action
+    }
+
+    pub(crate) const fn shell(self) -> ShellCommand {
+        self.shell
+    }
+
+    pub(crate) const fn layout_changed(self) -> bool {
+        self.layout_changed
+    }
+}
+
+impl ClientAction {
+    pub(crate) const fn backend_action(self) -> Option<BackendAction> {
+        match self {
+            Self::RequestCloseTab => Some(BackendAction::CloseTab),
+            Self::CreateTab => Some(BackendAction::CreateTab),
+            Self::MovePreviousTab => Some(BackendAction::MovePreviousTab),
+            Self::MoveNextTab => Some(BackendAction::MoveNextTab),
+            Self::SelectNextTab => Some(BackendAction::SelectNextTab),
+            Self::SelectPreviousTab => Some(BackendAction::SelectPreviousTab),
+            Self::SelectTab(position) => Some(BackendAction::SelectTab(position)),
+            Self::MovePanelFocus(direction) => Some(BackendAction::MovePanelFocus(direction)),
+            Self::ToggleBusinessSidebar
+            | Self::ConfirmClose
+            | Self::CancelClose
+            | Self::OpenShortcutHelp
+            | Self::OpenWorkbenchNavigator
+            | Self::CloseWorkbenchNavigator
+            | Self::ForwardLiteralPrefix
+            | Self::DismissPrefix
+            | Self::UnknownPrefix
+            | Self::Exit => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -128,73 +206,112 @@ impl ClientView {
         self.notice = Some(Notice::TerminalInputUnavailable);
     }
 
-    pub(crate) fn transition(&mut self, key: ClientKey) -> ShellCommand {
+    pub(crate) fn decide(&self, key: ClientKey) -> ClientTransition {
+        let mut next = *self;
         if self.prefix_active {
-            return self.transition_prefix(key);
+            let (action, shell) = next.decide_prefix(key);
+            return ClientTransition {
+                next,
+                action: Some(action),
+                shell,
+                layout_changed: matches!(self.sidebar_surface(), SidebarSurface::Docked)
+                    != matches!(next.sidebar_surface(), SidebarSurface::Docked),
+            };
         }
 
         if key == ClientKey::ControlB {
-            self.prefix_active = true;
-            self.notice = None;
-            return ShellCommand::None;
+            next.prefix_active = true;
+            return ClientTransition {
+                next,
+                action: None,
+                shell: ShellCommand::None,
+                layout_changed: false,
+            };
         }
 
-        ShellCommand::ForwardTerminal
+        ClientTransition {
+            next,
+            action: None,
+            shell: ShellCommand::ForwardTerminal,
+            layout_changed: false,
+        }
     }
 
-    fn transition_prefix(&mut self, key: ClientKey) -> ShellCommand {
+    pub(crate) fn commit(
+        &mut self,
+        transition: ClientTransition,
+        disposition: SessionActionDisposition,
+    ) {
+        let mut next = transition.next;
+        if disposition == SessionActionDisposition::DismissNavigator
+            && next.overlay == Some(Overlay::WorkbenchNavigator)
+        {
+            next.overlay = None;
+        }
+        *self = next;
+    }
+
+    fn decide_prefix(&mut self, key: ClientKey) -> (ClientAction, ShellCommand) {
         self.prefix_active = false;
         self.notice = None;
 
         match key {
-            ClientKey::ControlB => ShellCommand::ForwardTerminal,
-            ClientKey::Escape => ShellCommand::None,
+            ClientKey::ControlB => (
+                ClientAction::ForwardLiteralPrefix,
+                ShellCommand::ForwardTerminal,
+            ),
+            ClientKey::Escape => (ClientAction::DismissPrefix, ShellCommand::None),
             ClientKey::Plain('b') => {
                 self.toggle_sidebar();
-                ShellCommand::None
+                (ClientAction::ToggleBusinessSidebar, ShellCommand::None)
             }
             ClientKey::Plain('w') => {
-                self.overlay = Some(Overlay::WorkbenchNavigator);
-                ShellCommand::None
+                if self.overlay == Some(Overlay::WorkbenchNavigator) {
+                    self.overlay = None;
+                    (ClientAction::CloseWorkbenchNavigator, ShellCommand::None)
+                } else {
+                    self.overlay = Some(Overlay::WorkbenchNavigator);
+                    (ClientAction::OpenWorkbenchNavigator, ShellCommand::None)
+                }
             }
             ClientKey::Plain('?') => {
                 self.overlay = Some(Overlay::ShortcutHelp);
-                ShellCommand::None
+                (ClientAction::OpenShortcutHelp, ShellCommand::None)
             }
-            ClientKey::Plain('q' | 'd') => ShellCommand::Exit,
-            ClientKey::Plain('c') => ShellCommand::Backend(BackendAction::CreateTab),
-            ClientKey::Plain('n') => ShellCommand::Backend(BackendAction::SelectNextTab),
-            ClientKey::Plain('p') => ShellCommand::Backend(BackendAction::SelectPreviousTab),
+            ClientKey::Plain('q' | 'd') => (ClientAction::Exit, ShellCommand::Exit),
+            ClientKey::Plain('c') => (ClientAction::CreateTab, ShellCommand::None),
+            ClientKey::Plain('x') => (ClientAction::RequestCloseTab, ShellCommand::None),
+            ClientKey::Plain('<') => (ClientAction::MovePreviousTab, ShellCommand::None),
+            ClientKey::Plain('>') => (ClientAction::MoveNextTab, ShellCommand::None),
+            ClientKey::Plain('n') => (ClientAction::SelectNextTab, ShellCommand::None),
+            ClientKey::Plain('p') => (ClientAction::SelectPreviousTab, ShellCommand::None),
             ClientKey::Plain(character @ '1'..='9') => {
                 let number = character as u8 - b'0';
-                ShellCommand::Backend(BackendAction::SelectTab(number))
+                (ClientAction::SelectTab(number), ShellCommand::None)
             }
-            ClientKey::Plain('h') => {
-                ShellCommand::Backend(BackendAction::MovePanelFocus(PanelDirection::Left))
-            }
-            ClientKey::Plain('j') => {
-                ShellCommand::Backend(BackendAction::MovePanelFocus(PanelDirection::Down))
-            }
-            ClientKey::Plain('k') => {
-                ShellCommand::Backend(BackendAction::MovePanelFocus(PanelDirection::Up))
-            }
-            ClientKey::Plain('l') => {
-                ShellCommand::Backend(BackendAction::MovePanelFocus(PanelDirection::Right))
-            }
+            ClientKey::Plain('h') => self.unavailable_panel(PanelDirection::Left),
+            ClientKey::Plain('j') => self.unavailable_panel(PanelDirection::Down),
+            ClientKey::Plain('k') => self.unavailable_panel(PanelDirection::Up),
+            ClientKey::Plain('l') => self.unavailable_panel(PanelDirection::Right),
             ClientKey::Other | ClientKey::Plain(_) => {
                 self.notice = Some(Notice::UnknownPrefix);
-                ShellCommand::None
+                (ClientAction::UnknownPrefix, ShellCommand::None)
             }
         }
+    }
+
+    fn unavailable_panel(&mut self, direction: PanelDirection) -> (ClientAction, ShellCommand) {
+        self.notice = Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(
+            direction,
+        )));
+        (ClientAction::MovePanelFocus(direction), ShellCommand::None)
     }
 
     fn toggle_sidebar(&mut self) {
         match self.viewport {
             ViewportClass::Wide => {
                 self.wide_sidebar_visible = !self.wide_sidebar_visible;
-                if self.overlay == Some(Overlay::BusinessSidebar) {
-                    self.overlay = None;
-                }
+                self.overlay = None;
             }
             ViewportClass::Narrow => {
                 self.overlay = if self.overlay == Some(Overlay::BusinessSidebar) {

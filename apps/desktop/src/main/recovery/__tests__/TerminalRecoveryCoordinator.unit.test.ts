@@ -257,6 +257,46 @@ describe('TerminalRecoveryCoordinator', () => {
 		).toEqual(other);
 	});
 
+	it('reacquires an exited terminal in a fresh Main and keeps exact final-revision replay inert', async () => {
+		const store = new MemoryStore(createDocument('retained'));
+		const exited: TerminalExited = {
+			exit: { code: 7, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('12'),
+			identity,
+		};
+		const firstMain = createCoordinator(createHost(firstEpoch, [[]], identity).value, store);
+
+		expect(await firstMain.recordExit(exited)).toEqual({ durable: true });
+		const writesAfterExit = store.writes.length;
+		expect(await firstMain.recordExit(exited)).toEqual({ durable: true });
+		expect(store.writes).toHaveLength(writesAfterExit);
+		expect(targetBinding(store).state).toEqual({
+			exit: exited.exit,
+			finalRevision: exited.finalRevision,
+			identity,
+			kind: 'exited',
+		});
+
+		const summary = createExitedSummary(exited);
+		const restartedHost = createHost(firstEpoch, [[summary]], identity);
+		const restartedMain = createCoordinator(restartedHost.value, store);
+		expect(await restartedMain.reconcile()).toEqual({ identity, kind: 'recovered', summary });
+		expect(restartedHost.requestKinds).toEqual([
+			MessageKind.listTerminals,
+			MessageKind.createTerminal,
+		]);
+		const writesAfterReacquisition = store.writes.length;
+
+		expect(await restartedMain.recordExit(exited)).toEqual({ durable: true });
+		expect(store.writes).toHaveLength(writesAfterReacquisition);
+		expect(targetBinding(store).state).toEqual({
+			exit: exited.exit,
+			finalRevision: exited.finalRevision,
+			identity,
+			kind: 'exited',
+		});
+	});
+
 	it('reports an unavailable store instead of treating exit persistence as durable', async () => {
 		const store = new MemoryStore(undefined, { kind: 'unavailable', reason: 'read-failed' });
 		const host = createHost(firstEpoch, [[]], identity);
@@ -428,6 +468,16 @@ function createSummary(overrides: Partial<RunningTerminalSummary> = {}): Running
 		terminateRequested: false,
 		theme: createInitialTheme(),
 		...overrides,
+	};
+}
+
+function createExitedSummary(event: TerminalExited): TerminalSummary {
+	return {
+		...createSummary(),
+		exit: event.exit,
+		identity: event.identity,
+		phase: TerminalPhase.exited,
+		revision: event.finalRevision,
 	};
 }
 

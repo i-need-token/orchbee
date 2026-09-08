@@ -16,7 +16,7 @@ use ratatui::{
     style::{Color, Modifier},
 };
 
-use crate::terminal_device::WindowDimensions;
+use crate::{terminal_device::WindowDimensions, terminal_text::sanitize_terminal_text};
 
 pub(crate) trait ResizableBackend: Backend {
     fn set_window_dimensions(&mut self, dimensions: WindowDimensions);
@@ -58,7 +58,8 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
                 .queue(SetForegroundColor(to_crossterm_color(cell.fg)))?
                 .queue(SetBackgroundColor(to_crossterm_color(cell.bg)))?;
             queue_modifiers(&mut self.writer, cell.modifier)?;
-            self.writer.queue(Print(cell.symbol()))?;
+            let symbol = sanitize_terminal_text(cell.symbol());
+            self.writer.queue(Print(symbol.as_ref()))?;
             self.cursor_position = Position { x, y };
         }
         self.writer

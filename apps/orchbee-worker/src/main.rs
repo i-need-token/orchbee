@@ -10,6 +10,8 @@ mod terminal_host_launch_adapter;
 #[cfg(unix)]
 mod terminal_host_operation;
 #[cfg(unix)]
+mod terminal_lifecycle_operation;
+#[cfg(unix)]
 mod terminal_operations;
 #[cfg(unix)]
 mod terminal_viewer_operation;

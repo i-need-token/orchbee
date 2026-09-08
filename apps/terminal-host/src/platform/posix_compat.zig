@@ -1,5 +1,19 @@
 const std = @import("std");
 
+/// Call only at executable startup, before acquiring owned descriptors or
+/// starting workers. Electron can leave non-CLOEXEC Chromium descriptors in a
+/// spawned Host; retaining them also retains its debugger and storage locks.
+pub fn closeInheritedLinuxDescriptors(io: std.Io) !void {
+    var descriptors = try std.Io.Dir.openDirAbsolute(io, "/proc/self/fd", .{ .iterate = true });
+    defer descriptors.close(io);
+    var iterator = descriptors.iterate();
+    while (try iterator.next(io)) |entry| {
+        const descriptor = try std.fmt.parseInt(std.posix.fd_t, entry.name, 10);
+        if (descriptor <= 2 or descriptor == descriptors.handle) continue;
+        close(descriptor);
+    }
+}
+
 pub const PipeError = error{
     SystemFdQuotaExceeded,
     ProcessFdQuotaExceeded,

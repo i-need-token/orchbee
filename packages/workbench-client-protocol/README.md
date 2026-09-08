@@ -15,6 +15,30 @@ contains Project, Workspace, Tab, Panel, and Terminal Presentation product seman
 Environment, Directory, Worktree, Agent, Launch Profile, terminal content, persistence, transport,
 and every Client-local view fact. No current client-session consumer uses this new contract yet.
 
+The separate command binding validates `workbench.command` and correlated command/snapshot results.
+It includes Project and Workspace changes, canonical `tab.rename`, standalone `tab.move`, and
+standalone `tab.create` with its committed terminal result variants. Move carries exactly
+`terminalContextId`, `tabId`, and `direction: previous | next | first | last`; `tab-moved` carries
+exactly `revision`, `terminalContextId`, and `tabId`.
+The Server owns ordering/no-op semantics; consuming adapters own request/result correlation and
+action compatibility. The bindings and both runtime binaries activate and roll back together as one
+local unpublished OBWP v1 cohort; old closed decoders reject Move. It reuses projection identities,
+labels, revision and
+snapshot invariants, rejects unknown fields, and checks encoded request/result limits. The native
+Server consumes the independent Rust binding over OBWP; this package owns decoded values and does
+not implement OBWP transport, duplicate-key decoding, retries, shared-state mutation or
+authorization policy.
+
+The staged Close binding adds `tab.close`, immutable `tab-close-accepted`, effect-free
+`workbench.tab-close.read` and explicit `workbench.tab-close.resume` with their strict results.
+`WorkbenchTabCloseAttemptGenerationSchema` validates a nonzero canonical decimal u64 domain
+separate from revision. Closed status/phase/reason unions preserve known disposal, blocked cleanup,
+unknown effects and final removal as different facts. Resume failure target echoes only repeat
+submitted identities, including for Denied; they do not confirm an existing operation.
+The [Close wire contract](../../schemas/workbench/README.md#accepted-tab-close-wire-contract)
+owns shapes and the shared oracle. These decoded-value parsers do not activate a lifecycle effect
+or prove Server/Worker/native integration; that cohort must move together.
+
 Every `terminal-projection-open-requested` command carries one complete positive
 `TerminalGeometry`. It is the caller's measured mounted geometry for a visual surface, not an
 optional resize hint or fallback. Request identity therefore includes presentation identity and

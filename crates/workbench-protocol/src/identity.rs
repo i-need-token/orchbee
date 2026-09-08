@@ -164,8 +164,9 @@ impl<'de> Deserialize<'de> for ProtocolVersion {
     where
         DeserializerType: Deserializer<'de>,
     {
-        let value = u8::deserialize(deserializer)?;
-        if value == 1 {
+        // The schema governs decoded numeric value, including JSON 1.0 and 1e0.
+        let value = f64::deserialize(deserializer)?;
+        if value == 1.0 {
             Ok(Self)
         } else {
             Err(de::Error::custom("unsupported Workbench protocol version"))

@@ -2,12 +2,17 @@
 EXTENDS Naturals, TLC
 
 \* Refines runtime-model claim TH-024. Ghostty compression activity and the
-\* Terminal-owned interaction serial are observed only while a non-blocking
+\* Terminal-owned interaction activity is observed only while a non-blocking
 \* terminal-lock attempt succeeds. Compression activity starts a fresh idle
 \* interval. Interaction activity restarts an existing waiting or pending
 \* interval without waking dormant work. Once that interval expires, one fair
 \* Host maintenance turn may perform at most one bounded Ghostty incremental
 \* compression step without changing terminal revision, generation, or content.
+\* interactionDirty is the finite abstraction of "the interaction serial has
+\* changed at least once since observation". Unlike a wrapping token, it cannot
+\* erase two intervening interactions through an ABA return to equality.
+\* Refinement from the runtime's wrapping u64 therefore assumes fewer than
+\* 2^64 interactions between successful observations.
 \*
 \* The interference scenario permits arbitrary activity and lock contention.
 \* The quiescent scenario removes both and uses weak fairness for maintenance,
@@ -41,9 +46,8 @@ Actions == {
 
 VARIABLES
   compressionToken,
-  interactionSerial,
+  interactionDirty,
   observedCompressionToken,
-  observedInteractionSerial,
   idleRemaining,
   outcome,
   workRemaining,
@@ -54,9 +58,8 @@ VARIABLES
   attemptsInTurn,
   lastAction,
   previousCompressionToken,
-  previousInteractionSerial,
+  previousInteractionDirty,
   previousObservedCompressionToken,
-  previousObservedInteractionSerial,
   previousIdleRemaining,
   previousOutcome,
   previousWorkRemaining,
@@ -65,11 +68,11 @@ VARIABLES
   previousRevision,
   previousGeneration
 
-vars == <<compressionToken, interactionSerial,
-  observedCompressionToken, observedInteractionSerial, idleRemaining, outcome,
+vars == <<compressionToken, interactionDirty,
+  observedCompressionToken, idleRemaining, outcome,
   workRemaining, lockBusy, cursor, revision, generation, attemptsInTurn,
-  lastAction, previousCompressionToken, previousInteractionSerial,
-  previousObservedCompressionToken, previousObservedInteractionSerial,
+  lastAction, previousCompressionToken, previousInteractionDirty,
+  previousObservedCompressionToken,
   previousIdleRemaining, previousOutcome, previousWorkRemaining,
   previousLockBusy, previousCursor, previousRevision, previousGeneration>>
 
@@ -80,9 +83,8 @@ Init ==
   /\ MaxWork > 0
   /\ SupportedTerminals \subseteq Terminals
   /\ compressionToken = [terminal \in Terminals |-> "token-a"]
-  /\ interactionSerial = [terminal \in Terminals |-> "token-a"]
+  /\ interactionDirty = [terminal \in Terminals |-> FALSE]
   /\ observedCompressionToken = [terminal \in Terminals |-> "none"]
-  /\ observedInteractionSerial = [terminal \in Terminals |-> "none"]
   /\ idleRemaining = [terminal \in Terminals |-> 0]
   /\ outcome = [terminal \in Terminals |-> "idle"]
   /\ workRemaining = [terminal \in Terminals |->
@@ -94,9 +96,8 @@ Init ==
   /\ attemptsInTurn = 0
   /\ lastAction = "init"
   /\ previousCompressionToken = compressionToken
-  /\ previousInteractionSerial = interactionSerial
+  /\ previousInteractionDirty = interactionDirty
   /\ previousObservedCompressionToken = observedCompressionToken
-  /\ previousObservedInteractionSerial = observedInteractionSerial
   /\ previousIdleRemaining = idleRemaining
   /\ previousOutcome = outcome
   /\ previousWorkRemaining = workRemaining
@@ -116,9 +117,8 @@ AgedIdle ==
 Record(action) ==
   /\ lastAction' = action
   /\ previousCompressionToken' = compressionToken
-  /\ previousInteractionSerial' = interactionSerial
+  /\ previousInteractionDirty' = interactionDirty
   /\ previousObservedCompressionToken' = observedCompressionToken
-  /\ previousObservedInteractionSerial' = observedInteractionSerial
   /\ previousIdleRemaining' = idleRemaining
   /\ previousOutcome' = outcome
   /\ previousWorkRemaining' = workRemaining
@@ -135,19 +135,19 @@ CompressionActivityChanges(terminal) ==
   /\ workRemaining' = [workRemaining EXCEPT ![terminal] =
        IF terminal \in SupportedTerminals THEN MaxWork ELSE 0]
   /\ attemptsInTurn' = 0
-  /\ UNCHANGED <<interactionSerial, observedCompressionToken,
-       observedInteractionSerial, idleRemaining, outcome, lockBusy, cursor,
+  /\ UNCHANGED <<interactionDirty, observedCompressionToken,
+       idleRemaining, outcome, lockBusy, cursor,
        revision, generation>>
   /\ Record("compression-activity-changes")
 
 InteractionActivityChanges(terminal) ==
   /\ Scenario = "interference"
   /\ terminal \in Terminals
-  /\ interactionSerial' = [interactionSerial EXCEPT ![terminal] =
-       IF @ = "token-a" THEN "token-b" ELSE "token-a"]
+  /\ interactionDirty' =
+       [interactionDirty EXCEPT ![terminal] = TRUE]
   /\ attemptsInTurn' = 0
   /\ UNCHANGED <<compressionToken, observedCompressionToken,
-       observedInteractionSerial, idleRemaining, outcome, workRemaining,
+       idleRemaining, outcome, workRemaining,
        lockBusy, cursor, revision, generation>>
   /\ Record("interaction-activity-changes")
 
@@ -157,8 +157,8 @@ CompressionLockBecomesBusy(terminal) ==
   /\ ~lockBusy[terminal]
   /\ lockBusy' = [lockBusy EXCEPT ![terminal] = TRUE]
   /\ attemptsInTurn' = 0
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, observedInteractionSerial, idleRemaining,
+  /\ UNCHANGED <<compressionToken, interactionDirty,
+       observedCompressionToken, idleRemaining,
        outcome, workRemaining, cursor, revision, generation>>
   /\ Record("compression-lock-becomes-busy")
 
@@ -168,8 +168,8 @@ CompressionLockBecomesAvailable(terminal) ==
   /\ lockBusy[terminal]
   /\ lockBusy' = [lockBusy EXCEPT ![terminal] = FALSE]
   /\ attemptsInTurn' = 0
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, observedInteractionSerial, idleRemaining,
+  /\ UNCHANGED <<compressionToken, interactionDirty,
+       observedCompressionToken, idleRemaining,
        outcome, workRemaining, cursor, revision, generation>>
   /\ Record("compression-lock-becomes-available")
 
@@ -178,8 +178,8 @@ CompressionLockBusy ==
   /\ idleRemaining' = AgedIdle
   /\ cursor' = NextCursor
   /\ attemptsInTurn' = 0
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, observedInteractionSerial, outcome,
+  /\ UNCHANGED <<compressionToken, interactionDirty,
+       observedCompressionToken, outcome,
        workRemaining, lockBusy, revision, generation>>
   /\ Record("compression-lock-busy")
 
@@ -188,63 +188,63 @@ CompressionObserveActivity ==
   /\ observedCompressionToken[cursor] # compressionToken[cursor]
   /\ observedCompressionToken' =
        [observedCompressionToken EXCEPT ![cursor] = compressionToken[cursor]]
-  /\ observedInteractionSerial' =
-       [observedInteractionSerial EXCEPT ![cursor] = interactionSerial[cursor]]
+  /\ interactionDirty' =
+       [interactionDirty EXCEPT ![cursor] = FALSE]
   /\ idleRemaining' = [AgedIdle EXCEPT ![cursor] = IdleTurns]
   /\ outcome' = [outcome EXCEPT ![cursor] = "idle"]
   /\ cursor' = NextCursor
   /\ attemptsInTurn' = 0
-  /\ UNCHANGED <<compressionToken, interactionSerial, workRemaining,
+  /\ UNCHANGED <<compressionToken, workRemaining,
        lockBusy, revision, generation>>
   /\ Record("compression-observe-activity")
 
 InteractionObserveActivity ==
   /\ ~lockBusy[cursor]
   /\ observedCompressionToken[cursor] = compressionToken[cursor]
-  /\ observedInteractionSerial[cursor] # interactionSerial[cursor]
+  /\ interactionDirty[cursor]
   /\ outcome[cursor] \in {"idle", "pending"}
-  /\ observedInteractionSerial' =
-       [observedInteractionSerial EXCEPT ![cursor] = interactionSerial[cursor]]
+  /\ interactionDirty' =
+       [interactionDirty EXCEPT ![cursor] = FALSE]
   /\ idleRemaining' = [AgedIdle EXCEPT ![cursor] = IdleTurns]
   /\ outcome' = [outcome EXCEPT ![cursor] = "idle"]
   /\ cursor' = NextCursor
   /\ attemptsInTurn' = 0
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, workRemaining, lockBusy, revision, generation>>
+  /\ UNCHANGED <<compressionToken, observedCompressionToken, workRemaining,
+       lockBusy, revision, generation>>
   /\ Record("interaction-observe-activity")
 
 DormantInteractionObservation ==
   /\ ~lockBusy[cursor]
   /\ observedCompressionToken[cursor] = compressionToken[cursor]
-  /\ observedInteractionSerial[cursor] # interactionSerial[cursor]
+  /\ interactionDirty[cursor]
   /\ outcome[cursor] \in {"complete", "unsupported"}
-  /\ observedInteractionSerial' =
-       [observedInteractionSerial EXCEPT ![cursor] = interactionSerial[cursor]]
+  /\ interactionDirty' =
+       [interactionDirty EXCEPT ![cursor] = FALSE]
   /\ idleRemaining' = AgedIdle
   /\ cursor' = NextCursor
   /\ attemptsInTurn' = 0
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, outcome, workRemaining, lockBusy,
+  /\ UNCHANGED <<compressionToken, observedCompressionToken, outcome,
+       workRemaining, lockBusy,
        revision, generation>>
   /\ Record("dormant-interaction-observation")
 
 CompressionIdleWait ==
   /\ ~lockBusy[cursor]
   /\ observedCompressionToken[cursor] = compressionToken[cursor]
-  /\ observedInteractionSerial[cursor] = interactionSerial[cursor]
+  /\ ~interactionDirty[cursor]
   /\ idleRemaining[cursor] > 0
   /\ idleRemaining' = AgedIdle
   /\ cursor' = NextCursor
   /\ attemptsInTurn' = 0
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, observedInteractionSerial, outcome,
+  /\ UNCHANGED <<compressionToken, interactionDirty,
+       observedCompressionToken, outcome,
        workRemaining, lockBusy, revision, generation>>
   /\ Record("compression-idle-wait")
 
 CompressionStepPending ==
   /\ ~lockBusy[cursor]
   /\ observedCompressionToken[cursor] = compressionToken[cursor]
-  /\ observedInteractionSerial[cursor] = interactionSerial[cursor]
+  /\ ~interactionDirty[cursor]
   /\ idleRemaining[cursor] = 0
   /\ cursor \in SupportedTerminals
   /\ outcome[cursor] \in {"idle", "pending"}
@@ -254,15 +254,15 @@ CompressionStepPending ==
   /\ idleRemaining' = AgedIdle
   /\ cursor' = NextCursor
   /\ attemptsInTurn' = 1
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, observedInteractionSerial, lockBusy,
+  /\ UNCHANGED <<compressionToken, interactionDirty,
+       observedCompressionToken, lockBusy,
        revision, generation>>
   /\ Record("compression-step-pending")
 
 CompressionStepComplete ==
   /\ ~lockBusy[cursor]
   /\ observedCompressionToken[cursor] = compressionToken[cursor]
-  /\ observedInteractionSerial[cursor] = interactionSerial[cursor]
+  /\ ~interactionDirty[cursor]
   /\ idleRemaining[cursor] = 0
   /\ cursor \in SupportedTerminals
   /\ outcome[cursor] \in {"idle", "pending"}
@@ -272,15 +272,15 @@ CompressionStepComplete ==
   /\ idleRemaining' = AgedIdle
   /\ cursor' = NextCursor
   /\ attemptsInTurn' = 1
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, observedInteractionSerial, lockBusy,
+  /\ UNCHANGED <<compressionToken, interactionDirty,
+       observedCompressionToken, lockBusy,
        revision, generation>>
   /\ Record("compression-step-complete")
 
 CompressionStepUnsupported ==
   /\ ~lockBusy[cursor]
   /\ observedCompressionToken[cursor] = compressionToken[cursor]
-  /\ observedInteractionSerial[cursor] = interactionSerial[cursor]
+  /\ ~interactionDirty[cursor]
   /\ idleRemaining[cursor] = 0
   /\ cursor \notin SupportedTerminals
   /\ outcome[cursor] \in {"idle", "pending"}
@@ -288,22 +288,22 @@ CompressionStepUnsupported ==
   /\ idleRemaining' = AgedIdle
   /\ cursor' = NextCursor
   /\ attemptsInTurn' = 1
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, observedInteractionSerial, workRemaining,
+  /\ UNCHANGED <<compressionToken, interactionDirty,
+       observedCompressionToken, workRemaining,
        lockBusy, revision, generation>>
   /\ Record("compression-step-unsupported")
 
 CompressionDormant ==
   /\ ~lockBusy[cursor]
   /\ observedCompressionToken[cursor] = compressionToken[cursor]
-  /\ observedInteractionSerial[cursor] = interactionSerial[cursor]
+  /\ ~interactionDirty[cursor]
   /\ idleRemaining[cursor] = 0
   /\ outcome[cursor] \in {"complete", "unsupported"}
   /\ idleRemaining' = AgedIdle
   /\ cursor' = NextCursor
   /\ attemptsInTurn' = 0
-  /\ UNCHANGED <<compressionToken, interactionSerial,
-       observedCompressionToken, observedInteractionSerial, outcome,
+  /\ UNCHANGED <<compressionToken, interactionDirty,
+       observedCompressionToken, outcome,
        workRemaining, lockBusy, revision, generation>>
   /\ Record("compression-dormant")
 
@@ -329,9 +329,8 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(Maintenance)
 
 TypeOK ==
   /\ compressionToken \in [Terminals -> Tokens]
-  /\ interactionSerial \in [Terminals -> Tokens]
+  /\ interactionDirty \in [Terminals -> BOOLEAN]
   /\ observedCompressionToken \in [Terminals -> ObservedTokens]
-  /\ observedInteractionSerial \in [Terminals -> ObservedTokens]
   /\ idleRemaining \in [Terminals -> 0..IdleTurns]
   /\ outcome \in [Terminals -> Outcomes]
   /\ workRemaining \in [Terminals -> 0..MaxWork]
@@ -350,8 +349,7 @@ CompressionRequiresObservedIdle ==
   attemptsInTurn = 1 =>
     /\ previousObservedCompressionToken[previousCursor] =
          previousCompressionToken[previousCursor]
-    /\ previousObservedInteractionSerial[previousCursor] =
-         previousInteractionSerial[previousCursor]
+    /\ ~previousInteractionDirty[previousCursor]
     /\ previousIdleRemaining[previousCursor] = 0
     /\ ~previousLockBusy[previousCursor]
 
@@ -368,8 +366,6 @@ DormantInteractionPreservesDormancy ==
     /\ outcome[previousCursor] = previousOutcome[previousCursor]
     /\ outcome[previousCursor] \in {"complete", "unsupported"}
     /\ attemptsInTurn = 0
-
-OneBoundedAttemptPerTurn == attemptsInTurn <= 1
 
 RoundRobinMaintenance ==
   lastAction \in {

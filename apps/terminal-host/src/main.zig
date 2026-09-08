@@ -1,11 +1,16 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const terminal_host = @import("terminal-host");
+const platform = @import("terminal-host-platform");
 
 const host_service = terminal_host.host_service;
 const launcher_arguments = terminal_host.launcher_arguments;
 const local_ipc = terminal_host.local_ipc;
 
 pub fn main(init: std.process.Init) !void {
+    // The pinned process.Init has not opened application descriptors or started
+    // I/O workers. Discard launcher resources before acquiring any Host state.
+    if (builtin.os.tag == .linux) try platform.posix_compat.closeInheritedLinuxDescriptors(init.io);
     const allocator = init.gpa;
     const arguments = try init.minimal.args.toSlice(init.arena.allocator());
     if (arguments.len == 0) return error.InvalidArguments;

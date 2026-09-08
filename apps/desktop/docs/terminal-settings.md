@@ -23,9 +23,11 @@ renderer capability or create a terminal runtime until Host and the in-memory sn
 
 ## Update transaction
 
-One renderer document may have at most one settings request in progress. Main validates the
-complete configuration, asks Host to commit it, and only then updates the session snapshot and
-attempts owner-only atomic replacement of the record.
+One renderer document may have at most one settings request in progress. Main serializes admitted
+updates, validates the complete configuration, asks Host to commit it, and then awaits owner-only
+atomic replacement of the record. Main publishes the new session snapshot when that persistence
+attempt succeeds or fails. While persistence is pending, Host already owns the new default but
+the Desktop snapshot still contains the previous value; a new terminal captures Host's value.
 
 | Failure point                               | Session value | Stored value   | Renderer result                                    |
 | ------------------------------------------- | ------------- | -------------- | -------------------------------------------------- |
@@ -66,3 +68,13 @@ node scripts/tla/run-models.mjs --models desktop-terminal-default-settings
 `DesktopTerminalDefaultSettings` checks Host-first commit, Host-rejection preservation,
 session-visible persistence failure, future-terminal capture, no live eviction, renderer reload,
 and disposal.
+
+The model uses two configuration values and counts admitted, unsettled mutations independently of
+the request-phase slot, so removing the serialization guard violates `AtMostOneMutation`.
+`HostAndSessionAgree` applies after a request settles; the pending-persistence phase deliberately
+permits different Host and Desktop values. A retained terminal starts with either configuration
+value and preserves it. This abstraction checks configuration preservation, not native row
+retention. Successful startup and definite pre-commit Host rejection are the modeled outcomes;
+startup failure is covered by controller tests. An unavailable or lost post-commit reply cannot
+establish that Host remained unchanged; the native request-outcome model and transport tests own
+that delivery boundary.

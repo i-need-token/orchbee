@@ -25,7 +25,7 @@ Actions == {
   "resolve-canonical-target", "reject-missing-target",
   "reject-unprepared-remote", "begin-local-open", "begin-remote-open",
   "start-terminal", "attach-projection", "delete-canonical-target",
-  "reject-client-retarget", "publish-projection",
+  "retarget-canonical-target", "reject-client-retarget", "publish-projection",
   "discard-stale-projection", "disconnect",
   "fail-remote-open-after-disconnect", "release-projection"
 }
@@ -38,8 +38,8 @@ Init ==
   \E target \in Targets:
     s = [
       canonicalTarget |-> target,
-      connected |-> FALSE,
-      remoteReady |-> FALSE,
+      connected |-> {},
+      remoteReady |-> {},
       requestPhase |-> [request \in Requests |-> "idle"],
       resolvedTarget |-> [request \in Requests |-> NoTarget],
       leaseTarget |-> [request \in Requests |-> NoTarget],
@@ -48,8 +48,8 @@ Init ==
       startCount |-> [candidate \in Targets |-> 0],
       lastAction |-> "init",
       lastRequest |-> NoRequest,
-      previousConnected |-> FALSE,
-      previousRemoteReady |-> FALSE
+      previousConnected |-> {},
+      previousRemoteReady |-> {}
     ]
 
 Record(next, action, request) ==
@@ -59,15 +59,21 @@ Record(next, action, request) ==
     !.previousConnected = s.connected,
     !.previousRemoteReady = s.remoteReady]
 
-Connect ==
-  /\ ~s.connected
-  /\ s' = Record([s EXCEPT !.connected = TRUE], "connect", NoRequest)
+Connect(environment) ==
+  /\ environment \notin s.connected
+  /\ s' = Record(
+       [s EXCEPT !.connected = @ \cup {environment}],
+       "connect",
+       NoRequest)
 
-PrepareRemoteRuntime ==
-  /\ s.connected
-  /\ ~s.remoteReady
-  /\ s.canonicalTarget \in Environments
-  /\ s' = Record([s EXCEPT !.remoteReady = TRUE], "prepare-remote-runtime", NoRequest)
+PrepareRemoteRuntime(environment) ==
+  /\ environment \in s.connected
+  /\ environment \notin s.remoteReady
+  /\ s.canonicalTarget = environment
+  /\ s' = Record(
+       [s EXCEPT !.remoteReady = @ \cup {environment}],
+       "prepare-remote-runtime",
+       NoRequest)
 
 RequestProjection(request) ==
   /\ s.requestPhase[request] = "idle"
@@ -97,7 +103,7 @@ RejectMissingTarget(request) ==
 RejectUnpreparedRemote(request) ==
   /\ s.requestPhase[request] = "resolved"
   /\ s.resolvedTarget[request] \in Environments
-  /\ ~s.remoteReady
+  /\ s.resolvedTarget[request] \notin s.remoteReady
   /\ s' = Record(
        [s EXCEPT !.requestPhase[request] = "failed"],
        "reject-unprepared-remote",
@@ -116,7 +122,7 @@ BeginRemoteOpen(request) ==
   /\ s.requestPhase[request] = "resolved"
   /\ s.resolvedTarget[request] \in Environments
   /\ s.canonicalTarget = s.resolvedTarget[request]
-  /\ s.remoteReady
+  /\ s.resolvedTarget[request] \in s.remoteReady
   /\ s' = Record(
        [s EXCEPT !.requestPhase[request] = "opening"],
        "begin-remote-open",
@@ -128,7 +134,7 @@ StartTerminal(request) ==
     /\ target \in Targets
     /\ s.canonicalTarget = target
     /\ target \notin s.startedTargets
-    /\ target \in Environments => s.remoteReady
+    /\ target \in Environments => target \in s.remoteReady
     /\ s' = Record(
          [s EXCEPT
            !.startedTargets = @ \cup {target},
@@ -141,7 +147,7 @@ AttachProjection(request) ==
     /\ s.requestPhase[request] = "opening"
     /\ target \in s.startedTargets
     /\ s.canonicalTarget = target
-    /\ target \in Environments => s.remoteReady
+    /\ target \in Environments => target \in s.remoteReady
     /\ s' = Record(
          [s EXCEPT
            !.requestPhase[request] = "attached",
@@ -157,8 +163,18 @@ DeleteCanonicalTarget ==
        "delete-canonical-target",
        NoRequest)
 
-RejectClientRetarget ==
+RetargetCanonicalTarget(target) ==
+  /\ target \in Targets
+  /\ s.canonicalTarget \in Targets
+  /\ target # s.canonicalTarget
+  /\ s' = Record(
+       [s EXCEPT !.canonicalTarget = target],
+       "retarget-canonical-target",
+       NoRequest)
+
+RejectClientRetarget(environment) ==
   /\ s.canonicalTarget \in Environments
+  /\ environment \in Environments \ {s.canonicalTarget}
   /\ s' = Record(s, "reject-client-retarget", NoRequest)
 
 PublishProjection(request) ==
@@ -185,24 +201,27 @@ DiscardStaleProjection(request) ==
 RemoteAttachments ==
   {request \in s.attachments : s.leaseTarget[request] \in Environments}
 
-Disconnect ==
-  /\ s.connected
+RemoteAttachmentsFor(environment) ==
+  {request \in s.attachments : s.leaseTarget[request] = environment}
+
+Disconnect(environment) ==
+  /\ environment \in s.connected
   /\ s' = Record(
        [s EXCEPT
-         !.connected = FALSE,
-         !.remoteReady = FALSE,
+         !.connected = @ \ {environment},
+         !.remoteReady = @ \ {environment},
          !.requestPhase = [request \in Requests |->
-           IF request \in RemoteAttachments
+           IF request \in RemoteAttachmentsFor(environment)
            THEN "failed"
            ELSE s.requestPhase[request]],
-         !.attachments = @ \ RemoteAttachments],
+         !.attachments = @ \ RemoteAttachmentsFor(environment)],
        "disconnect",
        NoRequest)
 
 FailRemoteOpenAfterDisconnect(request) ==
   /\ s.requestPhase[request] \in {"resolved", "opening"}
   /\ s.resolvedTarget[request] \in Environments
-  /\ ~s.remoteReady
+  /\ s.resolvedTarget[request] \notin s.remoteReady
   /\ s' = Record(
        [s EXCEPT !.requestPhase[request] = "failed"],
        "fail-remote-open-after-disconnect",
@@ -219,8 +238,8 @@ ReleaseProjection(request) ==
        request)
 
 Next ==
-  \/ Connect
-  \/ PrepareRemoteRuntime
+  \/ \E environment \in Environments: Connect(environment)
+  \/ \E environment \in Environments: PrepareRemoteRuntime(environment)
   \/ \E request \in Requests: RequestProjection(request)
   \/ \E request \in Requests: ResolveCanonicalTarget(request)
   \/ \E request \in Requests: RejectMissingTarget(request)
@@ -230,10 +249,11 @@ Next ==
   \/ \E request \in Requests: StartTerminal(request)
   \/ \E request \in Requests: AttachProjection(request)
   \/ DeleteCanonicalTarget
-  \/ RejectClientRetarget
+  \/ \E target \in Targets: RetargetCanonicalTarget(target)
+  \/ \E environment \in Environments: RejectClientRetarget(environment)
   \/ \E request \in Requests: PublishProjection(request)
   \/ \E request \in Requests: DiscardStaleProjection(request)
-  \/ Disconnect
+  \/ \E environment \in Environments: Disconnect(environment)
   \/ \E request \in Requests: FailRemoteOpenAfterDisconnect(request)
   \/ \E request \in Requests: ReleaseProjection(request)
 
@@ -241,8 +261,8 @@ Spec == Init /\ [][Next]_vars
 
 TypeOK ==
   /\ s.canonicalTarget \in CanonicalTargets
-  /\ s.connected \in BOOLEAN
-  /\ s.remoteReady \in BOOLEAN
+  /\ s.connected \subseteq Environments
+  /\ s.remoteReady \subseteq s.connected
   /\ s.requestPhase \in [Requests -> RequestPhases]
   /\ s.resolvedTarget \in [Requests -> CanonicalTargets]
   /\ s.leaseTarget \in [Requests -> CanonicalTargets]
@@ -251,8 +271,8 @@ TypeOK ==
   /\ s.startCount \in [Targets -> 0..1]
   /\ s.lastAction \in Actions
   /\ s.lastRequest \in Requests \cup {NoRequest}
-  /\ s.previousConnected \in BOOLEAN
-  /\ s.previousRemoteReady \in BOOLEAN
+  /\ s.previousConnected \subseteq Environments
+  /\ s.previousRemoteReady \subseteq Environments
 
 AttachmentMatchesResolvedTarget ==
   \A request \in s.attachments:
@@ -279,7 +299,7 @@ RemoteStartRequiresPreparedRuntime ==
   /\ s.lastAction = "start-terminal"
   /\ s.lastRequest \in Requests
   /\ s.resolvedTarget[s.lastRequest] \in Environments
-  => s.remoteReady
+  => s.resolvedTarget[s.lastRequest] \in s.remoteReady
 
 PublishRequiresCurrentAuthority ==
   s.lastAction = "publish-projection" =>
@@ -293,8 +313,7 @@ ProjectionDoesNotActivateSsh ==
     /\ s.remoteReady = s.previousRemoteReady
 
 DisconnectRetiresRemoteAttachments ==
-  s.lastAction = "disconnect" =>
-    \A request \in s.attachments:
-      s.leaseTarget[request] \notin Environments
+  \A request \in RemoteAttachments:
+    s.leaseTarget[request] \in s.connected
 
 =============================================================================

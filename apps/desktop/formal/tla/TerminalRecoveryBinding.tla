@@ -15,6 +15,7 @@ LedgerStates == {
   "lost", "orphaned", "unavailable"
 }
 InventoryStates == {"empty", "match", "orphan"}
+PostExitMutationPhases == {"before-publication", "after-publication"}
 
 VARIABLES
   mainOwner,
@@ -31,7 +32,8 @@ VARIABLES
   visibleRevision,
   finalRevision,
   persistedExitRevision,
-  exitPublished
+  exitPublished,
+  rejectedPostExitMutations
 
 vars == <<
   mainOwner,
@@ -48,7 +50,8 @@ vars == <<
   visibleRevision,
   finalRevision,
   persistedExitRevision,
-  exitPublished
+  exitPublished,
+  rejectedPostExitMutations
 >>
 
 Init ==
@@ -56,7 +59,7 @@ Init ==
   /\ ledgerState = "absent"
   /\ attemptedEpoch = NoEpoch
   /\ hostEpoch \in Epochs
-  /\ inventory \in InventoryStates
+  /\ inventory \in {"empty", "orphan"}
   /\ hostCreations = 0
   /\ orphanObserved = FALSE
   /\ documentGeneration = 0
@@ -67,6 +70,7 @@ Init ==
   /\ finalRevision = NoRevision
   /\ persistedExitRevision = 0
   /\ exitPublished = FALSE
+  /\ rejectedPostExitMutations = {}
 
 AcquireMain(main) ==
   /\ main \in MainProcesses
@@ -77,15 +81,22 @@ AcquireMain(main) ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, visibleRevision, finalRevision,
                   persistedExitRevision, exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 ReleaseMain ==
+  \* This is an Electron Main restart. The durable binding/exit facts and the
+  \* external Host inventory survive; Main-owned document and attachment
+  \* authority do not.
   /\ mainOwner # {}
   /\ mainOwner' = {}
+  /\ documentGeneration' = 0
+  /\ openAttachmentGeneration' = NoGeneration
+  /\ commandAttachmentGeneration' = NoGeneration
+  /\ staleMessageRejected' = FALSE
   /\ UNCHANGED <<ledgerState, attemptedEpoch, hostEpoch, inventory,
-                  hostCreations, orphanObserved, documentGeneration,
-                  openAttachmentGeneration, commandAttachmentGeneration,
-                  staleMessageRejected, visibleRevision, finalRevision,
-                  persistedExitRevision, exitPublished>>
+                  hostCreations, orphanObserved, visibleRevision,
+                  finalRevision, persistedExitRevision, exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 LoadPlanned ==
   /\ mainOwner # {}
@@ -97,6 +108,7 @@ LoadPlanned ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, visibleRevision, finalRevision,
                   persistedExitRevision, exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 LoadCorrupt ==
   /\ mainOwner # {}
@@ -108,6 +120,7 @@ LoadCorrupt ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, visibleRevision, finalRevision,
                   persistedExitRevision, exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 ObserveOrphan ==
   /\ mainOwner # {}
@@ -120,6 +133,7 @@ ObserveOrphan ==
                   commandAttachmentGeneration, staleMessageRejected,
                   visibleRevision, finalRevision, persistedExitRevision,
                   exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 MarkCreateRequested ==
   /\ mainOwner # {}
@@ -131,6 +145,7 @@ MarkCreateRequested ==
                   commandAttachmentGeneration, staleMessageRejected,
                   visibleRevision, finalRevision, persistedExitRevision,
                   exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 CreateResponds ==
   /\ mainOwner # {}
@@ -145,6 +160,7 @@ CreateResponds ==
                   commandAttachmentGeneration, staleMessageRejected,
                   visibleRevision, finalRevision, persistedExitRevision,
                   exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 CreateResponseLost ==
   /\ mainOwner # {}
@@ -158,6 +174,7 @@ CreateResponseLost ==
                   commandAttachmentGeneration, staleMessageRejected,
                   visibleRevision, finalRevision, persistedExitRevision,
                   exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 RecoverSameEpoch ==
   /\ mainOwner # {}
@@ -170,6 +187,7 @@ RecoverSameEpoch ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, visibleRevision, finalRevision,
                   persistedExitRevision, exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 ChangeHostEpoch(nextEpoch) ==
   /\ mainOwner # {}
@@ -184,6 +202,7 @@ ChangeHostEpoch(nextEpoch) ==
                   commandAttachmentGeneration, staleMessageRejected,
                   visibleRevision, finalRevision, persistedExitRevision,
                   exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 MarkCrossEpochLost ==
   /\ mainOwner # {}
@@ -195,6 +214,7 @@ MarkCrossEpochLost ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, visibleRevision, finalRevision,
                   persistedExitRevision, exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 StartDocument ==
   /\ mainOwner # {}
@@ -207,6 +227,7 @@ StartDocument ==
                   inventory, hostCreations, orphanObserved,
                   openAttachmentGeneration, visibleRevision, finalRevision,
                   persistedExitRevision, exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 DetachPreviousAttachment ==
   /\ mainOwner # {}
@@ -218,6 +239,7 @@ DetachPreviousAttachment ==
                   documentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, visibleRevision, finalRevision,
                   persistedExitRevision, exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 AttachCurrentDocument ==
   /\ mainOwner # {}
@@ -231,6 +253,7 @@ AttachCurrentDocument ==
                   inventory, hostCreations, orphanObserved, documentGeneration,
                   staleMessageRejected, visibleRevision, finalRevision,
                   persistedExitRevision, exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 RejectStaleMessage ==
   /\ mainOwner # {}
@@ -243,6 +266,7 @@ RejectStaleMessage ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   visibleRevision, finalRevision, persistedExitRevision,
                   exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 HostExited ==
   /\ mainOwner # {}
@@ -254,34 +278,35 @@ HostExited ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, visibleRevision, persistedExitRevision,
                   exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
-PostExitHistoryEviction ==
+RejectPostExitMutationAfterPublication ==
   /\ mainOwner # {}
   /\ ledgerState = "exited"
   /\ exitPublished
   /\ finalRevision # NoRevision
-  /\ finalRevision < NoRevision - 1
-  /\ persistedExitRevision = finalRevision
-  /\ finalRevision' = finalRevision + 1
-  /\ persistedExitRevision' = finalRevision + 1
-  /\ visibleRevision' = finalRevision + 1
+  /\ "after-publication" \notin rejectedPostExitMutations
+  /\ rejectedPostExitMutations' =
+       rejectedPostExitMutations \cup {"after-publication"}
   /\ UNCHANGED <<mainOwner, ledgerState, attemptedEpoch, hostEpoch,
                   inventory, hostCreations, orphanObserved, documentGeneration,
                   openAttachmentGeneration, commandAttachmentGeneration,
-                  staleMessageRejected, exitPublished>>
+                  staleMessageRejected, visibleRevision, finalRevision,
+                  persistedExitRevision, exitPublished>>
 
-PostExitHistoryEvictionBeforePublication ==
+RejectPostExitMutationBeforePublication ==
   /\ mainOwner # {}
   /\ ledgerState = "exited"
   /\ ~exitPublished
   /\ finalRevision # NoRevision
-  /\ finalRevision < NoRevision - 1
-  /\ finalRevision' = finalRevision + 1
+  /\ "before-publication" \notin rejectedPostExitMutations
+  /\ rejectedPostExitMutations' =
+       rejectedPostExitMutations \cup {"before-publication"}
   /\ UNCHANGED <<mainOwner, ledgerState, attemptedEpoch, hostEpoch,
                   inventory, hostCreations, orphanObserved, documentGeneration,
                   openAttachmentGeneration, commandAttachmentGeneration,
-                  staleMessageRejected, visibleRevision, persistedExitRevision,
-                  exitPublished>>
+                  staleMessageRejected, visibleRevision, finalRevision,
+                  persistedExitRevision, exitPublished>>
 
 CommitFrame ==
   /\ mainOwner # {}
@@ -293,6 +318,7 @@ CommitFrame ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, finalRevision, persistedExitRevision,
                   exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 PublishExit ==
   /\ mainOwner # {}
@@ -307,6 +333,7 @@ PublishExit ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, visibleRevision, finalRevision,
                   persistedExitRevision>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 RetryExitPersistence ==
   /\ mainOwner # {}
@@ -320,6 +347,7 @@ RetryExitPersistence ==
                   openAttachmentGeneration, commandAttachmentGeneration,
                   staleMessageRejected, visibleRevision, finalRevision,
                   exitPublished>>
+  /\ UNCHANGED rejectedPostExitMutations
 
 Next ==
   \/ \E main \in MainProcesses: AcquireMain(main)
@@ -338,11 +366,11 @@ Next ==
   \/ AttachCurrentDocument
   \/ RejectStaleMessage
   \/ HostExited
-  \/ PostExitHistoryEvictionBeforePublication
-  \/ PostExitHistoryEviction
   \/ CommitFrame
   \/ RetryExitPersistence
   \/ PublishExit
+  \/ RejectPostExitMutationBeforePublication
+  \/ RejectPostExitMutationAfterPublication
 
 Spec == Init /\ [][Next]_vars
 
@@ -362,6 +390,7 @@ TypeOK ==
   /\ finalRevision \in 0..NoRevision
   /\ persistedExitRevision \in 0..NoRevision
   /\ exitPublished \in BOOLEAN
+  /\ rejectedPostExitMutations \subseteq PostExitMutationPhases
 
 SingleMainOwner == Cardinality(mainOwner) <= 1
 
@@ -388,9 +417,22 @@ DurableExitRevision ==
   /\ persistedExitRevision <= finalRevision
   /\ exitPublished => persistedExitRevision = finalRevision
 
-FinalRevisionMonotonic ==
-  [] [((finalRevision = NoRevision) \/ (finalRevision' = NoRevision)
-       \/ (finalRevision' >= finalRevision))]_vars
+ReleasedMainOwnsNoDocumentState ==
+  mainOwner = {} =>
+    /\ documentGeneration = 0
+    /\ openAttachmentGeneration = NoGeneration
+    /\ commandAttachmentGeneration = NoGeneration
+    /\ ~staleMessageRejected
+
+RejectedPostExitMutationIsDiagnostic ==
+  rejectedPostExitMutations # {} =>
+    /\ ledgerState = "exited"
+    /\ finalRevision # NoRevision
+
+FinalRevisionFreezeStep ==
+  ledgerState # "exited" \/ finalRevision' = finalRevision
+
+FinalRevisionFrozenAfterExit == [] [FinalRevisionFreezeStep]_vars
 
 PersistedRevisionMonotonic ==
   [] [(persistedExitRevision' >= persistedExitRevision)]_vars

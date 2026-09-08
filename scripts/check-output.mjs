@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { closeSync, fstatSync, mkdtempSync, openSync, readSync } from 'node:fs';
 import { constants, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,11 +17,11 @@ export function checkVerbose(args) {
 	return options.includes('--verbose');
 }
 
-function childExitCode(result) {
+function exitCodeOf(result) {
 	if (result.error !== undefined) {
 		return 1;
 	}
-	if (result.signal !== null) {
+	if (result.signal !== null && result.signal !== undefined) {
 		return 128 + (constants.signals[result.signal] ?? 1);
 	}
 	return result.status ?? 1;
@@ -127,80 +127,193 @@ function failureExcerpt(fd) {
 	return `${head}\n... output omitted; see full log ...\n${tail}`;
 }
 
-/** Runs a fixed sequential gate; presentation never determines a check's result. */
-export function runChecks({ name, steps, cwd, verbose = false, logRoot = tmpdir() }) {
-	let exitCode = 1;
+function isConcurrent(entry) {
+	return entry !== null && typeof entry === 'object' && Array.isArray(entry.concurrent);
+}
+
+function childEnv() {
+	return { ...process.env, [captureVariable]: '1' };
+}
+
+/** Resolves only after the process and its stdio streams have fully drained. */
+function awaitClose(child) {
+	return new Promise((resolve) => {
+		let launchError;
+		child.once('error', (error) => {
+			launchError = error;
+		});
+		child.once('close', (status, signal) => {
+			resolve({ status, signal, error: launchError, finished: performance.now() });
+		});
+	});
+}
+
+/** Bounded labeled fragments preserve text while destination writes apply backpressure. */
+async function forwardPipes(child, label) {
+	const pump = async (stream, destination) => {
+		stream.setEncoding('utf8');
+		let pending = '';
+		const write = (fragment) =>
+			new Promise((resolve, reject) => {
+				destination.write(`[${label}] ${fragment}\n`, (error) => {
+					if (error) reject(error);
+					else resolve();
+				});
+			});
+		for await (const chunk of stream) {
+			pending += chunk;
+			while (pending !== '') {
+				const newline = pending.indexOf('\n');
+				if (newline >= 0 && newline <= 8192) {
+					await write(pending.slice(0, newline));
+					pending = pending.slice(newline + 1);
+				} else if (pending.length > 8192) {
+					// Keep a UTF-16 surrogate pair together at the fragment boundary.
+					const last = pending.charCodeAt(8191);
+					const end = last >= 0xd800 && last <= 0xdbff ? 8191 : 8192;
+					await write(pending.slice(0, end));
+					pending = pending.slice(end);
+				} else {
+					break;
+				}
+			}
+		}
+		if (pending !== '') await write(pending);
+	};
+	const results = await Promise.allSettled([
+		pump(child.stdout, process.stdout),
+		pump(child.stderr, process.stderr),
+	]);
+	return results.find((result) => result.status === 'rejected')?.reason;
+}
+
+async function reportOutcome(outcome) {
+	const { step, logPath, started, result } = outcome;
+	const exitCode = exitCodeOf(result);
+	if (result.error !== undefined) {
+		process.stderr.write(`${step.name}: ${result.error.message}\n`);
+	}
+	if (logPath !== undefined) {
+		const logFd = openSync(logPath, 'r');
+		try {
+			const { summary, notices, diagnostics, omittedNotices } = summarizeLog(logFd);
+			const duration = ((result.finished - started) / 1000).toFixed(1);
+			const reason = exitCode === 0 ? '' : `; ${result.signal ?? `exit ${exitCode}`}`;
+			process.stdout.write(
+				`${exitCode === 0 ? 'PASS' : 'FAIL'} ${step.name} (${duration}s${reason}${summary})\n`,
+			);
+			for (const notice of notices) {
+				process.stdout.write(`  ${notice}\n`);
+			}
+			if (omittedNotices > 0) {
+				process.stdout.write(`  ... ${omittedNotices} more notices; see full log\n`);
+			}
+			if (exitCode !== 0) {
+				const excerpt = failureExcerpt(logFd);
+				const missingDiagnostics = diagnostics.filter((line) => !excerpt.includes(line));
+				process.stderr.write(`Log: ${logPath}\n`);
+				if (missingDiagnostics.length > 0) {
+					process.stderr.write(
+						`Diagnostics from omitted output:\n${missingDiagnostics.join('\n')}\n`,
+					);
+				}
+				process.stderr.write(`${excerpt}\n`);
+			}
+		} finally {
+			closeSync(logFd);
+		}
+	}
+	return exitCode;
+}
+
+/**
+ * Runs a fixed gate; steps sharing a `{ concurrent: [...] }` entry run in
+ * parallel while entries themselves stay ordered and fail-fast.
+ * Presentation never determines a check's result.
+ */
+export async function runChecks({ name, steps, cwd, verbose = false, logRoot = tmpdir() }) {
 	try {
 		const capture = !verbose && process.env[captureVariable] !== '1';
 		const directory = capture ? mkdtempSync(join(logRoot, 'orchbee-checks-')) : undefined;
 		if (capture) {
 			process.stdout.write(`[${name}] Logs: ${directory}\n`);
 		}
-		for (const [index, step] of steps.entries()) {
-			const started = performance.now();
-			const logPath = capture
-				? join(
-						directory,
-						`${String(index + 1).padStart(2, '0')}-${step.name.replaceAll(/[^\w.-]/gu, '-')}.log`,
-					)
-				: undefined;
-			if (capture) {
-				process.stdout.write(`RUN [${index + 1}/${steps.length}] ${step.name}\n`);
-			}
-			const fd = capture ? openSync(logPath, 'wx', 0o600) : undefined;
-			let result;
-			try {
-				result = spawnSync(step.command, step.args, {
-					cwd,
-					env: { ...process.env, [captureVariable]: '1' },
-					stdio: capture ? ['inherit', fd, fd] : 'inherit',
-				});
-			} finally {
-				if (fd !== undefined) {
-					closeSync(fd);
-				}
-			}
-			exitCode = childExitCode(result);
-			if (result.error !== undefined) {
-				process.stderr.write(`${step.name}: ${result.error.message}\n`);
-			}
-			if (capture) {
-				const logFd = openSync(logPath, 'r');
-				try {
-					const { summary, notices, diagnostics, omittedNotices } = summarizeLog(logFd);
-					const duration = ((performance.now() - started) / 1000).toFixed(1);
-					const reason = exitCode === 0 ? '' : `; ${result.signal ?? `exit ${exitCode}`}`;
+		const total = steps.reduce(
+			(count, entry) => count + (isConcurrent(entry) ? entry.concurrent.length : 1),
+			0,
+		);
+		const context = { cwd, capture, directory, verbose, total, ordinal: 0 };
+		for (const entry of steps) {
+			const group = isConcurrent(entry) ? entry.concurrent : [entry];
+			let firstFailure = 0;
+			const outcomes = [];
+			for (const step of group) {
+				context.ordinal += 1;
+				const ordinal = context.ordinal;
+				const logPath = capture
+					? join(
+							directory,
+							`${String(ordinal).padStart(2, '0')}-${step.name.replaceAll(/[^\w.-]/gu, '-')}.log`,
+						)
+					: undefined;
+				const started = performance.now();
+				if (capture) {
 					process.stdout.write(
-						`${exitCode === 0 ? 'PASS' : 'FAIL'} ${step.name} (${duration}s${reason}${summary})\n`,
+						`RUN [${ordinal}/${total}] ${step.name}${group.length > 1 ? ' (concurrent)' : ''}\n`,
 					);
-					for (const notice of notices) {
-						process.stdout.write(`  ${notice}\n`);
+				}
+				const piped = !capture && group.length > 1;
+				const fd = capture ? openSync(logPath, 'wx', 0o600) : undefined;
+				let forwarding;
+				let child;
+				try {
+					let stdio = 'inherit';
+					if (capture) stdio = ['ignore', fd, fd];
+					else if (piped) stdio = ['ignore', 'pipe', 'pipe'];
+					child = spawn(step.command, step.args, {
+						cwd,
+						env: childEnv(),
+						stdio,
+					});
+				} catch (error) {
+					if (fd !== undefined) {
+						closeSync(fd);
 					}
-					if (omittedNotices > 0) {
-						process.stdout.write(`  ... ${omittedNotices} more notices; see full log\n`);
+					outcomes.push({ step, logPath, started, result: { error, finished: performance.now() } });
+					continue;
+				}
+				if (piped) {
+					forwarding = forwardPipes(child, step.name);
+				}
+				outcomes.push({ step, logPath, started, fd, child, forwarding, pending: true });
+			}
+			await Promise.all(
+				outcomes.map(async (outcome) => {
+					if (!outcome.pending) {
+						return;
 					}
-					if (exitCode !== 0) {
-						const excerpt = failureExcerpt(logFd);
-						const missingDiagnostics = diagnostics.filter((line) => !excerpt.includes(line));
-						process.stderr.write(`Log: ${logPath}\n`);
-						if (missingDiagnostics.length > 0) {
-							process.stderr.write(
-								`Diagnostics from omitted output:\n${missingDiagnostics.join('\n')}\n`,
-							);
-						}
-						process.stderr.write(`${excerpt}\n`);
+					const result = await awaitClose(outcome.child);
+					if (outcome.fd !== undefined) {
+						closeSync(outcome.fd);
 					}
-				} finally {
-					closeSync(logFd);
+					const forwardingError = await outcome.forwarding;
+					outcome.result =
+						forwardingError === undefined ? result : { ...result, error: forwardingError };
+				}),
+			);
+			for (const outcome of outcomes) {
+				const exitCode = await reportOutcome(outcome);
+				if (exitCode !== 0 && firstFailure === 0) {
+					firstFailure = exitCode;
 				}
 			}
-			if (exitCode !== 0) {
-				return exitCode;
+			if (firstFailure !== 0) {
+				return firstFailure;
 			}
 		}
 		return 0;
 	} catch (error) {
 		process.stderr.write(`${name}: ${error.message}\n`);
-		return exitCode || 1;
+		return 1;
 	}
 }

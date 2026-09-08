@@ -1,4 +1,4 @@
-use ratatui::backend::Backend;
+use ratatui::{backend::Backend, buffer::Cell};
 
 use crate::terminal_device::WindowDimensions;
 
@@ -47,4 +47,32 @@ fn backend_implementation_never_delegates_dimension_or_cursor_queries() {
             "fixed backend contains forbidden global query path: {forbidden}"
         );
     }
+}
+
+#[test]
+fn sanitizes_untrusted_cell_symbols_at_the_final_print_boundary()
+-> Result<(), Box<dyn std::error::Error>> {
+    let dimensions = WindowDimensions {
+        columns: 1,
+        pixel_height: 16,
+        pixel_width: 8,
+        rows: 1,
+    };
+    let mut backend = FixedViewportBackend::new(Vec::<u8>::new(), dimensions);
+    let payload = "safe\x1b]52;c;payload\x07\r\n\u{85}\u{2028}\u{2029}界e\u{301}";
+    let mut cell = Cell::default();
+    cell.set_symbol(payload);
+
+    backend.draw(std::iter::once((0, 0, &cell)))?;
+
+    let output = std::str::from_utf8(&backend.writer)?;
+    assert!(output.contains("\x1b["));
+    assert!(!output.contains("\x1b]52;c;payload"));
+    for forbidden in ['\x07', '\r', '\n', '\u{85}', '\u{2028}', '\u{2029}'] {
+        assert!(!output.contains(forbidden));
+    }
+    assert_eq!(output.matches('\u{fffd}').count(), 7);
+    assert!(output.contains("界e\u{301}"));
+    assert_eq!(cell.symbol(), payload);
+    Ok(())
 }

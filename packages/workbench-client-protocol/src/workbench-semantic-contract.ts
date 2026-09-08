@@ -50,9 +50,13 @@ export const WorkbenchRevisionSchema = z
 	)
 	.brand<'WorkbenchRevision'>();
 
-const labelSchema = z
+export const WorkbenchLabelSchema = z
 	.string()
 	.min(1)
+	.refine(
+		(value) => !/[\uD800-\uDFFF]/u.test(value),
+		'Label contains an unpaired Unicode surrogate',
+	)
 	.refine(
 		(value) => [...value].length <= WORKBENCH_MAXIMUM_LABEL_LENGTH,
 		'Label exceeds the Unicode code-point limit',
@@ -80,7 +84,7 @@ export const WorkbenchPresentationBindingSchema = z
 export const WorkbenchPresentationSchema = z
 	.strictObject({
 		binding: WorkbenchPresentationBindingSchema.nullable(),
-		label: labelSchema,
+		label: WorkbenchLabelSchema,
 		presentationId: TerminalPresentationIdSchema,
 	})
 	.readonly();
@@ -152,14 +156,14 @@ export const WorkbenchTabGroupSchema = z
 	.strictObject({
 		color: z.enum(['blue', 'cyan', 'green', 'grey', 'orange', 'pink', 'purple', 'red', 'yellow']),
 		groupId: WorkbenchTabGroupIdSchema,
-		label: labelSchema,
+		label: WorkbenchLabelSchema,
 	})
 	.readonly();
 
 export const WorkbenchTabSchema = z
 	.strictObject({
 		groupId: WorkbenchTabGroupIdSchema.nullable(),
-		label: labelSchema,
+		label: WorkbenchLabelSchema,
 		pinned: z.boolean(),
 		root: WorkbenchPanelNodeSchema,
 		tabId: WorkbenchTabIdSchema,
@@ -179,7 +183,7 @@ export const WorkbenchTerminalContextSchema = z
 
 export const WorkbenchWorkspaceSchema = z
 	.strictObject({
-		label: labelSchema,
+		label: WorkbenchLabelSchema,
 		terminalContextId: WorkbenchTerminalContextIdSchema,
 		workspaceId: WorkbenchWorkspaceIdSchema,
 	})
@@ -187,7 +191,7 @@ export const WorkbenchWorkspaceSchema = z
 
 export const WorkbenchProjectSchema = z
 	.strictObject({
-		label: labelSchema,
+		label: WorkbenchLabelSchema,
 		projectId: WorkbenchProjectIdSchema,
 		workspaces: z
 			.array(WorkbenchWorkspaceSchema)

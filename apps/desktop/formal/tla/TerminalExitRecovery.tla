@@ -8,14 +8,9 @@ EXTENDS FiniteSets, Naturals, TLC
 \* outside this model and are owned by their refinement evidence.
 
 CONSTANTS MainProcesses, ExitIdentities, MainQueueLimit, PendingJournalLimit,
-          PublicationLedgerLimit, RejectedLimit, LiveFailureLimit,
-          SymmetryGroupA, SymmetryGroupB
+          PublicationLedgerLimit, RejectedLimit, LiveFailureLimit
 
-ExitSymmetry == {
-  permutationA @@ permutationB :
-    permutationA \in Permutations(SymmetryGroupA),
-    permutationB \in Permutations(SymmetryGroupB)
-}
+ExitSymmetry == Permutations(ExitIdentities)
 
 VARIABLES mainOwner, exitRecovery
 
@@ -34,8 +29,10 @@ Init ==
        adapterCommitted |-> {},
        publicationPending |-> {},
        publicationLedger |-> {},
+       publicationBlocked |-> {},
        visible |-> {},
        rejected |-> {},
+       rejectionUnavailable |-> {},
        liveFailureCount |-> [identity \in ExitIdentities |-> 0],
        publicationCount |-> [identity \in ExitIdentities |-> 0]
      ]
@@ -132,6 +129,7 @@ PromoteObservedUnknown(identity) ==
   /\ mainOwner # {}
   /\ identity \in er.unknown
   /\ identity \in er.identityObserved
+  /\ identity \notin er.rejectionUnavailable
   /\ Cardinality(er.volatileQueue) < MainQueueLimit
   /\ exitRecovery' = [er EXCEPT
         !.unknown = @ \ {identity},
@@ -143,6 +141,7 @@ RejectUnknown(identity) ==
   /\ mainOwner # {}
   /\ identity \in er.unknown
   /\ identity \notin er.identityObserved
+  /\ identity \notin er.rejectionUnavailable
   /\ Cardinality(er.rejected) < RejectedLimit
   /\ exitRecovery' = [er EXCEPT
         !.unknown = @ \ {identity},
@@ -193,9 +192,37 @@ MarkPublished(identity) ==
   /\ mainOwner # {}
   /\ identity \in er.publicationPending
   /\ identity \in er.adapterCommitted
+  /\ identity \notin er.publicationBlocked
   /\ Cardinality(er.publicationLedger) < PublicationLedgerLimit
   /\ exitRecovery' = [er EXCEPT
         !.publicationLedger = @ \cup {identity}]
+  /\ UNCHANGED mainOwner
+
+ClassifyPublicationLedgerFull(identity) ==
+  \* The committed exit remains durably pending. This safety classification
+  \* makes no promise that external ledger capacity will later become free.
+  LET er == exitRecovery IN
+  /\ mainOwner # {}
+  /\ identity \in er.publicationPending
+  /\ identity \in er.adapterCommitted
+  /\ identity \notin er.publicationLedger
+  /\ identity \notin er.publicationBlocked
+  /\ Cardinality(er.publicationLedger) >= PublicationLedgerLimit
+  /\ exitRecovery' = [er EXCEPT
+        !.publicationBlocked = @ \cup {identity}]
+  /\ UNCHANGED mainOwner
+
+FailClosedRejectionUnavailable(identity) ==
+  \* A full rejection ledger cannot erase the already durable unknown exit.
+  \* The model records the terminal failure without assuming later recovery.
+  LET er == exitRecovery IN
+  /\ mainOwner # {}
+  /\ identity \in er.unknown
+  /\ identity \notin er.identityObserved
+  /\ identity \notin er.rejectionUnavailable
+  /\ Cardinality(er.rejected) >= RejectedLimit
+  /\ exitRecovery' = [er EXCEPT
+        !.rejectionUnavailable = @ \cup {identity}]
   /\ UNCHANGED mainOwner
 
 PublishVisible(identity) ==
@@ -273,6 +300,8 @@ Next ==
   \/ \E identity \in ExitIdentities: CommitAdapterPublication(identity)
   \/ \E identity \in ExitIdentities: ReservePublication(identity)
   \/ \E identity \in ExitIdentities: MarkPublished(identity)
+  \/ \E identity \in ExitIdentities: ClassifyPublicationLedgerFull(identity)
+  \/ \E identity \in ExitIdentities: FailClosedRejectionUnavailable(identity)
   \/ \E identity \in ExitIdentities: PublishVisible(identity)
   \/ \E identity \in ExitIdentities: LivePublicationFailure(identity)
   \/ \E identity \in ExitIdentities: LivePublicationSuccess(identity)
@@ -293,8 +322,10 @@ TypeOK ==
   /\ exitRecovery.adapterCommitted \subseteq ExitIdentities
   /\ exitRecovery.publicationPending \subseteq ExitIdentities
   /\ exitRecovery.publicationLedger \subseteq ExitIdentities
+  /\ exitRecovery.publicationBlocked \subseteq ExitIdentities
   /\ exitRecovery.visible \subseteq ExitIdentities
   /\ exitRecovery.rejected \subseteq ExitIdentities
+  /\ exitRecovery.rejectionUnavailable \subseteq ExitIdentities
   /\ exitRecovery.liveFailureCount \in [ExitIdentities -> 0..LiveFailureLimit]
   /\ exitRecovery.publicationCount \in [ExitIdentities -> Nat]
   /\ Cardinality(exitRecovery.volatileQueue) <= MainQueueLimit
@@ -337,6 +368,25 @@ ExitRecoveryVisibleOwnership ==
   /\ er.visible \subseteq er.publicationLedger
   /\ er.visible \subseteq er.presentationAccepted
 
+PublicationCapacityFailureRetainsDurableOwnership ==
+  LET er == exitRecovery IN
+  /\ er.publicationBlocked \subseteq
+       er.pendingJournal \cap er.publicationPending \cap er.adapterCommitted
+  /\ er.publicationBlocked \cap
+       (er.publicationLedger \cup er.visible \cup er.rejected) = {}
+  /\ (er.publicationBlocked # {} =>
+        Cardinality(er.publicationLedger) = PublicationLedgerLimit)
+
+RejectionCapacityFailureRetainsDurableOwnership ==
+  LET er == exitRecovery IN
+  /\ er.rejectionUnavailable \subseteq er.unknown \cap er.pendingJournal
+  /\ er.rejectionUnavailable \cap
+       (er.presentationAccepted \cup er.durableHandoff \cup
+        er.adapterCommitted \cup er.publicationPending \cup
+        er.publicationLedger \cup er.visible \cup er.rejected) = {}
+  /\ (er.rejectionUnavailable # {} =>
+        Cardinality(er.rejected) = RejectedLimit)
+
 ExitRecoveryDisjointOwnership ==
   LET er == exitRecovery IN
   /\ er.pendingJournal \cap er.rejected = {}
@@ -352,6 +402,8 @@ ExitRecoveryOwnership ==
   /\ ExitRecoveryAdapterOwnership
   /\ ExitRecoveryLedgerOwnership
   /\ ExitRecoveryVisibleOwnership
+  /\ PublicationCapacityFailureRetainsDurableOwnership
+  /\ RejectionCapacityFailureRetainsDurableOwnership
   /\ ExitRecoveryDisjointOwnership
 
 MainExitQueueBound == Cardinality(exitRecovery.volatileQueue) <= MainQueueLimit
@@ -369,8 +421,8 @@ ExitPublicationAfterDurability ==
   exitRecovery.visible \subseteq exitRecovery.publicationLedger
 
 ExitPublicationNoDuplicate ==
-  [] (\A identity \in ExitIdentities:
-        exitRecovery.publicationCount[identity] <= 1)
+  \A identity \in ExitIdentities:
+    exitRecovery.publicationCount[identity] <= 1
 
 ReleasedMainOwnsNoVolatileState ==
   mainOwner = {} =>

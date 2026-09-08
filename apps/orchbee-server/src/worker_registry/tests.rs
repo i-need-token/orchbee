@@ -1,6 +1,8 @@
 use std::{
     num::NonZeroU64,
     sync::{Arc, Mutex},
+    thread,
+    time::{Duration, Instant},
 };
 
 use orchbee_local_site_protocol::WorkerId;
@@ -11,6 +13,75 @@ use super::{WorkerAdmission, WorkerGenerationRegistration, WorkerRegistry};
 
 const FIRST_WORKER: WorkerId = WorkerId::from_bytes([1; 16]);
 const SECOND_WORKER: WorkerId = WorkerId::from_bytes([2; 16]);
+
+pub(crate) fn generation_is_retired(registry: &WorkerRegistry, generation: NonZeroU64) -> bool {
+    registry
+        .active
+        .as_ref()
+        .is_none_or(|active| active.generation != generation)
+}
+
+#[test]
+fn inactive_carrier_blocks_replacement_until_registration_retires() {
+    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
+    let generation = {
+        let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
+        let WorkerAdmission::Accepted { generation } = registry.admit(FIRST_WORKER) else {
+            panic!("first Worker was not admitted");
+        };
+        generation
+    };
+    let carrier = create_worker_carrier(FIRST_WORKER, generation);
+    let observer = carrier.request_handle();
+    let owner = WorkerRegistry::register_carrier(&registry, generation, carrier)
+        .unwrap_or_else(|| panic!("first carrier was not registered"));
+
+    // Holding the registry gate prevents the registration guard from retiring the generation
+    // after the wire owner marks its handle inactive. No timing guess selects this window.
+    let mut registry_guard = registry.lock().unwrap_or_else(|error| error.into_inner());
+    let dropping_owner = thread::spawn(move || drop(owner));
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while observer.is_active() && Instant::now() < deadline {
+        thread::yield_now();
+    }
+    let became_inactive = !observer.is_active();
+    let handle_unavailable = registry_guard.request_handle().is_none();
+    let prematurely_retired = generation_is_retired(&registry_guard, generation);
+    let premature_admission = registry_guard.admit(SECOND_WORKER);
+    drop(registry_guard);
+    dropping_owner
+        .join()
+        .unwrap_or_else(|_panic| panic!("carrier owner teardown panicked"));
+
+    assert!(became_inactive, "carrier owner did not begin teardown");
+    assert!(handle_unavailable);
+    assert!(
+        !prematurely_retired,
+        "an inactive handle does not prove generation retirement"
+    );
+    assert_eq!(
+        premature_admission,
+        WorkerAdmission::Duplicate {
+            active_generation: generation,
+            active_worker_id: FIRST_WORKER,
+        }
+    );
+
+    let mut registry_guard = registry.lock().unwrap_or_else(|error| error.into_inner());
+    assert!(generation_is_retired(&registry_guard, generation));
+    let WorkerAdmission::Accepted {
+        generation: replacement_generation,
+    } = registry_guard.admit(SECOND_WORKER)
+    else {
+        panic!("replacement Worker was not admitted after retirement");
+    };
+    assert!(replacement_generation > generation);
+    assert!(generation_is_retired(&registry_guard, generation));
+    assert!(!generation_is_retired(
+        &registry_guard,
+        replacement_generation
+    ));
+}
 
 #[test]
 fn admits_only_one_worker_and_assigns_increasing_generations() {

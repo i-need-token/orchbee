@@ -13,6 +13,8 @@ Requests == 1..MaxRequests
 NoRequest == 0
 MaxEpoch == 2
 MaxInputGeneration == 2
+InputValues == {"value-a", "value-b"}
+NoInputValue == "no-input-value"
 Admissions == {"accepting", "repairing", "disposed"}
 CompositionPhases == {"idle", "eligible"}
 Outcomes == {"none", "published-native", "published-fallback", "noop", "cancelled"}
@@ -21,7 +23,7 @@ Actions == {
   "queue-shifted-fallback",
   "coalesce-without-fallback", "coalesce-fallback", "native-value-changes",
   "defer-independent-input", "fire-native-value", "fire-fallback",
-  "fire-noop", "publish-following-input", "start-composition",
+  "fire-noop", "fire-stale-timer", "publish-following-input", "start-composition",
   "end-composition", "begin-repair", "complete-repair", "dispose"
 }
 
@@ -30,52 +32,94 @@ VARIABLES
   compositionPhase,
   repairEpoch,
   inputGeneration,
+  actualValue,
   requestOrdinal,
   pendingRequest,
   timerGeneration,
   activeTimer,
   capturedEpoch,
   baselineGeneration,
+  baselineValue,
   fallbackPresent,
   fallbackEligible,
   shiftedFallbackRequests,
   deferredInputRequests,
-  nativeChangeObserved,
   outcome,
   publicationCount,
   lastAction,
-  lastTarget
+  lastTarget,
+  lastTimer,
+  lastTimerEpoch,
+  priorPendingRequest,
+  priorActiveTimer,
+  priorCapturedEpoch,
+  priorActualValue,
+  priorBaselineValue,
+  priorTargetOutcome,
+  priorTargetPublicationCount
 
-vars == <<admission, compositionPhase, repairEpoch, inputGeneration,
+runtimeVars == <<admission, compositionPhase, repairEpoch, inputGeneration, actualValue,
   requestOrdinal, pendingRequest, timerGeneration, activeTimer, capturedEpoch,
-  baselineGeneration, fallbackPresent, fallbackEligible,
-  shiftedFallbackRequests, deferredInputRequests, nativeChangeObserved,
-  outcome, publicationCount, lastAction, lastTarget>>
+  baselineGeneration, baselineValue, fallbackPresent, fallbackEligible,
+  shiftedFallbackRequests, deferredInputRequests, outcome, publicationCount>>
+
+historyVars == <<lastAction, lastTarget, lastTimer, lastTimerEpoch,
+  priorPendingRequest, priorActiveTimer, priorCapturedEpoch, priorActualValue,
+  priorBaselineValue, priorTargetOutcome, priorTargetPublicationCount>>
+
+vars == <<runtimeVars, historyVars>>
 
 Init ==
   /\ admission = "accepting"
   /\ compositionPhase = "idle"
   /\ repairEpoch = 0
   /\ inputGeneration = 0
+  /\ actualValue \in InputValues
   /\ requestOrdinal = 0
   /\ pendingRequest = NoRequest
   /\ timerGeneration = 0
   /\ activeTimer = 0
   /\ capturedEpoch = 0
   /\ baselineGeneration = 0
+  /\ baselineValue = NoInputValue
   /\ fallbackPresent = FALSE
   /\ fallbackEligible = {}
   /\ shiftedFallbackRequests = {}
   /\ deferredInputRequests = {}
-  /\ nativeChangeObserved = {}
   /\ outcome = [request \in Requests |-> "none"]
   /\ publicationCount = [request \in Requests |-> 0]
   /\ lastAction = "init"
   /\ lastTarget = NoRequest
+  /\ lastTimer = 0
+  /\ lastTimerEpoch = 0
+  /\ priorPendingRequest = pendingRequest
+  /\ priorActiveTimer = activeTimer
+  /\ priorCapturedEpoch = capturedEpoch
+  /\ priorActualValue = actualValue
+  /\ priorBaselineValue = baselineValue
+  /\ priorTargetOutcome = "none"
+  /\ priorTargetPublicationCount = 0
 
-Record(action, request) ==
+RecordFields(action, request) ==
   /\ lastAction' = action
   /\ lastTarget' = request
+  /\ priorPendingRequest' = pendingRequest
+  /\ priorActiveTimer' = activeTimer
+  /\ priorCapturedEpoch' = capturedEpoch
+  /\ priorActualValue' = actualValue
+  /\ priorBaselineValue' = baselineValue
+  /\ priorTargetOutcome' = IF request = NoRequest THEN "none" ELSE outcome[request]
+  /\ priorTargetPublicationCount' =
+       IF request = NoRequest THEN 0 ELSE publicationCount[request]
+
+Record(action, request) ==
+  /\ RecordFields(action, request)
+  /\ UNCHANGED <<lastTimer, lastTimerEpoch>>
+
+RecordStaleTimer(timer, epoch) ==
+  /\ RecordFields("fire-stale-timer", pendingRequest)
+  /\ lastTimer' = timer
+  /\ lastTimerEpoch' = epoch
 
 QueueWithoutFallback ==
   /\ admission = "accepting"
@@ -89,10 +133,11 @@ QueueWithoutFallback ==
        /\ activeTimer' = timerGeneration + 1
        /\ capturedEpoch' = repairEpoch
        /\ baselineGeneration' = inputGeneration
+       /\ baselineValue' = actualValue
        /\ fallbackPresent' = FALSE
        /\ UNCHANGED <<admission, compositionPhase, repairEpoch,
-            inputGeneration, fallbackEligible, shiftedFallbackRequests,
-            deferredInputRequests, nativeChangeObserved, outcome,
+            inputGeneration, actualValue, fallbackEligible, shiftedFallbackRequests,
+            deferredInputRequests, outcome,
             publicationCount>>
        /\ Record("queue-without-fallback", request)
 
@@ -108,10 +153,11 @@ QueueFallbackRequest ==
        /\ activeTimer' = timerGeneration + 1
        /\ capturedEpoch' = repairEpoch
        /\ baselineGeneration' = inputGeneration
+       /\ baselineValue' = actualValue
        /\ fallbackPresent' = TRUE
        /\ fallbackEligible' = fallbackEligible \cup {request}
        /\ UNCHANGED <<admission, compositionPhase, repairEpoch,
-            inputGeneration, deferredInputRequests, nativeChangeObserved,
+            inputGeneration, actualValue, deferredInputRequests,
             outcome, publicationCount>>
 
 QueueUnmodifiedFallback ==
@@ -126,10 +172,10 @@ QueueShiftedFallback ==
 
 CoalesceWithoutFallback ==
   /\ pendingRequest # NoRequest
-  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration,
+  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration, actualValue,
        requestOrdinal, pendingRequest, timerGeneration, activeTimer,
-       capturedEpoch, baselineGeneration, fallbackPresent, fallbackEligible,
-       shiftedFallbackRequests, deferredInputRequests, nativeChangeObserved,
+       capturedEpoch, baselineGeneration, baselineValue, fallbackPresent, fallbackEligible,
+       shiftedFallbackRequests, deferredInputRequests,
        outcome, publicationCount>>
   /\ Record("coalesce-without-fallback", pendingRequest)
 
@@ -138,10 +184,10 @@ CoalesceFallback ==
   /\ ~fallbackPresent
   /\ fallbackPresent' = TRUE
   /\ fallbackEligible' = fallbackEligible \cup {pendingRequest}
-  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration,
+  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration, actualValue,
        requestOrdinal, pendingRequest, timerGeneration, activeTimer,
-       capturedEpoch, baselineGeneration, deferredInputRequests,
-       shiftedFallbackRequests, nativeChangeObserved, outcome,
+       capturedEpoch, baselineGeneration, baselineValue, deferredInputRequests,
+       shiftedFallbackRequests, outcome,
        publicationCount>>
   /\ Record("coalesce-fallback", pendingRequest)
 
@@ -149,22 +195,22 @@ NativeValueChanges ==
   /\ admission = "accepting"
   /\ inputGeneration < MaxInputGeneration
   /\ inputGeneration' = inputGeneration + 1
+  /\ actualValue' \in InputValues \ {actualValue}
   /\ UNCHANGED <<admission, compositionPhase, repairEpoch, requestOrdinal,
        pendingRequest, timerGeneration, activeTimer, capturedEpoch,
-       baselineGeneration, fallbackPresent, fallbackEligible,
-       shiftedFallbackRequests, deferredInputRequests, nativeChangeObserved,
+       baselineGeneration, baselineValue, fallbackPresent, fallbackEligible,
+       shiftedFallbackRequests, deferredInputRequests,
        outcome, publicationCount>>
   /\ Record("native-value-changes", pendingRequest)
 
 DeferIndependentInput ==
   /\ pendingRequest # NoRequest
-  /\ inputGeneration # baselineGeneration
   /\ pendingRequest \notin deferredInputRequests
   /\ deferredInputRequests' = deferredInputRequests \cup {pendingRequest}
-  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration,
+  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration, actualValue,
        requestOrdinal, pendingRequest, timerGeneration, activeTimer,
-       capturedEpoch, baselineGeneration, fallbackPresent, fallbackEligible,
-       shiftedFallbackRequests, nativeChangeObserved, outcome,
+       capturedEpoch, baselineGeneration, baselineValue, fallbackPresent, fallbackEligible,
+       shiftedFallbackRequests, outcome,
        publicationCount>>
   /\ Record("defer-independent-input", pendingRequest)
 
@@ -174,16 +220,16 @@ FireNativeValue ==
   /\ pendingRequest # NoRequest
   /\ activeTimer # 0
   /\ capturedEpoch = repairEpoch
-  /\ inputGeneration # baselineGeneration
+  /\ actualValue # baselineValue
   /\ outcome' = [outcome EXCEPT ![pendingRequest] = "published-native"]
   /\ publicationCount' = [publicationCount EXCEPT ![pendingRequest] = @ + 1]
-  /\ nativeChangeObserved' = nativeChangeObserved \cup {pendingRequest}
   /\ pendingRequest' = NoRequest
   /\ activeTimer' = 0
   /\ capturedEpoch' = 0
   /\ baselineGeneration' = 0
+  /\ baselineValue' = NoInputValue
   /\ fallbackPresent' = FALSE
-  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration,
+  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration, actualValue,
        requestOrdinal, timerGeneration, fallbackEligible,
        shiftedFallbackRequests, deferredInputRequests>>
   /\ Record("fire-native-value", pendingRequest)
@@ -194,7 +240,7 @@ FireFallback ==
   /\ pendingRequest # NoRequest
   /\ activeTimer # 0
   /\ capturedEpoch = repairEpoch
-  /\ inputGeneration = baselineGeneration
+  /\ actualValue = baselineValue
   /\ fallbackPresent
   /\ outcome' = [outcome EXCEPT ![pendingRequest] = "published-fallback"]
   /\ publicationCount' = [publicationCount EXCEPT ![pendingRequest] = @ + 1]
@@ -202,10 +248,11 @@ FireFallback ==
   /\ activeTimer' = 0
   /\ capturedEpoch' = 0
   /\ baselineGeneration' = 0
+  /\ baselineValue' = NoInputValue
   /\ fallbackPresent' = FALSE
-  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration,
+  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration, actualValue,
        requestOrdinal, timerGeneration, fallbackEligible,
-       shiftedFallbackRequests, deferredInputRequests, nativeChangeObserved>>
+       shiftedFallbackRequests, deferredInputRequests>>
   /\ Record("fire-fallback", pendingRequest)
 
 FireNoop ==
@@ -214,16 +261,17 @@ FireNoop ==
   /\ pendingRequest # NoRequest
   /\ activeTimer # 0
   /\ capturedEpoch = repairEpoch
-  /\ inputGeneration = baselineGeneration
+  /\ actualValue = baselineValue
   /\ ~fallbackPresent
   /\ outcome' = [outcome EXCEPT ![pendingRequest] = "noop"]
   /\ pendingRequest' = NoRequest
   /\ activeTimer' = 0
   /\ capturedEpoch' = 0
   /\ baselineGeneration' = 0
-  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration,
+  /\ baselineValue' = NoInputValue
+  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration, actualValue,
        requestOrdinal, timerGeneration, fallbackPresent, fallbackEligible,
-       shiftedFallbackRequests, deferredInputRequests, nativeChangeObserved,
+       shiftedFallbackRequests, deferredInputRequests,
        publicationCount>>
   /\ Record("fire-noop", pendingRequest)
 
@@ -232,10 +280,10 @@ PublishFollowingInput ==
   /\ compositionPhase = "idle"
   /\ pendingRequest = NoRequest
   /\ requestOrdinal > 0
-  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration,
+  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration, actualValue,
        requestOrdinal, pendingRequest, timerGeneration, activeTimer,
-       capturedEpoch, baselineGeneration, fallbackPresent, fallbackEligible,
-       shiftedFallbackRequests, deferredInputRequests, nativeChangeObserved,
+       capturedEpoch, baselineGeneration, baselineValue, fallbackPresent, fallbackEligible,
+       shiftedFallbackRequests, deferredInputRequests,
        outcome, publicationCount>>
   /\ Record("publish-following-input", NoRequest)
 
@@ -250,19 +298,20 @@ StartComposition ==
   /\ activeTimer' = 0
   /\ capturedEpoch' = 0
   /\ baselineGeneration' = 0
+  /\ baselineValue' = NoInputValue
   /\ fallbackPresent' = FALSE
-  /\ UNCHANGED <<admission, repairEpoch, inputGeneration, requestOrdinal,
+  /\ UNCHANGED <<admission, repairEpoch, inputGeneration, actualValue, requestOrdinal,
        timerGeneration, fallbackEligible, deferredInputRequests,
-       shiftedFallbackRequests, nativeChangeObserved, publicationCount>>
+       shiftedFallbackRequests, publicationCount>>
   /\ Record("start-composition", pendingRequest)
 
 EndComposition ==
   /\ compositionPhase = "eligible"
   /\ compositionPhase' = "idle"
-  /\ UNCHANGED <<admission, repairEpoch, inputGeneration, requestOrdinal,
+  /\ UNCHANGED <<admission, repairEpoch, inputGeneration, actualValue, requestOrdinal,
        pendingRequest, timerGeneration, activeTimer, capturedEpoch,
-       baselineGeneration, fallbackPresent, fallbackEligible,
-       shiftedFallbackRequests, deferredInputRequests, nativeChangeObserved,
+       baselineGeneration, baselineValue, fallbackPresent, fallbackEligible,
+       shiftedFallbackRequests, deferredInputRequests,
        outcome, publicationCount>>
   /\ Record("end-composition", NoRequest)
 
@@ -279,19 +328,20 @@ BeginRepair ==
   /\ activeTimer' = 0
   /\ capturedEpoch' = 0
   /\ baselineGeneration' = 0
+  /\ baselineValue' = NoInputValue
   /\ fallbackPresent' = FALSE
-  /\ UNCHANGED <<inputGeneration, requestOrdinal, timerGeneration,
-       fallbackEligible, deferredInputRequests, nativeChangeObserved,
+  /\ UNCHANGED <<inputGeneration, actualValue, requestOrdinal, timerGeneration,
+       fallbackEligible, deferredInputRequests,
        shiftedFallbackRequests, publicationCount>>
   /\ Record("begin-repair", pendingRequest)
 
 CompleteRepair ==
   /\ admission = "repairing"
   /\ admission' = "accepting"
-  /\ UNCHANGED <<compositionPhase, repairEpoch, inputGeneration,
+  /\ UNCHANGED <<compositionPhase, repairEpoch, inputGeneration, actualValue,
        requestOrdinal, pendingRequest, timerGeneration, activeTimer,
-       capturedEpoch, baselineGeneration, fallbackPresent, fallbackEligible,
-       shiftedFallbackRequests, deferredInputRequests, nativeChangeObserved,
+       capturedEpoch, baselineGeneration, baselineValue, fallbackPresent, fallbackEligible,
+       shiftedFallbackRequests, deferredInputRequests,
        outcome, publicationCount>>
   /\ Record("complete-repair", NoRequest)
 
@@ -306,11 +356,42 @@ Dispose ==
   /\ activeTimer' = 0
   /\ capturedEpoch' = 0
   /\ baselineGeneration' = 0
+  /\ baselineValue' = NoInputValue
   /\ fallbackPresent' = FALSE
-  /\ UNCHANGED <<repairEpoch, inputGeneration, requestOrdinal,
+  /\ UNCHANGED <<repairEpoch, inputGeneration, actualValue, requestOrdinal,
        timerGeneration, fallbackEligible, deferredInputRequests,
-       shiftedFallbackRequests, nativeChangeObserved, publicationCount>>
+       shiftedFallbackRequests, publicationCount>>
   /\ Record("dispose", pendingRequest)
+
+FireStaleTimer(timer, epoch) ==
+  /\ timer \in 1..timerGeneration
+  /\ epoch \in 0..MaxEpoch
+  /\ (timer # activeTimer \/ epoch # capturedEpoch)
+  /\ UNCHANGED runtimeVars
+  /\ RecordStaleTimer(timer, epoch)
+
+CoverageDeferredInputBeforeValueChange ==
+  /\ lastAction = "defer-independent-input"
+  /\ priorActualValue = priorBaselineValue
+  /\ pendingRequest = priorPendingRequest
+  /\ UNCHANGED vars
+
+CoverageNativeValueReturnsToBaseline ==
+  /\ pendingRequest # NoRequest
+  /\ lastAction = "native-value-changes"
+  /\ priorActualValue # priorBaselineValue
+  /\ inputGeneration = baselineGeneration + 2
+  /\ actualValue = baselineValue
+  /\ UNCHANGED vars
+
+CoverageStaleTimerAfterReadmission ==
+  /\ lastAction = "fire-stale-timer"
+  /\ priorPendingRequest = 2
+  /\ priorActiveTimer = 2
+  /\ outcome[1] = "cancelled"
+  /\ lastTimer = 1
+  /\ lastTimerEpoch < priorCapturedEpoch
+  /\ UNCHANGED vars
 
 FireCurrentTimer == FireNativeValue \/ FireFallback \/ FireNoop
 
@@ -323,12 +404,17 @@ Next ==
   \/ NativeValueChanges
   \/ DeferIndependentInput
   \/ FireCurrentTimer
+  \/ \E timer \in 1..MaxRequests, epoch \in 0..MaxEpoch:
+       FireStaleTimer(timer, epoch)
   \/ PublishFollowingInput
   \/ StartComposition
   \/ EndComposition
   \/ BeginRepair
   \/ CompleteRepair
   \/ Dispose
+  \/ CoverageDeferredInputBeforeValueChange
+  \/ CoverageNativeValueReturnsToBaseline
+  \/ CoverageStaleTimerAfterReadmission
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(FireCurrentTimer)
 
@@ -337,21 +423,31 @@ TypeOK ==
   /\ compositionPhase \in CompositionPhases
   /\ repairEpoch \in 0..MaxEpoch
   /\ inputGeneration \in 0..MaxInputGeneration
+  /\ actualValue \in InputValues
   /\ requestOrdinal \in 0..MaxRequests
   /\ pendingRequest \in Requests \cup {NoRequest}
   /\ timerGeneration \in 0..MaxRequests
   /\ activeTimer \in 0..MaxRequests
   /\ capturedEpoch \in 0..MaxEpoch
   /\ baselineGeneration \in 0..MaxInputGeneration
+  /\ baselineValue \in InputValues \cup {NoInputValue}
   /\ fallbackPresent \in BOOLEAN
   /\ fallbackEligible \subseteq Requests
   /\ shiftedFallbackRequests \subseteq Requests
   /\ deferredInputRequests \subseteq Requests
-  /\ nativeChangeObserved \subseteq Requests
   /\ outcome \in [Requests -> Outcomes]
   /\ publicationCount \in [Requests -> 0..1]
   /\ lastAction \in Actions
   /\ lastTarget \in Requests \cup {NoRequest}
+  /\ lastTimer \in 0..MaxRequests
+  /\ lastTimerEpoch \in 0..MaxEpoch
+  /\ priorPendingRequest \in Requests \cup {NoRequest}
+  /\ priorActiveTimer \in 0..MaxRequests
+  /\ priorCapturedEpoch \in 0..MaxEpoch
+  /\ priorActualValue \in InputValues
+  /\ priorBaselineValue \in InputValues \cup {NoInputValue}
+  /\ priorTargetOutcome \in Outcomes
+  /\ priorTargetPublicationCount \in 0..1
 
 PendingIdentityIsCurrent ==
   /\ pendingRequest # NoRequest =>
@@ -359,11 +455,14 @@ PendingIdentityIsCurrent ==
        /\ activeTimer = timerGeneration
        /\ activeTimer # 0
        /\ capturedEpoch = repairEpoch
+       /\ baselineGeneration <= inputGeneration
+       /\ baselineValue \in InputValues
        /\ outcome[pendingRequest] = "none"
   /\ pendingRequest = NoRequest =>
        /\ activeTimer = 0
        /\ capturedEpoch = 0
        /\ baselineGeneration = 0
+       /\ baselineValue = NoInputValue
        /\ ~fallbackPresent
 
 EveryAdmittedRequestSettlesOnce ==
@@ -376,23 +475,60 @@ PublicationIsExactlyOnce ==
     (publicationCount[request] = 1) =
       (outcome[request] \in {"published-native", "published-fallback"})
 
+ActualValueChangesOnlyOnNativeValueChange ==
+  actualValue # priorActualValue => lastAction = "native-value-changes"
+
 NativePublicationRequiresChangedValue ==
-  \A request \in Requests:
-    outcome[request] = "published-native" => request \in nativeChangeObserved
+  lastAction = "fire-native-value" =>
+    /\ priorPendingRequest = lastTarget
+    /\ priorActualValue # priorBaselineValue
+    /\ outcome[lastTarget] = "published-native"
+    /\ publicationCount[lastTarget] = priorTargetPublicationCount + 1
 
 FallbackPublicationRequiresUnchangedValue ==
-  \A request \in Requests:
-    outcome[request] = "published-fallback" =>
-      /\ request \in fallbackEligible
-      /\ request \notin nativeChangeObserved
+  lastAction = "fire-fallback" =>
+    /\ priorPendingRequest = lastTarget
+    /\ priorActualValue = priorBaselineValue
+    /\ lastTarget \in fallbackEligible
+    /\ outcome[lastTarget] = "published-fallback"
+    /\ publicationCount[lastTarget] = priorTargetPublicationCount + 1
+
+NoopRequiresUnchangedValue ==
+  lastAction = "fire-noop" =>
+    /\ priorPendingRequest = lastTarget
+    /\ priorActualValue = priorBaselineValue
+    /\ lastTarget \notin fallbackEligible
+    /\ outcome[lastTarget] = "noop"
+    /\ publicationCount[lastTarget] = priorTargetPublicationCount
 
 ShiftedRequestsAreAdmittedFallbacks ==
   /\ shiftedFallbackRequests \subseteq fallbackEligible
   /\ \A request \in shiftedFallbackRequests: request <= requestOrdinal
+  /\ lastAction = "queue-shifted-fallback" =>
+       /\ lastTarget \in shiftedFallbackRequests
+       /\ lastTarget \in fallbackEligible
+       /\ pendingRequest = lastTarget
 
 DeferredInputDoesNotPublishEarly ==
-  \A request \in deferredInputRequests:
-    request = pendingRequest => publicationCount[request] = 0
+  lastAction = "defer-independent-input" =>
+    /\ priorPendingRequest = lastTarget
+    /\ pendingRequest = priorPendingRequest
+    /\ outcome[lastTarget] = priorTargetOutcome
+    /\ outcome[lastTarget] = "none"
+    /\ publicationCount[lastTarget] = priorTargetPublicationCount
+    /\ publicationCount[lastTarget] = 0
+
+StaleTimerIsInert ==
+  lastAction = "fire-stale-timer" =>
+    /\ (lastTimer # priorActiveTimer \/ lastTimerEpoch # priorCapturedEpoch)
+    /\ pendingRequest = priorPendingRequest
+    /\ activeTimer = priorActiveTimer
+    /\ capturedEpoch = priorCapturedEpoch
+    /\ actualValue = priorActualValue
+    /\ baselineValue = priorBaselineValue
+    /\ (lastTarget = NoRequest \/
+          (outcome[lastTarget] = priorTargetOutcome /\
+           publicationCount[lastTarget] = priorTargetPublicationCount))
 
 FollowingInputCannotOvertakeSettlement ==
   lastAction = "publish-following-input" =>

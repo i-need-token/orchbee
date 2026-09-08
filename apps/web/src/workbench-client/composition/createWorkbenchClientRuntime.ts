@@ -149,29 +149,59 @@ export function createWorkbenchClientRuntime({
 		projectWorkspaceRuntime,
 		clientSession,
 	);
-	const latestTerminalMetadataRevisions = new Map<
+	const terminalMetadataCursors = new Map<
 		TerminalPresentationId,
-		{ readonly identityKey?: string; readonly revision: bigint }
+		{
+			readonly currentDirectory: string | null;
+			readonly identityKey?: string;
+			readonly revision: bigint;
+			readonly title: string | null;
+		}
 	>();
 	const presentationSnapshots =
 		new TerminalPresentationSnapshotCache<ProjectedTerminalPresentationSnapshot>();
-	const acceptsTerminalMetadataRevision = (
+	const acceptTerminalNaturalMetadata = (
 		presentationId: TerminalPresentationId,
 		revision: bigint,
+		metadata: { readonly currentDirectory: string | null; readonly title: string | null },
 		identityKey?: string,
 	): boolean => {
-		const previous = latestTerminalMetadataRevisions.get(presentationId);
-		if (
-			previous !== undefined &&
-			(identityKey === undefined || previous.identityKey === identityKey) &&
-			previous.revision > revision
-		) {
-			return false;
+		const previous = terminalMetadataCursors.get(presentationId);
+		const knownDifferentIdentity =
+			identityKey !== undefined &&
+			previous?.identityKey !== undefined &&
+			previous.identityKey !== identityKey;
+		if (previous !== undefined && !knownDifferentIdentity) {
+			if (previous.revision > revision) return false;
+			if (previous.revision === revision) {
+				// Title and cwd are immutable at a Host revision. An exact surface
+				// observation may still carry a newer client-owned close activity.
+				if (
+					previous.currentDirectory !== metadata.currentDirectory ||
+					previous.title !== metadata.title
+				) {
+					return false;
+				}
+				if (identityKey !== undefined) {
+					if (previous.identityKey === undefined) {
+						terminalMetadataCursors.set(presentationId, {
+							currentDirectory: previous.currentDirectory,
+							identityKey,
+							revision: previous.revision,
+							title: previous.title,
+						});
+					}
+					return false;
+				}
+				return true;
+			}
 		}
 		const retainedIdentityKey = identityKey ?? previous?.identityKey;
-		latestTerminalMetadataRevisions.set(presentationId, {
+		terminalMetadataCursors.set(presentationId, {
+			currentDirectory: metadata.currentDirectory,
 			...(retainedIdentityKey === undefined ? {} : { identityKey: retainedIdentityKey }),
 			revision,
+			title: metadata.title,
 		});
 		return true;
 	};
@@ -180,9 +210,10 @@ export function createWorkbenchClientRuntime({
 	): void => {
 		const revision = BigInt(metadata.revision);
 		if (
-			!acceptsTerminalMetadataRevision(
+			!acceptTerminalNaturalMetadata(
 				metadata.presentationId,
 				revision,
+				metadata,
 				terminalIdentityKey(metadata.identity),
 			)
 		) {
@@ -219,7 +250,7 @@ export function createWorkbenchClientRuntime({
 		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),
 		shortcutPlatform,
 		observeTerminalMetadata: (presentationId, metadata) => {
-			if (!acceptsTerminalMetadataRevision(presentationId, metadata.revision)) return;
+			if (!acceptTerminalNaturalMetadata(presentationId, metadata.revision, metadata)) return;
 			projectWorkspaceRuntime.applyTerminalMetadataObservation(
 				presentationId,
 				resolveTerminalMetadataObservation(metadata, bootstrap.terminalHostName),
@@ -227,7 +258,7 @@ export function createWorkbenchClientRuntime({
 		},
 		startStoppedTerminalSession: (presentationId) => {
 			const result = projectWorkspaceRuntime.startStoppedTerminalSession(presentationId);
-			if (result.kind !== 'rejected') latestTerminalMetadataRevisions.delete(presentationId);
+			if (result.kind !== 'rejected') terminalMetadataCursors.delete(presentationId);
 			return result;
 		},
 	};
@@ -237,7 +268,7 @@ export function createWorkbenchClientRuntime({
 		stopFocusRecoveryDocumentObservation?.();
 		stopFocusRecoveryViewObservation?.();
 		stopTerminalMetadataPublicationObservation();
-		latestTerminalMetadataRevisions.clear();
+		terminalMetadataCursors.clear();
 		presentationSnapshots.clear();
 		actionRuntime.dispose();
 		documentCoordinator.dispose();

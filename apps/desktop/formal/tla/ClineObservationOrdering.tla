@@ -145,10 +145,24 @@ SuppressionPreservesState ==
     /\ activeTurn = previousActiveTurn
     /\ completedTurns = previousCompletedTurns
 
+SuppressionRequiresRetained ==
+  lastAction \in {"SuppressStart", "SuppressActivity", "SuppressCompletion"} =>
+    lastTurn \in SeqSet(previousCompletedTurns[lastSession])
+
 CompletionIsSessionLocal ==
   lastAction \in {"DeliverCompletion", "DeliverCompletionWithEviction"} =>
     \A session \in Sessions \ {lastSession}:
       /\ activeTurn[session] = previousActiveTurn[session]
       /\ completedTurns[session] = previousCompletedTurns[session]
+
+CompletionRetainsNewestRuns ==
+  lastAction \in {"DeliverCompletion", "DeliverCompletionWithEviction"} =>
+    LET prior == previousCompletedTurns[lastSession]
+        retained == IF Len(prior) < TombstoneLimit THEN prior ELSE Tail(prior)
+    IN completedTurns[lastSession] = Append(retained, lastTurn)
+
+NoncompletionPreservesRetention ==
+  lastAction \in {"DeliverStart", "SuppressStart", "DeliverActivity", "SuppressActivity"} =>
+    completedTurns = previousCompletedTurns
 
 =============================================================================

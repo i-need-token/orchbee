@@ -1,7 +1,7 @@
 use std::{error::Error, ffi::OsStr, process::Command};
 
-const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee --help\n  orchbee --version\n\nModes:\n  orchbee            Select the interactive TUI (unavailable in this development slice)\n  orchbee --help     Show this help\n  orchbee --version  Show the version\n";
-const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee --help\n  orchbee --version\n\n模式：\n  orchbee            选择交互式 TUI（本开发切片尚未提供）\n  orchbee --help     显示此帮助\n  orchbee --version  显示版本\n";
+const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee --help\n  orchbee --version\n\nModes:\n  orchbee            Open the local terminal (Linux development cohort)\n  orchbee --help     Show this help\n  orchbee --version  Show the version\n";
+const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee --help\n  orchbee --version\n\n模式：\n  orchbee            打开本地终端（Linux 开发 cohort）\n  orchbee --help     显示此帮助\n  orchbee --version  显示版本\n";
 
 #[test]
 fn emits_exact_help_in_both_locales() -> Result<(), Box<dyn Error>> {
@@ -30,13 +30,17 @@ fn emits_one_locale_neutral_version_line() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn bare_invocation_reports_the_explicit_unavailable_tui_route() -> Result<(), Box<dyn Error>> {
+fn bare_non_tty_invocation_fails_before_startup() -> Result<(), Box<dyn Error>> {
     let english = run(std::iter::empty::<&str>(), "en_US.UTF-8")?;
     assert_eq!(english.status.code(), Some(1));
     assert!(english.stdout.is_empty());
     assert_eq!(
         String::from_utf8(english.stderr)?,
-        "The Orchbee TUI is unavailable in this development slice.\n"
+        if cfg!(target_os = "linux") {
+            "Orchbee requires the same interactive terminal on standard input and output, with valid dimensions.\n"
+        } else {
+            "The Orchbee TUI is unavailable in this development slice.\n"
+        }
     );
 
     let chinese = run(std::iter::empty::<&str>(), "zh_CN.UTF-8")?;
@@ -44,7 +48,11 @@ fn bare_invocation_reports_the_explicit_unavailable_tui_route() -> Result<(), Bo
     assert!(chinese.stdout.is_empty());
     assert_eq!(
         String::from_utf8(chinese.stderr)?,
-        "Orchbee TUI 在本开发切片中尚不可用。\n"
+        if cfg!(target_os = "linux") {
+            "Orchbee 的标准输入和输出需要连接同一交互终端，并提供有效尺寸。\n"
+        } else {
+            "Orchbee TUI 在本开发切片中尚不可用。\n"
+        }
     );
     Ok(())
 }

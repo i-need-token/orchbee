@@ -241,6 +241,9 @@ JournalIsBoundedOrderedSuffix ==
 WaitingHasExactSubscription ==
   subscribed = (feedPhase = "waiting")
 
+WaitingCursorIsCurrent ==
+  feedPhase = "waiting" => afterRevision = revision
+
 ChangePageIsOrderedAndBounded ==
   feedPhase = "changes" =>
     /\ Len(outputItems) \in 1..batchLimit

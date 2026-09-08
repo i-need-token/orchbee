@@ -189,14 +189,14 @@ Next ==
 
 SettleListen == ListenSucceeds \/ ListenFails \/ DisposeDuringListen
 SettleAuthentication == Authenticate \/ AuthenticationTimeout \/ CloseSocket
-SettleHeartbeat == ReceivePong \/ MissPong \/ CloseSocket
+HeartbeatTimerFires == SendPing \/ MissPong
 
 Spec ==
   /\ Init
   /\ [][Next]_vars
   /\ WF_vars(SettleListen)
   /\ WF_vars(SettleAuthentication)
-  /\ WF_vars(SettleHeartbeat)
+  /\ WF_vars(HeartbeatTimerFires)
 
 TypeOK ==
   /\ processActive \in BOOLEAN
@@ -245,5 +245,9 @@ AwaitingAuthenticationEventuallySettles ==
 
 AwaitingPongEventuallySettles ==
   [](heartbeatPhase = "awaiting-pong" => <>(heartbeatPhase = "idle"))
+
+AuthenticatedHeartbeatRecurs ==
+  [](connectionPhase = "authenticated" /\ heartbeatPhase = "idle" =>
+    <>(connectionPhase # "authenticated" \/ heartbeatPhase = "awaiting-pong"))
 
 =============================================================================

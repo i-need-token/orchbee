@@ -214,6 +214,18 @@ identity. Desktop owns escalation timing and waits for either `TerminalExited` o
 before requesting disposal. Missing identities and invalid current-state requests are reported as
 typed failures without being reinterpreted by the codec.
 
+Successful `TerminateTerminal`, `ForceTerminateTerminal`, and `DisposeTerminal` responses retain
+the request kind (`12`, `18`, and `13`) and carry exactly `{ terminalId }`, validated by
+`TerminalAcknowledgedSchema`. The Rust lifecycle acceptance variants retain that typed
+`TerminalTarget`; they reject absent, malformed, duplicate, or additional fields. Decoding an
+acknowledgement preserves its target without deciding whether it matches a pending request. The
+consumer owns envelope correlation and target matching; termination acceptance does not establish
+process exit or authorize disposal. The existing `outputs.terminal_acknowledged` conformance
+fixture defines the canonical bytes for all three responses. Rust lifecycle fixture round trips,
+target-retention and malformed-input cases verify this bounded codec claim against the same fixture
+used by Host Zig encoder conformance. They do not establish Host runtime transitions, asynchronous
+ordering, or a consumer's close workflow.
+
 The wire does not expose the Host's physical broker-session identity. The Host binds attachments to
 its one active broker session and resolves each `AttachmentId` through that session. `ClientId` is
 diagnostic metadata and does not merge, transfer, or independently grant authority.

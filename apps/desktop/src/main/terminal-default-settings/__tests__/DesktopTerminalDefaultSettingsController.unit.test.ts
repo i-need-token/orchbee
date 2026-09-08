@@ -10,6 +10,65 @@ import type {
 const runtimeConfiguration = { scrollbackBytes: 10_000_000 } as const;
 
 describe('DesktopTerminalDefaultSettingsController', () => {
+	it.each([false, true])(
+		'serializes updates and publishes only after persistence settles (fails: %s)',
+		async (persistenceFails) => {
+			let settlePersistence = (): void => undefined;
+			const persistence = new Promise<void>((resolve, reject) => {
+				settlePersistence = () => {
+					if (persistenceFails) reject(new Error('disk unavailable'));
+					else resolve();
+				};
+			});
+			const first = { scrollbackBytes: 20_000_000 };
+			const second = { scrollbackBytes: 30_000_000 };
+			let hostConfiguration: TerminalConfiguration = runtimeConfiguration;
+			const effects: string[] = [];
+			const replace = vi.fn<TerminalDefaultSettingsStore['replace']>(async (configuration) => {
+				effects.push(`persist:${configuration.scrollbackBytes}`);
+				if (configuration.scrollbackBytes === first.scrollbackBytes) await persistence;
+			});
+			const controller = createController(
+				{ load: async () => ({ kind: 'missing' }), replace },
+				async (configuration) => {
+					effects.push(`host:${configuration.scrollbackBytes}`);
+					hostConfiguration = configuration;
+					return configuration;
+				},
+			);
+			await controller.initialize();
+			const firstUpdate = controller.update(first);
+			await vi.waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+			expect(hostConfiguration).toEqual(first);
+			expect(controller.getSnapshot().configuration).toEqual(runtimeConfiguration);
+
+			const secondUpdate = controller.update(second);
+			await Promise.resolve();
+			expect(hostConfiguration).toEqual(first);
+			expect(replace).toHaveBeenCalledTimes(1);
+			settlePersistence();
+
+			await expect(firstUpdate).resolves.toMatchObject({
+				kind: 'completed',
+				snapshot: {
+					configuration: first,
+					persistenceIssue: persistenceFails ? 'write-failed' : null,
+				},
+			});
+			await expect(secondUpdate).resolves.toMatchObject({
+				kind: 'completed',
+				snapshot: { configuration: second, persistenceIssue: null },
+			});
+			expect(effects).toEqual([
+				'host:10000000',
+				'host:20000000',
+				'persist:20000000',
+				'host:30000000',
+				'persist:30000000',
+			]);
+		},
+	);
+
 	it.each([
 		{
 			expectedIssue: null,

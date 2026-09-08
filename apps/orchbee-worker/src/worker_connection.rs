@@ -38,6 +38,38 @@ pub(crate) fn run(
     arguments: impl Iterator<Item = OsString>,
     cohort: &str,
 ) -> Result<(), Box<dyn Error>> {
+    let mut arguments = arguments.peekable();
+    #[cfg(target_os = "linux")]
+    if arguments
+        .peek()
+        .is_some_and(|argument| argument == "--local-site")
+    {
+        arguments.next();
+        let runtime = arguments
+            .next()
+            .map(std::path::PathBuf::from)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "missing Site runtime"))?;
+        if arguments.next().is_some() {
+            return Err(io::Error::from(io::ErrorKind::InvalidInput).into());
+        }
+        let deadline = std::time::Instant::now() + Duration::from_secs(20);
+        let cohort = orchbee_local_site_runtime::NativeCohort::current(deadline)?;
+        let site =
+            orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous::from_runtime_directory(
+                &runtime,
+            )?;
+        if !site.activation_started()? || !site.worker_socket_exists()? {
+            return Err(io::Error::other("Site startup is unavailable").into());
+        }
+        let server = connect_to_server(site.worker_socket_path(), cohort.identity())?;
+        return terminal_operations::run_lazy(
+            server.stream(),
+            LOCAL_WORKER_ID,
+            server.generation(),
+            &cohort,
+            &runtime,
+        );
+    }
     let options = WorkerOptions::parse(arguments)?;
     let server = connect_to_server(&options.server_endpoint, cohort)?;
     let mut host = HostBrokerConnection::connect(&options.terminal_host_endpoint)?;

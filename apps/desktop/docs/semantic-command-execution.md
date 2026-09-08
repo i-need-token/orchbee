@@ -63,11 +63,13 @@ runtime. The default is 80 rows, the owner limit is 1,000 rows, and the public t
 The reader requests plain text against one exact Host generation and revision, joins soft-wrapped
 rows, and exposes no ANSI styling, graphics, hyperlinks, raw VT bytes, or future output. Input,
 paste, key, resize, focus, close, and stop authority remain absent. A changed frame, retired target,
-unavailable projection, cancellation, cleanup failure, or five-second internal deadline settles
-explicitly without old text or hidden retry. Every acquired attachment is disposed before
-publication. Text is not automatically redacted and may contain secrets; it enters no diagnostic,
-telemetry, or durable history, but the existing bounded volatile execution ledger can retain the
-safe result until eviction or restart.
+unavailable projection, cancellation, cleanup failure, or expiration of the five-second deadline
+for lease acquisition and frame/row collection selects an explicit result without old text or hidden
+retry. Once a lease is acquired, the reader awaits one cleanup attempt before publication. Successful
+cleanup precedes every ordinary result; a rejected disposal publishes `cleanup-failed`. Cleanup has
+no separate deadline, so it may delay publication beyond five seconds. Text is not automatically
+redacted and may contain secrets; it enters no diagnostic, telemetry, or durable history, but the
+existing bounded volatile execution ledger can retain the safe result until eviction or restart.
 
 All five Agent operations use schema version `1`. List, get, and explain take one canonical snapshot
 from the application-lifetime `AgentSnapshotSource`. List pages are signed and revision-fenced;
@@ -84,7 +86,8 @@ path, environment value, provider error, or adapter-private correlation data.
 ## Invariants
 
 1. One retained request identity maps to exactly one retained execution and one canonical
-   fingerprint.
+   fingerprint. An execution identity is admitted at most once during the process lifetime, even
+   after its receipt is evicted.
 2. Repeating that request with the same fingerprint returns the existing snapshot; a different
    fingerprint returns `request-identity-conflict`; neither starts another handler.
 3. Invalid, unavailable, unauthorized, confirmation-requiring, version-incompatible, and
@@ -101,8 +104,9 @@ path, environment value, provider error, or adapter-private correlation data.
    `failed/output-capacity-exceeded` with no owner payload.
 9. A successful Terminal output read names the requested live target and one exact Host generation
    and revision, returns only bounded plain text, and settles only after its capture lease is
-   disposed. Every stale, retired, unavailable, cancelled, or cleanup-failed outcome contains no
-   Terminal text.
+   disposed. Every acquired read attempts cleanup before publication; rejected disposal publishes
+   `cleanup-failed`. Every stale, retired, unavailable, cancelled, or cleanup-failed outcome contains
+   no Terminal text.
 10. Discovery and description expose exactly the thirteen composed operations. Catalog registration or
     UI Action availability alone grants no process authority.
 11. The native adapter follows neither a POSIX symlink nor a Windows reparse point and accepts only
@@ -124,8 +128,8 @@ path, environment value, provider error, or adapter-private correlation data.
 | Retained request | Repeat or conflict          | Fingerprint matches or differs                                                                    | Return existing snapshot, or conflict without a second handler                      |
 | Active execution | Cancel                      | Execution is uncommitted and no cancellation was forwarded                                        | Forward one cooperative abort                                                       |
 | Active execution | Mark committed              | The canonical Workbench revision completed durable storage                                        | Record commit before post-commit reconciliation; reject later cancellation          |
-| Terminal read    | Observe exact frame         | Exact target opens a capture-only lease and generation/revision remain current                    | Read a bounded plain-text tail, dispose the lease, then publish                     |
-| Terminal read    | Abort or invalidate         | Cancellation, deadline, stale frame, target retirement, unavailability, or cleanup failure occurs | Settle explicitly without Terminal text or retry                                    |
+| Terminal read    | Observe exact frame         | Exact target opens a capture-only lease and generation/revision remain current                    | Read a bounded plain-text tail, attempt lease cleanup, then publish                 |
+| Terminal read    | Abort or invalidate         | Cancellation, deadline, stale frame, target retirement, unavailability, or cleanup failure occurs | Select a text-free result; disposal rejection replaces it with `cleanup-failed`     |
 | Active execution | Settle                      | Settlement and commit-marker consistency guards hold                                              | Retain one validated terminal result                                                |
 | Connected        | Client disconnects          | Request may already have reached the service                                                      | Drop only the response transport; do not cancel or replay accepted execution        |
 | Any              | Process disposal or restart | Coordinator lifetime ends                                                                         | Retire locator/listener, abort active signals, and discard the in-memory generation |
@@ -149,9 +153,10 @@ command; normal canonical reconciliation starts the PTY only after persistence s
 an exact presentation through `DesktopTerminalProjectionRouter`. Local live and archived targets
 come from the Desktop Terminal runtime; connected SSH targets come from the existing environment
 runtime owner without preparation or reconnection. The reader owns the five-second deadline,
-exact-frame row paging, public text projection, cancellation, and lease cleanup. Workbench owns the
-strict operation input and output contracts; Desktop owns routing and execution, while Terminal
-Host remains authoritative for captured screen rows.
+which spans lease acquisition and frame/row collection, plus exact-frame row paging, public text
+projection, cancellation, and lease cleanup. The deadline is cleared before the reader awaits
+cleanup. Workbench owns the strict operation input and output contracts; Desktop owns routing and
+execution, while Terminal Host remains authoritative for captured screen rows.
 
 `createDesktopAgentReadOperations` adapts the application-lifetime `AgentSnapshotSource` and
 `AgentChangeSource` through Agent-owned projections and contracts. Desktop owns signed cursor
@@ -168,24 +173,25 @@ Host and Browser access and opens no TCP listener.
 
 ## Correctness evidence
 
-| Claim                                                 | Contract          | Formal or generated evidence                                                                                                              | Deterministic or real refinement                                                                                                                                      | Limits                                                                                                     |
-| ----------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Explicit authorized catalog only                      | Invariants 1-3,10 | `SemanticCommandExecutionLedger.tla`: `RequestAndExecutionMappingsAgree`                                                                  | Catalog/service tests cover negative admission and exact thirteen-entry composition; HTTP integration invokes all Workbench reads plus exact-target Terminal creation | Thirteen accepted operations only                                                                          |
-| At most one execution while retained                  | Invariants 1-4    | `RetainedRequestHasOneHandlerStart`, `ActiveExecutionCapacity`                                                                            | Ledger boundary tests and the fixed-seed stateful command property                                                                                                    | No claim after eviction or restart                                                                         |
-| Cancellation and retention are safe                   | Invariants 5-8    | `CommittedExecutionNeverCancels` plus cancellation, count, and weight invariants in both TLC variants                                     | Deferred-handler, pre-/post-commit cancellation, duplicate request, receipt eviction, and exact capacity tests                                                        | Handler liveness and rollback after successful durable storage are not claimed                             |
-| Agent wait matches canonical state                    | Invariants 3,10   | `AgentSemanticWait.tla`: exact subscription, eligibility, freshness, output, and revision invariants                                      | Agent domain and Desktop operation tests cover pagination, exact reads, status explanation, race-safe recheck, timeout, cancellation, and future baselines            | Bounded volatile runtime only; no restart continuity or provider-truth claim                               |
-| Agent changes expose every retained revision or reset | Invariants 3,10   | `AgentSemanticChanges.tla`: ordered suffix, batch, subscription, gap, reset, timeout, cancellation, and retirement invariants             | Agent journal and Desktop operation tests cover applied-only records, page order, signed cursor, synchronous recheck, overflow/reset, timeout, and cancellation       | Retention is 512 in memory; no durable replay, cryptographic proof, or restart continuity                  |
-| Terminal output is exact, bounded, and capture-only   | Invariants 3,9-10 | `TerminalSemanticRead.tla`: capture-only lease, exact success fence, no-text failures, cleanup-before-settlement, and one terminal result | Reader and operation tests cover live and archived routing, HTTP invocation, UTF-8 capacity, wrapping, staleness, retirement, deadline, cancellation, and cleanup     | One current tail only; no redaction, raw VT, matcher, wait, remote reconnect, or durable history           |
-| Locator and peer stay current-user                    | Invariants 11,13  | Native source is compiled for maintained POSIX and Windows families                                                                       | Native Node and Electron tests create, authenticate, read, reject unsafe POSIX ownership, and retire the endpoint; maintained Windows CI exercises DACL/SID paths     | A compromised same-user process is trusted; cross-user negative execution needs a platform account fixture |
-| Framing and capacity fail closed                      | Invariants 8,12   | Strict protocol framing and route schemas                                                                                                 | Unit rejection matrix plus real Node/Electron local-transport tests cover trailing input, 64 KiB request, 1 MiB response, malformed input, and recovery               | Kernel queue scheduling and process kill are outside the claim                                             |
-| Disconnect cannot cancel or replay                    | Invariant 13      | `Disconnect` and `Reconnect` leave ledger variables unchanged                                                                             | Real client timeout proves one delivery; CLI tests recover the same retained request and report unknown after generation change without reinvocation                  | Durable recovery across machine or coordinator restart is excluded                                         |
+| Claim                                                 | Contract          | Formal or generated evidence                                                                                                                                                         | Deterministic or real refinement                                                                                                                                      | Limits                                                                                                                       |
+| ----------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Explicit authorized catalog only                      | Invariants 3,10   | N/A: the execution-ledger abstraction begins after catalog and service admission                                                                                                     | Catalog/service tests cover negative admission and exact thirteen-entry composition; HTTP integration invokes all Workbench reads plus exact-target Terminal creation | Thirteen accepted operations only                                                                                            |
+| Request/execution mappings and identities stay unique | Invariants 1-4    | `RequestAndExecutionMappingsAgree`, `RetainedRequestHasOneHandlerStart`, `ExecutionIdentityIsProcessUnique`, and `ActiveExecutionCapacity`                                           | Ledger boundary tests, duplicate execution identity after eviction, and the fixed-seed stateful command property                                                      | Request replay ends at eviction; execution identity uniqueness ends at process restart                                       |
+| Cancellation and retention are safe                   | Invariants 5-8    | `CancellationForwardedAtMostOnce`, `CancelCommittedDoesNotForward`, `CommittedExecutionNeverCancels`, and count/weight retention invariants                                          | Deferred-handler, pre-/post-commit cancellation, duplicate request, receipt eviction, and exact capacity tests                                                        | Handler liveness and rollback after successful durable storage are not claimed                                               |
+| Agent wait matches canonical state                    | Invariants 3,10   | `AgentSemanticWait.tla`: exact subscription, eligibility, freshness, output, and revision invariants                                                                                 | Agent domain and Desktop operation tests cover pagination, exact reads, status explanation, race-safe recheck, timeout, cancellation, and future baselines            | Bounded volatile runtime only; no restart continuity or provider-truth claim                                                 |
+| Agent changes expose every retained revision or reset | Invariants 3,10   | `AgentSemanticChanges.tla`: ordered suffix, batch, subscription, `WaitingCursorIsCurrent`, gap, reset, timeout, cancellation, and retirement invariants                              | Agent journal and Desktop operation tests cover applied-only records, page order, signed cursor, synchronous recheck, overflow/reset, timeout, and cancellation       | Retention is 512 in memory; no durable replay, cryptographic proof, or restart continuity                                    |
+| Terminal output is exact, bounded, and capture-only   | Invariants 3,9-10 | `TerminalSemanticRead.tla`: capture-only lease, exact success fence, text-free failures, cleanup-attempt/disposal distinction, cleanup-failure preservation, and one terminal result | Reader and operation tests cover live and archived routing, HTTP invocation, UTF-8 capacity, wrapping, staleness, retirement, deadline, cancellation, and cleanup     | Safety only: no per-read settlement progress, cleanup deadline, retry, redaction, raw VT, wait, remote reconnect, or history |
+| Locator and peer stay current-user                    | Invariants 11,13  | Native source is compiled for maintained POSIX and Windows families                                                                                                                  | Native Node and Electron tests create, authenticate, read, reject unsafe POSIX ownership, and retire the endpoint; maintained Windows CI exercises DACL/SID paths     | A compromised same-user process is trusted; cross-user negative execution needs a platform account fixture                   |
+| Framing and capacity fail closed                      | Invariants 8,12   | Strict protocol framing and route schemas                                                                                                                                            | Unit rejection matrix plus real Node/Electron local-transport tests cover trailing input, 64 KiB request, 1 MiB response, malformed input, and recovery               | Kernel queue scheduling and process kill are outside the claim                                                               |
+| Disconnect cannot cancel or replay                    | Invariant 13      | N/A: encoded transport and client connection state are outside the execution-ledger abstraction                                                                                      | `verify-semantic-command-local-http-runtime.mjs` disconnect proof; `SemanticCommandClient` read-only polling and generation-mismatch tests                            | Durable recovery across machine or coordinator restart is excluded                                                           |
 
 The registered TLC model uses two request identities, two fingerprints, three execution identities,
 one active slot, two coordinator generations, and separate count- and weight-limited retention
 variants. Those bounds expose replay, conflict, cancellation, completion-order eviction, and
-restart interleavings; they do not prove unbounded state. Native tests run under both Node and the
-pinned Electron runtime on the current platform, while the maintained macOS and Windows CI matrix
-is the authority for platform behavior. No manual native-window test participates.
+restart interleavings, including post-commit cancellation and execution-identity reuse after
+eviction; they do not prove unbounded state. Native tests run under both Node and the pinned
+Electron runtime on the current platform, while the maintained macOS and Windows CI matrix is the
+authority for platform behavior. No manual native-window test participates.
 
 The Agent-wait model adds two Sessions, two semantic statuses, three health values, two Agent
 mutations (revisions 0 through 2), and two coordinator generations. Its action coverage includes begin, missing, ahead,
@@ -196,12 +202,15 @@ recovery.
 The Agent-changes model uses revisions 0 through 4, retention 2, page bound 2, and two coordinator
 generations. Required action coverage includes baseline, current follow, immediate batch, overflow
 reset, invalid cursor, update, timeout, cancellation, and retirement. These bounds expose silent-gap,
-ordering, batching, and subscribe-before-recheck errors without claiming unbounded retention,
+ordering, batching, and subscribe-before-recheck errors; `WaitingCursorIsCurrent` independently
+rejects a waiting reader left behind a newer revision. The model does not claim unbounded retention,
 readers, revisions, cryptographic cursor security, or restart recovery.
 
 The Terminal-read model uses one target, two target epochs, two frame generations and revisions,
-and one capture lease. Required action coverage includes opening, unavailable open, frame
-observation, exact row match, stale rows, cancellation, target retirement, cleanup, and result
-publication. These bounds expose interactive-lease leakage, stale-success, text-bearing failure,
-settlement-before-cleanup, and duplicate-result errors without claiming unbounded rows, time,
+and one capture lease. Required action coverage includes opening, unavailable and cleanup-failed
+open, deadline expiry, frame observation, exact row match, stale rows, cancellation, target
+retirement, successful and rejected cleanup, and result publication. These bounds expose
+interactive-lease leakage, stale-success, text-bearing or overwritten cleanup failure,
+settlement-before-cleanup-attempt, and duplicate-result errors. The model is safety-only: it has no
+fairness or temporal settlement property and does not claim bounded cleanup, unbounded rows, time,
 targets, Host behavior, or process recovery.

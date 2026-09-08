@@ -9,8 +9,12 @@ EXTENDS FiniteSets, Naturals, TLC
 \* DetachAfterClientClose, AdmitTerminalReply, CloseClientInput, StopWriter,
 \* WriteTerminalReply, and WriteClientInput. Client input and
 \* terminal replies share one writer but own independent bounded admission
-\* budgets. An accepted held input precharges one future repair byte; detaching
-\* that attachment atomically converts only its credit into an ordered repair.
+\* budgets. Those limits are representative scalar capacity units; the exact
+\* byte-plus-entry dimensions remain owned by the queue and ownership tests.
+\* Two ordered client admission occurrences form a positional FIFO witness;
+\* payload and attachment identity fields are outside that bounded witness. An
+\* accepted held input precharges one future repair byte; detaching that
+\* attachment atomically converts only its credit into an ordered repair.
 \* A capability downgrade uses the same repair transition before authority is
 \* revoked; stale or unavailable revisions cannot enter the queue, an upgrade
 \* creates fresh authority without replaying queued input, and ordinary client
@@ -26,14 +30,34 @@ EXTENDS FiniteSets, Naturals, TLC
 CONSTANTS Attachments, MaxCapabilityRevision, MaxClientInput, MaxTerminalReply,
   MaxReplyBurst
 
+FifoPhases == {
+  "none", "first_pending", "first_settled", "both_pending",
+  "second_pending", "done"
+}
+
 VARIABLES clientInputOpen, writerOpen, clientInputBuffer, terminalReplyBuffer,
-  ReplyBurstRemaining, attached, inputCapable, capabilityRevision, owned,
-  queuedAccepted, repaired, visible, focused, focusTerminalActive
+  ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision, owned,
+  queuedAccepted, repaired, visible, focused, focusTerminalActive,
+  fifoPhase, clientFifoMaintained
 
 vars ==
   <<clientInputOpen, writerOpen, clientInputBuffer, terminalReplyBuffer,
-    ReplyBurstRemaining, attached, inputCapable, capabilityRevision, owned,
-    queuedAccepted, repaired, visible, focused, focusTerminalActive>>
+    ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision, owned,
+    queuedAccepted, repaired, visible, focused, focusTerminalActive,
+    fifoPhase, clientFifoMaintained>>
+
+fifoVars == <<fifoPhase, clientFifoMaintained>>
+
+FifoAfterAccept ==
+  CASE fifoPhase = "none" -> "first_pending"
+    [] fifoPhase = "first_pending" -> "both_pending"
+    [] fifoPhase = "first_settled" -> "second_pending"
+
+FifoAfterWrite ==
+  CASE fifoPhase = "first_pending" -> "first_settled"
+    [] fifoPhase = "both_pending" -> "second_pending"
+    [] fifoPhase = "second_pending" -> "done"
+    [] OTHER -> fifoPhase
 
 FocusRepairCredit == IF focused = {} THEN 0 ELSE 1
 
@@ -43,6 +67,7 @@ Init ==
   /\ clientInputBuffer = 0
   /\ terminalReplyBuffer = 0
   /\ ReplyBurstRemaining = MaxReplyBurst
+  /\ replyBurstMaintained = TRUE
   /\ attached = Attachments
   /\ inputCapable = Attachments
   /\ capabilityRevision = [attachment \in Attachments |-> 1]
@@ -52,19 +77,26 @@ Init ==
   /\ visible = {}
   /\ focused = {}
   /\ focusTerminalActive = FALSE
+  /\ fifoPhase = "none"
+  /\ clientFifoMaintained = TRUE
 
 AcceptClientInput(attachment, revision, bytes) ==
   /\ writerOpen
   /\ clientInputOpen
   /\ attachment \in inputCapable
+  /\ fifoPhase \in {"none", "first_pending", "first_settled"}
   /\ revision = capabilityRevision[attachment]
   /\ bytes \in 1..MaxClientInput
   /\ clientInputBuffer + Cardinality(owned) + FocusRepairCredit + bytes <=
        MaxClientInput
   /\ clientInputBuffer' = clientInputBuffer + bytes
   /\ queuedAccepted' = queuedAccepted \union {attachment}
+  /\ fifoPhase' = FifoAfterAccept
+  /\ clientFifoMaintained' =
+       (clientFifoMaintained /\
+        fifoPhase' = FifoAfterAccept)
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
-    ReplyBurstRemaining, attached, inputCapable, capabilityRevision, owned,
+    ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision, owned,
     repaired, visible, focused, focusTerminalActive>>
 
 AcceptHeldInput(attachment, revision) ==
@@ -80,8 +112,8 @@ AcceptHeldInput(attachment, revision) ==
   /\ owned' = owned \union {attachment}
   /\ queuedAccepted' = queuedAccepted \union {attachment}
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
-    ReplyBurstRemaining, attached, inputCapable, capabilityRevision, repaired,
-    visible, focused, focusTerminalActive>>
+    ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision, repaired,
+    visible, focused, focusTerminalActive, fifoVars>>
 
 ReleaseHeldInput(attachment, revision) ==
   /\ writerOpen
@@ -93,17 +125,17 @@ ReleaseHeldInput(attachment, revision) ==
   /\ owned' = owned \ {attachment}
   /\ queuedAccepted' = queuedAccepted \union {attachment}
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
-    ReplyBurstRemaining, attached, inputCapable, capabilityRevision, repaired,
-    visible, focused, focusTerminalActive>>
+    ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision, repaired,
+    visible, focused, focusTerminalActive, fifoVars>>
 
 GainVisibility(attachment) ==
   /\ attachment \in attached
   /\ attachment \notin visible
   /\ visible' = visible \union {attachment}
   /\ UNCHANGED <<clientInputOpen, writerOpen, clientInputBuffer,
-    terminalReplyBuffer, ReplyBurstRemaining, attached, inputCapable,
+    terminalReplyBuffer, ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable,
     capabilityRevision, owned, queuedAccepted, repaired, focused,
-    focusTerminalActive>>
+    focusTerminalActive, fifoVars>>
 
 LoseVisibility(attachment) ==
   /\ attachment \in visible
@@ -120,8 +152,8 @@ LoseVisibility(attachment) ==
   /\ focused' = focused \ {attachment}
   /\ focusTerminalActive' = ((focused \ {attachment}) # {})
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
-    ReplyBurstRemaining, attached, inputCapable, capabilityRevision,
-    queuedAccepted, repaired>>
+    ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision,
+    queuedAccepted, repaired, fifoVars>>
 
 AcceptFocusClaim(attachment, revision) ==
   /\ writerOpen
@@ -139,8 +171,8 @@ AcceptFocusClaim(attachment, revision) ==
   /\ queuedAccepted' =
        IF focused = {} THEN queuedAccepted \union {attachment} ELSE queuedAccepted
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
-    ReplyBurstRemaining, attached, inputCapable, capabilityRevision, owned,
-    repaired, visible>>
+    ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision, owned,
+    repaired, visible, fifoVars>>
 
 AcceptFocusRelease(attachment, revision) ==
   /\ writerOpen
@@ -157,8 +189,8 @@ AcceptFocusRelease(attachment, revision) ==
          THEN queuedAccepted \union {attachment}
          ELSE queuedAccepted
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
-    ReplyBurstRemaining, attached, inputCapable, capabilityRevision, owned,
-    repaired, visible>>
+    ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision, owned,
+    repaired, visible, fifoVars>>
 
 ReplayFocusClaim(attachment, revision, nextFocused) ==
   /\ attachment \in inputCapable
@@ -195,7 +227,7 @@ DowngradeInputCapability(attachment, revision) ==
   /\ focused' = focused \ {attachment}
   /\ focusTerminalActive' = ((focused \ {attachment}) # {})
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
-    ReplyBurstRemaining, attached, queuedAccepted, visible>>
+    ReplyBurstRemaining, replyBurstMaintained, attached, queuedAccepted, visible, fifoVars>>
 
 UpgradeInputCapability(attachment, revision) ==
   /\ writerOpen
@@ -208,8 +240,8 @@ UpgradeInputCapability(attachment, revision) ==
   /\ inputCapable' = inputCapable \union {attachment}
   /\ repaired' = repaired \ {attachment}
   /\ UNCHANGED <<clientInputOpen, writerOpen, clientInputBuffer,
-    terminalReplyBuffer, ReplyBurstRemaining, attached, owned, queuedAccepted,
-    visible, focused, focusTerminalActive>>
+    terminalReplyBuffer, ReplyBurstRemaining, replyBurstMaintained, attached, owned, queuedAccepted,
+    visible, focused, focusTerminalActive, fifoVars>>
 
 ReplayInputCapabilityUpdate(attachment, revision, input) ==
   /\ attachment \in attached
@@ -259,7 +291,7 @@ DetachOwnedInput(attachment) ==
   /\ focusTerminalActive' = ((focused \ {attachment}) # {})
   /\ repaired' = repaired \union {attachment}
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
-    ReplyBurstRemaining, capabilityRevision, queuedAccepted>>
+    ReplyBurstRemaining, replyBurstMaintained, capabilityRevision, queuedAccepted, fifoVars>>
 
 DetachIdle(attachment) ==
   /\ attachment \in attached
@@ -280,7 +312,7 @@ DetachIdle(attachment) ==
          THEN repaired \union {attachment}
          ELSE repaired
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
-    ReplyBurstRemaining, capabilityRevision, owned, queuedAccepted>>
+    ReplyBurstRemaining, replyBurstMaintained, capabilityRevision, owned, queuedAccepted, fifoVars>>
 
 DetachAfterClientClose(attachment) ==
   /\ ~clientInputOpen
@@ -292,8 +324,8 @@ DetachAfterClientClose(attachment) ==
   /\ focused' = focused \ {attachment}
   /\ focusTerminalActive' = ((focused \ {attachment}) # {})
   /\ UNCHANGED <<clientInputOpen, writerOpen, clientInputBuffer,
-    terminalReplyBuffer, ReplyBurstRemaining, capabilityRevision,
-    queuedAccepted, repaired>>
+    terminalReplyBuffer, ReplyBurstRemaining, replyBurstMaintained, capabilityRevision,
+    queuedAccepted, repaired, fifoVars>>
 
 AdmitTerminalReply(bytes) ==
   /\ writerOpen
@@ -301,15 +333,15 @@ AdmitTerminalReply(bytes) ==
   /\ terminalReplyBuffer + bytes <= MaxTerminalReply
   /\ terminalReplyBuffer' = terminalReplyBuffer + bytes
   /\ UNCHANGED <<clientInputOpen, writerOpen, clientInputBuffer,
-    ReplyBurstRemaining, attached, inputCapable, capabilityRevision, owned,
-    queuedAccepted, repaired, visible, focused, focusTerminalActive>>
+    ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision, owned,
+    queuedAccepted, repaired, visible, focused, focusTerminalActive, fifoVars>>
 
 CloseClientInput ==
   /\ clientInputOpen
   /\ clientInputOpen' = FALSE
   /\ UNCHANGED <<writerOpen, clientInputBuffer, terminalReplyBuffer,
-    ReplyBurstRemaining, attached, inputCapable, capabilityRevision, owned,
-    queuedAccepted, repaired, visible, focused, focusTerminalActive>>
+    ReplyBurstRemaining, replyBurstMaintained, attached, inputCapable, capabilityRevision, owned,
+    queuedAccepted, repaired, visible, focused, focusTerminalActive, fifoVars>>
 
 StopWriter ==
   /\ writerOpen
@@ -318,8 +350,12 @@ StopWriter ==
   /\ clientInputBuffer' = 0
   /\ terminalReplyBuffer' = 0
   /\ ReplyBurstRemaining' = MaxReplyBurst
+  /\ replyBurstMaintained' =
+       (replyBurstMaintained /\ ReplyBurstRemaining' = MaxReplyBurst)
   /\ owned' = {}
   /\ queuedAccepted' = {}
+  /\ fifoPhase' = "done"
+  /\ UNCHANGED clientFifoMaintained
   /\ focused' = {}
   /\ focusTerminalActive' = FALSE
   /\ UNCHANGED <<attached, inputCapable, capabilityRevision, repaired, visible>>
@@ -327,27 +363,41 @@ StopWriter ==
 WriteTerminalReply ==
   /\ writerOpen
   /\ terminalReplyBuffer > 0
+  /\ (clientInputBuffer = 0 \/ ReplyBurstRemaining > 0)
   /\ terminalReplyBuffer' = 0
   /\ ReplyBurstRemaining' =
       IF ReplyBurstRemaining > 0 THEN ReplyBurstRemaining - 1 ELSE 0
+  /\ replyBurstMaintained' =
+       (replyBurstMaintained /\
+        ReplyBurstRemaining' =
+          IF ReplyBurstRemaining > 0 THEN ReplyBurstRemaining - 1 ELSE 0)
   /\ UNCHANGED <<clientInputOpen, writerOpen, clientInputBuffer,
     attached, inputCapable, capabilityRevision, owned, queuedAccepted, repaired,
-    visible, focused, focusTerminalActive>>
+    visible, focused, focusTerminalActive, fifoVars>>
 
 WriteClientInput ==
   /\ writerOpen
   /\ clientInputBuffer > 0
   /\ (terminalReplyBuffer = 0 \/ ReplyBurstRemaining = 0)
-  /\ clientInputBuffer' = 0
+  /\ clientInputBuffer' =
+       IF fifoPhase = "both_pending" THEN clientInputBuffer ELSE 0
   /\ ReplyBurstRemaining' = MaxReplyBurst
-  /\ queuedAccepted' = {}
+  /\ replyBurstMaintained' =
+       (replyBurstMaintained /\ ReplyBurstRemaining' = MaxReplyBurst)
+  /\ queuedAccepted' =
+       IF fifoPhase = "both_pending" THEN queuedAccepted ELSE {}
+  /\ fifoPhase' = FifoAfterWrite
+  /\ clientFifoMaintained' =
+       (clientFifoMaintained /\
+        fifoPhase' = FifoAfterWrite)
   /\ UNCHANGED <<clientInputOpen, writerOpen, terminalReplyBuffer,
     attached, inputCapable, capabilityRevision, owned, repaired, visible,
     focused, focusTerminalActive>>
 
 Next ==
   \/ \E attachment \in Attachments, revision \in 1..MaxCapabilityRevision,
-       bytes \in 1..MaxClientInput: AcceptClientInput(attachment, revision, bytes)
+       bytes \in 1..MaxClientInput:
+       AcceptClientInput(attachment, revision, bytes)
   \/ \E attachment \in Attachments, revision \in 1..MaxCapabilityRevision:
        AcceptHeldInput(attachment, revision)
   \/ \E attachment \in Attachments, revision \in 1..MaxCapabilityRevision:
@@ -397,6 +447,7 @@ TypeOK ==
   /\ clientInputBuffer \in 0..MaxClientInput
   /\ terminalReplyBuffer \in 0..MaxTerminalReply
   /\ ReplyBurstRemaining \in 0..MaxReplyBurst
+  /\ replyBurstMaintained \in BOOLEAN
   /\ attached \subseteq Attachments
   /\ inputCapable \subseteq attached
   /\ capabilityRevision \in [Attachments -> 1..MaxCapabilityRevision]
@@ -407,23 +458,19 @@ TypeOK ==
   /\ focused \subseteq inputCapable
   /\ focused \subseteq visible
   /\ focusTerminalActive \in BOOLEAN
+  /\ fifoPhase \in FifoPhases
+  /\ clientFifoMaintained \in BOOLEAN
 
 HeldInputAndRepairCreditAreBounded ==
   /\ owned \subseteq inputCapable
   /\ clientInputBuffer + Cardinality(owned) + FocusRepairCredit <=
        MaxClientInput
 
-InvisibleAttachmentOwnsNoFocus ==
-  focused \subseteq visible
-
 FocusAggregateMatchesTerminalState ==
   focusTerminalActive = (focused # {})
 
 RepairDoesNotCrossAttachment ==
   repaired \intersect inputCapable = {}
-
-DowngradedAttachmentOwnsNoHeldInput ==
-  owned \subseteq inputCapable
 
 ClosedWriterOwnsNoQueue ==
   ~writerOpen =>
@@ -432,12 +479,26 @@ ClosedWriterOwnsNoQueue ==
     /\ terminalReplyBuffer = 0
     /\ owned = {}
     /\ queuedAccepted = {}
+    /\ fifoPhase = "done"
     /\ focused = {}
     /\ ~focusTerminalActive
 
 TerminalReplyHasWritePriority ==
   (terminalReplyBuffer > 0 /\ ReplyBurstRemaining > 0) =>
     ~ENABLED WriteClientInput
+
+BurstExhaustionYieldsToClient ==
+  writerOpen /\ clientInputBuffer > 0 /\ terminalReplyBuffer > 0 /\
+    ReplyBurstRemaining = 0 =>
+      /\ ~ENABLED WriteTerminalReply
+      /\ ENABLED WriteClientInput
+
+ReplyBurstAccountingIsExact == replyBurstMaintained
+
+ClientFifoWitnessIsOrdered ==
+  /\ clientFifoMaintained
+  /\ (fifoPhase \in {"first_pending", "both_pending", "second_pending"} =>
+       clientInputBuffer > 0)
 
 ClientBackpressureCannotConsumeReplyBudget ==
   writerOpen /\ clientInputBuffer = MaxClientInput /\
@@ -446,7 +507,8 @@ ClientBackpressureCannotConsumeReplyBudget ==
 
 ClosedClientRejectsNewInput ==
   ~clientInputOpen =>
-    /\ \A attachment \in Attachments, revision \in 1..MaxCapabilityRevision:
+    /\ \A attachment \in Attachments,
+         revision \in 1..MaxCapabilityRevision:
          ~ENABLED AcceptClientInput(attachment, revision, 1)
     /\ \A attachment \in Attachments, revision \in 1..MaxCapabilityRevision:
          ~ENABLED AcceptHeldInput(attachment, revision)

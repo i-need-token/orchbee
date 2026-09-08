@@ -5,14 +5,16 @@ EXTENDS FiniteSets, Naturals, TLC
 \* Worker-to-Terminal-Host broker. Server admission still precedes Host
 \* contact. The admitted dispatch is an input from the separately checked
 \* TerminalLaunchAuthorization model; this module owns only the adapter order:
-\* begin_host_handoff (including its two cached pre-effect ResultReady paths),
+\* begin_host_handoff (including its cached expired-lease ResultReady path),
 \* one exactly correlated Terminal Protocol command, one terminal result, and
 \* bounded Server delivery. Its detailed slot phases refine the separate
 \* WorkerTerminalBindingCapacity model's one operation-pending/result slot.
 \* An exactly validated generic TypedFailure has no
 \* authoritative rejection discriminator and therefore maps to
 \* HostReportedFailure; a mismatched record is protocol-unknown, never
-\* HostRejected. A Server loss closes Host immediately. A Host loss may retain
+\* HostRejected. The active broker connection's HostEpoch is immutable; a Host
+\* replacement requires connection teardown and a fresh Hello outside this
+\* one-connection lifecycle. A Server loss closes Host immediately. A Host loss may retain
 \* Server only for one bounded result delivery, then closes it. A retained Host
 \* observed after Worker loss is classified RecoveryRequired and is never
 \* silently adopted.
@@ -42,8 +44,7 @@ HostResponseRoles == {"none", "request", "response"}
 HostEpochs == 0..2
 ResultOutcomes == {"none", "accepted", "rejected", "failed", "unknown"}
 CompletionSources == {
-  "none", "handoff-lease-expired", "handoff-host-identity-changed",
-  "host-unavailable-before-handoff", "host-accepted",
+  "none", "handoff-lease-expired", "host-unavailable-before-handoff", "host-accepted",
   "host-reported-failure", "host-protocol", "host-loss", "host-timeout",
   "server-loss"
 }
@@ -53,9 +54,7 @@ KernelSlotPhases == {
   "empty", "awaiting-handoff", "handed-off", "result-ready"
 }
 CapacitySlotPhases == {"empty", "operation-pending", "result-ready"}
-HandoffRejectionSources == {
-  "handoff-lease-expired", "handoff-host-identity-changed"
-}
+HandoffRejectionSources == {"handoff-lease-expired"}
 RejectedHostResponseClasses == {
   "wrong-role", "wrong-kind", "wrong-correlation", "wrong-host-epoch"
 }
@@ -68,8 +67,8 @@ Actions == {
   "reject-host-wrong-role", "reject-host-incompatible",
   "reject-host-malformed", "host-handshake-timeout", "emit-ready",
   "admit-launch-dispatch", "admit-start-dispatch", "begin-host-handoff",
-  "handoff-lease-expired-result", "handoff-host-identity-changed-result",
-  "fail-before-host-handoff", "dispatch-host-command",
+  "handoff-lease-expired-result", "fail-before-host-handoff",
+  "dispatch-host-command",
   "host-applies-command", "reject-wrong-host-response-role",
   "reject-wrong-host-response-kind", "reject-wrong-host-correlation",
   "reject-wrong-host-epoch", "host-accepts-command",
@@ -383,27 +382,6 @@ HandoffLeaseExpiredResult ==
        hostCommandApplied, hostCorrelation, hostResponseRole,
        hostResponseKind, hostResponseCorrelation, hostResponseEpoch,
        rejectedHostResponses, resultDeliveryCount, retentionState>>
-
-HandoffHostIdentityChangedResult ==
-  /\ workerPhase = "ready"
-  /\ serverLink = "active"
-  /\ hostLink = "active"
-  /\ operationPhase = "admitted"
-  /\ kernelSlotPhase = "awaiting-handoff"
-  /\ dispatchKind = "start"
-  /\ handoffAttemptCount = 0
-  /\ hostEpoch = startTargetHostEpoch
-  /\ hostEpoch' = OtherHostEpoch(startTargetHostEpoch)
-  /\ handoffAttemptCount' = 1
-  /\ handoffHostEpoch' = hostEpoch'
-  /\ QueueResult("rejected", "handoff-host-identity-changed")
-  /\ lastAction' = "handoff-host-identity-changed-result"
-  /\ UNCHANGED <<workerPhase, serverLink, hostLink, stopCause, helloSent,
-       readinessEmitted, dispatchKind, handoffCount, startTargetHostEpoch,
-       hostCommandKind, hostCommandCount, hostCommandApplied,
-       hostCorrelation, hostResponseRole, hostResponseKind,
-       hostResponseCorrelation, hostResponseEpoch, rejectedHostResponses,
-       resultDeliveryCount, retentionState>>
 
 FailBeforeHostHandoff ==
   /\ workerPhase = "ready"
@@ -888,7 +866,6 @@ Next ==
   \/ AdmitStartDispatch
   \/ BeginHostHandoff
   \/ HandoffLeaseExpiredResult
-  \/ HandoffHostIdentityChangedResult
   \/ FailBeforeHostHandoff
   \/ DispatchHostCommand
   \/ HostAppliesCommand
@@ -923,8 +900,7 @@ SettlePendingWorker ==
 
 SettleAdmittedOperation ==
   BeginHostHandoff \/ HandoffLeaseExpiredResult \/
-  HandoffHostIdentityChangedResult \/ FailBeforeHostHandoff \/
-  LoseServerBeforeHandoff \/ LoseHostBeforeHandoff
+  FailBeforeHostHandoff \/ LoseServerBeforeHandoff \/ LoseHostBeforeHandoff
 
 SettleHandedOffOperation ==
   DispatchHostCommand \/ HostCommandTimeout \/ LoseServerAfterHandoff \/
@@ -1100,15 +1076,6 @@ HandoffResultReadyIsExact ==
        /\ hostCommandCount = 0
        /\ ~hostCommandApplied
        /\ bindingResultCached
-  /\ completionSource = "handoff-host-identity-changed" =>
-       /\ dispatchKind = "start"
-       /\ resultOutcome = "rejected"
-       /\ handoffAttemptCount = 1
-       /\ handoffCount = 0
-       /\ startTargetHostEpoch # handoffHostEpoch
-       /\ hostCommandCount = 0
-       /\ ~hostCommandApplied
-       /\ bindingResultCached
   /\ completionSource = "host-unavailable-before-handoff" =>
        /\ resultOutcome = "failed"
        /\ handoffAttemptCount = 0
@@ -1220,6 +1187,12 @@ ResultDeliveryIsAtMostOnce ==
 RetainedHostIsNeverSilentlyAdopted ==
   [][(retentionDisposition \in {"unmatched", "recovery-required"}) =>
       (retentionDisposition' \in {"unmatched", "recovery-required"})]_vars
+
+ActiveHostConnectionKeepsEpoch ==
+  [][hostLink = "active" => UNCHANGED hostEpoch]_vars
+
+HostEpochInstallationRequiresHandshake ==
+  [][hostEpoch' # hostEpoch => AcceptHostHandshake]_vars
 
 UnmatchedRetainedHostEventuallyRequiresRecovery ==
   [](retentionDisposition = "unmatched" =>

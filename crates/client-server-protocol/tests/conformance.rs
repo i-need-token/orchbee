@@ -118,7 +118,7 @@ fn schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips()
             .pointer("/oneOf")
             .and_then(Value::as_array)
             .map(Vec::len),
-        Some(8)
+        Some(10)
     );
     assert!(jsonschema::draft202012::meta::is_valid(&schema));
     let schema_validator = jsonschema::draft202012::new(&schema)?;
@@ -194,6 +194,7 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "control-unavailable-server-busy",
         "control-unavailable-terminal-runtime-unavailable",
         "viewer-attach",
+        "viewer-attach-binding",
         "viewer-poll",
         "viewer-frame-applied",
         "viewer-need-snapshot",
@@ -207,6 +208,7 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "viewer-rejected-feedback-mismatch",
         "viewer-unavailable-server-busy",
         "viewer-unavailable-terminal-runtime",
+        "viewer-unavailable-workbench",
         "create-accepted-awaiting-start",
         "create-accepted-started",
         "create-failed-terminal-create-failed",
@@ -223,6 +225,14 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "create-unavailable-no-compatible-worker",
         "create-unavailable-server-busy",
         "create-unavailable-terminal-runtime-unavailable",
+        "message-terminal-open",
+        "message-terminal-open-result",
+        "open-opened",
+        "open-unavailable-no-compatible-worker",
+        "open-unavailable-terminal-runtime",
+        "open-unavailable-server-busy",
+        "open-failed",
+        "open-outcome-unknown",
         "message-terminal-create",
         "message-terminal-create-result",
         "message-terminal-start",
@@ -534,6 +544,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
             use orchbee_client_server_protocol::TerminalViewerAction;
             reached.insert(match request.action() {
                 TerminalViewerAction::Attach { .. } => "viewer-attach",
+                TerminalViewerAction::AttachBinding { .. } => "viewer-attach-binding",
                 TerminalViewerAction::Poll {} => "viewer-poll",
                 TerminalViewerAction::FrameApplied { .. } => "viewer-frame-applied",
                 TerminalViewerAction::NeedSnapshot { .. } => "viewer-need-snapshot",
@@ -561,8 +572,31 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                     ViewerUnavailableReason::TerminalRuntimeUnavailable => {
                         "viewer-unavailable-terminal-runtime"
                     }
+                    ViewerUnavailableReason::WorkbenchUnavailable => "viewer-unavailable-workbench",
                 },
                 TerminalViewerOutcome::Record(_) => "viewer-binary-record",
+            });
+        }
+        DecodedMessage::Client(ClientMessage::TerminalOpen(_)) => {
+            reached.insert("message-terminal-open");
+        }
+        DecodedMessage::Server(ServerMessage::TerminalOpenResult(result)) => {
+            reached.insert("message-terminal-open-result");
+            reached.insert(match result.outcome() {
+                orchbee_client_server_protocol::OpenOutcome::Opened { .. } => "open-opened",
+                orchbee_client_server_protocol::OpenOutcome::Unavailable {
+                    reason: CreateUnavailableReason::NoCompatibleWorker,
+                } => "open-unavailable-no-compatible-worker",
+                orchbee_client_server_protocol::OpenOutcome::Unavailable {
+                    reason: CreateUnavailableReason::TerminalRuntimeUnavailable,
+                } => "open-unavailable-terminal-runtime",
+                orchbee_client_server_protocol::OpenOutcome::Unavailable {
+                    reason: CreateUnavailableReason::ServerBusy,
+                } => "open-unavailable-server-busy",
+                orchbee_client_server_protocol::OpenOutcome::Failed { .. } => "open-failed",
+                orchbee_client_server_protocol::OpenOutcome::OutcomeUnknown {} => {
+                    "open-outcome-unknown"
+                }
             });
         }
         DecodedMessage::Client(ClientMessage::TerminalCreate(request)) => {

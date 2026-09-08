@@ -16,8 +16,9 @@ use orchbee_local_peer_credentials::require_same_effective_user;
 use crate::client_session_registry::{ClientSessionAdmission, ClientSessionRegistry};
 
 use crate::local_terminal_service::LocalTerminalService;
+use crate::workbench_service::{WorkbenchPolicy, WorkbenchService};
 
-mod obcs_session;
+mod application_session;
 mod record_stream;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -30,9 +31,58 @@ pub(crate) fn start(
 ) -> io::Result<thread::JoinHandle<io::Result<()>>> {
     let listener = UnixListener::bind(endpoint)?;
     fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
+    start_listener(listener, expected_cohort, terminals)
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn start_managed(
+    endpoint: &Path,
+    expected_cohort: &str,
+    terminals: Arc<LocalTerminalService>,
+) -> io::Result<thread::JoinHandle<io::Result<()>>> {
+    start_listener(bind_managed(endpoint)?, expected_cohort, terminals)
+}
+
+#[cfg(target_os = "linux")]
+fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
+    use nix::fcntl::{OFlag, RenameFlags, open, renameat2};
+    let parent = endpoint.parent().ok_or(io::ErrorKind::InvalidInput)?;
+    let name = endpoint.file_name().ok_or(io::ErrorKind::InvalidInput)?;
+    let directory = open(
+        parent,
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        nix::sys::stat::Mode::empty(),
+    )?;
+    let pending = parent.join("client-pending.sock");
+    let listener = UnixListener::bind(&pending)?;
+    fs::set_permissions(&pending, fs::Permissions::from_mode(0o600))?;
+    renameat2(
+        &directory,
+        "client-pending.sock",
+        &directory,
+        name,
+        RenameFlags::RENAME_NOREPLACE,
+    )?;
+    Ok(listener)
+}
+
+fn start_listener(
+    listener: UnixListener,
+    expected_cohort: &str,
+    terminals: Arc<LocalTerminalService>,
+) -> io::Result<thread::JoinHandle<io::Result<()>>> {
     let registry = Arc::new(Mutex::new(ClientSessionRegistry::new()));
     let connection_slots = Arc::new(ConnectionSlots::new());
     let expected_cohort: Arc<str> = Arc::from(expected_cohort);
+    let workbench = Arc::new(WorkbenchService::new(
+        WorkbenchPolicy {
+            read: true,
+            manage_navigation: true,
+            create_terminal: true,
+            manage_terminal_lifecycle: true,
+        },
+        Arc::clone(&terminals),
+    ));
     thread::Builder::new()
         .name("orchbee-local-client-listener".to_owned())
         .spawn(move || {
@@ -42,6 +92,7 @@ pub(crate) fn start(
                 connection_slots,
                 expected_cohort,
                 terminals,
+                workbench,
             )
         })
 }
@@ -52,6 +103,7 @@ fn serve(
     connection_slots: Arc<ConnectionSlots>,
     expected_cohort: Arc<str>,
     terminals: Arc<LocalTerminalService>,
+    workbench: Arc<WorkbenchService>,
 ) -> io::Result<()> {
     loop {
         match listener.accept() {
@@ -62,6 +114,7 @@ fn serve(
                 let candidate_registry = Arc::clone(&registry);
                 let candidate_cohort = Arc::clone(&expected_cohort);
                 let candidate_terminals = Arc::clone(&terminals);
+                let candidate_workbench = Arc::clone(&workbench);
                 let _candidate = thread::Builder::new()
                     .name("orchbee-local-client".to_owned())
                     .spawn(move || {
@@ -71,6 +124,7 @@ fn serve(
                             &candidate_cohort,
                             connection_slot,
                             &candidate_terminals,
+                            &candidate_workbench,
                         );
                     });
             }
@@ -86,6 +140,7 @@ fn handle_candidate(
     expected_cohort: &str,
     _connection_slot: ConnectionSlot,
     terminals: &LocalTerminalService,
+    workbench: &WorkbenchService,
 ) {
     if stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
         || stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT)).is_err()
@@ -152,7 +207,11 @@ fn handle_candidate(
         return;
     };
     let mut session = terminals.session();
-    let _session_result = obcs_session::run(&mut records, |request| session.execute(request));
+    let _session_result = application_session::run(
+        &mut records,
+        |request| session.execute(request),
+        |request| workbench.execute(request),
+    );
 }
 
 fn send_rejection(stream: &mut UnixStream, reason: RejectionReason) {

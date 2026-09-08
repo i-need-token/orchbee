@@ -1,29 +1,109 @@
-use crate::client_view::{ClientView, Notice, Overlay};
+use std::convert::Infallible;
+
+use crate::client_view::{
+    ClientAction, ClientView, Notice, Overlay, SessionActionDisposition, SidebarSurface,
+};
 
 use super::{DispatchOutcome, TerminalInputPort, TerminalInputUnavailable, dispatch_input};
 
+#[test]
+fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() {
+    struct ModalInput {
+        active: bool,
+        keys: Vec<crate::client_view::ClientKey>,
+        forwarded: Vec<Vec<u8>>,
+    }
+    impl TerminalInputPort for ModalInput {
+        fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            self.forwarded.push(bytes.to_vec());
+            Ok(())
+        }
+        fn apply_client_action(
+            &mut self,
+            action: ClientAction,
+        ) -> Option<SessionActionDisposition> {
+            if action == ClientAction::RequestCloseTab {
+                self.active = true;
+            }
+            Some(SessionActionDisposition::KeepNavigator)
+        }
+        fn capture_confirmation_key(&mut self, key: crate::client_view::ClientKey) -> bool {
+            if !self.active {
+                return false;
+            }
+            self.keys.push(key);
+            if key == crate::client_view::ClientKey::Plain('n') {
+                self.active = false;
+            }
+            true
+        }
+    }
+    let mut view = ClientView::new(100);
+    let mut port = ModalInput {
+        active: false,
+        keys: Vec::new(),
+        forwarded: Vec::new(),
+    };
+    let result = dispatch_input(&mut view, b"before\x02xnleak\x02q", &mut port, |_, _| {
+        Ok::<_, Infallible>(())
+    });
+    assert_eq!(result, Ok(DispatchOutcome::Continue));
+    assert_eq!(port.forwarded, [b"before".to_vec()]);
+    assert_eq!(port.keys, [crate::client_view::ClientKey::Plain('n')]);
+    assert!(!view.prefix_active());
+    let result = dispatch_input(
+        &mut view,
+        b"next",
+        &mut port,
+        |_, _| Ok::<_, Infallible>(()),
+    );
+    assert_eq!(result, Ok(DispatchOutcome::Continue));
+    assert_eq!(port.forwarded, [b"before".to_vec(), b"next".to_vec()]);
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum Recorded {
+    Action(ClientAction),
+    Forward(Vec<u8>),
+    Layout(SidebarSurface),
+}
+
 #[derive(Default)]
 struct RecordingTerminalInput {
-    forwarded: Vec<Vec<u8>>,
+    recorded: Vec<Recorded>,
     unavailable: bool,
+    action_disposition: Option<SessionActionDisposition>,
 }
 
 impl TerminalInputPort for RecordingTerminalInput {
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
-        self.forwarded.push(input.to_vec());
+        self.recorded.push(Recorded::Forward(input.to_vec()));
         if self.unavailable {
             Err(TerminalInputUnavailable)
         } else {
             Ok(())
         }
     }
+
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        self.recorded.push(Recorded::Action(action));
+        self.action_disposition
+    }
+}
+
+fn dispatch(
+    view: &mut ClientView,
+    bytes: &[u8],
+    input: &mut RecordingTerminalInput,
+) -> DispatchOutcome {
+    match dispatch_input(view, bytes, input, |_view, _input| Ok::<(), Infallible>(())) {
+        Ok(outcome) => outcome,
+        Err(never) => match never {},
+    }
 }
 
 fn prefix(view: &mut ClientView, input: &mut RecordingTerminalInput) {
-    assert_eq!(
-        dispatch_input(view, b"\x02", input),
-        DispatchOutcome::Continue
-    );
+    assert_eq!(dispatch(view, b"\x02", input), DispatchOutcome::Continue);
 }
 
 #[test]
@@ -33,39 +113,64 @@ fn forwards_ordinary_control_and_multibyte_input_exactly() {
     let ordinary = b"a\x03\x04\x1b[Ax\xe4\xb8\xad";
 
     assert_eq!(
-        dispatch_input(&mut view, ordinary, &mut input),
+        dispatch(&mut view, ordinary, &mut input),
         DispatchOutcome::Continue
     );
-    assert_eq!(input.forwarded, [ordinary.to_vec()]);
+    assert_eq!(input.recorded, [Recorded::Forward(ordinary.to_vec())]);
 }
 
 #[test]
-fn consumes_the_prefix_then_forwards_only_the_literal_control_b_binding() {
+fn completes_literal_prefix_action_before_forwarding_its_byte() {
     let mut view = ClientView::new(120);
-    let mut input = RecordingTerminalInput::default();
+    let mut input = RecordingTerminalInput {
+        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        ..RecordingTerminalInput::default()
+    };
 
     prefix(&mut view, &mut input);
-    assert!(input.forwarded.is_empty());
+    assert!(input.recorded.is_empty());
     assert!(view.prefix_active());
     assert_eq!(
-        dispatch_input(&mut view, b"\x02", &mut input),
+        dispatch(&mut view, b"\x02", &mut input),
         DispatchOutcome::Continue
     );
-    assert_eq!(input.forwarded, [vec![0x02]]);
+    assert_eq!(
+        input.recorded,
+        [
+            Recorded::Action(ClientAction::ForwardLiteralPrefix),
+            Recorded::Forward(vec![0x02]),
+        ]
+    );
     assert!(!view.prefix_active());
 }
 
 #[test]
-fn maps_backend_bindings_to_visible_no_effect_results() {
+fn unavailable_backend_action_reports_no_effect_after_completed_prefix() {
     let mut view = ClientView::new(120);
     let mut input = RecordingTerminalInput::default();
 
     assert_eq!(
-        dispatch_input(&mut view, b"\x02c", &mut input),
+        dispatch(&mut view, b"\x02c", &mut input),
         DispatchOutcome::Continue
     );
+    assert_eq!(input.recorded, [Recorded::Action(ClientAction::CreateTab)]);
     assert!(matches!(view.notice(), Some(Notice::BackendUnavailable(_))));
-    assert!(input.forwarded.is_empty());
+}
+
+#[test]
+fn admitted_backend_action_uses_its_session_disposition() {
+    let mut view = ClientView::new(120);
+    let mut input = RecordingTerminalInput {
+        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        ..RecordingTerminalInput::default()
+    };
+    dispatch(&mut view, b"\x02w", &mut input);
+    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
+
+    input.action_disposition = Some(SessionActionDisposition::DismissNavigator);
+    dispatch(&mut view, b"\x02n", &mut input);
+    assert_eq!(view.overlay(), None);
+    assert_eq!(view.notice(), None);
 }
 
 #[test]
@@ -73,14 +178,18 @@ fn overlays_never_swallow_ordinary_terminal_input() {
     for command in *b"w?" {
         let mut view = ClientView::new(120);
         let mut input = RecordingTerminalInput::default();
-        dispatch_input(&mut view, &[0x02, command], &mut input);
+        dispatch(&mut view, &[0x02, command], &mut input);
         assert!(matches!(
             view.overlay(),
             Some(Overlay::WorkbenchNavigator | Overlay::ShortcutHelp)
         ));
 
-        dispatch_input(&mut view, b"text\x03\x04\x1b[A", &mut input);
-        assert_eq!(input.forwarded, [b"text\x03\x04\x1b[A".to_vec()]);
+        dispatch(&mut view, b"text\x03\x04\x1b[A", &mut input);
+        assert!(
+            input
+                .recorded
+                .contains(&Recorded::Forward(b"text\x03\x04\x1b[A".to_vec()))
+        );
         assert!(view.overlay().is_some());
     }
 }
@@ -93,31 +202,93 @@ fn reports_an_unavailable_terminal_port_without_losing_exact_bytes() {
         ..RecordingTerminalInput::default()
     };
 
-    dispatch_input(&mut view, b"hello", &mut input);
-    assert_eq!(input.forwarded, [b"hello".to_vec()]);
+    dispatch(&mut view, b"hello", &mut input);
+    assert_eq!(input.recorded, [Recorded::Forward(b"hello".to_vec())]);
     assert_eq!(view.notice(), Some(Notice::TerminalInputUnavailable));
 }
 
 #[test]
 fn splits_only_at_prefix_boundaries_and_preserves_order() {
     let mut view = ClientView::new(120);
-    let mut input = RecordingTerminalInput::default();
+    let mut input = RecordingTerminalInput {
+        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        ..RecordingTerminalInput::default()
+    };
 
-    dispatch_input(&mut view, b"before\x02\x02after", &mut input);
+    dispatch(&mut view, b"before\x02\x02after", &mut input);
     assert_eq!(
-        input.forwarded,
-        [b"before".to_vec(), vec![0x02], b"after".to_vec()]
+        input.recorded,
+        [
+            Recorded::Forward(b"before".to_vec()),
+            Recorded::Action(ClientAction::ForwardLiteralPrefix),
+            Recorded::Forward(vec![0x02]),
+            Recorded::Forward(b"after".to_vec()),
+        ]
     );
 }
 
 #[test]
-fn exits_only_after_the_accepted_prefixed_exit_binding() {
+fn observes_layout_between_a_toggle_and_later_effects_in_the_same_batch() {
     let mut view = ClientView::new(120);
-    let mut input = RecordingTerminalInput::default();
+    let mut input = RecordingTerminalInput {
+        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        ..RecordingTerminalInput::default()
+    };
+
+    let result = dispatch_input(&mut view, b"\x02b\x02cbytes", &mut input, |view, input| {
+        input
+            .recorded
+            .push(Recorded::Layout(view.sidebar_surface()));
+        Ok::<(), Infallible>(())
+    });
+    assert_eq!(result, Ok(DispatchOutcome::Continue));
+    assert_eq!(
+        input.recorded,
+        [
+            Recorded::Action(ClientAction::ToggleBusinessSidebar),
+            Recorded::Layout(SidebarSurface::Hidden),
+            Recorded::Action(ClientAction::CreateTab),
+            Recorded::Forward(b"bytes".to_vec()),
+        ]
+    );
+}
+
+#[test]
+fn completed_unknown_action_precedes_its_parser_notice() {
+    let mut view = ClientView::new(120);
+    view.report_terminal_input_unavailable();
+    let mut input = RecordingTerminalInput {
+        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        ..RecordingTerminalInput::default()
+    };
+
+    prefix(&mut view, &mut input);
+    assert_eq!(view.notice(), Some(Notice::TerminalInputUnavailable));
+    dispatch(&mut view, b"z", &mut input);
+    assert_eq!(
+        input.recorded,
+        [Recorded::Action(ClientAction::UnknownPrefix)]
+    );
+    assert_eq!(view.notice(), Some(Notice::UnknownPrefix));
+}
+
+#[test]
+fn exits_only_after_the_completed_prefixed_exit_action() {
+    let mut view = ClientView::new(120);
+    let mut input = RecordingTerminalInput {
+        action_disposition: Some(SessionActionDisposition::KeepNavigator),
+        ..RecordingTerminalInput::default()
+    };
 
     assert_eq!(
-        dispatch_input(&mut view, b"q\x02dignored", &mut input),
+        dispatch(&mut view, b"q\x02dignored", &mut input),
         DispatchOutcome::Exit
     );
-    assert_eq!(input.forwarded, [b"q".to_vec()]);
+    assert_eq!(
+        input.recorded,
+        [
+            Recorded::Forward(b"q".to_vec()),
+            Recorded::Action(ClientAction::Exit),
+        ]
+    );
 }

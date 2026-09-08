@@ -75,6 +75,13 @@ impl HostControllers {
     pub(crate) fn remove(&mut self, id: OperationId) {
         self.grants.remove(&id.as_bytes());
     }
+
+    pub(super) fn for_terminal(&self, terminal: HostTerminalId) -> Option<OperationId> {
+        self.grants
+            .values()
+            .find(|grant| grant.terminal_id == terminal)
+            .map(|grant| grant.controller_id)
+    }
     pub(crate) fn validate_lease_event(
         &self,
         event: orchbee_terminal_protocol::ResizeLeaseChanged,

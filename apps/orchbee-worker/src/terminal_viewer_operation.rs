@@ -94,6 +94,11 @@ fn apply(
                     ViewerRejection::StaleHostEpoch,
                 ));
             }
+            if host.disposed_terminal(terminal_id) || host.disposed_viewer(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
             if host.controllers.borrow().contains(request.attachment_id) {
                 return Ok(TerminalViewerOutcome::Rejected(
                     ViewerRejection::AttachmentAlreadyExists,
@@ -175,6 +180,9 @@ fn apply(
         TerminalViewerAction::Poll => Ok(host.viewers.borrow_mut().poll(request.attachment_id)),
         TerminalViewerAction::Detach => {
             if !host.viewers.borrow().contains(request.attachment_id) {
+                if host.disposed_viewer(request.attachment_id) {
+                    return Ok(TerminalViewerOutcome::Detached);
+                }
                 return Ok(TerminalViewerOutcome::Rejected(
                     ViewerRejection::AttachmentUnavailable,
                 ));

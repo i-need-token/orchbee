@@ -5,6 +5,7 @@ mod geometry;
 mod identity;
 mod model;
 mod number;
+mod open;
 mod viewer;
 mod viewer_record;
 mod wire;
@@ -26,7 +27,9 @@ pub use geometry::{
     Geometry, GeometryError, GeometryField, MAXIMUM_GEOMETRY_VALUE, MAXIMUM_PIXEL_EXTENT,
     MAXIMUM_TERMINAL_CELLS,
 };
-pub use identity::{ControllerId, HostEpoch, IdentityError, RequestId, ViewerId, WorkerId};
+pub use identity::{
+    ControllerId, HostEpoch, IdentityError, RequestId, SiteId, TerminalId, ViewerId, WorkerId,
+};
 pub use model::{
     ClientMessage, CreateAcceptedState, CreateFailureReason, CreateOutcome, CreateRejectedReason,
     CreateUnavailableReason, ServerMessage, StartFailureReason, StartMode, StartOutcome,
@@ -42,3 +45,5 @@ pub use viewer::{
 pub use working_directory::{
     MAXIMUM_WORKING_DIRECTORY_BYTES, WorkingDirectory, WorkingDirectoryError,
 };
+
+pub use open::{OpenOutcome, TerminalOpenRequest, TerminalOpenResult};

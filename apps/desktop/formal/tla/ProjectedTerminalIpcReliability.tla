@@ -13,6 +13,9 @@ CONSTANT Scenario
 Scenarios == {"release-race", "attach-order", "recovery-operations"}
 Attempts == 1..2
 NoAttempt == 0
+\* Each value is one representative atomic invocation in this bounded model.
+\* Repeated selection/find invocations, manual retry, and result multiplicity
+\* remain in the mapped deterministic tests rather than extra identities here.
 Operations == {"selection", "find"}
 OperationStates == {
   "not-issued", "admitted", "searching", "handed-off",

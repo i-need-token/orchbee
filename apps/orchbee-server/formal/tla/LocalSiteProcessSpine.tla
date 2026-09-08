@@ -12,10 +12,9 @@ CONSTANTS Workers, MaxGeneration
 ServerPhases == {"absent", "listening", "stopped"}
 CandidatePhases == {"none", "compatible", "wrong-user", "malformed", "incompatible"}
 WorkerValues == Workers \cup {"none"}
-RejectionKinds == {
-  "second-server", "duplicate-worker", "wrong-user", "malformed",
-  "incompatible", "timeout"
-}
+\* Named rejection actions retain the abstract classification boundary and
+\* authority-preservation checks. Exact typed or silent wire output is owned by
+\* deterministic protocol and service tests rather than accumulated history.
 Actions == {
   "init", "start-server", "reject-second-server", "begin-compatible",
   "begin-wrong-user", "begin-malformed", "begin-incompatible",
@@ -25,12 +24,14 @@ Actions == {
 }
 
 VARIABLES serverPhase, candidatePhase, candidateWorker, activeWorker,
-  activeGeneration, nextGeneration, staleCleanupGeneration, rejections,
-  priorServerPhase, priorActiveWorker, priorActiveGeneration, lastAction
+  activeGeneration, nextGeneration, staleCleanupGeneration,
+  priorServerPhase, priorActiveWorker, priorActiveGeneration,
+  priorNextGeneration, lastAction
 
 vars == <<serverPhase, candidatePhase, candidateWorker, activeWorker,
-  activeGeneration, nextGeneration, staleCleanupGeneration, rejections,
-  priorServerPhase, priorActiveWorker, priorActiveGeneration, lastAction>>
+  activeGeneration, nextGeneration, staleCleanupGeneration,
+  priorServerPhase, priorActiveWorker, priorActiveGeneration,
+  priorNextGeneration, lastAction>>
 
 Init ==
   /\ serverPhase = "absent"
@@ -40,28 +41,28 @@ Init ==
   /\ activeGeneration = 0
   /\ nextGeneration = 1
   /\ staleCleanupGeneration = 0
-  /\ rejections = {}
   /\ priorServerPhase = serverPhase
   /\ priorActiveWorker = activeWorker
   /\ priorActiveGeneration = activeGeneration
+  /\ priorNextGeneration = nextGeneration
   /\ lastAction = "init"
 
 Record(action) ==
   /\ priorServerPhase' = serverPhase
   /\ priorActiveWorker' = activeWorker
   /\ priorActiveGeneration' = activeGeneration
+  /\ priorNextGeneration' = nextGeneration
   /\ lastAction' = action
 
 StartServer ==
   /\ serverPhase = "absent"
   /\ serverPhase' = "listening"
   /\ UNCHANGED <<candidatePhase, candidateWorker, activeWorker,
-       activeGeneration, nextGeneration, staleCleanupGeneration, rejections>>
+       activeGeneration, nextGeneration, staleCleanupGeneration>>
   /\ Record("start-server")
 
 RejectSecondServer ==
   /\ serverPhase = "listening"
-  /\ rejections' = rejections \cup {"second-server"}
   /\ UNCHANGED <<serverPhase, candidatePhase, candidateWorker, activeWorker,
        activeGeneration, nextGeneration, staleCleanupGeneration>>
   /\ Record("reject-second-server")
@@ -73,7 +74,7 @@ BeginCompatible(worker) ==
   /\ candidatePhase' = "compatible"
   /\ candidateWorker' = worker
   /\ UNCHANGED <<serverPhase, activeWorker, activeGeneration, nextGeneration,
-       staleCleanupGeneration, rejections>>
+       staleCleanupGeneration>>
   /\ Record("begin-compatible")
 
 BeginWrongUser ==
@@ -82,7 +83,7 @@ BeginWrongUser ==
   /\ candidatePhase' = "wrong-user"
   /\ candidateWorker' = "none"
   /\ UNCHANGED <<serverPhase, activeWorker, activeGeneration, nextGeneration,
-       staleCleanupGeneration, rejections>>
+       staleCleanupGeneration>>
   /\ Record("begin-wrong-user")
 
 BeginMalformed ==
@@ -91,7 +92,7 @@ BeginMalformed ==
   /\ candidatePhase' = "malformed"
   /\ candidateWorker' = "none"
   /\ UNCHANGED <<serverPhase, activeWorker, activeGeneration, nextGeneration,
-       staleCleanupGeneration, rejections>>
+       staleCleanupGeneration>>
   /\ Record("begin-malformed")
 
 BeginIncompatible ==
@@ -100,7 +101,7 @@ BeginIncompatible ==
   /\ candidatePhase' = "incompatible"
   /\ candidateWorker' = "none"
   /\ UNCHANGED <<serverPhase, activeWorker, activeGeneration, nextGeneration,
-       staleCleanupGeneration, rejections>>
+       staleCleanupGeneration>>
   /\ Record("begin-incompatible")
 
 AdmitWorker ==
@@ -112,7 +113,7 @@ AdmitWorker ==
   /\ nextGeneration' = nextGeneration + 1
   /\ candidatePhase' = "none"
   /\ candidateWorker' = "none"
-  /\ UNCHANGED <<serverPhase, staleCleanupGeneration, rejections>>
+  /\ UNCHANGED <<serverPhase, staleCleanupGeneration>>
   /\ Record("admit-worker")
 
 RejectDuplicate ==
@@ -120,7 +121,6 @@ RejectDuplicate ==
   /\ activeWorker # "none"
   /\ candidatePhase' = "none"
   /\ candidateWorker' = "none"
-  /\ rejections' = rejections \cup {"duplicate-worker"}
   /\ UNCHANGED <<serverPhase, activeWorker, activeGeneration, nextGeneration,
        staleCleanupGeneration>>
   /\ Record("reject-duplicate")
@@ -129,7 +129,6 @@ RejectWrongUser ==
   /\ candidatePhase = "wrong-user"
   /\ candidatePhase' = "none"
   /\ candidateWorker' = "none"
-  /\ rejections' = rejections \cup {"wrong-user"}
   /\ UNCHANGED <<serverPhase, activeWorker, activeGeneration, nextGeneration,
        staleCleanupGeneration>>
   /\ Record("reject-wrong-user")
@@ -138,7 +137,6 @@ RejectMalformed ==
   /\ candidatePhase = "malformed"
   /\ candidatePhase' = "none"
   /\ candidateWorker' = "none"
-  /\ rejections' = rejections \cup {"malformed"}
   /\ UNCHANGED <<serverPhase, activeWorker, activeGeneration, nextGeneration,
        staleCleanupGeneration>>
   /\ Record("reject-malformed")
@@ -147,7 +145,6 @@ RejectIncompatible ==
   /\ candidatePhase = "incompatible"
   /\ candidatePhase' = "none"
   /\ candidateWorker' = "none"
-  /\ rejections' = rejections \cup {"incompatible"}
   /\ UNCHANGED <<serverPhase, activeWorker, activeGeneration, nextGeneration,
        staleCleanupGeneration>>
   /\ Record("reject-incompatible")
@@ -156,7 +153,6 @@ HandshakeTimeout ==
   /\ candidatePhase # "none"
   /\ candidatePhase' = "none"
   /\ candidateWorker' = "none"
-  /\ rejections' = rejections \cup {"timeout"}
   /\ UNCHANGED <<serverPhase, activeWorker, activeGeneration, nextGeneration,
        staleCleanupGeneration>>
   /\ Record("handshake-timeout")
@@ -166,8 +162,7 @@ WorkerDisconnect ==
   /\ staleCleanupGeneration' = activeGeneration
   /\ activeWorker' = "none"
   /\ activeGeneration' = 0
-  /\ UNCHANGED <<serverPhase, candidatePhase, candidateWorker, nextGeneration,
-       rejections>>
+  /\ UNCHANGED <<serverPhase, candidatePhase, candidateWorker, nextGeneration>>
   /\ Record("worker-disconnect")
 
 StaleWorkerCleanup ==
@@ -178,7 +173,7 @@ StaleWorkerCleanup ==
             /\ activeGeneration' = 0
        ELSE /\ UNCHANGED <<activeWorker, activeGeneration>>
   /\ UNCHANGED <<serverPhase, candidatePhase, candidateWorker,
-       nextGeneration, rejections>>
+       nextGeneration>>
   /\ Record("stale-worker-cleanup")
 
 StopServer ==
@@ -189,7 +184,7 @@ StopServer ==
   /\ activeWorker' = "none"
   /\ activeGeneration' = 0
   /\ staleCleanupGeneration' = 0
-  /\ UNCHANGED <<nextGeneration, rejections>>
+  /\ UNCHANGED nextGeneration
   /\ Record("stop-server")
 
 Next ==
@@ -227,10 +222,10 @@ TypeOK ==
   /\ activeGeneration \in 0..MaxGeneration
   /\ nextGeneration \in 1..(MaxGeneration + 1)
   /\ staleCleanupGeneration \in 0..MaxGeneration
-  /\ rejections \subseteq RejectionKinds
   /\ priorServerPhase \in ServerPhases
   /\ priorActiveWorker \in WorkerValues
   /\ priorActiveGeneration \in 0..MaxGeneration
+  /\ priorNextGeneration \in 1..(MaxGeneration + 1)
   /\ lastAction \in Actions
 
 CandidateShapeIsExact ==
@@ -241,6 +236,15 @@ ActiveWorkerRequiresListeningServer ==
 
 ActiveWorkerHasGeneration ==
   (activeWorker = "none") <=> (activeGeneration = 0)
+
+AdmissionUsesPreviousCursor ==
+  lastAction = "admit-worker" =>
+    /\ priorActiveWorker = "none"
+    /\ activeGeneration = priorNextGeneration
+    /\ nextGeneration = priorNextGeneration + 1
+
+GenerationCursorChangesOnlyOnAdmission ==
+  nextGeneration # priorNextGeneration => lastAction = "admit-worker"
 
 RejectionPreservesAuthority ==
   lastAction \in {

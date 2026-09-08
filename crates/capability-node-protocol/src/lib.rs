@@ -2,6 +2,7 @@ mod codec;
 mod error;
 mod identity;
 mod terminal_launch;
+mod terminal_lifecycle;
 mod terminal_viewer;
 
 pub use terminal_viewer::{
@@ -26,6 +27,14 @@ pub use terminal_launch::{
     TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
     TerminalStartFailure, TerminalStartOutcome, TerminalStartRejection, TerminalStartResult,
     WorkerGeneration,
+};
+pub use terminal_lifecycle::{
+    LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleHostFailure, LifecycleInventoryCursor,
+    LifecycleInventoryFailure, LifecycleInventoryPage, LifecycleRejection, LifecycleStepOrdinal,
+    LifecycleTargetObservation, LifecycleTerminalPhase, LifecycleUnknownReason,
+    TERMINAL_LIFECYCLE_CAPABILITY_VERSION, TerminalLifecycleAction, TerminalLifecycleAuthorization,
+    TerminalLifecycleCapabilityVersion, TerminalLifecycleOutcome, TerminalLifecycleRequest,
+    TerminalLifecycleResult,
 };
 
 #[cfg(test)]

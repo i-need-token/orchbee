@@ -2,9 +2,12 @@ use std::{
     fs, io,
     os::unix::net::{UnixListener, UnixStream},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc, Condvar, Mutex,
+        atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering},
+    },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
@@ -15,6 +18,42 @@ pub(crate) struct FakeServer {
 }
 
 impl FakeServer {
+    pub(crate) fn start_connections(
+        count: usize,
+        mut handler: impl FnMut(usize, UnixStream) -> io::Result<()> + Send + 'static,
+    ) -> io::Result<Self> {
+        let directory = TestDirectory::new()?;
+        let endpoint = directory.path.join("client.sock");
+        let listener = UnixListener::bind(&endpoint)?;
+        listener.set_nonblocking(true)?;
+        let thread = thread::spawn(move || {
+            for index in 0..count {
+                let cutoff = Instant::now() + Duration::from_secs(3);
+                let stream = loop {
+                    match listener.accept() {
+                        Ok((stream, _)) => break stream,
+                        Err(error)
+                            if error.kind() == io::ErrorKind::WouldBlock
+                                && Instant::now() < cutoff =>
+                        {
+                            thread::sleep(Duration::from_millis(1))
+                        }
+                        Err(error) => return Err(error),
+                    }
+                };
+                stream.set_read_timeout(Some(SERVER_GUARD_TIMEOUT))?;
+                stream.set_write_timeout(Some(SERVER_GUARD_TIMEOUT))?;
+                handler(index, stream)?;
+            }
+            Ok(())
+        });
+        Ok(Self {
+            _directory: directory,
+            endpoint,
+            thread,
+        })
+    }
+
     pub(crate) fn start(
         handler: impl FnOnce(UnixStream) -> io::Result<()> + Send + 'static,
     ) -> io::Result<Self> {
@@ -78,4 +117,324 @@ impl Drop for TestDirectory {
 
 pub(crate) fn shutdown_handle(stream: UnixStream) -> super::LocalClientShutdown {
     super::LocalClientShutdown(stream)
+}
+
+pub(crate) fn connect_with_checkpoint_clock(
+    endpoint: &Path,
+    cohort: &str,
+    expired: Arc<AtomicBool>,
+) -> Result<super::LocalClient, super::LocalClientConnectError> {
+    super::LocalClient::connect_with_submission_runtime(
+        endpoint,
+        cohort,
+        super::REQUEST_TOTAL_TIMEOUT,
+        Box::new(CheckpointClock {
+            origin: Instant::now(),
+            expired,
+        }),
+        super::IoChunkLimits::UNBOUNDED,
+    )
+}
+
+pub(crate) fn connect_with_adjustable_clock(
+    endpoint: &Path,
+    cohort: &str,
+    elapsed_millis: Arc<AtomicU64>,
+) -> Result<super::LocalClient, super::LocalClientConnectError> {
+    super::LocalClient::connect_with_submission_runtime(
+        endpoint,
+        cohort,
+        super::REQUEST_TOTAL_TIMEOUT,
+        Box::new(AdjustableClock {
+            origin: Instant::now(),
+            elapsed_millis,
+        }),
+        super::IoChunkLimits::UNBOUNDED,
+    )
+}
+
+pub(crate) fn adjustable_operation_clock(
+    elapsed_millis: Arc<AtomicU64>,
+) -> super::LocalOperationClock {
+    super::LocalOperationClock(Arc::new(AdjustableClock {
+        origin: Instant::now(),
+        elapsed_millis,
+    }))
+}
+
+pub(crate) fn connect_with_gated_prewrite_clock(
+    endpoint: &Path,
+    cohort: &str,
+    elapsed_millis: Arc<AtomicU64>,
+    prewrite_gate: Arc<PrewriteGate>,
+) -> Result<super::LocalClient, super::LocalClientConnectError> {
+    super::LocalClient::connect_with_submission_runtime(
+        endpoint,
+        cohort,
+        super::REQUEST_TOTAL_TIMEOUT,
+        Box::new(GatedPrewriteClock {
+            origin: Instant::now(),
+            elapsed_millis,
+            prewrite_gate,
+        }),
+        super::IoChunkLimits::UNBOUNDED,
+    )
+}
+
+pub(crate) fn connect_with_switchable_ceiling_clock(
+    endpoint: &Path,
+    cohort: &str,
+    elapsed_millis: Arc<AtomicU64>,
+    at_ceiling: Arc<AtomicBool>,
+) -> io::Result<super::LocalClient> {
+    let origin = Instant::now();
+    let near_ceiling =
+        near_ceiling_from(origin, super::REQUEST_TOTAL_TIMEOUT).ok_or_else(|| {
+            io::Error::other("platform Instant range cannot provide the required test ceiling")
+        })?;
+    super::LocalClient::connect_with_submission_runtime(
+        endpoint,
+        cohort,
+        super::REQUEST_TOTAL_TIMEOUT,
+        Box::new(SwitchableCeilingClock {
+            origin,
+            near_ceiling,
+            elapsed_millis,
+            at_ceiling,
+        }),
+        super::IoChunkLimits::UNBOUNDED,
+    )
+    .map_err(io::Error::other)
+}
+
+fn near_ceiling_from(origin: Instant, required_overflow: Duration) -> Option<Instant> {
+    let mut lower = 0_u64;
+    let mut upper = u64::MAX;
+    while lower < upper {
+        let width = upper - lower;
+        let midpoint = lower + width / 2 + width % 2;
+        if origin.checked_add(Duration::from_secs(midpoint)).is_some() {
+            lower = midpoint;
+        } else {
+            upper = midpoint - 1;
+        }
+    }
+    let near_ceiling = origin.checked_add(Duration::from_secs(lower))?;
+    (near_ceiling > origin && near_ceiling.checked_add(required_overflow).is_none())
+        .then_some(near_ceiling)
+}
+
+pub(crate) fn connect_with_next_ui_sample_expiry_clock(
+    endpoint: &Path,
+    cohort: &str,
+    phase: Arc<AtomicU8>,
+) -> Result<super::LocalClient, super::LocalClientConnectError> {
+    connect_with_ui_sample_expiry_clock(endpoint, cohort, phase, 1)
+}
+
+pub(crate) fn connect_with_ui_sample_expiry_clock(
+    endpoint: &Path,
+    cohort: &str,
+    phase: Arc<AtomicU8>,
+    safe_samples: u8,
+) -> Result<super::LocalClient, super::LocalClientConnectError> {
+    super::LocalClient::connect_with_submission_runtime(
+        endpoint,
+        cohort,
+        super::REQUEST_TOTAL_TIMEOUT,
+        Box::new(NextUiSampleExpiryClock {
+            origin: Instant::now(),
+            phase,
+            ui_thread: thread::current().id(),
+            safe_samples,
+        }),
+        super::IoChunkLimits::UNBOUNDED,
+    )
+}
+
+#[derive(Debug)]
+struct AdjustableClock {
+    origin: Instant,
+    elapsed_millis: Arc<AtomicU64>,
+}
+
+#[derive(Debug)]
+struct GatedPrewriteClock {
+    origin: Instant,
+    elapsed_millis: Arc<AtomicU64>,
+    prewrite_gate: Arc<PrewriteGate>,
+}
+
+#[derive(Debug, Default)]
+struct PrewriteGateState {
+    armed: bool,
+    blocked: bool,
+    released: bool,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct PrewriteGate {
+    state: Mutex<PrewriteGateState>,
+    changed: Condvar,
+}
+
+impl PrewriteGate {
+    pub(crate) fn arm(&self) -> io::Result<()> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if state.armed || state.blocked {
+            return Err(io::Error::other("prewrite gate is already armed"));
+        }
+        state.armed = true;
+        state.released = false;
+        Ok(())
+    }
+
+    pub(crate) fn await_blocked_before(&self, wall_deadline: Instant) -> bool {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        while !state.blocked {
+            let remaining = wall_deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+            let (next, timed_out) = match self.changed.wait_timeout(state, remaining) {
+                Ok((state, result)) => (state, result.timed_out()),
+                Err(poison) => {
+                    let (state, result) = poison.into_inner();
+                    (state, result.timed_out())
+                }
+            };
+            state = next;
+            if timed_out && !state.blocked {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub(crate) fn release(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        state.released = true;
+        self.changed.notify_all();
+    }
+
+    fn block_if_armed(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if !state.armed {
+            return;
+        }
+        state.blocked = true;
+        self.changed.notify_all();
+        while !state.released {
+            state = self
+                .changed
+                .wait(state)
+                .unwrap_or_else(|poison| poison.into_inner());
+        }
+        state.armed = false;
+        state.blocked = false;
+        state.released = false;
+        self.changed.notify_all();
+    }
+}
+
+#[derive(Debug)]
+struct SwitchableCeilingClock {
+    origin: Instant,
+    near_ceiling: Instant,
+    elapsed_millis: Arc<AtomicU64>,
+    at_ceiling: Arc<AtomicBool>,
+}
+
+impl super::MonotonicClock for SwitchableCeilingClock {
+    fn now(&self) -> Instant {
+        if self.at_ceiling.load(Ordering::SeqCst) {
+            self.near_ceiling
+        } else {
+            self.origin
+                .checked_add(Duration::from_millis(
+                    self.elapsed_millis.load(Ordering::SeqCst),
+                ))
+                .expect("switchable test clock must remain below its ceiling before the switch")
+        }
+    }
+}
+
+impl super::MonotonicClock for AdjustableClock {
+    fn now(&self) -> Instant {
+        self.origin
+            .checked_add(Duration::from_millis(
+                self.elapsed_millis.load(Ordering::SeqCst),
+            ))
+            .expect("adjustable test clock must remain inside the monotonic clock range")
+    }
+}
+
+impl super::MonotonicClock for GatedPrewriteClock {
+    fn now(&self) -> Instant {
+        self.origin
+            .checked_add(Duration::from_millis(
+                self.elapsed_millis.load(Ordering::SeqCst),
+            ))
+            .expect("gated prewrite test clock must remain inside the monotonic clock range")
+    }
+
+    fn before_request_write(&self) {
+        self.prewrite_gate.block_if_armed();
+    }
+}
+
+#[derive(Debug)]
+struct CheckpointClock {
+    origin: Instant,
+    expired: Arc<AtomicBool>,
+}
+
+#[derive(Debug)]
+struct NextUiSampleExpiryClock {
+    origin: Instant,
+    phase: Arc<AtomicU8>,
+    ui_thread: thread::ThreadId,
+    safe_samples: u8,
+}
+
+impl super::MonotonicClock for NextUiSampleExpiryClock {
+    fn now(&self) -> Instant {
+        let phase = self.phase.load(Ordering::SeqCst);
+        if phase == 0 || thread::current().id() != self.ui_thread {
+            return if phase < self.safe_samples + 2 {
+                self.origin
+            } else {
+                self.origin + Duration::from_secs(120)
+            };
+        }
+        if phase <= self.safe_samples {
+            self.phase.store(phase + 1, Ordering::SeqCst);
+            self.origin
+        } else {
+            self.phase.store(self.safe_samples + 2, Ordering::SeqCst);
+            self.origin + Duration::from_secs(120)
+        }
+    }
+}
+
+impl super::MonotonicClock for CheckpointClock {
+    fn now(&self) -> Instant {
+        if self.expired.load(Ordering::SeqCst) {
+            self.origin + Duration::from_secs(120)
+        } else {
+            self.origin
+        }
+    }
 }

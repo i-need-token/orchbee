@@ -1,855 +1,1072 @@
 ---------------- MODULE SshEnvironmentProjectEnrollment ----------------
 EXTENDS FiniteSets, Naturals, TLC
 
-\* Bounded model of the Electron SSH Project enrollment workflow through the
-\* connect-first, directory-selection extension delivered after Slice 3.3A.
-\* The append-only Environment registry owns durable identity; the canonical
-\* Workbench document alone owns whether the remote Project is enrolled.
-\* Renderer requests own only one transient interaction lease. Registry and
-\* Workbench commits are deliberately not modeled as one atomic transaction.
+\* Bounded enrollment workflow for one fixed arbitrary registered SSH
+\* Environment. Requests are two competing renderer ports; a monotonically
+\* changing incarnation distinguishes successive operations on each port.
+\* Registry and Workbench durability are independent. Canonical Workbench
+\* commit, client-session publication, and initiating-view activation are
+\* separate authority boundaries.
+\*
+\* Connection and project-root models remain independent refinements. An
+\* in-flight attachment loss is represented here by the current listing or
+\* inspection failure followed, once the workflow is idle, by LoseConnection.
 
-CONSTANT Requests, MaxGeneration
+CONSTANT Requests, HandleVariant, MaxGeneration, MaxDirectoryRevision,
+  MaxRequestIncarnation
+
+ASSUME Cardinality(Requests) = 2
+ASSUME HandleVariant \in {"singleton", "pair"}
+ASSUME MaxGeneration >= 1
+ASSUME MaxDirectoryRevision >= 1
+ASSUME MaxRequestIncarnation >= 1
+
+Handles ==
+  IF HandleVariant = "pair"
+  THEN {"handle-a", "handle-b"}
+  ELSE {"handle-a"}
 
 NoRequest == "no-request"
+NoHandle == "no-handle"
 NoGeneration == MaxGeneration + 1
+NoIncarnation == MaxRequestIncarnation + 1
+
+ASSUME NoRequest \notin Requests
+ASSUME NoHandle \notin Handles
+
+PortSymmetry == Permutations(Requests)
 
 RequestKinds == {"none", "enroll", "reconnect"}
 RequestPhases == {
   "idle", "busy", "resolving", "registry-writing", "pending",
   "connecting", "interaction", "connected-for-enrollment", "inspecting",
   "choosing-directory", "directory-selected", "ready-to-commit",
-  "committing", "committed", "completed", "failed", "cancelled",
-  "outcome-unknown"
+  "committing", "committed-unpublished", "committed", "completed", "failed",
+  "cancelled", "registry-outcome-unknown", "workbench-outcome-unknown"
 }
 RegistryStates == {"absent", "present", "indeterminate"}
 ConnectionPhases == {
   "disconnected", "connecting", "interaction", "connected",
   "retry-wait", "blocked"
 }
+ConnectionOrigins == {"none", "existing", "request-started", "shared"}
 PreCommitPhases == {
   "resolving", "registry-writing", "pending", "connecting", "interaction",
   "connected-for-enrollment", "choosing-directory", "directory-selected",
   "inspecting", "ready-to-commit"
 }
-Actions == {
-  "init", "open-port", "request-enrollment", "reject-busy",
-  "resolve-target", "target-resolution-fails", "commit-registry-new",
-  "reuse-registry", "registry-precommit-fails",
-  "registry-post-rename-indeterminate", "reload-registry-present",
-  "reload-registry-absent", "start-connection", "reuse-connection",
-  "request-interaction", "submit-interaction", "cancel-interaction",
-  "reject-stale-interaction", "connection-ready",
-  "connection-ready-without-lease", "connection-fails",
-  "publish-initial-directory", "initial-directory-listing-fails",
-  "navigate-directory", "directory-navigation-fails",
-  "reject-stale-directory-selection", "select-directory",
-  "inspect-project-root", "inspection-completes", "inspection-fails",
-  "begin-workbench-commit", "commit-project-new", "commit-project-existing",
-  "workbench-commit-indeterminate", "reconcile-workbench-commit",
-  "cancel-before-workbench-commit", "cancel-during-workbench-commit",
-  "retire-port-before-commit", "retire-port-during-commit",
-  "retire-port-after-commit", "retry-request", "request-reconnect",
-  "request-disconnect", "lose-connection", "automatic-retry",
-  "block-prompt-without-lease", "activate-initiating-workspace",
-  "application-restart"
+TerminalPhases == {
+  "busy", "committed", "completed", "failed", "cancelled",
+  "registry-outcome-unknown", "workbench-outcome-unknown"
 }
 
-VARIABLES
-  ports,
-  requestKind,
-  requestPhase,
-  activeRequest,
-  registryState,
-  storedProject,
-  canonicalProject,
-  publishedEnrollment,
-  connectionPhase,
-  connectedOnce,
-  generation,
-  promptOwner,
-  promptGeneration,
-  activatedRequests,
-  terminalEffectCount,
-  lastAction,
-  lastRequest
+VARIABLE s
 
-vars == <<ports, requestKind, requestPhase, activeRequest, registryState,
-  storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-  connectedOnce, generation, promptOwner, promptGeneration,
-  activatedRequests, terminalEffectCount, lastAction, lastRequest>>
+vars == <<s>>
 
 Init ==
-  /\ ports = {}
-  /\ requestKind = [request \in Requests |-> "none"]
-  /\ requestPhase = [request \in Requests |-> "idle"]
-  /\ activeRequest = NoRequest
-  /\ registryState = "absent"
-  /\ storedProject = FALSE
-  /\ canonicalProject = FALSE
-  /\ publishedEnrollment = FALSE
-  /\ connectionPhase = "disconnected"
-  /\ connectedOnce = FALSE
-  /\ generation = 0
-  /\ promptOwner = NoRequest
-  /\ promptGeneration = NoGeneration
-  /\ activatedRequests = {}
-  /\ terminalEffectCount = 0
-  /\ lastAction = "init"
-  /\ lastRequest = NoRequest
+  s = [
+    ports |-> {},
+    requestKind |-> [request \in Requests |-> "none"],
+    requestPhase |-> [request \in Requests |-> "idle"],
+    requestIncarnation |-> [request \in Requests |-> 0],
+    activeRequest |-> NoRequest,
+    activeIncarnation |-> NoIncarnation,
+    registryState |-> "absent",
+    storedProject |-> FALSE,
+    canonicalProject |-> FALSE,
+    publishedEnrollment |-> FALSE,
+    publishedIncarnation |-> [request \in Requests |-> 0],
+    connectionPhase |-> "disconnected",
+    connectionOrigin |-> "none",
+    connectionOriginOwner |-> NoRequest,
+    connectionOriginIncarnation |-> NoIncarnation,
+    generation |-> 0,
+    promptOwner |-> NoRequest,
+    promptIncarnation |-> NoIncarnation,
+    promptGeneration |-> NoGeneration,
+    promptHandle |-> NoHandle,
+    directoryRevision |-> [request \in Requests |-> 0],
+    directoryAuthority |-> [request \in Requests |-> 0],
+    selectedDirectoryAuthority |-> [request \in Requests |-> 0],
+    activationLeaseIncarnation |-> [request \in Requests |-> 0],
+    activatedIncarnation |-> [request \in Requests |-> 0],
+    terminalEffectCount |-> 0,
+    promptAcceptanceSafe |-> TRUE,
+    directoryAcceptanceSafe |-> TRUE,
+    directoryFailureSafe |-> TRUE,
+    commitPublicationSafe |-> TRUE,
+    publicationAuthoritySafe |-> TRUE,
+    activationAuthoritySafe |-> TRUE,
+    connectionCleanupSafe |-> TRUE
+  ]
+
+IsActive(request) ==
+  /\ s.activeRequest = request
+  /\ s.activeIncarnation = s.requestIncarnation[request]
+  /\ s.activeIncarnation \in 1..MaxRequestIncarnation
+
+OwnsStartedConnection(request) ==
+  /\ s.connectionOrigin = "request-started"
+  /\ s.connectionOriginOwner = request
+  /\ s.connectionOriginIncarnation = s.requestIncarnation[request]
+
+CleanupConnectionPhase(request) ==
+  IF OwnsStartedConnection(request) /\ ~s.storedProject
+  THEN "disconnected"
+  ELSE IF s.promptOwner = request /\
+          s.promptIncarnation = s.requestIncarnation[request]
+       THEN "blocked"
+       ELSE s.connectionPhase
+
+CleanupConnectionOrigin(request) ==
+  IF OwnsStartedConnection(request)
+  THEN IF s.storedProject THEN "shared" ELSE "none"
+  ELSE s.connectionOrigin
+
+CleanupConnectionOwner(request) ==
+  IF OwnsStartedConnection(request) THEN NoRequest
+  ELSE s.connectionOriginOwner
+
+CleanupConnectionIncarnation(request) ==
+  IF OwnsStartedConnection(request) THEN NoIncarnation
+  ELSE s.connectionOriginIncarnation
+
+FinishPreCommitCleanup(next, request) ==
+  [next EXCEPT
+    !.connectionCleanupSafe = @ /\
+      IF OwnsStartedConnection(request) /\ ~s.storedProject
+      THEN /\ next.connectionPhase = "disconnected"
+           /\ next.connectionOrigin = "none"
+           /\ next.connectionOriginOwner = NoRequest
+      ELSE IF s.connectionOrigin = "existing"
+      THEN /\ next.connectionPhase = s.connectionPhase
+           /\ next.connectionOrigin = "existing"
+      ELSE IF OwnsStartedConnection(request) /\ s.storedProject
+      THEN /\ next.connectionPhase # "disconnected"
+           /\ next.connectionOrigin = "shared"
+           /\ next.connectionOriginOwner = NoRequest
+      ELSE TRUE]
+
+FinishCanonicalCommit(next, request) ==
+  [next EXCEPT
+    !.commitPublicationSafe = @
+      /\ next.canonicalProject
+      /\ next.requestPhase[request] = "committed-unpublished"
+      /\ next.publishedIncarnation[request] #
+           s.requestIncarnation[request]]
 
 OpenPort(request) ==
-  /\ request \notin ports
-  /\ ports' = ports \cup {request}
-  /\ UNCHANGED <<requestKind, requestPhase, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "open-port"
-  /\ lastRequest' = request
+  /\ request \notin s.ports
+  /\ s' = [s EXCEPT !.ports = @ \cup {request}]
 
 RequestEnrollment(request) ==
-  /\ request \in ports
-  /\ requestPhase[request] = "idle"
-  /\ activeRequest = NoRequest
-  /\ requestKind' = [requestKind EXCEPT ![request] = "enroll"]
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "resolving"]
-  /\ activeRequest' = request
-  /\ UNCHANGED <<ports, registryState, storedProject, canonicalProject,
-       publishedEnrollment, connectionPhase, connectedOnce, generation,
-       promptOwner, promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "request-enrollment"
-  /\ lastRequest' = request
+  /\ request \in s.ports
+  /\ s.requestPhase[request] = "idle"
+  /\ s.activeRequest = NoRequest
+  /\ s.requestIncarnation[request] < MaxRequestIncarnation
+  /\ LET nextIncarnation == s.requestIncarnation[request] + 1
+     IN s' = [s EXCEPT
+          !.requestKind[request] = "enroll",
+          !.requestPhase[request] = "resolving",
+          !.requestIncarnation[request] = nextIncarnation,
+          !.activeRequest = request,
+          !.activeIncarnation = nextIncarnation,
+          !.publishedIncarnation[request] = 0,
+          !.directoryRevision[request] = 0,
+          !.directoryAuthority[request] = 0,
+          !.selectedDirectoryAuthority[request] = 0,
+          !.activationLeaseIncarnation[request] = nextIncarnation,
+          !.activatedIncarnation[request] = 0]
 
 RejectBusy(request) ==
-  /\ request \in ports
-  /\ requestPhase[request] = "idle"
-  /\ activeRequest # NoRequest
-  /\ activeRequest # request
-  /\ requestKind' = [requestKind EXCEPT ![request] = "enroll"]
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "busy"]
-  /\ UNCHANGED <<ports, activeRequest, registryState, storedProject,
-       canonicalProject, publishedEnrollment, connectionPhase, connectedOnce,
-       generation, promptOwner, promptGeneration, activatedRequests,
-       terminalEffectCount>>
-  /\ lastAction' = "reject-busy"
-  /\ lastRequest' = request
+  /\ request \in s.ports
+  /\ s.requestPhase[request] = "idle"
+  /\ s.activeRequest # NoRequest
+  /\ s.activeRequest # request
+  /\ s.requestIncarnation[request] < MaxRequestIncarnation
+  /\ s' = [s EXCEPT
+       !.requestKind[request] = "enroll",
+       !.requestPhase[request] = "busy",
+       !.requestIncarnation[request] = @ + 1,
+       !.publishedIncarnation[request] = 0,
+       !.directoryRevision[request] = 0,
+       !.directoryAuthority[request] = 0,
+       !.selectedDirectoryAuthority[request] = 0,
+       !.activationLeaseIncarnation[request] = 0,
+       !.activatedIncarnation[request] = 0]
 
 ResolveTarget(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "resolving"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "registry-writing"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "resolve-target"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "resolving"
+  /\ s' = [s EXCEPT !.requestPhase[request] = "registry-writing"]
 
 TargetResolutionFails(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "resolving"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "failed"]
-  /\ activeRequest' = NoRequest
-  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
-       canonicalProject, publishedEnrollment, connectionPhase, connectedOnce,
-       generation, promptOwner, promptGeneration, activatedRequests,
-       terminalEffectCount>>
-  /\ lastAction' = "target-resolution-fails"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "resolving"
+  /\ s' = [s EXCEPT
+       !.requestPhase[request] = "failed",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.activationLeaseIncarnation[request] = 0]
 
 CommitRegistryNew(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "registry-writing"
-  /\ registryState = "absent"
-  /\ registryState' = "present"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "pending"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, storedProject,
-       canonicalProject, publishedEnrollment, connectionPhase, connectedOnce,
-       generation, promptOwner, promptGeneration, activatedRequests,
-       terminalEffectCount>>
-  /\ lastAction' = "commit-registry-new"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "registry-writing"
+  /\ s.registryState = "absent"
+  /\ s' = [s EXCEPT
+       !.registryState = "present",
+       !.requestPhase[request] = "pending"]
 
 ReuseRegistry(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "registry-writing"
-  /\ registryState = "present"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "pending"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "reuse-registry"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "registry-writing"
+  /\ s.registryState = "present"
+  /\ s' = [s EXCEPT !.requestPhase[request] = "pending"]
 
 RegistryPrecommitFails(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "registry-writing"
-  /\ registryState = "absent"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "failed"]
-  /\ activeRequest' = NoRequest
-  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
-       canonicalProject, publishedEnrollment, connectionPhase, connectedOnce,
-       generation, promptOwner, promptGeneration, activatedRequests,
-       terminalEffectCount>>
-  /\ lastAction' = "registry-precommit-fails"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "registry-writing"
+  /\ s.registryState = "absent"
+  /\ s' = [s EXCEPT
+       !.requestPhase[request] = "failed",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.activationLeaseIncarnation[request] = 0]
 
 RegistryPostRenameIndeterminate(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "registry-writing"
-  /\ registryState = "absent"
-  /\ registryState' = "indeterminate"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "outcome-unknown"]
-  /\ activeRequest' = NoRequest
-  /\ UNCHANGED <<ports, requestKind, storedProject, canonicalProject,
-       publishedEnrollment, connectionPhase, connectedOnce, generation,
-       promptOwner, promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "registry-post-rename-indeterminate"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "registry-writing"
+  /\ s.registryState = "absent"
+  /\ s' = [s EXCEPT
+       !.registryState = "indeterminate",
+       !.requestPhase[request] = "registry-outcome-unknown",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.activationLeaseIncarnation[request] = 0]
 
 ReloadRegistryPresent ==
-  /\ registryState = "indeterminate"
-  /\ registryState' = "present"
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "reload-registry-present"
-  /\ lastRequest' = NoRequest
+  /\ s.registryState = "indeterminate"
+  /\ s' = [s EXCEPT !.registryState = "present"]
 
 ReloadRegistryAbsent ==
-  /\ registryState = "indeterminate"
-  /\ registryState' = "absent"
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "reload-registry-absent"
-  /\ lastRequest' = NoRequest
+  /\ s.registryState = "indeterminate"
+  /\ s' = [s EXCEPT !.registryState = "absent"]
+
+ObserveExistingConnection ==
+  /\ s.ports # {}
+  /\ s.activeRequest = NoRequest
+  /\ s.registryState = "present"
+  /\ s.connectionPhase = "disconnected"
+  /\ s.generation < MaxGeneration
+  /\ s' = [s EXCEPT
+       !.connectionPhase = "connected",
+       !.connectionOrigin = "existing",
+       !.connectionOriginOwner = NoRequest,
+       !.connectionOriginIncarnation = NoIncarnation,
+       !.generation = @ + 1]
 
 StartConnection(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "pending"
-  /\ registryState = "present"
-  /\ connectionPhase \in {"disconnected", "blocked"}
-  /\ generation < MaxGeneration
-  /\ connectionPhase' = "connecting"
-  /\ generation' = generation + 1
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "connecting"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectedOnce,
-       promptOwner, promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "start-connection"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "pending"
+  /\ s.registryState = "present"
+  /\ s.connectionPhase \in {"disconnected", "blocked"}
+  /\ s.generation < MaxGeneration
+  /\ s' = [s EXCEPT
+       !.connectionPhase = "connecting",
+       !.connectionOrigin = "request-started",
+       !.connectionOriginOwner = request,
+       !.connectionOriginIncarnation = s.requestIncarnation[request],
+       !.generation = @ + 1,
+       !.requestPhase[request] = "connecting"]
 
 ReuseConnection(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "pending"
-  /\ registryState = "present"
-  /\ connectionPhase = "connected"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "connected-for-enrollment"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "reuse-connection"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestKind[request] = "enroll"
+  /\ s.requestPhase[request] = "pending"
+  /\ s.registryState = "present"
+  /\ s.connectionPhase = "connected"
+  /\ s.connectionOrigin \in {"existing", "shared"}
+  /\ s' = [s EXCEPT
+       !.requestPhase[request] = "connected-for-enrollment"]
 
-RequestInteraction(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "connecting"
-  /\ connectionPhase = "connecting"
-  /\ request \in ports
-  /\ promptOwner = NoRequest
-  /\ connectionPhase' = "interaction"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "interaction"]
-  /\ promptOwner' = request
-  /\ promptGeneration' = generation
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectedOnce,
-       generation, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "request-interaction"
-  /\ lastRequest' = request
+RequestInteraction(request, handle) ==
+  /\ IsActive(request)
+  /\ handle \in Handles
+  /\ s.requestPhase[request] = "connecting"
+  /\ s.connectionPhase = "connecting"
+  /\ request \in s.ports
+  /\ s.promptOwner = NoRequest
+  /\ s' = [s EXCEPT
+       !.connectionPhase = "interaction",
+       !.requestPhase[request] = "interaction",
+       !.promptOwner = request,
+       !.promptIncarnation = s.requestIncarnation[request],
+       !.promptGeneration = s.generation,
+       !.promptHandle = handle]
 
-SubmitInteraction(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "interaction"
-  /\ connectionPhase = "interaction"
-  /\ promptOwner = request
-  /\ promptGeneration = generation
-  /\ request \in ports
-  /\ connectionPhase' = "connecting"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "connecting"]
-  /\ promptOwner' = NoRequest
-  /\ promptGeneration' = NoGeneration
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectedOnce,
-       generation, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "submit-interaction"
-  /\ lastRequest' = request
+SubmitInteraction(request, responseIncarnation, responseGeneration, responseHandle) ==
+  /\ IsActive(request)
+  /\ responseIncarnation \in 1..MaxRequestIncarnation
+  /\ responseGeneration \in 1..MaxGeneration
+  /\ responseHandle \in Handles
+  /\ s.requestPhase[request] = "interaction"
+  /\ s.connectionPhase = "interaction"
+  /\ s.promptOwner = request
+  /\ responseIncarnation = s.promptIncarnation
+  /\ responseIncarnation = s.requestIncarnation[request]
+  /\ responseGeneration = s.promptGeneration
+  /\ responseGeneration = s.generation
+  /\ responseHandle = s.promptHandle
+  /\ request \in s.ports
+  /\ s' = [s EXCEPT
+       !.connectionPhase = "connecting",
+       !.requestPhase[request] = "connecting",
+       !.promptOwner = NoRequest,
+       !.promptIncarnation = NoIncarnation,
+       !.promptGeneration = NoGeneration,
+       !.promptHandle = NoHandle,
+       !.promptAcceptanceSafe = @
+         /\ responseIncarnation = s.promptIncarnation
+         /\ responseIncarnation = s.requestIncarnation[request]
+         /\ responseGeneration = s.promptGeneration
+         /\ responseGeneration = s.generation
+         /\ responseHandle = s.promptHandle]
 
-CancelInteraction(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "interaction"
-  /\ connectionPhase = "interaction"
-  /\ promptOwner = request
-  /\ promptGeneration = generation
-  /\ connectionPhase' = "blocked"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "failed"]
-  /\ activeRequest' = NoRequest
-  /\ promptOwner' = NoRequest
-  /\ promptGeneration' = NoGeneration
-  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
-       canonicalProject, publishedEnrollment, connectedOnce, generation,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "cancel-interaction"
-  /\ lastRequest' = request
+CancelInteraction(request, responseIncarnation, responseGeneration, responseHandle) ==
+  /\ IsActive(request)
+  /\ responseIncarnation \in 1..MaxRequestIncarnation
+  /\ responseGeneration \in 1..MaxGeneration
+  /\ responseHandle \in Handles
+  /\ s.requestPhase[request] = "interaction"
+  /\ s.connectionPhase = "interaction"
+  /\ s.promptOwner = request
+  /\ responseIncarnation = s.promptIncarnation
+  /\ responseIncarnation = s.requestIncarnation[request]
+  /\ responseGeneration = s.promptGeneration
+  /\ responseGeneration = s.generation
+  /\ responseHandle = s.promptHandle
+  /\ LET next == [s EXCEPT
+       !.connectionPhase = CleanupConnectionPhase(request),
+       !.connectionOrigin = CleanupConnectionOrigin(request),
+       !.connectionOriginOwner = CleanupConnectionOwner(request),
+       !.connectionOriginIncarnation = CleanupConnectionIncarnation(request),
+       !.requestPhase[request] = "failed",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.promptOwner = NoRequest,
+       !.promptIncarnation = NoIncarnation,
+       !.promptGeneration = NoGeneration,
+       !.promptHandle = NoHandle,
+       !.activationLeaseIncarnation[request] = 0,
+       !.promptAcceptanceSafe = @
+         /\ responseIncarnation = s.promptIncarnation
+         /\ responseIncarnation = s.requestIncarnation[request]
+         /\ responseGeneration = s.promptGeneration
+         /\ responseGeneration = s.generation
+         /\ responseHandle = s.promptHandle]
+     IN s' = FinishPreCommitCleanup(next, request)
 
-RejectStaleInteraction(request, staleGeneration) ==
-  /\ connectionPhase = "interaction"
-  /\ staleGeneration \in 0..MaxGeneration
-  /\ \/ request # promptOwner
-     \/ staleGeneration # promptGeneration
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectionPhase, connectedOnce, generation, promptOwner,
-       promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "reject-stale-interaction"
-  /\ lastRequest' = request
+RejectStaleInteraction(request, responseIncarnation, responseGeneration, responseHandle) ==
+  /\ s.connectionPhase = "interaction"
+  /\ responseIncarnation \in 1..MaxRequestIncarnation
+  /\ responseGeneration \in 1..MaxGeneration
+  /\ responseHandle \in Handles
+  /\ \/ request # s.promptOwner
+     \/ responseIncarnation # s.promptIncarnation
+     \/ responseGeneration # s.promptGeneration
+     \/ responseHandle # s.promptHandle
+  /\ UNCHANGED s
 
 ConnectionReady(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "connecting"
-  /\ connectionPhase = "connecting"
-  /\ connectionPhase' = "connected"
-  /\ connectedOnce' = TRUE
-  /\ requestPhase' = [requestPhase EXCEPT
-       ![request] = IF requestKind[request] = "enroll"
-         THEN "connected-for-enrollment"
-         ELSE "completed"]
-  /\ activeRequest' = IF requestKind[request] = "enroll" THEN request ELSE NoRequest
-  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
-       canonicalProject, publishedEnrollment, generation, promptOwner,
-       promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "connection-ready"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "connecting"
+  /\ s.connectionPhase = "connecting"
+  /\ LET enrollment == s.requestKind[request] = "enroll"
+     IN s' = [s EXCEPT
+          !.connectionPhase = "connected",
+          !.requestPhase[request] =
+            IF enrollment THEN "connected-for-enrollment" ELSE "completed",
+          !.activeRequest = IF enrollment THEN request ELSE NoRequest,
+          !.activeIncarnation =
+            IF enrollment THEN s.requestIncarnation[request]
+            ELSE NoIncarnation,
+          !.activationLeaseIncarnation[request] =
+            IF enrollment THEN @ ELSE 0]
 
 ConnectionReadyWithoutLease ==
-  /\ activeRequest = NoRequest
-  /\ connectionPhase = "connecting"
-  /\ connectionPhase' = "connected"
-  /\ connectedOnce' = TRUE
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       generation, promptOwner, promptGeneration, activatedRequests,
-       terminalEffectCount>>
-  /\ lastAction' = "connection-ready-without-lease"
-  /\ lastRequest' = NoRequest
+  /\ s.activeRequest = NoRequest
+  /\ s.connectionPhase = "connecting"
+  /\ s.connectionOrigin \in {"existing", "shared"}
+  /\ s' = [s EXCEPT !.connectionPhase = "connected"]
 
 ConnectionFails(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] \in {"connecting", "interaction"}
-  /\ connectionPhase \in {"connecting", "interaction"}
-  /\ connectionPhase' = "blocked"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "failed"]
-  /\ activeRequest' = NoRequest
-  /\ promptOwner' = NoRequest
-  /\ promptGeneration' = NoGeneration
-  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
-       canonicalProject, publishedEnrollment, connectedOnce, generation,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "connection-fails"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] \in {"connecting", "interaction"}
+  /\ s.connectionPhase \in {"connecting", "interaction"}
+  /\ s' = [s EXCEPT
+       !.connectionPhase = "blocked",
+       !.connectionOrigin = IF s.storedProject THEN "shared" ELSE "none",
+       !.connectionOriginOwner = NoRequest,
+       !.connectionOriginIncarnation = NoIncarnation,
+       !.requestPhase[request] = "failed",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.promptOwner = NoRequest,
+       !.promptIncarnation = NoIncarnation,
+       !.promptGeneration = NoGeneration,
+       !.promptHandle = NoHandle,
+       !.activationLeaseIncarnation[request] = 0]
 
 PublishInitialDirectory(request) ==
-  /\ activeRequest = request
-  /\ requestKind[request] = "enroll"
-  /\ requestPhase[request] = "connected-for-enrollment"
-  /\ connectionPhase = "connected"
-  /\ request \in ports
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "choosing-directory"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "publish-initial-directory"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestKind[request] = "enroll"
+  /\ s.requestPhase[request] = "connected-for-enrollment"
+  /\ s.connectionPhase = "connected"
+  /\ request \in s.ports
+  /\ s.directoryRevision[request] = 0
+  /\ s' = [s EXCEPT
+       !.requestPhase[request] = "choosing-directory",
+       !.directoryRevision[request] = 1,
+       !.directoryAuthority[request] = 1]
 
 InitialDirectoryListingFails(request) ==
-  /\ activeRequest = request
-  /\ requestKind[request] = "enroll"
-  /\ requestPhase[request] = "connected-for-enrollment"
-  /\ connectionPhase = "connected"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "failed"]
-  /\ activeRequest' = NoRequest
-  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
-       canonicalProject, publishedEnrollment, connectionPhase, connectedOnce,
-       generation, promptOwner, promptGeneration, activatedRequests,
-       terminalEffectCount>>
-  /\ lastAction' = "initial-directory-listing-fails"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestKind[request] = "enroll"
+  /\ s.requestPhase[request] = "connected-for-enrollment"
+  /\ s.connectionPhase = "connected"
+  /\ LET next == [s EXCEPT
+       !.requestPhase[request] = "failed",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.connectionPhase = CleanupConnectionPhase(request),
+       !.connectionOrigin = CleanupConnectionOrigin(request),
+       !.connectionOriginOwner = CleanupConnectionOwner(request),
+       !.connectionOriginIncarnation = CleanupConnectionIncarnation(request),
+       !.activationLeaseIncarnation[request] = 0]
+     IN s' = FinishPreCommitCleanup(next, request)
 
-NavigateDirectory(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "choosing-directory"
-  /\ connectionPhase = "connected"
-  /\ request \in ports
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectionPhase, connectedOnce, generation, promptOwner,
-       promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "navigate-directory"
-  /\ lastRequest' = request
+NavigateDirectory(request, responseIncarnation, responseRevision, responseAuthority) ==
+  /\ IsActive(request)
+  /\ responseIncarnation = s.requestIncarnation[request]
+  /\ responseRevision = s.directoryRevision[request]
+  /\ responseAuthority = s.directoryAuthority[request]
+  /\ s.requestPhase[request] = "choosing-directory"
+  /\ s.connectionPhase = "connected"
+  /\ request \in s.ports
+  /\ s.directoryRevision[request] < MaxDirectoryRevision
+  /\ s' = [s EXCEPT
+       !.directoryRevision[request] = @ + 1,
+       !.directoryAuthority[request] = s.directoryRevision[request] + 1,
+       !.directoryAcceptanceSafe = @
+         /\ responseIncarnation = s.requestIncarnation[request]
+         /\ responseRevision = s.directoryRevision[request]
+         /\ responseAuthority = s.directoryAuthority[request]]
 
-DirectoryNavigationFails(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "choosing-directory"
-  /\ connectionPhase = "connected"
-  /\ request \in ports
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectionPhase, connectedOnce, generation, promptOwner,
-       promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "directory-navigation-fails"
-  /\ lastRequest' = request
+DirectoryNavigationFails(request, responseIncarnation, responseRevision, responseAuthority) ==
+  /\ IsActive(request)
+  /\ responseIncarnation = s.requestIncarnation[request]
+  /\ responseRevision = s.directoryRevision[request]
+  /\ responseAuthority = s.directoryAuthority[request]
+  /\ s.requestPhase[request] = "choosing-directory"
+  /\ s.connectionPhase = "connected"
+  /\ request \in s.ports
+  /\ s.directoryRevision[request] < MaxDirectoryRevision
+  /\ LET next == [s EXCEPT
+       !.directoryRevision[request] = @ + 1,
+       !.directoryAcceptanceSafe = @
+         /\ responseIncarnation = s.requestIncarnation[request]
+         /\ responseRevision = s.directoryRevision[request]
+         /\ responseAuthority = s.directoryAuthority[request]]
+     IN s' = [next EXCEPT
+          !.directoryFailureSafe = @
+            /\ next.directoryRevision[request] =
+                 s.directoryRevision[request] + 1
+            /\ next.directoryAuthority[request] =
+                 s.directoryAuthority[request]]
 
-RejectStaleDirectorySelection(request) ==
+RejectStaleDirectorySelection(request, responseIncarnation, responseRevision, responseAuthority) ==
   /\ \E owner \in Requests:
-       /\ activeRequest = owner
-       /\ requestPhase[owner] = "choosing-directory"
-       /\ connectionPhase = "connected"
+       /\ IsActive(owner)
+       /\ s.requestPhase[owner] = "choosing-directory"
+       /\ s.connectionPhase = "connected"
+       /\ responseIncarnation \in 1..MaxRequestIncarnation
+       /\ responseRevision \in 1..MaxDirectoryRevision
+       /\ responseAuthority \in 1..MaxDirectoryRevision
        /\ \/ request # owner
-          \/ request \notin ports
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectionPhase, connectedOnce, generation, promptOwner,
-       promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "reject-stale-directory-selection"
-  /\ lastRequest' = request
+          \/ responseIncarnation # s.requestIncarnation[owner]
+          \/ responseRevision # s.directoryRevision[owner]
+          \/ responseAuthority # s.directoryAuthority[owner]
+  /\ UNCHANGED s
 
-SelectDirectory(request) ==
-  /\ activeRequest = request
-  /\ requestKind[request] = "enroll"
-  /\ requestPhase[request] = "choosing-directory"
-  /\ connectionPhase = "connected"
-  /\ request \in ports
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "directory-selected"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "select-directory"
-  /\ lastRequest' = request
+SelectDirectory(request, responseIncarnation, responseRevision, responseAuthority) ==
+  /\ IsActive(request)
+  /\ responseIncarnation = s.requestIncarnation[request]
+  /\ responseRevision = s.directoryRevision[request]
+  /\ responseAuthority = s.directoryAuthority[request]
+  /\ s.requestKind[request] = "enroll"
+  /\ s.requestPhase[request] = "choosing-directory"
+  /\ s.connectionPhase = "connected"
+  /\ request \in s.ports
+  /\ s' = [s EXCEPT
+       !.requestPhase[request] = "directory-selected",
+       !.selectedDirectoryAuthority[request] = responseAuthority,
+       !.directoryAcceptanceSafe = @
+         /\ responseIncarnation = s.requestIncarnation[request]
+         /\ responseRevision = s.directoryRevision[request]
+         /\ responseAuthority = s.directoryAuthority[request]]
 
 InspectProjectRoot(request) ==
-  /\ activeRequest = request
-  /\ requestKind[request] = "enroll"
-  /\ requestPhase[request] = "directory-selected"
-  /\ connectionPhase = "connected"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "inspecting"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "inspect-project-root"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestKind[request] = "enroll"
+  /\ s.requestPhase[request] = "directory-selected"
+  /\ s.connectionPhase = "connected"
+  /\ s.selectedDirectoryAuthority[request] =
+       s.directoryAuthority[request]
+  /\ s.selectedDirectoryAuthority[request] > 0
+  /\ s' = [s EXCEPT !.requestPhase[request] = "inspecting"]
 
 InspectionCompletes(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "inspecting"
-  /\ connectionPhase = "connected"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "ready-to-commit"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "inspection-completes"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "inspecting"
+  /\ s.connectionPhase = "connected"
+  /\ s' = [s EXCEPT !.requestPhase[request] = "ready-to-commit"]
 
 InspectionFails(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "inspecting"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "failed"]
-  /\ activeRequest' = NoRequest
-  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
-       canonicalProject, publishedEnrollment, connectionPhase, connectedOnce,
-       generation, promptOwner, promptGeneration, activatedRequests,
-       terminalEffectCount>>
-  /\ lastAction' = "inspection-fails"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "inspecting"
+  /\ LET next == [s EXCEPT
+       !.requestPhase[request] = "failed",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.connectionPhase = CleanupConnectionPhase(request),
+       !.connectionOrigin = CleanupConnectionOrigin(request),
+       !.connectionOriginOwner = CleanupConnectionOwner(request),
+       !.connectionOriginIncarnation = CleanupConnectionIncarnation(request),
+       !.activationLeaseIncarnation[request] = 0]
+     IN s' = FinishPreCommitCleanup(next, request)
 
 BeginWorkbenchCommit(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "ready-to-commit"
-  /\ registryState = "present"
-  /\ connectionPhase = "connected"
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "committing"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "begin-workbench-commit"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "ready-to-commit"
+  /\ s.registryState = "present"
+  /\ s.connectionPhase = "connected"
+  /\ s' = [s EXCEPT !.requestPhase[request] = "committing"]
 
 CommitProjectNew(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "committing"
-  /\ ~storedProject
-  /\ storedProject' = TRUE
-  /\ canonicalProject' = TRUE
-  /\ publishedEnrollment' = TRUE
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "committed"]
-  /\ activeRequest' = NoRequest
-  /\ UNCHANGED <<ports, requestKind, registryState, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "commit-project-new"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "committing"
+  /\ ~s.storedProject
+  /\ LET next == [s EXCEPT
+       !.storedProject = TRUE,
+       !.canonicalProject = TRUE,
+       !.requestPhase[request] = "committed-unpublished",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.connectionOrigin = "shared",
+       !.connectionOriginOwner = NoRequest,
+       !.connectionOriginIncarnation = NoIncarnation]
+     IN s' = FinishCanonicalCommit(next, request)
 
 CommitProjectExisting(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "committing"
-  /\ storedProject
-  /\ canonicalProject' = TRUE
-  /\ publishedEnrollment' = TRUE
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "committed"]
-  /\ activeRequest' = NoRequest
-  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
-       connectionPhase, connectedOnce, generation, promptOwner,
-       promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "commit-project-existing"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "committing"
+  /\ s.storedProject
+  /\ LET next == [s EXCEPT
+       !.canonicalProject = TRUE,
+       !.requestPhase[request] = "committed-unpublished",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.connectionOrigin = "shared",
+       !.connectionOriginOwner = NoRequest,
+       !.connectionOriginIncarnation = NoIncarnation]
+     IN s' = FinishCanonicalCommit(next, request)
 
 WorkbenchCommitIndeterminate(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "committing"
-  /\ storedProject' = TRUE
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "outcome-unknown"]
-  /\ activeRequest' = NoRequest
-  /\ UNCHANGED <<ports, requestKind, registryState, canonicalProject,
-       publishedEnrollment, connectionPhase, connectedOnce, generation,
-       promptOwner, promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "workbench-commit-indeterminate"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "committing"
+  /\ s' = [s EXCEPT
+       !.storedProject = TRUE,
+       !.requestPhase[request] = "workbench-outcome-unknown",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.connectionOrigin = "shared",
+       !.connectionOriginOwner = NoRequest,
+       !.connectionOriginIncarnation = NoIncarnation]
 
 ReconcileWorkbenchCommit(request) ==
-  /\ requestPhase[request] = "outcome-unknown"
-  /\ registryState = "present"
-  /\ storedProject
-  /\ canonicalProject' = TRUE
-  /\ publishedEnrollment' = TRUE
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "committed"]
-  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
-       storedProject, connectionPhase, connectedOnce, generation,
-       promptOwner, promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "reconcile-workbench-commit"
-  /\ lastRequest' = request
+  /\ s.requestPhase[request] = "workbench-outcome-unknown"
+  /\ s.registryState = "present"
+  /\ s.storedProject
+  /\ LET next == [s EXCEPT
+       !.canonicalProject = TRUE,
+       !.requestPhase[request] = "committed-unpublished",
+       !.connectionOrigin = "shared",
+       !.connectionOriginOwner = NoRequest,
+       !.connectionOriginIncarnation = NoIncarnation]
+     IN s' = FinishCanonicalCommit(next, request)
+
+PublishEnrollment(request, responseIncarnation) ==
+  /\ responseIncarnation \in 1..MaxRequestIncarnation
+  /\ responseIncarnation = s.requestIncarnation[request]
+  /\ s.requestPhase[request] = "committed-unpublished"
+  /\ s.canonicalProject
+  /\ s.publishedIncarnation[request] # responseIncarnation
+  /\ s' = [s EXCEPT
+       !.publishedEnrollment = TRUE,
+       !.publishedIncarnation[request] = responseIncarnation,
+       !.requestPhase[request] = "committed",
+       !.publicationAuthoritySafe = @
+         /\ responseIncarnation = s.requestIncarnation[request]
+         /\ s.requestPhase[request] = "committed-unpublished"
+         /\ s.canonicalProject]
 
 CancelBeforeWorkbenchCommit(request) ==
-  /\ activeRequest = request
-  /\ requestKind[request] = "enroll"
-  /\ requestPhase[request] \in PreCommitPhases
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "cancelled"]
-  /\ activeRequest' = NoRequest
-  /\ connectionPhase' = IF ~storedProject
-       THEN "disconnected"
-       ELSE IF promptOwner = request THEN "blocked" ELSE connectionPhase
-  /\ promptOwner' = NoRequest
-  /\ promptGeneration' = NoGeneration
-  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
-       canonicalProject, publishedEnrollment, connectedOnce, generation,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "cancel-before-workbench-commit"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestKind[request] = "enroll"
+  /\ s.requestPhase[request] \in PreCommitPhases
+  /\ LET next == [s EXCEPT
+       !.requestPhase[request] = "cancelled",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.connectionPhase = CleanupConnectionPhase(request),
+       !.connectionOrigin = CleanupConnectionOrigin(request),
+       !.connectionOriginOwner = CleanupConnectionOwner(request),
+       !.connectionOriginIncarnation = CleanupConnectionIncarnation(request),
+       !.promptOwner = NoRequest,
+       !.promptIncarnation = NoIncarnation,
+       !.promptGeneration = NoGeneration,
+       !.promptHandle = NoHandle,
+       !.activationLeaseIncarnation[request] = 0]
+     IN s' = FinishPreCommitCleanup(next, request)
 
 CancelDuringWorkbenchCommit(request) ==
-  /\ activeRequest = request
-  /\ requestPhase[request] = "committing"
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectionPhase, connectedOnce, generation, promptOwner,
-       promptGeneration, activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "cancel-during-workbench-commit"
-  /\ lastRequest' = request
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "committing"
+  /\ UNCHANGED s
 
 RetirePortBeforeCommit(request) ==
-  /\ request \in ports
-  /\ activeRequest = request
-  /\ requestPhase[request] \in PreCommitPhases
-  /\ ports' = ports \ {request}
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "cancelled"]
-  /\ activeRequest' = NoRequest
-  /\ connectionPhase' = IF ~storedProject
-       THEN "disconnected"
-       ELSE IF promptOwner = request THEN "blocked" ELSE connectionPhase
-  /\ promptOwner' = NoRequest
-  /\ promptGeneration' = NoGeneration
-  /\ UNCHANGED <<requestKind, registryState, storedProject, canonicalProject,
-       publishedEnrollment, connectedOnce, generation, activatedRequests,
-       terminalEffectCount>>
-  /\ lastAction' = "retire-port-before-commit"
-  /\ lastRequest' = request
+  /\ request \in s.ports
+  /\ IsActive(request)
+  /\ s.requestPhase[request] \in PreCommitPhases
+  /\ LET next == [s EXCEPT
+       !.ports = @ \ {request},
+       !.requestPhase[request] = "cancelled",
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.connectionPhase = CleanupConnectionPhase(request),
+       !.connectionOrigin = CleanupConnectionOrigin(request),
+       !.connectionOriginOwner = CleanupConnectionOwner(request),
+       !.connectionOriginIncarnation = CleanupConnectionIncarnation(request),
+       !.promptOwner = NoRequest,
+       !.promptIncarnation = NoIncarnation,
+       !.promptGeneration = NoGeneration,
+       !.promptHandle = NoHandle,
+       !.activationLeaseIncarnation[request] = 0,
+       !.activatedIncarnation[request] = 0]
+     IN s' = FinishPreCommitCleanup(next, request)
 
 RetirePortDuringCommit(request) ==
-  /\ request \in ports
-  /\ activeRequest = request
-  /\ requestPhase[request] = "committing"
-  /\ ports' = ports \ {request}
-  /\ UNCHANGED <<requestKind, requestPhase, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "retire-port-during-commit"
-  /\ lastRequest' = request
+  /\ request \in s.ports
+  /\ IsActive(request)
+  /\ s.requestPhase[request] = "committing"
+  /\ s' = [s EXCEPT
+       !.ports = @ \ {request},
+       !.activationLeaseIncarnation[request] = 0,
+       !.activatedIncarnation[request] = 0]
 
 RetirePortAfterCommit(request) ==
-  /\ request \in ports
-  /\ requestPhase[request] \in {"committed", "completed", "failed", "busy",
-       "cancelled", "outcome-unknown"}
-  /\ ports' = ports \ {request}
-  /\ UNCHANGED <<requestKind, requestPhase, activeRequest, registryState,
-       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "retire-port-after-commit"
-  /\ lastRequest' = request
+  /\ request \in s.ports
+  /\ s.requestPhase[request] \in
+       TerminalPhases \cup {"committed-unpublished"}
+  /\ s' = [s EXCEPT
+       !.ports = @ \ {request},
+       !.activationLeaseIncarnation[request] = 0,
+       !.activatedIncarnation[request] = 0]
 
 RetryRequest(request) ==
-  /\ request \in ports
-  /\ requestPhase[request] \in {"busy", "committed", "completed", "failed",
-       "cancelled", "outcome-unknown"}
-  /\ requestKind' = [requestKind EXCEPT ![request] = "none"]
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "idle"]
-  /\ activatedRequests' = activatedRequests \ {request}
-  /\ UNCHANGED <<ports, activeRequest, registryState, storedProject,
-       canonicalProject, publishedEnrollment, connectionPhase, connectedOnce,
-       generation, promptOwner, promptGeneration, terminalEffectCount>>
-  /\ lastAction' = "retry-request"
-  /\ lastRequest' = request
+  /\ request \in s.ports
+  /\ s.requestPhase[request] \in TerminalPhases
+  /\ s.activeRequest # request
+  /\ s' = [s EXCEPT
+       !.requestKind[request] = "none",
+       !.requestPhase[request] = "idle",
+       !.publishedIncarnation[request] = 0,
+       !.activationLeaseIncarnation[request] = 0,
+       !.activatedIncarnation[request] = 0]
 
 RequestReconnect(request) ==
-  /\ request \in ports
-  /\ requestPhase[request] = "idle"
-  /\ activeRequest = NoRequest
-  /\ registryState = "present"
-  /\ canonicalProject
-  /\ connectionPhase \in {"disconnected", "blocked"}
-  /\ generation < MaxGeneration
-  /\ requestKind' = [requestKind EXCEPT ![request] = "reconnect"]
-  /\ requestPhase' = [requestPhase EXCEPT ![request] = "connecting"]
-  /\ activeRequest' = request
-  /\ connectionPhase' = "connecting"
-  /\ generation' = generation + 1
-  /\ UNCHANGED <<ports, registryState, storedProject, canonicalProject,
-       publishedEnrollment, connectedOnce, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "request-reconnect"
-  /\ lastRequest' = request
+  /\ request \in s.ports
+  /\ s.requestPhase[request] = "idle"
+  /\ s.activeRequest = NoRequest
+  /\ s.registryState = "present"
+  /\ s.canonicalProject
+  /\ s.connectionPhase \in {"disconnected", "blocked"}
+  /\ s.generation < MaxGeneration
+  /\ s.requestIncarnation[request] < MaxRequestIncarnation
+  /\ LET nextIncarnation == s.requestIncarnation[request] + 1
+     IN s' = [s EXCEPT
+          !.requestKind[request] = "reconnect",
+          !.requestPhase[request] = "connecting",
+          !.requestIncarnation[request] = nextIncarnation,
+          !.activeRequest = request,
+          !.activeIncarnation = nextIncarnation,
+          !.connectionPhase = "connecting",
+          !.connectionOrigin = "shared",
+          !.connectionOriginOwner = NoRequest,
+          !.connectionOriginIncarnation = NoIncarnation,
+          !.generation = @ + 1,
+          !.publishedIncarnation[request] = 0,
+          !.directoryRevision[request] = 0,
+          !.directoryAuthority[request] = 0,
+          !.selectedDirectoryAuthority[request] = 0,
+          !.activationLeaseIncarnation[request] = 0,
+          !.activatedIncarnation[request] = 0]
 
 RequestDisconnect ==
-  /\ registryState = "present"
-  /\ connectionPhase # "disconnected"
-  /\ activeRequest = NoRequest
-  /\ promptOwner = NoRequest
-  /\ connectionPhase' = "disconnected"
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "request-disconnect"
-  /\ lastRequest' = NoRequest
+  /\ s.registryState = "present"
+  /\ s.connectionPhase # "disconnected"
+  /\ s.activeRequest = NoRequest
+  /\ s.promptOwner = NoRequest
+  /\ s' = [s EXCEPT
+       !.connectionPhase = "disconnected",
+       !.connectionOrigin = "none",
+       !.connectionOriginOwner = NoRequest,
+       !.connectionOriginIncarnation = NoIncarnation]
 
 LoseConnection ==
-  /\ connectionPhase = "connected"
-  /\ activeRequest = NoRequest
-  /\ generation < MaxGeneration
-  /\ connectionPhase' = "retry-wait"
-  /\ generation' = generation + 1
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectedOnce, promptOwner, promptGeneration, activatedRequests,
-       terminalEffectCount>>
-  /\ lastAction' = "lose-connection"
-  /\ lastRequest' = NoRequest
+  /\ s.connectionPhase = "connected"
+  /\ s.activeRequest = NoRequest
+  /\ s.generation < MaxGeneration
+  /\ s' = [s EXCEPT
+       !.connectionPhase = "retry-wait",
+       !.generation = @ + 1]
 
 AutomaticRetry ==
-  /\ connectionPhase = "retry-wait"
-  /\ activeRequest = NoRequest
-  /\ connectionPhase' = "connecting"
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "automatic-retry"
-  /\ lastRequest' = NoRequest
+  /\ s.connectionPhase = "retry-wait"
+  /\ s.activeRequest = NoRequest
+  /\ s' = [s EXCEPT !.connectionPhase = "connecting"]
 
 BlockPromptWithoutLease ==
-  /\ connectionPhase = "connecting"
-  /\ activeRequest = NoRequest
-  /\ promptOwner = NoRequest
-  /\ connectionPhase' = "blocked"
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectedOnce, generation, promptOwner, promptGeneration,
-       activatedRequests, terminalEffectCount>>
-  /\ lastAction' = "block-prompt-without-lease"
-  /\ lastRequest' = NoRequest
+  /\ s.connectionPhase = "connecting"
+  /\ s.activeRequest = NoRequest
+  /\ s.promptOwner = NoRequest
+  /\ s' = [s EXCEPT !.connectionPhase = "blocked"]
 
-ActivateInitiatingWorkspace(request) ==
-  /\ requestPhase[request] = "committed"
-  /\ request \notin activatedRequests
-  /\ activatedRequests' = activatedRequests \cup {request}
-  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
-       registryState, storedProject, canonicalProject, publishedEnrollment,
-       connectionPhase, connectedOnce, generation, promptOwner,
-       promptGeneration, terminalEffectCount>>
-  /\ lastAction' = "activate-initiating-workspace"
-  /\ lastRequest' = request
+ActivateInitiatingWorkspace(request, responseIncarnation) ==
+  /\ responseIncarnation \in 1..MaxRequestIncarnation
+  /\ responseIncarnation = s.requestIncarnation[request]
+  /\ s.requestPhase[request] = "committed"
+  /\ request \in s.ports
+  /\ s.activationLeaseIncarnation[request] = responseIncarnation
+  /\ s.publishedIncarnation[request] = responseIncarnation
+  /\ s.activatedIncarnation[request] # responseIncarnation
+  /\ s' = [s EXCEPT
+       !.activatedIncarnation[request] = responseIncarnation,
+       !.activationLeaseIncarnation[request] = 0,
+       !.activationAuthoritySafe = @
+         /\ request \in s.ports
+         /\ responseIncarnation = s.requestIncarnation[request]
+         /\ s.publishedIncarnation[request] = responseIncarnation
+         /\ s.activationLeaseIncarnation[request] = responseIncarnation]
 
 ApplicationRestart ==
-  /\ registryState # "indeterminate"
-  /\ ports' = {}
-  /\ requestKind' = [request \in Requests |-> "none"]
-  /\ requestPhase' = [request \in Requests |-> "idle"]
-  /\ activeRequest' = NoRequest
-  /\ canonicalProject' = storedProject
-  /\ publishedEnrollment' = storedProject
-  /\ connectionPhase' = "disconnected"
-  /\ generation' = IF generation < MaxGeneration THEN generation + 1 ELSE generation
-  /\ promptOwner' = NoRequest
-  /\ promptGeneration' = NoGeneration
-  /\ activatedRequests' = {}
-  /\ UNCHANGED <<registryState, storedProject, connectedOnce,
-       terminalEffectCount>>
-  /\ lastAction' = "application-restart"
-  /\ lastRequest' = NoRequest
+  /\ s.registryState # "indeterminate"
+  /\ s' = [s EXCEPT
+       !.ports = {},
+       !.requestKind = [request \in Requests |-> "none"],
+       !.requestPhase = [request \in Requests |-> "idle"],
+       !.activeRequest = NoRequest,
+       !.activeIncarnation = NoIncarnation,
+       !.canonicalProject = s.storedProject,
+       !.publishedEnrollment = s.storedProject,
+       !.publishedIncarnation = [request \in Requests |-> 0],
+       !.connectionPhase = "disconnected",
+       !.connectionOrigin = "none",
+       !.connectionOriginOwner = NoRequest,
+       !.connectionOriginIncarnation = NoIncarnation,
+       !.generation =
+         IF s.generation < MaxGeneration THEN @ + 1 ELSE @,
+       !.promptOwner = NoRequest,
+       !.promptIncarnation = NoIncarnation,
+       !.promptGeneration = NoGeneration,
+       !.promptHandle = NoHandle,
+       !.directoryRevision = [request \in Requests |-> 0],
+       !.directoryAuthority = [request \in Requests |-> 0],
+       !.selectedDirectoryAuthority = [request \in Requests |-> 0],
+       !.activationLeaseIncarnation = [request \in Requests |-> 0],
+       !.activatedIncarnation = [request \in Requests |-> 0]]
 
 Next ==
-  \/ \E request \in Requests: OpenPort(request)
-  \/ \E request \in Requests: RequestEnrollment(request)
-  \/ \E request \in Requests: RejectBusy(request)
-  \/ \E request \in Requests: ResolveTarget(request)
-  \/ \E request \in Requests: TargetResolutionFails(request)
-  \/ \E request \in Requests: CommitRegistryNew(request)
-  \/ \E request \in Requests: ReuseRegistry(request)
-  \/ \E request \in Requests: RegistryPrecommitFails(request)
-  \/ \E request \in Requests: RegistryPostRenameIndeterminate(request)
+  \/ \E request \in Requests : OpenPort(request)
+  \/ \E request \in Requests : RequestEnrollment(request)
+  \/ \E request \in Requests : RejectBusy(request)
+  \/ \E request \in Requests : ResolveTarget(request)
+  \/ \E request \in Requests : TargetResolutionFails(request)
+  \/ \E request \in Requests : CommitRegistryNew(request)
+  \/ \E request \in Requests : ReuseRegistry(request)
+  \/ \E request \in Requests : RegistryPrecommitFails(request)
+  \/ \E request \in Requests : RegistryPostRenameIndeterminate(request)
   \/ ReloadRegistryPresent
   \/ ReloadRegistryAbsent
-  \/ \E request \in Requests: StartConnection(request)
-  \/ \E request \in Requests: ReuseConnection(request)
-  \/ \E request \in Requests: RequestInteraction(request)
-  \/ \E request \in Requests: SubmitInteraction(request)
-  \/ \E request \in Requests: CancelInteraction(request)
-  \/ \E request \in Requests, staleGeneration \in 0..MaxGeneration:
-       RejectStaleInteraction(request, staleGeneration)
-  \/ \E request \in Requests: ConnectionReady(request)
+  \/ ObserveExistingConnection
+  \/ \E request \in Requests : StartConnection(request)
+  \/ \E request \in Requests : ReuseConnection(request)
+  \/ \E request \in Requests, handle \in Handles :
+       RequestInteraction(request, handle)
+  \/ \E request \in Requests,
+         incarnation \in 1..MaxRequestIncarnation,
+         gen \in 1..MaxGeneration, handle \in Handles :
+       SubmitInteraction(request, incarnation, gen, handle)
+  \/ \E request \in Requests,
+         incarnation \in 1..MaxRequestIncarnation,
+         gen \in 1..MaxGeneration, handle \in Handles :
+       CancelInteraction(request, incarnation, gen, handle)
+  \/ \E request \in Requests,
+         incarnation \in 1..MaxRequestIncarnation,
+         gen \in 1..MaxGeneration, handle \in Handles :
+       RejectStaleInteraction(request, incarnation, gen, handle)
+  \/ \E request \in Requests : ConnectionReady(request)
   \/ ConnectionReadyWithoutLease
-  \/ \E request \in Requests: ConnectionFails(request)
-  \/ \E request \in Requests: PublishInitialDirectory(request)
-  \/ \E request \in Requests: InitialDirectoryListingFails(request)
-  \/ \E request \in Requests: NavigateDirectory(request)
-  \/ \E request \in Requests: DirectoryNavigationFails(request)
-  \/ \E request \in Requests: RejectStaleDirectorySelection(request)
-  \/ \E request \in Requests: SelectDirectory(request)
-  \/ \E request \in Requests: InspectProjectRoot(request)
-  \/ \E request \in Requests: InspectionCompletes(request)
-  \/ \E request \in Requests: InspectionFails(request)
-  \/ \E request \in Requests: BeginWorkbenchCommit(request)
-  \/ \E request \in Requests: CommitProjectNew(request)
-  \/ \E request \in Requests: CommitProjectExisting(request)
-  \/ \E request \in Requests: WorkbenchCommitIndeterminate(request)
-  \/ \E request \in Requests: ReconcileWorkbenchCommit(request)
-  \/ \E request \in Requests: CancelBeforeWorkbenchCommit(request)
-  \/ \E request \in Requests: CancelDuringWorkbenchCommit(request)
-  \/ \E request \in Requests: RetirePortBeforeCommit(request)
-  \/ \E request \in Requests: RetirePortDuringCommit(request)
-  \/ \E request \in Requests: RetirePortAfterCommit(request)
-  \/ \E request \in Requests: RetryRequest(request)
-  \/ \E request \in Requests: RequestReconnect(request)
+  \/ \E request \in Requests : ConnectionFails(request)
+  \/ \E request \in Requests : PublishInitialDirectory(request)
+  \/ \E request \in Requests : InitialDirectoryListingFails(request)
+  \/ \E request \in Requests,
+         incarnation \in 1..MaxRequestIncarnation,
+         revision \in 1..MaxDirectoryRevision,
+         authority \in 1..MaxDirectoryRevision :
+       NavigateDirectory(request, incarnation, revision, authority)
+  \/ \E request \in Requests,
+         incarnation \in 1..MaxRequestIncarnation,
+         revision \in 1..MaxDirectoryRevision,
+         authority \in 1..MaxDirectoryRevision :
+       DirectoryNavigationFails(request, incarnation, revision, authority)
+  \/ \E request \in Requests,
+         incarnation \in 1..MaxRequestIncarnation,
+         revision \in 1..MaxDirectoryRevision,
+         authority \in 1..MaxDirectoryRevision :
+       RejectStaleDirectorySelection(
+         request, incarnation, revision, authority)
+  \/ \E request \in Requests,
+         incarnation \in 1..MaxRequestIncarnation,
+         revision \in 1..MaxDirectoryRevision,
+         authority \in 1..MaxDirectoryRevision :
+       SelectDirectory(request, incarnation, revision, authority)
+  \/ \E request \in Requests : InspectProjectRoot(request)
+  \/ \E request \in Requests : InspectionCompletes(request)
+  \/ \E request \in Requests : InspectionFails(request)
+  \/ \E request \in Requests : BeginWorkbenchCommit(request)
+  \/ \E request \in Requests : CommitProjectNew(request)
+  \/ \E request \in Requests : CommitProjectExisting(request)
+  \/ \E request \in Requests : WorkbenchCommitIndeterminate(request)
+  \/ \E request \in Requests : ReconcileWorkbenchCommit(request)
+  \/ \E request \in Requests,
+         incarnation \in 1..MaxRequestIncarnation :
+       PublishEnrollment(request, incarnation)
+  \/ \E request \in Requests : CancelBeforeWorkbenchCommit(request)
+  \/ \E request \in Requests : CancelDuringWorkbenchCommit(request)
+  \/ \E request \in Requests : RetirePortBeforeCommit(request)
+  \/ \E request \in Requests : RetirePortDuringCommit(request)
+  \/ \E request \in Requests : RetirePortAfterCommit(request)
+  \/ \E request \in Requests : RetryRequest(request)
+  \/ \E request \in Requests : RequestReconnect(request)
   \/ RequestDisconnect
   \/ LoseConnection
   \/ AutomaticRetry
   \/ BlockPromptWithoutLease
-  \/ \E request \in Requests: ActivateInitiatingWorkspace(request)
+  \/ \E request \in Requests,
+         incarnation \in 1..MaxRequestIncarnation :
+       ActivateInitiatingWorkspace(request, incarnation)
   \/ ApplicationRestart
 
 Spec == Init /\ [][Next]_vars
 
 TypeOK ==
-  /\ ports \subseteq Requests
-  /\ requestKind \in [Requests -> RequestKinds]
-  /\ requestPhase \in [Requests -> RequestPhases]
-  /\ activeRequest \in Requests \cup {NoRequest}
-  /\ registryState \in RegistryStates
-  /\ storedProject \in BOOLEAN
-  /\ canonicalProject \in BOOLEAN
-  /\ publishedEnrollment \in BOOLEAN
-  /\ connectionPhase \in ConnectionPhases
-  /\ connectedOnce \in BOOLEAN
-  /\ generation \in 0..MaxGeneration
-  /\ promptOwner \in Requests \cup {NoRequest}
-  /\ promptGeneration \in 0..MaxGeneration \cup {NoGeneration}
-  /\ activatedRequests \subseteq Requests
-  /\ terminalEffectCount \in Nat
-  /\ lastAction \in Actions
-  /\ lastRequest \in Requests \cup {NoRequest}
+  /\ s.ports \subseteq Requests
+  /\ s.requestKind \in [Requests -> RequestKinds]
+  /\ s.requestPhase \in [Requests -> RequestPhases]
+  /\ s.requestIncarnation \in
+       [Requests -> 0..MaxRequestIncarnation]
+  /\ s.activeRequest \in Requests \cup {NoRequest}
+  /\ s.activeIncarnation \in
+       (1..MaxRequestIncarnation) \cup {NoIncarnation}
+  /\ s.registryState \in RegistryStates
+  /\ s.storedProject \in BOOLEAN
+  /\ s.canonicalProject \in BOOLEAN
+  /\ s.publishedEnrollment \in BOOLEAN
+  /\ s.publishedIncarnation \in
+       [Requests -> 0..MaxRequestIncarnation]
+  /\ s.connectionPhase \in ConnectionPhases
+  /\ s.connectionOrigin \in ConnectionOrigins
+  /\ s.connectionOriginOwner \in Requests \cup {NoRequest}
+  /\ s.connectionOriginIncarnation \in
+       (1..MaxRequestIncarnation) \cup {NoIncarnation}
+  /\ s.generation \in 0..MaxGeneration
+  /\ s.promptOwner \in Requests \cup {NoRequest}
+  /\ s.promptIncarnation \in
+       (1..MaxRequestIncarnation) \cup {NoIncarnation}
+  /\ s.promptGeneration \in (1..MaxGeneration) \cup {NoGeneration}
+  /\ s.promptHandle \in Handles \cup {NoHandle}
+  /\ s.directoryRevision \in
+       [Requests -> 0..MaxDirectoryRevision]
+  /\ s.directoryAuthority \in
+       [Requests -> 0..MaxDirectoryRevision]
+  /\ s.selectedDirectoryAuthority \in
+       [Requests -> 0..MaxDirectoryRevision]
+  /\ s.activationLeaseIncarnation \in
+       [Requests -> 0..MaxRequestIncarnation]
+  /\ s.activatedIncarnation \in
+       [Requests -> 0..MaxRequestIncarnation]
+  /\ s.terminalEffectCount \in Nat
+  /\ s.promptAcceptanceSafe \in BOOLEAN
+  /\ s.directoryAcceptanceSafe \in BOOLEAN
+  /\ s.directoryFailureSafe \in BOOLEAN
+  /\ s.commitPublicationSafe \in BOOLEAN
+  /\ s.publicationAuthoritySafe \in BOOLEAN
+  /\ s.activationAuthoritySafe \in BOOLEAN
+  /\ s.connectionCleanupSafe \in BOOLEAN
 
 RemoteEffectRequiresDurableEnvironment ==
-  connectionPhase # "disconnected" => registryState = "present"
+  s.connectionPhase # "disconnected" => s.registryState = "present"
 
 WorkbenchReferenceRequiresEnvironment ==
-  storedProject => registryState = "present"
+  s.storedProject => s.registryState = "present"
 
 CanonicalProjectWasStored ==
-  canonicalProject => storedProject
+  s.canonicalProject => s.storedProject
 
-EnrollmentPublicationMatchesCanonicalWorkbench ==
-  publishedEnrollment = canonicalProject
+EnrollmentPublicationRequiresCanonicalWorkbench ==
+  s.publishedEnrollment => s.canonicalProject
+
+ActiveRequestHasExactIncarnation ==
+  /\ (s.activeRequest = NoRequest) =
+       (s.activeIncarnation = NoIncarnation)
+  /\ (s.activeRequest # NoRequest =>
+       /\ s.activeIncarnation =
+            s.requestIncarnation[s.activeRequest]
+       /\ (s.activeRequest \in s.ports \/
+            s.requestPhase[s.activeRequest] = "committing"))
 
 InteractionHasExactLiveLease ==
-  connectionPhase = "interaction" =>
-    /\ promptOwner \in ports
-    /\ activeRequest = promptOwner
-    /\ requestPhase[promptOwner] = "interaction"
-    /\ promptGeneration = generation
+  s.connectionPhase = "interaction" =>
+    /\ s.promptOwner \in s.ports
+    /\ IsActive(s.promptOwner)
+    /\ s.requestPhase[s.promptOwner] = "interaction"
+    /\ s.promptIncarnation =
+         s.requestIncarnation[s.promptOwner]
+    /\ s.promptGeneration = s.generation
+    /\ s.promptHandle \in Handles
 
 NoPromptOutsideInteraction ==
-  connectionPhase # "interaction" =>
-    /\ promptOwner = NoRequest
-    /\ promptGeneration = NoGeneration
+  s.connectionPhase # "interaction" =>
+    /\ s.promptOwner = NoRequest
+    /\ s.promptIncarnation = NoIncarnation
+    /\ s.promptGeneration = NoGeneration
+    /\ s.promptHandle = NoHandle
+
+OnlyExactInteractionResponseIsAccepted ==
+  s.promptAcceptanceSafe
 
 DirectorySelectionHasExactLiveRequest ==
   \A request \in Requests:
-    requestPhase[request] = "choosing-directory" =>
-      /\ activeRequest = request
-      /\ request \in ports
-      /\ connectionPhase = "connected"
+    s.requestPhase[request] = "choosing-directory" =>
+      /\ IsActive(request)
+      /\ request \in s.ports
+      /\ s.connectionPhase = "connected"
+      /\ s.directoryRevision[request] >=
+           s.directoryAuthority[request]
+      /\ s.directoryAuthority[request] > 0
+
+DirectoryFailureRetainsLastAuthority ==
+  /\ s.directoryFailureSafe
+  /\ \A request \in Requests:
+       s.directoryAuthority[request] <= s.directoryRevision[request]
+
+SelectedDirectoryHasCurrentAuthority ==
+  \A request \in Requests:
+    s.requestPhase[request] \in {
+      "directory-selected", "inspecting", "ready-to-commit", "committing",
+      "committed-unpublished", "committed"
+    } =>
+      /\ s.selectedDirectoryAuthority[request] > 0
+      /\ s.selectedDirectoryAuthority[request] =
+           s.directoryAuthority[request]
+
+OnlyExactDirectoryResponseIsAccepted ==
+  s.directoryAcceptanceSafe
+
+CanonicalCommitPrecedesPublication ==
+  s.commitPublicationSafe
+
+RequestPublicationHasExactOwner ==
+  /\ s.publicationAuthoritySafe
+  /\ \A request \in Requests:
+       s.publishedIncarnation[request] > 0 =>
+         /\ s.publishedIncarnation[request] =
+              s.requestIncarnation[request]
+         /\ s.requestPhase[request] = "committed"
+         /\ s.canonicalProject
 
 CommittedRequestHasCanonicalProject ==
   \A request \in Requests:
-    requestPhase[request] = "committed" => canonicalProject
+    s.requestPhase[request] \in
+      {"committed-unpublished", "committed"} =>
+        s.canonicalProject
+
+UnpublishedCommitCannotActivate ==
+  \A request \in Requests:
+    s.requestPhase[request] = "committed-unpublished" =>
+      s.activatedIncarnation[request] = 0
+
+ActivationLeaseIsLiveAndExact ==
+  \A request \in Requests:
+    s.activationLeaseIncarnation[request] > 0 =>
+      /\ request \in s.ports
+      /\ s.activationLeaseIncarnation[request] =
+           s.requestIncarnation[request]
+      /\ s.requestKind[request] = "enroll"
+      /\ s.requestPhase[request] \notin
+           {"idle", "busy", "completed", "failed", "cancelled"}
+
+OnlyPublishedLiveEnrollmentActivatesView ==
+  /\ s.activationAuthoritySafe
+  /\ \A request \in Requests:
+       s.activatedIncarnation[request] > 0 =>
+         /\ request \in s.ports
+         /\ s.activatedIncarnation[request] =
+              s.requestIncarnation[request]
+         /\ s.publishedIncarnation[request] =
+              s.activatedIncarnation[request]
+         /\ s.requestPhase[request] = "committed"
+
+ConnectionOriginHasExactOwner ==
+  /\ (s.connectionOrigin = "request-started") =
+       (s.connectionOriginOwner # NoRequest)
+  /\ (s.connectionOriginOwner = NoRequest) =
+       (s.connectionOriginIncarnation = NoIncarnation)
+  /\ (s.connectionOriginOwner # NoRequest =>
+       /\ s.connectionOriginIncarnation =
+            s.requestIncarnation[s.connectionOriginOwner]
+       /\ s.connectionPhase \in
+            {"connecting", "interaction", "connected"})
+
+PreCommitCleanupRespectsConnectionOrigin ==
+  s.connectionCleanupSafe
 
 BusyRequestCannotStealLease ==
-  lastAction = "reject-busy" =>
-    /\ lastRequest # activeRequest
-    /\ activeRequest # NoRequest
+  \A request \in Requests:
+    s.requestPhase[request] = "busy" =>
+      s.activeRequest # request
 
-CancellationDuringCommitDoesNotRollBack ==
-  lastAction = "cancel-during-workbench-commit" =>
-    /\ activeRequest = lastRequest
-    /\ requestPhase[lastRequest] = "committing"
+FreshProcessDoesNotAutoConnect ==
+  (s.ports = {} /\
+    \A request \in Requests:
+      s.requestKind[request] = "none" /\
+      s.requestPhase[request] = "idle") =>
+    /\ s.connectionPhase = "disconnected"
+    /\ s.activeRequest = NoRequest
+    /\ s.promptOwner = NoRequest
 
-RestartDoesNotAutoConnect ==
-  lastAction = "application-restart" =>
-    /\ connectionPhase = "disconnected"
-    /\ activeRequest = NoRequest
-    /\ promptOwner = NoRequest
-
-OnlyCommittedEnrollmentActivatesView ==
-  \A request \in activatedRequests: requestPhase[request] = "committed"
-
-EnrollmentCreatesNoTerminal == terminalEffectCount = 0
+EnrollmentCreatesNoTerminal == s.terminalEffectCount = 0
 
 =============================================================================

@@ -3,9 +3,7 @@ EXTENDS Naturals, TLC
 
 CONSTANTS MaxRequests, MaxRevision, MaxIntent
 
-Directions == {"previous", "next"}
 Phases == {"idle", "reading", "target-ready", "settled", "cancelled", "disposed"}
-Outcomes == {"none", "moved", "unchanged", "cancelled", "disposed"}
 Actions == {
   "init",
   "start-previous",
@@ -25,7 +23,6 @@ Actions == {
 VARIABLES
   active,
   phase,
-  direction,
   requestEpoch,
   admissions,
   sourceRevision,
@@ -34,7 +31,6 @@ VARIABLES
   capturedIntent,
   targetRequest,
   commitCount,
-  outcome,
   priorPhase,
   priorRequestEpoch,
   priorAdmissions,
@@ -49,7 +45,6 @@ VARIABLES
 vars == <<
   active,
   phase,
-  direction,
   requestEpoch,
   admissions,
   sourceRevision,
@@ -58,7 +53,6 @@ vars == <<
   capturedIntent,
   targetRequest,
   commitCount,
-  outcome,
   priorPhase,
   priorRequestEpoch,
   priorAdmissions,
@@ -74,7 +68,6 @@ vars == <<
 Init ==
   /\ active = TRUE
   /\ phase = "idle"
-  /\ direction = "previous"
   /\ requestEpoch = 0
   /\ admissions = 0
   /\ sourceRevision = 1
@@ -83,7 +76,6 @@ Init ==
   /\ capturedIntent = 0
   /\ targetRequest = 0
   /\ commitCount = 0
-  /\ outcome = "none"
   /\ priorPhase = "idle"
   /\ priorRequestEpoch = 0
   /\ priorAdmissions = 0
@@ -107,24 +99,21 @@ Record(action) ==
   /\ priorCommitCount' = commitCount
   /\ lastAction' = action
 
-Start(dir, action) ==
+Start(action) ==
   /\ active
   /\ phase \in {"idle", "settled", "cancelled"}
   /\ admissions < MaxRequests
-  /\ dir \in Directions
   /\ phase' = "reading"
-  /\ direction' = dir
   /\ requestEpoch' = requestEpoch + 1
   /\ admissions' = admissions + 1
   /\ capturedRevision' = sourceRevision
   /\ capturedIntent' = viewportIntent
   /\ targetRequest' = 0
-  /\ outcome' = "none"
   /\ UNCHANGED <<active, sourceRevision, viewportIntent, commitCount>>
   /\ Record(action)
 
-StartPrevious == Start("previous", "start-previous")
-StartNext == Start("next", "start-next")
+StartPrevious == Start("start-previous")
+StartNext == Start("start-next")
 
 ReadTarget ==
   /\ active
@@ -132,8 +121,8 @@ ReadTarget ==
   /\ phase' = "target-ready"
   /\ targetRequest' = requestEpoch
   /\ UNCHANGED <<
-       active, direction, requestEpoch, admissions, sourceRevision, capturedRevision,
-       viewportIntent, capturedIntent, commitCount, outcome
+       active, requestEpoch, admissions, sourceRevision, capturedRevision,
+       viewportIntent, capturedIntent, commitCount
      >>
   /\ Record("read-target")
 
@@ -142,9 +131,8 @@ ReadNotFound ==
   /\ phase = "reading"
   /\ phase' = "settled"
   /\ targetRequest' = 0
-  /\ outcome' = "unchanged"
   /\ UNCHANGED <<
-       active, direction, requestEpoch, admissions, sourceRevision, capturedRevision,
+       active, requestEpoch, admissions, sourceRevision, capturedRevision,
        viewportIntent, capturedIntent, commitCount
      >>
   /\ Record("read-not-found")
@@ -154,8 +142,8 @@ AdvanceRevision ==
   /\ sourceRevision < MaxRevision
   /\ sourceRevision' = sourceRevision + 1
   /\ UNCHANGED <<
-       active, phase, direction, requestEpoch, admissions, capturedRevision,
-       viewportIntent, capturedIntent, targetRequest, commitCount, outcome
+       active, phase, requestEpoch, admissions, capturedRevision,
+       viewportIntent, capturedIntent, targetRequest, commitCount
      >>
   /\ Record("advance-revision")
 
@@ -164,8 +152,8 @@ MoveViewport ==
   /\ viewportIntent < MaxIntent
   /\ viewportIntent' = viewportIntent + 1
   /\ UNCHANGED <<
-       active, phase, direction, requestEpoch, admissions, sourceRevision, capturedRevision,
-       capturedIntent, targetRequest, commitCount, outcome
+       active, phase, requestEpoch, admissions, sourceRevision, capturedRevision,
+       capturedIntent, targetRequest, commitCount
      >>
   /\ Record("move-viewport")
 
@@ -174,31 +162,27 @@ Cancel ==
   /\ phase \in {"reading", "target-ready"}
   /\ phase' = "cancelled"
   /\ targetRequest' = 0
-  /\ outcome' = "cancelled"
   /\ UNCHANGED <<
-       active, direction, requestEpoch, admissions, sourceRevision, capturedRevision,
+       active, requestEpoch, admissions, sourceRevision, capturedRevision,
        viewportIntent, capturedIntent, commitCount
      >>
   /\ Record("cancel")
 
-Replace(dir, action) ==
+Replace(action) ==
   /\ active
   /\ phase \in {"reading", "target-ready"}
   /\ admissions < MaxRequests
-  /\ dir \in Directions
   /\ phase' = "reading"
-  /\ direction' = dir
   /\ requestEpoch' = requestEpoch + 1
   /\ admissions' = admissions + 1
   /\ capturedRevision' = sourceRevision
   /\ capturedIntent' = viewportIntent
   /\ targetRequest' = 0
-  /\ outcome' = "none"
   /\ UNCHANGED <<active, sourceRevision, viewportIntent, commitCount>>
   /\ Record(action)
 
-ReplacePrevious == Replace("previous", "replace-previous")
-ReplaceNext == Replace("next", "replace-next")
+ReplacePrevious == Replace("replace-previous")
+ReplaceNext == Replace("replace-next")
 
 CoverageStartPrevious ==
   /\ lastAction = "start-previous"
@@ -225,9 +209,8 @@ Commit ==
   /\ phase' = "settled"
   /\ targetRequest' = 0
   /\ commitCount' = commitCount + 1
-  /\ outcome' = "moved"
   /\ UNCHANGED <<
-       active, direction, requestEpoch, admissions, sourceRevision, capturedRevision,
+       active, requestEpoch, admissions, sourceRevision, capturedRevision,
        viewportIntent, capturedIntent
      >>
   /\ Record("commit")
@@ -240,9 +223,8 @@ RejectStaleTarget ==
      \/ capturedIntent # viewportIntent
   /\ phase' = "settled"
   /\ targetRequest' = 0
-  /\ outcome' = "unchanged"
   /\ UNCHANGED <<
-       active, direction, requestEpoch, admissions, sourceRevision, capturedRevision,
+       active, requestEpoch, admissions, sourceRevision, capturedRevision,
        viewportIntent, capturedIntent, commitCount
      >>
   /\ Record("reject-stale-target")
@@ -252,9 +234,8 @@ Dispose ==
   /\ active' = FALSE
   /\ phase' = "disposed"
   /\ targetRequest' = 0
-  /\ outcome' = "disposed"
   /\ UNCHANGED <<
-       direction, requestEpoch, admissions, sourceRevision, capturedRevision,
+       requestEpoch, admissions, sourceRevision, capturedRevision,
        viewportIntent, capturedIntent, commitCount
      >>
   /\ Record("dispose")
@@ -287,7 +268,6 @@ Spec ==
 TypeOK ==
   /\ active \in BOOLEAN
   /\ phase \in Phases
-  /\ direction \in Directions
   /\ requestEpoch \in 0..MaxRequests
   /\ admissions \in 0..MaxRequests
   /\ sourceRevision \in 1..MaxRevision
@@ -296,7 +276,6 @@ TypeOK ==
   /\ capturedIntent \in 0..MaxIntent
   /\ targetRequest \in 0..MaxRequests
   /\ commitCount \in 0..MaxRequests
-  /\ outcome \in Outcomes
   /\ priorPhase \in Phases
   /\ priorRequestEpoch \in 0..MaxRequests
   /\ priorAdmissions \in 0..MaxRequests

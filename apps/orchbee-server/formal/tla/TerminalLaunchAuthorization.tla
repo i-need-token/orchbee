@@ -15,6 +15,9 @@ EXTENDS FiniteSets, Naturals, TLC
 \* may start a new scope only after its generation, lease, and fence transition
 \* makes every prior authorization non-current; that transition and the
 \* cross-terminal and cross-Worker namespace are outside this bounded model.
+\* hostEffects retains the abstract effect identity; the independent bounded
+\* hostEffectCounts witness makes two occurrences in one modeled handoff
+\* distinguishable. Concrete transport-write multiplicity remains Rust-owned.
 
 CONSTANTS
   FirstOperation,
@@ -117,7 +120,8 @@ VARIABLES
   cachedTransition,
   terminalState,
   terminalHostEpoch,
-  hostEffects
+  hostEffects,
+  hostEffectCounts
 
 DomainVars == <<
   serverConnected,
@@ -136,7 +140,8 @@ DomainVars == <<
   cachedTransition,
   terminalState,
   terminalHostEpoch,
-  hostEffects
+  hostEffects,
+  hostEffectCounts
 >>
 
 vars == DomainVars
@@ -212,6 +217,7 @@ Init ==
   /\ terminalState = "none"
   /\ terminalHostEpoch = 0
   /\ hostEffects = {}
+  /\ hostEffectCounts = [operation \in Operations |-> 0]
 
 CanDispatch ==
   /\ serverConnected
@@ -267,7 +273,7 @@ IssueCurrentLaunchFor(kind) ==
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, acceptedBinding, pendingResult,
        cachedOutcome, cachedHostEpoch, cachedTransition, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 IssueCurrentImmediateLaunch ==
   /\ terminalState \in {"none", "lost"}
@@ -299,7 +305,7 @@ IssueStaleGenerationLaunch ==
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
        terminalState, terminalHostEpoch,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 IssueLegacyCapabilityLaunch ==
   /\ CanDispatch
@@ -317,7 +323,7 @@ IssueLegacyCapabilityLaunch ==
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
        terminalState, terminalHostEpoch,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 IssueLowFenceReplay ==
   /\ CanDispatch
@@ -337,7 +343,7 @@ IssueLowFenceReplay ==
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
        terminalState, terminalHostEpoch,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 IssueExactReplay ==
   /\ CanDispatch
@@ -349,7 +355,7 @@ IssueExactReplay ==
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
        terminalState, terminalHostEpoch,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 IssueConflictingReplay ==
   /\ CanDispatch
@@ -361,7 +367,7 @@ IssueConflictingReplay ==
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
        terminalState, terminalHostEpoch,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 IssueAuthorizedStart ==
   /\ CanIssue
@@ -388,7 +394,7 @@ IssueAuthorizedStart ==
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, acceptedBinding, pendingResult,
        cachedOutcome, cachedHostEpoch, cachedTransition, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 QueueResult(outcome, epoch, transition) ==
   /\ pendingResult = NoResult
@@ -419,7 +425,7 @@ RejectStaleGeneration ==
   /\ QueueUncachedResult("rejected", 0, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 RejectUnsupportedCapability ==
   /\ requestPhase = "issued"
@@ -428,7 +434,7 @@ RejectUnsupportedCapability ==
   /\ QueueUncachedResult("rejected", 0, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 ExpireLeaseBeforeAdmission ==
   /\ requestPhase = "issued"
@@ -438,7 +444,7 @@ ExpireLeaseBeforeAdmission ==
        workerGeneration, hostEpoch, acceptedBinding, authority, request,
        requestPhase, pendingResult, cachedOutcome, cachedHostEpoch,
        cachedTransition, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 RejectExpiredBeforeAdmission ==
   /\ requestPhase = "issued"
@@ -447,7 +453,7 @@ RejectExpiredBeforeAdmission ==
   /\ QueueUncachedResult("rejected", 0, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 RejectLowFence ==
   /\ requestPhase = "issued"
@@ -459,7 +465,7 @@ RejectLowFence ==
   /\ QueueUncachedResult("rejected", 0, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 RejectConflictingReplay ==
   /\ requestPhase = "issued"
@@ -472,7 +478,7 @@ RejectConflictingReplay ==
   /\ QueueUncachedResult("rejected", 0, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 RejectHostIdentityChanged ==
   /\ requestPhase = "issued"
@@ -485,7 +491,7 @@ RejectHostIdentityChanged ==
   /\ QueueUncachedResult("rejected", hostEpoch, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 CachedReplayReady ==
   /\ requestPhase = "issued"
@@ -500,7 +506,7 @@ ReplayCachedAcceptedResult ==
   /\ QueueCachedResult
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 ReplayCachedRejectedResult ==
   /\ CachedReplayReady
@@ -509,7 +515,7 @@ ReplayCachedRejectedResult ==
   /\ QueueCachedResult
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 ReplayCachedFailedResult ==
   /\ CachedReplayReady
@@ -518,7 +524,7 @@ ReplayCachedFailedResult ==
   /\ QueueCachedResult
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 ReplayCachedUnknownResult ==
   /\ CachedReplayReady
@@ -527,7 +533,7 @@ ReplayCachedUnknownResult ==
   /\ QueueCachedResult
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 ReplayCachedExpiredLeaseResult ==
   /\ CachedReplayReady
@@ -535,7 +541,7 @@ ReplayCachedExpiredLeaseResult ==
   /\ QueueCachedResult
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 AdmitAuthorization ==
   /\ requestPhase = "issued"
@@ -554,7 +560,7 @@ AdmitAuthorization ==
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, authority, request,
        pendingResult, terminalState, terminalHostEpoch,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 ExpireLeaseAfterAdmission ==
   /\ requestPhase = "admitted"
@@ -564,7 +570,7 @@ ExpireLeaseAfterAdmission ==
        workerGeneration, hostEpoch, acceptedBinding, authority, request,
        requestPhase, pendingResult, cachedOutcome, cachedHostEpoch,
        cachedTransition, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 RejectExpiredAfterAdmission ==
   /\ requestPhase = "admitted"
@@ -572,7 +578,7 @@ RejectExpiredAfterAdmission ==
   /\ QueueAcceptedResult("rejected", 0, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 RejectHostIdentityChangedAfterAdmission ==
   /\ requestPhase = "admitted"
@@ -583,7 +589,7 @@ RejectHostIdentityChangedAfterAdmission ==
   /\ QueueAcceptedResult("rejected", hostEpoch, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 FailBeforeHostHandoff ==
   /\ requestPhase = "admitted"
@@ -591,7 +597,7 @@ FailBeforeHostHandoff ==
   /\ QueueAcceptedResult("failed", 0, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 HandoffToHost ==
   /\ requestPhase = "admitted"
@@ -602,6 +608,8 @@ HandoffToHost ==
   /\ (request.kind # "start" \/ request.targetEpoch = hostEpoch)
   /\ ~HasOperationEffect(request.operation)
   /\ hostEffects' = hostEffects \cup {Effect(request, hostEpoch)}
+  /\ hostEffectCounts' =
+       [hostEffectCounts EXCEPT ![request.operation] = @ + 1]
   /\ requestPhase' = "handed-off"
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
@@ -617,7 +625,7 @@ ExpireLeaseAfterHandoff ==
        workerGeneration, hostEpoch, acceptedBinding, authority, request,
        requestPhase, pendingResult, cachedOutcome, cachedHostEpoch,
        cachedTransition, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 ExpireCachedLease ==
   /\ requestPhase = "none"
@@ -628,7 +636,7 @@ ExpireCachedLease ==
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, acceptedBinding, authority, request,
        requestPhase, pendingResult, cachedOutcome, cachedHostEpoch,
-       cachedTransition, terminalState, terminalHostEpoch, hostEffects>>
+       cachedTransition, terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 AcceptAtHost(kind, transition) ==
   /\ requestPhase = "handed-off"
@@ -643,7 +651,7 @@ AcceptAtHost(kind, transition) ==
   /\ QueueAcceptedResult("host-accepted", hostEpoch, transition)
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 HostAcceptImmediateLaunch ==
   /\ request.kind = "launch-immediate"
@@ -668,7 +676,7 @@ HostReject ==
   /\ QueueAcceptedResult("rejected", hostEpoch, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 HostFail ==
   /\ requestPhase = "handed-off"
@@ -677,7 +685,7 @@ HostFail ==
   /\ QueueAcceptedResult("failed", hostEpoch, "none")
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
-       terminalState, terminalHostEpoch, hostEffects>>
+       terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 DeliverCurrentResult ==
   /\ serverConnected
@@ -686,7 +694,7 @@ DeliverCurrentResult ==
   /\ UNCHANGED <<serverConnected, workerConnected, hostConnected,
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
        request, requestPhase, cachedOutcome, cachedHostEpoch,
-       cachedTransition, terminalState, terminalHostEpoch, hostEffects>>
+       cachedTransition, terminalState, terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 DropStaleResult ==
   /\ serverConnected
@@ -697,7 +705,7 @@ DropStaleResult ==
        workerGeneration, hostEpoch, leaseValid, acceptedBinding, authority,
        request, requestPhase, cachedOutcome, cachedHostEpoch,
        cachedTransition, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 LoseServerConnection ==
   /\ serverConnected
@@ -706,7 +714,7 @@ LoseServerConnection ==
        leaseValid, acceptedBinding, authority, request, requestPhase,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
        terminalState, terminalHostEpoch,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 RestoreServerConnection ==
   /\ ~serverConnected
@@ -715,7 +723,7 @@ RestoreServerConnection ==
        leaseValid, acceptedBinding, authority, request, requestPhase,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
        terminalState, terminalHostEpoch,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 LoseIdleWorkerConnection ==
   /\ workerConnected
@@ -725,7 +733,7 @@ LoseIdleWorkerConnection ==
        leaseValid, acceptedBinding, authority, request, requestPhase,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
        terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 LoseWorkerConnectionBeforeAdmission ==
   /\ workerConnected
@@ -738,7 +746,7 @@ LoseWorkerConnectionBeforeAdmission ==
      )
   /\ UNCHANGED <<serverConnected, hostConnected, workerGeneration, hostEpoch,
        leaseValid, acceptedBinding, authority, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 LoseWorkerConnectionAfterAdmission ==
   /\ workerConnected
@@ -751,7 +759,7 @@ LoseWorkerConnectionAfterAdmission ==
      )
   /\ UNCHANGED <<serverConnected, hostConnected, workerGeneration, hostEpoch,
        leaseValid, acceptedBinding, authority, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 LoseWorkerConnectionAfterHandoff ==
   /\ workerConnected
@@ -764,7 +772,7 @@ LoseWorkerConnectionAfterHandoff ==
      )
   /\ UNCHANGED <<serverConnected, hostConnected, workerGeneration, hostEpoch,
        leaseValid, acceptedBinding, authority, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 ReconnectWorker ==
   /\ ~workerConnected
@@ -775,7 +783,7 @@ ReconnectWorker ==
   /\ UNCHANGED <<serverConnected, hostConnected, hostEpoch, leaseValid,
        acceptedBinding, authority, request, requestPhase, pendingResult,
        cachedOutcome, cachedHostEpoch, cachedTransition, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 LoseHostConnection ==
   /\ hostConnected
@@ -786,7 +794,7 @@ LoseHostConnection ==
               cachedOutcome, cachedHostEpoch, cachedTransition>>
   /\ UNCHANGED <<serverConnected, workerConnected, workerGeneration, hostEpoch,
        leaseValid, acceptedBinding, authority, terminalState,
-       terminalHostEpoch, hostEffects>>
+       terminalHostEpoch, hostEffects, hostEffectCounts>>
 
 RestoreHostConnection ==
   /\ ~hostConnected
@@ -795,7 +803,7 @@ RestoreHostConnection ==
        leaseValid, acceptedBinding, authority, request, requestPhase,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
        terminalState, terminalHostEpoch,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 ReplaceHostEpoch ==
   /\ ~hostConnected
@@ -809,7 +817,7 @@ ReplaceHostEpoch ==
   /\ UNCHANGED <<serverConnected, workerConnected, workerGeneration,
        leaseValid, acceptedBinding, authority, request, requestPhase,
        pendingResult, cachedOutcome, cachedHostEpoch, cachedTransition,
-       hostEffects>>
+       hostEffects, hostEffectCounts>>
 
 Next ==
   \/ IssueCurrentLaunch
@@ -887,6 +895,7 @@ TypeOK ==
   /\ terminalState \in TerminalStates
   /\ terminalHostEpoch \in 0..MaxHostEpoch
   /\ hostEffects \subseteq HostEffects
+  /\ hostEffectCounts \in [Operations -> 0..2]
 
 RequestPhaseHasBinding ==
   (requestPhase = "none") <=> (request = NoBinding)
@@ -947,11 +956,27 @@ AuthoritativeOperationFreshnessSpansWorkerReconnect ==
   /\ [][AuthoritativeIssuance => FreshOperation(request'.operation)]_vars
   /\ [][ReconnectWorker =>
       /\ authority' = authority
-      /\ hostEffects' = hostEffects]_vars
+      /\ hostEffects' = hostEffects
+      /\ hostEffectCounts' = hostEffectCounts]_vars
 
 HostEffectAtMostOncePerOperation ==
   \A operation \in Operations:
-    Cardinality({effect \in hostEffects: effect.operation = operation}) <= 1
+    hostEffectCounts[operation] <= 1
+
+HostEffectCountMatchesObservations ==
+  \A operation \in Operations:
+    hostEffectCounts[operation] =
+      Cardinality({effect \in hostEffects: effect.operation = operation})
+
+HandoffRecordsExactlyOneEffectOccurrence ==
+  [][HandoffToHost =>
+      /\ hostEffectCounts'[request.operation] =
+           hostEffectCounts[request.operation] + 1
+      /\ \A operation \in Operations \ {request.operation}:
+           hostEffectCounts'[operation] = hostEffectCounts[operation]]_vars
+
+EffectCountAdvanceRequiresHandoff ==
+  [][hostEffectCounts' # hostEffectCounts => HandoffToHost]_vars
 
 HandoffRequiresLiveLease ==
   [][HandoffToHost =>
@@ -966,7 +991,8 @@ AdmittedHostIdentityChangeIsCachedAndEffectFree ==
       /\ cachedTransition' = "none"
       /\ requestPhase' = "none"
       /\ ~HasOperationEffect(request.operation)
-      /\ hostEffects' = hostEffects]_vars
+      /\ hostEffects' = hostEffects
+      /\ hostEffectCounts' = hostEffectCounts]_vars
 
 ExpiredAcceptedLeaseCannotRevive ==
   [][( /\ acceptedBinding # NoBinding
@@ -1006,13 +1032,15 @@ ExactReplayPreservesCachedResult ==
       /\ cachedTransition' = cachedTransition
       /\ terminalState' = terminalState
       /\ terminalHostEpoch' = terminalHostEpoch
-      /\ hostEffects' = hostEffects]_vars
+      /\ hostEffects' = hostEffects
+      /\ hostEffectCounts' = hostEffectCounts]_vars
 
 ExpiredCachedReplayIsStableAndEffectFree ==
   [][ReplayCachedExpiredLeaseResult =>
       /\ ~leaseValid[acceptedBinding.lease]
       /\ pendingResult' = CachedResult
-      /\ hostEffects' = hostEffects]_vars
+      /\ hostEffects' = hostEffects
+      /\ hostEffectCounts' = hostEffectCounts]_vars
 
 WorkerLossBeforeAdmissionIsUnknown ==
   [][LoseWorkerConnectionBeforeAdmission =>

@@ -791,7 +791,8 @@ RendererActions == {
   "init",
   "start-document",
   "ignored-navigation",
-  "finish-document"
+  "finish-document",
+  "fail-document"
 }
 
 VARIABLES
@@ -858,6 +859,15 @@ RendererFinishDocumentWithoutObservedStartBase ==
   /\ rendererPendingGeneration' = RendererNoGeneration
   /\ rendererControlGeneration' = rendererDocumentGeneration + 1
   /\ RendererRecord("finish-document", "main-document")
+
+\* A failed top-level load resolves the pending generation without restoring
+\* capabilities. A later document navigation may start a fresh generation.
+RendererFailDocumentBase ==
+  /\ rendererPendingGeneration # RendererNoGeneration
+  /\ rendererPendingGeneration' = RendererNoGeneration
+  /\ rendererControlGeneration' = RendererNoGeneration
+  /\ UNCHANGED rendererDocumentGeneration
+  /\ RendererRecord("fail-document", "main-document")
 
 \* window-state
 WindowDurableModes == {"normal", "maximized"}
@@ -1754,6 +1764,11 @@ RendererFinishDocumentWithoutObservedStart ==
   /\ RendererFinishDocumentWithoutObservedStartBase
   /\ UNCHANGED RendererOtherVars
 
+RendererFailDocument ==
+  /\ Scenario = "renderer-document"
+  /\ RendererFailDocumentBase
+  /\ UNCHANGED RendererOtherVars
+
 WindowSetWindowMode(nextMode) ==
   /\ Scenario = "window-state"
   /\ WindowSetWindowModeBase(nextMode)
@@ -1975,6 +1990,7 @@ Next ==
        RendererStartIgnoredNavigation(navigationKind)
   \/ RendererFinishDocument
   \/ RendererFinishDocumentWithoutObservedStart
+  \/ RendererFailDocument
   \/ \E nextMode \in WindowWindowModes: WindowSetWindowMode(nextMode)
   \/ WindowCapture
   \/ WindowProcessNext
@@ -2028,7 +2044,6 @@ Spec ==
   /\ WF_vars(DevelopmentHostStarts)
   /\ WF_vars(DevelopmentElectronStartsForHost)
   /\ WF_vars(DevelopmentCompleteHostRestart)
-  /\ WF_vars(RendererFinishDocument)
   /\ WF_vars(WindowProcessNext)
   /\ WF_vars(WindowCompleteFlush)
   /\ WF_vars(WindowDispose)
@@ -2245,10 +2260,10 @@ RendererDocumentFinishPublishesCurrentControls ==
     /\ rendererPendingGeneration = RendererNoGeneration
     /\ rendererControlGeneration = rendererDocumentGeneration
 
-RendererPendingDocumentEventuallyFinishes ==
-  rendererPendingGeneration # RendererNoGeneration ~>
+RendererDocumentFailureRetainsNoControls ==
+  rendererLastAction = "fail-document" =>
     /\ rendererPendingGeneration = RendererNoGeneration
-    /\ rendererControlGeneration = rendererDocumentGeneration
+    /\ rendererControlGeneration = RendererNoGeneration
 
 WindowTypeOK ==
   /\ windowMode \in WindowWindowModes

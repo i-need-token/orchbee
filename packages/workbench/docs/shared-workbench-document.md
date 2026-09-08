@@ -52,19 +52,25 @@ The effect command makes destructive disposition explicit: `terminal-close-reque
 retry. This command-only distinction lets the application archive a stopped terminal without
 changing the five shared intent forms or treating ordinary close as retained product history.
 
+The public stop retry is one batch operation over the current document: it restarts every
+retryable `stop-failed` or `close-failed` presentation with a fresh operation identity while
+preserving already-stopped and still-in-flight peers. A failed durability commit rolls the staged
+stop back before any close command, and starting a stopped placement allocates a fresh Presentation
+identity rather than reviving its retired binding.
+
 A Terminal Context may be structurally empty: allocation sequences start at `1`, while its Tab,
 Group, Panel, presentation, and pending-removal collections are empty. Slice 3.2A uses this existing
 valid shape for a Main-admitted remote Workspace, so durable placement can precede any authorized
 remote terminal effect without changing document version or schema shape.
 
-Slice 3.2B uses the same version-2 schema for one explicit first-terminal provision. A Main-owned
-mutation may replace that exact empty remote context with one top-level Tab, one primary Panel, and
-one `provision` presentation whose durable launch CWD is the admitted remote Directory path. The
-corresponding process effect is not document authority: Desktop derives its local or exact
-Environment target from canonical Project/Workspace containment, commits the matching intent first,
-and only then asks the target runtime to reconcile it. A Client may preserve or delete that complete
-remote placement and may report only the exact `provision`-to-`retain` convergence for the admitted
-presentation; it cannot create, retarget, or otherwise mutate remote terminal structure.
+Slice 3.2B uses the same version-2 schema for downstream provisioning of a durably committed remote
+Presentation. D194 permits a compatible ungrouped remote Terminal Context to contain multiple
+default top-level Tabs: each distinct correlated request has one deterministic Presentation
+identity, while exact replay reuses it. Desktop derives the exact Environment from canonical
+containment, commits each Presentation before its Host effect, and reconciles unknown outcomes by
+that Environment-plus-Presentation identity. Client mutation remains limited to the admitted
+metadata and exact whole-Tab close rules; it cannot forge Presentation, Workspace, launch CWD,
+Environment, or panel topology authority.
 
 Each shared Tab stores a durable fallback `title` and nullable durable `customTitle`. Product-created
 fallbacks are the localized unnumbered Terminal label; a custom title is the explicit user override.
@@ -187,8 +193,12 @@ broadcasts.
 | Remote provision remains target-exact and commit-first       | Workbench context tests plus Desktop routing, replay, and forgery tests         | Default top-level terminals; projection and input are outside this contract |
 | View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests         | Shared ordering is Desktop session authority                                |
 | Preview state cannot claim shared durability                 | Deterministic rejection test                                                    | Preview remains an in-memory composition                                    |
+| Application stop is durable before close and batch-retryable | `TerminalPresentationStop` plus document-transition tests                       | Two presentations/two attempts; metadata preservation is test-owned         |
 
 TLA+ is not selected for the general pure document/view projection because it contains no
 asynchronous completion, cancellation, or independently ordered event. The one-way v1-to-v2
 placement migration is separately covered by `WorkbenchDocumentPlacementMigration`; Desktop's
 commit/lifecycle and multi-client session models own their asynchronous ordering contracts.
+`TerminalPresentationStop` separately checks commit-before-close, all-current-retryable-failure retry,
+stopped-without-binding, and fresh replacement identity; deterministic transition tests retain the
+placement, title, and launch-CWD claim that is outside that model's state.

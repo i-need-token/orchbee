@@ -10,6 +10,10 @@ EXTENDS Naturals, TLC
 \* resize-owner viewport without letting mode-3 DECCOLM overwrite that target.
 \* A required terminal-reply admission failure fences the runtime after
 \* retaining the canonical mode or geometry commit.
+\* MaxProjections bounds one finite projection transaction. The maintained
+\* configuration uses one projection and therefore does not claim repeated
+\* synchronized-output re-entry; repeated cycles remain deterministic-test
+\* evidence.
 
 CONSTANTS Scenario, MaxInputBytes, MaxReplies, MaxTime, MaxGeometryRevision, MaxProjections
 
@@ -45,7 +49,6 @@ VARIABLES
   lastFocusSnapshot,
   lastSizeReplyRevision,
   projectionCount,
-  suppressedProjectionObserved,
   unsafeProjection,
   failureFenced
 
@@ -56,7 +59,7 @@ vars ==
     preparedFocusTarget, syncMode, syncDeadline, time, sizeMode,
     mode40, viewportGeometry, canonicalGeometry, lastGeometryAction,
     geometryRevision, replyCount, lastFocusReply, lastFocusSnapshot,
-    lastSizeReplyRevision, projectionCount, suppressedProjectionObserved,
+    lastSizeReplyRevision, projectionCount,
     unsafeProjection, failureFenced>>
 
 UnchangedGeometry ==
@@ -95,7 +98,6 @@ Init ==
   /\ lastFocusSnapshot = FALSE
   /\ lastSizeReplyRevision = 0
   /\ projectionCount = 0
-  /\ suppressedProjectionObserved = FALSE
   /\ unsafeProjection = FALSE
   /\ failureFenced = FALSE
 
@@ -112,8 +114,7 @@ SetLinefeedMode(enabled) ==
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
-                  lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 PrepareClientInput(sourceBytes, carriageReturns) ==
@@ -136,8 +137,7 @@ PrepareClientInput(sourceBytes, carriageReturns) ==
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
-                  lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 CommitPreparedInput ==
@@ -155,7 +155,7 @@ CommitPreparedInput ==
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection, failureFenced>>
 
 CancelPreparedInput ==
@@ -171,8 +171,7 @@ CancelPreparedInput ==
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
-                  lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 DrainClientInput ==
@@ -186,7 +185,7 @@ DrainClientInput ==
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection, failureFenced>>
 
 PrepareFocus(target) ==
@@ -203,8 +202,7 @@ PrepareFocus(target) ==
                   preparedCharge, clientInputBytes, focusMode, focused,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
-                  lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 CommitPreparedFocus ==
@@ -222,7 +220,7 @@ CommitPreparedFocus ==
                   preparedCharge, clientInputBytes, focusMode, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection, failureFenced>>
 
 RejectStalePreparedFocus ==
@@ -238,8 +236,7 @@ RejectStalePreparedFocus ==
                   preparedCharge, clientInputBytes, focusMode, focused,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
-                  lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 EnableFocusReporting ==
@@ -257,8 +254,7 @@ EnableFocusReporting ==
                   preparedCharge, clientInputBytes, focused, focusPrepared,
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision,
-                  lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 FailFocusEnableReply ==
@@ -275,7 +271,7 @@ FailFocusEnableReply ==
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection>>
 
 DisableFocusReporting ==
@@ -290,7 +286,7 @@ DisableFocusReporting ==
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection, failureFenced>>
 
 EnableSynchronizedOutput ==
@@ -305,8 +301,7 @@ EnableSynchronizedOutput ==
                   preparedCharge, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, geometryRevision, replyCount, lastFocusReply,
-                  lastFocusSnapshot, lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastFocusSnapshot, lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 DisableSynchronizedOutput ==
@@ -321,8 +316,7 @@ DisableSynchronizedOutput ==
                   preparedCharge, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, geometryRevision, replyCount, lastFocusReply,
-                  lastFocusSnapshot, lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastFocusSnapshot, lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 AdvanceTime ==
@@ -336,8 +330,7 @@ AdvanceTime ==
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
-                  lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 SuppressProjection ==
@@ -346,7 +339,6 @@ SuppressProjection ==
   /\ ~failureFenced
   /\ syncMode
   /\ time < syncDeadline
-  /\ suppressedProjectionObserved' = TRUE
   /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
                   preparedCharge, clientInputBytes, focusMode, focused,
@@ -371,8 +363,7 @@ ExpireSynchronizedOutput ==
                   preparedCharge, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, geometryRevision, replyCount, lastFocusReply,
-                  lastFocusSnapshot, lastSizeReplyRevision,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastFocusSnapshot, lastSizeReplyRevision, unsafeProjection,
                   failureFenced>>
 
 CaptureProjection ==
@@ -389,7 +380,7 @@ CaptureProjection ==
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
-                  lastSizeReplyRevision, suppressedProjectionObserved,
+                  lastSizeReplyRevision,
                   failureFenced>>
 
 EnableInBandSizeReports ==
@@ -406,8 +397,7 @@ EnableInBandSizeReports ==
                   preparedCharge, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, geometryRevision,
-                  lastFocusReply, lastFocusSnapshot, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastFocusReply, lastFocusSnapshot, projectionCount, unsafeProjection,
                   failureFenced>>
 
 FailInBandSizeEnableReply ==
@@ -424,7 +414,7 @@ FailInBandSizeEnableReply ==
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection>>
 
 DisableInBandSizeReports ==
@@ -439,7 +429,7 @@ DisableInBandSizeReports ==
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection, failureFenced>>
 
 CommitGeometry(target, nextViewport, nextMode40, source) ==
@@ -464,7 +454,7 @@ CommitGeometry(target, nextViewport, nextMode40, source) ==
                   preparedCharge, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, lastFocusReply, lastFocusSnapshot,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection, failureFenced>>
 
 FailGeometryReply(target, nextViewport, nextMode40, source) ==
@@ -488,8 +478,7 @@ FailGeometryReply(target, nextViewport, nextMode40, source) ==
                   preparedCharge, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, replyCount, lastFocusReply, lastFocusSnapshot,
-                  lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection>>
+                  lastSizeReplyRevision, projectionCount, unsafeProjection>>
 
 ResizeGeometry(target) ==
   /\ Scenario = "geometry"
@@ -520,7 +509,7 @@ RefreshViewportGeometry(target) ==
                   syncMode, syncDeadline, time, sizeMode, mode40,
                   canonicalGeometry, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection, failureFenced>>
 
 SetColumnModeGeometry(target) ==
@@ -553,7 +542,7 @@ SetMode40AtViewport(enabled) ==
                   syncMode, syncDeadline, time, sizeMode, viewportGeometry,
                   canonicalGeometry, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection, failureFenced>>
 
 RestoreViewportOnMode40(enabled) ==
@@ -585,8 +574,7 @@ ResetModes ==
                   preparedFocusMode, preparedFocusTarget, time,
                   viewportGeometry, canonicalGeometry, lastGeometryAction,
                   geometryRevision, replyCount, lastFocusReply,
-                  lastFocusSnapshot, lastSizeReplyRevision, projectionCount,
-                  suppressedProjectionObserved, unsafeProjection,
+                  lastFocusSnapshot, lastSizeReplyRevision, projectionCount, unsafeProjection,
                   failureFenced>>
 
 DrainReply ==
@@ -599,7 +587,7 @@ DrainReply ==
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
-                  projectionCount, suppressedProjectionObserved,
+                  projectionCount,
                   unsafeProjection, failureFenced>>
 
 Next ==
@@ -667,7 +655,6 @@ TypeOK ==
   /\ lastFocusSnapshot \in BOOLEAN
   /\ lastSizeReplyRevision \in 0..MaxGeometryRevision
   /\ projectionCount \in 0..MaxProjections
-  /\ suppressedProjectionObserved \in BOOLEAN
   /\ unsafeProjection \in BOOLEAN
   /\ failureFenced \in BOOLEAN
 

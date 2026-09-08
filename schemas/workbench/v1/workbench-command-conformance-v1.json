@@ -1,0 +1,5924 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.snapshot.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009"
+			}
+		},
+		{
+			"name": "create-project",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "  exact  "
+				}
+			}
+		},
+		{
+			"name": "rename-project",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.rename",
+					"projectId": "00000000000000000000000000000002",
+					"label": "Renamed"
+				}
+			}
+		},
+		{
+			"name": "create-workspace",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "workspace.create",
+					"projectId": "00000000000000000000000000000002",
+					"label": "Workspace"
+				}
+			}
+		},
+		{
+			"name": "rename-workspace",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "workspace.rename",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"label": "Workspace"
+				}
+			}
+		},
+		{
+			"name": "create-standalone-tab",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					}
+				}
+			}
+		},
+		{
+			"name": "rename-tab-exact-control-whitespace-unicode-label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"label": " \tLine\n\u0000蜂🐝 "
+				}
+			}
+		},
+		{
+			"name": "rename-tab-unicode-label-boundary",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"label": "🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝"
+				}
+			}
+		},
+		{
+			"name": "tab-geometry-scalar-maximum",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "maximum",
+					"geometry": {
+						"columns": 1,
+						"rows": 1,
+						"cellPixelWidth": 4096,
+						"cellPixelHeight": 4096
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-geometry-grid-product-boundary",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "grid-boundary",
+					"geometry": {
+						"columns": 4096,
+						"rows": 64,
+						"cellPixelWidth": 15,
+						"cellPixelHeight": 1023
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-geometry-pixel-product-boundaries",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "pixel-boundaries",
+					"geometry": {
+						"columns": 255,
+						"rows": 255,
+						"cellPixelWidth": 257,
+						"cellPixelHeight": 257
+					}
+				}
+			}
+		},
+		{
+			"name": "unicode-label-bound",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝"
+				}
+			}
+		},
+		{
+			"name": "project-created",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "project-created",
+					"revision": "1",
+					"projectId": "00000000000000000000000000000002"
+				}
+			}
+		},
+		{
+			"name": "workspace-created",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "workspace-created",
+					"revision": "2",
+					"workspaceId": "00000000000000000000000000000003",
+					"terminalContextId": "00000000000000000000000000000004"
+				}
+			}
+		},
+		{
+			"name": "renamed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "renamed",
+					"revision": "3"
+				}
+			}
+		},
+		{
+			"name": "unchanged",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unchanged",
+					"revision": "18446744073709551615"
+				}
+			}
+		},
+		{
+			"name": "tab-create-pending",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-create-pending",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007"
+				}
+			}
+		},
+		{
+			"name": "tab-created-started",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "started",
+						"geometry": {
+							"columns": 120,
+							"rows": 36,
+							"cellPixelWidth": 9,
+							"cellPixelHeight": 18
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-terminal-runtime-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "unavailable",
+						"reason": "terminal-runtime-unavailable"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-server-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "unavailable",
+						"reason": "server-busy"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-terminal-create-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "failed",
+						"reason": "terminal-create-failed"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-outcome-unknown",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "outcome-unknown"
+					}
+				}
+			}
+		},
+		{
+			"name": "site-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "site-mismatch"
+				}
+			}
+		},
+		{
+			"name": "revision-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "revision-mismatch"
+				}
+			}
+		},
+		{
+			"name": "project-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "project-unavailable"
+				}
+			}
+		},
+		{
+			"name": "workspace-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "workspace-unavailable"
+				}
+			}
+		},
+		{
+			"name": "terminal-context-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "terminal-context-unavailable"
+				}
+			}
+		},
+		{
+			"name": "tab-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "7",
+					"reason": "tab-unavailable"
+				}
+			}
+		},
+		{
+			"name": "resource-limit",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "resource-limit"
+				}
+			}
+		},
+		{
+			"name": "identity-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "identity-exhausted"
+				}
+			}
+		},
+		{
+			"name": "revision-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "revision-exhausted"
+				}
+			}
+		},
+		{
+			"name": "request-identity-conflict",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "request-identity-conflict"
+				}
+			}
+		},
+		{
+			"name": "denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "ledger-full",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "request-ledger-full"
+				}
+			}
+		},
+		{
+			"name": "no-compatible-worker",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "no-compatible-worker"
+				}
+			}
+		},
+		{
+			"name": "server-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "server-busy"
+				}
+			}
+		},
+		{
+			"name": "service-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "service-unavailable"
+				}
+			}
+		},
+		{
+			"name": "snapshot",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.snapshot.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"snapshot": {
+						"kind": "workbench.snapshot",
+						"navigation": {
+							"projects": [
+								{
+									"label": "Orchbee",
+									"projectId": "44444444444444444444444444444444",
+									"workspaces": [
+										{
+											"label": "Main",
+											"terminalContextId": "66666666666666666666666666666666",
+											"workspaceId": "55555555555555555555555555555555"
+										}
+									]
+								}
+							],
+							"standaloneTerminalContextId": "33333333333333333333333333333333"
+						},
+						"protocolVersion": 1,
+						"revision": "2",
+						"siteId": "11111111111111111111111111111111",
+						"terminalContexts": [
+							{
+								"groups": [],
+								"tabs": [
+									{
+										"groupId": null,
+										"label": "Shell",
+										"pinned": true,
+										"root": {
+											"childPresentations": [],
+											"kind": "panel",
+											"panelId": "99999999999999999999999999999999",
+											"primaryPresentation": {
+												"binding": {
+													"terminalId": "cccccccccccccccccccccccccccccccc",
+													"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+												},
+												"label": "Shell",
+												"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+											}
+										},
+										"tabId": "88888888888888888888888888888888"
+									}
+								],
+								"terminalContextId": "33333333333333333333333333333333"
+							},
+							{
+								"groups": [
+									{
+										"color": "blue",
+										"groupId": "77777777777777777777777777777777",
+										"label": "Development"
+									}
+								],
+								"tabs": [
+									{
+										"groupId": "77777777777777777777777777777777",
+										"label": "Split",
+										"pinned": false,
+										"root": {
+											"children": [
+												{
+													"node": {
+														"childPresentations": [],
+														"kind": "panel",
+														"panelId": "13131313131313131313131313131313",
+														"primaryPresentation": {
+															"binding": null,
+															"label": "Left",
+															"presentationId": "15151515151515151515151515151515"
+														}
+													},
+													"slotId": "ffffffffffffffffffffffffffffffff"
+												},
+												{
+													"node": {
+														"childPresentations": [],
+														"kind": "panel",
+														"panelId": "14141414141414141414141414141414",
+														"primaryPresentation": {
+															"binding": null,
+															"label": "Right",
+															"presentationId": "16161616161616161616161616161616"
+														}
+													},
+													"slotId": "12121212121212121212121212121212"
+												}
+											],
+											"kind": "split",
+											"orientation": "horizontal",
+											"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+										},
+										"tabId": "dddddddddddddddddddddddddddddddd"
+									}
+								],
+								"terminalContextId": "66666666666666666666666666666666"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "snapshot-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.snapshot.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "snapshot-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.snapshot.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "service-unavailable"
+				}
+			}
+		},
+		{
+			"name": "move-tab-previous",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "previous"
+				}
+			}
+		},
+		{
+			"name": "move-tab-next",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "move-tab-first",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "first"
+				}
+			}
+		},
+		{
+			"name": "move-tab-last",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "last"
+				}
+			}
+		},
+		{
+			"name": "tab-moved",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-command",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-accepted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-resume",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-closing-queued",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-closing-waiting-grace",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "waiting-grace"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-closing-waiting-outcome",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "waiting-outcome"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-closing-disposing",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "disposing"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-blocked-worker-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "worker-unavailable",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-blocked-host-refused",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "host-refused",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-blocked-cleanup-incomplete",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "cleanup-incomplete",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-blocked-inventory-incomplete",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "inventory-incomplete",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-blocked-identity-conflict",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "identity-conflict",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-blocked-continuation-budget-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "continuation-budget-exhausted",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-blocked-resume-generation-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "resume-generation-exhausted",
+						"resumable": false
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-unknown-terminate",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "outcome-unknown",
+						"phase": "terminate",
+						"reason": "transport-lost"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-unknown-force",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "outcome-unknown",
+						"phase": "force",
+						"reason": "deadline"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-unknown-dispose",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "outcome-unknown",
+						"phase": "dispose",
+						"reason": "invalid-response"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-disposed-target-cleanup-pending",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "disposed-awaiting-publication",
+						"reason": "target-cleanup-pending",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-disposed-preparing",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "disposed-awaiting-publication",
+						"reason": "preparing",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-disposed-preparation-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "disposed-awaiting-publication",
+						"reason": "preparation-failed",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-disposed-authority-retired",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "disposed-awaiting-publication",
+						"reason": "authority-retired",
+						"resumable": false
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-closed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closed",
+						"revision": "8"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-read-not-closing",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "not-closing"
+				}
+			}
+		},
+		{
+			"name": "tab-close-read-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "tab-close-read-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "server-busy"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-resumed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-stale",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "stale",
+					"attemptGeneration": "3"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-server-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "server-busy"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-operation-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "operation-unavailable"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-operation-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "operation-mismatch"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-request-identity-conflict",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "request-identity-conflict"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-generation-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "generation-mismatch"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-not-resumable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "not-resumable"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-generation-exhausted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "generation-exhausted"
+				}
+			}
+		},
+		{
+			"name": "tab-close-command-terminal-busy",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "terminal-busy"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-generation-1",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-status-generation-1",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closed",
+						"revision": "18446744073709551615"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-generation-1",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "1"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-generation-18446744073709551615",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "18446744073709551615"
+			}
+		},
+		{
+			"name": "tab-close-status-generation-18446744073709551615",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "18446744073709551615",
+					"status": {
+						"kind": "closed",
+						"revision": "18446744073709551615"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-generation-18446744073709551615",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "18446744073709551615"
+				}
+			}
+		},
+		{
+			"name": "tab-close-accepted-revision-0",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "0"
+				}
+			}
+		},
+		{
+			"name": "tab-close-accepted-revision-18446744073709551615",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "18446744073709551615"
+				}
+			}
+		},
+		{
+			"name": "command-uses-terminal-unavailable-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "terminal-runtime-unavailable"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "tab-create-grid-product-overflow",
+			"direction": "request",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "grid-overflow",
+					"geometry": {
+						"columns": 4096,
+						"rows": 65,
+						"cellPixelWidth": 1,
+						"cellPixelHeight": 1
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-create-pixel-width-product-overflow",
+			"direction": "request",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "width-overflow",
+					"geometry": {
+						"columns": 4096,
+						"rows": 1,
+						"cellPixelWidth": 16,
+						"cellPixelHeight": 1
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-create-pixel-height-product-overflow",
+			"direction": "request",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "height-overflow",
+					"geometry": {
+						"columns": 1,
+						"rows": 4096,
+						"cellPixelWidth": 1,
+						"cellPixelHeight": 16
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-grid-product-overflow",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "started",
+						"geometry": {
+							"columns": 4096,
+							"rows": 65,
+							"cellPixelWidth": 1,
+							"cellPixelHeight": 1
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-pixel-width-product-overflow",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "started",
+						"geometry": {
+							"columns": 4096,
+							"rows": 1,
+							"cellPixelWidth": 16,
+							"cellPixelHeight": 1
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-pixel-height-product-overflow",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "started",
+						"geometry": {
+							"columns": 1,
+							"rows": 4096,
+							"cellPixelWidth": 1,
+							"cellPixelHeight": 16
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-rename-missing-terminal-context",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"tabId": "00000000000000000000000000000005",
+					"label": "Renamed tab"
+				}
+			}
+		},
+		{
+			"name": "tab-rename-missing-tab",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "Renamed tab"
+				}
+			}
+		},
+		{
+			"name": "tab-rename-missing-label",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-rename-extra-field",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"label": "Renamed tab",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-rename-zero-terminal-context",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"terminalContextId": "00000000000000000000000000000000",
+					"tabId": "00000000000000000000000000000005",
+					"label": "Renamed tab"
+				}
+			}
+		},
+		{
+			"name": "tab-rename-zero-tab",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000000",
+					"label": "Renamed tab"
+				}
+			}
+		},
+		{
+			"name": "tab-rename-empty-label",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"label": ""
+				}
+			}
+		},
+		{
+			"name": "tab-rename-label-overflow",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.rename",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"label": "🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝🐝"
+				}
+			}
+		},
+		{
+			"name": "tab-unavailable-leaks-tab",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "7",
+					"reason": "tab-unavailable",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "command-unavailable-uses-tab-rejection-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "tab-unavailable"
+				}
+			}
+		},
+		{
+			"name": "client-allocated-id",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "Project",
+					"projectId": "00000000000000000000000000000002"
+				}
+			}
+		},
+		{
+			"name": "empty-label",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": ""
+				}
+			}
+		},
+		{
+			"name": "long-label",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			}
+		},
+		{
+			"name": "unknown-action",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.delete",
+					"label": "Project"
+				}
+			}
+		},
+		{
+			"name": "missing-site",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "Project"
+				}
+			}
+		},
+		{
+			"name": "zero-request",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000000",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "Project"
+				}
+			}
+		},
+		{
+			"name": "number-revision",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": 0,
+				"action": {
+					"kind": "project.create",
+					"label": "Project"
+				}
+			}
+		},
+		{
+			"name": "noncanonical-revision",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "01",
+				"action": {
+					"kind": "project.create",
+					"label": "Project"
+				}
+			}
+		},
+		{
+			"name": "overflow-revision",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "18446744073709551616",
+				"action": {
+					"kind": "project.create",
+					"label": "Project"
+				}
+			}
+		},
+		{
+			"name": "unsupported-version",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 2,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "Project"
+				}
+			}
+		},
+		{
+			"name": "workspace-missing-project",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "workspace.rename",
+					"workspaceId": "00000000000000000000000000000003",
+					"label": "W"
+				}
+			}
+		},
+		{
+			"name": "created-missing-id",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "project-created",
+					"revision": "1"
+				}
+			}
+		},
+		{
+			"name": "denial-leaks-revision",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "denied",
+					"revision": "1"
+				}
+			}
+		},
+		{
+			"name": "unknown-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "1",
+					"reason": "maybe"
+				}
+			}
+		},
+		{
+			"name": "tab-create-missing-geometry",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-create-client-allocated-identity",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"tabId": "00000000000000000000000000000005",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-create-pending-missing-presentation",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-create-pending",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006"
+				}
+			}
+		},
+		{
+			"name": "tab-created-missing-terminal-outcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007"
+				}
+			}
+		},
+		{
+			"name": "terminal-outcome-unknown-has-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "outcome-unknown",
+						"reason": "terminal-create-failed"
+					}
+				}
+			}
+		},
+		{
+			"name": "snapshot-uses-command-unavailable-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.snapshot.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "server-busy"
+				}
+			}
+		},
+		{
+			"name": "terminal-unavailable-uses-command-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "unavailable",
+						"reason": "service-unavailable"
+					}
+				}
+			}
+		},
+		{
+			"name": "terminal-failure-uses-unavailable-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "failed",
+						"reason": "server-busy"
+					}
+				}
+			}
+		},
+		{
+			"name": "nested-snapshot-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.snapshot.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"snapshot": {
+						"navigation": {
+							"projects": [
+								{
+									"label": "Orchbee",
+									"projectId": "44444444444444444444444444444444",
+									"workspaces": [
+										{
+											"label": "Main",
+											"terminalContextId": "66666666666666666666666666666666",
+											"workspaceId": "55555555555555555555555555555555"
+										}
+									]
+								}
+							],
+							"standaloneTerminalContextId": "33333333333333333333333333333333"
+						},
+						"protocolVersion": 1,
+						"revision": "2",
+						"siteId": "11111111111111111111111111111111",
+						"terminalContexts": [
+							{
+								"groups": [],
+								"tabs": [
+									{
+										"groupId": null,
+										"label": "Shell",
+										"pinned": true,
+										"root": {
+											"childPresentations": [],
+											"kind": "panel",
+											"panelId": "99999999999999999999999999999999",
+											"primaryPresentation": {
+												"binding": {
+													"terminalId": "cccccccccccccccccccccccccccccccc",
+													"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+												},
+												"label": "Shell",
+												"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+											}
+										},
+										"tabId": "88888888888888888888888888888888"
+									}
+								],
+								"terminalContextId": "33333333333333333333333333333333"
+							},
+							{
+								"groups": [
+									{
+										"color": "blue",
+										"groupId": "77777777777777777777777777777777",
+										"label": "Development"
+									}
+								],
+								"tabs": [
+									{
+										"groupId": "77777777777777777777777777777777",
+										"label": "Split",
+										"pinned": false,
+										"root": {
+											"children": [
+												{
+													"node": {
+														"childPresentations": [],
+														"kind": "panel",
+														"panelId": "13131313131313131313131313131313",
+														"primaryPresentation": {
+															"binding": null,
+															"label": "Left",
+															"presentationId": "15151515151515151515151515151515"
+														}
+													},
+													"slotId": "ffffffffffffffffffffffffffffffff"
+												},
+												{
+													"node": {
+														"childPresentations": [],
+														"kind": "panel",
+														"panelId": "14141414141414141414141414141414",
+														"primaryPresentation": {
+															"binding": null,
+															"label": "Right",
+															"presentationId": "16161616161616161616161616161616"
+														}
+													},
+													"slotId": "12121212121212121212121212121212"
+												}
+											],
+											"kind": "split",
+											"orientation": "horizontal",
+											"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+										},
+										"tabId": "dddddddddddddddddddddddddddddddd"
+									}
+								],
+								"terminalContextId": "66666666666666666666666666666666"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "nested-snapshot-semantic",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.snapshot.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"snapshot": {
+						"kind": "workbench.snapshot",
+						"navigation": {
+							"projects": [
+								{
+									"label": "Orchbee",
+									"projectId": "44444444444444444444444444444444",
+									"workspaces": [
+										{
+											"label": "Main",
+											"terminalContextId": "66666666666666666666666666666666",
+											"workspaceId": "55555555555555555555555555555555"
+										}
+									]
+								}
+							],
+							"standaloneTerminalContextId": "0000000000000000000000000000004d"
+						},
+						"protocolVersion": 1,
+						"revision": "2",
+						"siteId": "11111111111111111111111111111111",
+						"terminalContexts": [
+							{
+								"groups": [],
+								"tabs": [
+									{
+										"groupId": null,
+										"label": "Shell",
+										"pinned": true,
+										"root": {
+											"childPresentations": [],
+											"kind": "panel",
+											"panelId": "99999999999999999999999999999999",
+											"primaryPresentation": {
+												"binding": {
+													"terminalId": "cccccccccccccccccccccccccccccccc",
+													"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+												},
+												"label": "Shell",
+												"presentationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+											}
+										},
+										"tabId": "88888888888888888888888888888888"
+									}
+								],
+								"terminalContextId": "33333333333333333333333333333333"
+							},
+							{
+								"groups": [
+									{
+										"color": "blue",
+										"groupId": "77777777777777777777777777777777",
+										"label": "Development"
+									}
+								],
+								"tabs": [
+									{
+										"groupId": "77777777777777777777777777777777",
+										"label": "Split",
+										"pinned": false,
+										"root": {
+											"children": [
+												{
+													"node": {
+														"childPresentations": [],
+														"kind": "panel",
+														"panelId": "13131313131313131313131313131313",
+														"primaryPresentation": {
+															"binding": null,
+															"label": "Left",
+															"presentationId": "15151515151515151515151515151515"
+														}
+													},
+													"slotId": "ffffffffffffffffffffffffffffffff"
+												},
+												{
+													"node": {
+														"childPresentations": [],
+														"kind": "panel",
+														"panelId": "14141414141414141414141414141414",
+														"primaryPresentation": {
+															"binding": null,
+															"label": "Right",
+															"presentationId": "16161616161616161616161616161616"
+														}
+													},
+													"slotId": "12121212121212121212121212121212"
+												}
+											],
+											"kind": "split",
+											"orientation": "horizontal",
+											"splitId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+										},
+										"tabId": "dddddddddddddddddddddddddddddddd"
+									}
+								],
+								"terminalContextId": "66666666666666666666666666666666"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-move-missing-terminalContextId",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-missing-tabId",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-missing-direction",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-move-direction-unknown",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "left"
+				}
+			}
+		},
+		{
+			"name": "tab-move-direction-case",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "Next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-direction-empty",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": ""
+				}
+			}
+		},
+		{
+			"name": "tab-move-direction-number",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": 1
+				}
+			}
+		},
+		{
+			"name": "tab-move-direction-null",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": null
+				}
+			}
+		},
+		{
+			"name": "tab-move-terminalContextId-zero",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000000",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-terminalContextId-malformed",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "not-an-id",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-terminalContextId-uppercase",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-tabId-zero",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000000",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-tabId-malformed",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "not-an-id",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-tabId-uppercase",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-extra-label",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next",
+					"label": "moved"
+				}
+			}
+		},
+		{
+			"name": "tab-move-extra-index",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next",
+					"index": 1
+				}
+			}
+		},
+		{
+			"name": "tab-move-extra-geometry",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next",
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-move-wrong-kind-tab-move",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab-move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-move-wrong-kind-TabMove",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "TabMove",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-missing-revision",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-missing-terminalContextId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"revision": "8",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-missing-tabId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-zero-terminalContextId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000000",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-zero-tabId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000000"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-extra-direction",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-extra-panelId",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-extra-terminalOutcome",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"terminalOutcome": {
+						"kind": "outcome-unknown"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-moved-fields-incompatible-with-renamed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "renamed",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-fields-incompatible-with-unchanged",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unchanged",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-fields-incompatible-with-tab-created",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-fields-incompatible-with-tab.move",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab.move",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-moved-in-snapshot-result",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.snapshot.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-moved",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-close-extra-envelope",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				},
+				"extra": true
+			}
+		},
+		{
+			"name": "tab-close-close-missing-kind",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-close-missing-protocolVersion",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-close-missing-requestId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-close-missing-siteId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-close-missing-expectedRevision",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-close-missing-action",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7"
+			}
+		},
+		{
+			"name": "tab-close-close-zero-requestId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000000",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-close-zero-siteId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000000",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-accepted-extra-envelope",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				},
+				"extra": true
+			}
+		},
+		{
+			"name": "tab-close-accepted-missing-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-accepted-missing-protocolVersion",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-accepted-missing-requestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-accepted-missing-outcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009"
+			}
+		},
+		{
+			"name": "tab-close-accepted-zero-requestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000000",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-read-extra-envelope",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"extra": true
+			}
+		},
+		{
+			"name": "tab-close-read-missing-kind",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-read-missing-protocolVersion",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-read-missing-requestId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-read-missing-siteId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-read-missing-terminalContextId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-read-missing-tabId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004"
+			}
+		},
+		{
+			"name": "tab-close-read-zero-requestId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000000",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-read-zero-siteId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000000",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-read-zero-terminalContextId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000000",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-read-zero-tabId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000000"
+			}
+		},
+		{
+			"name": "tab-close-status-extra-envelope",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "host-refused",
+						"resumable": true
+					}
+				},
+				"extra": true
+			}
+		},
+		{
+			"name": "tab-close-status-missing-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "host-refused",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-status-missing-protocolVersion",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "host-refused",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-status-missing-requestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "host-refused",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-status-missing-outcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009"
+			}
+		},
+		{
+			"name": "tab-close-status-zero-requestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000000",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "host-refused",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-extra-envelope",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1",
+				"extra": true
+			}
+		},
+		{
+			"name": "tab-close-resume-missing-kind",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-missing-protocolVersion",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-missing-requestId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-missing-siteId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-missing-terminalContextId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-missing-tabId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-missing-closeRequestId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-missing-expectedAttemptGeneration",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008"
+			}
+		},
+		{
+			"name": "tab-close-resume-zero-requestId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000000",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-zero-siteId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000000",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-zero-terminalContextId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000000",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-zero-tabId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000000",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resume-zero-closeRequestId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000000",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resumed-extra-envelope",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				},
+				"extra": true
+			}
+		},
+		{
+			"name": "tab-close-resumed-missing-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-missing-protocolVersion",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-missing-requestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-missing-siteId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-missing-terminalContextId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-missing-tabId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-missing-closeRequestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-missing-outcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008"
+			}
+		},
+		{
+			"name": "tab-close-resumed-zero-requestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000000",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-zero-siteId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000000",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-zero-terminalContextId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000000",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-zero-tabId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000000",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resumed-zero-closeRequestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000000",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-extra-action",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"extra": true
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-action-kind",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-action-terminalContextId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-action-tabId",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004"
+				}
+			}
+		},
+		{
+			"name": "tab-close-extra-accepted-outcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7",
+					"extra": true
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-accepted-outcome-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-accepted-outcome-closeRequestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-accepted-outcome-terminalContextId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-accepted-outcome-tabId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-accepted-outcome-acceptedRevision",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-extra-available",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					},
+					"extra": true
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-available-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-available-closeRequestId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-available-terminalContextId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-available-tabId",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-available-attemptGeneration",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-available-status",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1"
+				}
+			}
+		},
+		{
+			"name": "tab-close-extra-status",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued",
+						"extra": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-status-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-status-phase",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-extra-resume-outcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2",
+					"extra": true
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-resume-outcome-kind",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"attemptGeneration": "2"
+				}
+			}
+		},
+		{
+			"name": "tab-close-missing-resume-outcome-attemptGeneration",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"0\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "0"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"0\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "0",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"0\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "0"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"00\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "00"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"00\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "00",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"00\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "00"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"01\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "01"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"01\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "01",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"01\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "01"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"+1\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "+1"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"+1\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "+1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"+1\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "+1"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"-1\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "-1"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"-1\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "-1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"-1\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "-1"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"1.0\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1.0"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"1.0\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1.0",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"1.0\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "1.0"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"1e0\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1e0"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"1e0\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1e0",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"1e0\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "1e0"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\" 1\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": " 1"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\" 1\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": " 1",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\" 1\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": " 1"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"1 \"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1 "
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"1 \"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1 ",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"1 \"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "1 "
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"18446744073709551616\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "18446744073709551616"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"18446744073709551616\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "18446744073709551616",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"18446744073709551616\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "18446744073709551616"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-\"999999999999999999999\"",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "999999999999999999999"
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-\"999999999999999999999\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "999999999999999999999",
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-\"999999999999999999999\"",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "999999999999999999999"
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-1",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": 1
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-1",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": 1,
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-1",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": 1
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-0",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": 0
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-0",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": 0,
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-0",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": 0
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-expected-generation-null",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": null
+			}
+		},
+		{
+			"name": "tab-close-invalid-observed-generation-null",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": null,
+					"status": {
+						"kind": "closing",
+						"phase": "queued"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-resumed-generation-null",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": null
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-status-{\"kind\":\"closing\",\"phase\":\"terminate\"}",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closing",
+						"phase": "terminate"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-status-{\"kind\":\"outcome-unknown\",\"phase\":\"queued\",\"reason\":\"transport-lost\"}",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "outcome-unknown",
+						"phase": "queued",
+						"reason": "transport-lost"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-status-{\"kind\":\"outcome-unknown\",\"phase\":\"query\",\"reason\":\"deadline\"}",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "outcome-unknown",
+						"phase": "query",
+						"reason": "deadline"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-status-{\"kind\":\"outcome-unknown\",\"phase\":\"dispose\",\"reason\":\"server-busy\"}",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "outcome-unknown",
+						"phase": "dispose",
+						"reason": "server-busy"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-status-{\"kind\":\"cleanup-blocked\",\"reason\":\"transport-lost\",\"resumable\":true}",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "transport-lost",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-status-{\"kind\":\"cleanup-blocked\",\"reason\":\"host-refused\",\"resumable\":\"true\"}",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "host-refused",
+						"resumable": "true"
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-status-{\"kind\":\"disposed-awaiting-publication\",\"reason\":\"host-refused\",\"resumable\":true}",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "disposed-awaiting-publication",
+						"reason": "host-refused",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-invalid-status-{\"kind\":\"closed\",\"revision\":\"8\",\"resumable\":false}",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "closed",
+						"revision": "8",
+						"resumable": false
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-read-unavailable-wrong-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "service-unavailable"
+				}
+			}
+		},
+		{
+			"name": "tab-close-read-denied-extra-target",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "denied",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-unavailable-wrong-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "service-unavailable"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-rejection-wrong-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "rejected",
+					"reason": "revision-mismatch"
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-resumed-extra-expected-generation",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2",
+					"expectedAttemptGeneration": "1"
+				}
+			}
+		}
+	],
+	"invalidJson": [
+		{
+			"name": "duplicate-requestId",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"Project\"}}"
+		},
+		{
+			"name": "duplicate-siteId",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"Project\"}}"
+		},
+		{
+			"name": "duplicate-expectedRevision",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"Project\"}}"
+		},
+		{
+			"name": "duplicate-action",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"Project\"},\"action\":{\"kind\":\"project.create\",\"label\":\"Project\"}}"
+		},
+		{
+			"name": "duplicate-action-label",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"Project\",\"label\":\"Project\"}}"
+		},
+		{
+			"name": "duplicate-action-kind",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"kind\":\"project.create\",\"label\":\"Project\"}}"
+		},
+		{
+			"name": "tab-rename-duplicate-terminal-context",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.rename\",\"terminalContextId\":\"00000000000000000000000000000004\",\"terminalContextId\":\"00000000000000000000000000000006\",\"tabId\":\"00000000000000000000000000000005\",\"label\":\"Renamed tab\"}}"
+		},
+		{
+			"name": "tab-rename-duplicate-tab",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.rename\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"tabId\":\"00000000000000000000000000000006\",\"label\":\"Renamed tab\"}}"
+		},
+		{
+			"name": "duplicate-request-kind",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"Project\"}}"
+		},
+		{
+			"name": "trailing-json",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"Project\"}}{}"
+		},
+		{
+			"name": "isolated-surrogate-label",
+			"direction": "request",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"\\ud800\"}}"
+		},
+		{
+			"name": "tab-create-geometry-fractional-raw",
+			"direction": "request",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120.5,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"name": "tab-created-geometry-fractional-raw",
+			"direction": "response",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":120.5,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"name": "tab-create-geometry-negative-zero-raw",
+			"direction": "request",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":-0.0,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"name": "tab-created-geometry-negative-zero-raw",
+			"direction": "response",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":-0.0,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"name": "tab-create-geometry-unsafe-integer-raw",
+			"direction": "request",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":9007199254740992,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"name": "tab-created-geometry-unsafe-integer-raw",
+			"direction": "response",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":9007199254740992,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"name": "tab-create-geometry-nonfinite-raw",
+			"direction": "request",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":1e400,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"name": "tab-created-geometry-nonfinite-raw",
+			"direction": "response",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":1e400,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"name": "tab-create-geometry-scalar-bound-raw",
+			"direction": "request",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":4097,\"rows\":1,\"cellPixelWidth\":1,\"cellPixelHeight\":1}}}"
+		},
+		{
+			"name": "tab-created-geometry-scalar-bound-raw",
+			"direction": "response",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":4097,\"rows\":1,\"cellPixelWidth\":1,\"cellPixelHeight\":1}}}}"
+		},
+		{
+			"name": "tab-create-geometry-missing-member-raw",
+			"direction": "request",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"name": "tab-created-geometry-missing-member-raw",
+			"direction": "response",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"name": "tab-create-geometry-null-member-raw",
+			"direction": "request",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":null,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"name": "tab-created-geometry-null-member-raw",
+			"direction": "response",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":null,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"name": "tab-create-geometry-extra-member-raw",
+			"direction": "request",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18,\"pixelRatio\":2}}}"
+		},
+		{
+			"name": "tab-created-geometry-extra-member-raw",
+			"direction": "response",
+			"boundary": "schema",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18,\"pixelRatio\":2}}}}"
+		},
+		{
+			"name": "tab-create-geometry-duplicate-member",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
+		},
+		{
+			"name": "tab-created-geometry-duplicate-member",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}"
+		},
+		{
+			"name": "tab-move-duplicate-terminalContextId",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.move\",\"terminalContextId\":\"00000000000000000000000000000004\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"direction\":\"next\"}}"
+		},
+		{
+			"name": "tab-move-duplicate-tabId",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.move\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"tabId\":\"00000000000000000000000000000005\",\"direction\":\"next\"}}"
+		},
+		{
+			"name": "tab-move-duplicate-direction",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.move\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"direction\":\"next\",\"direction\":\"next\"}}"
+		},
+		{
+			"name": "tab-close-close-duplicate-envelope-key",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.close\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\"}}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-accepted-duplicate-envelope-key",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-close-accepted\",\"closeRequestId\":\"00000000000000000000000000000008\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"acceptedRevision\":\"7\"}}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-read-duplicate-envelope-key",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.tab-close.read\",\"protocolVersion\":1,\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\"}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-status-duplicate-envelope-key",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.tab-close.result\",\"protocolVersion\":1,\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"available\",\"closeRequestId\":\"00000000000000000000000000000008\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"attemptGeneration\":\"1\",\"status\":{\"kind\":\"cleanup-blocked\",\"reason\":\"host-refused\",\"resumable\":true}}}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-resume-duplicate-envelope-key",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.tab-close.resume\",\"protocolVersion\":1,\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"closeRequestId\":\"00000000000000000000000000000008\",\"expectedAttemptGeneration\":\"1\"}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-resumed-duplicate-envelope-key",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.tab-close.resume.result\",\"protocolVersion\":1,\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"closeRequestId\":\"00000000000000000000000000000008\",\"outcome\":{\"kind\":\"resumed\",\"attemptGeneration\":\"2\"}}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-duplicate-action",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.close\",\"kind\":\"tab.close\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\"}}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-duplicate-accepted-outcome",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-close-accepted\",\"kind\":\"tab-close-accepted\",\"closeRequestId\":\"00000000000000000000000000000008\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"acceptedRevision\":\"7\"}}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-duplicate-available",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.tab-close.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"available\",\"kind\":\"available\",\"closeRequestId\":\"00000000000000000000000000000008\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"attemptGeneration\":\"1\",\"status\":{\"kind\":\"closing\",\"phase\":\"queued\"}}}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-duplicate-status",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.tab-close.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"available\",\"closeRequestId\":\"00000000000000000000000000000008\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"attemptGeneration\":\"1\",\"status\":{\"kind\":\"closing\",\"kind\":\"closing\",\"phase\":\"queued\"}}}",
+			"boundary": "wire"
+		},
+		{
+			"name": "tab-close-duplicate-resume-outcome",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.tab-close.resume.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"closeRequestId\":\"00000000000000000000000000000008\",\"outcome\":{\"kind\":\"resumed\",\"kind\":\"resumed\",\"attemptGeneration\":\"2\"}}",
+			"boundary": "wire"
+		}
+	],
+	"validJson": [
+		{
+			"name": "numeric-version-1.0",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1.0,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"  exact  \"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"  exact  \"}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "  exact  "
+				}
+			}
+		},
+		{
+			"name": "numeric-version-1e0",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1e0,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"  exact  \"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"0\",\"action\":{\"kind\":\"project.create\",\"label\":\"  exact  \"}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "project.create",
+					"label": "  exact  "
+				}
+			}
+		},
+		{
+			"name": "tab-create-integral-decimal-and-exponent-geometry",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120.0,\"rows\":3.6e1,\"cellPixelWidth\":9e0,\"cellPixelHeight\":18.00}}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.create\",\"terminalContextId\":\"00000000000000000000000000000004\",\"label\":\"2\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 9,
+						"cellPixelHeight": 18
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-integral-decimal-and-exponent-geometry",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":1.2e2,\"rows\":36.0,\"cellPixelWidth\":9.00,\"cellPixelHeight\":1.8e1}}}}",
+			"canonicalJson": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-created\",\"revision\":\"8\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"panelId\":\"00000000000000000000000000000006\",\"presentationId\":\"00000000000000000000000000000007\",\"terminalOutcome\":{\"kind\":\"started\",\"geometry\":{\"columns\":120,\"rows\":36,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}}",
+			"canonical": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "started",
+						"geometry": {
+							"columns": 120,
+							"rows": 36,
+							"cellPixelWidth": 9,
+							"cellPixelHeight": 18
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-move-equivalent-encoding",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"direction\":\"n\\u0065xt\",\"tabId\":\"00000000000000000000000000000005\",\"terminalContextId\":\"00000000000000000000000000000004\",\"kind\":\"tab.move\"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.move\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"direction\":\"next\"}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.move",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"direction": "next"
+				}
+			}
+		},
+		{
+			"name": "tab-close-close-numeric-version-normalization",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.command\",\"protocolVersion\":1e0,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.close\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"expectedRevision\":\"7\",\"action\":{\"kind\":\"tab.close\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\"}}",
+			"canonical": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.close",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
+			"name": "tab-close-accepted-numeric-version-normalization",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1e0,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-close-accepted\",\"closeRequestId\":\"00000000000000000000000000000008\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"acceptedRevision\":\"7\"}}",
+			"canonicalJson": "{\"kind\":\"workbench.command.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"tab-close-accepted\",\"closeRequestId\":\"00000000000000000000000000000008\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"acceptedRevision\":\"7\"}}",
+			"canonical": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-close-accepted",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"acceptedRevision": "7"
+				}
+			}
+		},
+		{
+			"name": "tab-close-read-numeric-version-normalization",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.tab-close.read\",\"protocolVersion\":1e0,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\"}",
+			"canonicalJson": "{\"kind\":\"workbench.tab-close.read\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\"}",
+			"canonical": {
+				"kind": "workbench.tab-close.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005"
+			}
+		},
+		{
+			"name": "tab-close-status-numeric-version-normalization",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.tab-close.result\",\"protocolVersion\":1e0,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"available\",\"closeRequestId\":\"00000000000000000000000000000008\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"attemptGeneration\":\"1\",\"status\":{\"kind\":\"cleanup-blocked\",\"reason\":\"host-refused\",\"resumable\":true}}}",
+			"canonicalJson": "{\"kind\":\"workbench.tab-close.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"outcome\":{\"kind\":\"available\",\"closeRequestId\":\"00000000000000000000000000000008\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"attemptGeneration\":\"1\",\"status\":{\"kind\":\"cleanup-blocked\",\"reason\":\"host-refused\",\"resumable\":true}}}",
+			"canonical": {
+				"kind": "workbench.tab-close.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "available",
+					"closeRequestId": "00000000000000000000000000000008",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"attemptGeneration": "1",
+					"status": {
+						"kind": "cleanup-blocked",
+						"reason": "host-refused",
+						"resumable": true
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-close-resume-numeric-version-normalization",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.tab-close.resume\",\"protocolVersion\":1e0,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"closeRequestId\":\"00000000000000000000000000000008\",\"expectedAttemptGeneration\":\"1\"}",
+			"canonicalJson": "{\"kind\":\"workbench.tab-close.resume\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"closeRequestId\":\"00000000000000000000000000000008\",\"expectedAttemptGeneration\":\"1\"}",
+			"canonical": {
+				"kind": "workbench.tab-close.resume",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"expectedAttemptGeneration": "1"
+			}
+		},
+		{
+			"name": "tab-close-resumed-numeric-version-normalization",
+			"direction": "response",
+			"json": "{\"kind\":\"workbench.tab-close.resume.result\",\"protocolVersion\":1e0,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"closeRequestId\":\"00000000000000000000000000000008\",\"outcome\":{\"kind\":\"resumed\",\"attemptGeneration\":\"2\"}}",
+			"canonicalJson": "{\"kind\":\"workbench.tab-close.resume.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"closeRequestId\":\"00000000000000000000000000000008\",\"outcome\":{\"kind\":\"resumed\",\"attemptGeneration\":\"2\"}}",
+			"canonical": {
+				"kind": "workbench.tab-close.resume.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"terminalContextId": "00000000000000000000000000000004",
+				"tabId": "00000000000000000000000000000005",
+				"closeRequestId": "00000000000000000000000000000008",
+				"outcome": {
+					"kind": "resumed",
+					"attemptGeneration": "2"
+				}
+			}
+		}
+	]
+}

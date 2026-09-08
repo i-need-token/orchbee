@@ -153,8 +153,9 @@ async function verifyDeclarationConsumer(packageRoot, manifest, rootExport) {
 			`import * as packageApi from '${packageName}';\nvoid packageApi;\n`,
 		);
 		await execFileAsync(
-			join(workspaceRoot, 'node_modules', '.bin', 'tsc'),
+			process.execPath,
 			[
+				join(workspaceRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
 				'--noEmit',
 				'--strict',
 				'--skipLibCheck',

@@ -4,27 +4,33 @@ EXTENDS TLC
 \* Refines runtime-model claim TH-013 through RequestShutdown,
 \* AttemptShutdown, and CompleteShutdownPass. Two runtimes are retained because
 \* the promise under test is specifically that one failed shutdown attempt does
-\* not short-circuit the other runtime. Registry, broker, and terminal lifecycle
-\* details are intentionally absent from this teardown-pass proof.
+\* not short-circuit the other runtime. The one-pass result distinguishes clean
+\* completion from aggregate failure, and retained records make cleanup
+\* ownership falsifiable: a failed pass releases none of the runtimes.
 
 CONSTANTS Runtimes
 
-HostPhases == {"serving", "shutting_down", "stopped"}
+HostPhases == {"serving", "shutting_down", "pass_complete"}
+ShutdownResults == {"none", "clean", "failed"}
 
-VARIABLES hostPhase, attempted, failed
+VARIABLES hostPhase, attempted, failed, retained, shutdownResult
 
-vars == <<hostPhase, attempted, failed>>
+vars == <<hostPhase, attempted, failed, retained, shutdownResult>>
 
 Init ==
   /\ hostPhase = "serving"
   /\ attempted = {}
   /\ failed = {}
+  /\ retained = Runtimes
+  /\ shutdownResult = "none"
 
 RequestShutdown ==
   /\ hostPhase = "serving"
   /\ hostPhase' = "shutting_down"
   /\ attempted' = {}
   /\ failed' = {}
+  /\ shutdownResult' = "none"
+  /\ UNCHANGED retained
 
 AttemptShutdown(runtime, succeeds) ==
   /\ hostPhase = "shutting_down"
@@ -33,7 +39,7 @@ AttemptShutdown(runtime, succeeds) ==
   /\ succeeds \in BOOLEAN
   /\ attempted' = attempted \cup {runtime}
   /\ failed' = IF succeeds THEN failed ELSE failed \cup {runtime}
-  /\ UNCHANGED hostPhase
+  /\ UNCHANGED <<hostPhase, retained, shutdownResult>>
 
 ShutdownAttempt(runtime) ==
   \E succeeds \in BOOLEAN: AttemptShutdown(runtime, succeeds)
@@ -43,7 +49,9 @@ AllRuntimesAttempted == attempted = Runtimes
 CompleteShutdownPass ==
   /\ hostPhase = "shutting_down"
   /\ AllRuntimesAttempted
-  /\ hostPhase' = "stopped"
+  /\ hostPhase' = "pass_complete"
+  /\ shutdownResult' = IF failed = {} THEN "clean" ELSE "failed"
+  /\ retained' = IF failed = {} THEN {} ELSE retained
   /\ UNCHANGED <<attempted, failed>>
 
 Next ==
@@ -61,10 +69,21 @@ TypeOK ==
   /\ hostPhase \in HostPhases
   /\ attempted \subseteq Runtimes
   /\ failed \subseteq attempted
+  /\ retained \subseteq Runtimes
+  /\ shutdownResult \in ShutdownResults
 
 ShutdownIntegrity ==
-  /\ hostPhase = "serving" => attempted = {}
-  /\ hostPhase = "stopped" => AllRuntimesAttempted
+  /\ (hostPhase = "serving" => attempted = {})
+  /\ (hostPhase \in {"serving", "shutting_down"} =>
+       /\ retained = Runtimes
+       /\ shutdownResult = "none")
+  /\ (hostPhase = "pass_complete" =>
+       /\ AllRuntimesAttempted
+       /\ IF failed = {}
+            THEN /\ shutdownResult = "clean"
+                 /\ retained = {}
+            ELSE /\ shutdownResult = "failed"
+                 /\ retained = Runtimes)
 
 EveryAttemptIsRecorded ==
   [][\A runtime \in Runtimes, succeeds \in BOOLEAN:
@@ -72,6 +91,16 @@ EveryAttemptIsRecorded ==
          runtime \in attempted']_vars
 
 ShutdownEventuallyAttemptsEveryRuntime ==
-  [](hostPhase = "shutting_down" => <> (hostPhase = "stopped"))
+  [](hostPhase = "shutting_down" => <> (hostPhase = "pass_complete"))
+
+FailedPassRetainsOwnershipAndReportsFailure ==
+  [][CompleteShutdownPass /\ failed # {} =>
+       /\ shutdownResult' = "failed"
+       /\ retained' = Runtimes]_vars
+
+CleanPassReleasesOwnershipAndReportsClean ==
+  [][CompleteShutdownPass /\ failed = {} =>
+       /\ shutdownResult' = "clean"
+       /\ retained' = {}]_vars
 
 =============================================================================

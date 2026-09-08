@@ -1,5 +1,5 @@
 use orchbee_client_server_protocol::{
-    TerminalViewerAction as Feedback, ViewerSnapshotReason as Reason,
+    Geometry, TerminalViewerAction as Feedback, ViewerSnapshotReason as Reason,
 };
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HostEpoch, MessageRole, PayloadEncoding,
@@ -33,7 +33,17 @@ impl TerminalProjection {
     pub(crate) const fn blocked(&self) -> bool {
         self.frame.is_none()
     }
+    pub(crate) fn clear_frame(&mut self) {
+        self.frame = None;
+    }
     pub(crate) fn receive(&mut self, record: &[u8]) -> Result<Option<Feedback>, ()> {
+        self.receive_for_geometry(record, None)
+    }
+    pub(crate) fn receive_for_geometry(
+        &mut self,
+        record: &[u8],
+        expected_geometry: Option<Geometry>,
+    ) -> Result<Option<Feedback>, ()> {
         let envelope = decode_transport_envelope(record).map_err(|_| ())?;
         if envelope.protocol != CURRENT_PROTOCOL_VERSION
             || envelope.role != MessageRole::Event
@@ -58,7 +68,7 @@ impl TerminalProjection {
                 return Err(());
             }
             self.blocked_revision = Some(blocked.revision);
-            self.frame = None;
+            self.clear_frame();
             return Ok(None);
         }
         if !matches!(envelope.kind, 41 | 42)
@@ -89,6 +99,16 @@ impl TerminalProjection {
                 {
                     return Err(Reason::SequenceGap);
                 }
+                if frame.route.base_revision.is_none()
+                    && expected_geometry.is_some_and(|expected| {
+                        frame.geometry.columns != expected.columns()
+                            || frame.geometry.rows != expected.rows()
+                            || frame.geometry.cell_pixel_width != expected.cell_pixel_width()
+                            || frame.geometry.cell_pixel_height != expected.cell_pixel_height()
+                    })
+                {
+                    return Err(Reason::DimensionsMismatch);
+                }
                 self.apply(frame)
             });
         match result {
@@ -101,7 +121,7 @@ impl TerminalProjection {
                 }))
             }
             Err(reason) => {
-                self.frame = None;
+                self.clear_frame();
                 Ok(Some(Feedback::NeedSnapshot {
                     sequence: route.sequence,
                     reason,

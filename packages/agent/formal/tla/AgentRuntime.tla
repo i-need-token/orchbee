@@ -1,483 +1,695 @@
 --------------------------- MODULE AgentRuntime ---------------------------
 EXTENDS FiniteSets, Naturals, TLC
 
-AttentionSession == "attention-session"
-ReconnectSession == "reconnect-session"
-Sessions == {AttentionSession, ReconnectSession}
-PrimaryClient == "client-1"
-SecondaryClient == "client-2"
-Clients == {PrimaryClient, SecondaryClient}
+CONSTANTS
+  Scenario,
+  MaxRuntimeRevision,
+  MaxSequence,
+  MaxRequestVersion,
+  MaxTransportRevision
+
+ReducerScenario == "reducer"
+TransportScenario == "transport-order"
+Scenarios == {ReducerScenario, TransportScenario}
+
+Sessions == {"session-1", "session-2"}
+Clients == {"client-1", "client-2"}
+NoSession == "no-session"
+
 Lifecycles == {"unobserved", "live", "ended"}
 TurnStates == {"unknown", "active", "idle"}
 Outcomes == {"none", "succeeded", "failed", "canceled", "interrupted"}
 FreshnessStates == {"fresh", "stale", "disconnected"}
+VisibilityStates == {"detached", "unknown", "hidden", "visible"}
 Generations == 0..1
-MaxSequence == 6
-MaxRequestVersion == 1
-MaxPublicationRevision == 1
+
+SessionRecordType == [
+  lifecycle: Lifecycles,
+  turn: TurnStates,
+  pending: BOOLEAN,
+  outcome: Outcomes,
+  freshness: FreshnessStates,
+  generation: Generations,
+  sequence: 0..MaxSequence,
+  requestVersion: 0..MaxRequestVersion,
+  activity: BOOLEAN
+]
+
+EmptySession == [
+  lifecycle |-> "unobserved",
+  turn |-> "unknown",
+  pending |-> FALSE,
+  outcome |-> "none",
+  freshness |-> "disconnected",
+  generation |-> 0,
+  sequence |-> 0,
+  requestVersion |-> 0,
+  activity |-> FALSE
+]
+
+Actions == {
+  "init",
+  "correlation-half-received",
+  "trusted-half-received",
+  "joined-observation-accepted",
+  "session-observed",
+  "presentation-attached",
+  "client-hidden",
+  "client-visible",
+  "turn-started",
+  "turn-activity-changed",
+  "limited-activity-observed",
+  "attention-requested",
+  "client-acknowledged",
+  "attention-resolved",
+  "session-idle-observed",
+  "turn-succeeded",
+  "turn-failed",
+  "turn-canceled",
+  "turn-interrupted",
+  "presentation-detached",
+  "observation-became-stale",
+  "observation-reconnected",
+  "repeated-sequence-rejected",
+  "stale-sequence-rejected",
+  "wrong-generation-rejected",
+  "wrong-identity-rejected",
+  "invalid-observation-rejected",
+  "session-ended",
+  "snapshot-published",
+  "client-observed-publication",
+  "renderer-reconnected",
+  "eventful-transition-applied",
+  "event-snapshot-delivered",
+  "semantic-event-delivered"
+}
+
+CanonicalActionNames == {
+  "session-observed",
+  "presentation-attached",
+  "client-hidden",
+  "client-visible",
+  "turn-started",
+  "turn-activity-changed",
+  "limited-activity-observed",
+  "attention-requested",
+  "attention-resolved",
+  "session-idle-observed",
+  "turn-succeeded",
+  "turn-failed",
+  "turn-canceled",
+  "turn-interrupted",
+  "presentation-detached",
+  "observation-became-stale",
+  "observation-reconnected",
+  "session-ended"
+}
+
+RejectedActionNames == {
+  "repeated-sequence-rejected",
+  "stale-sequence-rejected",
+  "wrong-generation-rejected",
+  "wrong-identity-rejected",
+  "invalid-observation-rejected"
+}
 
 VARIABLES
-  lifecycle,
-  turn,
-  pending,
-  outcome,
-  freshness,
-  generation,
-  sequence,
-  requestVersion,
-  activityBit,
+  sessionState,
   attached,
-  visible,
+  sourceVisibility,
   correlationHalf,
   trustedHalf,
   joinAccepted,
   acknowledged,
   candidates,
-  publicationRevision,
+  runtimeRevision,
+  publishedRevision,
   publishedCanonical,
   clientRevision,
   clientCanonical,
   clientHasSnapshot,
-  rendererReconnected,
-  rejectionCount,
+  previousCanonical,
+  previousCandidates,
+  previousRuntimeRevision,
   lastAction,
-  previousLifecycle,
-  previousTurn,
-  previousPending,
-  previousOutcome,
-  previousFreshness,
-  previousGeneration,
-  previousSequence,
-  previousAttached,
-  previousCandidates
+  lastSession,
+  transportSourceRevision,
+  transportEventPending,
+  pendingEventRevision,
+  deliveredSnapshotRevision,
+  deliveredEventRevision
 
-canonical ==
-  <<lifecycle, turn, pending, outcome, freshness, generation, sequence,
-    requestVersion, activityBit, attached>>
+canonical == <<sessionState, attached, sourceVisibility>>
 
-vars ==
-  <<lifecycle, turn, pending, outcome, freshness, generation, sequence,
-    requestVersion, activityBit, attached, visible, correlationHalf,
-    trustedHalf, joinAccepted, acknowledged, candidates,
-    publicationRevision, publishedCanonical, clientRevision,
-    clientCanonical, clientHasSnapshot, rendererReconnected,
-    rejectionCount, lastAction, previousLifecycle, previousTurn,
-    previousPending, previousOutcome, previousFreshness,
-    previousGeneration, previousSequence, previousAttached,
-    previousCandidates>>
+CanonicalDomain ==
+  [Sessions -> SessionRecordType]
+    \X [Clients -> [Sessions -> BOOLEAN]]
+    \X [Clients -> [Sessions -> VisibilityStates]]
 
-Record(action) ==
-  /\ lastAction' = action
-  /\ previousLifecycle' = lifecycle
-  /\ previousTurn' = turn
-  /\ previousPending' = pending
-  /\ previousOutcome' = outcome
-  /\ previousFreshness' = freshness
-  /\ previousGeneration' = generation
-  /\ previousSequence' = sequence
-  /\ previousAttached' = attached
-  /\ previousCandidates' = candidates
+vars == <<
+  sessionState,
+  attached,
+  sourceVisibility,
+  correlationHalf,
+  trustedHalf,
+  joinAccepted,
+  acknowledged,
+  candidates,
+  runtimeRevision,
+  publishedRevision,
+  publishedCanonical,
+  clientRevision,
+  clientCanonical,
+  clientHasSnapshot,
+  previousCanonical,
+  previousCandidates,
+  previousRuntimeRevision,
+  lastAction,
+  lastSession,
+  transportSourceRevision,
+  transportEventPending,
+  pendingEventRevision,
+  deliveredSnapshotRevision,
+  deliveredEventRevision
+>>
 
-AttachedClientsFor(session) ==
+PublicationState == <<
+  publishedRevision,
+  publishedCanonical,
+  clientRevision,
+  clientCanonical,
+  clientHasSnapshot
+>>
+
+TransportState == <<
+  transportSourceRevision,
+  transportEventPending,
+  pendingEventRevision,
+  deliveredSnapshotRevision,
+  deliveredEventRevision
+>>
+
+AttachedClients(session) ==
   {client \in Clients: attached[client][session]}
 
-HasAttachment(session) == AttachedClientsFor(session) # {}
-
-AnyAttachmentVisible(session) ==
-  \E client \in AttachedClientsFor(session): visible[client][session]
+HasAttachment(session) == AttachedClients(session) # {}
 
 NotificationEligible(session) ==
-  HasAttachment(session) /\ ~AnyAttachmentVisible(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].freshness = "fresh"
+  /\ HasAttachment(session)
+  /\ \A client \in AttachedClients(session):
+       sourceVisibility[client][session] = "hidden"
+
+ReducerOpen ==
+  /\ Scenario = ReducerScenario
+  /\ publishedRevision = 0
+
+CanMutate(session) ==
+  /\ ReducerOpen
+  /\ runtimeRevision < MaxRuntimeRevision
+  /\ sessionState[session].sequence < MaxSequence
+
+RecordCanonical(action, session) ==
+  /\ runtimeRevision' = runtimeRevision + 1
+  /\ previousRuntimeRevision' = runtimeRevision
+  /\ previousCanonical' = canonical
+  /\ previousCandidates' = candidates
+  /\ lastAction' = action
+  /\ lastSession' = session
+
+RecordObserved(action, session) ==
+  /\ runtimeRevision' = runtimeRevision
+  /\ previousRuntimeRevision' = runtimeRevision
+  /\ previousCanonical' = canonical
+  /\ previousCandidates' = candidates
+  /\ lastAction' = action
+  /\ lastSession' = session
 
 Init ==
-  /\ lifecycle = [session \in Sessions |-> "unobserved"]
-  /\ turn = [session \in Sessions |-> "unknown"]
-  /\ pending = [session \in Sessions |-> FALSE]
-  /\ outcome = [session \in Sessions |-> "none"]
-  /\ freshness = [session \in Sessions |-> "disconnected"]
-  /\ generation = [session \in Sessions |-> 0]
-  /\ sequence = [session \in Sessions |-> 0]
-  /\ requestVersion = [session \in Sessions |-> 0]
-  /\ activityBit = [session \in Sessions |-> FALSE]
-  /\ attached = [client \in Clients |-> [session \in Sessions |-> FALSE]]
-  /\ visible = [client \in Clients |-> [session \in Sessions |-> FALSE]]
+  /\ Scenario \in Scenarios
+  /\ sessionState = [session \in Sessions |-> EmptySession]
+  /\ attached =
+       [client \in Clients |-> [session \in Sessions |-> FALSE]]
+  /\ sourceVisibility =
+       [client \in Clients |-> [session \in Sessions |-> "detached"]]
   /\ correlationHalf = [session \in Sessions |-> FALSE]
   /\ trustedHalf = [session \in Sessions |-> FALSE]
   /\ joinAccepted = [session \in Sessions |-> FALSE]
   /\ acknowledged = {}
   /\ candidates = {}
-  /\ publicationRevision = 0
+  /\ runtimeRevision = 0
+  /\ publishedRevision = 0
   /\ publishedCanonical = canonical
   /\ clientRevision = [client \in Clients |-> 0]
   /\ clientCanonical = [client \in Clients |-> canonical]
   /\ clientHasSnapshot = [client \in Clients |-> FALSE]
-  /\ rendererReconnected = FALSE
-  /\ rejectionCount = 0
+  /\ previousCanonical = canonical
+  /\ previousCandidates = {}
+  /\ previousRuntimeRevision = 0
   /\ lastAction = "init"
-  /\ previousLifecycle = lifecycle
-  /\ previousTurn = turn
-  /\ previousPending = pending
-  /\ previousOutcome = outcome
-  /\ previousFreshness = freshness
-  /\ previousGeneration = generation
-  /\ previousSequence = sequence
-  /\ previousAttached = attached
-  /\ previousCandidates = candidates
+  /\ lastSession = NoSession
+  /\ transportSourceRevision = 0
+  /\ transportEventPending = FALSE
+  /\ pendingEventRevision = 0
+  /\ deliveredSnapshotRevision = 0
+  /\ deliveredEventRevision = 0
 
 ReceiveCorrelationHalf(session) ==
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "unobserved"
+  /\ ReducerOpen
+  /\ sessionState[session].lifecycle = "unobserved"
   /\ ~correlationHalf[session]
   /\ correlationHalf' = [correlationHalf EXCEPT ![session] = TRUE]
-  /\ UNCHANGED <<canonical, visible, trustedHalf, joinAccepted,
-       acknowledged, candidates, publicationRevision,
-       publishedCanonical, clientRevision, clientCanonical,
-       clientHasSnapshot, rendererReconnected, rejectionCount>>
-  /\ Record("correlation-half-received")
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, trustedHalf,
+       joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordObserved("correlation-half-received", session)
 
 ReceiveTrustedHalf(session) ==
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "unobserved"
+  /\ ReducerOpen
+  /\ sessionState[session].lifecycle = "unobserved"
   /\ ~trustedHalf[session]
   /\ trustedHalf' = [trustedHalf EXCEPT ![session] = TRUE]
-  /\ UNCHANGED <<canonical, visible, correlationHalf, joinAccepted,
-       acknowledged, candidates, publicationRevision,
-       publishedCanonical, clientRevision, clientCanonical,
-       clientHasSnapshot, rendererReconnected, rejectionCount>>
-  /\ Record("trusted-half-received")
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordObserved("trusted-half-received", session)
 
 AcceptJoinedObservation(session) ==
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "unobserved"
+  /\ ReducerOpen
+  /\ sessionState[session].lifecycle = "unobserved"
   /\ correlationHalf[session]
   /\ trustedHalf[session]
   /\ ~joinAccepted[session]
   /\ joinAccepted' = [joinAccepted EXCEPT ![session] = TRUE]
-  /\ UNCHANGED <<canonical, visible, correlationHalf, trustedHalf,
-       acknowledged, candidates, publicationRevision,
-       publishedCanonical, clientRevision, clientCanonical,
-       clientHasSnapshot, rendererReconnected, rejectionCount>>
-  /\ Record("joined-observation-accepted")
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordObserved("joined-observation-accepted", session)
 
 SessionObserved(session) ==
-  /\ lifecycle[session] = "unobserved"
-  /\ IF session = AttentionSession
-       THEN joinAccepted[session]
-       ELSE session = ReconnectSession
-  /\ lifecycle' = [lifecycle EXCEPT ![session] = "live"]
-  /\ freshness' = [freshness EXCEPT ![session] = "fresh"]
-  /\ sequence' = [sequence EXCEPT ![session] = 1]
-  /\ attached' = [attached EXCEPT ![PrimaryClient][session] = TRUE]
-  /\ UNCHANGED <<turn, pending, outcome, generation, requestVersion,
-       activityBit, visible, correlationHalf, trustedHalf, joinAccepted,
-       acknowledged, candidates,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected,
-       rejectionCount>>
-  /\ Record("session-observed")
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "unobserved"
+  /\ joinAccepted[session]
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].lifecycle = "live",
+         ![session].freshness = "fresh",
+         ![session].sequence = 1]
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordCanonical("session-observed", session)
 
 AttachPresentation(client, session) ==
-  /\ client = SecondaryClient
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "live"
-  /\ sequence[session] = 1
-  /\ attached[PrimaryClient][session]
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
   /\ ~attached[client][session]
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].sequence = @ + 1]
   /\ attached' = [attached EXCEPT ![client][session] = TRUE]
-  /\ UNCHANGED <<lifecycle, turn, pending, outcome, freshness,
-       generation, sequence, requestVersion, activityBit, visible,
-       correlationHalf, trustedHalf, joinAccepted, acknowledged,
-       candidates, publicationRevision, publishedCanonical,
-       clientRevision, clientCanonical, clientHasSnapshot,
-       rendererReconnected, rejectionCount>>
-  /\ Record("presentation-attached")
-
-SetClientVisible(client, session) ==
-  /\ client = PrimaryClient
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "live"
-  /\ sequence[session] = 1
-  /\ attached[client][session]
-  /\ attached[SecondaryClient][session]
-  /\ ~visible[client][session]
-  /\ visible' = [visible EXCEPT ![client][session] = TRUE]
+  /\ sourceVisibility' =
+       [sourceVisibility EXCEPT ![client][session] = "unknown"]
   /\ candidates' = candidates \ {session}
-  /\ UNCHANGED <<canonical, correlationHalf, trustedHalf, joinAccepted,
-       acknowledged, publicationRevision,
-       publishedCanonical, clientRevision, clientCanonical,
-       clientHasSnapshot, rendererReconnected, rejectionCount>>
-  /\ Record("client-visible")
-
-TurnStarted(session) ==
-  /\ lifecycle[session] = "live"
-  /\ sequence[session] = 1
-  /\ IF session = AttentionSession
-       THEN visible[PrimaryClient][session] /\ attached[SecondaryClient][session]
-       ELSE session = ReconnectSession
-  /\ turn' = [turn EXCEPT ![session] = "active"]
-  /\ sequence' = [sequence EXCEPT ![session] = 2]
-  /\ candidates' = candidates \ {session}
-  /\ UNCHANGED <<lifecycle, pending, outcome, freshness, generation,
-       requestVersion, activityBit, attached, visible, correlationHalf,
-       trustedHalf, joinAccepted, acknowledged,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected,
-       rejectionCount>>
-  /\ Record("turn-started")
+  /\ UNCHANGED <<correlationHalf, trustedHalf, joinAccepted, acknowledged,
+       PublicationState, TransportState>>
+  /\ RecordCanonical("presentation-attached", session)
 
 SetClientHidden(client, session) ==
-  /\ client = PrimaryClient
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "live"
-  /\ turn[session] = "active"
-  /\ sequence[session] = 2
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
   /\ attached[client][session]
-  /\ visible[client][session]
-  /\ visible' = [visible EXCEPT ![client][session] = FALSE]
-  /\ UNCHANGED <<canonical, correlationHalf, trustedHalf, joinAccepted,
-       acknowledged, candidates, publicationRevision,
-       publishedCanonical, clientRevision, clientCanonical,
-       clientHasSnapshot, rendererReconnected, rejectionCount>>
-  /\ Record("client-hidden")
+  /\ sourceVisibility[client][session] # "hidden"
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].sequence = @ + 1]
+  /\ sourceVisibility' =
+       [sourceVisibility EXCEPT ![client][session] = "hidden"]
+  /\ candidates' = candidates \ {session}
+  /\ UNCHANGED <<attached, correlationHalf, trustedHalf, joinAccepted,
+       acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("client-hidden", session)
+
+SetClientVisible(client, session) ==
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ attached[client][session]
+  /\ sourceVisibility[client][session] # "visible"
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].sequence = @ + 1]
+  /\ sourceVisibility' =
+       [sourceVisibility EXCEPT ![client][session] = "visible"]
+  /\ candidates' = candidates \ {session}
+  /\ UNCHANGED <<attached, correlationHalf, trustedHalf, joinAccepted,
+       acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("client-visible", session)
+
+TurnStarted(session) ==
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].freshness = "fresh"
+  /\ sessionState[session].turn \in {"unknown", "idle"}
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].turn = "active",
+         ![session].pending = FALSE,
+         ![session].activity = FALSE,
+         ![session].sequence = @ + 1]
+  /\ candidates' = candidates \ {session}
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("turn-started", session)
 
 TurnActivityChanged(session) ==
-  /\ session = ReconnectSession
-  /\ lifecycle[session] = "live"
-  /\ turn[session] = "active"
-  /\ sequence[session] = 2
-  /\ activityBit' = [activityBit EXCEPT ![session] = TRUE]
-  /\ sequence' = [sequence EXCEPT ![session] = 3]
-  /\ UNCHANGED <<lifecycle, turn, pending, outcome, freshness,
-       generation, requestVersion, attached, visible, correlationHalf,
-       trustedHalf, joinAccepted, acknowledged, candidates,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected,
-       rejectionCount>>
-  /\ Record("turn-activity-changed")
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].turn = "active"
+  /\ ~sessionState[session].activity
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].activity = TRUE,
+         ![session].sequence = @ + 1]
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordCanonical("turn-activity-changed", session)
 
 LimitedActivityObserved(session) ==
-  /\ lifecycle[session] = "live"
-  /\ turn[session] = "unknown"
-  /\ sequence[session] = 1
-  /\ ~activityBit[session]
-  /\ activityBit' = [activityBit EXCEPT ![session] = TRUE]
-  /\ sequence' = [sequence EXCEPT ![session] = 2]
-  /\ UNCHANGED <<lifecycle, turn, pending, outcome, freshness,
-       generation, requestVersion, attached, visible, correlationHalf,
-       trustedHalf, joinAccepted, acknowledged, candidates,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected,
-       rejectionCount>>
-  /\ Record("limited-activity-observed")
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].turn = "unknown"
+  /\ ~sessionState[session].activity
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].activity = TRUE,
+         ![session].sequence = @ + 1]
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordCanonical("limited-activity-observed", session)
 
 AttentionRequested(session) ==
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "live"
-  /\ turn[session] = "active"
-  /\ sequence[session] = 2
-  /\ ~pending[session]
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].freshness = "fresh"
+  /\ sessionState[session].turn = "active"
+  /\ ~sessionState[session].pending
+  /\ sessionState[session].requestVersion < MaxRequestVersion
   /\ NotificationEligible(session)
-  /\ pending' = [pending EXCEPT ![session] = TRUE]
-  /\ requestVersion' = [requestVersion EXCEPT ![session] = 1]
-  /\ sequence' = [sequence EXCEPT ![session] = 3]
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].pending = TRUE,
+         ![session].requestVersion = @ + 1,
+         ![session].sequence = @ + 1]
   /\ candidates' = candidates \cup {session}
-  /\ UNCHANGED <<lifecycle, turn, outcome, freshness, generation,
-       activityBit, attached, visible, correlationHalf, trustedHalf,
-       joinAccepted, acknowledged, publicationRevision,
-       publishedCanonical, clientRevision, clientCanonical,
-       clientHasSnapshot, rendererReconnected, rejectionCount>>
-  /\ Record("attention-requested")
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("attention-requested", session)
 
 ClientAcknowledged(client, session) ==
-  /\ client = SecondaryClient
-  /\ session = AttentionSession
-  /\ sequence[session] = 3
-  /\ pending[session]
-  /\ <<client, session, requestVersion[session]>> \notin acknowledged
+  /\ ReducerOpen
+  /\ sessionState[session].pending
+  /\ attached[client][session]
+  /\ <<client, session, sessionState[session].requestVersion>>
+       \notin acknowledged
   /\ acknowledged' =
-       acknowledged \cup {<<client, session, requestVersion[session]>>}
+       acknowledged
+         \cup {<<client, session, sessionState[session].requestVersion>>}
   /\ candidates' = candidates \ {session}
-  /\ UNCHANGED <<canonical, visible, correlationHalf, trustedHalf,
-       joinAccepted, publicationRevision,
-       publishedCanonical, clientRevision, clientCanonical,
-       clientHasSnapshot, rendererReconnected, rejectionCount>>
-  /\ Record("client-acknowledged")
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, PublicationState, TransportState>>
+  /\ RecordObserved("client-acknowledged", session)
 
 AttentionResolved(session) ==
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "live"
-  /\ sequence[session] = 3
-  /\ pending[session]
-  /\ <<SecondaryClient, session, requestVersion[session]>> \in acknowledged
-  /\ pending' = [pending EXCEPT ![session] = FALSE]
-  /\ sequence' = [sequence EXCEPT ![session] = 4]
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].pending
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].pending = FALSE,
+         ![session].sequence = @ + 1]
   /\ candidates' = candidates \ {session}
-  /\ UNCHANGED <<lifecycle, turn, outcome, freshness, generation,
-       requestVersion, activityBit, attached, visible, correlationHalf,
-       trustedHalf, joinAccepted, acknowledged,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected,
-       rejectionCount>>
-  /\ Record("attention-resolved")
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("attention-resolved", session)
 
 SessionIdleObserved(session) ==
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "live"
-  /\ turn[session] = "active"
-  /\ sequence[session] = 4
-  /\ turn' = [turn EXCEPT ![session] = "idle"]
-  /\ pending' = [pending EXCEPT ![session] = FALSE]
-  /\ sequence' = [sequence EXCEPT ![session] = 5]
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].turn = "active"
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].turn = "idle",
+         ![session].pending = FALSE,
+         ![session].sequence = @ + 1]
   /\ candidates' = candidates \ {session}
-  /\ UNCHANGED <<lifecycle, outcome, freshness, generation,
-       requestVersion, activityBit, attached, visible, correlationHalf,
-       trustedHalf, joinAccepted, acknowledged,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected,
-       rejectionCount>>
-  /\ Record("session-idle-observed")
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("session-idle-observed", session)
 
-TurnFinished(session, result) ==
-  /\ session = AttentionSession
-  /\ result = "failed"
-  /\ lifecycle[session] = "live"
-  /\ turn[session] = "active"
-  /\ sequence[session] = 4
-  /\ turn' = [turn EXCEPT ![session] = "idle"]
-  /\ outcome' = [outcome EXCEPT ![session] = result]
-  /\ sequence' = [sequence EXCEPT ![session] = 5]
-  /\ candidates' = (candidates \ {session}) \cup {session}
-  /\ UNCHANGED <<lifecycle, pending, freshness, generation,
-       requestVersion, activityBit, attached, visible, correlationHalf,
-       trustedHalf, joinAccepted, acknowledged,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected,
-       rejectionCount>>
-  /\ Record("turn-finished")
+TurnSucceeded(session) ==
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].turn = "active"
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].turn = "idle",
+         ![session].pending = FALSE,
+         ![session].outcome = "succeeded",
+         ![session].sequence = @ + 1]
+  /\ candidates' =
+       IF NotificationEligible(session)
+       THEN candidates \cup {session}
+       ELSE candidates \ {session}
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("turn-succeeded", session)
+
+TurnFailed(session) ==
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].turn = "active"
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].turn = "idle",
+         ![session].pending = FALSE,
+         ![session].outcome = "failed",
+         ![session].sequence = @ + 1]
+  /\ candidates' =
+       IF NotificationEligible(session)
+       THEN candidates \cup {session}
+       ELSE candidates \ {session}
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("turn-failed", session)
+
+TurnCanceled(session) ==
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].turn = "active"
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].turn = "idle",
+         ![session].pending = FALSE,
+         ![session].outcome = "canceled",
+         ![session].sequence = @ + 1]
+  /\ candidates' = candidates \ {session}
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("turn-canceled", session)
+
+TurnInterrupted(session) ==
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].turn = "active"
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].turn = "idle",
+         ![session].pending = FALSE,
+         ![session].outcome = "interrupted",
+         ![session].sequence = @ + 1]
+  /\ candidates' = candidates \ {session}
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("turn-interrupted", session)
 
 DetachPresentation(client, session) ==
-  /\ client = PrimaryClient
-  /\ session = AttentionSession
-  /\ lifecycle[session] = "live"
-  /\ sequence[session] = 5
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
   /\ attached[client][session]
-  /\ attached[SecondaryClient][session]
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].sequence = @ + 1]
   /\ attached' = [attached EXCEPT ![client][session] = FALSE]
-  /\ visible' = [visible EXCEPT ![client][session] = FALSE]
-  /\ UNCHANGED <<lifecycle, turn, pending, outcome, freshness,
-       generation, sequence, requestVersion, activityBit,
-       correlationHalf, trustedHalf, joinAccepted, acknowledged,
-       candidates, publicationRevision, publishedCanonical,
-       clientRevision, clientCanonical, clientHasSnapshot,
-       rendererReconnected, rejectionCount>>
-  /\ Record("presentation-detached")
+  /\ sourceVisibility' =
+       [sourceVisibility EXCEPT ![client][session] = "detached"]
+  /\ candidates' = candidates \ {session}
+  /\ UNCHANGED <<correlationHalf, trustedHalf, joinAccepted, acknowledged,
+       PublicationState, TransportState>>
+  /\ RecordCanonical("presentation-detached", session)
 
 ObservationBecameStale(session) ==
-  /\ session = ReconnectSession
-  /\ lifecycle[session] = "live"
-  /\ freshness[session] = "fresh"
-  /\ sequence[session] = 3
-  /\ freshness' = [freshness EXCEPT ![session] = "stale"]
-  /\ sequence' = [sequence EXCEPT ![session] = 4]
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].freshness = "fresh"
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].freshness = "stale",
+         ![session].sequence = @ + 1]
   /\ candidates' = candidates \ {session}
-  /\ UNCHANGED <<lifecycle, turn, pending, outcome, generation,
-       requestVersion, activityBit, attached, visible, correlationHalf,
-       trustedHalf, joinAccepted, acknowledged,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected,
-       rejectionCount>>
-  /\ Record("observation-became-stale")
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("observation-became-stale", session)
 
 ObservationReconnected(session) ==
-  /\ session = ReconnectSession
-  /\ lifecycle[session] = "live"
-  /\ freshness[session] = "stale"
-  /\ generation[session] = 0
-  /\ sequence[session] = 4
-  /\ freshness' = [freshness EXCEPT ![session] = "fresh"]
-  /\ generation' = [generation EXCEPT ![session] = 1]
-  /\ sequence' = [sequence EXCEPT ![session] = 5]
-  /\ UNCHANGED <<lifecycle, turn, pending, outcome, requestVersion,
-       activityBit, attached, visible, correlationHalf, trustedHalf,
-       joinAccepted, acknowledged, candidates,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected,
-       rejectionCount>>
-  /\ Record("observation-reconnected")
+  /\ ReducerOpen
+  /\ runtimeRevision < MaxRuntimeRevision
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].freshness \in {"stale", "disconnected"}
+  /\ sessionState[session].generation < 1
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].freshness = "fresh",
+         ![session].generation = @ + 1,
+         ![session].sequence = 1]
+  /\ candidates' = candidates \ {session}
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("observation-reconnected", session)
 
-RejectStaleGeneration(session) ==
-  /\ session = ReconnectSession
-  /\ lifecycle[session] = "live"
-  /\ generation[session] = 1
-  /\ sequence[session] = 5
-  /\ rejectionCount = 0
-  /\ rejectionCount' = 1
-  /\ UNCHANGED <<canonical, visible, correlationHalf, trustedHalf,
-       joinAccepted, acknowledged, candidates,
-       publicationRevision, publishedCanonical, clientRevision,
-       clientCanonical, clientHasSnapshot, rendererReconnected>>
-  /\ Record("reject-stale-generation")
+RejectRepeatedSequence(session) ==
+  /\ ReducerOpen
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].sequence > 0
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordObserved("repeated-sequence-rejected", session)
+
+RejectStaleSequence(session) ==
+  /\ ReducerOpen
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState[session].sequence > 0
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordObserved("stale-sequence-rejected", session)
+
+RejectWrongGeneration(session) ==
+  /\ ReducerOpen
+  /\ sessionState[session].lifecycle = "live"
+  /\ \E receivedGeneration \in Generations:
+       receivedGeneration # sessionState[session].generation
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordObserved("wrong-generation-rejected", session)
+
+RejectWrongIdentity(session) ==
+  /\ ReducerOpen
+  /\ \E otherSession \in Sessions: otherSession # session
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordObserved("wrong-identity-rejected", session)
+
+RejectInvalidObservation(session) ==
+  /\ ReducerOpen
+  /\ sessionState[session].lifecycle \in {"unobserved", "ended"}
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates, PublicationState,
+       TransportState>>
+  /\ RecordObserved("invalid-observation-rejected", session)
 
 SessionEnded(session) ==
-  /\ session = ReconnectSession
-  /\ lifecycle[session] = "live"
-  /\ sequence[session] = 5
-  /\ rejectionCount = 1
-  /\ lifecycle' = [lifecycle EXCEPT ![session] = "ended"]
-  /\ turn' = [turn EXCEPT ![session] = "unknown"]
-  /\ outcome' = [outcome EXCEPT ![session] = "interrupted"]
-  /\ freshness' = [freshness EXCEPT ![session] = "disconnected"]
-  /\ sequence' = [sequence EXCEPT ![session] = 6]
+  /\ CanMutate(session)
+  /\ sessionState[session].lifecycle = "live"
+  /\ sessionState' =
+       [sessionState EXCEPT
+         ![session].lifecycle = "ended",
+         ![session].turn = "unknown",
+         ![session].pending = FALSE,
+         ![session].outcome = "interrupted",
+         ![session].freshness = "disconnected",
+         ![session].sequence = @ + 1]
   /\ candidates' = candidates \ {session}
-  /\ UNCHANGED <<pending, generation, requestVersion, activityBit,
-       attached, visible, correlationHalf, trustedHalf, joinAccepted,
-       acknowledged, publicationRevision, publishedCanonical,
-       clientRevision, clientCanonical, clientHasSnapshot,
-       rendererReconnected, rejectionCount>>
-  /\ Record("session-ended")
+  /\ UNCHANGED <<attached, sourceVisibility, correlationHalf, trustedHalf,
+       joinAccepted, acknowledged, PublicationState, TransportState>>
+  /\ RecordCanonical("session-ended", session)
 
 PublishSnapshot ==
-  /\ sequence[AttentionSession] = 5
-  /\ sequence[ReconnectSession] = 6
-  /\ publicationRevision = 0
-  /\ publicationRevision' = 1
+  /\ Scenario = ReducerScenario
+  /\ publishedRevision = 0
+  /\ runtimeRevision > 0
+  /\ publishedRevision' = runtimeRevision
   /\ publishedCanonical' = canonical
-  /\ UNCHANGED <<canonical, visible, correlationHalf, trustedHalf,
-       joinAccepted, acknowledged, candidates,
-       clientRevision, clientCanonical, clientHasSnapshot,
-       rendererReconnected, rejectionCount>>
-  /\ Record("snapshot-published")
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates, clientRevision,
+       clientCanonical, clientHasSnapshot, TransportState>>
+  /\ RecordObserved("snapshot-published", NoSession)
 
 ClientObservePublication(client) ==
-  /\ publicationRevision = 1
-  /\ clientRevision[client] < publicationRevision
+  /\ Scenario = ReducerScenario
+  /\ publishedRevision > 0
+  /\ ~clientHasSnapshot[client]
   /\ clientRevision' =
-       [clientRevision EXCEPT ![client] = publicationRevision]
+       [clientRevision EXCEPT ![client] = publishedRevision]
   /\ clientCanonical' =
        [clientCanonical EXCEPT ![client] = publishedCanonical]
   /\ clientHasSnapshot' = [clientHasSnapshot EXCEPT ![client] = TRUE]
-  /\ UNCHANGED <<canonical, visible, correlationHalf, trustedHalf,
-       joinAccepted, acknowledged, candidates,
-       publicationRevision, publishedCanonical, rendererReconnected,
-       rejectionCount>>
-  /\ Record("client-observed-publication")
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates,
+       publishedRevision, publishedCanonical, TransportState>>
+  /\ RecordObserved("client-observed-publication", NoSession)
 
 RendererReconnect(client) ==
-  /\ client = PrimaryClient
-  /\ publicationRevision = 1
-  /\ clientRevision[PrimaryClient] = publicationRevision
-  /\ clientRevision[SecondaryClient] = publicationRevision
-  /\ ~rendererReconnected
+  /\ Scenario = ReducerScenario
+  /\ clientHasSnapshot[client]
   /\ clientRevision' = [clientRevision EXCEPT ![client] = 0]
   /\ clientHasSnapshot' = [clientHasSnapshot EXCEPT ![client] = FALSE]
-  /\ visible' =
-       [visible EXCEPT ![client] = [session \in Sessions |-> FALSE]]
-  /\ rendererReconnected' = TRUE
-  /\ UNCHANGED <<canonical, correlationHalf, trustedHalf, joinAccepted,
-       acknowledged, candidates,
-       publicationRevision, publishedCanonical, clientCanonical,
-       rejectionCount>>
-  /\ Record("renderer-reconnected")
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates,
+       publishedRevision, publishedCanonical, clientCanonical,
+       TransportState>>
+  /\ RecordObserved("renderer-reconnected", NoSession)
+
+ApplyEventfulTransition ==
+  /\ Scenario = TransportScenario
+  /\ ~transportEventPending
+  /\ transportSourceRevision < MaxTransportRevision
+  /\ transportSourceRevision' = transportSourceRevision + 1
+  /\ transportEventPending' = TRUE
+  /\ pendingEventRevision' = transportSourceRevision + 1
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates,
+       PublicationState, deliveredSnapshotRevision, deliveredEventRevision>>
+  /\ RecordObserved("eventful-transition-applied", NoSession)
+
+DeliverEventSnapshot ==
+  /\ Scenario = TransportScenario
+  /\ transportEventPending
+  /\ deliveredSnapshotRevision < pendingEventRevision
+  /\ deliveredSnapshotRevision' = pendingEventRevision
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates,
+       PublicationState, transportSourceRevision, transportEventPending,
+       pendingEventRevision, deliveredEventRevision>>
+  /\ RecordObserved("event-snapshot-delivered", NoSession)
+
+DeliverSemanticEvent ==
+  /\ Scenario = TransportScenario
+  /\ transportEventPending
+  /\ deliveredSnapshotRevision >= pendingEventRevision
+  /\ deliveredEventRevision < pendingEventRevision
+  /\ deliveredEventRevision' = pendingEventRevision
+  /\ transportEventPending' = FALSE
+  /\ UNCHANGED <<sessionState, attached, sourceVisibility, correlationHalf,
+       trustedHalf, joinAccepted, acknowledged, candidates,
+       PublicationState, transportSourceRevision, pendingEventRevision,
+       deliveredSnapshotRevision>>
+  /\ RecordObserved("semantic-event-delivered", NoSession)
 
 Next ==
   \/ \E session \in Sessions: ReceiveCorrelationHalf(session)
@@ -487,10 +699,10 @@ Next ==
   \/ \E client \in Clients, session \in Sessions:
        AttachPresentation(client, session)
   \/ \E client \in Clients, session \in Sessions:
+       SetClientHidden(client, session)
+  \/ \E client \in Clients, session \in Sessions:
        SetClientVisible(client, session)
   \/ \E session \in Sessions: TurnStarted(session)
-  \/ \E client \in Clients, session \in Sessions:
-       SetClientHidden(client, session)
   \/ \E session \in Sessions: TurnActivityChanged(session)
   \/ \E session \in Sessions: LimitedActivityObserved(session)
   \/ \E session \in Sessions: AttentionRequested(session)
@@ -498,131 +710,189 @@ Next ==
        ClientAcknowledged(client, session)
   \/ \E session \in Sessions: AttentionResolved(session)
   \/ \E session \in Sessions: SessionIdleObserved(session)
-  \/ \E session \in Sessions, result \in Outcomes \ {"none"}:
-       TurnFinished(session, result)
+  \/ \E session \in Sessions: TurnSucceeded(session)
+  \/ \E session \in Sessions: TurnFailed(session)
+  \/ \E session \in Sessions: TurnCanceled(session)
+  \/ \E session \in Sessions: TurnInterrupted(session)
   \/ \E client \in Clients, session \in Sessions:
        DetachPresentation(client, session)
   \/ \E session \in Sessions: ObservationBecameStale(session)
   \/ \E session \in Sessions: ObservationReconnected(session)
-  \/ \E session \in Sessions: RejectStaleGeneration(session)
+  \/ \E session \in Sessions: RejectRepeatedSequence(session)
+  \/ \E session \in Sessions: RejectStaleSequence(session)
+  \/ \E session \in Sessions: RejectWrongGeneration(session)
+  \/ \E session \in Sessions: RejectWrongIdentity(session)
+  \/ \E session \in Sessions: RejectInvalidObservation(session)
   \/ \E session \in Sessions: SessionEnded(session)
   \/ PublishSnapshot
   \/ \E client \in Clients: ClientObservePublication(client)
   \/ \E client \in Clients: RendererReconnect(client)
+  \/ ApplyEventfulTransition
+  \/ DeliverEventSnapshot
+  \/ DeliverSemanticEvent
 
 Spec == Init /\ [][Next]_vars
 
 TypeOK ==
-  /\ lifecycle \in [Sessions -> Lifecycles]
-  /\ turn \in [Sessions -> TurnStates]
-  /\ pending \in [Sessions -> BOOLEAN]
-  /\ outcome \in [Sessions -> Outcomes]
-  /\ freshness \in [Sessions -> FreshnessStates]
-  /\ generation \in [Sessions -> Generations]
-  /\ sequence \in [Sessions -> 0..MaxSequence]
-  /\ requestVersion \in [Sessions -> 0..MaxRequestVersion]
-  /\ activityBit \in [Sessions -> BOOLEAN]
+  /\ Scenario \in Scenarios
+  /\ MaxRuntimeRevision \in Nat
+  /\ MaxSequence \in Nat
+  /\ MaxRequestVersion \in Nat
+  /\ MaxTransportRevision \in Nat
+  /\ sessionState \in [Sessions -> SessionRecordType]
   /\ attached \in [Clients -> [Sessions -> BOOLEAN]]
-  /\ visible \in [Clients -> [Sessions -> BOOLEAN]]
+  /\ sourceVisibility \in
+       [Clients -> [Sessions -> VisibilityStates]]
   /\ correlationHalf \in [Sessions -> BOOLEAN]
   /\ trustedHalf \in [Sessions -> BOOLEAN]
   /\ joinAccepted \in [Sessions -> BOOLEAN]
-  /\ acknowledged \subseteq Clients \X Sessions \X (1..MaxRequestVersion)
+  /\ acknowledged \subseteq
+       Clients \X Sessions \X (0..MaxRequestVersion)
   /\ candidates \subseteq Sessions
-  /\ publicationRevision \in 0..MaxPublicationRevision
-  /\ clientRevision \in [Clients -> 0..MaxPublicationRevision]
+  /\ runtimeRevision \in 0..MaxRuntimeRevision
+  /\ publishedRevision \in 0..MaxRuntimeRevision
+  /\ publishedCanonical \in CanonicalDomain
+  /\ clientRevision \in [Clients -> 0..MaxRuntimeRevision]
+  /\ clientCanonical \in [Clients -> CanonicalDomain]
   /\ clientHasSnapshot \in [Clients -> BOOLEAN]
-  /\ rendererReconnected \in BOOLEAN
-  /\ rejectionCount \in 0..1
+  /\ previousCanonical \in CanonicalDomain
+  /\ previousCandidates \subseteq Sessions
+  /\ previousRuntimeRevision \in 0..MaxRuntimeRevision
+  /\ lastAction \in Actions
+  /\ lastSession \in Sessions \cup {NoSession}
+  /\ transportSourceRevision \in 0..MaxTransportRevision
+  /\ transportEventPending \in BOOLEAN
+  /\ pendingEventRevision \in 0..MaxTransportRevision
+  /\ deliveredSnapshotRevision \in 0..MaxTransportRevision
+  /\ deliveredEventRevision \in 0..MaxTransportRevision
 
-EndedHasNoActiveWork ==
-  \A session \in Sessions:
-    lifecycle[session] = "ended" =>
-      /\ turn[session] # "active"
-      /\ ~pending[session]
+JoinRequiresBothHalves ==
+  Scenario # ReducerScenario \/
+    \A session \in Sessions:
+      joinAccepted[session] =>
+        correlationHalf[session] /\ trustedHalf[session]
 
-UnobservedHasNoSemanticClaim ==
-  \A session \in Sessions:
-    lifecycle[session] = "unobserved" =>
-      /\ turn[session] = "unknown"
-      /\ ~pending[session]
-      /\ outcome[session] = "none"
+AttachmentVisibilityConsistent ==
+  Scenario # ReducerScenario \/
+    \A client \in Clients, session \in Sessions:
+      attached[client][session] =
+        (sourceVisibility[client][session] # "detached")
 
-AcknowledgementNeverResolvesRequest ==
-  lastAction = "client-acknowledged" => pending = previousPending
+CanonicalMutationIsRevisioned ==
+  Scenario # ReducerScenario \/
+    (canonical # previousCanonical =>
+      /\ lastAction \in CanonicalActionNames
+      /\ runtimeRevision = previousRuntimeRevision + 1)
 
-RejectedGenerationPreservesCanonicalState ==
-  lastAction = "reject-stale-generation" =>
-    /\ lifecycle = previousLifecycle
-    /\ turn = previousTurn
-    /\ pending = previousPending
-    /\ outcome = previousOutcome
-    /\ freshness = previousFreshness
-    /\ generation = previousGeneration
-    /\ sequence = previousSequence
-    /\ candidates = previousCandidates
+AcknowledgementCannotResolveRequest ==
+  Scenario # ReducerScenario \/
+    (lastAction = "client-acknowledged" =>
+      /\ canonical = previousCanonical
+      /\ sessionState[lastSession].pending =
+           previousCanonical[1][lastSession].pending)
+
+RejectedObservationPreservesCanonical ==
+  Scenario # ReducerScenario \/
+    (lastAction \in RejectedActionNames =>
+      /\ canonical = previousCanonical
+      /\ candidates = previousCandidates)
+
+LimitedActivityOnlyChangesHint ==
+  Scenario # ReducerScenario \/
+    (lastAction = "limited-activity-observed" =>
+      /\ sessionState =
+           [previousCanonical[1] EXCEPT
+             ![lastSession].activity = TRUE,
+             ![lastSession].sequence = @ + 1]
+      /\ attached = previousCanonical[2]
+      /\ sourceVisibility = previousCanonical[3]
+      /\ candidates = previousCandidates)
+
+IdleDoesNotFabricateOutcomeOrCandidate ==
+  Scenario # ReducerScenario \/
+    (lastAction = "session-idle-observed" =>
+      /\ sessionState[lastSession].outcome =
+           previousCanonical[1][lastSession].outcome
+      /\ lastSession \notin candidates)
+
+ActivityDoesNotCreateCandidate ==
+  Scenario # ReducerScenario \/
+    (lastAction \in
+       {"turn-activity-changed", "limited-activity-observed"} =>
+      candidates \subseteq previousCandidates)
+
+NotificationCandidateHasAuthority ==
+  Scenario # ReducerScenario \/
+    \A session \in candidates:
+      /\ sessionState[session].lifecycle = "live"
+      /\ sessionState[session].freshness = "fresh"
+      /\ NotificationEligible(session)
+      /\ \/ sessionState[session].pending
+         \/ sessionState[session].outcome \in {"succeeded", "failed"}
+
+OutcomeNotificationClasses ==
+  Scenario # ReducerScenario \/
+    /\ (lastAction \in {"turn-succeeded", "turn-failed"} =>
+         (lastSession \in candidates) = NotificationEligible(lastSession))
+    /\ (lastAction \in {"turn-canceled", "turn-interrupted"} =>
+         lastSession \notin candidates)
 
 GenerationChangesOnlyOnReconnect ==
-  generation # previousGeneration => lastAction = "observation-reconnected"
+  Scenario # ReducerScenario \/
+    (sessionState # previousCanonical[1] =>
+      \A session \in Sessions:
+        sessionState[session].generation #
+          previousCanonical[1][session].generation =>
+            /\ lastAction = "observation-reconnected"
+            /\ lastSession = session
+            /\ sessionState[session].generation =
+                 previousCanonical[1][session].generation + 1)
 
-ActivityNeverCreatesCandidate ==
-  lastAction = "turn-activity-changed" => candidates = previousCandidates
+EndedSessionHasNoActiveWork ==
+  Scenario # ReducerScenario \/
+    \A session \in Sessions:
+      sessionState[session].lifecycle = "ended" =>
+        /\ sessionState[session].turn # "active"
+        /\ ~sessionState[session].pending
+        /\ session \notin candidates
 
-LimitedActivityIsOnlyHint ==
-  lastAction = "limited-activity-observed" =>
-    /\ turn = previousTurn
-    /\ pending = previousPending
-    /\ outcome = previousOutcome
-    /\ candidates = previousCandidates
+PublicationIsExactFinalSnapshot ==
+  Scenario # ReducerScenario \/
+    (lastAction = "snapshot-published" =>
+      /\ publishedRevision = runtimeRevision
+      /\ publishedCanonical = canonical)
 
-IdleObservationDoesNotFabricateOutcome ==
-  lastAction = "session-idle-observed" =>
-    /\ outcome = previousOutcome
-    /\ candidates = previousCandidates
+ClientRevisionDoesNotLeadPublication ==
+  Scenario # ReducerScenario \/
+    \A client \in Clients:
+      clientRevision[client] <= publishedRevision
 
-NotificationCandidatesAreSafe ==
-  \A session \in candidates:
-    /\ lifecycle[session] = "live"
-    /\ freshness[session] = "fresh"
-    /\ NotificationEligible(session)
-    /\ (pending[session] \/ outcome[session] = "failed")
+ObservedClientSnapshotIsExact ==
+  Scenario # ReducerScenario \/
+    \A client \in Clients:
+      clientHasSnapshot[client] =>
+        /\ clientRevision[client] = publishedRevision
+        /\ clientCanonical[client] = publishedCanonical
 
-VisiblePresentationIsAttached ==
-  \A client \in Clients, session \in Sessions:
-    visible[client][session] => attached[client][session]
+RendererReconnectClearsOnlyClientCache ==
+  Scenario # ReducerScenario \/
+    (lastAction = "renderer-reconnected" =>
+      /\ canonical = previousCanonical
+      /\ sourceVisibility = previousCanonical[3]
+      /\ \E client \in Clients: ~clientHasSnapshot[client])
 
-RemoteObservationRequiresBothHalves ==
-  lifecycle[AttentionSession] # "unobserved" =>
-    /\ correlationHalf[AttentionSession]
-    /\ trustedHalf[AttentionSession]
-    /\ joinAccepted[AttentionSession]
+TransportRevisionConsistency ==
+  Scenario # TransportScenario \/
+    /\ deliveredEventRevision <= deliveredSnapshotRevision
+    /\ deliveredSnapshotRevision <= transportSourceRevision
+    /\ pendingEventRevision <= transportSourceRevision
+    /\ (transportEventPending =>
+         /\ pendingEventRevision = transportSourceRevision
+         /\ deliveredEventRevision < pendingEventRevision)
 
-UnmatchedHalfPreservesCanonicalState ==
-  lastAction \in {"correlation-half-received", "trusted-half-received"} =>
-    /\ lifecycle = previousLifecycle
-    /\ turn = previousTurn
-    /\ pending = previousPending
-    /\ outcome = previousOutcome
-    /\ freshness = previousFreshness
-    /\ generation = previousGeneration
-    /\ sequence = previousSequence
-    /\ attached = previousAttached
-    /\ candidates = previousCandidates
-
-DetachingOnePresentationPreservesTheOther ==
-  lastAction = "presentation-detached" =>
-    /\ ~attached[PrimaryClient][AttentionSession]
-    /\ attached[SecondaryClient][AttentionSession]
-    /\ freshness = previousFreshness
-    /\ candidates = previousCandidates
-
-ClientRevisionIsNeverFromTheFuture ==
-  \A client \in Clients: clientRevision[client] <= publicationRevision
-
-ObservedSnapshotIsExact ==
-  \A client \in Clients:
-    clientRevision[client] = publicationRevision /\ publicationRevision > 0 =>
-      /\ clientHasSnapshot[client]
-      /\ clientCanonical[client] = publishedCanonical
+SemanticEventFollowsItsSnapshot ==
+  Scenario # TransportScenario \/
+    (lastAction = "semantic-event-delivered" =>
+      deliveredSnapshotRevision >= deliveredEventRevision)
 
 =============================================================================

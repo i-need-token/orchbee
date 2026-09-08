@@ -6,7 +6,6 @@ use std::{
 
 use rustix::{
     fs::fstat,
-    io::dup,
     termios::{isatty, tcgetwinsize},
 };
 
@@ -94,13 +93,13 @@ impl InheritedTerminal {
             ),
         )?;
 
-        let input = dup(input)
+        let input = input
+            .try_clone_to_owned()
             .map(Arc::new)
-            .map_err(io::Error::from)
             .map_err(TerminalAdmissionError::Inspect)?;
-        let output = dup(output)
+        let output = output
+            .try_clone_to_owned()
             .map(Arc::new)
-            .map_err(io::Error::from)
             .map_err(TerminalAdmissionError::Inspect)?;
         let terminal = Self { input, output };
         terminal
@@ -110,11 +109,11 @@ impl InheritedTerminal {
     }
 
     pub(crate) fn duplicate_input(&self) -> io::Result<OwnedFd> {
-        dup(self.input.as_ref()).map_err(io::Error::from)
+        self.input.as_fd().try_clone_to_owned()
     }
 
     pub(crate) fn duplicate_output(&self) -> io::Result<OwnedFd> {
-        dup(self.output.as_ref()).map_err(io::Error::from)
+        self.output.as_fd().try_clone_to_owned()
     }
 
     pub(crate) const fn input(&self) -> &Arc<OwnedFd> {

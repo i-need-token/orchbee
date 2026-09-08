@@ -11,6 +11,14 @@ EXTENDS FiniteSets, Naturals, TLC
 \* contract. The model abstracts decoded bytes to one referenced resource and
 \* one placement while retaining the ownership, generation, layer, atomicity,
 \* history-detail, acknowledgement, retry, and animation-revision decisions.
+\* RejectBoundedOperation starts after the concrete parser tests and graphics
+\* corpus have classified a byte, dimension, or decoded-size limit violation;
+\* numeric b-1/b/b+1 classification is deliberately outside this state model.
+\* Acknowledge is the exact, post-validation output of
+\* TerminalFrameBackpressure. StaleAcknowledge represents a rejected raw input
+\* and must preserve the current graphics flight and acknowledged resource
+\* base. The configured reader is the pointwise graphics projection; the
+\* shared two-reader invalidation/flight interleaving remains in that model.
 
 CONSTANTS
   Attachments,
@@ -704,6 +712,16 @@ BoundedRejectionPreservesCanonical ==
     /\ rejectedRevision = revision
     /\ rejectedGraphicsGeneration = graphicsGeneration
     /\ rejectedResourceGeneration = resourceGeneration
+
+StaleAcknowledgementPreservesFlight ==
+  [][\A attachment \in Attachments, sequence \in 0..MaxSequence:
+       StaleAcknowledge(attachment, sequence) =>
+         UNCHANGED <<flightKind, flightRevision,
+                     flightGraphicsGeneration, flightResourceGeneration,
+                     flightHasResource, flightHasPlacement, flightResolved,
+                     flightLayer, flightSequence,
+                     acknowledgedResourceGeneration,
+                     lastAcknowledgedSequence, forceSnapshot>>]_vars
 
 DueAnimationEventuallyTicks == animationDue ~> ~animationDue
 

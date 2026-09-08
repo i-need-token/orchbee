@@ -1,8 +1,17 @@
 ---------------- MODULE AgentIntegrationLaunchReminder ----------------
 EXTENDS TLC, Naturals, Sequences
 
+\* Two adapter identities expose order, deduplication, and dismissal
+\* isolation. rendererLaunched records provider-scoped inspection
+\* publications in renderer delivery order. Independent inspections may
+\* complete in a different order from Main's raw launch observations.
+\* integrationState is the bounded, already-inspected content carried by
+\* those publications; item/revision reconciliation is outside this model.
+
 Adapters == {"claude-code", "codex"}
-IntegrationStates == {"not-installed", "disabled", "enabled", "conflict", "unknown"}
+IntegrationStates == {
+  "not-installed", "disabled", "enabled", "update-required", "conflict", "unknown"
+}
 None == "none"
 Targets == Adapters \cup {None}
 
@@ -15,26 +24,22 @@ VARIABLES
   responseLaunches,
   reminder,
   reminderConsumed,
+  offerCount,
   dismissed,
-  pendingEnable,
+  lastSettingsTarget,
   lastAction,
   previousIntegrationState,
-  previousMainLaunched,
   previousRendererLaunched,
-  previousLaunchQueue,
-  previousResponsePending,
-  previousResponseLaunches,
   previousReminder,
   previousReminderConsumed,
-  previousDismissed,
-  previousPendingEnable
+  previousOfferCount,
+  previousDismissed
 
 vars == <<integrationState, mainLaunched, rendererLaunched, launchQueue,
-  responsePending, responseLaunches, reminder, reminderConsumed, dismissed,
-  pendingEnable, lastAction, previousIntegrationState, previousMainLaunched,
-  previousRendererLaunched, previousLaunchQueue, previousResponsePending,
-  previousResponseLaunches, previousReminder, previousReminderConsumed,
-  previousDismissed, previousPendingEnable>>
+  responsePending, responseLaunches, reminder, reminderConsumed, offerCount,
+  dismissed, lastSettingsTarget, lastAction, previousIntegrationState,
+  previousRendererLaunched, previousReminder, previousReminderConsumed,
+  previousOfferCount, previousDismissed>>
 
 SeqSet(sequence) == {sequence[index] : index \in 1..Len(sequence)}
 
@@ -48,8 +53,11 @@ CanonicalSubsequence(subsequence, sequence) ==
 MergeLaunches(current, incoming) ==
   current \o SelectSeq(incoming, LAMBDA item: item \notin SeqSet(current))
 
+RemoveLaunch(sequence, adapter) ==
+  SelectSeq(sequence, LAMBDA item: item # adapter)
+
 Eligible(adapter) ==
-  integrationState[adapter] \in {"not-installed", "disabled"}
+  integrationState[adapter] \in {"not-installed", "disabled", "update-required"}
 
 EligibleRendererLaunches ==
   SelectSeq(
@@ -60,15 +68,11 @@ EligibleRendererLaunches ==
 Record(action) ==
   /\ lastAction' = action
   /\ previousIntegrationState' = integrationState
-  /\ previousMainLaunched' = mainLaunched
   /\ previousRendererLaunched' = rendererLaunched
-  /\ previousLaunchQueue' = launchQueue
-  /\ previousResponsePending' = responsePending
-  /\ previousResponseLaunches' = responseLaunches
   /\ previousReminder' = reminder
   /\ previousReminderConsumed' = reminderConsumed
+  /\ previousOfferCount' = offerCount
   /\ previousDismissed' = dismissed
-  /\ previousPendingEnable' = pendingEnable
 
 Init ==
   /\ integrationState \in [Adapters -> IntegrationStates]
@@ -79,19 +83,16 @@ Init ==
   /\ responseLaunches = <<>>
   /\ reminder = None
   /\ reminderConsumed = FALSE
+  /\ offerCount = 0
   /\ dismissed \in SUBSET Adapters
-  /\ pendingEnable = None
+  /\ lastSettingsTarget = None
   /\ lastAction = "init"
   /\ previousIntegrationState = integrationState
-  /\ previousMainLaunched = mainLaunched
   /\ previousRendererLaunched = rendererLaunched
-  /\ previousLaunchQueue = launchQueue
-  /\ previousResponsePending = responsePending
-  /\ previousResponseLaunches = responseLaunches
   /\ previousReminder = reminder
   /\ previousReminderConsumed = reminderConsumed
+  /\ previousOfferCount = offerCount
   /\ previousDismissed = dismissed
-  /\ previousPendingEnable = pendingEnable
 
 ObserveDirectLaunch(adapter) ==
   /\ adapter \in Adapters
@@ -99,14 +100,15 @@ ObserveDirectLaunch(adapter) ==
   /\ mainLaunched' = Append(mainLaunched, adapter)
   /\ launchQueue' = Append(launchQueue, adapter)
   /\ UNCHANGED <<integrationState, rendererLaunched, responsePending,
-    responseLaunches, reminder, reminderConsumed, dismissed, pendingEnable>>
+    responseLaunches, reminder, reminderConsumed, offerCount, dismissed,
+    lastSettingsTarget>>
   /\ Record("observe-direct-launch")
 
 ObserveDuplicateLaunch(adapter) ==
   /\ adapter \in SeqSet(mainLaunched)
   /\ UNCHANGED <<integrationState, mainLaunched, rendererLaunched, launchQueue,
-    responsePending, responseLaunches, reminder, reminderConsumed, dismissed,
-    pendingEnable>>
+    responsePending, responseLaunches, reminder, reminderConsumed, offerCount,
+    dismissed, lastSettingsTarget>>
   /\ Record("observe-duplicate-launch")
 
 CaptureManagementResponse ==
@@ -114,15 +116,16 @@ CaptureManagementResponse ==
   /\ responsePending' = TRUE
   /\ responseLaunches' = mainLaunched
   /\ UNCHANGED <<integrationState, mainLaunched, rendererLaunched, launchQueue,
-    reminder, reminderConsumed, dismissed, pendingEnable>>
+    reminder, reminderConsumed, offerCount, dismissed, lastSettingsTarget>>
   /\ Record("capture-management-response")
 
-DeliverLaunchObservation ==
-  /\ Len(launchQueue) > 0
-  /\ rendererLaunched' = MergeLaunches(rendererLaunched, <<Head(launchQueue)>>)
-  /\ launchQueue' = Tail(launchQueue)
+DeliverLaunchObservation(adapter) ==
+  /\ adapter \in SeqSet(launchQueue)
+  /\ rendererLaunched' = MergeLaunches(rendererLaunched, <<adapter>>)
+  /\ launchQueue' = RemoveLaunch(launchQueue, adapter)
   /\ UNCHANGED <<integrationState, mainLaunched, responsePending,
-    responseLaunches, reminder, reminderConsumed, dismissed, pendingEnable>>
+    responseLaunches, reminder, reminderConsumed, offerCount, dismissed,
+    lastSettingsTarget>>
   /\ Record("deliver-launch-observation")
 
 DeliverManagementResponse ==
@@ -131,7 +134,7 @@ DeliverManagementResponse ==
   /\ responsePending' = FALSE
   /\ responseLaunches' = <<>>
   /\ UNCHANGED <<integrationState, mainLaunched, launchQueue, reminder,
-    reminderConsumed, dismissed, pendingEnable>>
+    reminderConsumed, offerCount, dismissed, lastSettingsTarget>>
   /\ Record("deliver-management-response")
 
 OfferReminder ==
@@ -140,8 +143,9 @@ OfferReminder ==
   /\ Len(EligibleRendererLaunches) > 0
   /\ reminder' = Head(EligibleRendererLaunches)
   /\ reminderConsumed' = TRUE
+  /\ offerCount' = offerCount + 1
   /\ UNCHANGED <<integrationState, mainLaunched, rendererLaunched, launchQueue,
-    responsePending, responseLaunches, dismissed, pendingEnable>>
+    responsePending, responseLaunches, dismissed, lastSettingsTarget>>
   /\ Record("offer-reminder")
 
 DismissReminder ==
@@ -149,45 +153,27 @@ DismissReminder ==
   /\ dismissed' = dismissed \cup {reminder}
   /\ reminder' = None
   /\ UNCHANGED <<integrationState, mainLaunched, rendererLaunched, launchQueue,
-    responsePending, responseLaunches, reminderConsumed, pendingEnable>>
+    responsePending, responseLaunches, reminderConsumed, offerCount,
+    lastSettingsTarget>>
   /\ Record("dismiss-reminder")
 
-RequestReminderEnable ==
+OpenIntegrationSettings ==
   /\ reminder # None
-  /\ pendingEnable = None
-  /\ pendingEnable' = reminder
+  /\ reminder' = None
+  /\ lastSettingsTarget' = reminder
   /\ UNCHANGED <<integrationState, mainLaunched, rendererLaunched, launchQueue,
-    responsePending, responseLaunches, reminder, reminderConsumed, dismissed>>
-  /\ Record("request-reminder-enable")
-
-EnableFails ==
-  /\ pendingEnable # None
-  /\ pendingEnable' = None
-  /\ UNCHANGED <<integrationState, mainLaunched, rendererLaunched, launchQueue,
-    responsePending, responseLaunches, reminder, reminderConsumed, dismissed>>
-  /\ Record("enable-fails")
-
-EnableSucceeds ==
-  /\ pendingEnable # None
-  /\ integrationState' =
-    [integrationState EXCEPT ![pendingEnable] = "enabled"]
-  /\ reminder' = IF reminder = pendingEnable THEN None ELSE reminder
-  /\ pendingEnable' = None
-  /\ UNCHANGED <<mainLaunched, rendererLaunched, launchQueue, responsePending,
-    responseLaunches, reminderConsumed, dismissed>>
-  /\ Record("enable-succeeds")
+    responsePending, responseLaunches, reminderConsumed, offerCount, dismissed>>
+  /\ Record("open-integration-settings")
 
 Next ==
   \/ \E adapter \in Adapters: ObserveDirectLaunch(adapter)
   \/ \E adapter \in Adapters: ObserveDuplicateLaunch(adapter)
   \/ CaptureManagementResponse
-  \/ DeliverLaunchObservation
+  \/ \E adapter \in Adapters: DeliverLaunchObservation(adapter)
   \/ DeliverManagementResponse
   \/ OfferReminder
   \/ DismissReminder
-  \/ RequestReminderEnable
-  \/ EnableFails
-  \/ EnableSucceeds
+  \/ OpenIntegrationSettings
 
 Spec == Init /\ [][Next]_vars
 
@@ -200,34 +186,31 @@ TypeOK ==
   /\ responseLaunches \in Seq(Adapters)
   /\ reminder \in Targets
   /\ reminderConsumed \in BOOLEAN
+  /\ offerCount \in 0..2
   /\ dismissed \subseteq Adapters
-  /\ pendingEnable \in Targets
+  /\ lastSettingsTarget \in Targets
   /\ UniqueSequence(mainLaunched)
   /\ UniqueSequence(rendererLaunched)
   /\ UniqueSequence(launchQueue)
   /\ UniqueSequence(responseLaunches)
-  /\ CanonicalSubsequence(rendererLaunched, mainLaunched)
+  /\ SeqSet(rendererLaunched) \subseteq SeqSet(mainLaunched)
+  /\ SeqSet(launchQueue) \subseteq SeqSet(mainLaunched)
   /\ CanonicalSubsequence(responseLaunches, mainLaunched)
   /\ (responsePending \/ responseLaunches = <<>>)
   /\ lastAction \in {
        "init", "observe-direct-launch", "observe-duplicate-launch",
        "capture-management-response", "deliver-launch-observation",
        "deliver-management-response", "offer-reminder", "dismiss-reminder",
-       "request-reminder-enable", "enable-fails", "enable-succeeds"
+       "open-integration-settings"
      }
   /\ previousIntegrationState \in [Adapters -> IntegrationStates]
-  /\ previousMainLaunched \in Seq(Adapters)
   /\ previousRendererLaunched \in Seq(Adapters)
-  /\ previousLaunchQueue \in Seq(Adapters)
-  /\ previousResponsePending \in BOOLEAN
-  /\ previousResponseLaunches \in Seq(Adapters)
   /\ previousReminder \in Targets
   /\ previousReminderConsumed \in BOOLEAN
+  /\ previousOfferCount \in 0..2
   /\ previousDismissed \subseteq Adapters
-  /\ previousPendingEnable \in Targets
 
-IntegrationStateChangesOnlyAfterVerifiedEnable ==
-  integrationState # previousIntegrationState => lastAction = "enable-succeeds"
+IntegrationStateIsReadOnly == integrationState = previousIntegrationState
 
 LaunchObservationIsReadOnly ==
   lastAction \in {"observe-direct-launch", "observe-duplicate-launch"} =>
@@ -247,26 +230,29 @@ ReminderRequiresObservedEligibleLaunch ==
 ReminderUsesFirstObservedEligibleLaunch ==
   reminder # None => reminder = Head(EligibleRendererLaunches)
 
-ReminderConsumptionIsMonotonic ==
-  previousReminderConsumed => reminderConsumed
+AtMostOneReminderOffer == offerCount <= 1
 
-ReminderEnableIsExplicitAndExact ==
-  lastAction = "request-reminder-enable" =>
+ReminderConsumptionTracksOffer ==
+  reminderConsumed <=> offerCount = 1
+
+ReminderOfferWasFresh ==
+  lastAction = "offer-reminder" =>
+    /\ previousReminder = None
+    /\ ~previousReminderConsumed
+    /\ previousOfferCount = 0
+
+DismissalIsExactAndReadOnly ==
+  lastAction = "dismiss-reminder" =>
     /\ previousReminder # None
-    /\ pendingEnable = previousReminder
+    /\ dismissed = previousDismissed \cup {previousReminder}
     /\ integrationState = previousIntegrationState
 
-EnableFailurePreservesRetryState ==
-  lastAction = "enable-fails" =>
+SettingsNavigationIsReadOnlyAndExact ==
+  lastAction = "open-integration-settings" =>
+    /\ previousReminder # None
+    /\ reminder = None
+    /\ lastSettingsTarget = previousReminder
+    /\ dismissed = previousDismissed
     /\ integrationState = previousIntegrationState
-    /\ reminder = previousReminder
-    /\ pendingEnable = None
-
-EnableSuccessIsVerifiedForTheRequestedAgent ==
-  lastAction = "enable-succeeds" =>
-    /\ previousPendingEnable # None
-    /\ integrationState =
-      [previousIntegrationState EXCEPT ![previousPendingEnable] = "enabled"]
-    /\ pendingEnable = None
 
 =============================================================================

@@ -40,18 +40,22 @@ WorkbenchSharedDocument
 
 效果命令会显式区分破坏性处置：`terminal-close-requested` 在普通关闭和结构移除时携带 `remove`，在应用停止及其持久重试时携带 `stop`。这一仅属于命令的区别允许应用归档已停止终端，而不会改变五种共享意图，也不会把普通关闭视为应保留的产品历史。
 
+公开停止重试是对当前 document 的一次批量操作：它使用新的 operation 标识重新启动每项可重试的
+`stop-failed` 或 `close-failed` Presentation，同时保留已经停止与仍在处理的 peer。durability commit
+失败会在任何 close command 前回滚暂存 stop；启动已停止 placement 会分配新的 Presentation 标识，
+而不会恢复已经退役的 binding。
+
 Terminal Context 可以在结构上为空：allocation sequence 从 `1` 开始，而 Tab、Group、Panel、Presentation
 与 pending-removal collection 均为空。Slice 3.2A 为 Main 准入的 remote Workspace 使用这一已有的有效
 shape，使 durable placement 可以先于任何已授权 remote terminal effect，且不改变 document version 或
 schema shape。
 
-Slice 3.2B 使用同一 version-2 schema 承载一次显式的 first-terminal provision。Main-owned mutation 可以把
-该精确 empty remote context 替换为一个顶层 Tab、一个 primary Panel 与一个 `provision` Presentation，
-其 durable launch CWD 是已准入 remote Directory path。对应 process effect 不是 document authority：
-Desktop 从 canonical Project/Workspace containment 派生 local 或精确 Environment target，先提交匹配
-intent，再请求目标 runtime reconcile。Client 可以保留或删除完整 remote placement，也只能为已准入
-Presentation 报告精确 `provision` 到 `retain` convergence；它不能创建、retarget 或以其他方式改变 remote
-terminal structure。
+Slice 3.2B 使用同一 version-2 schema 对已持久提交的 remote Presentation 执行下游 provision。D194 允许
+兼容、未分组的 remote Terminal Context 包含多个 default top-level Tab：每个不同 correlated request 都有
+一个确定性 Presentation identity，而精确 replay 会复用它。Desktop 从 canonical containment 派生精确
+Environment，在 Host effect 之前提交每个 Presentation，并按 Environment-plus-Presentation identity
+reconcile 未知 outcome。Client mutation 仍仅限已准入 metadata 与精确整 Tab close 规则；它不能伪造
+Presentation、Workspace、launch CWD、Environment 或 panel topology authority。
 
 每个共享选项卡都存储一个持久回退 `title` 和可为 null 的持久 `customTitle`。产品创建的后备值是本地化且不带编号的“终端”标签；自定义标题是显式用户覆盖。主机派生的自然终端标题和当前的 CWD 是瞬态运行时观察结果，永远不会进入共享文档。显示层可以从持久启动 CWD 派生紧凑的目录标签，因此水合可以在新投影到达前恢复目录上下文，同时保持存储的后备标题和自定义标题不变。
 
@@ -130,7 +134,10 @@ ordering 与 broadcast。
 | Remote provision 保持 target-exact 且 commit-first   | Workbench context test 加 Desktop routing、replay 与 forgery test | Default top-level terminal；projection 与 input 不属于本 contract |
 | 仅查看更改从不需要共享写入                           | 投影特定观察员和 Desktop coordinator 指纹测试                     | Shared ordering 由 Desktop session 负责                           |
 | 预览状态无法声明共享持久性                           | 确定性拒绝测试                                                    | 预览仍然是内存中的合成                                            |
+| 应用停止先持久提交再关闭，且可批量重试               | `TerminalPresentationStop` 与 document transition 测试            | 两项 Presentation/两次 attempt；metadata 保留由测试拥有           |
 
 一般的纯 document/view projection 不选择 TLA+，因为它不包含异步 completion、cancellation 或独立排序
 event。单向 v1-to-v2 placement migration 由 `WorkbenchDocumentPlacementMigration` 单独覆盖；Desktop 的
 commit/lifecycle 与 multi-client session model 拥有各自的异步 ordering contract。
+`TerminalPresentationStop` 单独检查先提交后关闭、重试全部当前可重试失败项、已停止项没有 binding，以及新鲜
+替换标识；确定性 transition 测试保留该模型状态之外的 placement、title 与 launch-CWD 声明。

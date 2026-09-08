@@ -1655,6 +1655,41 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
+	it('fails closed without evicting a durable unknown exit when the rejection journal is full', async () => {
+		const harness = createHarness(undefined, true);
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const durableUnknown = terminalExitFor(106);
+		const rejectedAdmission = terminalExitFor(107);
+		expect(harness.terminalExitSpillStore.admit(durableUnknown, 'unknown-identity')).toEqual({
+			kind: 'admitted',
+		});
+		harness.terminalExitSpillAdmit.mockReturnValueOnce({ kind: 'full' });
+		vi.mocked(harness.terminalExitSpillStore.reject).mockReturnValue({ kind: 'full' });
+
+		expect(() => harness.hostEnvelopeListener?.(terminalExitedEnvelope(rejectedAdmission))).toThrow(
+			'Desktop terminal exit rejection journal is full.',
+		);
+
+		expect(harness.terminalExitSpillStore.reject).toHaveBeenNthCalledWith(
+			1,
+			rejectedAdmission,
+			'pending-journal-full',
+		);
+		expect(harness.terminalExitSpillStore.reject).toHaveBeenNthCalledWith(
+			2,
+			rejectedAdmission,
+			'write-failed',
+		);
+		expect(harness.terminalExitSpillStore.list()).toEqual([
+			{ event: durableUnknown, reason: 'unknown-identity', state: 'pending' },
+		]);
+		expect(harness.terminalRuntime.recordExitOutcome).not.toHaveBeenCalled();
+		expect(harness.terminalExitPublicationLedger.markPublished).not.toHaveBeenCalled();
+		expect(terminalEventPublications(harness)).toHaveLength(0);
+		await application.shutdown();
+	});
+
 	it('keeps a real composed exit owned while binding persistence is temporarily unavailable', async () => {
 		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-composition-'));
 		try {

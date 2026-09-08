@@ -135,9 +135,10 @@ describe('Desktop shell integration resources', () => {
 			const originalZdotdir = path.join(temporaryHome, 'zsh-config');
 			try {
 				await mkdir(originalZdotdir);
+				// Keep distribution startup work outside this user-startup witness.
 				await writeFile(
 					path.join(originalZdotdir, '.zshenv'),
-					'typeset -gx ORCHBEE_ZSHENV_WITNESS=preserved\n',
+					'unsetopt globalrcs\ntypeset -gx ORCHBEE_ZSHENV_WITNESS=preserved\n',
 					'utf8',
 				);
 				await writeFile(

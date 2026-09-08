@@ -74,6 +74,12 @@ Terminal Host 拥有：
 
 运行时目录和端点是操作系统用户私有的。 POSIX 使用可信的每用户集合点、无跟随目录描述符、effective-UID 所有权、私有模式、扩展和可继承 ACLs 的删除和验证、终身锁以及实际 Unix 域套接字的后绑定验证。Host 与每个当前本地 Broker 在每次连接时都通过内核凭据要求对端具有相同 effective UID。 Windows 使用拥有的非重分析运行时目录、受保护的 DACLs、单例互斥体、本地命名管道和 peer-SID 验证。
 
+用于 ACL 检查或修改的 POSIX 目录句柄必须可读。Zig 打开目录时同时指定 `.iterate = true` 和不跟随符号链接，让 Linux 返回支持这些操作的描述符，而非 `O_PATH`；所有权、权限模式和 ACL 拒绝检查仍然必需。
+
+Linux 可执行文件启动时，Host 会在获取自身资源或启动工作线程之前，关闭标准输入、输出和错误之外继承的文件描述符。启动方通过参数和环境传递配置，不传递文件描述符。这避免长期运行的 Host 保留 Electron 调试套接字和存储锁。原生黑盒跟踪会注入一个属于启动方的描述符，并在 Host 提供服务时验证它已经释放。
+
+非 Darwin 构建使用 `src/platform/darwin-cross-libraries/libbsm.tbd` 链接 `process_session.c` 声明的两个 audit-token 访问器。描述文件指向系统的 `/usr/lib/libbsm.0.dylib`，与 [Apple 的 OpenBSM 构建配置](https://github.com/apple-oss-distributions/OpenBSM/blob/bb0681420e99d447f466ba70d38589213bb69fea/OpenBSM.xcodeproj/project.pbxproj) 一致，不包含实现。其符号必须与原生访问器声明保持一致；macOS 本机构建使用本机 SDK，并继续负责证明这些调用的运行时行为。
+
 这些控制建立了同一用户的信任边界。端点标识符不是秘密，并且 Terminal Host 不区分一个相同用户应用程序与另一个。它不是多租户服务。
 
 当 Host 存活时，支持 Desktop 重新连接。在 POSIX 上，Desktop 的进程内本机端点适配器拥有客户端套接字，并在协议工作前验证 Host；Terminal Host 独立验证每个已接受客户端。关闭 Desktop 连接不会终止或以其他方式拥有 Host。不承诺在 Host 或操作系统崩溃后迁移或恢复 PTY。客户端模型见 Desktop 的 [POSIX Host 端点合同](../desktop/docs/posix-host-endpoint.zh-CN.md)。

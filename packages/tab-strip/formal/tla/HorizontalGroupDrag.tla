@@ -9,11 +9,7 @@ CONSTANTS
   BuildTab2,
   LooseTab,
   ResearchGroup,
-  BuildGroup,
-  PinnedNode,
-  ResearchNode,
-  BuildNode,
-  LooseNode
+  BuildGroup
 
 Range(sequence) == {sequence[index] : index \in DOMAIN sequence}
 
@@ -27,308 +23,403 @@ Tabs == {
 }
 
 Groups == {ResearchGroup, BuildGroup}
+NoGroup == "no-group"
+UnknownGroup == "unknown-group"
+GroupValues == Groups \cup {NoGroup, UnknownGroup}
 PinnedTabs == {PinnedTab}
 SourceMembers == {ResearchTab1, ResearchTab2}
-BuildMembers == {BuildTab1, BuildTab2}
-InitialOrder == <<PinnedNode, ResearchNode, BuildNode, LooseNode>>
-Collections == Range(InitialOrder)
+Outsiders == Tabs \ SourceMembers
 
-VisibleSurfaces(collapsedGroups) ==
-  {PinnedTab, LooseTab}
-    \cup (IF ResearchGroup \in collapsedGroups THEN {ResearchNode} ELSE SourceMembers)
-    \cup (IF BuildGroup \in collapsedGroups THEN {BuildNode} ELSE BuildMembers)
+InitialTabs ==
+  <<PinnedTab, ResearchTab1, ResearchTab2, BuildTab1, BuildTab2, LooseTab>>
 
-ActiveSurface(tab, collapsedGroups) ==
-  IF tab \in SourceMembers /\ ResearchGroup \in collapsedGroups
-    THEN ResearchNode
-    ELSE IF tab \in BuildMembers /\ BuildGroup \in collapsedGroups
-      THEN BuildNode
-      ELSE tab
+AfterBuildTabs ==
+  <<PinnedTab, BuildTab1, BuildTab2, ResearchTab1, ResearchTab2, LooseTab>>
+
+AfterLooseTabs ==
+  <<PinnedTab, BuildTab1, BuildTab2, LooseTab, ResearchTab1, ResearchTab2>>
+
+InitialGroupOf ==
+  [tab \in Tabs |->
+    IF tab \in SourceMembers
+    THEN ResearchGroup
+    ELSE IF tab \in {BuildTab1, BuildTab2}
+      THEN BuildGroup
+      ELSE NoGroup]
 
 Phases == {"idle", "armed", "dragging", "settling"}
 Visuals == {"none", "expanded-group", "collapsed-group"}
 Outcomes == {"none", "cancelled", "committed", "settled"}
+Commands == {"none", "activate", "move", "commit", "cancel", "toggle"}
+
+Actions == {
+  "init",
+  "arm-group",
+  "activate-drag",
+  "move-left",
+  "move-right",
+  "invalidate-source-membership",
+  "reject-stale-activation",
+  "reject-missing-group",
+  "reject-out-of-phase-event",
+  "reject-repeated-event",
+  "reject-invalid-target",
+  "commit-drag",
+  "cancel-drag",
+  "settle-drag",
+  "toggle-research-group",
+  "toggle-build-group"
+}
+
+PassiveRejectedActions == {
+  "reject-missing-group",
+  "reject-out-of-phase-event",
+  "reject-repeated-event"
+}
 
 VARIABLES
-  order,
+  tabs,
+  groupOf,
   collapsed,
   active,
   selected,
+  selectionAnchor,
   phase,
+  capturedMembers,
   recordedActive,
-  wasCollapsed,
-  originalOrder,
+  originalTabs,
+  originalGroupOf,
   originalCollapsed,
   originalActive,
   originalSelected,
+  originalSelectionAnchor,
   visual,
   targetValid,
   dropVisible,
-  lastOutcome
+  lastOutcome,
+  previousAuthoritative,
+  previousInteraction,
+  lastAction,
+  lastCommand
+
+Authoritative ==
+  <<tabs, groupOf, collapsed, active, selected, selectionAnchor>>
+
+OriginalAuthoritative ==
+  <<originalTabs, originalGroupOf, originalCollapsed, originalActive,
+    originalSelected, originalSelectionAnchor>>
+
+Interaction == <<phase, capturedMembers, recordedActive, visual,
+  targetValid, dropVisible, lastOutcome>>
+
+TabOrderType == [1..Len(InitialTabs) -> Tabs]
+GroupMapType == [Tabs -> GroupValues]
+AuthoritativeDomain ==
+  TabOrderType
+    \X GroupMapType
+    \X (SUBSET Groups)
+    \X Tabs
+    \X (SUBSET Tabs)
+    \X Tabs
 
 vars == <<
-  order,
+  tabs,
+  groupOf,
   collapsed,
   active,
   selected,
+  selectionAnchor,
   phase,
+  capturedMembers,
   recordedActive,
-  wasCollapsed,
-  originalOrder,
+  originalTabs,
+  originalGroupOf,
   originalCollapsed,
   originalActive,
   originalSelected,
+  originalSelectionAnchor,
   visual,
   targetValid,
   dropVisible,
-  lastOutcome
->>
-
-Authoritative == <<order, collapsed, active, selected>>
-OriginalAuthoritative == <<
-  originalOrder,
-  originalCollapsed,
-  originalActive,
-  originalSelected
+  lastOutcome,
+  previousAuthoritative,
+  previousInteraction,
+  lastAction,
+  lastCommand
 >>
 
 IndexOf(sequence, value) ==
-  CHOOSE index \in 1..Len(sequence): sequence[index] = value
+  CHOOSE index \in DOMAIN sequence: sequence[index] = value
 
-Swap(sequence, leftIndex, rightIndex) ==
-  [index \in 1..Len(sequence) |->
-    IF index = leftIndex
-      THEN sequence[rightIndex]
-      ELSE IF index = rightIndex
-        THEN sequence[leftIndex]
-        ELSE sequence[index]]
+GroupContiguousFor(sequence, membership, group) ==
+  \A left \in DOMAIN sequence, right \in DOMAIN sequence:
+    /\ left < right
+    /\ membership[sequence[left]] = group
+    /\ membership[sequence[right]] = group
+    =>
+      \A between \in left..right:
+        membership[sequence[between]] = group
+
+SourceBlockIsExact(sequence, membership) ==
+  /\ ResearchTab1 \in Range(sequence)
+  /\ ResearchTab2 \in Range(sequence)
+  /\ membership[ResearchTab1] = ResearchGroup
+  /\ membership[ResearchTab2] = ResearchGroup
+  /\ IndexOf(sequence, ResearchTab2) =
+       IndexOf(sequence, ResearchTab1) + 1
+
+CapturedSourceIsCurrent ==
+  /\ capturedMembers = <<ResearchTab1, ResearchTab2>>
+  /\ SourceBlockIsExact(tabs, groupOf)
+
+OutsiderOrderUnchanged(before, after) ==
+  \A first \in Outsiders, second \in Outsiders:
+    (IndexOf(before, first) < IndexOf(before, second)) =
+      (IndexOf(after, first) < IndexOf(after, second))
+
+VisibleSurfaces ==
+  {tab \in Tabs: groupOf[tab] \notin collapsed} \cup collapsed
+
+ActiveSurface ==
+  IF groupOf[active] \in collapsed
+  THEN groupOf[active]
+  ELSE active
+
+Record(action, command) ==
+  /\ previousAuthoritative' = Authoritative
+  /\ previousInteraction' = Interaction
+  /\ lastAction' = action
+  /\ lastCommand' = command
 
 Init ==
   \E initialCollapsed \in SUBSET Groups,
      initialActive \in Tabs:
-    /\ order = InitialOrder
+    /\ tabs = InitialTabs
+    /\ groupOf = InitialGroupOf
     /\ collapsed = initialCollapsed
     /\ active = initialActive
     /\ selected = {initialActive}
+    /\ selectionAnchor = initialActive
     /\ phase = "idle"
+    /\ capturedMembers = <<ResearchTab1, ResearchTab2>>
     /\ recordedActive = initialActive
-    /\ wasCollapsed = FALSE
-    /\ originalOrder = InitialOrder
+    /\ originalTabs = InitialTabs
+    /\ originalGroupOf = InitialGroupOf
     /\ originalCollapsed = initialCollapsed
     /\ originalActive = initialActive
     /\ originalSelected = {initialActive}
+    /\ originalSelectionAnchor = initialActive
     /\ visual = "none"
     /\ targetValid = FALSE
     /\ dropVisible = FALSE
     /\ lastOutcome = "none"
+    /\ previousAuthoritative = Authoritative
+    /\ previousInteraction = Interaction
+    /\ lastAction = "init"
+    /\ lastCommand = "none"
 
 ArmGroup ==
   /\ phase = "idle"
-  /\ originalOrder' = order
+  /\ SourceBlockIsExact(tabs, groupOf)
+  /\ originalTabs' = tabs
+  /\ originalGroupOf' = groupOf
   /\ originalCollapsed' = collapsed
   /\ originalActive' = active
   /\ originalSelected' = selected
-  /\ recordedActive' = IF active \in SourceMembers THEN active ELSE ResearchTab1
-  /\ wasCollapsed' = (ResearchGroup \in collapsed)
-  /\ visual' = IF ResearchGroup \in collapsed
-      THEN "collapsed-group"
-      ELSE "expanded-group"
+  /\ originalSelectionAnchor' = selectionAnchor
+  /\ capturedMembers' = <<ResearchTab1, ResearchTab2>>
+  /\ recordedActive' =
+       IF active \in SourceMembers THEN active ELSE ResearchTab1
+  /\ visual' =
+       IF ResearchGroup \in collapsed
+       THEN "collapsed-group"
+       ELSE "expanded-group"
   /\ phase' = "armed"
   /\ targetValid' = FALSE
   /\ dropVisible' = FALSE
   /\ lastOutcome' = "none"
   /\ UNCHANGED Authoritative
+  /\ Record("arm-group", "none")
 
 ActivateDrag ==
   /\ phase = "armed"
+  /\ CapturedSourceIsCurrent
   /\ collapsed' = collapsed \cup {ResearchGroup}
   /\ active' = recordedActive
   /\ selected' = SourceMembers
+  /\ selectionAnchor' = recordedActive
   /\ phase' = "dragging"
   /\ targetValid' = FALSE
   /\ dropVisible' = FALSE
-  /\ UNCHANGED <<
-      order,
-      recordedActive,
-      wasCollapsed,
-      originalOrder,
-      originalCollapsed,
-      originalActive,
-      originalSelected,
-      visual,
-      lastOutcome
-    >>
+  /\ UNCHANGED <<tabs, groupOf, capturedMembers, recordedActive,
+       originalTabs, originalGroupOf, originalCollapsed, originalActive,
+       originalSelected, originalSelectionAnchor, visual, lastOutcome>>
+  /\ Record("activate-drag", "activate")
 
 MoveLeft ==
-  LET sourceIndex == IndexOf(order, ResearchNode) IN
-    /\ phase = "dragging"
-    /\ sourceIndex > 2
-    /\ order' = Swap(order, sourceIndex, sourceIndex - 1)
-    /\ targetValid' = TRUE
-    /\ dropVisible' = TRUE
-    /\ UNCHANGED <<
-        collapsed,
-        active,
-        selected,
-        phase,
-        recordedActive,
-        wasCollapsed,
-        originalOrder,
-        originalCollapsed,
-        originalActive,
-        originalSelected,
-        visual,
-        lastOutcome
-      >>
+  /\ phase = "dragging"
+  /\ CapturedSourceIsCurrent
+  /\ tabs \in {AfterBuildTabs, AfterLooseTabs}
+  /\ tabs' =
+       IF tabs = AfterLooseTabs THEN AfterBuildTabs ELSE InitialTabs
+  /\ targetValid' = TRUE
+  /\ dropVisible' = TRUE
+  /\ UNCHANGED <<groupOf, collapsed, active, selected, selectionAnchor,
+       phase, capturedMembers, recordedActive, originalTabs,
+       originalGroupOf, originalCollapsed, originalActive, originalSelected,
+       originalSelectionAnchor, visual, lastOutcome>>
+  /\ Record("move-left", "move")
 
 MoveRight ==
-  LET sourceIndex == IndexOf(order, ResearchNode) IN
-    /\ phase = "dragging"
-    /\ sourceIndex < Len(order)
-    /\ order' = Swap(order, sourceIndex, sourceIndex + 1)
-    /\ targetValid' = TRUE
-    /\ dropVisible' = TRUE
-    /\ UNCHANGED <<
-        collapsed,
-        active,
-        selected,
-        phase,
-        recordedActive,
-        wasCollapsed,
-        originalOrder,
-        originalCollapsed,
-        originalActive,
-        originalSelected,
-        visual,
-        lastOutcome
-      >>
+  /\ phase = "dragging"
+  /\ CapturedSourceIsCurrent
+  /\ tabs \in {InitialTabs, AfterBuildTabs}
+  /\ tabs' =
+       IF tabs = InitialTabs THEN AfterBuildTabs ELSE AfterLooseTabs
+  /\ targetValid' = TRUE
+  /\ dropVisible' = TRUE
+  /\ UNCHANGED <<groupOf, collapsed, active, selected, selectionAnchor,
+       phase, capturedMembers, recordedActive, originalTabs,
+       originalGroupOf, originalCollapsed, originalActive, originalSelected,
+       originalSelectionAnchor, visual, lastOutcome>>
+  /\ Record("move-right", "move")
+
+InvalidateSourceMembership ==
+  /\ phase = "armed"
+  /\ CapturedSourceIsCurrent
+  /\ groupOf' = [groupOf EXCEPT ![ResearchTab2] = NoGroup]
+  /\ UNCHANGED <<tabs, collapsed, active, selected, selectionAnchor, phase,
+       capturedMembers, recordedActive, originalTabs, originalGroupOf,
+       originalCollapsed, originalActive, originalSelected,
+       originalSelectionAnchor, visual, targetValid, dropVisible, lastOutcome>>
+  /\ Record("invalidate-source-membership", "none")
+
+RejectStaleActivation ==
+  /\ phase = "armed"
+  /\ ~CapturedSourceIsCurrent
+  /\ phase' = "idle"
+  /\ visual' = "none"
+  /\ targetValid' = FALSE
+  /\ dropVisible' = FALSE
+  /\ UNCHANGED <<Authoritative, capturedMembers, recordedActive,
+       originalTabs, originalGroupOf, originalCollapsed, originalActive,
+       originalSelected, originalSelectionAnchor, lastOutcome>>
+  /\ Record("reject-stale-activation", "none")
+
+RejectMissingGroup ==
+  /\ phase \in Phases
+  /\ UNCHANGED <<Authoritative, Interaction, originalTabs, originalGroupOf,
+       originalCollapsed, originalActive, originalSelected,
+       originalSelectionAnchor>>
+  /\ Record("reject-missing-group", "none")
+
+RejectOutOfPhaseEvent ==
+  /\ phase # "dragging"
+  /\ UNCHANGED <<Authoritative, Interaction, originalTabs, originalGroupOf,
+       originalCollapsed, originalActive, originalSelected,
+       originalSelectionAnchor>>
+  /\ Record("reject-out-of-phase-event", "none")
+
+RejectRepeatedEvent ==
+  /\ lastAction # "init"
+  /\ UNCHANGED <<Authoritative, Interaction, originalTabs, originalGroupOf,
+       originalCollapsed, originalActive, originalSelected,
+       originalSelectionAnchor>>
+  /\ Record("reject-repeated-event", "none")
 
 RejectInvalidTarget ==
   /\ phase = "dragging"
   /\ targetValid' = FALSE
   /\ dropVisible' = FALSE
-  /\ UNCHANGED <<
-      Authoritative,
-      phase,
-      recordedActive,
-      wasCollapsed,
-      originalOrder,
-      originalCollapsed,
-      originalActive,
-      originalSelected,
-      visual,
-      lastOutcome
-    >>
+  /\ UNCHANGED <<Authoritative, phase, capturedMembers, recordedActive,
+       originalTabs, originalGroupOf, originalCollapsed, originalActive,
+       originalSelected, originalSelectionAnchor, visual, lastOutcome>>
+  /\ Record("reject-invalid-target", "none")
 
 CommitDrag ==
   /\ phase = "dragging"
   /\ collapsed' = originalCollapsed
   /\ active' = recordedActive
   /\ selected' = {recordedActive}
+  /\ selectionAnchor' = recordedActive
   /\ phase' = "settling"
   /\ visual' = "none"
   /\ targetValid' = FALSE
   /\ dropVisible' = FALSE
   /\ lastOutcome' = "committed"
-  /\ UNCHANGED <<
-      order,
-      recordedActive,
-      wasCollapsed,
-      originalOrder,
-      originalCollapsed,
-      originalActive,
-      originalSelected
-    >>
+  /\ UNCHANGED <<tabs, groupOf, capturedMembers, recordedActive,
+       originalTabs, originalGroupOf, originalCollapsed, originalActive,
+       originalSelected, originalSelectionAnchor>>
+  /\ Record("commit-drag", "commit")
 
 CancelDrag ==
-  /\ phase \in {"armed", "dragging"}
-  /\ order' = originalOrder
+  /\ phase = "dragging" \/ (phase = "armed" /\ CapturedSourceIsCurrent)
+  /\ tabs' = originalTabs
+  /\ groupOf' = originalGroupOf
   /\ collapsed' = originalCollapsed
   /\ active' = originalActive
   /\ selected' = originalSelected
+  /\ selectionAnchor' = originalSelectionAnchor
   /\ phase' = "idle"
   /\ visual' = "none"
   /\ targetValid' = FALSE
   /\ dropVisible' = FALSE
   /\ lastOutcome' = "cancelled"
-  /\ UNCHANGED <<
-      recordedActive,
-      wasCollapsed,
-      originalOrder,
-      originalCollapsed,
-      originalActive,
-      originalSelected
-    >>
+  /\ UNCHANGED <<capturedMembers, recordedActive, originalTabs,
+       originalGroupOf, originalCollapsed, originalActive, originalSelected,
+       originalSelectionAnchor>>
+  /\ Record("cancel-drag", "cancel")
 
 SettleDrag ==
   /\ phase = "settling"
   /\ phase' = "idle"
   /\ lastOutcome' = "settled"
-  /\ UNCHANGED <<
-      Authoritative,
-      recordedActive,
-      wasCollapsed,
-      originalOrder,
-      originalCollapsed,
-      originalActive,
-      originalSelected,
-      visual,
-      targetValid,
-      dropVisible
-    >>
+  /\ UNCHANGED <<Authoritative, capturedMembers, recordedActive,
+       originalTabs, originalGroupOf, originalCollapsed, originalActive,
+       originalSelected, originalSelectionAnchor, visual, targetValid,
+       dropVisible>>
+  /\ Record("settle-drag", "none")
 
 ToggleResearchGroup ==
   /\ phase = "idle"
-  /\ collapsed' = IF ResearchGroup \in collapsed
-      THEN collapsed \ {ResearchGroup}
-      ELSE collapsed \cup {ResearchGroup}
+  /\ collapsed' =
+       IF ResearchGroup \in collapsed
+       THEN collapsed \ {ResearchGroup}
+       ELSE collapsed \cup {ResearchGroup}
   /\ selected' = {active}
+  /\ selectionAnchor' = active
   /\ lastOutcome' = "none"
-  /\ UNCHANGED <<
-      order,
-      active,
-      phase,
-      recordedActive,
-      wasCollapsed,
-      originalOrder,
-      originalCollapsed,
-      originalActive,
-      originalSelected,
-      visual,
-      targetValid,
-      dropVisible
-    >>
+  /\ UNCHANGED <<tabs, groupOf, active, phase, capturedMembers,
+       recordedActive, originalTabs, originalGroupOf, originalCollapsed,
+       originalActive, originalSelected, originalSelectionAnchor, visual,
+       targetValid, dropVisible>>
+  /\ Record("toggle-research-group", "toggle")
 
 ToggleBuildGroup ==
   /\ phase = "idle"
-  /\ collapsed' = IF BuildGroup \in collapsed
-      THEN collapsed \ {BuildGroup}
-      ELSE collapsed \cup {BuildGroup}
+  /\ collapsed' =
+       IF BuildGroup \in collapsed
+       THEN collapsed \ {BuildGroup}
+       ELSE collapsed \cup {BuildGroup}
   /\ selected' = {active}
+  /\ selectionAnchor' = active
   /\ lastOutcome' = "none"
-  /\ UNCHANGED <<
-      order,
-      active,
-      phase,
-      recordedActive,
-      wasCollapsed,
-      originalOrder,
-      originalCollapsed,
-      originalActive,
-      originalSelected,
-      visual,
-      targetValid,
-      dropVisible
-    >>
-
-ActivateOrCancel == ActivateDrag \/ CancelDrag
-FinishDrag == CommitDrag \/ CancelDrag
+  /\ UNCHANGED <<tabs, groupOf, active, phase, capturedMembers,
+       recordedActive, originalTabs, originalGroupOf, originalCollapsed,
+       originalActive, originalSelected, originalSelectionAnchor, visual,
+       targetValid, dropVisible>>
+  /\ Record("toggle-build-group", "toggle")
 
 Next ==
   \/ ArmGroup
   \/ ActivateDrag
   \/ MoveLeft
   \/ MoveRight
+  \/ InvalidateSourceMembership
+  \/ RejectStaleActivation
+  \/ RejectMissingGroup
+  \/ RejectOutOfPhaseEvent
+  \/ RejectRepeatedEvent
   \/ RejectInvalidTarget
   \/ CommitDrag
   \/ CancelDrag
@@ -336,82 +427,148 @@ Next ==
   \/ ToggleResearchGroup
   \/ ToggleBuildGroup
 
-Spec ==
-  /\ Init
-  /\ [][Next]_vars
-  /\ WF_vars(ActivateOrCancel)
-  /\ WF_vars(FinishDrag)
-  /\ WF_vars(SettleDrag)
+Spec == Init /\ [][Next]_vars
 
 TypeOK ==
-  /\ order \in [1..Len(InitialOrder) -> Collections]
+  /\ tabs \in TabOrderType
+  /\ groupOf \in GroupMapType
   /\ collapsed \in SUBSET Groups
   /\ active \in Tabs
   /\ selected \in SUBSET Tabs
+  /\ selectionAnchor \in Tabs
   /\ phase \in Phases
+  /\ capturedMembers \in [1..2 -> Tabs]
   /\ recordedActive \in Tabs
-  /\ wasCollapsed \in BOOLEAN
-  /\ originalOrder \in [1..Len(InitialOrder) -> Collections]
+  /\ originalTabs \in TabOrderType
+  /\ originalGroupOf \in GroupMapType
   /\ originalCollapsed \in SUBSET Groups
   /\ originalActive \in Tabs
   /\ originalSelected \in SUBSET Tabs
+  /\ originalSelectionAnchor \in Tabs
   /\ visual \in Visuals
   /\ targetValid \in BOOLEAN
   /\ dropVisible \in BOOLEAN
   /\ lastOutcome \in Outcomes
+  /\ previousAuthoritative \in AuthoritativeDomain
+  /\ previousInteraction \in
+       Phases \X [1..2 -> Tabs] \X Tabs \X Visuals
+         \X BOOLEAN \X BOOLEAN \X Outcomes
+  /\ lastAction \in Actions
+  /\ lastCommand \in Commands
 
-UniqueCollectionIdentity ==
-  /\ Len(order) = Len(InitialOrder)
-  /\ Cardinality(Range(order)) = Len(order)
-  /\ Range(order) = Collections
+UniqueTabIdentity ==
+  /\ Len(tabs) = Len(InitialTabs)
+  /\ Cardinality(Range(tabs)) = Len(tabs)
+  /\ Range(tabs) = Tabs
 
-PinnedPrefix == order[1] = PinnedNode
-ActiveTabExists == active \in Tabs
-SelectionExists == selected # {} /\ selected \subseteq Tabs
-DragSourceExists == SourceMembers \subseteq Tabs
+KnownGroupMembership ==
+  \A tab \in Tabs: groupOf[tab] \in Groups \cup {NoGroup}
+
+PinnedPrefix ==
+  /\ tabs[1] = PinnedTab
+  /\ groupOf[PinnedTab] = NoGroup
+
+GroupContiguous ==
+  \A group \in Groups: GroupContiguousFor(tabs, groupOf, group)
+
+ActiveTabExists == active \in Range(tabs)
+
+SelectionExists ==
+  /\ selected # {}
+  /\ selected \subseteq Range(tabs)
+  /\ selectionAnchor \in Range(tabs)
 
 StableActiveSurfaceExists ==
-  phase = "dragging"
-    \/ ActiveSurface(active, collapsed) \in VisibleSurfaces(collapsed)
+  phase = "dragging" \/ ActiveSurface \in VisibleSurfaces
+
+DragSourceExists ==
+  phase = "idle" \/
+    /\ Range(capturedMembers) = SourceMembers
+    /\ SourceMembers \subseteq Range(tabs)
+
+GroupMovePermutation ==
+  lastAction \notin {"move-left", "move-right"} \/
+    /\ Len(tabs) = Len(previousAuthoritative[1])
+    /\ Range(tabs) = Range(previousAuthoritative[1])
 
 GroupMoveAtomic ==
-  /\ ResearchNode \in Range(order)
-  /\ Cardinality({index \in DOMAIN order: order[index] = ResearchNode}) = 1
+  lastAction \notin {"move-left", "move-right"} \/
+    /\ SourceBlockIsExact(tabs, groupOf)
+    /\ groupOf = previousAuthoritative[2]
+    /\ OutsiderOrderUnchanged(previousAuthoritative[1], tabs)
+    /\ IF lastAction = "move-right"
+       THEN
+         \/ /\ previousAuthoritative[1] = InitialTabs
+            /\ tabs = AfterBuildTabs
+         \/ /\ previousAuthoritative[1] = AfterBuildTabs
+            /\ tabs = AfterLooseTabs
+       ELSE
+         \/ /\ previousAuthoritative[1] = AfterLooseTabs
+            /\ tabs = AfterBuildTabs
+         \/ /\ previousAuthoritative[1] = AfterBuildTabs
+            /\ tabs = InitialTabs
 
 GroupTargetBoundary ==
-  phase # "dragging" \/ IndexOf(order, ResearchNode) \in 2..Len(order)
+  phase # "dragging" \/
+    IndexOf(tabs, ResearchTab1) \in {2, 4, 5}
 
 CollapsedDragStaysCompact ==
-  ~(phase \in {"armed", "dragging"} /\ wasCollapsed)
+  ~(phase \in {"armed", "dragging"} /\
+      ResearchGroup \in originalCollapsed)
     \/ visual = "collapsed-group"
 
 ExpandedDragKeepsFullVisual ==
-  ~(phase \in {"armed", "dragging"} /\ ~wasCollapsed)
+  ~(phase \in {"armed", "dragging"} /\
+      ResearchGroup \notin originalCollapsed)
     \/ visual = "expanded-group"
 
 DraggingBackingGroupIsCollapsed ==
   phase # "dragging" \/ ResearchGroup \in collapsed
 
 CompletionRestoresCollapsedIntent ==
-  ~(lastOutcome \in {"committed", "settled"})
-    \/ collapsed = originalCollapsed
+  lastOutcome \notin {"committed", "settled"} \/
+    collapsed = originalCollapsed
 
 CompletionSelectsRecordedActive ==
-  ~(lastOutcome \in {"committed", "settled"})
-    \/ (active = recordedActive /\ selected = {recordedActive})
+  lastOutcome \notin {"committed", "settled"} \/
+    /\ active = recordedActive
+    /\ selected = {recordedActive}
+    /\ selectionAnchor = recordedActive
 
 CollapsedActiveUsesGroupHeader ==
-  /\ ~(ResearchGroup \in collapsed /\ active \in SourceMembers)
-      \/ ActiveSurface(active, collapsed) = ResearchNode
-  /\ ~(BuildGroup \in collapsed /\ active \in BuildMembers)
-      \/ ActiveSurface(active, collapsed) = BuildNode
+  ~(groupOf[active] \in collapsed) \/ ActiveSurface = groupOf[active]
 
 CancelRestoresAuthoritativeState ==
   lastOutcome # "cancelled" \/ Authoritative = OriginalAuthoritative
 
 NoInvalidDropFeedback == targetValid \/ ~dropVisible
 
-InteractionEventuallyIdle ==
-  phase \in {"armed", "dragging", "settling"} ~> phase = "idle"
+RejectedInputPreservesAuthorityAndCommands ==
+  lastAction \notin
+    (PassiveRejectedActions
+      \cup {"reject-stale-activation", "reject-invalid-target"})
+  \/
+    /\ Authoritative = previousAuthoritative
+    /\ lastCommand = "none"
+
+PassiveRejectedInputIsExactNoOp ==
+  lastAction \notin PassiveRejectedActions \/
+    /\ Interaction = previousInteraction
+    /\ Authoritative = previousAuthoritative
+    /\ lastCommand = "none"
+
+StaleActivationRetiresWithoutMutation ==
+  lastAction # "reject-stale-activation" \/
+    /\ previousInteraction[1] = "armed"
+    /\ phase = "idle"
+    /\ Authoritative = previousAuthoritative
+    /\ lastCommand = "none"
+
+InvalidTargetCannotMutateOrCommand ==
+  lastAction # "reject-invalid-target" \/
+    /\ Authoritative = previousAuthoritative
+    /\ ~targetValid
+    /\ ~dropVisible
+    /\ lastCommand = "none"
 
 =============================================================================

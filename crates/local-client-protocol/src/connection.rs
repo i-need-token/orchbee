@@ -16,6 +16,9 @@ use crate::{
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
+#[cfg(target_os = "linux")]
+mod admission_deadline;
+
 #[derive(Debug)]
 pub struct ClientSessionConnection {
     generation: std::num::NonZeroU64,
@@ -23,6 +26,18 @@ pub struct ClientSessionConnection {
 }
 
 impl ClientSessionConnection {
+    /// Admits one Linux connection within the caller's existing monotonic deadline.
+    /// This neither selects a timeout nor activates, retries, or supervises a Site.
+    #[cfg(target_os = "linux")]
+    pub fn connect_before(
+        endpoint: &Path,
+        cohort: &str,
+        deadline: std::time::Instant,
+    ) -> Result<Self, ConnectClientError> {
+        let hello = ClientHello::new(cohort)?;
+        admission_deadline::connect_before(endpoint, hello, deadline)
+    }
+
     pub fn connect(endpoint: &Path, cohort: &str) -> Result<Self, ConnectClientError> {
         let hello = ClientHello::new(cohort)?;
         let mut stream = UnixStream::connect(endpoint)?;
@@ -106,6 +121,8 @@ impl Write for ClientSessionConnection {
 
 #[derive(Debug)]
 pub enum ConnectClientError {
+    /// Linux deadline adapter failed before any OBLC exchange began.
+    ConnectFailed(io::Error),
     Io(io::Error),
     Protocol(ProtocolError),
     Rejected(RejectionReason),
@@ -115,7 +132,7 @@ pub enum ConnectClientError {
 impl fmt::Display for ConnectClientError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Io(error) => error.fmt(formatter),
+            Self::ConnectFailed(error) | Self::Io(error) => error.fmt(formatter),
             Self::Protocol(error) => error.fmt(formatter),
             Self::Rejected(reason) => write!(formatter, "local Client was rejected: {reason:?}"),
             Self::UnexpectedResponse => {
@@ -128,7 +145,7 @@ impl fmt::Display for ConnectClientError {
 impl std::error::Error for ConnectClientError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Io(error) => Some(error),
+            Self::ConnectFailed(error) | Self::Io(error) => Some(error),
             Self::Protocol(error) => Some(error),
             Self::Rejected(_) | Self::UnexpectedResponse => None,
         }

@@ -15,10 +15,12 @@ LateRequestPhases == {"not-requested", "rejected"}
 
 VARIABLES
   gate, activeOperation, activeWasAccepted, queuedOperation, retirement,
-  lateRequest, sessionsRetired, attachmentsRetired, lastAction
+  lateRequest, sessionsRetired, attachmentsRetired, retirementOwnerRetained,
+  retirementAttemptParity, lastAction
 
 vars == <<gate, activeOperation, activeWasAccepted, queuedOperation,
-  retirement, lateRequest, sessionsRetired, attachmentsRetired, lastAction>>
+  retirement, lateRequest, sessionsRetired, attachmentsRetired,
+  retirementOwnerRetained, retirementAttemptParity, lastAction>>
 
 Init ==
   /\ gate = "open"
@@ -29,6 +31,8 @@ Init ==
   /\ lateRequest = "not-requested"
   /\ sessionsRetired = FALSE
   /\ attachmentsRetired = FALSE
+  /\ retirementOwnerRetained = TRUE
+  /\ retirementAttemptParity = FALSE
   /\ lastAction = "init"
 
 AdmitActiveOperation ==
@@ -38,7 +42,8 @@ AdmitActiveOperation ==
   /\ activeWasAccepted' = TRUE
   /\ lastAction' = "admit-active-operation"
   /\ UNCHANGED <<gate, queuedOperation, retirement, lateRequest,
-       sessionsRetired, attachmentsRetired>>
+       sessionsRetired, attachmentsRetired, retirementOwnerRetained,
+       retirementAttemptParity>>
 
 QueueOperationBehindActive ==
   /\ gate = "open"
@@ -47,35 +52,40 @@ QueueOperationBehindActive ==
   /\ queuedOperation' = "queued"
   /\ lastAction' = "queue-operation-behind-active"
   /\ UNCHANGED <<gate, activeOperation, activeWasAccepted, retirement,
-       lateRequest, sessionsRetired, attachmentsRetired>>
+       lateRequest, sessionsRetired, attachmentsRetired,
+       retirementOwnerRetained, retirementAttemptParity>>
 
 BeginDispose ==
   /\ gate = "open"
   /\ gate' = "draining"
   /\ lastAction' = "begin-dispose"
   /\ UNCHANGED <<activeOperation, activeWasAccepted, queuedOperation,
-       retirement, lateRequest, sessionsRetired, attachmentsRetired>>
+       retirement, lateRequest, sessionsRetired, attachmentsRetired,
+       retirementOwnerRetained, retirementAttemptParity>>
 
 FinishAcceptedCommit ==
   /\ activeOperation = "committing"
   /\ activeOperation' = "committed"
   /\ lastAction' = "finish-accepted-commit"
   /\ UNCHANGED <<gate, activeWasAccepted, queuedOperation, retirement,
-       lateRequest, sessionsRetired, attachmentsRetired>>
+       lateRequest, sessionsRetired, attachmentsRetired,
+       retirementOwnerRetained, retirementAttemptParity>>
 
 PublishAcceptedCommit ==
   /\ activeOperation = "committed"
   /\ activeOperation' = "published"
   /\ lastAction' = "publish-accepted-commit"
   /\ UNCHANGED <<gate, activeWasAccepted, queuedOperation, retirement,
-       lateRequest, sessionsRetired, attachmentsRetired>>
+       lateRequest, sessionsRetired, attachmentsRetired,
+       retirementOwnerRetained, retirementAttemptParity>>
 
 ReconcileAcceptedCommit ==
   /\ activeOperation = "published"
   /\ activeOperation' = "reconciled"
   /\ lastAction' = "reconcile-accepted-commit"
   /\ UNCHANGED <<gate, activeWasAccepted, queuedOperation, retirement,
-       lateRequest, sessionsRetired, attachmentsRetired>>
+       lateRequest, sessionsRetired, attachmentsRetired,
+       retirementOwnerRetained, retirementAttemptParity>>
 
 RejectCapturedQueue ==
   /\ gate = "draining"
@@ -83,7 +93,8 @@ RejectCapturedQueue ==
   /\ queuedOperation' = "rejected"
   /\ lastAction' = "reject-captured-queue"
   /\ UNCHANGED <<gate, activeOperation, activeWasAccepted, retirement,
-       lateRequest, sessionsRetired, attachmentsRetired>>
+       lateRequest, sessionsRetired, attachmentsRetired,
+       retirementOwnerRetained, retirementAttemptParity>>
 
 RejectPostSeal ==
   /\ gate \in {"draining", "complete"}
@@ -91,7 +102,8 @@ RejectPostSeal ==
   /\ lateRequest' = "rejected"
   /\ lastAction' = "reject-post-seal"
   /\ UNCHANGED <<gate, activeOperation, activeWasAccepted, queuedOperation,
-       retirement, sessionsRetired, attachmentsRetired>>
+       retirement, sessionsRetired, attachmentsRetired,
+       retirementOwnerRetained, retirementAttemptParity>>
 
 CapturedTailDrained ==
   /\ activeOperation \in {"idle", "reconciled"}
@@ -105,14 +117,30 @@ AttemptSessionRetirement ==
         /\ gate' = gate
         /\ sessionsRetired' = FALSE
         /\ attachmentsRetired' = FALSE
+        /\ retirementOwnerRetained' = TRUE
      \/ /\ retirement' = "complete"
         /\ gate' = "complete"
         /\ sessionsRetired' = TRUE
         /\ attachmentsRetired' = TRUE
+        /\ retirementOwnerRetained' = FALSE
+  /\ retirementAttemptParity' = ~retirementAttemptParity
   /\ lastAction' = "attempt-session-retirement"
   /\ UNCHANGED <<activeOperation, activeWasAccepted, queuedOperation, lateRequest>>
 
-RetrySessionRetirement ==
+RetrySessionRetirementFails ==
+  /\ gate = "draining"
+  /\ retirement = "failed"
+  /\ CapturedTailDrained
+  /\ retirement' = "failed"
+  /\ gate' = gate
+  /\ sessionsRetired' = FALSE
+  /\ attachmentsRetired' = FALSE
+  /\ retirementOwnerRetained' = TRUE
+  /\ retirementAttemptParity' = ~retirementAttemptParity
+  /\ lastAction' = "retry-session-retirement-failed"
+  /\ UNCHANGED <<activeOperation, activeWasAccepted, queuedOperation, lateRequest>>
+
+RetrySessionRetirementCompletes ==
   /\ gate = "draining"
   /\ retirement = "failed"
   /\ CapturedTailDrained
@@ -120,7 +148,9 @@ RetrySessionRetirement ==
   /\ retirement' = "complete"
   /\ sessionsRetired' = TRUE
   /\ attachmentsRetired' = TRUE
-  /\ lastAction' = "retry-session-retirement"
+  /\ retirementOwnerRetained' = FALSE
+  /\ retirementAttemptParity' = ~retirementAttemptParity
+  /\ lastAction' = "retry-session-retirement-completed"
   /\ UNCHANGED <<activeOperation, activeWasAccepted, queuedOperation, lateRequest>>
 
 Next ==
@@ -133,7 +163,8 @@ Next ==
   \/ RejectCapturedQueue
   \/ RejectPostSeal
   \/ AttemptSessionRetirement
-  \/ RetrySessionRetirement
+  \/ RetrySessionRetirementFails
+  \/ RetrySessionRetirementCompletes
 
 Spec ==
   /\ Init
@@ -143,7 +174,6 @@ Spec ==
   /\ WF_vars(ReconcileAcceptedCommit)
   /\ WF_vars(RejectCapturedQueue)
   /\ WF_vars(AttemptSessionRetirement)
-  /\ WF_vars(RetrySessionRetirement)
 
 TypeOK ==
   /\ gate \in GatePhases
@@ -154,12 +184,14 @@ TypeOK ==
   /\ lateRequest \in LateRequestPhases
   /\ sessionsRetired \in BOOLEAN
   /\ attachmentsRetired \in BOOLEAN
+  /\ retirementOwnerRetained \in BOOLEAN
+  /\ retirementAttemptParity \in BOOLEAN
   /\ lastAction \in {
        "init", "admit-active-operation", "queue-operation-behind-active",
        "begin-dispose", "finish-accepted-commit", "publish-accepted-commit",
        "reconcile-accepted-commit", "reject-captured-queue",
        "reject-post-seal", "attempt-session-retirement",
-       "retry-session-retirement"
+       "retry-session-retirement-failed", "retry-session-retirement-completed"
      }
 
 AcceptedOperationIsRemembered ==
@@ -175,11 +207,25 @@ CompletedDisposalRetiresCapabilities ==
   /\ sessionsRetired = attachmentsRetired
   /\ (gate = "complete") <=>
        (retirement = "complete" /\ sessionsRetired /\ attachmentsRetired)
+  /\ gate = "complete" => ~retirementOwnerRetained
+
+FailedRetirementRetainsOwner ==
+  retirement = "failed" =>
+    /\ gate = "draining"
+    /\ retirementOwnerRetained
+    /\ ~sessionsRetired
+    /\ ~attachmentsRetired
+
+FailedRetirementRemainsRetryable ==
+  retirement = "failed" =>
+    /\ ENABLED RetrySessionRetirementFails
+    /\ ENABLED RetrySessionRetirementCompletes
 
 QueuedOperationIsRejectedBeforeCompletion ==
   gate = "complete" => queuedOperation # "queued"
 
-StartedDisposalEventuallyCompletes ==
-  gate = "draining" ~> gate = "complete"
+StartedDisposalEventuallyAttemptsRetirement ==
+  gate = "draining" /\ retirement = "idle" ~>
+    retirement \in {"failed", "complete"}
 
 =============================================================================

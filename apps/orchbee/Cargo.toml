@@ -6,13 +6,18 @@ rust-version.workspace = true
 publish = false
 
 [target.'cfg(unix)'.dependencies]
+orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
 crossterm = { version = "0.29.0", default-features = false }
 nix = { workspace = true, features = ["fs", "poll", "user"] }
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }
 orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 orchbee-local-client-protocol = { path = "../../crates/local-client-protocol" }
-ratatui = { version = "0.30.2", default-features = false, features = ["std"] }
-rustix = { version = "1.1.4", default-features = false, features = ["fs", "termios"] }
+orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
+ratatui = { version = "0.30.2", default-features = false, features = [
+	"std",
+	"unstable-rendered-line-info",
+] }
+rustix = { workspace = true, features = ["fs", "termios"] }
 signal-hook = { version = "0.3.18", default-features = false }
 
 [target.'cfg(unix)'.dev-dependencies]
@@ -20,3 +25,9 @@ nix = { workspace = true, features = ["fs", "process", "signal", "term"] }
 
 [lints]
 workspace = true
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+orchbee-capability-node-protocol = { path = "../../crates/capability-node-protocol" }
+orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
+rustix = { workspace = true, features = ["process"] }
+serde_json = "1.0.151"
+sha2.workspace = true

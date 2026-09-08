@@ -20,6 +20,9 @@ use orchbee_terminal_protocol::{
 
 use super::*;
 
+#[path = "terminal_operations/lifecycle.rs"]
+mod lifecycle;
+
 #[test]
 fn real_worker_creates_starts_replays_and_leaves_terminals_in_the_host() -> TestResult {
     let fixture = RuntimeFixture::new()?;

@@ -66,15 +66,15 @@ pub struct TerminalFailed {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LifecycleControl {
     TerminateTerminal(TerminalTarget),
-    TerminateTerminalAccepted,
+    TerminateTerminalAccepted(TerminalTarget),
     DisposeTerminal(TerminalTarget),
-    DisposeTerminalAccepted,
+    DisposeTerminalAccepted(TerminalTarget),
     TerminalStarted(TerminalIdentity),
     TerminalExited(TerminalExited),
     StartTerminal(StartTerminal),
     TerminalStartAccepted(TerminalStartAccepted),
     ForceTerminateTerminal(TerminalTarget),
-    ForceTerminateTerminalAccepted,
+    ForceTerminateTerminalAccepted(TerminalTarget),
     TerminalFailed(TerminalFailed),
 }
 
@@ -98,15 +98,17 @@ pub fn decode_lifecycle_control(
                 .map(LifecycleControl::TerminateTerminal)
         }
         (TERMINATE_TERMINAL_KIND, MessageRole::Response) => {
-            decode_wire::<EmptyControlWire>(payload)?;
-            Ok(LifecycleControl::TerminateTerminalAccepted)
+            decode_wire::<TerminalTargetWire>(payload)
+                .and_then(terminal_target_from_wire)
+                .map(LifecycleControl::TerminateTerminalAccepted)
         }
         (DISPOSE_TERMINAL_KIND, MessageRole::Request) => decode_wire::<TerminalTargetWire>(payload)
             .and_then(terminal_target_from_wire)
             .map(LifecycleControl::DisposeTerminal),
         (DISPOSE_TERMINAL_KIND, MessageRole::Response) => {
-            decode_wire::<EmptyControlWire>(payload)?;
-            Ok(LifecycleControl::DisposeTerminalAccepted)
+            decode_wire::<TerminalTargetWire>(payload)
+                .and_then(terminal_target_from_wire)
+                .map(LifecycleControl::DisposeTerminalAccepted)
         }
         (TERMINAL_STARTED_KIND, MessageRole::Event) => decode_wire::<TerminalIdentityWire>(payload)
             .and_then(identity_from_wire)
@@ -128,8 +130,9 @@ pub fn decode_lifecycle_control(
                 .map(LifecycleControl::ForceTerminateTerminal)
         }
         (FORCE_TERMINATE_TERMINAL_KIND, MessageRole::Response) => {
-            decode_wire::<EmptyControlWire>(payload)?;
-            Ok(LifecycleControl::ForceTerminateTerminalAccepted)
+            decode_wire::<TerminalTargetWire>(payload)
+                .and_then(terminal_target_from_wire)
+                .map(LifecycleControl::ForceTerminateTerminalAccepted)
         }
         (TERMINAL_FAILED_KIND, MessageRole::Event) => decode_wire::<TerminalFailedWire>(payload)
             .and_then(terminal_failed_from_wire)
@@ -149,20 +152,20 @@ pub fn encode_lifecycle_control(
             MessageRole::Request,
             serialize_wire(&terminal_target_to_wire(*target))?,
         ),
-        LifecycleControl::TerminateTerminalAccepted => (
+        LifecycleControl::TerminateTerminalAccepted(target) => (
             TERMINATE_TERMINAL_KIND,
             MessageRole::Response,
-            serialize_wire(&EmptyControlWire {})?,
+            serialize_wire(&terminal_target_to_wire(*target))?,
         ),
         LifecycleControl::DisposeTerminal(target) => (
             DISPOSE_TERMINAL_KIND,
             MessageRole::Request,
             serialize_wire(&terminal_target_to_wire(*target))?,
         ),
-        LifecycleControl::DisposeTerminalAccepted => (
+        LifecycleControl::DisposeTerminalAccepted(target) => (
             DISPOSE_TERMINAL_KIND,
             MessageRole::Response,
-            serialize_wire(&EmptyControlWire {})?,
+            serialize_wire(&terminal_target_to_wire(*target))?,
         ),
         LifecycleControl::TerminalStarted(identity) => (
             TERMINAL_STARTED_KIND,
@@ -189,10 +192,10 @@ pub fn encode_lifecycle_control(
             MessageRole::Request,
             serialize_wire(&terminal_target_to_wire(*target))?,
         ),
-        LifecycleControl::ForceTerminateTerminalAccepted => (
+        LifecycleControl::ForceTerminateTerminalAccepted(target) => (
             FORCE_TERMINATE_TERMINAL_KIND,
             MessageRole::Response,
-            serialize_wire(&EmptyControlWire {})?,
+            serialize_wire(&terminal_target_to_wire(*target))?,
         ),
         LifecycleControl::TerminalFailed(failed) => (
             TERMINAL_FAILED_KIND,
@@ -212,10 +215,6 @@ pub fn encode_lifecycle_control(
 struct TerminalTargetWire {
     terminal_id: String,
 }
-
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct EmptyControlWire {}
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

@@ -16,6 +16,173 @@ import {
 
 const repositoryInventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 
+test('native Tab barriers follow Client state, transport, presentation, and protocol owners', () => {
+	const expected = [
+		'native-client-close-control',
+		'native-client-close-handoff',
+		'native-client-create-barrier',
+		'native-client-refresh-fence',
+		'native-tab-switch',
+	];
+	for (const changedPath of [
+		'apps/orchbee/docs/native-tab-session.md',
+		'apps/orchbee/docs/native-tab-session.zh-CN.md',
+		'apps/orchbee/src/terminal_session.rs',
+		'apps/orchbee/src/terminal_session/workbench_projection.rs',
+		'apps/orchbee/src/terminal_session/mailbox.rs',
+		'apps/orchbee/src/terminal_session/state.rs',
+		'apps/orchbee/src/terminal_session/connection.rs',
+		'apps/orchbee/src/local_client/workbench.rs',
+		'apps/orchbee/src/local_client.rs',
+		'apps/orchbee/src/client_view.rs',
+		'apps/orchbee/src/terminal_input.rs',
+		'apps/orchbee/src/tui_shell.rs',
+		'apps/orchbee/src/tui_layout.rs',
+		'apps/orchbee/src/tui_render.rs',
+		'apps/orchbee/src/presentation.rs',
+		'apps/orchbee/src/tui_backend.rs',
+		'apps/orchbee/src/localization.rs',
+		'apps/orchbee/src/terminal_device.rs',
+		'apps/orchbee/src/terminal_projection.rs',
+		'apps/orchbee/src/terminal_lifecycle.rs',
+		'apps/orchbee/src/termination_signal.rs',
+		'apps/orchbee/src/local_startup.rs',
+		'apps/orchbee/tests/local_startup_process.rs',
+		'crates/workbench-protocol/src/command.rs',
+		'crates/client-server-protocol/src/viewer.rs',
+		'crates/terminal-protocol/src/text_frame/rows.rs',
+		'schemas/workbench/v1/workbench-command.schema.json',
+		'schemas/workbench/v1/workbench-command-conformance-v1.json',
+		'schemas/client-server/v1/client-server.schema.json',
+	]) {
+		const selected = selectModelsForChangedPaths(repositoryInventory, [changedPath]);
+		for (const id of expected) {
+			assert.ok(
+				selected.some((model) => model.id === id),
+				`${changedPath} must select ${id}`,
+			);
+		}
+	}
+	for (const changedPath of [
+		'apps/web/src/settings/AppearanceSettings.tsx',
+		'packages/workbench/src/workbench/Workbench.module.css',
+	]) {
+		const selected = selectModelsForChangedPaths(repositoryInventory, [changedPath]);
+		assert.ok(
+			selected.every((model) => !expected.includes(model.id)),
+			changedPath,
+		);
+	}
+});
+
+test('dependency bookkeeping uses the cheap inventory gate while TLC infrastructure selects all models', () => {
+	assert.deepEqual(
+		selectModelsForChangedPaths(repositoryInventory, ['package.json', 'pnpm-lock.yaml']),
+		[],
+	);
+	for (const changedPath of [
+		'scripts/tla/model-checks.mjs',
+		'.github/workflows/verify.yml',
+		'docs/VERIFICATION.md',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).length,
+			repositoryInventory.models.length,
+		);
+	}
+});
+
+test('scoped lifecycle triggers retain semantic owners without replaying unrelated settings', () => {
+	const cases = [
+		[
+			'desktop-lifecycle',
+			'apps/desktop/src/main/application-lifetime/DesktopApplicationLifetimeBroker.ts',
+		],
+		[
+			'desktop-terminal-archive',
+			'apps/desktop/src/main/terminal-archive/TerminalArchiveCaptureService.ts',
+		],
+		[
+			'desktop-terminal-lifecycle-adapter',
+			'apps/desktop/src/main/terminal-document-control/DesktopTerminalLifecycleAdapter.ts',
+		],
+		['desktop-terminal-metadata-delivery', 'apps/desktop/src/main/host/HostConnection.ts'],
+		[
+			'desktop-workbench-document-store',
+			'apps/desktop/src/main/workbench-document/decideWorkbenchDocumentCommit.ts',
+		],
+		[
+			'desktop-workbench-write-ahead',
+			'apps/desktop/src/main/terminal-document-control/DesktopTerminalIntentReconciler.ts',
+		],
+		['terminal-exit-recovery', 'apps/desktop/src/main/recovery/TerminalExitSpillStore.ts'],
+		['terminal-recovery-binding', 'apps/desktop/src/main/recovery/TerminalRecoveryCoordinator.ts'],
+		[
+			'terminal-presentation-removal',
+			'apps/desktop/src/main/terminal-lifetime/TerminalCloseOrchestrator.ts',
+		],
+		[
+			'terminal-presentation-stop',
+			'apps/desktop/src/main/terminal-document-control/DesktopTerminalLifecycleAdapter.ts',
+		],
+	];
+	const unrelated = new Set(
+		selectModelsForChangedPaths(repositoryInventory, [
+			'apps/desktop/src/main/terminal-default-settings/DesktopTerminalDefaultSettingsController.ts',
+		]).map(({ id }) => id),
+	);
+	for (const [id, changedPath] of cases) {
+		assert.ok(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				(model) => model.id === id,
+			),
+			changedPath,
+		);
+		assert.equal(unrelated.has(id), false, id);
+	}
+});
+
+test('terminal concurrency models follow input, renderer, row and wire owners', () => {
+	const cases = [
+		['terminal-input-repair', 'packages/terminal/src/input/terminal-input-state.ts'],
+		['terminal-native-input-settlement', 'packages/terminal/src/projected/projected-terminal.ts'],
+		['terminal-presentation-configuration', 'packages/terminal/src/rendering/renderer.ts'],
+		['terminal-row-flight-coordination', 'packages/terminal/src/buffer-rows.ts'],
+	];
+	for (const [id, changedPath] of cases) {
+		assert.ok(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				(model) => model.id === id,
+			),
+			changedPath,
+		);
+		assert.ok(
+			selectModelsForChangedPaths(repositoryInventory, [
+				'packages/terminal-protocol/src/index.ts',
+			]).some((model) => model.id === id),
+			id,
+		);
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [
+				'packages/terminal/src/ghostty-sprites.ts',
+			]).some((model) => model.id === id),
+			false,
+			id,
+		);
+	}
+	assert.ok(
+		selectModelsForChangedPaths(repositoryInventory, [
+			'apps/web/src/workbench-client/projected-terminal-renderer/createTerminalThemePresentationParticipant.ts',
+		]).some(({ id }) => id === 'terminal-theme-revision'),
+	);
+	assert.equal(
+		selectModelsForChangedPaths(repositoryInventory, [
+			'apps/web/src/agent-integration-reminder/AgentIntegrationReminder.tsx',
+		]).some(({ id }) => id === 'terminal-theme-revision'),
+		false,
+	);
+});
+
 function fixtureInventory() {
 	return {
 		defaultTimeoutMilliseconds: 1,
@@ -49,6 +216,23 @@ test('inventory validation rejects duplicate identities and missing coverage con
 	const missingCoverage = fixtureInventory();
 	missingCoverage.models[0].requiredCoverage = [];
 	assert.throws(() => validateInventory(missingCoverage), /requiredCoverage must not be empty/u);
+});
+
+test('inventory validation allows one or two model-local TLC workers and defaults by omission', () => {
+	assert.doesNotThrow(() => validateInventory(fixtureInventory()));
+	for (const workers of [1, 2]) {
+		const inventory = fixtureInventory();
+		inventory.models[0].workers = workers;
+		assert.doesNotThrow(() => validateInventory(inventory));
+	}
+	for (const workers of [0, 3, -1, 1.5, '2', null]) {
+		const inventory = fixtureInventory();
+		inventory.models[0].workers = workers;
+		assert.throws(
+			() => validateInventory(inventory),
+			/inventory\.models\[0\]\.workers must be 1 or 2/u,
+		);
+	}
 });
 
 test('inventory validation rejects a module or configuration registered more than once', () => {
@@ -127,6 +311,161 @@ test('projected terminal selection, Find, projection, and recovery owners select
 			true,
 			changedPath,
 		);
+	}
+});
+
+test('Workbench presentation-only edits do not replay document and terminal models', () => {
+	for (const changedPath of [
+		'packages/workbench/src/workbench/Workbench.module.css',
+		'packages/workbench/src/workbench/components/workbench-tab-bar/WorkbenchTabBar.module.css',
+	]) {
+		assert.deepEqual(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]),
+			[],
+			changedPath,
+		);
+	}
+});
+
+test('Desktop session and resize triggers retain their semantic owners and omit unrelated settings', () => {
+	const cases = {
+		'desktop-multi-client-session': [
+			'apps/desktop/src/main/client-session/decideDesktopClientDocumentProposal.ts',
+			'apps/desktop/src/main/workbench-document/FileWorkbenchDocumentStore.ts',
+			'apps/desktop/src/main/client-session/DesktopTerminalIntentReconciler.ts',
+			'packages/workbench/src/project-workspace/index.ts',
+			'packages/workbench/src/terminal-presentation/terminal-presentation-contracts.ts',
+			'packages/workbench/src/workbench/document/workbench-document.ts',
+		],
+		'desktop-terminal-resize-lease': [
+			'apps/desktop/src/main/terminal-projection-control/DesktopTerminalProjectionService.ts',
+			'apps/desktop/src/main/broker/ProjectedTerminalBroker.ts',
+			'apps/desktop/src/main/host/HostConnection.ts',
+			'apps/web/src/workbench-client/terminal-projection/terminal-projection.ts',
+		],
+	};
+	for (const [id, paths] of Object.entries(cases)) {
+		for (const changedPath of [
+			...paths,
+			'apps/desktop/src/main/composition/composeDesktopTerminalRuntime.ts',
+			'packages/workbench-client-protocol/src/message.ts',
+		]) {
+			assert.ok(
+				selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+					(model) => model.id === id,
+				),
+				`${id}: ${changedPath}`,
+			);
+		}
+		assert.ok(
+			!selectModelsForChangedPaths(repositoryInventory, [
+				'apps/desktop/src/main/terminal-default-settings/DesktopTerminalDefaultSettingsController.ts',
+			]).some((model) => model.id === id),
+			id,
+		);
+	}
+});
+
+test('repaired Desktop boundaries select the coordinating lifecycle and session models', () => {
+	const cases = [
+		['apps/desktop/rsbuild.config.ts', ['desktop-lifecycle']],
+		[
+			'apps/web/src/desktop-client/project-folder-acquisition/DesktopProjectFolderAcquisitionClient.ts',
+			['desktop-lifecycle'],
+		],
+		[
+			'packages/desktop-client-protocol/src/desktop-application-lifetime-contract.ts',
+			['desktop-lifecycle'],
+		],
+		[
+			'apps/desktop/src/main/terminal-binding-registry/DesktopTerminalBindingRegistry.ts',
+			['desktop-lifecycle'],
+		],
+		[
+			'apps/desktop/src/main/project-worktree/DesktopProjectWorktreeRuntime.ts',
+			['desktop-multi-client-session'],
+		],
+		[
+			'apps/desktop/src/main/semantic-command/createDesktopWorkbenchTerminalCreateOperation.ts',
+			['desktop-multi-client-session'],
+		],
+		[
+			'apps/desktop/src/main/remote-terminal/DesktopSshEnvironmentTerminalRuntimeOwner.ts',
+			['desktop-multi-client-session', 'desktop-terminal-intent-reconciliation'],
+		],
+		[
+			'apps/web/src/workbench-client/client-session/WorkbenchClientSessionClient.ts',
+			['desktop-multi-client-session', 'desktop-workbench-document-proposal-acknowledgement'],
+		],
+		[
+			'packages/workbench/src/terminal-presentation/terminal-presentation-contracts.ts',
+			['desktop-terminal-intent-reconciliation'],
+		],
+		[
+			'packages/workbench/src/workbench/model/WorkbenchProjectWorkspaceRuntime.ts',
+			['desktop-workbench-document-proposal-acknowledgement'],
+		],
+		[
+			'packages/workbench-client-protocol/src/workbench-client-session-contract.ts',
+			['desktop-multi-client-session', 'desktop-workbench-document-proposal-acknowledgement'],
+		],
+	];
+	for (const [changedPath, expectedIds] of cases) {
+		const selectedIds = new Set(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).map(({ id }) => id),
+		);
+		for (const expectedId of expectedIds) {
+			assert.equal(selectedIds.has(expectedId), true, `${changedPath}: ${expectedId}`);
+		}
+	}
+});
+
+test('Host and projection resize owners select the terminal lifecycle adapter', () => {
+	for (const changedPath of [
+		'apps/desktop/src/main/host/HostConnection.ts',
+		'apps/desktop/src/main/terminal-projection-control/DesktopTerminalProjectionService.ts',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'desktop-terminal-lifecycle-adapter',
+			),
+			true,
+			changedPath,
+		);
+	}
+});
+
+test('SSH remote-project admission selects its admission and session models', () => {
+	const changedPath =
+		'apps/desktop/src/main/remote-project/admitDesktopSshEnvironmentRemoteProject.ts';
+	const selectedIds = new Set(
+		selectModelsForChangedPaths(repositoryInventory, [changedPath]).map(({ id }) => id),
+	);
+	for (const expectedId of [
+		'desktop-ssh-environment-remote-project-admission',
+		'desktop-multi-client-session',
+	]) {
+		assert.equal(selectedIds.has(expectedId), true, `${changedPath}: ${expectedId}`);
+	}
+});
+
+test('Workbench code edits keep the conservative coverage of the narrowed source globs', () => {
+	for (const changedPath of [
+		'packages/workbench/src/index.ts',
+		'packages/workbench/src/workbench/Workbench.tsx',
+		'packages/workbench/src/workbench/hooks/useWorkbench.ts',
+	]) {
+		const selected = selectModelsForChangedPaths(repositoryInventory, [changedPath]);
+		for (const id of [
+			'desktop-terminal-archive',
+			'desktop-workbench-document-store',
+			'terminal-presentation-stop',
+		]) {
+			assert.ok(
+				selected.some((model) => model.id === id),
+				`${id}: ${changedPath}`,
+			);
+		}
 	}
 });
 

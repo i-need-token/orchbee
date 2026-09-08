@@ -9,9 +9,15 @@ use ratatui::{
 use crate::{
     client_view::{ClientView, Overlay},
     localization::{Locale, ShellText},
-    tui_layout::{SidebarArea, SidebarLayer, centered_overlay, project_shell_areas},
+    terminal_session::{
+        NativeDisplayPhase, NativeDrawReceipt, NativeProjectionStatus, NativeRefreshStatus,
+        NativeSessionView, NativeTabView, TerminalSessionView, TerminalStatus,
+    },
+    tui_layout::{ShellAreas, SidebarArea, SidebarLayer, centered_overlay, project_shell_areas},
 };
 
+mod tab_close;
+mod tabs;
 mod terminal_cells;
 
 const BACKGROUND: Color = Color::Rgb(11, 14, 20);
@@ -24,61 +30,123 @@ const WARNING: Color = Color::Rgb(232, 179, 95);
 
 #[cfg(test)]
 pub(crate) fn render_shell(frame: &mut Frame<'_>, view: &ClientView, locale: Locale) {
-    render_terminal_shell(frame, view, locale, None, None);
+    render_terminal_shell(frame, view, locale, None);
 }
 
 pub(crate) fn render_terminal_shell(
     frame: &mut Frame<'_>,
     view: &ClientView,
     locale: Locale,
-    projection: Option<&crate::terminal_projection::TerminalProjection>,
-    status: Option<crate::terminal_session::TerminalStatus>,
-) {
+    session: Option<TerminalSessionView<'_>>,
+) -> NativeDrawReceipt {
     let area = frame.area();
-    let mut text = locale.shell();
-    if let Some(status) = status {
-        text.backend_status = locale.terminal_status(status);
-        text.tabs_unavailable = text.workbench_title;
-    }
+    let text = locale.shell();
     frame.render_widget(Block::new().style(Style::new().bg(BACKGROUND)), area);
 
     let areas = project_shell_areas(area, view.sidebar_surface());
-    render_workbench(frame, areas.tabs, areas.panel, text);
-    if let Some(status) = status {
-        let area = crate::tui_layout::terminal_area(areas.panel);
-        frame.render_widget(Clear, area);
-        if let Some(terminal) =
-            projection.and_then(crate::terminal_projection::TerminalProjection::frame)
-        {
-            terminal_cells::render(frame, area, terminal, view.overlay().is_none());
-        } else {
-            frame.render_widget(
-                Paragraph::new(locale.terminal_status(status))
-                    .style(Style::new().fg(MUTED))
-                    .wrap(Wrap { trim: true }),
-                area,
+    let mut status_draw = None;
+    let sidebar_status = match session.as_ref() {
+        None => {
+            render_unavailable_workbench(
+                frame,
+                areas.tabs,
+                areas.panel,
+                text,
+                text.tabs_unavailable,
             );
+            render_status(
+                frame,
+                areas.status,
+                view,
+                locale,
+                text,
+                locale.shell_notice(None),
+                None,
+            );
+            text.backend_status.to_owned()
         }
-    }
-    render_status(frame, areas.status, view, locale, text, status);
+        Some(TerminalSessionView::Legacy { projection, status }) => {
+            render_unavailable_workbench(
+                frame,
+                areas.tabs,
+                areas.panel,
+                text,
+                text.workbench_title,
+            );
+            render_legacy_terminal(frame, areas.panel, view, locale, *projection, *status);
+            let status = locale.terminal_status(*status);
+            render_status(frame, areas.status, view, locale, text, status, None);
+            status.to_owned()
+        }
+        Some(TerminalSessionView::Native(native)) => {
+            let phase_status = locale.native_phase_status(native);
+            render_native_workbench(frame, &areas, view, locale, text, native, &phase_status);
+            let close = native.close_status();
+            let status = close.as_ref().map_or_else(
+                || locale.native_status(native),
+                |status| locale.native_close_status(status),
+            );
+            let local_notice = close
+                .as_ref()
+                .and_then(|_| native.notice())
+                .map(|notice| locale.native_notice(notice));
+            let visible = render_status(
+                frame,
+                areas.status,
+                view,
+                locale,
+                text,
+                &status,
+                local_notice.as_deref(),
+            );
+            status_draw = close.and_then(|status| visible.map(|area| (status.token(), area)));
+            phase_status
+        }
+    };
 
     if let Some(sidebar) = areas.sidebar {
-        render_sidebar(frame, sidebar, text);
+        render_sidebar(frame, sidebar, text, &sidebar_status);
     }
 
-    match view.overlay() {
-        Some(Overlay::ShortcutHelp) => render_shortcut_help(frame, area, text),
-        Some(Overlay::WorkbenchNavigator) => render_workbench_navigator(frame, area, text),
-        Some(Overlay::BusinessSidebar) | None => {}
+    let overlay = match view.overlay() {
+        Some(Overlay::ShortcutHelp) => Some(render_shortcut_help(frame, area, text)),
+        Some(Overlay::WorkbenchNavigator) => Some(match session.as_ref() {
+            Some(TerminalSessionView::Native(native)) => {
+                render_native_workbench_navigator(frame, area, text, locale, native)
+            }
+            None | Some(TerminalSessionView::Legacy { .. }) => {
+                render_unavailable_workbench_navigator(frame, area, text)
+            }
+        }),
+        Some(Overlay::BusinessSidebar) => areas.sidebar.map(|sidebar| sidebar.area),
+        None => None,
+    };
+    if let Some(overlay) = overlay {
+        status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(overlay));
     }
+    let mut prompt = None;
+    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && let Some(confirmation) = native.close_confirmation()
+    {
+        let modal = tab_close::render(frame, locale, &confirmation);
+        status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
+        prompt = modal.prompt;
+        if let Some(token) = modal.status {
+            status_draw = Some((token, modal.area));
+        }
+    }
+    NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
 }
 
-fn render_workbench(frame: &mut Frame<'_>, tabs: Rect, panel: Rect, text: ShellText) {
+fn render_unavailable_workbench(
+    frame: &mut Frame<'_>,
+    tabs: Rect,
+    panel: Rect,
+    text: ShellText,
+    tab_status: &str,
+) {
     let tab_line = Line::from(vec![
-        Span::styled(
-            format!(" {} ", text.tabs_unavailable),
-            Style::new().fg(MUTED),
-        ),
+        Span::styled(format!(" {tab_status} "), Style::new().fg(MUTED)),
         Span::styled(
             "  !  ",
             Style::new().fg(WARNING).add_modifier(Modifier::BOLD),
@@ -127,33 +195,145 @@ fn render_workbench(frame: &mut Frame<'_>, tabs: Rect, panel: Rect, text: ShellT
     );
 }
 
+fn render_legacy_terminal(
+    frame: &mut Frame<'_>,
+    panel: Rect,
+    view: &ClientView,
+    locale: Locale,
+    projection: Option<&crate::terminal_projection::TerminalProjection>,
+    status: TerminalStatus,
+) {
+    let area = crate::tui_layout::terminal_area(panel);
+    frame.render_widget(Clear, area);
+    if let Some(terminal) =
+        projection.and_then(crate::terminal_projection::TerminalProjection::frame)
+    {
+        terminal_cells::render(frame, area, terminal, view.overlay().is_none());
+    } else {
+        frame.render_widget(
+            Paragraph::new(locale.terminal_status(status))
+                .style(Style::new().fg(MUTED))
+                .wrap(Wrap { trim: true }),
+            area,
+        );
+    }
+}
+
+fn render_native_workbench(
+    frame: &mut Frame<'_>,
+    areas: &ShellAreas,
+    client_view: &ClientView,
+    locale: Locale,
+    text: ShellText,
+    native: &NativeSessionView<'_>,
+    phase_status: &str,
+) {
+    let tabs_area = areas.tabs;
+    let panel_area = areas.panel;
+    let tabs_block = Block::new()
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(BORDER))
+        .border_type(BorderType::Rounded)
+        .title(Span::styled(
+            format!(" {} ", text.workbench_title),
+            Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD),
+        ));
+    let tabs_content = tabs_block.inner(tabs_area);
+    frame.render_widget(tabs_block, tabs_area);
+    tabs::render_compact(
+        frame,
+        tabs_content,
+        native.tab_count(),
+        native.active_position(),
+        |index| native_tab(native, index),
+    );
+
+    let panel_block = Block::new()
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(BORDER))
+        .border_type(BorderType::Rounded)
+        .title(Span::styled(
+            format!(" {} ", text.panel_title),
+            Style::new().fg(TEXT),
+        ));
+    let panel_content = panel_block.inner(panel_area);
+    frame.render_widget(panel_block, panel_area);
+    let terminal = if native.projection_status() == NativeProjectionStatus::FrameAvailable {
+        native
+            .projection()
+            .and_then(crate::terminal_projection::TerminalProjection::frame)
+    } else {
+        None
+    };
+    if let Some(terminal) = terminal {
+        terminal_cells::render(
+            frame,
+            panel_content,
+            terminal,
+            client_view.overlay().is_none() && native.close_confirmation().is_none(),
+        );
+    } else {
+        let panel_status = if matches!(
+            native.phase(),
+            NativeDisplayPhase::Ready | NativeDisplayPhase::MoveProjectionUnavailable
+        ) && native.projection_status()
+            != NativeProjectionStatus::FrameAvailable
+        {
+            locale.terminal_status(TerminalStatus::Blocked)
+        } else {
+            phase_status
+        };
+        frame.render_widget(
+            Paragraph::new(panel_status)
+                .style(Style::new().fg(MUTED))
+                .wrap(Wrap { trim: true }),
+            panel_content,
+        );
+    }
+}
+
+fn native_tab<'a>(native: &NativeSessionView<'a>, index: usize) -> Option<tabs::TabDisplay<'a>> {
+    let tab: NativeTabView<'a> = native.tab(index)?;
+    Some(tabs::TabDisplay {
+        position: tab.position(),
+        active: tab.active(),
+        label: tab.tab_label(),
+    })
+}
+
 fn render_status(
     frame: &mut Frame<'_>,
     area: Rect,
     view: &ClientView,
     locale: Locale,
     text: ShellText,
-    status: Option<crate::terminal_session::TerminalStatus>,
-) {
+    status: &str,
+    secondary_notice: Option<&str>,
+) -> Option<Rect> {
+    let secondary_notice = secondary_notice.filter(|_| !view.prefix_active());
+    let secondary_width = secondary_notice.map_or(24, |notice| {
+        u16::try_from(Line::raw(notice).width())
+            .unwrap_or(u16::MAX)
+            .max(24)
+    });
     let [notice, prefix] =
-        Layout::horizontal([Constraint::Min(0), Constraint::Length(24)]).areas(area);
+        Layout::horizontal([Constraint::Min(0), Constraint::Length(secondary_width)]).areas(area);
     let status_block = Block::new()
         .borders(Borders::TOP)
         .border_style(Style::new().fg(BORDER));
+    let inner = status_block.inner(notice);
     frame.render_widget(
-        Paragraph::new(if view.notice().is_none() {
-            status.map_or_else(
-                || locale.shell_notice(None),
-                |status| locale.terminal_status(status),
-            )
-        } else {
-            locale.shell_notice(view.notice())
-        })
+        Paragraph::new(
+            view.notice()
+                .map_or(status, |notice| locale.shell_notice(Some(notice))),
+        )
         .style(Style::new().fg(MUTED))
         .block(status_block.clone()),
         notice,
     );
-    let (label, style) = if view.prefix_active() {
+    let (label, style) = if let Some(notice) = secondary_notice {
+        (notice, Style::new().fg(WARNING))
+    } else if view.prefix_active() {
         (
             text.prefix_active,
             Style::new()
@@ -171,9 +351,15 @@ fn render_status(
             .block(status_block),
         prefix,
     );
+    (view.notice().is_none() && tab_close::unwrapped_text_fits(status, inner)).then_some(inner)
 }
 
-fn render_sidebar(frame: &mut Frame<'_>, sidebar: SidebarArea, text: ShellText) {
+fn render_sidebar(
+    frame: &mut Frame<'_>,
+    sidebar: SidebarArea,
+    text: ShellText,
+    backend_status: &str,
+) {
     if sidebar.layer == SidebarLayer::Overlay {
         frame.render_widget(Clear, sidebar.area);
     }
@@ -184,7 +370,7 @@ fn render_sidebar(frame: &mut Frame<'_>, sidebar: SidebarArea, text: ShellText) 
             Style::new().fg(MUTED).add_modifier(Modifier::BOLD),
         )),
         ListItem::new(Line::styled(
-            format!("● {}", text.backend_status),
+            format!("● {backend_status}"),
             Style::new().fg(WARNING),
         )),
         ListItem::new(""),
@@ -227,7 +413,7 @@ fn render_sidebar(frame: &mut Frame<'_>, sidebar: SidebarArea, text: ShellText) 
     );
 }
 
-fn render_shortcut_help(frame: &mut Frame<'_>, viewport: Rect, text: ShellText) {
+fn render_shortcut_help(frame: &mut Frame<'_>, viewport: Rect, text: ShellText) -> Rect {
     let area = centered_overlay(viewport, 76, 16);
     frame.render_widget(Clear, area);
     let mut items = text
@@ -244,9 +430,14 @@ fn render_shortcut_help(frame: &mut Frame<'_>, viewport: Rect, text: ShellText) 
         List::new(items).block(overlay_block(text.shortcut_title)),
         area,
     );
+    area
 }
 
-fn render_workbench_navigator(frame: &mut Frame<'_>, viewport: Rect, text: ShellText) {
+fn render_unavailable_workbench_navigator(
+    frame: &mut Frame<'_>,
+    viewport: Rect,
+    text: ShellText,
+) -> Rect {
     let area = centered_overlay(viewport, 68, 9);
     frame.render_widget(Clear, area);
     frame.render_widget(
@@ -263,6 +454,50 @@ fn render_workbench_navigator(frame: &mut Frame<'_>, viewport: Rect, text: Shell
         .block(overlay_block(text.navigator_title)),
         area,
     );
+    area
+}
+
+fn render_native_workbench_navigator(
+    frame: &mut Frame<'_>,
+    viewport: Rect,
+    text: ShellText,
+    locale: Locale,
+    native: &NativeSessionView<'_>,
+) -> Rect {
+    let area = centered_overlay(viewport, 68, 9);
+    frame.render_widget(Clear, area);
+    let block = overlay_block(text.navigator_title);
+    let content = block.inner(area);
+    frame.render_widget(block, area);
+
+    let refresh = native.refresh_status();
+    let (rows, refresh_area) = if refresh.is_some() {
+        let [rows, status] =
+            Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(content);
+        (rows, Some(status))
+    } else {
+        (content, None)
+    };
+    tabs::render_navigator(
+        frame,
+        rows,
+        native.tab_count(),
+        native.active_position(),
+        |index| native_tab(native, index),
+    );
+    if let (Some(refresh), Some(status_area)) = (refresh, refresh_area) {
+        let style = match refresh {
+            NativeRefreshStatus::Refreshing | NativeRefreshStatus::Success(_) => {
+                Style::new().fg(MUTED)
+            }
+            NativeRefreshStatus::Failure(_) => Style::new().fg(WARNING),
+        };
+        frame.render_widget(
+            Paragraph::new(locale.native_refresh_status(refresh)).style(style),
+            status_area,
+        );
+    }
+    area
 }
 
 fn overlay_block(title: &'static str) -> Block<'static> {

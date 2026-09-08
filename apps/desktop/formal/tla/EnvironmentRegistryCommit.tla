@@ -14,7 +14,7 @@ Actions == {
   "reject-target-conflict", "reject-capacity", "rename",
   "confirm-durability", "durability-indeterminate", "reload-indeterminate",
   "restart-keeps-rename", "restart-loses-rename", "precommit-failure",
-  "restart-before-rename", "retry-existing", "retry-missing"
+  "restart-before-rename"
 }
 
 VARIABLES
@@ -27,13 +27,12 @@ VARIABLES
   phase,
   pendingId,
   pendingTarget,
-  retryPending,
   createdClaims,
   lastAction
 
 vars == <<memoryRecords, memoryOrder, memoryRevision,
   diskRecords, diskOrder, diskRevision, phase, pendingId,
-  pendingTarget, retryPending, createdClaims, lastAction>>
+  pendingTarget, createdClaims, lastAction>>
 
 RecordIds(records) == {environmentId \in EnvironmentIds : records[environmentId] # NoValue}
 SequenceSet(sequence) == {sequence[index] : index \in 1..Len(sequence)}
@@ -50,13 +49,11 @@ Init ==
   /\ phase = "idle"
   /\ pendingId = NoValue
   /\ pendingTarget = NoValue
-  /\ retryPending = FALSE
   /\ createdClaims = {}
   /\ lastAction = "init"
 
 CreateNew(environmentId, target) ==
   /\ phase = "idle"
-  /\ ~retryPending
   /\ environmentId \in EnvironmentIds
   /\ target \in Targets
   /\ memoryRecords[environmentId] = NoValue
@@ -66,47 +63,43 @@ CreateNew(environmentId, target) ==
   /\ pendingId' = environmentId
   /\ pendingTarget' = target
   /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
-       diskRecords, diskOrder, diskRevision, retryPending, createdClaims>>
+       diskRecords, diskOrder, diskRevision, createdClaims>>
   /\ lastAction' = "create-new"
 
 ReplaySame(environmentId, target) ==
   /\ phase = "idle"
-  /\ ~retryPending
   /\ environmentId \in EnvironmentIds
   /\ target \in Targets
   /\ memoryRecords[environmentId] = target
   /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
        diskRecords, diskOrder, diskRevision, phase, pendingId,
-       pendingTarget, retryPending, createdClaims>>
+       pendingTarget, createdClaims>>
   /\ lastAction' = "replay-same"
 
 RejectIdConflict(environmentId, target) ==
   /\ phase = "idle"
-  /\ ~retryPending
   /\ environmentId \in EnvironmentIds
   /\ target \in Targets
   /\ memoryRecords[environmentId] # NoValue
   /\ memoryRecords[environmentId] # target
   /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
        diskRecords, diskOrder, diskRevision, phase, pendingId,
-       pendingTarget, retryPending, createdClaims>>
+       pendingTarget, createdClaims>>
   /\ lastAction' = "reject-id-conflict"
 
 RejectTargetConflict(environmentId, target) ==
   /\ phase = "idle"
-  /\ ~retryPending
   /\ environmentId \in EnvironmentIds
   /\ target \in Targets
   /\ memoryRecords[environmentId] = NoValue
   /\ TargetUsed(memoryRecords, target)
   /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
        diskRecords, diskOrder, diskRevision, phase, pendingId,
-       pendingTarget, retryPending, createdClaims>>
+       pendingTarget, createdClaims>>
   /\ lastAction' = "reject-target-conflict"
 
 RejectCapacity(environmentId, target) ==
   /\ phase = "idle"
-  /\ ~retryPending
   /\ environmentId \in EnvironmentIds
   /\ target \in Targets
   /\ memoryRecords[environmentId] = NoValue
@@ -114,7 +107,7 @@ RejectCapacity(environmentId, target) ==
   /\ Len(memoryOrder) = MaxEnvironments
   /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
        diskRecords, diskOrder, diskRevision, phase, pendingId,
-       pendingTarget, retryPending, createdClaims>>
+       pendingTarget, createdClaims>>
   /\ lastAction' = "reject-capacity"
 
 Rename ==
@@ -125,7 +118,7 @@ Rename ==
   /\ diskRevision' = diskRevision + 1
   /\ phase' = "renamed"
   /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
-       pendingId, pendingTarget, retryPending, createdClaims>>
+       pendingId, pendingTarget, createdClaims>>
   /\ lastAction' = "rename"
 
 ConfirmDurability ==
@@ -136,7 +129,6 @@ ConfirmDurability ==
   /\ phase' = "idle"
   /\ pendingId' = NoValue
   /\ pendingTarget' = NoValue
-  /\ retryPending' = FALSE
   /\ createdClaims' = createdClaims \cup {pendingId}
   /\ UNCHANGED <<diskRecords, diskOrder, diskRevision>>
   /\ lastAction' = "confirm-durability"
@@ -144,7 +136,6 @@ ConfirmDurability ==
 DurabilityIndeterminate ==
   /\ phase = "renamed"
   /\ phase' = "indeterminate"
-  /\ retryPending' = TRUE
   /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
        diskRecords, diskOrder, diskRevision, pendingId, pendingTarget,
        createdClaims>>
@@ -156,8 +147,9 @@ ReloadIndeterminate ==
   /\ memoryOrder' = diskOrder
   /\ memoryRevision' = diskRevision
   /\ phase' = "idle"
-  /\ UNCHANGED <<diskRecords, diskOrder, diskRevision, pendingId,
-       pendingTarget, retryPending, createdClaims>>
+  /\ pendingId' = NoValue
+  /\ pendingTarget' = NoValue
+  /\ UNCHANGED <<diskRecords, diskOrder, diskRevision, createdClaims>>
   /\ lastAction' = "reload-indeterminate"
 
 RestartKeepsRename ==
@@ -166,8 +158,9 @@ RestartKeepsRename ==
   /\ memoryOrder' = diskOrder
   /\ memoryRevision' = diskRevision
   /\ phase' = "idle"
-  /\ UNCHANGED <<diskRecords, diskOrder, diskRevision, pendingId,
-       pendingTarget, retryPending, createdClaims>>
+  /\ pendingId' = NoValue
+  /\ pendingTarget' = NoValue
+  /\ UNCHANGED <<diskRecords, diskOrder, diskRevision, createdClaims>>
   /\ lastAction' = "restart-keeps-rename"
 
 RestartLosesRename ==
@@ -176,17 +169,18 @@ RestartLosesRename ==
   /\ diskOrder' = memoryOrder
   /\ diskRevision' = memoryRevision
   /\ phase' = "idle"
-  /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
-       pendingId, pendingTarget, retryPending, createdClaims>>
+  /\ pendingId' = NoValue
+  /\ pendingTarget' = NoValue
+  /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision, createdClaims>>
   /\ lastAction' = "restart-loses-rename"
 
 PrecommitFailure ==
   /\ phase = "writing"
   /\ phase' = "idle"
-  /\ retryPending' = TRUE
+  /\ pendingId' = NoValue
+  /\ pendingTarget' = NoValue
   /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
-       diskRecords, diskOrder, diskRevision, pendingId, pendingTarget,
-       createdClaims>>
+       diskRecords, diskOrder, diskRevision, createdClaims>>
   /\ lastAction' = "precommit-failure"
 
 RestartBeforeRename ==
@@ -195,33 +189,10 @@ RestartBeforeRename ==
   /\ memoryOrder' = diskOrder
   /\ memoryRevision' = diskRevision
   /\ phase' = "idle"
-  /\ retryPending' = TRUE
-  /\ UNCHANGED <<diskRecords, diskOrder, diskRevision, pendingId,
-       pendingTarget, createdClaims>>
-  /\ lastAction' = "restart-before-rename"
-
-RetryExisting ==
-  /\ phase = "idle"
-  /\ retryPending
-  /\ memoryRecords[pendingId] = pendingTarget
   /\ pendingId' = NoValue
   /\ pendingTarget' = NoValue
-  /\ retryPending' = FALSE
-  /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
-       diskRecords, diskOrder, diskRevision, phase, createdClaims>>
-  /\ lastAction' = "retry-existing"
-
-RetryMissing ==
-  /\ phase = "idle"
-  /\ retryPending
-  /\ memoryRecords[pendingId] = NoValue
-  /\ ~TargetUsed(memoryRecords, pendingTarget)
-  /\ Len(memoryOrder) < MaxEnvironments
-  /\ phase' = "writing"
-  /\ UNCHANGED <<memoryRecords, memoryOrder, memoryRevision,
-       diskRecords, diskOrder, diskRevision, pendingId, pendingTarget,
-       retryPending, createdClaims>>
-  /\ lastAction' = "retry-missing"
+  /\ UNCHANGED <<diskRecords, diskOrder, diskRevision, createdClaims>>
+  /\ lastAction' = "restart-before-rename"
 
 Next ==
   \/ \E environmentId \in EnvironmentIds, target \in Targets:
@@ -242,8 +213,6 @@ Next ==
   \/ RestartLosesRename
   \/ PrecommitFailure
   \/ RestartBeforeRename
-  \/ RetryExisting
-  \/ RetryMissing
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(ReloadIndeterminate)
 
@@ -257,7 +226,6 @@ TypeOK ==
   /\ phase \in Phases
   /\ pendingId \in EnvironmentIds \cup {NoValue}
   /\ pendingTarget \in Targets \cup {NoValue}
-  /\ retryPending \in BOOLEAN
   /\ createdClaims \subseteq EnvironmentIds
   /\ lastAction \in Actions
 
@@ -285,10 +253,9 @@ StableCommitRelationship ==
 
 PendingIdentityIsScoped ==
   /\ (pendingId = NoValue) = (pendingTarget = NoValue)
-  /\ (phase # "idle" \/ retryPending) =>
+  /\ (phase = "idle") <=> (pendingId = NoValue /\ pendingTarget = NoValue)
+  /\ phase # "idle" =>
        (pendingId \in EnvironmentIds /\ pendingTarget \in Targets)
-  /\ phase = "indeterminate" => retryPending
-  /\ retryPending => pendingId \in EnvironmentIds
 
 CreatedClaimsRemainPresent ==
   /\ createdClaims \subseteq RecordIds(memoryRecords)

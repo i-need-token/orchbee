@@ -12,9 +12,11 @@ VARIABLES
   host,
   durable,
   request,
+  pendingMutations,
   candidate,
   issue,
   runningTerminal,
+  initialRunningTerminal,
   lastTerminal,
   lastAction,
   previousSession,
@@ -22,8 +24,8 @@ VARIABLES
   previousDurable,
   previousRunningTerminal
 
-vars == <<phase, session, host, durable, request, candidate, issue,
-  runningTerminal, lastTerminal, lastAction, previousSession, previousHost,
+vars == <<phase, session, host, durable, request, pendingMutations, candidate, issue,
+  runningTerminal, initialRunningTerminal, lastTerminal, lastAction, previousSession, previousHost,
   previousDurable, previousRunningTerminal>>
 
 Record(action) ==
@@ -39,9 +41,11 @@ Init ==
   /\ host = 0
   /\ durable \in Values
   /\ request = "absent"
+  /\ pendingMutations = 0
   /\ candidate = 0
   /\ issue = "none"
-  /\ runningTerminal = 0
+  /\ runningTerminal \in Values
+  /\ initialRunningTerminal = runningTerminal
   /\ lastTerminal = 0
   /\ lastAction = "init"
   /\ previousSession = session
@@ -55,7 +59,7 @@ Initialize ==
   /\ session' = durable
   /\ host' = durable
   /\ issue' = "none"
-  /\ UNCHANGED <<durable, request, candidate, runningTerminal, lastTerminal>>
+  /\ UNCHANGED <<durable, request, pendingMutations, candidate, runningTerminal, initialRunningTerminal, lastTerminal>>
   /\ Record("initialize")
 
 Request(value) ==
@@ -63,64 +67,70 @@ Request(value) ==
   /\ request = "absent"
   /\ value \in Values
   /\ request' = "host"
+  /\ pendingMutations' = pendingMutations + 1
   /\ candidate' = value
-  /\ UNCHANGED <<phase, session, host, durable, issue, runningTerminal, lastTerminal>>
+  /\ UNCHANGED <<phase, session, host, durable, issue, runningTerminal, initialRunningTerminal, lastTerminal>>
   /\ Record("request")
 
 HostAccept ==
   /\ phase = "ready"
   /\ request = "host"
   /\ request' = "persistence"
-  /\ session' = candidate
   /\ host' = candidate
-  /\ UNCHANGED <<phase, durable, candidate, issue, runningTerminal, lastTerminal>>
+  /\ UNCHANGED <<phase, session, durable, pendingMutations, candidate, issue, runningTerminal, initialRunningTerminal, lastTerminal>>
   /\ Record("host-accept")
 
 HostReject ==
   /\ phase = "ready"
   /\ request = "host"
   /\ request' = "absent"
+  /\ pendingMutations' = pendingMutations - 1
   /\ UNCHANGED <<phase, session, host, durable, candidate, issue,
-    runningTerminal, lastTerminal>>
+    runningTerminal, initialRunningTerminal, lastTerminal>>
   /\ Record("host-reject")
 
 PersistenceSucceeds ==
   /\ phase = "ready"
   /\ request = "persistence"
   /\ request' = "absent"
+  /\ pendingMutations' = pendingMutations - 1
+  /\ session' = candidate
   /\ durable' = candidate
   /\ issue' = "none"
-  /\ UNCHANGED <<phase, session, host, candidate, runningTerminal, lastTerminal>>
+  /\ UNCHANGED <<phase, host, candidate, runningTerminal, initialRunningTerminal, lastTerminal>>
   /\ Record("persistence-succeeded")
 
 PersistenceFails ==
   /\ phase = "ready"
   /\ request = "persistence"
   /\ request' = "absent"
+  /\ pendingMutations' = pendingMutations - 1
+  /\ session' = candidate
   /\ issue' = "write-failed"
-  /\ UNCHANGED <<phase, session, host, durable, candidate,
-    runningTerminal, lastTerminal>>
+  /\ UNCHANGED <<phase, host, durable, candidate,
+    runningTerminal, initialRunningTerminal, lastTerminal>>
   /\ Record("persistence-failed")
 
 CreateTerminal ==
   /\ phase = "ready"
   /\ lastTerminal' = host
-  /\ UNCHANGED <<phase, session, host, durable, request, candidate, issue,
-    runningTerminal>>
+  /\ UNCHANGED <<phase, session, host, durable, request, pendingMutations, candidate, issue,
+    runningTerminal, initialRunningTerminal>>
   /\ Record("create-terminal")
 
 RendererReload ==
   /\ phase = "ready"
-  /\ UNCHANGED <<phase, session, host, durable, request, candidate, issue,
-    runningTerminal, lastTerminal>>
+  /\ UNCHANGED <<phase, session, host, durable, request, pendingMutations, candidate, issue,
+    runningTerminal, initialRunningTerminal, lastTerminal>>
   /\ Record("renderer-reload")
 
 Dispose ==
   /\ phase # "disposed"
   /\ phase' = "disposed"
   /\ request' = "absent"
+  /\ pendingMutations' = 0
   /\ UNCHANGED <<session, host, durable, candidate, issue,
-    runningTerminal, lastTerminal>>
+    runningTerminal, initialRunningTerminal, lastTerminal>>
   /\ Record("dispose")
 
 Next ==
@@ -142,9 +152,11 @@ TypeOK ==
   /\ host \in Values
   /\ durable \in Values
   /\ request \in Requests
+  /\ pendingMutations \in 0..2
   /\ candidate \in Values
   /\ issue \in Issues
   /\ runningTerminal \in Values
+  /\ initialRunningTerminal \in Values
   /\ lastTerminal \in Values
   /\ lastAction \in {
        "init", "initialize", "request", "host-accept", "host-reject",
@@ -156,9 +168,18 @@ TypeOK ==
   /\ previousDurable \in Values
   /\ previousRunningTerminal \in Values
 
-HostAndSessionAgree == phase = "ready" => host = session
+HostAndSessionAgree == phase = "ready" /\ request = "absent" => host = session
 
-AtMostOneMutation == request \in Requests
+\* Count admitted effects independently of the single request-phase slot. A
+\* missing busy guard must produce a counterexample instead of overwriting it.
+AtMostOneMutation ==
+  /\ pendingMutations <= 1
+  /\ (request = "absent" <=> pendingMutations = 0)
+
+HostCommitPrecedesPersistence == request = "persistence" => host = candidate
+
+SessionPublicationWaitsForPersistence ==
+  lastAction = "host-accept" => session = previousSession
 
 HostRejectionPreservesAcceptedState ==
   lastAction = "host-reject" =>
@@ -168,7 +189,7 @@ HostRejectionPreservesAcceptedState ==
 
 PersistenceFailureRetainsSession ==
   lastAction = "persistence-failed" =>
-    /\ session = previousSession
+    /\ session = previousHost
     /\ host = previousHost
     /\ durable = previousDurable
     /\ issue = "write-failed"
@@ -176,11 +197,10 @@ PersistenceFailureRetainsSession ==
 DurableChangesOnlyAfterPersistence ==
   durable # previousDurable => lastAction = "persistence-succeeded"
 
-NoLiveHistoryEviction == runningTerminal = 0
+NoLiveHistoryEviction == runningTerminal = initialRunningTerminal
 
 FutureTerminalCapturesAcceptedDefault ==
   lastAction = "create-terminal" =>
-    /\ lastTerminal = previousHost
-    /\ previousHost = previousSession
+    lastTerminal = previousHost
 
 =============================================================================

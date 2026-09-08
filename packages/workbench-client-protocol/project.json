@@ -3,7 +3,7 @@
 	"domain": "workbench-client-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Strict transport-neutral data contracts for a Workbench page client session, the independent TypeScript binding and pure delta refinement for the language-neutral version-1 read-only Workbench projection contract, terminal projection control, and the projected terminal attachment stream.",
+	"responsibility": "Strict transport-neutral Workbench page-client contracts, independent TypeScript bindings for bounded Workbench projections and command requests/results, pure delta refinement, terminal projection control, and projected terminal attachment streams.",
 	"nonGoals": [
 		"Owning Electron, Browser, Gateway, network, authentication, IPC, transport lifecycle, renderer, or UI implementations.",
 		"Owning current Workbench document persistence or transitions, legacy TerminalPresentation behavior, PTY, VT, terminal process, persistence, or product-interface rendering.",

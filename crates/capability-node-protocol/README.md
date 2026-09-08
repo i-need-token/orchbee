@@ -10,6 +10,94 @@ Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
 English remains canonical.
 
+## Local Close lifecycle step
+
+[Canonical terminal Tab Close](../../apps/orchbee-server/docs/terminal-tab-close.md) owns the accepted
+Server continuation and exact Worker/Host cleanup contract. Its OBCN extension is a narrow
+authorized lifecycle step carrying product binding, Worker generation, full Host identity and
+operation/step correlation. Each step admits at most one existing Host request; Viewer/controller
+authority alone never grants termination. Host target-bearing acknowledgments and the full OBCN
+result correlation must be validated before retaining effects or publishing Disposed.
+
+Worker retains exact lifecycle observations and cleans only the disposed target's viewer/controller
+and queued feedback/frame entries before returning Disposed. Server retains exact target revocation
+and clears its matching reservations; lost acknowledgments preserve known/unknown facts at the owner
+that observed them. New Control Acquire is fenced with Attach/Input/Resize/Start. Close keeps the
+existing 1s Host exchange, 2s Server frame I/O and separate 20s response wait; the Server's 30s
+attempt budget only gates next-step admission and cannot discard an outstanding receipt.
+
+The lifecycle codec and Server carrier correlation implement the following bounded representation.
+Worker execution and Server continuation remain pending; this codec does not implement replay,
+admission, cleanup, or a whole inventory walk. Protocol, Server, Worker and native Close activate
+together. Old private cohorts reject the additive tags; no mixed-cohort fallback is defined.
+
+Kind 9 `TerminalLifecycleRequest` and kind 10 `TerminalLifecycleResult` retain frame version 1 and
+the 8 KiB payload bound. All integers are unsigned big-endian and IDs are nonzero 16-byte values.
+The request body after its kind is, in order: lifecycle capability version (`u16`, current 1),
+product Terminal ID (16), Worker ID (16), Worker generation (`u64`, positive), retained binding fence
+(`u64`, positive), fresh lease ID (16), lease Unix-millisecond expiry (`u64`, positive), Close
+operation ID (16), step request ID (16), attempt generation (`u64`, positive), step ordinal (`u8`,
+1 through 32), Host creation/epoch/terminal IDs (16 each), and action (`u8`). The lifecycle
+capability is distinct from launch capability version 2. The fence references the exact current
+retained Launch/Start binding without replacing it. The fresh lifecycle lease is independent of the
+original launch lease. Viewer/controller authority is absent. The authenticated Server issues fresh
+step request IDs; codec validation alone does not establish authorization or replay safety.
+
+Action tags 1 through 4 are Terminate, Force, Dispose, and InventoryPage. InventoryPage adds a
+cursor option tag (`0` absent, `1` present); a present cursor adds positive inventory generation
+and offset (`u64` each). Every Host query requests the fixed maximum of 128 terminals. A result
+echoes the complete request body, then an outcome tag: 1 TerminateAccepted, 2 ForceAccepted,
+3 Disposed, 4 InventoryPage, 5 Rejected, 6 HostFailure, 7 InventoryFailure, 8 OutcomeUnknown,
+or 9 HostUnavailableBeforeHandoff (no additional payload).
+Constructors and decoding reject action/outcome contradictions. Host success validates the ACK's
+actual terminal ID plus envelope role, kind, epoch and correlation; its retained full request seal
+supplies the product, creation, Worker and attempt identities that the Host ACK does not echo.
+
+InventoryPage adds positive inventory generation, optional next cursor, returned row count (`u16`,
+0 through 128), and target option (`0` NoMatch, `1` Match). Match adds revision (`u64`) and phase:
+1 AwaitingStart, 2 Running, 3 Finishing, 4 ContainingFailure, 5 Exited, 6 Failed. Running, Finishing
+and Exited add the exact `terminateRequested` boolean (`0` or `1`); other phases carry none.
+Match requires a positive returned count. The count covers all scanned Host summaries, not matches.
+Successful page generation matches a supplied request cursor; any next cursor shares that
+generation and advances exactly by returned count without overflow. NoMatch is page-local, never
+absence. Worker validates full Host pages and fences duplicate or contradictory terminal-ID or
+creation-ID matches before projecting the exact target. Server owns cross-page consistency,
+duplicate matches, complete exhaustion, absence and continuation. Finishing and ContainingFailure
+are not settled outcomes. No raw Host inventory, theme, configuration or unrelated identity enters
+this fixed-size projection.
+
+Rejected adds a reason tag 1 through 8: WrongWorker, StaleWorkerGeneration, UnsupportedCapability,
+LeaseExpired, BindingUnavailable, BindingFenceMismatch, HostIdentityMismatch, LifecycleConflict.
+These are pre-handoff refusals. LifecycleConflict conservatively includes a different Close owner,
+an older step and a conflicting step; it never authorizes replay of an ambiguous mutation.
+HostFailure reason tags 1 and 2 are HostRefused and CleanupIncomplete; CleanupIncomplete is legal
+only for Dispose. Correlated Host typed failures are known observations, not proof of no effect.
+InventoryFailure, legal only for InventoryPage, adds tags 1 through 4: StaleCursor, PageRejected,
+InvalidPage, IdentityConflict. The first two classify correlated Host failures; the latter two
+classify contradictory page observations. OutcomeUnknown adds tags 1 through 3: TransportLost,
+Deadline, InvalidResponse. Query unknowns map to inventory-incomplete in the Server workflow;
+mutation unknowns retain the affected lifecycle phase. No arbitrary error text is serialized.
+
+HostUnavailableBeforeHandoff is legal for every action and reports known zero lifecycle Host
+requests. It does not undo the already admitted Server-to-Worker step or its continuation charge.
+Worker emits it only before the first possible lifecycle Host write, including failure during
+`HostExchange::prepare`; `round_trip` owns the subsequent write boundary. Server maps this known
+unavailability to CleanupBlocked(worker-unavailable), never HostFailure or OutcomeUnknown.
+
+Lifecycle requests are at most 182 payload bytes and results at most 221 (190 and 229 framed bytes).
+Hand-derived golden bytes, all outcome/reason round trips, strict prefixes and malformed bounds,
+action/page contradictions, exact maximum lengths, and Server correlation-mutation tests verify
+this representation. They do not prove freshness, Host execution, cache cleanup, elapsed budgets,
+replay policy or asynchronous progress; those obligations remain with the owning Close models and
+runtime refinement. Rollback replaces the private cohort together and migrates no durable data.
+
+Launch rejection tag 9 and Start rejection tag 10 add `LifecycleActive`. Exact original cached
+Launch/Start replay remains readable; a different operation, including a higher fence, cannot
+replace a binding owned by Close. This refusal is not a stale-fence or Host-failure observation.
+Server maps it to the existing terminal-runtime-unavailable outcome. Lifecycle mutation Unknown
+remains sticky across attempts; no new lease or higher attempt authorizes another mutation.
+Inventory representation alone creates no Server reconciliation or Resume path for Unknown.
+
 ## Framing and messages
 
 One canonical frame contains the fixed `OBCN` magic, an unsigned big-endian frame version, an

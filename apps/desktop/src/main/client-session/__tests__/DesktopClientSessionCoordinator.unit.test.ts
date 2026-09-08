@@ -394,6 +394,18 @@ describe('DesktopClientSessionCoordinator', () => {
 		const session = register(coordinator, publisher(publications));
 		expect(session.bootstrap.terminalMetadata).toEqual([first]);
 		expect(publications).toEqual([]);
+		expect(coordinator.publishTerminalMetadata(first)).toBe(true);
+		expect(
+			coordinator.publishTerminalMetadata(
+				WorkbenchTerminalMetadataSchema.parse({
+					...first,
+					currentDirectory: 'file://orchbee-host/workspace/conflict',
+					title: 'conflicting equal revision',
+				}),
+			),
+		).toBe(true);
+		expect(publications).toEqual([]);
+		expect(register(coordinator, publisher()).bootstrap.terminalMetadata).toEqual([first]);
 
 		expect(
 			coordinator.publishTerminalMetadata(
@@ -415,6 +427,19 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(publications).toMatchObject([
 			{ metadata: current, sequence: '2', type: 'terminal-metadata-published' },
 		]);
+
+		const replacement = WorkbenchTerminalMetadataSchema.parse({
+			...first,
+			identity: { ...first.identity, terminalId: '44'.repeat(16) },
+			revision: '1',
+			title: 'replacement terminal',
+		});
+		expect(coordinator.publishTerminalMetadata(replacement)).toBe(true);
+		expect(publications).toMatchObject([
+			{ metadata: current, sequence: '2', type: 'terminal-metadata-published' },
+			{ metadata: replacement, sequence: '3', type: 'terminal-metadata-published' },
+		]);
+		expect(register(coordinator, publisher()).bootstrap.terminalMetadata).toEqual([replacement]);
 	});
 
 	it('retries a partially published exit with its original sequence and skips successes', async () => {

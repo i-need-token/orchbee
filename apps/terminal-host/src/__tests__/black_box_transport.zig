@@ -40,7 +40,7 @@ pub const RuntimeDirectory = struct {
                 windows_c.ob_windows_local_test_make_directory_private(path_w.ptr),
             );
         } else {
-            var directory = try std.Io.Dir.openDirAbsolute(io, path_bytes, .{});
+            var directory = try std.Io.Dir.openDirAbsolute(io, path_bytes, .{ .iterate = true });
             defer directory.close(io);
             try directory.setPermissions(io, @enumFromInt(0o700));
         }

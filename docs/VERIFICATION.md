@@ -5,9 +5,9 @@
 `pnpm verify` is the single local and CI merge gate. Run it from the repository root before committing a completed change. It executes, in order:
 
 1. `pnpm format:check`
-2. `pnpm lint`
-3. `pnpm test:tla:inventory`
-4. `pnpm build`
+2. `pnpm test:tla:inventory`
+3. `pnpm build`
+4. `pnpm lint`
 5. `pnpm typecheck`
 6. `pnpm test`
 7. `pnpm test:exports`
@@ -40,10 +40,13 @@ authorizes dropping checks, swallowing warnings, or replacing a process failure 
 The root `test` and `verify` commands, Node test wrappers, and Rust workspace runner default to
 stage summaries. `scripts/run-checks.mjs` owns the root command sequences;
 `scripts/check-output.mjs` owns their shared presentation. This is an output-only boundary:
-checks remain sequential and fail fast, with the same workspace scope, compiler flags, and
-manual-test exclusions. Only the child process result determines success, never parsed log text.
+stages remain ordered and fail fast, while explicitly grouped independent checks run concurrently,
+with the same workspace scope, compiler flags, and manual-test exclusions. A group drains every
+member before reporting in declaration order and stopping on its first declared failing member.
+Only the child process result determines success, never parsed log text.
 
-- Each stage reports its start, result, and duration. Recognized test totals and bounded warning
+- Each check reports its start, result, and duration from launch to its own process/stdio close,
+  excluding time waiting for other group members or formatting summaries. Recognized test totals and bounded warning
   or skip notices supplement the result; these are advisory, not a complete test inventory.
 - Complete combined stdout/stderr goes directly to private files in an OS temporary directory,
   whose path is printed before execution. Logs stay outside the worktree, survive failure or
@@ -56,12 +59,18 @@ manual-test exclusions. Only the child process result determines success, never 
   `pnpm test --verbose`, `pnpm verify --verbose`, and
   `node scripts/run-rust-workspace.mjs test --verbose` stream the underlying output without capture.
   The wrapped Node test commands accept the same `--verbose` option.
-- The wrapper uses synchronous child execution, inherits stdin and the existing process group,
-  and introduces no retry, timeout, background execution, or cancellation supervisor. Existing
+- Concurrent streaming prefixes lines with the check name. Long lines are split into bounded,
+  labeled fragments without dropping text or splitting Unicode characters; a final unterminated
+  fragment receives a newline. Each stream waits for its destination write to complete before
+  forwarding more, so slow destinations cannot cause unbounded queued output.
+- The wrapper uses asynchronous child execution and inherits the existing process group.
+  Uncaptured single checks inherit stdin; captured or concurrently piped checks ignore stdin. It
+  introduces no retry, timeout, background execution, or cancellation supervisor. Existing
   terminal/job cancellation still owns interruption; a printed start without a result is not a pass.
 
-The execution model is a fixed ordered list: start one stage, retain its output, inspect its
-process result, then either advance on zero or stop on failure. Summary and verbose modes execute
+The execution model is a fixed ordered list: start a stage's members, retain their output, record
+each close independently, drain the group, then either advance on all-zero results or stop on
+failure. Summary and verbose modes execute
 the same list. `scripts/check-output.test.mjs` exercises this public operation with successful,
 failing, signalled, missing-executable, nested, and large-output children, plus lossless logs and
 bounded diagnostics. It does not establish arbitrary descendant cancellation or platform behavior
@@ -80,8 +89,8 @@ results remain unchanged.
 | `test`               | Contract-checker tests, documentation-pairing negative tests, custom lint-rule tests, pnpm and Cargo test suites, required controlled local system witnesses, and declared native cross-compilation checks pass. |
 | `test:exports`       | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                                                                |
 
-- `build` precedes `typecheck` because verification and production consumers resolve library artifacts, not another package's source.
-- Recursive builds are topological: a clean checkout builds dependencies before dependents resolve their exports.
+- `build` precedes `lint` and `typecheck` because dependency analysis and production consumers resolve library artifacts, not another package's source. A clean checkout must produce those exports before Knip classifies dependency usage.
+- Root builds finish all shared packages before starting applications; each phase remains topological. Story discovery can consume another owner's package dependencies without a direct runtime dependency from the host, so applications must not race those package builds.
 - Application module development does not consume library `dist`; Rsbuild resolves declared source entries into the development graph. Node-executed development preparation that consumes a library's runtime export must explicitly build that dependency before process startup.
 - `pnpm verify` may rebuild package output without interrupting a running application server; verification and production continue to consume topologically built artifacts.
 - Rust workspace work uses the exact root toolchain and committed Cargo lockfile; Zig source
@@ -103,8 +112,16 @@ results remain unchanged.
 `pnpm test:tla` runs every registered model through the shared bounded runner. The execution
 inventory in `scripts/tla/models.json` registers each checked module/configuration, semantic owner,
 claim authority, changed-path triggers, timeout, configuration variants, and required action
-coverage. It is an execution index, not a second behavior specification; package-owned contracts
+coverage. Triggers follow the abstraction's implementation owners and their dependencies; unrelated
+styles do not trigger document or terminal-lifecycle models. Keep positive owner-path regression
+cases beside exclusions when narrowing triggers. It is an execution index, not a second behavior specification; package-owned contracts
 and TLA+ modules remain authoritative for model semantics.
+
+The runner uses Node built-ins and its separately pinned Java jar. Root `package.json` and
+`pnpm-lock.yaml` changes therefore use the mandatory inventory/command checks without selecting
+all TLC models. The TLA+ runner, inventory, CI toolchain workflow, and governing verification or
+modeling standards remain shared triggers. Retain broader owner triggers where a protocol package
+or native process is the abstraction boundary; a smaller pattern alone is not correctness evidence.
 
 TLA+ model checking is change-triggered evidence: `pnpm test` and the required CI `verify` job do
 not invoke TLC implicitly. `pnpm verify` runs only the cheap `test:tla:inventory` consistency and
@@ -117,11 +134,28 @@ when several model owners or shared model infrastructure change. `pnpm test:tla:
 uses the same manifest mapping as CI. A package-owned `verify:correctness` command may include its
 TLA+ check when that command is the package's comprehensive correctness workflow.
 
-Every registered check uses the pinned TLC SHA-256, one worker, a fixed fingerprint polynomial,
+Every registered check uses the pinned TLC SHA-256, its declared worker count (one by default,
+optionally two through the model's `workers` field), a fixed fingerprint polynomial,
 declared finite bounds, a per-model timeout, and coverage output. The runner fails when a required
 semantic action is missing or has no reached witness and emits a machine-readable state-count,
-duration, and model/config SHA-256 report. Configuration bounds and TLC's finite-state assumption
+duration, worker count, and model/config SHA-256 report. Configuration bounds and TLC's finite-state assumption
 remain evidence limits; action coverage is not implementation refinement evidence.
+
+The runner uses `-lncheck final` to check liveness once the complete reachable graph is available,
+preserving fairness and every configured property while avoiding repeated partial-graph checks.
+Safety checks still run during exploration. A timeout before final liveness checking is a failure,
+never progress evidence. Keep coverage collection enabled for required action witnesses and wait
+for Java's stdio to close before parsing its final report.
+
+Independent model/configuration checks share a queue of at most two TLC processes.
+The default is two slots on machines with at least four available processors and 8 GiB of memory
+(respecting a reported process memory limit), otherwise one. Pass `--jobs 1` or `--jobs 2` to choose
+explicitly. Variants of one model can occupy both slots; required coverage is checked only after
+all its variants succeed and combines evidence only within that model.
+Each configuration owns its state directory and a file-backed Java log; the runner emits the whole
+log after Java closes so concurrent counterexamples cannot interleave. A failure stops new models
+and variants, drains already-running checks within their own timeouts, and fails the command.
+Use `--jobs 1` with unchanged declared worker counts for sequential timing comparisons on the same machine.
 
 For the pinned TLC action-header format, coverage requires a positive generated-state count from
 `distinct:generated`, or the sole count of a single-count header. A transition to an already

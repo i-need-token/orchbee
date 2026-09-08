@@ -210,7 +210,7 @@ fn assert_restored_termios(restored: &Termios, initial: &Termios) {
 }
 
 #[test]
-fn bare_tty_keeps_the_staged_shell_inactive() -> Result<(), Box<dyn Error>> {
+fn bare_tty_without_a_staged_cohort_keeps_terminal_modes_unchanged() -> Result<(), Box<dyn Error>> {
     let tui = RunningTui::spawn(&[])?;
     let initial_termios = tui.initial_termios.clone();
     let completed = tui.complete()?;
@@ -218,7 +218,11 @@ fn bare_tty_keeps_the_staged_shell_inactive() -> Result<(), Box<dyn Error>> {
     assert_eq!(completed.status.code(), Some(1));
     assert_eq!(
         std::str::from_utf8(&completed.stderr)?,
-        "The Orchbee TUI is unavailable in this development slice.\n"
+        if cfg!(target_os = "linux") {
+            "The native development cohort is missing, changed, or invalid. Stage all four binaries together before running orchbee.\n"
+        } else {
+            "The Orchbee TUI is unavailable in this development slice.\n"
+        }
     );
     assert!(completed.screen.is_empty());
     assert_no_terminal_mode_changes(&completed, &initial_termios);

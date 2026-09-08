@@ -15,6 +15,26 @@ Project、Workspace、Tab、Panel 与 Terminal Presentation 产品语义，但�
 Directory、Worktree、Agent、Launch Profile、terminal content、persistence、transport 与所有
 Client-local view fact。当前 client-session consumer 尚未使用这份新 contract。
 
+独立 command binding 校验 `workbench.command` 及相关联的 command/snapshot result。它包括 Project
+与 Workspace 变更、canonical `tab.rename`、standalone `tab.move`，以及 standalone `tab.create`
+及其已提交的 terminal result variant。Move 仅携带 `terminalContextId`、`tabId` 和
+`direction: previous | next | first | last`；`tab-moved` 仅携带 `revision`、`terminalContextId`
+和 `tabId`。
+Server 拥有排序与 no-op 语义；消费 adapter 拥有请求/结果关联及 action 兼容性校验。
+Binding 与两个 runtime binary 作为同一个本地未发布 OBWP v1 cohort 一起启用和回滚；旧的封闭
+decoder 会拒绝 Move。它复用 projection identity、label、revision 和 snapshot invariant，拒绝未知字段，
+并检查编码请求/结果上限。原生 Server 通过 OBWP 消费独立 Rust binding；本 package 拥有已解码值，
+不实现 OBWP transport、duplicate-key decoding、重试、共享状态 mutation 或授权策略。
+
+分阶段的 Close binding 增加 `tab.close`、不可变 `tab-close-accepted`、无副作用的
+`workbench.tab-close.read` 与显式 `workbench.tab-close.resume` 及其严格结果。
+`WorkbenchTabCloseAttemptGenerationSchema` 验证独立于修订的非零规范十进制 u64 值域。
+封闭状态/阶段/原因联合将已知销毁、清理停驻、未知效果及最终移除保留为不同事实。
+Resume 失败目标回显仅重复已提交身份，Denied 亦如此；不确认既有操作。
+[Close 线协议契约](../../schemas/workbench/README.zh-CN.md#已接受的-tab-close-线协议契约)
+拥有形状及共享预期语料。这些已解码值解析器不激活生命周期效果，也不证明 Server/Worker/原生
+集成；该批次必须一起推进。
+
 每个`terminal-projection-open-requested`命令携带一个完整的正值`TerminalGeometry`。它是调用者测量的视觉表面的安装几何形状，而不是可选的调整大小提示或后备。因此，请求身份包括表示身份和几何结构：可以重放精确的副本，而不同几何结构的重用会与控制流量发生冲突。传输合同不提供超时或 80x24 默认值。
 
 投影的附件流携带语义铃声事件，而无需选择声音、视觉闪光或通知策略。每个事件都保留 Host 附件身份和终端拥有的序列，因此预计的终端可以抑制过时或重复的传递。

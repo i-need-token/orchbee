@@ -1,0 +1,278 @@
+use std::convert::Infallible;
+
+use ratatui::{
+    Terminal,
+    backend::TestBackend,
+    buffer::Buffer,
+    layout::Rect,
+    style::{Modifier, Style},
+};
+
+use super::{TabDisplay, compact_token, navigator_row, render_compact, render_navigator};
+
+#[derive(Clone, Copy)]
+struct TestTab<'a> {
+    label: &'a str,
+    active: bool,
+}
+
+#[derive(Clone, Copy)]
+enum Surface {
+    Compact,
+    Navigator,
+}
+
+fn rendered(
+    width: u16,
+    height: u16,
+    tabs: &[TestTab<'_>],
+    active_position: Option<usize>,
+    surface: Surface,
+) -> (String, Buffer) {
+    let mut terminal = infallible(Terminal::new(TestBackend::new(width, height)));
+    infallible(terminal.draw(|frame| {
+        let tab_at = |index: usize| {
+            tabs.get(index).map(|tab| TabDisplay {
+                position: index.saturating_add(1),
+                active: tab.active,
+                label: tab.label,
+            })
+        };
+        let area = Rect::new(0, 0, width, height);
+        match surface {
+            Surface::Compact => render_compact(frame, area, tabs.len(), active_position, tab_at),
+            Surface::Navigator => {
+                render_navigator(frame, area, tabs.len(), active_position, tab_at)
+            }
+        }
+    }));
+    let buffer = terminal.backend().buffer().clone();
+    let mut text = String::new();
+    for y in 0..height {
+        for x in 0..width {
+            text.push_str(buffer[(x, y)].symbol());
+        }
+        text.push('\n');
+    }
+    (text, buffer)
+}
+
+fn infallible<T>(result: Result<T, Infallible>) -> T {
+    match result {
+        Ok(value) => value,
+        Err(never) => match never {},
+    }
+}
+
+#[test]
+fn compact_strip_formats_boundaries_without_assuming_single_digit_positions() {
+    for count in [0, 1, 9, 10, 256] {
+        let labels = (1..=count)
+            .map(|position| position.to_string())
+            .collect::<Vec<_>>();
+        let tabs = labels
+            .iter()
+            .enumerate()
+            .map(|(index, label)| TestTab {
+                label,
+                active: index + 1 == count,
+            })
+            .collect::<Vec<_>>();
+        let (text, _) = rendered(80, 1, &tabs, (count > 0).then_some(count), Surface::Compact);
+
+        if count == 0 {
+            assert_eq!(text, format!("{}\n", " ".repeat(80)));
+        } else {
+            assert!(text.contains(&format!("[*{count} {count}]")), "{text:?}");
+        }
+    }
+}
+
+#[test]
+fn compact_window_starts_at_a_token_boundary_and_keeps_the_active_prefix_visible() {
+    let labels = (1..=20)
+        .map(|number| number.to_string())
+        .collect::<Vec<_>>();
+    let tabs = labels
+        .iter()
+        .enumerate()
+        .map(|(index, label)| TestTab {
+            label,
+            active: index == 14,
+        })
+        .collect::<Vec<_>>();
+
+    let (text, _) = rendered(8, 1, &tabs, Some(15), Surface::Compact);
+
+    assert!(text.starts_with("[*15 15]"), "{text:?}");
+    assert!(!text.contains("14"));
+}
+
+#[test]
+fn compact_strip_keeps_duplicates_and_sanitizes_only_the_temporary_rendering() {
+    let unsafe_label =
+        String::from("same\0\x1b\r\n\u{7f}\u{80}\u{85}\u{9f}\u{2028}\u{2029}e\u{301}界");
+    let canonical = unsafe_label.clone();
+    let tabs = [
+        TestTab {
+            label: "same",
+            active: false,
+        },
+        TestTab {
+            label: "same",
+            active: false,
+        },
+        TestTab {
+            label: &unsafe_label,
+            active: true,
+        },
+    ];
+
+    let (text, _) = rendered(80, 1, &tabs, Some(3), Surface::Compact);
+
+    assert!(text.contains("[ 1 same] [ 2 same]"), "{text:?}");
+    assert!(text.contains("[*3 same����������e\u{301}界"), "{text:?}");
+    assert_eq!(unsafe_label, canonical);
+    assert!(!text.trim_end_matches('\n').chars().any(char::is_control));
+}
+
+#[test]
+fn compact_strip_clips_without_splitting_a_double_width_cell() {
+    let tabs = [TestTab {
+        label: "界suffix",
+        active: true,
+    }];
+
+    let (prefix, _) = rendered(4, 1, &tabs, Some(1), Surface::Compact);
+    let (clipped, buffer) = rendered(5, 1, &tabs, Some(1), Surface::Compact);
+
+    assert_eq!(prefix, "[*1 \n");
+    assert_eq!(clipped, "[*1  \n");
+    assert_eq!(buffer[(4, 0)].symbol(), " ");
+}
+
+#[test]
+fn long_active_label_is_clipped_after_its_complete_prefix() {
+    let label = format!("e\u{301}{}suffix", "界".repeat(256));
+    let canonical = label.clone();
+    let tabs = [TestTab {
+        label: &label,
+        active: true,
+    }];
+
+    let (text, _) = rendered(8, 1, &tabs, Some(1), Surface::Compact);
+
+    assert!(text.starts_with("[*1 e\u{301}界"), "{text:?}");
+    assert_eq!(label, canonical);
+}
+
+#[test]
+fn one_column_compact_and_navigator_rectangles_clip_safely() {
+    let tabs = [TestTab {
+        label: "界\x1b",
+        active: true,
+    }];
+
+    let (compact, _) = rendered(1, 1, &tabs, Some(1), Surface::Compact);
+    let (navigator, _) = rendered(1, 1, &tabs, Some(1), Surface::Navigator);
+
+    assert_eq!(compact, "[\n");
+    assert_eq!(navigator, "[\n");
+}
+
+#[test]
+fn rendering_is_bounded_by_its_rect_and_marks_the_active_token_style() {
+    let mut terminal = infallible(Terminal::new(TestBackend::new(16, 2)));
+    let tabs = [
+        TestTab {
+            label: "a",
+            active: false,
+        },
+        TestTab {
+            label: "b",
+            active: true,
+        },
+    ];
+    infallible(terminal.draw(|frame| {
+        frame
+            .buffer_mut()
+            .set_string(0, 0, ".".repeat(16), Style::new());
+        let tab_at = |index: usize| {
+            tabs.get(index).map(|tab| TabDisplay {
+                position: index + 1,
+                active: tab.active,
+                label: tab.label,
+            })
+        };
+        render_compact(frame, Rect::new(3, 0, 1, 1), 2, Some(2), tab_at);
+    }));
+    let bounded = terminal.backend().buffer();
+    assert_eq!(bounded[(2, 0)].symbol(), ".");
+    assert_eq!(bounded[(3, 0)].symbol(), "[");
+    assert_eq!(bounded[(4, 0)].symbol(), ".");
+
+    let (_, styled) = rendered(16, 1, &tabs, Some(2), Surface::Compact);
+    assert_eq!(styled[(0, 0)].fg, super::super::MUTED);
+    assert_eq!(styled[(7, 0)].fg, super::super::EMPHASIS);
+    assert!(styled[(7, 0)].modifier.contains(Modifier::BOLD));
+}
+
+#[test]
+fn token_formatting_is_usize_safe() {
+    let tab = TabDisplay {
+        position: usize::MAX,
+        active: true,
+        label: "label",
+    };
+
+    let (compact, _) = compact_token(tab);
+    let navigator = navigator_row(tab);
+
+    assert_eq!(compact, format!("[*{} label]", usize::MAX));
+    assert_eq!(navigator, format!("[*{}] label", usize::MAX));
+}
+
+#[test]
+fn navigator_scrolls_to_keep_an_active_row_after_many_tabs_visible() {
+    let labels = (1..=256)
+        .map(|number| number.to_string())
+        .collect::<Vec<_>>();
+    let tabs = labels
+        .iter()
+        .enumerate()
+        .map(|(index, label)| TestTab {
+            label,
+            active: index == 255,
+        })
+        .collect::<Vec<_>>();
+
+    let (text, _) = rendered(20, 4, &tabs, Some(256), Surface::Navigator);
+
+    assert!(text.contains("[ 253] 253"), "{text:?}");
+    assert!(text.contains("[*256] 256"), "{text:?}");
+    assert!(!text.contains("[ 252]"));
+}
+
+#[test]
+fn navigator_rows_use_exact_markers_and_preserve_duplicate_and_whitespace_labels() {
+    let tabs = [
+        TestTab {
+            label: "duplicate",
+            active: false,
+        },
+        TestTab {
+            label: "duplicate",
+            active: true,
+        },
+        TestTab {
+            label: "   ",
+            active: false,
+        },
+    ];
+
+    let (text, _) = rendered(24, 3, &tabs, Some(2), Surface::Navigator);
+
+    assert!(text.contains("[ 1] duplicate"), "{text:?}");
+    assert!(text.contains("[*2] duplicate"), "{text:?}");
+    assert!(text.contains("[ 3]    "), "{text:?}");
+}

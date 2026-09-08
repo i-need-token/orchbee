@@ -1,4 +1,7 @@
-use crate::client_view::{ClientKey, ClientView, ShellCommand};
+use crate::client_view::{
+    ClientAction, ClientKey, ClientView, SessionActionDisposition, ShellCommand,
+};
+use orchbee_client_server_protocol::Geometry;
 
 const CONTROL_B: u8 = 0x02;
 
@@ -7,6 +10,18 @@ pub(crate) struct TerminalInputUnavailable;
 
 pub(crate) trait TerminalInputPort {
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
+
+    fn apply_client_action(&mut self, _action: ClientAction) -> Option<SessionActionDisposition> {
+        None
+    }
+
+    fn observe_geometry(&mut self, _geometry: Geometry) {}
+
+    fn capture_confirmation_key(&mut self, _key: ClientKey) -> bool {
+        false
+    }
+
+    fn invalidate_close_display(&mut self) {}
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -24,15 +39,28 @@ pub(crate) enum DispatchOutcome {
     Exit,
 }
 
-pub(crate) fn dispatch_input(
+pub(crate) fn dispatch_input<Port: TerminalInputPort + ?Sized, LayoutError>(
     view: &mut ClientView,
     input: &[u8],
-    terminal_input: &mut (impl TerminalInputPort + ?Sized),
-) -> DispatchOutcome {
+    terminal_input: &mut Port,
+    mut after_layout_change: impl FnMut(&mut ClientView, &mut Port) -> Result<(), LayoutError>,
+) -> Result<DispatchOutcome, LayoutError> {
     let mut ordinary_start = 0;
     let mut offset = 0;
+    let mut modal_packet = false;
 
     while let Some(byte) = input.get(offset).copied() {
+        if terminal_input.capture_confirmation_key(normalize_byte(byte)) || modal_packet {
+            if let Some(ordinary) = input.get(ordinary_start..offset)
+                && !ordinary.is_empty()
+            {
+                forward_or_report(view, ordinary, terminal_input);
+            }
+            modal_packet = true;
+            offset += 1;
+            ordinary_start = offset;
+            continue;
+        }
         if !view.prefix_active() && byte != CONTROL_B {
             offset += 1;
             continue;
@@ -43,9 +71,21 @@ pub(crate) fn dispatch_input(
         {
             forward_or_report(view, ordinary, terminal_input);
         }
-        match view.transition(normalize_byte(byte)) {
-            ShellCommand::Backend(action) => view.report_backend_unavailable(action),
-            ShellCommand::Exit => return DispatchOutcome::Exit,
+        let transition = view.decide(normalize_byte(byte));
+        let action = transition.action();
+        let applied = action.and_then(|action| terminal_input.apply_client_action(action));
+        let disposition = applied.unwrap_or(SessionActionDisposition::KeepNavigator);
+        view.commit(transition, disposition);
+        if applied.is_none()
+            && let Some(action) = action.and_then(ClientAction::backend_action)
+        {
+            view.report_backend_unavailable(action);
+        }
+        if transition.layout_changed() {
+            after_layout_change(view, terminal_input)?;
+        }
+        match transition.shell() {
+            ShellCommand::Exit => return Ok(DispatchOutcome::Exit),
             ShellCommand::ForwardTerminal => {
                 forward_or_report(view, std::slice::from_ref(&byte), terminal_input);
             }
@@ -60,7 +100,7 @@ pub(crate) fn dispatch_input(
     {
         forward_or_report(view, ordinary, terminal_input);
     }
-    DispatchOutcome::Continue
+    Ok(DispatchOutcome::Continue)
 }
 
 fn forward_or_report(

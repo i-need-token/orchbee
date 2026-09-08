@@ -115,7 +115,10 @@ writes and synchronizes the temporary file, atomically renames it over the regis
 synchronizes the parent directory. A temporary-name collision or any other pre-rename error leaves
 the prior file intact. If rename completed but directory synchronization failed, the adapter does
 not claim success. Explicit reload observes whichever strict document the filesystem presents;
-the caller can then replay the same preallocated record safely.
+the caller can then replay the same preallocated record safely. Recovery retains no hidden pending
+request and reserves no caller ordering: after a pre-rename failure, or after an indeterminate result
+has been reloaded, every later create is evaluated against the recovered canonical document.
+Replaying the same identity is safe but optional.
 
 A missing current file is empty only when no valid legacy version-1 file exists. When version 2 is
 missing, Desktop may read `<userData>/environment-registry-v1.json`, strictly validate it, and
@@ -149,6 +152,8 @@ rename, pre-commit failure, post-rename uncertainty, process restart, reload, an
 checks canonical identity and target uniqueness, stable append order, revision/count agreement,
 capacity, retained successful claims, and progress out of an indeterminate phase under reload
 fairness.
+Failure and reload retain no request-owned gate; the next caller may submit any record, which is
+checked against the recovered document in ordinary arrival order.
 
 | Claim                                                        | Deterministic evidence                                              | Bounds and exclusions                                                               |
 | ------------------------------------------------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |

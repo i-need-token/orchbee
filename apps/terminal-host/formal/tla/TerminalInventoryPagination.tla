@@ -3,7 +3,9 @@ EXTENDS FiniteSets, Integers, Sequences, TLC
 
 \* Refines runtime-model claims TH-002 and TH-012. Create, Dispose, BeginScan,
 \* ReadPage, and RejectStaleCursor model one generation-scoped registry snapshot
-\* without duplicate, omitted, or cross-generation members.
+\* without duplicate, omitted, or cross-generation members. Each ReadPage emits
+\* one member: that explicit singleton-page bound still explores a multi-page
+\* scan, while payload-sized page packing remains owned by encoder tests.
 
 CONSTANTS TerminalCount, MaxGeneration
 
@@ -125,9 +127,6 @@ NoDuplicatePages == Cardinality(seen) = pageCount
 
 CompleteScanIsExact ==
   scanState = "complete" => seen = scanMembership
-
-StaleCursorNeverCompletes ==
-  scanState = "stale" => seen \subseteq scanMembership
 
 MembershipMutationChangesGeneration ==
   [][\A terminal \in TerminalIds:

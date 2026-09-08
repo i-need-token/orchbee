@@ -12,13 +12,9 @@ CONSTANTS Clients, MaxSessions, MaxHandlers, MaxGeneration
 
 ServerPhases == {"absent", "listening", "stopped"}
 ClientValues == Clients \cup {"none"}
-\* rejection is an internal outcome observation. "handler-saturation" denotes
-\* the existing silent close, not an on-wire typed rejection.
-RejectionKinds == {
-  "wrong-user", "malformed", "incompatible-protocol",
-  "incompatible-cohort", "wrong-message", "capacity",
-  "handler-saturation", "timeout"
-}
+\* Named rejection actions retain the abstract classification boundary and
+\* authority-preservation checks. Exact typed or silent wire output is owned by
+\* deterministic protocol and service tests rather than additional model state.
 Actions == {
   "init", "start-server", "register-worker", "begin-slow",
   "reject-wrong-user", "reject-malformed", "reject-incompatible-protocol",
@@ -38,11 +34,11 @@ ASSUME
   /\ MaxGeneration > MaxHandlers
 
 VARIABLES serverPhase, sessions, slowCandidates, nextGeneration,
-  staleGenerations, rejection, workerRegistered, priorSessions,
+  staleGenerations, workerRegistered, priorSessions, priorNextGeneration,
   priorServerPhase, priorWorkerRegistered, lastClient, lastAction
 
 vars == <<serverPhase, sessions, slowCandidates, nextGeneration,
-  staleGenerations, rejection, workerRegistered, priorSessions,
+  staleGenerations, workerRegistered, priorSessions, priorNextGeneration,
   priorServerPhase, priorWorkerRegistered, lastClient, lastAction>>
 
 ActiveClients == {client \in Clients : sessions[client] # 0}
@@ -55,9 +51,9 @@ Init ==
   /\ slowCandidates = {}
   /\ nextGeneration = 1
   /\ staleGenerations = {}
-  /\ rejection = "none"
   /\ workerRegistered = FALSE
   /\ priorSessions = sessions
+  /\ priorNextGeneration = nextGeneration
   /\ priorServerPhase = serverPhase
   /\ priorWorkerRegistered = workerRegistered
   /\ lastClient = "none"
@@ -65,6 +61,7 @@ Init ==
 
 Record(action, client) ==
   /\ priorSessions' = sessions
+  /\ priorNextGeneration' = nextGeneration
   /\ priorServerPhase' = serverPhase
   /\ priorWorkerRegistered' = workerRegistered
   /\ lastClient' = client
@@ -74,7 +71,7 @@ StartServer ==
   /\ serverPhase = "absent"
   /\ serverPhase' = "listening"
   /\ UNCHANGED <<sessions, slowCandidates, nextGeneration,
-       staleGenerations, rejection, workerRegistered>>
+       staleGenerations, workerRegistered>>
   /\ Record("start-server", "none")
 
 RegisterWorker ==
@@ -82,7 +79,7 @@ RegisterWorker ==
   /\ ~workerRegistered
   /\ workerRegistered' = TRUE
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
-       staleGenerations, rejection>>
+       staleGenerations>>
   /\ Record("register-worker", "none")
 
 BeginSlow(client) ==
@@ -93,13 +90,12 @@ BeginSlow(client) ==
   /\ HandlerCount < MaxHandlers
   /\ slowCandidates' = slowCandidates \cup {client}
   /\ UNCHANGED <<serverPhase, sessions, nextGeneration, staleGenerations,
-       rejection, workerRegistered>>
+       workerRegistered>>
   /\ Record("begin-slow", client)
 
 RejectWrongUser ==
   /\ serverPhase = "listening"
   /\ HandlerCount < MaxHandlers
-  /\ rejection' = "wrong-user"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
   /\ Record("reject-wrong-user", "none")
@@ -107,7 +103,6 @@ RejectWrongUser ==
 RejectMalformed ==
   /\ serverPhase = "listening"
   /\ HandlerCount < MaxHandlers
-  /\ rejection' = "malformed"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
   /\ Record("reject-malformed", "none")
@@ -115,7 +110,6 @@ RejectMalformed ==
 RejectIncompatibleProtocol ==
   /\ serverPhase = "listening"
   /\ HandlerCount < MaxHandlers
-  /\ rejection' = "incompatible-protocol"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
   /\ Record("reject-incompatible-protocol", "none")
@@ -123,7 +117,6 @@ RejectIncompatibleProtocol ==
 RejectIncompatibleCohort ==
   /\ serverPhase = "listening"
   /\ HandlerCount < MaxHandlers
-  /\ rejection' = "incompatible-cohort"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
   /\ Record("reject-incompatible-cohort", "none")
@@ -131,7 +124,6 @@ RejectIncompatibleCohort ==
 RejectWrongMessage ==
   /\ serverPhase = "listening"
   /\ HandlerCount < MaxHandlers
-  /\ rejection' = "wrong-message"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
   /\ Record("reject-wrong-message", "none")
@@ -140,7 +132,6 @@ RejectCapacity ==
   /\ serverPhase = "listening"
   /\ Cardinality(ActiveClients) = MaxSessions
   /\ HandlerCount < MaxHandlers
-  /\ rejection' = "capacity"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
   /\ Record("reject-capacity", "none")
@@ -148,7 +139,6 @@ RejectCapacity ==
 RejectHandlerSaturation ==
   /\ serverPhase = "listening"
   /\ HandlerCount = MaxHandlers
-  /\ rejection' = "handler-saturation"
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
        staleGenerations, workerRegistered>>
   /\ Record("reject-handler-saturation", "none")
@@ -157,7 +147,6 @@ HandshakeTimeout(client) ==
   /\ serverPhase = "listening"
   /\ client \in slowCandidates
   /\ slowCandidates' = slowCandidates \ {client}
-  /\ rejection' = "timeout"
   /\ UNCHANGED <<serverPhase, sessions, nextGeneration,
        staleGenerations, workerRegistered>>
   /\ Record("handshake-timeout", client)
@@ -173,7 +162,7 @@ AdmitClient(client) ==
   /\ sessions' = [sessions EXCEPT ![client] = nextGeneration]
   /\ nextGeneration' = nextGeneration + 1
   /\ UNCHANGED <<serverPhase, slowCandidates, staleGenerations,
-       rejection, workerRegistered>>
+       workerRegistered>>
   /\ Record("admit-client", client)
 
 ClientDisconnect(client) ==
@@ -182,7 +171,7 @@ ClientDisconnect(client) ==
   /\ sessions' = [sessions EXCEPT ![client] = 0]
   /\ staleGenerations' = staleGenerations \cup {sessions[client]}
   /\ UNCHANGED <<serverPhase, slowCandidates, nextGeneration,
-       rejection, workerRegistered>>
+       workerRegistered>>
   /\ Record("client-disconnect", client)
 
 DuplicateHello(client) ==
@@ -191,14 +180,14 @@ DuplicateHello(client) ==
   /\ sessions' = [sessions EXCEPT ![client] = 0]
   /\ staleGenerations' = staleGenerations \cup {sessions[client]}
   /\ UNCHANGED <<serverPhase, slowCandidates, nextGeneration,
-       rejection, workerRegistered>>
+       workerRegistered>>
   /\ Record("duplicate-hello", client)
 
 CleanupStaleGeneration(generation) ==
   /\ generation \in staleGenerations
   /\ staleGenerations' = staleGenerations \ {generation}
   /\ UNCHANGED <<serverPhase, sessions, slowCandidates, nextGeneration,
-       rejection, workerRegistered>>
+       workerRegistered>>
   /\ Record("stale-session-cleanup", "none")
 
 StaleSessionCleanup ==
@@ -211,7 +200,7 @@ StopServer ==
   /\ slowCandidates' = {}
   /\ staleGenerations' = {}
   /\ workerRegistered' = FALSE
-  /\ UNCHANGED <<nextGeneration, rejection>>
+  /\ UNCHANGED nextGeneration
   /\ Record("stop-server", "none")
 
 Next ==
@@ -240,9 +229,9 @@ TypeOK ==
   /\ slowCandidates \subseteq Clients
   /\ nextGeneration \in 1..(MaxGeneration + 1)
   /\ staleGenerations \subseteq 1..MaxGeneration
-  /\ rejection \in RejectionKinds \cup {"none"}
   /\ workerRegistered \in BOOLEAN
   /\ priorSessions \in [Clients -> 0..MaxGeneration]
+  /\ priorNextGeneration \in 1..(MaxGeneration + 1)
   /\ priorServerPhase \in ServerPhases
   /\ priorWorkerRegistered \in BOOLEAN
   /\ lastClient \in ClientValues
@@ -255,8 +244,18 @@ HandlerCapacityIsBounded == HandlerCount <= MaxHandlers
 ActiveGenerationsAreUnique ==
   Cardinality(ActiveGenerations) = Cardinality(ActiveClients)
 
-ActiveGenerationsNeverRepeat ==
+ActiveGenerationsPrecedeCursor ==
   \A client \in ActiveClients: sessions[client] < nextGeneration
+
+AdmissionUsesPreviousCursor ==
+  lastAction = "admit-client" =>
+    /\ lastClient \in Clients
+    /\ priorSessions[lastClient] = 0
+    /\ sessions[lastClient] = priorNextGeneration
+    /\ nextGeneration = priorNextGeneration + 1
+
+GenerationCursorChangesOnlyOnAdmission ==
+  nextGeneration # priorNextGeneration => lastAction = "admit-client"
 
 SlowCandidatesOwnNoSession ==
   \A client \in slowCandidates: sessions[client] = 0

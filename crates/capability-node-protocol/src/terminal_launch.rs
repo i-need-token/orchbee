@@ -353,6 +353,7 @@ impl HostLaunchAccepted {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalLaunchRejection {
+    LifecycleActive,
     WrongWorker,
     StaleWorkerGeneration,
     LeaseExpired,
@@ -502,6 +503,7 @@ pub enum TerminalStartOutcome {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalStartRejection {
+    LifecycleActive,
     WrongWorker,
     StaleWorkerGeneration,
     LeaseExpired,
@@ -590,7 +592,8 @@ fn validate_start_outcome(
             observed_host_epoch,
         }) => observed_host_epoch != target_epoch,
         TerminalStartOutcome::Rejected(
-            TerminalStartRejection::WrongWorker
+            TerminalStartRejection::LifecycleActive
+            | TerminalStartRejection::WrongWorker
             | TerminalStartRejection::StaleWorkerGeneration
             | TerminalStartRejection::LeaseExpired
             | TerminalStartRejection::StaleFence

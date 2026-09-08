@@ -1,12 +1,14 @@
 ------------------ MODULE TerminalSelectionGestureCoordination ------------------
-EXTENDS Naturals, TLC
+EXTENDS Naturals, Sequences, TLC
 
 CONSTANTS MaxGeneration, MaxRevision, MaxPublications, MaxSelectionVersion,
   MaxFailures, MaxGenerationCancellations
 
 \* Models the client-owned serialized pointer-selection lane. One pointer
 \* gesture captures one projection generation and carries viewport-relative
-\* endpoints. Revision advancement represents arbitrarily frequent terminal
+\* endpoints through a bounded FIFO exploration queue. Fresh queued starts and
+\* browser callback fairness remain outside this gesture-scoped model.
+\* Revision advancement represents arbitrarily frequent terminal
 \* output: it never changes the gesture identity and never disables settlement.
 \* A generation change invalidates the captured viewport and silently retires
 \* the complete local gesture. Programmatic absolute selection is outside this
@@ -15,6 +17,7 @@ CONSTANTS MaxGeneration, MaxRevision, MaxPublications, MaxSelectionVersion,
 NoAction == "none"
 GestureActions == {"start", "update", "end", "cancel"}
 EndpointActions == {"update", "end", "cancel"}
+PendingCommands == [action: EndpointActions, generation: 1..MaxGeneration]
 ActionNames == {
   "init", "start-gesture", "restart-gesture", "move-gesture", "end-gesture",
   "cancel-gesture", "dispatch-pending", "accept-selection",
@@ -23,16 +26,16 @@ ActionNames == {
 }
 
 VARIABLES generation, revision, pointerActive, hostGestureActive,
-  gestureGeneration, inFlight, pending, flightGeneration, publicationCount,
+  gestureGeneration, inFlight, pendingQueue, flightGeneration, publicationCount,
   selectionVersion, copyCount, failureCount, generationCancellationCount,
   generationBarrier, selectionAtGenerationBarrier, copyAtGenerationBarrier,
-  failureAtGenerationBarrier, lastAction
+  failureAtGenerationBarrier, lastAction, priorPendingQueue
 
 vars == <<generation, revision, pointerActive, hostGestureActive,
-  gestureGeneration, inFlight, pending, flightGeneration, publicationCount,
+  gestureGeneration, inFlight, pendingQueue, flightGeneration, publicationCount,
   selectionVersion, copyCount, failureCount, generationCancellationCount,
   generationBarrier, selectionAtGenerationBarrier, copyAtGenerationBarrier,
-  failureAtGenerationBarrier, lastAction>>
+  failureAtGenerationBarrier, lastAction, priorPendingQueue>>
 
 Init ==
   /\ generation = 1
@@ -41,7 +44,7 @@ Init ==
   /\ hostGestureActive = FALSE
   /\ gestureGeneration = 0
   /\ inFlight = NoAction
-  /\ pending = NoAction
+  /\ pendingQueue = <<>>
   /\ flightGeneration = 0
   /\ publicationCount = 0
   /\ selectionVersion = 0
@@ -53,25 +56,53 @@ Init ==
   /\ copyAtGenerationBarrier = 0
   /\ failureAtGenerationBarrier = 0
   /\ lastAction = "init"
+  /\ priorPendingQueue = <<>>
+
+Record(action) ==
+  /\ lastAction' = action
+  /\ priorPendingQueue' = pendingQueue
+
+PendingCommand(action) ==
+  [action |-> action, generation |-> gestureGeneration]
+
+ReplacesTrailingUpdate(action) ==
+  /\ Len(pendingQueue) > 0
+  /\ pendingQueue[Len(pendingQueue)].action = "update"
+  /\ action \in {"update", "cancel"}
+
+DropLast(queue) ==
+  IF Len(queue) = 1 THEN <<>> ELSE SubSeq(queue, 1, Len(queue) - 1)
+
+QueueAfter(action) ==
+  IF ReplacesTrailingUpdate(action)
+  THEN Append(DropLast(pendingQueue), PendingCommand(action))
+  ELSE Append(pendingQueue, PendingCommand(action))
+
+CanQueue(action) ==
+  /\ action \in EndpointActions
+  /\ IF ReplacesTrailingUpdate(action)
+       THEN TRUE
+       ELSE publicationCount + Len(pendingQueue) < MaxPublications
 
 PublishGesture(action, commandGeneration) ==
   /\ action \in GestureActions
   /\ commandGeneration \in 1..MaxGeneration
   /\ inFlight = NoAction
+  /\ Len(pendingQueue) = 0
   /\ publicationCount < MaxPublications
   /\ inFlight' = action
-  /\ pending' = NoAction
+  /\ pendingQueue' = <<>>
   /\ flightGeneration' = commandGeneration
   /\ publicationCount' = publicationCount + 1
 
 StartGesture ==
   /\ ~generationBarrier
   /\ ~pointerActive
-  /\ pending = NoAction
+  /\ Len(pendingQueue) = 0
   /\ PublishGesture("start", generation)
   /\ pointerActive' = TRUE
   /\ gestureGeneration' = generation
-  /\ lastAction' = "start-gesture"
+  /\ Record("start-gesture")
   /\ UNCHANGED <<generation, revision, hostGestureActive, selectionVersion,
        copyCount, failureCount, generationCancellationCount,
        generationBarrier, selectionAtGenerationBarrier,
@@ -80,12 +111,12 @@ StartGesture ==
 RestartGesture ==
   /\ generationBarrier
   /\ ~pointerActive
-  /\ pending = NoAction
+  /\ Len(pendingQueue) = 0
   /\ PublishGesture("start", generation)
   /\ pointerActive' = TRUE
   /\ gestureGeneration' = generation
   /\ generationBarrier' = FALSE
-  /\ lastAction' = "restart-gesture"
+  /\ Record("restart-gesture")
   /\ UNCHANGED <<generation, revision, hostGestureActive, selectionVersion,
        copyCount, failureCount, generationCancellationCount,
        selectionAtGenerationBarrier, copyAtGenerationBarrier,
@@ -94,15 +125,16 @@ RestartGesture ==
 MoveGesture ==
   /\ pointerActive
   /\ gestureGeneration \in 1..MaxGeneration
-  /\ (inFlight # NoAction \/ publicationCount < MaxPublications)
-  /\ IF inFlight = NoAction
-       THEN /\ inFlight' = "update"
-            /\ pending' = NoAction
+  /\ IF inFlight = NoAction /\ Len(pendingQueue) = 0
+       THEN /\ publicationCount < MaxPublications
+            /\ inFlight' = "update"
+            /\ pendingQueue' = <<>>
             /\ flightGeneration' = gestureGeneration
             /\ publicationCount' = publicationCount + 1
-       ELSE /\ pending' = "update"
+       ELSE /\ CanQueue("update")
+            /\ pendingQueue' = QueueAfter("update")
             /\ UNCHANGED <<inFlight, flightGeneration, publicationCount>>
-  /\ lastAction' = "move-gesture"
+  /\ Record("move-gesture")
   /\ UNCHANGED <<generation, revision, pointerActive, hostGestureActive,
        gestureGeneration, selectionVersion, copyCount, failureCount,
        generationCancellationCount, generationBarrier,
@@ -112,16 +144,17 @@ MoveGesture ==
 EndGesture ==
   /\ pointerActive
   /\ gestureGeneration \in 1..MaxGeneration
-  /\ (inFlight # NoAction \/ publicationCount < MaxPublications)
-  /\ IF inFlight = NoAction
-       THEN /\ inFlight' = "end"
-            /\ pending' = NoAction
+  /\ IF inFlight = NoAction /\ Len(pendingQueue) = 0
+       THEN /\ publicationCount < MaxPublications
+            /\ inFlight' = "end"
+            /\ pendingQueue' = <<>>
             /\ flightGeneration' = gestureGeneration
             /\ publicationCount' = publicationCount + 1
-       ELSE /\ pending' = "end"
+       ELSE /\ CanQueue("end")
+            /\ pendingQueue' = QueueAfter("end")
             /\ UNCHANGED <<inFlight, flightGeneration, publicationCount>>
   /\ pointerActive' = FALSE
-  /\ lastAction' = "end-gesture"
+  /\ Record("end-gesture")
   /\ UNCHANGED <<generation, revision, hostGestureActive,
        gestureGeneration, selectionVersion, copyCount, failureCount,
        generationCancellationCount, generationBarrier,
@@ -131,16 +164,17 @@ EndGesture ==
 CancelGesture ==
   /\ pointerActive
   /\ gestureGeneration \in 1..MaxGeneration
-  /\ (inFlight # NoAction \/ publicationCount < MaxPublications)
-  /\ IF inFlight = NoAction
-       THEN /\ inFlight' = "cancel"
-            /\ pending' = NoAction
+  /\ IF inFlight = NoAction /\ Len(pendingQueue) = 0
+       THEN /\ publicationCount < MaxPublications
+            /\ inFlight' = "cancel"
+            /\ pendingQueue' = <<>>
             /\ flightGeneration' = gestureGeneration
             /\ publicationCount' = publicationCount + 1
-       ELSE /\ pending' = "cancel"
+       ELSE /\ CanQueue("cancel")
+            /\ pendingQueue' = QueueAfter("cancel")
             /\ UNCHANGED <<inFlight, flightGeneration, publicationCount>>
   /\ pointerActive' = FALSE
-  /\ lastAction' = "cancel-gesture"
+  /\ Record("cancel-gesture")
   /\ UNCHANGED <<generation, revision, hostGestureActive,
        gestureGeneration, selectionVersion, copyCount, failureCount,
        generationCancellationCount, generationBarrier,
@@ -148,21 +182,22 @@ CancelGesture ==
        failureAtGenerationBarrier>>
 
 DispatchPending ==
-  /\ ~generationBarrier
-  /\ inFlight = NoAction
-  /\ pending \in EndpointActions
-  /\ gestureGeneration \in 1..MaxGeneration
-  /\ publicationCount < MaxPublications
-  /\ inFlight' = pending
-  /\ pending' = NoAction
-  /\ flightGeneration' = gestureGeneration
-  /\ publicationCount' = publicationCount + 1
-  /\ lastAction' = "dispatch-pending"
-  /\ UNCHANGED <<generation, revision, pointerActive, hostGestureActive,
-       gestureGeneration, selectionVersion, copyCount, failureCount,
-       generationCancellationCount, generationBarrier,
-       selectionAtGenerationBarrier, copyAtGenerationBarrier,
-       failureAtGenerationBarrier>>
+  LET command == Head(pendingQueue)
+  IN
+    /\ ~generationBarrier
+    /\ inFlight = NoAction
+    /\ Len(pendingQueue) > 0
+    /\ publicationCount < MaxPublications
+    /\ inFlight' = command.action
+    /\ pendingQueue' = Tail(pendingQueue)
+    /\ flightGeneration' = command.generation
+    /\ publicationCount' = publicationCount + 1
+    /\ Record("dispatch-pending")
+    /\ UNCHANGED <<generation, revision, pointerActive, hostGestureActive,
+         gestureGeneration, selectionVersion, copyCount, failureCount,
+         generationCancellationCount, generationBarrier,
+         selectionAtGenerationBarrier, copyAtGenerationBarrier,
+         failureAtGenerationBarrier>>
 
 AcceptSelection ==
   /\ inFlight \in GestureActions
@@ -173,13 +208,13 @@ AcceptSelection ==
   /\ flightGeneration' = 0
   /\ hostGestureActive' = (inFlight \in {"start", "update"})
   /\ gestureGeneration' =
-       IF inFlight \in {"end", "cancel"} /\ pending = NoAction
+       IF inFlight \in {"end", "cancel"} /\ Len(pendingQueue) = 0
        THEN 0
        ELSE gestureGeneration
   /\ selectionVersion' = selectionVersion + 1
   /\ copyCount' = copyCount + (IF inFlight = "end" THEN 1 ELSE 0)
-  /\ lastAction' = "accept-selection"
-  /\ UNCHANGED <<generation, revision, pointerActive, pending,
+  /\ Record("accept-selection")
+  /\ UNCHANGED <<generation, revision, pointerActive, pendingQueue,
        publicationCount, failureCount, generationCancellationCount,
        generationBarrier, selectionAtGenerationBarrier,
        copyAtGenerationBarrier, failureAtGenerationBarrier>>
@@ -190,7 +225,7 @@ RejectStaleGeneration ==
   /\ pointerActive' = FALSE
   /\ gestureGeneration' = 0
   /\ inFlight' = NoAction
-  /\ pending' = NoAction
+  /\ pendingQueue' = <<>>
   /\ flightGeneration' = 0
   /\ generationCancellationCount' =
        IF generationCancellationCount < MaxGenerationCancellations
@@ -200,7 +235,7 @@ RejectStaleGeneration ==
   /\ selectionAtGenerationBarrier' = selectionVersion
   /\ copyAtGenerationBarrier' = copyCount
   /\ failureAtGenerationBarrier' = failureCount
-  /\ lastAction' = "reject-stale-generation"
+  /\ Record("reject-stale-generation")
   /\ UNCHANGED <<generation, revision, hostGestureActive, publicationCount,
        selectionVersion, copyCount, failureCount>>
 
@@ -211,9 +246,9 @@ RejectSelection ==
   /\ flightGeneration' = 0
   /\ failureCount' =
        IF failureCount < MaxFailures THEN failureCount + 1 ELSE failureCount
-  /\ lastAction' = "reject-selection"
+  /\ Record("reject-selection")
   /\ UNCHANGED <<generation, revision, pointerActive, hostGestureActive,
-       gestureGeneration, pending, publicationCount, selectionVersion,
+       gestureGeneration, pendingQueue, publicationCount, selectionVersion,
        copyCount, generationCancellationCount, generationBarrier,
        selectionAtGenerationBarrier, copyAtGenerationBarrier,
        failureAtGenerationBarrier>>
@@ -221,9 +256,9 @@ RejectSelection ==
 AdvanceRevision ==
   /\ revision < MaxRevision
   /\ revision' = revision + 1
-  /\ lastAction' = "advance-revision"
+  /\ Record("advance-revision")
   /\ UNCHANGED <<generation, pointerActive, hostGestureActive,
-       gestureGeneration, inFlight, pending, flightGeneration,
+       gestureGeneration, inFlight, pendingQueue, flightGeneration,
        publicationCount, selectionVersion, copyCount, failureCount,
        generationCancellationCount, generationBarrier,
        selectionAtGenerationBarrier, copyAtGenerationBarrier,
@@ -234,8 +269,8 @@ AdvanceGeneration ==
   /\ generation' = generation + 1
   /\ revision' = 1
   /\ hostGestureActive' = FALSE
-  /\ lastAction' = "advance-generation"
-  /\ UNCHANGED <<pointerActive, gestureGeneration, inFlight, pending,
+  /\ Record("advance-generation")
+  /\ UNCHANGED <<pointerActive, gestureGeneration, inFlight, pendingQueue,
        flightGeneration, publicationCount, selectionVersion, copyCount,
        failureCount, generationCancellationCount, generationBarrier,
        selectionAtGenerationBarrier, copyAtGenerationBarrier,
@@ -245,6 +280,23 @@ SettleFlight ==
   \/ AcceptSelection
   \/ RejectStaleGeneration
   \/ RejectSelection
+
+CoverageRapidReleaseQueue ==
+  /\ Len(pendingQueue) = 2
+  /\ pendingQueue[1].action = "update"
+  /\ pendingQueue[2].action = "end"
+  /\ pendingQueue[1].generation = pendingQueue[2].generation
+  /\ UNCHANGED vars
+
+CoverageDispatchUpdateAheadOfRelease ==
+  /\ lastAction = "dispatch-pending"
+  /\ Len(priorPendingQueue) = 2
+  /\ priorPendingQueue[1].action = "update"
+  /\ priorPendingQueue[2].action = "end"
+  /\ inFlight = "update"
+  /\ Len(pendingQueue) = 1
+  /\ pendingQueue[1].action = "end"
+  /\ UNCHANGED vars
 
 Next ==
   \/ StartGesture
@@ -256,6 +308,8 @@ Next ==
   \/ SettleFlight
   \/ AdvanceRevision
   \/ AdvanceGeneration
+  \/ CoverageRapidReleaseQueue
+  \/ CoverageDispatchUpdateAheadOfRelease
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(SettleFlight)
 
@@ -266,7 +320,7 @@ TypeOK ==
   /\ hostGestureActive \in BOOLEAN
   /\ gestureGeneration \in 0..MaxGeneration
   /\ inFlight \in GestureActions \cup {NoAction}
-  /\ pending \in EndpointActions \cup {NoAction}
+  /\ pendingQueue \in Seq(PendingCommands)
   /\ flightGeneration \in 0..MaxGeneration
   /\ publicationCount \in 0..MaxPublications
   /\ selectionVersion \in 0..MaxSelectionVersion
@@ -278,14 +332,36 @@ TypeOK ==
   /\ copyAtGenerationBarrier \in 0..MaxSelectionVersion
   /\ failureAtGenerationBarrier \in 0..MaxFailures
   /\ lastAction \in ActionNames
+  /\ priorPendingQueue \in Seq(PendingCommands)
 
 FlightIdentityIsComplete ==
   (inFlight = NoAction) = (flightGeneration = 0)
 
 GestureWorkKeepsCapturedGeneration ==
-  /\ (pointerActive \/ inFlight # NoAction \/ pending # NoAction) =>
+  /\ (pointerActive \/ inFlight # NoAction \/ Len(pendingQueue) > 0) =>
        gestureGeneration \in 1..MaxGeneration
   /\ inFlight # NoAction => flightGeneration = gestureGeneration
+  /\ \A index \in 1..Len(pendingQueue):
+       pendingQueue[index].generation = gestureGeneration
+
+PendingQueueFitsPublicationBudget ==
+  publicationCount + Len(pendingQueue) <= MaxPublications
+
+DispatchIsFIFO ==
+  lastAction = "dispatch-pending" =>
+    LET command == Head(priorPendingQueue)
+    IN
+      /\ Len(priorPendingQueue) > 0
+      /\ inFlight = command.action
+      /\ flightGeneration = command.generation
+      /\ pendingQueue = Tail(priorPendingQueue)
+
+ReleaseRetainsQueuedUpdate ==
+  /\ lastAction = "end-gesture"
+  /\ Len(priorPendingQueue) > 0
+  /\ priorPendingQueue[Len(priorPendingQueue)].action = "update"
+  => pendingQueue = Append(priorPendingQueue,
+       [action |-> "end", generation |-> gestureGeneration])
 
 HostGestureRequiresAcceptedSelection ==
   hostGestureActive => selectionVersion > 0
@@ -295,7 +371,7 @@ GenerationBarrierClearsGestureWork ==
     /\ ~pointerActive
     /\ gestureGeneration = 0
     /\ inFlight = NoAction
-    /\ pending = NoAction
+    /\ Len(pendingQueue) = 0
 
 GenerationBarrierPreservesSelection ==
   generationBarrier => selectionVersion = selectionAtGenerationBarrier

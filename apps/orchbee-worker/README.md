@@ -2,7 +2,7 @@
 
 Experimental, unshipped private Rust Worker application for the first POSIX local terminal
 vertical. The emitted executable is `orchbee-worker`. It participates in the root Cargo gate but
-is not packaged, installed, activated by `orchbee`, or consumed by a current product path.
+is activated by the local Server for bare Linux startup, but is not packaged or installed.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -41,11 +41,30 @@ and leaves the loop available for the next request.
 
 Worker consumes authorization only from the admitted same-user Server and uses the OBLS generation
 for its authorization kernel. It sends Create/Start only after local admission and a fresh handoff
-check. It performs no retry, discovery, activation, daemonization, child-process supervision,
-terminal inventory, PTY operation, Agent behavior, or durable write. Server Client
-Create/Start authorization is integrated. Endpoint selection, service supervision, Host activation,
-bare-entry TUI activation and reconciliation remain later boundaries;
-bare `orchbee` is not yet a usable terminal Client.
+check. Explicit-endpoint mode does not start a Host; managed Linux mode uses the lazy workflow below.
+Connection retry, restart, inventory adoption, PTY/VT operations, Agent behavior, service installation,
+and recovery remain excluded.
+
+## Managed Linux lazy Host startup
+
+The private `--local-site <absolute-runtime-directory>` entry verifies the shared runtime and
+four-artifact cohort, then registers with Server without creating a Host directory or process.
+The [shared modeling record](../../crates/local-site-runtime/README.md) owns process/failure boundaries.
+
+The first Launch passes the existing authorization kernel and resolves launch facts before Host
+startup. Typed invalid-lease/generation rejection creates no Host; non-Launch traffic before the
+first Launch retires the connection. The admitted dispatch and same kernel survive Host startup,
+and authorization is checked again before handoff. The Host directory is `host` under the runtime,
+with fixed endpoint ID `00000000000000000000000000000001`. Any pre-existing endpoint immediately
+requires recovery; only the newly spawned Host may be awaited for its final 0600 socket.
+Host startup, its one dial, and strict OBTP handshake share five seconds without renewal or retry.
+Preparation/startup failure returns a pre-handoff failure when deliverable and retires Worker;
+uncertain handed-off outcomes are never replayed. Later operations use the same serialized loop
+and replay cache.
+
+The child reaper only waits for exit; it never kills Host. Host retains terminals after the
+Server/Worker connection closes. Restart adoption and replacement Host are unsupported.
+Explicit-endpoint mode retains its existing two-peer readiness semantics.
 
 ## Live viewer relay refinement
 
@@ -59,12 +78,12 @@ without waiting for terminal output; downstream delivery cannot hold the Worker 
 
 The OBCN viewer carrier and Worker attachment transitions now serve Server's admitted Client
 Session relay, with actual Host process traces. Server owns OBCS viewer messages and Session cleanup;
-bare-entry TUI activation remains a later integration boundary.
+bare Linux entry now consumes this path.
 Eight live viewers and one retained frame per viewer are implementation bounds, not release
 performance budgets. A missing or contradictory feedback never acknowledges a Host frame.
 `NeedSnapshot` preserves its reason and sequence; `ProjectionBlocked` remains an attachment event.
 A full delivery slot closes only that viewer and releases its queued bytes. Its Host detach runs
-before the next Server operation; late events for that closing viewer are drained without retaining
+before the next ordinary Server operation; lifecycle steps bypass this cleanup. Late events for that closing viewer are drained without retaining
 another frame. No blocked event or frame is silently replaced. The broker's `host_connection`
 module owns event routing, viewer slots, controller grants, and the shared deadline exchange; `terminal_viewer_operation`
 maps admitted read-only commands and validates their exact Host responses. No viewer-state borrow
@@ -98,7 +117,8 @@ ambiguous or contradictory effects close the broker without replay.
 
 Viewer detach or closure first releases its controller, then detaches the viewer. Internal release
 is idempotent only when that viewer has no controller; it never clears a different current grant.
-Unexpected resize-lease revocation retires the broker. Neither release nor loss promotes another
+Unexpected resize-lease revocation of a live grant retires the broker. Exact retired-target events
+after known Dispose are validated and drained. Neither release nor loss promotes another
 viewer or terminates retained execution. Eight viewers allow at most eight extra control
 attachments; cleanup and normal operations share the single Host writer.
 
@@ -182,7 +202,14 @@ observed, so a caller-visible wall-clock rollback cannot revive any expired leas
 | Ownership    | Server continues to own placement, authorization issuance, and reconciliation. OBCN owns the carrier-independent request/result types and wire codec. Worker owns only local validation, monotonic replay memory, the single dispatch gate, and classification around the Host handoff boundary. Terminal Host remains the sole owner of terminal and process effects.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Verification | Table-driven unit tests exercise both operation kinds across wrong identity, generation, legacy and future capability mismatch, expiry and clock rollback, overlapping rejection priorities, the 1,023/1,024/1,025 capacity boundary, no-tombstone rejection, exact replay and higher-fence replacement at capacity, lower and conflicting fences, exact replay of every accepted/rejected/failed/unknown outcome, expiry after admission, stale and wrong completions, slot backpressure, initial and raced Start identity changes, mismatched Start completion geometry, both Launch modes, and both Start success transitions. OBCN tests own value/codec validity; the registered TLA+ models own their bounded abstractions.                                                                                                                                                                                                                                                                         |
 | Correctness  | The Server-owned [`TerminalLaunchAuthorization`](../orchbee-server/formal/tla/TerminalLaunchAuthorization.tla) variables `acceptedBinding`, `requestPhase`, cached outcome/epoch/transition, and pending result map respectively to one kernel binding, slot phases, cached typed result, and result-ready slot. Its `FreshOperation` guard is the single-terminal, single-Worker projection of the Server producer premise. Worker-owned [`WorkerTerminalBindingCapacity`](formal/tla/WorkerTerminalBindingCapacity.tla) maps its bounded fence/cache functions, retained set, and abstract global slot to the Rust binding map and operation/result slot. It checks capacity, occupied-slot priority, at most one uncached operation/result, delivery clearing, rejection preservation, and full-capacity exact replay and higher-fence replacement only after the slot is empty. Unit tests are implementation-refinement evidence; TLC remains bounded model evidence, not a proof of this Rust code. |
-| Limits       | No current carrier or Host adapter invokes this kernel, so tests establish deterministic state behavior only. Bindings and cached results are process-local, are not crash-persistent, and remain until the kernel is dropped or a higher fence replaces them. The 1,024 limit has no release, TTL, LRU, or eviction path; an explicit retirement contract remains required before production. The kernel cannot detect a Server's cross-terminal `OperationId` reuse without an unbounded ledger.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Limits       | The running private Worker request loop invokes this kernel and its Host adapter. Bindings and cached results are process-local, are not crash-persistent, and remain until the kernel is dropped or a higher fence replaces them. The 1,024 limit has no release, TTL, LRU, or eviction path; an explicit retirement contract remains required before production. The kernel cannot detect a Server's cross-terminal `OperationId` reuse without an unbounded ledger.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+`TerminalLaunchAuthorization` tracks each operation's modeled handoff-effect occurrences with an
+independent counter whose domain includes two. `HostEffectAtMostOncePerOperation`,
+`HostEffectCountMatchesObservations`, `HandoffRecordsExactlyOneEffectOccurrence`, and
+`EffectCountAdvanceRequiresHandoff` check its bound, identity-set correspondence, exact increment,
+and that only `HandoffToHost` may advance it. This proves at most one modeled handoff-effect occurrence per operation; Rust
+duplicate-dispatch tests remain the evidence for concrete transport-write multiplicity.
 
 | Current slot       | Input or observation                               | Guard                                                                          | Next slot          | Binding/result effect                                                                                      |
 | ------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------- |
@@ -244,30 +271,36 @@ The checked model governs the complete broker lifecycle. The single-operation ex
 integrated request loop below refine its Host effect and bounded result-delivery boundaries.
 The executable now invokes both after its two handshakes; restart recovery remains unimplemented.
 
-| Field        | Modeled broker contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | After Server-first dual admission, the Worker carrier must turn one dispatch already admitted by the authorization kernel into at most one Terminal Host effect and return its exact OBCN result. It must preserve kernel `ResultReady` decisions made during `begin_host_handoff`, validate an actual Host response rather than a diagnostic label, and never invent a Host-rejection classification that the wire does not carry.                                                                                                                                                                                                                                                                                                                                       |
-| Inputs       | Accepted Server and Host links and the handshake Host epoch; one OBCN Launch or Start `Dispatch` already admitted through the kernel's identity, generation, intrinsic capability, lease, fence, 1,024-binding capacity, and global-slot gates; the Start target Host epoch; the current Host epoch supplied to `begin_host_handoff`; one nonzero command correlation; the actual Host response role, kind, correlation, and epoch; timeout or link loss; and one bounded OBCN result-delivery opportunity. A retained Host terminal may also be observed after Worker loss.                                                                                                                                                                                              |
-| Data         | One process-local broker phase; one operation phase projected onto the kernel's single global `empty`/`awaiting-handoff`/`handed-off`/`result-ready` slot; the Launch/Start kind; handoff-attempt and effect-boundary counts; Start target and observed handoff Host epochs; mapped Host command and correlation; retained response role, kind, correlation, and epoch; whether Host applied the command; the exact completion source and cached-result fact; one bounded delivery count; an unknown retry barrier; and retained-terminal disposition. No adapter queue or durable state is introduced.                                                                                                                                                                   |
-| Outputs      | Launch maps only to Host `CreateTerminal`; Start maps only to Host `StartTerminal`. Lease expiry during `begin_host_handoff` returns cached OBCN `Rejected(LeaseExpired)`; a changed Start Host epoch returns cached `Rejected(HostIdentityChanged)` with the observed epoch; neither crosses the effect boundary. Definite transport failure before the call remains cached `Failed(HostUnavailableBeforeHandoff)`. Exact success becomes `HostAccepted`; an exact generic Terminal Protocol `TypedFailure` becomes `Failed(HostReportedFailure)`. Unknown and retained-state outcomes follow the prior bounded lifecycle.                                                                                                                                               |
-| Invariants   | Server admission precedes Host contact. Readiness requires both accepted links and a nonzero Host epoch. At most one kernel-global operation/result slot and one Host command exist. A successful `begin_host_handoff` precedes the first possible Host effect; its `ResultReady` branches retain an attempted call but zero crossed boundaries, commands, or effects. A known Host completion requires actual response role `Response`, the request-specific expected kind, exact command correlation, and exact retained handoff Host epoch. An exact generic `TypedFailure` can produce only `HostReportedFailure`; a mismatched one fails closed as cached unknown, and neither can produce `HostRejected`. Unknown never retries.                                    |
-| Decisions    | Kernel results before dispatch, including `CapacityExceeded` and `SlotOccupied`, remain distinct and never enter this adapter model. During handoff, lease expiry and Start identity replacement are exact cached rejections, not transport failures. An authoritative Host-rejection discriminator does not exist in the current Terminal Protocol, so identical exact generic `TypedFailure` input is never nondeterministically split: it maps conservatively to OBCN `Failed(HostReportedFailure)`. OBCN `HostRejected` is reserved for a future explicitly classified owner contract. Post-handoff loss, timeout, or invalid response is `OutcomeUnknown`.                                                                                                           |
-| Model        | [`LocalHostBroker`](formal/tla/LocalHostBroker.tla) retains the Server-first handshake and coupled lifecycle, takes one admitted dispatch from Server-owned [`TerminalLaunchAuthorization`](../orchbee-server/formal/tla/TerminalLaunchAuthorization.tla), and projects its detailed `awaiting-handoff`/`handed-off` phases onto `WorkerTerminalBindingCapacity`'s single `operation-pending` global kernel slot. Its Host-side effect boundary and lost-reply classification refine [`TerminalHostRequestOutcome`](../terminal-host/formal/tla/TerminalHostRequestOutcome.tla) and the [Terminal Host runtime model](../terminal-host/docs/runtime-model.md); it does not reimplement any authority or change a wire contract.                                           |
-| Transitions  | The table below covers admission, both `begin_host_handoff -> ResultReady` branches, definite pre-call transport failure, successful handoff, command emission and possible apply, concrete response validation, conservative generic failure, independently ordered Server/Host loss, bounded exact-result delivery, the unknown retry barrier, and retained-terminal recovery.                                                                                                                                                                                                                                                                                                                                                                                          |
-| Dependencies | The adapter depends on the authorization kernel and separately checked `WorkerTerminalBindingCapacity` bound and global slot, OBCN semantic values and codec, local-Site carrier, Terminal Protocol bindings, Terminal Host runtime outcome contract, authenticated sockets, and bounded timers. The model treats the kernel's post-capacity `Dispatch`, decoded Host records, and liveness as inputs. It does not select carrier bytes, deadline values, queue implementation, activation, shell, working directory, PTY behavior, or reconciliation policy.                                                                                                                                                                                                             |
-| Ownership    | Server owns placement, issuance, generation, and reconciliation. The Worker authorization kernel owns binding capacity, admission/replay, exact cached results, and the single global operation/result slot. The adapter may consume only `Dispatch` and must not add a parallel slot or capacity counter. `WorkerTerminalBindingCapacity` checks the bound and collapses this model's pre-result adapter phases into its `operation-pending` phase. OBCN owns result variants. Terminal Protocol owns response roles, kinds, correlation, epoch, and generic `TypedFailure`, but no generic rejected/failed discriminator. Terminal Host owns request commit/effect/reply ordering. Worker owns only mapping, strict observation, loss classification, and link cleanup. |
-| Verification | The TLA inventory requires every admission, both handoff-result branches, command/effect, concrete response mismatch, accepted/generic-failure outcome, delivery, ordered loss, retry-block, and recovery action. Triggers cover the kernel and carrier surfaces, both Terminal Protocol bindings, Terminal Host source and runtime model, `TerminalHostRequestOutcome`, and accepted topology/capacity authority. TLC checks safety and finite progress under weak fairness. The Host exchange and integrated request loop have socket and real-process refinement witnesses described below.                                                                                                                                                                            |
-| Correctness  | Checked invariants map operation phases to the kernel-global slot; distinguish attempted handoff from the crossed effect boundary; require exact cached lease/identity rejection and pre-call failure classifications; preserve the full handoff-result projection through bounded delivery or abandonment; validate retained response fields; classify exact generic `TypedFailure` as `HostReportedFailure`, mismatched generic failure as unknown, and neither as rejected; and retain the prior one-command, unknown/no-retry, link-cleanup, result-delivery, and recovery properties. These are bounded model claims, not proof of the Rust kernel, carrier, Host, codecs, or a capacity implementation.                                                             |
-| Limits       | The state space contains one Worker, one admitted operation, two symbolic nonzero Host epochs, one operation correlation plus one mismatched correlation, one kernel-global result slot, and at most one delivery. The model starts after dispatch, so pre-admission rejection/replay and enumeration of the 1,024-binding bound stay in the kernel and `WorkerTerminalBindingCapacity`; the explicit slot projection prevents the adapter from inventing another outstanding operation. Byte framing, numeric timeout duration, failure-code taxonomy, carrier integration, inventory, and recovery remain outside this slice. No current runtime behavior or production adoption follows from the abstraction.                                                          |
+`LocalHostBroker` keeps the accepted `HostBrokerConnection` epoch immutable. A Host loss before
+handoff takes `LoseHostBeforeHandoff` and fails closed; replacing that Host requires connection
+teardown and a fresh Worker/Host handshake outside this one-connection lifecycle.
+`ActiveHostConnectionKeepsEpoch` and `HostEpochInstallationRequiresHandshake` check those exact
+boundaries. The authorization kernel's defensive `HostIdentityChanged` result remains covered by
+its Rust tests, but no in-place hot-replacement transition exists in this broker model.
+
+| Field        | Modeled broker contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | After Server-first dual admission, the Worker carrier must turn one dispatch already admitted by the authorization kernel into at most one Terminal Host effect and return its exact OBCN result. It must preserve kernel `ResultReady` decisions made during `begin_host_handoff`, validate an actual Host response rather than a diagnostic label, and never invent a Host-rejection classification that the wire does not carry.                                                                                                                                                                                                                                                                                                                                                             |
+| Inputs       | Accepted Server and Host links and their immutable handshake Host epoch; one OBCN Launch or Start `Dispatch` already admitted through the kernel's identity, generation, intrinsic capability, lease, fence, 1,024-binding capacity, and global-slot gates; the Start target Host epoch; the retained connection epoch supplied to `begin_host_handoff`; one nonzero command correlation; the actual Host response role, kind, correlation, and epoch; timeout or link loss; and one bounded OBCN result-delivery opportunity. A retained Host terminal may also be observed after Worker loss.                                                                                                                                                                                                 |
+| Data         | One process-local broker phase; one operation phase projected onto the kernel's single global `empty`/`awaiting-handoff`/`handed-off`/`result-ready` slot; the Launch/Start kind; handoff-attempt and effect-boundary counts; Start target and retained handoff Host epochs; mapped Host command and correlation; retained response role, kind, correlation, and epoch; whether Host applied the command; the exact completion source and cached-result fact; one bounded delivery count; an unknown retry barrier; and retained-terminal disposition. No adapter queue or durable state is introduced.                                                                                                                                                                                         |
+| Outputs      | Launch maps only to Host `CreateTerminal`; Start maps only to Host `StartTerminal`. Lease expiry during `begin_host_handoff` returns cached OBCN `Rejected(LeaseExpired)` without crossing the effect boundary. Definite transport failure or Host loss before the call remains cached `Failed(HostUnavailableBeforeHandoff)`. Exact success becomes `HostAccepted`; an exact generic Terminal Protocol `TypedFailure` becomes `Failed(HostReportedFailure)`. Unknown and retained-state outcomes follow the prior bounded lifecycle.                                                                                                                                                                                                                                                           |
+| Invariants   | Server admission precedes Host contact. Readiness requires both accepted links and a nonzero Host epoch. The active connection's Host epoch cannot change. At most one kernel-global operation/result slot and one Host command exist. A successful `begin_host_handoff` precedes the first possible Host effect; its modeled `ResultReady` branch retains an attempted call but zero crossed boundaries, commands, or effects. A known Host completion requires actual response role `Response`, the request-specific expected kind, exact command correlation, and exact retained handoff Host epoch. An exact generic `TypedFailure` can produce only `HostReportedFailure`; a mismatched one fails closed as cached unknown, and neither can produce `HostRejected`. Unknown never retries. |
+| Decisions    | Kernel results before dispatch, including `CapacityExceeded`, `SlotOccupied`, and a defensive Start `HostIdentityChanged`, remain distinct and never enter this adapter model. During the modeled handoff, lease expiry is an exact cached rejection rather than a transport failure. Host loss fails closed, and a different Host epoch can be installed only by a fresh connection lifecycle. An authoritative Host-rejection discriminator does not exist in the current Terminal Protocol, so identical exact generic `TypedFailure` input maps conservatively to OBCN `Failed(HostReportedFailure)`. OBCN `HostRejected` is reserved for a future explicitly classified owner contract. Post-handoff loss, timeout, or invalid response is `OutcomeUnknown`.                               |
+| Model        | [`LocalHostBroker`](formal/tla/LocalHostBroker.tla) retains the Server-first handshake and coupled lifecycle, takes one admitted dispatch from Server-owned [`TerminalLaunchAuthorization`](../orchbee-server/formal/tla/TerminalLaunchAuthorization.tla), and projects its detailed `awaiting-handoff`/`handed-off` phases onto `WorkerTerminalBindingCapacity`'s single `operation-pending` global kernel slot. Its Host-side effect boundary and lost-reply classification refine [`TerminalHostRequestOutcome`](../terminal-host/formal/tla/TerminalHostRequestOutcome.tla) and the [Terminal Host runtime model](../terminal-host/docs/runtime-model.md); it does not reimplement any authority or change a wire contract.                                                                 |
+| Transitions  | The table below covers admission, the lease-expiry `begin_host_handoff -> ResultReady` branch, definite pre-call transport failure, successful handoff, command emission and possible apply, concrete response validation, conservative generic failure, independently ordered Server/Host loss, bounded exact-result delivery, the unknown retry barrier, and retained-terminal recovery.                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Dependencies | The adapter depends on the authorization kernel and separately checked `WorkerTerminalBindingCapacity` bound and global slot, OBCN semantic values and codec, local-Site carrier, Terminal Protocol bindings, Terminal Host runtime outcome contract, authenticated sockets, and bounded timers. The model treats the kernel's post-capacity `Dispatch`, decoded Host records, and liveness as inputs. It does not select carrier bytes, deadline values, queue implementation, activation, shell, working directory, PTY behavior, or reconciliation policy.                                                                                                                                                                                                                                   |
+| Ownership    | Server owns placement, issuance, generation, and reconciliation. The Worker authorization kernel owns binding capacity, admission/replay, exact cached results, and the single global operation/result slot. The adapter may consume only `Dispatch` and must not add a parallel slot or capacity counter. `WorkerTerminalBindingCapacity` checks the bound and collapses this model's pre-result adapter phases into its `operation-pending` phase. OBCN owns result variants. Terminal Protocol owns response roles, kinds, correlation, epoch, and generic `TypedFailure`, but no generic rejected/failed discriminator. Terminal Host owns request commit/effect/reply ordering. Worker owns only mapping, strict observation, loss classification, and link cleanup.                       |
+| Verification | The TLA inventory requires every admission, the lease-expiry handoff-result branch, command/effect, concrete response mismatch, accepted/generic-failure outcome, delivery, ordered loss, retry-block, recovery action, and immutable-epoch check. Triggers cover the kernel and carrier surfaces, both Terminal Protocol bindings, Terminal Host source and runtime model, `TerminalHostRequestOutcome`, and accepted topology/capacity authority. TLC checks safety and finite progress under weak fairness. The Host exchange and integrated request loop have socket and real-process refinement witnesses described below.                                                                                                                                                                 |
+| Correctness  | Checked invariants map operation phases to the kernel-global slot; distinguish attempted handoff from the crossed effect boundary; require exact cached lease rejection and pre-call failure classifications; keep the active Host epoch unchanged and restrict its installation to handshake; preserve the full handoff-result projection through bounded delivery or abandonment; validate retained response fields; classify exact generic `TypedFailure` as `HostReportedFailure`, mismatched generic failure as unknown, and neither as rejected; and retain the prior one-command, unknown/no-retry, link-cleanup, result-delivery, and recovery properties. These are bounded model claims, not proof of the Rust kernel, carrier, Host, codecs, or a capacity implementation.           |
+| Limits       | The state space contains one Worker, one admitted operation, one installed nonzero Host epoch plus one distinct mismatched response epoch, one operation correlation plus one mismatched correlation, one kernel-global result slot, and at most one delivery. The model starts after dispatch, so pre-admission rejection/replay and enumeration of the 1,024-binding bound stay in the kernel and `WorkerTerminalBindingCapacity`; the explicit slot projection prevents the adapter from inventing another outstanding operation. Byte framing, numeric timeout duration, failure-code taxonomy, carrier integration, inventory, and recovery remain outside this slice. The bounded abstraction does not by itself prove the Rust implementation or production adoption.                    |
 
 | Current state                   | Observation or action                                                   | Next state               | Exact result and lifecycle rule                                                                                                 |
 | ------------------------------- | ----------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
 | Before Server admission         | Host connect attempt                                                    | Forbidden                | Host contact has no enabled transition.                                                                                         |
 | Ready, kernel slot empty        | Consume one kernel `Dispatch`                                           | `admitted`               | Project the global slot to `awaiting-handoff`; capacity, replay, rejection, and occupied-slot results do not dispatch.          |
 | `admitted`                      | `begin_host_handoff` observes expired lease                             | `result-ready`           | Cache and queue exact `Rejected(LeaseExpired)`; record one attempted call and no crossed effect boundary or Host command.       |
-| `admitted` Start                | `begin_host_handoff` observes a Host epoch different from its target    | `result-ready`           | Cache and queue exact `Rejected(HostIdentityChanged)` with both target and observed epochs; perform no Host effect.             |
-| `admitted`                      | Definite transport failure or Host loss before the handoff call         | `result-ready`           | Cache and queue `Failed(HostUnavailableBeforeHandoff)` distinctly from both handoff rejections.                                 |
-| `admitted`                      | Successful `begin_host_handoff` with the retained current Host epoch    | `handed-off`             | Cross the named external-effect boundary exactly once and project the kernel slot to `handed-off`.                              |
+| `admitted`                      | Definite transport failure or Host loss before the handoff call         | `result-ready`           | Cache and queue `Failed(HostUnavailableBeforeHandoff)` distinctly from the lease rejection.                                     |
+| `admitted`                      | Successful `begin_host_handoff` with the retained immutable Host epoch  | `handed-off`             | Cross the named external-effect boundary exactly once and project the kernel slot to `handed-off`.                              |
 | `handed-off`                    | Emit mapped command with one operation correlation                      | `awaiting-host`          | Send at most one Host command; Host may apply it before a response is observable.                                               |
 | `awaiting-host`                 | `Response` + expected success kind + exact correlation + handoff epoch  | `result-ready`           | Queue cached OBCN `HostAccepted`.                                                                                               |
 | `awaiting-host`                 | `Response` + generic `TypedFailure` + exact correlation + handoff epoch | `result-ready`           | Queue cached `Failed(HostReportedFailure)`; never derive `HostRejected` from the same exact record.                             |
@@ -280,8 +313,8 @@ The executable now invokes both after its two handshakes; restart recovery remai
 For runtime refinement, keep capacity, `SlotOccupied`, pre-admission rejection, cached replay, and
 the one global slot in `AuthorizedHostOperationKernel`; consume only its post-capacity `Dispatch`
 and never introduce an adapter-local operation queue. Call
-`begin_host_handoff` once and inspect its return before any Host send: forward either exact
-`ResultReady` rejection unchanged, or retain the returned handoff epoch for one command. Allocate
+`begin_host_handoff` once and inspect its return before any Host send: forward its exact
+`ResultReady` lease rejection unchanged, or retain the returned handoff epoch for one command. Allocate
 one nonzero correlation for that dispatch. A known completion requires actual `Response` role, the
 request-specific success kind or generic `TypedFailure`, exact correlation, and exact handoff Host
 epoch. Map generic `TypedFailure` only to `HostReportedFailure` until an authoritative classified
@@ -311,7 +344,7 @@ an operation and consume the same Host deadline.
 | Boundary         | Runtime refinement and evidence obligation                                                                                                                                                                                                                                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Before handoff   | Check both peers without consuming Server bytes. Observed Server loss or unexpected Server data closes both links and abandons the pending operation. Host loss or invalid unsolicited Host data closes Host and records the kernel's exact pre-handoff failure (or expired-lease rejection). Preparation and invalid budgets send nothing. |
-| Handoff          | Call `begin_host_handoff` once with the retained handshake epoch and freshly sampled lease clock. Its `ResultReady` branches send nothing and preserve the exact cached lease or Host-identity rejection. Only `HandedOff` permits the first write.                                                                                         |
+| Handoff          | Call `begin_host_handoff` once with the retained immutable handshake epoch and freshly sampled lease clock. Its `ResultReady` branch sends nothing and preserves the exact cached lease rejection. Only `HandedOff` permits the first write.                                                                                                |
 | Response         | Require exact protocol, mandatory control encoding, Response role, command correlation, and handoff epoch before decoding the operation-specific success or generic `TypedFailure`. The existing mapper validates payload identity and geometry. Generic failure maps only to `HostReportedFailure`.                                        |
 | Uncertainty      | Any write/read/timeout/invalid-response failure after handoff records the kernel's exact unknown result and shuts down Host. Observed Server loss closes both links; no command is resent.                                                                                                                                                  |
 | Result ownership | Success and every classified failure remain in the kernel slot. The caller must deliver or abandon that result and honor `HostClosed`/`ServerClosed`; this adapter never drains the slot or claims OBCN delivery.                                                                                                                           |
@@ -436,6 +469,125 @@ claiming exhaustive checking of the production value 1,024. The model authority 
 enforcement are one additive, unshipped delivery cohort; the model-only commit is not an
 independently shippable boundary.
 
+## Close lifecycle-step model
+
+The accepted [Close contract](../orchbee-server/docs/terminal-tab-close.md) is refined by
+[`WorkerTerminalLifecycleStep`](formal/tla/WorkerTerminalLifecycleStep.tla). This is bounded model
+evidence for the unshipped cohort. The Worker implementation and its deterministic/process witnesses
+are mapped below; Server orchestration and reservation ownership remain separate. The model owns one authorized lifecycle request or inventory page and
+its exact target-cache settlement, not the Server's whole inventory walk or Close attempt.
+
+The `identity` configuration explores Terminate, Force, Dispose and one inventory page, one current
+product/Worker/generation/Host epoch/creation/terminal tuple and a distinct mismatch for each field.
+The `target-cleanup` configuration fixes Dispose and explores empty, target, unrelated and full
+(two-slot) viewer caches, target/unrelated controller reservations, distinct old/new controller IDs,
+queued target frame/feedback, old leases and an already admitted Acquire. These finite bounds do
+not establish the actual eight-slot bound. Initial state assumes one authenticated admitted broker
+with immutable epoch/generation; no replacement or adoption transition exists. Configurations use
+no symmetry, state constraint or fairness assumption and claim no eventual cleanup success.
+
+| Owned claim                                               | Model actions and properties                                                                                                                                                                                                     | Required implementation refinement                                                                                                                                                                                                     |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact fresh authority and one Host request per step/page  | `RejectAuthorization`, `RejectFreshHandoff`, `SubmitHostRequest`; `HandoffRequiresFreshExactAuthorization`, `OneHostRequestPerStep`                                                                                              | Reject every wrong product/Worker/Host field, grant and stale handoff before effects; count actual Host requests for every step kind.                                                                                                  |
+| Known acknowledgment and unknown delivery remain distinct | `ReceiveExactAck`, `ReceiveTypedFailure`, `ReceiveInvalidAck`, timeout/loss actions; `KnownAckRequiresFullCorrelation`, `KnownDisposeNeverRegresses`, `UnknownNeverDispatchesAnotherLifecycleRequest`                            | Check actual success ACK terminal ID plus envelope role/kind/epoch/correlation; typed failure is conservative and needs no invented terminal echo. Check full retained identity and operation/attempt/step separately on OBCN results. |
+| Dispose success waits for exact Worker and Server cleanup | `CommitWorkerTargetCleanup`, `ObserveExactWorkerResult`, `CommitServerTargetCleanup`; `WorkerDisposedResultRequiresTargetCleanup`, `TargetFrameAndFeedbackFreed`, `ServerCompletionRequiresExactReservationRevocation`           | Prepare bounded exact cleanup before Dispose; retain known ACK before nonallocating target removal; exercise all eight slots, queued frames/feedback, unrelated survival, lost Worker result and Server cleanup failure.               |
+| Closing fences fresh grants and old cleanup remains exact | `RejectAcquireAfterClose`, `DropOldLeaseExactMatch`, `DropOldLeaseMismatchedReservation`, `DropOldViewer`; `LateAcquireCannotRestoreClosingTarget`, `OldLeaseCannotDeleteDifferentReservation`, `OldLeaseAfterRevocationIsLocal` | Revalidate Acquire after its acknowledgment; old lease Drop after revocation makes no stale Host call and cannot remove a newer controller ID. Unknown Close still permits legitimate exact lease cleanup.                             |
+| Attempt expiry preserves admitted receipts                | `ExpireAttempt`, `ReceiveLateExactAck`; `ExpiryCannotDiscardOutstandingOrKnownReceipt`                                                                                                                                           | Preserve an outstanding result and exact late ACK beyond the 30s attempt admission deadline; settle before Resume or next-step admission.                                                                                              |
+
+`prepared` includes the already admitted carrier step and its cleanup seal; `sent` is the first
+possible Host effect. They map to `LocalHostBroker`'s admitted/awaiting-host phases, followed by its
+result-ready and completed/abandoned boundaries. The model does not evict the launch bindings owned
+by `WorkerTerminalBindingCapacity`. A generic typed failure checks its correlated envelope and is
+known failure even if an effect preceded it. An inventory-page success is an opaque exact page
+observation, never absence or permission to dispose. Host containment and whole-walk validation
+remain with the Host and Server owners.
+
+Independent expiry actions abstract the existing **1s Worker HostExchange**, **2s Server frame
+I/O**, **20s Server response wait** and **30s Close attempt admission** boundaries. They do not
+simulate numeric timing or guarantee return/join time. Exact Worker Dispose knowledge survives
+loss even when Server can report only Unknown. Server-local cleanup can stay pending indefinitely;
+there is no automatic retry after an ambiguous lifecycle effect. The post-ACK nonallocation claim
+needs code-local bounded-removal evidence; this model proves ordering only, not allocator behavior.
+
+Update this model and its registered action coverage when the lifecycle adapter, carrier result,
+viewer/controller cleanup or Server reservation fence changes. Remove it and its registration
+when a maintained replacement owns these claims and their executable refinement mapping.
+
+### Retained lifecycle receipts
+
+The accepted Worker refinement keeps one optional Close cell inside each existing retained terminal
+binding. It adds no binding eviction or second global operation/result slot. The cell owns one sticky
+Close operation/target, the highest attempt/step, the last exact step receipt, the last exact mutating
+receipt, and sticky mutating-Unknown/KnownDisposed facts.
+[WorkerTerminalLifecycleReceipts](formal/tla/WorkerTerminalLifecycleReceipts.tla) checks this bounded
+sequence separately from the one-step model. [The lifecycle kernel](src/terminal_authorization/lifecycle.rs)
+implements this receipt state inside the existing binding and global slot.
+
+After checking current Worker/generation/target association and lifecycle capability, exact last-step
+replay returns its cached result; otherwise exact last-mutation replay remains readable after queries.
+Reusing either retained request ID with changed fields is `LifecycleConflict`. Other old/conflicting
+steps are refused without effects; there is no unbounded receipt ledger. New dispatch needs a fresh
+lifecycle lease and fresh handoff validation. Cached exact replay does not require renewing that lease.
+The current attempt requires a strictly greater step ordinal; a later attempt begins at ordinal one.
+The wire domains are ordinal **1..32** and nonzero u64 attempt generation; neither wraps, and retained
+exact replay remains available at exhaustion.
+
+Inventory observation cannot erase a mutating Unknown or KnownDisposed. Once mutation is Unknown,
+all later mutation is refused, including a higher attempt. The current Server parks this state
+nonresumable and does not grant a new query/reconciliation budget. Known blocked states may Resume;
+this Worker observation allowance creates no new Server recovery route. After KnownDisposed, queries
+may report failure without erasing disposal; only the exact retained Dispose receipt can replay
+Disposed, and only after the one-step cleanup boundary. New termination or Dispose is refused.
+
+Original exact cached Launch/Start replay precedes the `LifecycleActive` fence. A different operation
+or higher-fence replacement on the same product binding cannot reset the Close owner or start new
+execution. The existing global slot is a structural single-slot premise; it does not independently
+prove concurrency correctness.
+
+| Sequence claim                        | Required finite observation                                                                                                                                  | Required deterministic refinement                                                                                               |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Retained ID conflicts cannot dispatch | Candidates keep an old request ID while changing attempt/ordinal; actual handoff counts include an error value of two and independently require at most one. | Same ID with higher ordering/action conflict; exact old mutation replay after queries; older receipt refusal after replacement. |
+| Queries preserve lifetime facts       | Observe actual handoff history after mutation Unknown and retained KnownDisposed after query Unknown.                                                        | Query after Unknown then higher-attempt mutation refusal; Dispose followed by query failure and exact replay.                   |
+| Exhaustion does not erase replay      | Complete a maximum-attempt/maximum-ordinal receipt, then reach its exact replay.                                                                             | Ordinal 31/32/exhaustion and attempt MAX-1/MAX/exhaustion without wrap or cached-result loss.                                   |
+
+The additional receipt model fixes one existing association, two attempts, two ordinals, two fresh-ID
+variants and a conflicting Close owner. Derived fresh IDs permit multiple queries; explicit retained-ID
+adversaries make identity independent of ordering where conflicts matter. It excludes transport,
+cache products, fairness and successful recovery; the one-step model owns handoff/cleanup refinement.
+The runtime adapter must branch to lifecycle before ordinary `cleanup_closed`, which can issue extra
+Host requests. Dispose uses prepared fixed target IDs and existing nonallocating removals. Current
+Host Dispose removes attachments without emitting a false resize-lease event; this slice preserves
+existing event rules and adds no speculative pre-ACK revocation policy.
+
+### Worker runtime refinement
+
+[The lifecycle adapter](src/terminal_lifecycle_operation.rs) consumes one admitted request and uses
+the existing one-second `HostExchange`. Its dispatch branch precedes `cleanup_closed`, so unrelated
+closed viewers cannot add Host requests to a lifecycle step. Preflight Host loss is the known
+`HostUnavailableBeforeHandoff`; loss after handoff is Unknown. Exact ACK knowledge is retained before
+result delivery, including Host or Server loss after that observation. Inventory requests ask for
+at most 128 terminals in one page, also subject to the Host control-record byte bound. Every decoded
+row, identity collision, cursor generation and offset is checked before projecting the target.
+
+[Target cleanup](src/host_connection/target_cleanup.rs) captures up to eight exact viewer IDs and
+one exact controller ID before Host I/O. It reserves one generation-local retired-target cell,
+bounded by the existing 1,024 bindings. After the exact Dispose ACK, committing this prepared cell
+and removing existing map entries performs no allocation or further Host exchange. Dropping viewer
+entries releases queued records and feedback flights. Exact retired IDs absorb late validated
+events and make old viewer Detach local; new attachment to the disposed target is rejected.
+Prepared cleanup without an ACK neither removes owners nor establishes disposal.
+
+| Runtime boundary                                              | Executable evidence                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Receipt ordering, identity, expiry and exhaustion             | [Kernel tests](src/terminal_authorization/lifecycle/tests.rs) cover old mutation replay after multiple queries, changed retained IDs, all later mutation after Unknown, original Launch/Start replay and the `LifecycleActive` fence.                 |
+| One request, ACK correlation, page validation and result loss | [Adapter tests](src/terminal_lifecycle_operation/tests.rs) exercise the actual dispatch loop with an unrelated closed viewer, all mutation ACK kinds, one fixed-limit page, every target phase, identity conflicts and pre/post-handoff loss.         |
+| Exact bounded nonallocating cleanup                           | [Cleanup tests](src/host_connection/target_cleanup/tests.rs) exercise zero/one/seven/eight viewers, the ninth refusal, queued record/flight removal, seven surviving controllers, distinct later IDs and the 1,024-cell boundary.                     |
+| Real Worker and Host                                          | [Process witness](tests/process/terminal_operations/lifecycle.rs) holds eight target viewer entries, forces and observes settlement, disposes the target, replays after inventory, detaches old IDs locally and attaches eight fresh sibling viewers. |
+
+These Worker witnesses do not prove Server's eight live Client reservations, delayed Acquire
+revalidation, old Client lease Drop or the final Closed publication gate. Those remain Server-owned
+refinement obligations; no Worker receipt permits automatic recovery from mutating Unknown.
+
 ## Verification
 
 Run from the repository root. The real Host process witness consumes the normal Terminal Host build
@@ -449,5 +601,7 @@ cargo test -p orchbee-capability-node-protocol --all-targets --all-features --lo
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test -p orchbee-local-peer-credentials --all-targets --all-features --locked
 node scripts/tla/run-models.mjs --models local-site-process-spine,terminal-launch-authorization,worker-terminal-binding-capacity,local-host-broker,terminal-host-request-outcome
+node scripts/tla/run-models.mjs --models worker-terminal-lifecycle-step --jobs 1
+node scripts/tla/run-models.mjs --models worker-terminal-lifecycle-receipts --jobs 1
 pnpm verify
 ```

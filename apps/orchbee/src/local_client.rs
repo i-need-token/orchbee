@@ -1,8 +1,11 @@
+#[cfg(target_os = "linux")]
+use std::path::PathBuf;
 use std::{
     fmt,
     io::{self, Read, Write},
     os::fd::AsFd,
     path::Path,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -30,13 +33,57 @@ impl LocalClientShutdown {
 
 #[derive(Debug)]
 pub(crate) struct LocalClient {
+    #[cfg(target_os = "linux")]
+    origin: LocalClientOrigin,
     connection: Option<ClientSessionConnection>,
     request_timeout: Duration,
-    clock: Box<dyn MonotonicClock>,
+    submission_deadline: Option<Instant>,
+    clock: LocalOperationClock,
     io_chunk_limits: IoChunkLimits,
 }
 
+#[cfg(target_os = "linux")]
+#[derive(Clone, Debug)]
+pub(crate) struct LocalClientOrigin {
+    endpoint: PathBuf,
+    cohort: String,
+}
+
+#[cfg(target_os = "linux")]
+impl LocalClientOrigin {
+    pub(crate) fn reconnect_before(
+        &self,
+        deadline: Instant,
+        clock: LocalOperationClock,
+    ) -> Result<LocalClient, LocalClientConnectError> {
+        let mut client = LocalClient::connect_before(&self.endpoint, &self.cohort, deadline)?;
+        client.clock = clock;
+        Ok(client)
+    }
+}
+
 impl LocalClient {
+    #[cfg(target_os = "linux")]
+    pub(crate) fn connect_before(
+        endpoint: &Path,
+        cohort: &str,
+        deadline: Instant,
+    ) -> Result<Self, LocalClientConnectError> {
+        let connection = ClientSessionConnection::connect_before(endpoint, cohort, deadline)
+            .map_err(LocalClientConnectError::Admission)?;
+        Self::from_connection(
+            connection,
+            #[cfg(target_os = "linux")]
+            LocalClientOrigin {
+                endpoint: endpoint.to_path_buf(),
+                cohort: cohort.to_owned(),
+            },
+            REQUEST_TOTAL_TIMEOUT,
+            Box::new(SystemMonotonicClock),
+            IoChunkLimits::UNBOUNDED,
+        )
+    }
+
     pub(crate) fn connect(endpoint: &Path, cohort: &str) -> Result<Self, LocalClientConnectError> {
         Self::connect_with_request_timeout(endpoint, cohort, REQUEST_TOTAL_TIMEOUT)
     }
@@ -64,15 +111,61 @@ impl LocalClient {
     ) -> Result<Self, LocalClientConnectError> {
         let connection = ClientSessionConnection::connect(endpoint, cohort)
             .map_err(LocalClientConnectError::Admission)?;
+        Self::from_connection(
+            connection,
+            #[cfg(target_os = "linux")]
+            LocalClientOrigin {
+                endpoint: endpoint.to_path_buf(),
+                cohort: cohort.to_owned(),
+            },
+            request_timeout,
+            clock,
+            io_chunk_limits,
+        )
+    }
+
+    fn from_connection(
+        connection: ClientSessionConnection,
+        #[cfg(target_os = "linux")] origin: LocalClientOrigin,
+        request_timeout: Duration,
+        clock: Box<dyn MonotonicClock>,
+        io_chunk_limits: IoChunkLimits,
+    ) -> Result<Self, LocalClientConnectError> {
         connection
             .set_nonblocking(true)
             .map_err(LocalClientConnectError::RequestIoConfiguration)?;
         Ok(Self {
+            #[cfg(target_os = "linux")]
+            origin,
             connection: Some(connection),
             request_timeout,
-            clock,
+            submission_deadline: None,
+            clock: LocalOperationClock(Arc::from(clock)),
             io_chunk_limits,
         })
+    }
+
+    pub(crate) fn submission_deadline(&self) -> Option<Instant> {
+        self.submission_deadline
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) fn origin(&self) -> LocalClientOrigin {
+        self.origin.clone()
+    }
+
+    pub(crate) fn operation_clock(&self) -> LocalOperationClock {
+        self.clock.clone()
+    }
+
+    pub(crate) fn next_operation_deadline(&self) -> Instant {
+        let deadline = self.clock.now() + self.request_timeout;
+        self.submission_deadline
+            .map_or(deadline, |ceiling| deadline.min(ceiling))
+    }
+
+    pub(crate) fn set_submission_deadline(&mut self, deadline: Option<Instant>) {
+        self.submission_deadline = deadline;
     }
 
     pub(crate) fn shutdown_handle(&self) -> io::Result<LocalClientShutdown> {
@@ -90,6 +183,34 @@ impl LocalClient {
         self.connection
             .as_ref()
             .map(ClientSessionConnection::generation)
+    }
+
+    pub(crate) fn submit_terminal_open(
+        &mut self,
+        request: orchbee_client_server_protocol::TerminalOpenRequest,
+    ) -> Result<orchbee_client_server_protocol::TerminalOpenResult, SubmissionError> {
+        let request_id = request.request_id().clone();
+        let result = self.exchange(ClientMessage::TerminalOpen(request), &request_id)?;
+        let ServerMessage::TerminalOpenResult(result) = result else {
+            return self.retire_with_unknown(
+                request_id,
+                OutcomeUnknownReason::UnexpectedResult {
+                    expected: ResultKind::Open,
+                    received: result_kind(&result),
+                },
+            );
+        };
+        if result.request_id() != &request_id {
+            let received = result.request_id().clone();
+            return self.retire_with_unknown(
+                request_id.clone(),
+                OutcomeUnknownReason::CorrelationMismatch {
+                    expected: request_id,
+                    received,
+                },
+            );
+        }
+        Ok(result)
     }
 
     pub(crate) fn submit_terminal_create(
@@ -152,9 +273,29 @@ impl LocalClient {
         &mut self,
         request: TerminalViewerRequest,
     ) -> Result<TerminalViewerResult, SubmissionError> {
+        self.submit_terminal_viewer_with_deadline(request, None)
+    }
+
+    pub(crate) fn submit_terminal_viewer_before(
+        &mut self,
+        request: TerminalViewerRequest,
+        deadline: Instant,
+    ) -> Result<TerminalViewerResult, SubmissionError> {
+        self.submit_terminal_viewer_with_deadline(request, Some(deadline))
+    }
+
+    fn submit_terminal_viewer_with_deadline(
+        &mut self,
+        request: TerminalViewerRequest,
+        deadline: Option<Instant>,
+    ) -> Result<TerminalViewerResult, SubmissionError> {
         let request_id = request.request_id().clone();
         let action = request.action().clone();
-        let result = self.exchange(ClientMessage::TerminalViewer(request), &request_id)?;
+        let message = ClientMessage::TerminalViewer(request);
+        let result = match deadline {
+            Some(deadline) => self.exchange_before(message, &request_id, deadline)?,
+            None => self.exchange(message, &request_id)?,
+        };
         let ServerMessage::TerminalViewerResult(result) = result else {
             return self.retire_with_unknown(
                 request_id,
@@ -180,7 +321,7 @@ impl LocalClient {
                 _,
                 TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. }
             ) | (
-                TerminalViewerAction::Attach { .. },
+                TerminalViewerAction::Attach { .. } | TerminalViewerAction::AttachBinding { .. },
                 TerminalViewerOutcome::Attached { .. }
             ) | (
                 TerminalViewerAction::Poll {},
@@ -207,9 +348,29 @@ impl LocalClient {
         &mut self,
         request: TerminalControlRequest,
     ) -> Result<TerminalControlResult, SubmissionError> {
+        self.submit_terminal_control_with_deadline(request, None)
+    }
+
+    pub(crate) fn submit_terminal_control_before(
+        &mut self,
+        request: TerminalControlRequest,
+        deadline: Instant,
+    ) -> Result<TerminalControlResult, SubmissionError> {
+        self.submit_terminal_control_with_deadline(request, Some(deadline))
+    }
+
+    fn submit_terminal_control_with_deadline(
+        &mut self,
+        request: TerminalControlRequest,
+        deadline: Option<Instant>,
+    ) -> Result<TerminalControlResult, SubmissionError> {
         let request_id = request.request_id().clone();
         let action = request.action().clone();
-        let result = self.exchange(ClientMessage::TerminalControl(request), &request_id)?;
+        let message = ClientMessage::TerminalControl(request);
+        let result = match deadline {
+            Some(deadline) => self.exchange_before(message, &request_id, deadline)?,
+            None => self.exchange(message, &request_id)?,
+        };
         let ServerMessage::TerminalControlResult(result) = result else {
             return self.retire_with_unknown(
                 request_id,
@@ -260,23 +421,53 @@ impl LocalClient {
         request: ClientMessage,
         request_id: &RequestId,
     ) -> Result<ServerMessage, SubmissionError> {
+        self.exchange_with_deadline(request, request_id, None)
+    }
+
+    fn exchange_before(
+        &mut self,
+        request: ClientMessage,
+        request_id: &RequestId,
+        deadline: Instant,
+    ) -> Result<ServerMessage, SubmissionError> {
+        self.exchange_with_deadline(request, request_id, Some(deadline))
+    }
+
+    fn exchange_with_deadline(
+        &mut self,
+        request: ClientMessage,
+        request_id: &RequestId,
+        caller_deadline: Option<Instant>,
+    ) -> Result<ServerMessage, SubmissionError> {
         if self.connection.is_none() {
             return Err(SubmissionError::SessionUnavailable);
         }
 
         let frame = encode_client_frame(&request).map_err(SubmissionError::RequestEncoding)?;
-        let deadline = SubmissionDeadline::start(self.clock.as_ref(), self.request_timeout)
-            .map_err(SubmissionError::RequestNotSubmitted)?;
+        let deadline = match caller_deadline {
+            Some(deadline) => self
+                .submission_deadline_before(deadline)
+                .map_err(SubmissionError::RequestNotSubmitted)?,
+            None => {
+                let mut deadline = SubmissionDeadline::start(&self.clock, self.request_timeout)
+                    .map_err(SubmissionError::RequestNotSubmitted)?;
+                if let Some(startup) = self.submission_deadline {
+                    deadline.expires_at = deadline.expires_at.min(startup);
+                }
+                deadline
+            }
+        };
         let attempt = {
             let Some(connection) = self.connection.as_mut() else {
                 return Err(SubmissionError::SessionUnavailable);
             };
             exchange_once(
                 connection,
-                self.clock.as_ref(),
+                &self.clock,
                 deadline,
                 self.io_chunk_limits,
                 &frame,
+                |io| read_server_message(io),
             )
         };
 
@@ -285,10 +476,31 @@ impl LocalClient {
             ExchangeAttempt::NotSubmitted(error) => {
                 Err(SubmissionError::RequestNotSubmitted(error))
             }
-            ExchangeAttempt::OutcomeUnknown(reason) => {
-                self.retire_with_unknown(request_id.clone(), reason)
+            ExchangeAttempt::WriteFailed(error) => {
+                self.retire_with_unknown(request_id.clone(), OutcomeUnknownReason::Write(error))
+            }
+            ExchangeAttempt::ReadFailed(error) => match error {
+                ReadMessageError::Io(error) => {
+                    self.retire_with_unknown(request_id.clone(), OutcomeUnknownReason::Read(error))
+                }
+                ReadMessageError::Protocol(error) => self.retire_with_unknown(
+                    request_id.clone(),
+                    OutcomeUnknownReason::InvalidResult(error),
+                ),
+            },
+            ExchangeAttempt::ReadDeadline(error) => {
+                self.retire_with_unknown(request_id.clone(), OutcomeUnknownReason::Read(error))
             }
         }
+    }
+
+    fn submission_deadline_before(&self, deadline: Instant) -> io::Result<SubmissionDeadline> {
+        let mut bounded = SubmissionDeadline::start(&self.clock, self.request_timeout)?;
+        bounded.expires_at = bounded.expires_at.min(deadline);
+        if let Some(startup) = self.submission_deadline {
+            bounded.expires_at = bounded.expires_at.min(startup);
+        }
+        Ok(bounded)
     }
 
     fn retire_with_unknown<Value>(
@@ -417,6 +629,7 @@ impl std::error::Error for OutcomeUnknownReason {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ResultKind {
+    Open,
     Create,
     Start,
     Viewer,
@@ -426,6 +639,7 @@ pub(crate) enum ResultKind {
 impl fmt::Display for ResultKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
+            Self::Open => "terminal.open.result",
             Self::Create => "terminal.create.result",
             Self::Start => "terminal.start.result",
             Self::Viewer => "terminal.viewer.result",
@@ -436,6 +650,7 @@ impl fmt::Display for ResultKind {
 
 fn result_kind(result: &ServerMessage) -> ResultKind {
     match result {
+        ServerMessage::TerminalOpenResult(_) => ResultKind::Open,
         ServerMessage::TerminalCreateResult(_) => ResultKind::Create,
         ServerMessage::TerminalStartResult(_) => ResultKind::Start,
         ServerMessage::TerminalViewerResult(_) => ResultKind::Viewer,
@@ -470,12 +685,36 @@ impl SubmissionDeadline {
 fn deadline_elapsed() -> io::Error {
     io::Error::new(
         io::ErrorKind::TimedOut,
-        "OBCS request total deadline elapsed",
+        "local Client request total deadline elapsed",
     )
 }
 
-trait MonotonicClock: fmt::Debug + Send {
+trait MonotonicClock: fmt::Debug + Send + Sync {
     fn now(&self) -> Instant;
+
+    #[cfg(test)]
+    fn before_request_write(&self) {}
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct LocalOperationClock(Arc<dyn MonotonicClock>);
+
+impl LocalOperationClock {
+    #[must_use]
+    pub(crate) fn now(&self) -> Instant {
+        self.0.now()
+    }
+}
+
+impl MonotonicClock for LocalOperationClock {
+    fn now(&self) -> Instant {
+        self.0.now()
+    }
+
+    #[cfg(test)]
+    fn before_request_write(&self) {
+        self.0.before_request_write();
+    }
 }
 
 #[derive(Debug)]
@@ -509,19 +748,22 @@ impl IoChunkLimits {
 }
 
 #[derive(Debug)]
-enum ExchangeAttempt {
-    Result(ServerMessage),
+enum ExchangeAttempt<ResultType, ReadError> {
+    Result(ResultType),
     NotSubmitted(io::Error),
-    OutcomeUnknown(OutcomeUnknownReason),
+    WriteFailed(io::Error),
+    ReadFailed(ReadError),
+    ReadDeadline(io::Error),
 }
 
-fn exchange_once(
+fn exchange_once<ResultType, ReadError>(
     connection: &mut ClientSessionConnection,
     clock: &dyn MonotonicClock,
     deadline: SubmissionDeadline,
     io_chunk_limits: IoChunkLimits,
     frame: &[u8],
-) -> ExchangeAttempt {
+    read_result: impl FnOnce(&mut DeadlineIo<'_>) -> Result<ResultType, ReadError>,
+) -> ExchangeAttempt<ResultType, ReadError> {
     let mut io = DeadlineIo {
         connection,
         clock,
@@ -530,28 +772,25 @@ fn exchange_once(
         write_began: false,
     };
 
+    #[cfg(test)]
+    clock.before_request_write();
     if let Err(error) = io.write_all(frame) {
         return if io.write_began {
-            ExchangeAttempt::OutcomeUnknown(OutcomeUnknownReason::Write(error))
+            ExchangeAttempt::WriteFailed(error)
         } else {
             ExchangeAttempt::NotSubmitted(error)
         };
     }
     if let Err(error) = deadline.remaining(clock) {
-        return ExchangeAttempt::OutcomeUnknown(OutcomeUnknownReason::Write(error));
+        return ExchangeAttempt::WriteFailed(error);
     }
 
-    match read_server_message(&mut io) {
+    match read_result(&mut io) {
         Ok(result) => match deadline.remaining(clock) {
             Ok(_remaining) => ExchangeAttempt::Result(result),
-            Err(error) => ExchangeAttempt::OutcomeUnknown(OutcomeUnknownReason::Read(error)),
+            Err(error) => ExchangeAttempt::ReadDeadline(error),
         },
-        Err(ReadMessageError::Io(error)) => {
-            ExchangeAttempt::OutcomeUnknown(OutcomeUnknownReason::Read(error))
-        }
-        Err(ReadMessageError::Protocol(error)) => {
-            ExchangeAttempt::OutcomeUnknown(OutcomeUnknownReason::InvalidResult(error))
-        }
+        Err(error) => ExchangeAttempt::ReadFailed(error),
     }
 }
 
@@ -616,6 +855,8 @@ impl Write for DeadlineIo<'_> {
         self.connection.flush()
     }
 }
+
+pub(crate) mod workbench;
 
 #[cfg(test)]
 mod tests;

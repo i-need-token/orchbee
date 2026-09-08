@@ -1,0 +1,245 @@
+use std::time::{Duration, Instant};
+
+use orchbee_capability_node_protocol::LifecycleUnknownReason;
+use orchbee_server::{CloseContinuationNext, CloseStepObservation, CloseStepPrequeueFailure};
+use orchbee_workbench_protocol::{
+    WorkbenchCommand, WorkbenchCommandResult, WorkbenchRequestId, WorkbenchTabCloseRead,
+    WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
+};
+
+use super::{LocalTerminalService, lease_expiry, placement};
+use crate::{
+    site_coordinator::PostcommitCoordinationError,
+    worker_obcn_carrier::{WorkerRequestError, WorkerResponseFailure},
+};
+
+// Inert candidate failure yields at this cadence; it never renews the retained attempt.
+const CANDIDATE_RETRY: Duration = Duration::from_millis(250);
+
+#[cfg(test)]
+mod tests;
+
+impl LocalTerminalService {
+    pub(crate) fn execute_terminal_tab_close(
+        &self,
+        command: WorkbenchCommand,
+    ) -> Option<WorkbenchCommandResult> {
+        let result = {
+            let workers = self.workers.lock().ok();
+            let handle = workers
+                .as_ref()
+                .and_then(|workers| workers.request_handle());
+            let mut coordinator = self.coordinator.lock().ok()?;
+            coordinator.execute_terminal_tab_close(
+                command,
+                placement(handle.as_ref()),
+                self.close_maintenance.available(),
+                Instant::now(),
+            )
+        };
+        // Replays can harmlessly notify, but never change an attempt or wait for IPC.
+        self.close_maintenance.notify();
+        result
+    }
+
+    pub(crate) fn read_terminal_tab_close(
+        &self,
+        request: WorkbenchTabCloseRead,
+    ) -> Option<WorkbenchTabCloseReadResult> {
+        self.coordinator
+            .lock()
+            .ok()?
+            .read_terminal_tab_close(request)
+    }
+
+    pub(crate) fn resume_terminal_tab_close(
+        &self,
+        request: WorkbenchTabCloseResume,
+    ) -> Option<WorkbenchTabCloseResumeResult> {
+        let result = {
+            let workers = self.workers.lock().ok();
+            let handle = workers
+                .as_ref()
+                .and_then(|workers| workers.request_handle());
+            let mut coordinator = self.coordinator.lock().ok()?;
+            let local_cleanup_available = self.controllers.lock().is_ok();
+            coordinator.resume_terminal_tab_close(
+                request,
+                placement(handle.as_ref()),
+                self.close_maintenance.available(),
+                local_cleanup_available,
+                Instant::now(),
+            )
+        };
+        self.close_maintenance.notify();
+        result
+    }
+
+    pub(super) fn close_maintenance_turn(
+        &self,
+        cursor: &mut Option<WorkbenchRequestId>,
+    ) -> Result<Option<Instant>, PostcommitCoordinationError> {
+        let expiry = lease_expiry();
+        let (close_id, token, handle, dependencies_match) = {
+            let workers = self.workers.lock().ok();
+            let handle = workers
+                .as_ref()
+                .and_then(|workers| workers.request_handle());
+            let worker = placement(handle.as_ref());
+            let mut coordinator = self
+                .coordinator
+                .lock()
+                .map_err(|_| PostcommitCoordinationError)?;
+            let operations: Vec<_> = coordinator
+                .close_authority()?
+                .terminal_tab_close_operations()
+                .cloned()
+                .collect();
+            let pivot = cursor
+                .as_ref()
+                .map_or(0, |cursor| operations.partition_point(|id| id <= cursor));
+            let mut due = None;
+            let mut selected = None;
+            for id in operations[pivot..].iter().chain(&operations[..pivot]) {
+                let now = Instant::now();
+                let next = coordinator
+                    .close_authority()?
+                    .next_terminal_tab_close_step(id, now)
+                    .map_err(|_| PostcommitCoordinationError)?;
+                match next {
+                    CloseContinuationNext::WaitUntil(at) => {
+                        due = Some(due.map_or(at, |due: Instant| due.min(at)))
+                    }
+                    CloseContinuationNext::Parked
+                    | CloseContinuationNext::Closed
+                    | CloseContinuationNext::Outstanding => {}
+                    actionable => {
+                        selected = Some((id.clone(), actionable));
+                        break;
+                    }
+                }
+            }
+            let Some((id, next)) = selected else {
+                return Ok(due);
+            };
+            *cursor = Some(id.clone());
+            match next {
+                CloseContinuationNext::TargetCleanup => {
+                    let runtime = coordinator
+                        .close_authority()?
+                        .terminal_tab_close_target(&id)
+                        .ok_or(PostcommitCoordinationError)?
+                        .runtime();
+                    // One Site guard spans exact removal and its retained completion marker.
+                    if self
+                        .complete_disposed_target_cleanup(&coordinator, &id, runtime)
+                        .is_ok()
+                    {
+                        coordinator
+                            .close_authority()?
+                            .complete_terminal_tab_close_target_cleanup(&id, runtime)
+                            .map_err(|_| PostcommitCoordinationError)?;
+                    } else {
+                        coordinator
+                            .close_authority()?
+                            .park_terminal_tab_close_target_cleanup(&id, runtime)
+                            .map_err(|_| PostcommitCoordinationError)?;
+                    }
+                    return Ok(Some(Instant::now()));
+                }
+                CloseContinuationNext::Publication => {
+                    let changed = coordinator.publish_terminal_tab_close(&id, Instant::now())?;
+                    drop(coordinator);
+                    drop(workers);
+                    if changed {
+                        self.standalone_changed.notify_all();
+                    }
+                    return Ok(Some(Instant::now()));
+                }
+                CloseContinuationNext::Lifecycle { .. } => {}
+                _ => return Err(PostcommitCoordinationError),
+            }
+            let now = Instant::now();
+            let Some(expiry) = expiry else {
+                return Ok(now.checked_add(CANDIDATE_RETRY));
+            };
+            let matches = coordinator.close_runtime_matches(&id, worker);
+            let Some(token) = coordinator.reserve_close_lifecycle_step(&id, now, expiry)? else {
+                return Ok(now.checked_add(CANDIDATE_RETRY));
+            };
+            (id, token, handle, matches)
+        };
+
+        // Prepared state is already retained. No owner gate spans queue admission or wait.
+        let submitted = match handle.filter(|_| dependencies_match) {
+            Some(handle) => handle.submit_lifecycle(token.request()),
+            None => Err(WorkerRequestError::Unavailable),
+        };
+        let receipt = match submitted {
+            Ok(receipt) => receipt,
+            Err(error) => {
+                let failure = match error {
+                    WorkerRequestError::Backpressure => CloseStepPrequeueFailure::Backpressure,
+                    WorkerRequestError::Unavailable => CloseStepPrequeueFailure::Unavailable,
+                    _ => CloseStepPrequeueFailure::IdentityConflict,
+                };
+                self.coordinator
+                    .lock()
+                    .map_err(|_| PostcommitCoordinationError)?
+                    .close_authority()?
+                    .reject_terminal_tab_close_step_prequeue(
+                        &close_id,
+                        token,
+                        Instant::now(),
+                        failure,
+                    )
+                    .map_err(|_| PostcommitCoordinationError)?;
+                return Ok(Some(Instant::now()));
+            }
+        };
+        // Confirmation cannot be suppressed by attempt expiry or Worker replacement.
+        #[cfg(test)]
+        self.run_close_admission_hook();
+        let confirmation = self
+            .coordinator
+            .lock()
+            .map_err(|_| PostcommitCoordinationError)
+            .and_then(|mut coordinator| {
+                coordinator
+                    .close_authority()?
+                    .confirm_terminal_tab_close_step_admitted(
+                        &close_id,
+                        &token,
+                        receipt.admitted_observed_at(),
+                    )
+                    .map_err(|_| PostcommitCoordinationError)
+            });
+        let result = receipt.wait();
+        confirmation?;
+        #[cfg(test)]
+        self.run_close_result_hook();
+        let observation = match &result {
+            Ok(result) => CloseStepObservation::Result(result),
+            Err(WorkerRequestError::Unavailable | WorkerRequestError::NotDelivered(_)) => {
+                CloseStepObservation::NotDelivered
+            }
+            Err(WorkerRequestError::PostDeliveryOutcomeUnknown(reason)) => {
+                CloseStepObservation::OutcomeUnknown(match reason {
+                    WorkerResponseFailure::TimedOut => LifecycleUnknownReason::Deadline,
+                    WorkerResponseFailure::Disconnected
+                    | WorkerResponseFailure::CarrierStopped
+                    | WorkerResponseFailure::Io(_) => LifecycleUnknownReason::TransportLost,
+                    _ => LifecycleUnknownReason::InvalidResponse,
+                })
+            }
+            Err(_) => CloseStepObservation::OutcomeUnknown(LifecycleUnknownReason::InvalidResponse),
+        };
+        self.coordinator
+            .lock()
+            .map_err(|_| PostcommitCoordinationError)?
+            .close_authority()?
+            .settle_terminal_tab_close_step(&close_id, token, Instant::now(), observation)
+            .map_err(|_| PostcommitCoordinationError)?;
+        Ok(Some(Instant::now()))
+    }
+}

@@ -60,7 +60,7 @@ if (!Array.isArray(metadata.packages)) {
 if (metadata.packages.length === 0) {
 	process.stdout.write(`Verified empty Rust workspace for ${task}\n`);
 } else {
-	process.exitCode = runChecks({
+	process.exitCode = await runChecks({
 		name: `rust:${task}`,
 		steps: [{ name: `cargo ${task}`, command: 'cargo', args: command }],
 		cwd: repositoryRoot,

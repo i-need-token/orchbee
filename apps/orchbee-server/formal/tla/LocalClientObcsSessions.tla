@@ -725,7 +725,7 @@ SlowCandidatesOwnNoSession ==
 ActiveGenerationsAreUnique ==
   Cardinality(ActiveGenerations) = Cardinality(ActiveClients)
 
-ActiveGenerationsNeverRepeat ==
+ActiveGenerationsPrecedeCursor ==
   \A client \in ActiveClients:
     state.sessions[client] < state.nextGeneration
 

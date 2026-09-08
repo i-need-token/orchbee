@@ -444,6 +444,93 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 		expect(harness.registry.size).toBe(0);
 	});
 
+	it('serializes restore and close for one presentation while leaving another untouched', async () => {
+		const restore = createDeferred<TerminalBindingLifecycleOutcome>();
+		const events: string[] = [];
+		const restoredLifecycle = createLifecycle(
+			async () => {
+				events.push('restore-started');
+				const outcome = await restore.promise;
+				events.push('restore-completed');
+				return outcome;
+			},
+			async (retireProjection) => {
+				events.push('close-started');
+				await retireProjection();
+				events.push('close-completed');
+				return { kind: 'closed' };
+			},
+		);
+		const otherLifecycle = createLifecycle();
+		const otherIdentity = {
+			creationId: CreationIdSchema.parse('44'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('55'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('66'.repeat(16)),
+		};
+		const bindings: TerminalBinding[] = [
+			{
+				bindingId: TerminalBindingIdSchema.parse('binding-restored'),
+				creationId: identity.creationId,
+				launch: { ...createTerminalLaunch(), currentDirectory: '/workspace/orchbee' },
+				presentationId: terminalPresentationId('presentation-1'),
+				state: { identity, kind: 'retained' },
+			},
+			{
+				bindingId: TerminalBindingIdSchema.parse('binding-other'),
+				creationId: otherIdentity.creationId,
+				launch: { ...createTerminalLaunch(), currentDirectory: '/workspace/orchbee' },
+				presentationId: terminalPresentationId('presentation-2'),
+				state: { identity: otherIdentity, kind: 'retained' },
+			},
+		];
+		const registry = new DesktopTerminalBindingRegistry();
+		const retireProjection = vi.fn<
+			(presentationId: ReturnType<typeof terminalPresentationId>) => Promise<void>
+		>(async (presentationId: ReturnType<typeof terminalPresentationId>) => {
+			events.push(`retire:${presentationId}`);
+		});
+		const adapter = new DesktopTerminalLifecycleAdapter({
+			allocateFreshBindingId: () => 'binding-fresh',
+			createBindingLifecycle: (_bindingId, _launch, presentationId) =>
+				presentationId === terminalPresentationId('presentation-1')
+					? restoredLifecycle
+					: otherLifecycle,
+			loadBindings: async () => ({
+				document: { bindings, version: 3 },
+				kind: 'available',
+			}),
+			registry,
+			resolveTerminalLaunch: () => createTerminalLaunch(),
+			retireProjection,
+		});
+		await expect(adapter.initialize()).resolves.toEqual({ kind: 'ready' });
+
+		const restoreResult = adapter.execute(restoreCommand());
+		await vi.waitFor(() => expect(restoredLifecycle.reconcile).toHaveBeenCalledOnce());
+		const closeResult = adapter.execute(closeCommand());
+		expect(restoredLifecycle.requestClose).not.toHaveBeenCalled();
+		expect(otherLifecycle.reconcile).not.toHaveBeenCalled();
+		expect(otherLifecycle.requestClose).not.toHaveBeenCalled();
+
+		restore.resolve({ identity, kind: 'recovered', summary: createAwaitingStartSummary() });
+		await expect(restoreResult).resolves.toMatchObject({ type: 'terminal-restore-completed' });
+		await expect(closeResult).resolves.toMatchObject({ type: 'terminal-close-completed' });
+
+		expect(events).toEqual([
+			'restore-started',
+			'restore-completed',
+			'close-started',
+			'retire:presentation-1',
+			'close-completed',
+		]);
+		expect(retireProjection).toHaveBeenCalledOnce();
+		expect(otherLifecycle.reconcile).not.toHaveBeenCalled();
+		expect(otherLifecycle.requestClose).not.toHaveBeenCalled();
+		expect(registry.getSnapshot()).toEqual([
+			{ bindingId: 'binding-other', presentationId: 'presentation-2' },
+		]);
+	});
+
 	it('observes a Host exit before an in-flight lifecycle operation completes', async () => {
 		const reconcile = createDeferred<TerminalBindingLifecycleOutcome>();
 		const lifecycle = createLifecycle();

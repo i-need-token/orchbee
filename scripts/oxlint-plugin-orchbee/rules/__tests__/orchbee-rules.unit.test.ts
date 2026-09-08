@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { componentDirectory } from '../component-directory';
 import { filenameNamingConvention } from '../filename-naming-convention';
@@ -644,7 +644,7 @@ describe('component-directory', () => {
 
 	it('rejects a colocated CSS Module whose name does not match the component', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/example/src/workbench/components/toolbar/Toolbar.tsx',
+			resolve('/workspace/packages/example/src/workbench/components/toolbar/Toolbar.tsx'),
 		);
 
 		componentDirectory.create(context).ImportDeclaration({

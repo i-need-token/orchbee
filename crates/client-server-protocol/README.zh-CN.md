@@ -13,17 +13,17 @@ Workbench state。
 
 ## Public API
 
-| API                                             | Contract                                                                        |
-| ----------------------------------------------- | ------------------------------------------------------------------------------- |
-| `RequestId`、`WorkerId`、`ControllerId`         | 解析 nonzero opaque 128-bit 小写十六进制 identity。                             |
-| `WorkingDirectory`                              | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute POSIX UTF-8 path。           |
-| `Geometry`                                      | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。               |
-| `TerminalCreateRequest`、`TerminalStartRequest` | 构造 validated Client request；start 拒绝相同的 start/create request identity。 |
-| `CreateOutcome`、`StartOutcome` 与 result type  | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                   |
-| `encode_client_frame`、`decode_client_frame`    | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                |
-| `encode_server_frame`、`decode_server_frame`    | Encode 或 decode 恰好一个完整 in-memory Server-to-Client frame。                |
-| `read_client_message`、`read_server_message`    | 从支持 partial read 的有序 stream 中精确读取一个 frame，并保留后续 frame 未读。 |
-| `write_client_message`、`write_server_message`  | 通过 partial write 写出完整 frame，且不 flush caller。                          |
+| API                                                                                      | Contract                                                                        |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `RequestId`、`SiteId`、`WorkerId`、`TerminalId`、`ViewerId`、`HostEpoch`、`ControllerId` | 解析独立 typed、nonzero opaque 128-bit 小写十六进制 identity。                  |
+| `WorkingDirectory`                                                                       | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute POSIX UTF-8 path。           |
+| `Geometry`                                                                               | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。               |
+| `TerminalCreateRequest`、`TerminalStartRequest`                                          | 构造 validated Client request；start 拒绝相同的 start/create request identity。 |
+| `CreateOutcome`、`StartOutcome` 与 result type                                           | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                   |
+| `encode_client_frame`、`decode_client_frame`                                             | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                |
+| `encode_server_frame`、`decode_server_frame`                                             | Encode 或 decode 恰好一个完整 in-memory Server-to-Client frame。                |
+| `read_client_message`、`read_server_message`                                             | 从支持 partial read 的有序 stream 中精确读取一个 frame，并保留后续 frame 未读。 |
+| `write_client_message`、`write_server_message`                                           | 通过 partial write 写出完整 frame，且不 flush caller。                          |
 
 所有 decoded object 与 enum 都是 closed。缺失显式 nullable create field、未知 field 或 tag、重复
 key、BOM、无效 UTF-8、尾随 JSON value、direction mismatch、无效 identity、path 或 geometry，以及
@@ -35,13 +35,19 @@ deterministic JSON。
 ## 查看附件 binding
 
 `TerminalViewerRequest`、`TerminalViewerAction`、`TerminalViewerResult` 和 `TerminalViewerOutcome`
-提供 Session scope 内只读 Attach、Poll、FrameApplied、NeedSnapshot 和 Detach value。
+提供 Session scope 内只读 Attach、AttachBinding、Poll、FrameApplied、NeedSnapshot 和 Detach value。
+AttachBinding 携带独立 typed 的 OBCS `SiteId`、`WorkerId` 与 `TerminalId` value；这些 domain 之间
+相同的 encoded byte 仍然有效。本 crate 校验其 lexical contract，但既不导入 Workbench type，也
+不判断 tuple 当前是否已暴露。该 semantic resolution 由 Server 负责。
+`ViewerUnavailableReason::WorkbenchUnavailable` 仅用于 viewer result。
+
 `ViewerId` 与 `HostEpoch` 表示 Server 签发的附件 scope。反馈计数器使用规范 u64 十进制字符串；
-JSON corpus 测试每个 action、outcome 与 reason。记录结果使用 schema owner 定义的 OBSR 二进制
-framing 和 `MAXIMUM_VIEWER_RECORD_BYTES` bound；同一组 Server frame function 可分派 JSON control
-或 opaque 二进制记录。Client 方向 reader 拒绝 OBSR。本 crate 不解码 OBTP 或终端呈现；Server
-和后续 renderer 分别负责路由与呈现验证。大记录测试覆盖字节相等、partial read、后继帧对齐、
-方向，以及非法 header、length、identity 的拒绝。
+JSON corpus 测试每个 action、outcome、reason、closed field set 与 identity boundary。记录结果保留
+schema owner 定义的 OBSR 二进制 framing 和 `MAXIMUM_VIEWER_RECORD_BYTES` bound；同一组 Server
+frame function 可分派 JSON control 或 opaque 二进制记录。Client 方向 reader 拒绝 OBSR。
+AttachBinding 不增加 OBCN 或 OBSR type。本 crate 不解码 OBTP 或终端呈现；Server 和后续
+renderer 分别负责路由与呈现验证。大记录测试覆盖字节相等、partial read、后继帧对齐、方向，
+以及非法 header、length、identity 的拒绝。
 
 ## Controller binding
 
@@ -77,3 +83,18 @@ Conformance test 消费 canonical cross-language corpus，并覆盖 frame bounda
 decoding、construction invariant、partial I/O 与 no-flush behavior。它们不证明 transport、Server
 state machine、authorization policy、Worker 或 Host mapping、terminal lifecycle 或 end-to-end
 execution。
+
+## 独立终端打开 binding
+
+`TerminalOpenRequest`、`TerminalOpenResult` 与 `OpenOutcome` 实现尚未发布的
+[独立终端打开 contract](../../schemas/client-server/README.md#standalone-terminal-opening)。
+请求只携带关联 ID 和完整 geometry；Opened 返回供 legacy viewer attachment 保留使用的 Server
+独立生成引用。AttachBinding 不改变 Open result。Binding 拥有严格编码和校验，Server 拥有
+singleton selection、creation 与 lifetime。
+Canonical fixtures 覆盖所有 open outcome，并通过 JSON schema 和独立 Rust decoder
+拒绝缺失字段、额外字段、畸形及方向错误的消息。
+
+Open 与 AttachBinding 是增量、尚未发布的 OBCS v1 source contract。它们保留既有 frame version
+与 limit。安装后的 exact runtime cohort 是 Client、Server、Worker 与 Host；这个 Rust source
+binding 是 contract input，而不是已安装的 cohort artifact。发布前，其 source contract 与 runtime
+cohort 一起 rollback，且不涉及 persisted state 或 migration。

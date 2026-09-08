@@ -10,7 +10,10 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_site_protocol::WorkerId as LocalSiteWorkerId;
 
-const MAXIMUM_RETAINED_TERMINAL_BINDINGS: usize = 1_024;
+pub(crate) const MAXIMUM_RETAINED_TERMINAL_BINDINGS: usize = 1_024;
+
+mod lifecycle;
+pub(crate) use lifecycle::{LifecycleAdmission, LifecycleDispatch};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AuthorizedHostOperation {
@@ -150,10 +153,12 @@ impl From<ProtocolError> for AuthorizationKernelError {
 struct TerminalAuthorizationBinding {
     cached_result: Option<AuthorizedHostOperationResult>,
     operation: AuthorizedHostOperation,
+    lifecycle: Option<lifecycle::LifecycleReceipts>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum HostOperationSlot {
+    Lifecycle(lifecycle::LifecycleSlot),
     AwaitingHandoff(AuthorizedHostOperation),
     HandedOff {
         host_epoch: HostEpoch,
@@ -164,6 +169,7 @@ enum HostOperationSlot {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum AdmissionRejection {
+    LifecycleActive,
     WrongWorker,
     StaleWorkerGeneration,
     LeaseExpired,
@@ -277,6 +283,7 @@ impl AuthorizedHostOperationKernel {
                     TerminalAuthorizationBinding {
                         cached_result: None,
                         operation: operation.clone(),
+                        lifecycle: None,
                     },
                 );
                 self.slot = Some(HostOperationSlot::AwaitingHandoff(operation.clone()));
@@ -311,6 +318,10 @@ impl AuthorizedHostOperationKernel {
                 return Err(AuthorizationKernelError::InconsistentBinding);
             }
             return Ok(AdmissionAction::Replay);
+        }
+
+        if existing_binding.is_some_and(|binding| binding.lifecycle.is_some()) {
+            return Ok(AdmissionAction::Reject(AdmissionRejection::LifecycleActive));
         }
 
         if authorization.capability_version() != TERMINAL_LAUNCH_CAPABILITY_VERSION {
@@ -541,7 +552,7 @@ impl AuthorizedHostOperationKernel {
                     Err(AuthorizationKernelError::DispatchMismatch)
                 }
             }
-            Some(HostOperationSlot::ResultReady(_)) => {
+            Some(HostOperationSlot::ResultReady(_) | HostOperationSlot::Lifecycle(_)) => {
                 Err(AuthorizationKernelError::InvalidDispatchPhase)
             }
             None => Err(AuthorizationKernelError::DispatchMismatch),
@@ -570,7 +581,7 @@ impl AuthorizedHostOperationKernel {
                     Err(AuthorizationKernelError::DispatchMismatch)
                 }
             }
-            Some(HostOperationSlot::ResultReady(_)) => {
+            Some(HostOperationSlot::ResultReady(_) | HostOperationSlot::Lifecycle(_)) => {
                 Err(AuthorizationKernelError::InvalidDispatchPhase)
             }
             None => Err(AuthorizationKernelError::DispatchMismatch),
@@ -605,6 +616,7 @@ fn rejected_result(
             TerminalLaunchResult::new(
                 launch.authorization(),
                 TerminalLaunchOutcome::Rejected(match reason {
+                    AdmissionRejection::LifecycleActive => TerminalLaunchRejection::LifecycleActive,
                     AdmissionRejection::WrongWorker => TerminalLaunchRejection::WrongWorker,
                     AdmissionRejection::StaleWorkerGeneration => {
                         TerminalLaunchRejection::StaleWorkerGeneration
@@ -628,6 +640,7 @@ fn rejected_result(
                 start.authorization(),
                 start.identity(),
                 TerminalStartOutcome::Rejected(match reason {
+                    AdmissionRejection::LifecycleActive => TerminalStartRejection::LifecycleActive,
                     AdmissionRejection::WrongWorker => TerminalStartRejection::WrongWorker,
                     AdmissionRejection::StaleWorkerGeneration => {
                         TerminalStartRejection::StaleWorkerGeneration

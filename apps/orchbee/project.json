@@ -3,11 +3,10 @@
 	"domain": "orchbee",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Unshipped native Orchbee process entry with exact unavailable/help/version dispatch, bilingual development presentation, a staged localized TUI shell and connected single-terminal adapter with bounded text projection, at-most-once input/resize, and joined Session cleanup, an unwired application-private POSIX local-Site rendezvous primitive, an application-private same-user POSIX Client transport for monotonic-total-deadline at-most-once OBCS Create/Start/viewer/controller exchange against an explicitly supplied Server endpoint, and a checked two-Client connect-first/lazy-activation refinement with no activation runtime wiring.",
+	"responsibility": "Experimental native Rust Client with Linux connect-first local Site startup from a verified four-artifact development cohort, a shared absolute startup deadline through terminal-projection first-frame readiness, and a localized retained-terminal TUI using shared Workbench bindings; strict multi-Tab projection, classified tab.create submission, and staged Session state and mailbox kernels provide the foundations for native Tab Session interaction.",
 	"nonGoals": [
-		"Wiring the staged shell or private local Client transport through public grammar before a real Site, Client Session, and terminal path exists; selecting or discovering an endpoint; adding an OBLC connect-plus-handshake total deadline; mutating shared Workbench state; activating or supervising Server or Worker; readiness; reconnecting; reconciling an unknown outcome; endpoint cleanup; networking; persistence; or child-process supervision.",
-		"Claiming production-private POSIX runtime security before inherited or extended ACL checks, socket metadata validation, and peer authentication are integrated.",
-		"Replacing, packaging, migrating, or deleting the delivered TypeScript CLI, its Desktop launcher, Agent Skill, commands, outputs, or compatibility contract.",
-		"Defining the future stable command tree, output schemas, exit categories, shell completion, package-manager distribution, release targets, update cohort, or rollback policy."
+		"Providing remote connections, ambiguous effect replay, automatic recovery/restart, full Workbench operations, full terminal interaction-mode parity, or non-Linux public startup.",
+		"Replacing, packaging, migrating, or deleting the delivered TypeScript CLI or Desktop launcher.",
+		"Defining stable public command/output/exit contracts, service installation, signing, distribution, updates, or rollback."
 	]
 }

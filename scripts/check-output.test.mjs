@@ -19,7 +19,7 @@ function withRun(steps, inspect, options = {}) {
 	try {
 		const settings = { name: 'fixture', steps, logRoot, ...options };
 		const source = `import { runChecks } from ${JSON.stringify(runnerUrl)};
-			process.exitCode = runChecks(${JSON.stringify(settings)});`;
+			process.exitCode = await runChecks(${JSON.stringify(settings)});`;
 		const env = { ...process.env };
 		delete env.ORCHBEE_CHECK_CAPTURED;
 		const result = spawnSync(process.execPath, ['--input-type=module', '-e', source], {
@@ -104,7 +104,7 @@ test('verbose mode streams the same checks without capture and remains fail-fast
 
 test('nested checks reuse the outer log while preserving nested failure', () => {
 	const nested = `import { runChecks } from ${JSON.stringify(runnerUrl)};
-		process.exitCode = runChecks({ name: 'inner', steps: [${JSON.stringify(nodeStep('leaf', "process.stdout.write('nested output\\n'); process.exitCode = 9;"))}] });`;
+		process.exitCode = await runChecks({ name: 'inner', steps: [${JSON.stringify(nodeStep('leaf', "process.stdout.write('nested output\\n'); process.exitCode = 9;"))}] });`;
 	withRun([nodeStep('outer', nested)], ({ status, stdout, directory, logs }) => {
 		assert.equal(status, 9);
 		assert.equal(logs.length, 1);
@@ -264,11 +264,12 @@ test(
 test('the root gate preserves its ordered stages and every automatic test scope', () => {
 	assert.deepEqual(
 		checkSteps('verify').map((step) => step.name),
-		['format:check', 'lint', 'test:tla:inventory', 'build', 'typecheck', 'test', 'test:exports'],
+		['format:check', 'test:tla:inventory', 'build', 'lint', 'typecheck', 'test', 'test:exports'],
 	);
 	const steps = checkSteps('test');
+	assert.equal(steps.length, 3);
 	assert.deepEqual(
-		steps.slice(0, 8).map((step) => step.name),
+		steps[0].concurrent.map((step) => step.name),
 		[
 			'test:check-output',
 			'test:lint-rules',
@@ -280,16 +281,66 @@ test('the root gate preserves its ordered stages and every automatic test scope'
 			'test:ssh-environment-release',
 		],
 	);
-	assert.equal(steps.length, 12);
-	assert.deepEqual(steps[8].args.slice(-2), ['-r', 'test']);
-	assert.deepEqual(steps[9].args, ['scripts/run-rust-workspace.mjs', 'test']);
-	assert.deepEqual(steps[10].args.slice(-3), [
-		'--filter',
-		'@orchbee/desktop',
-		'test:system:ssh-project-enrollment',
-	]);
-	assert.deepEqual(steps[11].args.slice(-3), ['-r', '--if-present', 'test:cross']);
+	assert.deepEqual(
+		steps[1].concurrent.map((step) => step.name),
+		['workspace tests', 'Rust workspace tests'],
+	);
+	assert.deepEqual(
+		steps[2].concurrent.map((step) => step.name),
+		['SSH Project enrollment system witness', 'native cross-compilation checks'],
+	);
+	assert.deepEqual(steps[2].concurrent[1].args.slice(-3), ['-r', '--if-present', 'test:cross']);
 	assert.doesNotMatch(JSON.stringify(steps), /manual:native-window/u);
+});
+
+test('concurrent group runs its members in parallel, reports each, and blocks the next stage', () => {
+	withRun(
+		[
+			{
+				concurrent: [
+					nodeStep(
+						'slow-ok',
+						"await new Promise((resolve) => setTimeout(resolve, 400)); process.stdout.write('# pass 2\\n# fail 0\\n# skipped 0\\n');",
+					),
+					nodeStep(
+						'fast-broken',
+						"process.stderr.write('error: deliberate concurrent failure\\n'); process.exitCode = 11;",
+					),
+				],
+			},
+			nodeStep('unreachable', "process.stdout.write('must not run');"),
+		],
+		({ status, stdout, stderr, logs }) => {
+			assert.equal(status, 11);
+			assert.equal(logs.length, 2);
+			assert.match(stdout, /PASS slow-ok.*2 passed/u);
+			assert.match(stdout, /FAIL fast-broken.*exit 11/u);
+			assert.match(stderr, /error: deliberate concurrent failure/u);
+			assert.doesNotMatch(stdout, /unreachable/u);
+		},
+	);
+});
+
+test('a concurrent group of successes reports every member and continues', () => {
+	withRun(
+		[
+			{
+				concurrent: [
+					nodeStep('left', "process.stdout.write('# pass 1\\n# fail 0\\n# skipped 0\\n');"),
+					nodeStep('right', "process.stdout.write('# pass 3\\n# fail 0\\n# skipped 0\\n');"),
+				],
+			},
+			nodeStep('after', "process.stdout.write('reached\\n'); process.exitCode = 6;"),
+		],
+		({ status, stdout, directory, logs }) => {
+			assert.equal(status, 6);
+			assert.equal(logs.length, 3);
+			assert.match(stdout, /PASS left.*1 passed/u);
+			assert.match(stdout, /PASS right.*3 passed/u);
+			assert.match(stdout, /FAIL after.*exit 6/u);
+			assert.equal(readFileSync(join(directory, logs[2]), 'utf8'), 'reached\n');
+		},
+	);
 });
 
 test('unknown tasks and options are rejected instead of silently changing scope', () => {
@@ -297,4 +348,93 @@ test('unknown tasks and options are rejected instead of silently changing scope'
 	assert.throws(() => checkVerbose(['--quiet']), /Unknown check options/u);
 	assert.equal(checkVerbose([]), false);
 	assert.equal(checkVerbose(['--', '--verbose']), true);
+});
+
+test('concurrent durations stop at each child close instead of the group barrier', () => {
+	withRun(
+		[
+			{
+				concurrent: [
+					nodeStep('short', ''),
+					nodeStep('long', 'await new Promise((resolve) => setTimeout(resolve, 1500));'),
+				],
+			},
+		],
+		({ status, stdout }) => {
+			assert.equal(status, 0);
+			const short = Number(stdout.match(/PASS short \(([\d.]+)s/u)?.[1]);
+			const long = Number(stdout.match(/PASS long \(([\d.]+)s/u)?.[1]);
+			assert.ok(long - short > 1, stdout);
+		},
+	);
+});
+
+test('nested concurrent long lines fit a small heap and retain both streams', () => {
+	const size = 64 * 1024 * 1024;
+	const leaf = nodeStep(
+		'long',
+		`import { once } from 'node:events';
+		const block = 'x'.repeat(16384);
+		for (let index = 0; index < ${size / 16384}; index += 1) {
+			if (!process.stdout.write(block)) await once(process.stdout, 'drain');
+		}
+		process.stdout.write('終😀'); process.stderr.write('stderr tail');`,
+	);
+	const source = `import { runChecks } from ${JSON.stringify(runnerUrl)};
+		process.exitCode = await runChecks({ name: 'inner', steps: [{ concurrent: [
+			${JSON.stringify(leaf)}, ${JSON.stringify(nodeStep('peer', ''))}
+		] }] });`;
+	withRun(
+		[
+			{
+				name: 'outer',
+				command: process.execPath,
+				args: ['--max-old-space-size=32', '--input-type=module', '-e', source],
+			},
+		],
+		({ status, stderr, directory, logs }) => {
+			assert.equal(status, 0, stderr);
+			const output = readFileSync(join(directory, logs[0]), 'utf8');
+			assert.equal(output.length - output.replaceAll('x', '').length, size);
+			assert.match(output, /終😀/u);
+			assert.match(output, /\[long\] stderr tail\n/u);
+			assert.ok(output.split('\n').every((line) => line.length < 20_000));
+		},
+	);
+});
+
+test('concurrent forwarding waits for slow destination writes and preserves split UTF-8', () => {
+	const leaf = nodeStep(
+		'leaf',
+		`import { once } from 'node:events';
+		for (let index = 0; index < 128; index += 1) {
+			if (!process.stdout.write('x'.repeat(8192))) await once(process.stdout, 'drain');
+		}
+		for (const byte of Buffer.from('😀終')) {
+			process.stdout.write(Buffer.from([byte]));
+			await new Promise((resolve) => setImmediate(resolve));
+		}`,
+	);
+	const source = `import assert from 'node:assert/strict';
+		import { Writable } from 'node:stream';
+		import { runChecks } from ${JSON.stringify(runnerUrl)};
+		let maxQueued = 0;
+		let count = 0;
+		let tail = '';
+		const sink = new Writable({ highWaterMark: 1, write(chunk, encoding, callback) {
+			const text = chunk.toString();
+			count += text.split('x').length - 1;
+			tail = (tail + text).slice(-100);
+			setTimeout(() => { maxQueued = Math.max(maxQueued, sink.writableLength); callback(); }, 1);
+		} });
+		process.stdout.write = sink.write.bind(sink);
+		const result = await runChecks({ name: 'inner', verbose: true, steps: [{ concurrent: [
+			${JSON.stringify(leaf)}, ${JSON.stringify(nodeStep('peer', ''))}
+		] }] });
+		await new Promise((resolve) => sink.end(resolve));
+		assert.equal(result, 0);
+		assert.equal(count, 1024 * 1024);
+		assert.ok(maxQueued < 128 * 1024, 'queued bytes: ' + maxQueued);
+		assert.ok(tail.includes('😀終'), tail);`;
+	withRun([nodeStep('slow-sink', source)], ({ status, stderr }) => assert.equal(status, 0, stderr));
 });

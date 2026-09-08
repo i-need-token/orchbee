@@ -41,6 +41,7 @@ VARIABLES
   lastTarget,
   previousPhase,
   previousBinding,
+  previousEffect,
   previousStartPhase,
   previousPendingGeometry,
   previousInitialGeometry,
@@ -49,14 +50,15 @@ VARIABLES
 vars ==
   <<phase, binding, effect, startPhase, pendingGeometry, initialGeometry,
     queuedClose, lastAction, lastTarget, previousPhase, previousBinding,
-    previousStartPhase, previousPendingGeometry, previousInitialGeometry,
-    previousQueuedClose>>
+    previousEffect, previousStartPhase, previousPendingGeometry,
+    previousInitialGeometry, previousQueuedClose>>
 
 Record(action, target) ==
   /\ lastAction' = action
   /\ lastTarget' = target
   /\ previousPhase' = phase
   /\ previousBinding' = binding
+  /\ previousEffect' = effect
   /\ previousStartPhase' = startPhase
   /\ previousPendingGeometry' = pendingGeometry
   /\ previousInitialGeometry' = initialGeometry
@@ -74,6 +76,7 @@ Init ==
   /\ lastTarget = NoTarget
   /\ previousPhase = phase
   /\ previousBinding = binding
+  /\ previousEffect = effect
   /\ previousStartPhase = startPhase
   /\ previousPendingGeometry = pendingGeometry
   /\ previousInitialGeometry = initialGeometry
@@ -260,6 +263,7 @@ TypeOK ==
   /\ lastTarget \in Presentations \cup {NoTarget}
   /\ previousPhase \in [Presentations -> Phases]
   /\ previousBinding \in [Presentations -> Bindings \cup {NoBinding}]
+  /\ previousEffect \in [Presentations -> Effects]
   /\ previousStartPhase \in [Presentations -> StartPhases]
   /\ previousPendingGeometry \in [Presentations -> Geometries \cup {NoGeometry}]
   /\ previousInitialGeometry \in [Presentations -> Geometries \cup {NoGeometry}]
@@ -306,9 +310,11 @@ TargetedMutationPreservesOthers ==
     \A other \in Presentations \ {lastTarget}:
       /\ phase[other] = previousPhase[other]
       /\ binding[other] = previousBinding[other]
+      /\ effect[other] = previousEffect[other]
       /\ startPhase[other] = previousStartPhase[other]
       /\ pendingGeometry[other] = previousPendingGeometry[other]
       /\ initialGeometry[other] = previousInitialGeometry[other]
+      /\ queuedClose[other] = previousQueuedClose[other]
 
 FailurePreservesMembership ==
   lastAction \in {"provision-failed", "restore-failed", "close-failed"} =>

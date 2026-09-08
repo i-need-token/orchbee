@@ -22,12 +22,16 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_site_protocol::WorkerId;
 
+mod lifecycle;
+pub(crate) use lifecycle::PendingLifecycleResult;
+
 const REQUEST_QUEUE_CAPACITY: usize = 1;
 const OPERATION_IO_TIMEOUT: Duration = Duration::from_secs(2);
 const OWNER_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationRequest {
+    Lifecycle(orchbee_capability_node_protocol::TerminalLifecycleRequest),
     Control(orchbee_capability_node_protocol::TerminalControlRequest),
     Launch(AuthorizedTerminalLaunch),
     Start(AuthorizedTerminalStart),
@@ -42,6 +46,10 @@ impl WorkerOperationRequest {
         orchbee_capability_node_protocol::WorkerGeneration,
     ) {
         match self {
+            Self::Lifecycle(request) => (
+                request.authorization.worker_id,
+                request.authorization.worker_generation,
+            ),
             Self::Control(request) => (request.worker_id, request.worker_generation),
             Self::Launch(request) => (
                 request.authorization().worker_id(),
@@ -57,6 +65,7 @@ impl WorkerOperationRequest {
 
     fn message(&self) -> CapabilityNodeMessage {
         match self {
+            Self::Lifecycle(request) => CapabilityNodeMessage::TerminalLifecycleRequest(*request),
             Self::Control(request) => {
                 CapabilityNodeMessage::TerminalControlRequest(request.clone())
             }
@@ -71,6 +80,7 @@ impl WorkerOperationRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationResult {
+    Lifecycle(orchbee_capability_node_protocol::TerminalLifecycleResult),
     Control(orchbee_capability_node_protocol::TerminalControlResult),
     Launch(TerminalLaunchResult),
     Start(TerminalStartResult),
@@ -678,6 +688,40 @@ fn validate_response(
     response: CapabilityNodeMessage,
 ) -> Result<WorkerOperationResult, WorkerResponseFailure> {
     match (request, response) {
+        (
+            WorkerOperationRequest::Lifecycle(expected),
+            CapabilityNodeMessage::TerminalLifecycleResult(actual),
+        ) => {
+            let echo = actual.request();
+            if echo.request_id != expected.request_id
+                || echo.close_operation_id != expected.close_operation_id
+                || echo.attempt_generation != expected.attempt_generation
+                || echo.step_ordinal != expected.step_ordinal
+            {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if echo.authorization != expected.authorization {
+                return Err(WorkerResponseFailure::MismatchedAuthorization);
+            }
+            if echo.target != expected.target {
+                return Err(WorkerResponseFailure::MismatchedTarget);
+            }
+            if echo.action != expected.action {
+                return Err(WorkerResponseFailure::WrongResultKind);
+            }
+            Ok(WorkerOperationResult::Lifecycle(actual))
+        }
+        (_, CapabilityNodeMessage::TerminalLifecycleRequest(_)) => {
+            Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::TerminalLifecycleResult(_))
+        | (
+            WorkerOperationRequest::Lifecycle(_),
+            CapabilityNodeMessage::TerminalControlResult(_)
+            | CapabilityNodeMessage::TerminalViewerResult(_)
+            | CapabilityNodeMessage::TerminalLaunchResult(_)
+            | CapabilityNodeMessage::TerminalStartResult(_),
+        ) => Err(WorkerResponseFailure::WrongResultKind),
         (
             WorkerOperationRequest::Control(expected),
             CapabilityNodeMessage::TerminalControlResult(actual),

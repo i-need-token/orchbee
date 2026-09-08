@@ -8,5 +8,10 @@ publish = false
 [target.'cfg(unix)'.dependencies]
 orchbee-local-peer-credentials = { path = "../local-peer-credentials" }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { workspace = true, features = ["poll", "socket"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+nix = { workspace = true, features = ["fs"] }
 [lints]
 workspace = true

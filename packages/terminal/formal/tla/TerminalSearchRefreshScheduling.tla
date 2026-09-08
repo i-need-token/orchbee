@@ -3,18 +3,19 @@ EXTENDS Naturals
 
 CONSTANTS MaxRevision, MaxScans
 
-Phases == {"scheduled", "scanning", "complete", "error", "disposed"}
+\* bound-exhausted is an exploration sentinel, not a product search error.
+Phases == {"scheduled", "scanning", "complete", "bound-exhausted", "disposed"}
 Actions == {
   "init", "start-scan", "advance-while-scheduled", "advance-while-scanning",
   "advance-after-completion", "complete-current", "settle-obsolete", "dispose"
 }
 
 VARIABLES active, revision, phase, snapshotRevision, scanCount,
-  publishedRevision, priorRevision, priorPhase, priorSnapshotRevision,
+  publishedRevision, priorPhase, priorSnapshotRevision,
   priorScanCount, priorPublishedRevision, lastAction
 
 vars == <<active, revision, phase, snapshotRevision, scanCount,
-  publishedRevision, priorRevision, priorPhase, priorSnapshotRevision,
+  publishedRevision, priorPhase, priorSnapshotRevision,
   priorScanCount, priorPublishedRevision, lastAction>>
 
 Init ==
@@ -24,16 +25,14 @@ Init ==
   /\ snapshotRevision = 0
   /\ scanCount = 0
   /\ publishedRevision = 0
-  /\ priorRevision = revision
   /\ priorPhase = phase
   /\ priorSnapshotRevision = snapshotRevision
   /\ priorScanCount = scanCount
   /\ priorPublishedRevision = publishedRevision
   /\ lastAction = "init"
 
-Record(action, oldRevision, oldPhase, oldSnapshotRevision, oldScanCount,
+Record(action, oldPhase, oldSnapshotRevision, oldScanCount,
        oldPublishedRevision) ==
-  /\ priorRevision' = oldRevision
   /\ priorPhase' = oldPhase
   /\ priorSnapshotRevision' = oldSnapshotRevision
   /\ priorScanCount' = oldScanCount
@@ -48,7 +47,7 @@ StartScan ==
   /\ snapshotRevision' = revision
   /\ scanCount' = scanCount + 1
   /\ UNCHANGED <<active, revision, publishedRevision>>
-  /\ Record("start-scan", revision, phase, snapshotRevision, scanCount,
+  /\ Record("start-scan", phase, snapshotRevision, scanCount,
        publishedRevision)
 
 AdvanceWhileScheduled ==
@@ -57,7 +56,7 @@ AdvanceWhileScheduled ==
   /\ revision < MaxRevision
   /\ revision' = revision + 1
   /\ UNCHANGED <<active, phase, snapshotRevision, scanCount, publishedRevision>>
-  /\ Record("advance-while-scheduled", revision, phase, snapshotRevision,
+  /\ Record("advance-while-scheduled", phase, snapshotRevision,
        scanCount, publishedRevision)
 
 AdvanceWhileScanning ==
@@ -66,7 +65,7 @@ AdvanceWhileScanning ==
   /\ revision < MaxRevision
   /\ revision' = revision + 1
   /\ UNCHANGED <<active, phase, snapshotRevision, scanCount, publishedRevision>>
-  /\ Record("advance-while-scanning", revision, phase, snapshotRevision,
+  /\ Record("advance-while-scanning", phase, snapshotRevision,
        scanCount, publishedRevision)
 
 AdvanceAfterCompletion ==
@@ -74,9 +73,9 @@ AdvanceAfterCompletion ==
   /\ phase = "complete"
   /\ revision < MaxRevision
   /\ revision' = revision + 1
-  /\ phase' = IF scanCount < MaxScans THEN "scheduled" ELSE "error"
+  /\ phase' = IF scanCount < MaxScans THEN "scheduled" ELSE "bound-exhausted"
   /\ UNCHANGED <<active, snapshotRevision, scanCount, publishedRevision>>
-  /\ Record("advance-after-completion", revision, phase, snapshotRevision,
+  /\ Record("advance-after-completion", phase, snapshotRevision,
        scanCount, publishedRevision)
 
 CompleteCurrent ==
@@ -86,17 +85,17 @@ CompleteCurrent ==
   /\ phase' = "complete"
   /\ publishedRevision' = snapshotRevision
   /\ UNCHANGED <<active, revision, snapshotRevision, scanCount>>
-  /\ Record("complete-current", revision, phase, snapshotRevision, scanCount,
+  /\ Record("complete-current", phase, snapshotRevision, scanCount,
        publishedRevision)
 
 SettleObsolete ==
   /\ active
   /\ phase = "scanning"
   /\ snapshotRevision # revision
-  /\ phase' = IF scanCount < MaxScans THEN "scheduled" ELSE "error"
+  /\ phase' = IF scanCount < MaxScans THEN "scheduled" ELSE "bound-exhausted"
   /\ UNCHANGED <<active, revision, snapshotRevision, scanCount,
        publishedRevision>>
-  /\ Record("settle-obsolete", revision, phase, snapshotRevision, scanCount,
+  /\ Record("settle-obsolete", phase, snapshotRevision, scanCount,
        publishedRevision)
 
 Dispose ==
@@ -104,7 +103,7 @@ Dispose ==
   /\ active' = FALSE
   /\ phase' = "disposed"
   /\ UNCHANGED <<revision, snapshotRevision, scanCount, publishedRevision>>
-  /\ Record("dispose", revision, phase, snapshotRevision, scanCount,
+  /\ Record("dispose", phase, snapshotRevision, scanCount,
        publishedRevision)
 
 SettleByConsistency == CompleteCurrent \/ SettleObsolete
@@ -131,7 +130,6 @@ TypeOK ==
   /\ snapshotRevision \in 0..MaxRevision
   /\ scanCount \in 0..MaxScans
   /\ publishedRevision \in 0..MaxRevision
-  /\ priorRevision \in 1..MaxRevision
   /\ priorPhase \in Phases
   /\ priorSnapshotRevision \in 0..MaxRevision
   /\ priorScanCount \in 0..MaxScans

@@ -19,9 +19,9 @@ OBCS 有以下相邻边界：
 
 Version 1 准入 `terminal.create`、`terminal.create.result`、`terminal.start`、
 `terminal.start.result`、`terminal.viewer`、`terminal.viewer.result`、`terminal.control` 和
-`terminal.control.result`。它不定义 close、cancel、retry transport、
-authentication、authorization policy、Server state store、Worker operation、Host launch 或
-Workbench mutation。
+`terminal.control.result`，以及尚未发布的 `terminal.open` / `terminal.open.result` 和 viewer
+`attach-binding` 扩展。它不定义 close、cancel、retry transport、authentication、authorization
+policy、Server state store、Worker operation、Host launch 或 Workbench mutation。
 
 ## Frame
 
@@ -47,13 +47,15 @@ Canonical encoding 是确定性的 compact JSON，并使用普通 integer token�
 
 ## Identity、path 与 geometry
 
-`requestId`、`terminalCreateRequestId` 与 `workerId` 是 opaque、nonzero 128-bit value，编码为
-恰好 32 个小写十六进制字符。`requestId` 用于关联一次已提交 request 及其 result；它不是 replay
-或 Server-ledger identity。Client 为每次 submitted request 生成新的 `requestId`，且不会在同一个
-active Server authority 与 authenticated subject 范围内复用。这是 Client producer obligation，
-不是 Server 保留或搜索 request history 的承诺。`terminal.start` request 使用彼此不同的
-`requestId` 与 `terminalCreateRequestId`。它的 `terminalCreateRequestId` 在同一个 authority 与
-subject 范围内标识 deferred create，不依赖具体 Client Session transport。
+`requestId`、`terminalCreateRequestId`、`siteId`、`workerId` 与 `terminalId` 是 opaque、nonzero
+128-bit value，编码为恰好 32 个小写十六进制字符。Site、Worker、Terminal 与 request identity
+属于不同语义域，但其编码 byte 无需彼此不同；每个 field 都独立校验。`requestId` 用于关联一次
+已提交 request 及其 result；它不是 replay 或 Server-ledger identity。Client 为每次 submitted
+request 生成新的 `requestId`，且不会在同一个 active Server authority 与 authenticated subject
+范围内复用。这是 Client producer obligation，不是 Server 保留或搜索 request history 的承诺。
+独立的 `terminal.start` invariant 要求 `requestId` 与 `terminalCreateRequestId` 彼此不同。它的
+`terminalCreateRequestId` 在同一个 authority 与 subject 范围内标识 deferred create，不依赖具体
+Client Session transport。
 
 显式 `cwd` 是 absolute POSIX UTF-8 path，其 encoded path value 包含 1 到 4,096 个 byte 且不含
 NUL。`/` 有效。OBCS 不 normalize path、不 resolve `.` 或 `..`、不检查 filesystem、不推断 Git
@@ -81,9 +83,9 @@ default；省略该 field 无效。
 | `startMode`        | `{ "kind": "immediate", "geometry": ... }`，或恰好 `{ "kind": "deferred" }` |
 
 Deferred creation 不携带 geometry 或 fallback。Immediate creation 携带一个完整有效 geometry。
-Client 绝不提交 Terminal identity、Worker generation、operation、lease、fence、Host identity 或
-epoch、executable、argument vector、environment 或 overlay、Project、Workspace、Panel、Worktree、
-Client generation、profile 或 configuration fact。
+`terminal.create` request 绝不提交 Terminal identity、Worker generation、operation、lease、fence、
+Host identity 或 epoch、executable、argument vector、environment 或 overlay、Project、Workspace、
+Panel、Worktree、Client generation、profile 或 configuration fact。
 
 `terminal.start` 包含 `protocolVersion`、新的 `requestId`、用于标识 deferred create request 且与
 前者不同的 `terminalCreateRequestId`，以及一个完整有效 `geometry`。它不携带 terminal identity
@@ -115,8 +117,30 @@ Create/Start result 不暴露内部 Terminal、Worker、operation、lease、fenc
 `terminal.viewer` 包含 `protocolVersion`、新的 `requestId` 和一个封闭 `action`。每个已准入
 Client Session 最多拥有一个只读查看附件。`attach` 只提供 `terminalCreateRequestId`；Server
 解析同一 authority 与主体下已接受的终端，固定其既有 Worker 代次和 Host epoch，并签发新的
-附件身份。`poll` 和 `detach` 没有其他字段。请求不能提供或转移附件身份。
-Session 丢失会分离临时查看状态，绝不终止保留的终端。
+附件身份。`attach-binding` 则仅提供从 canonical Workbench snapshot 获得的 `siteId`、`workerId`
+与逻辑 `terminalId`。它不携带 Workbench revision、Worker generation、Host identity、operation、
+lease 或 Create reference。
+
+Binding triple 选择既有 terminal，且不授予 authorization。Server 必须先确认当前 active Site，
+且 canonical Workbench presentation 仍暴露精确 Worker/Terminal pair，之后才解析精确保留终端
+及其固定的 Worker generation。Selection 不产生 Open、Create、Start、launch、membership、rebind、
+navigation、input、resize 或 controller effect。经过单 viewer Session guard 后，target validation
+遵循以下优先级：
+
+1. registry 或 Site ownership poisoned 返回 `server-busy`；
+2. Workbench 缺失或已 retired 返回 `workbench-unavailable`；
+3. Site 错误或精确 pair 未暴露返回 `terminal-unavailable`；
+4. current Worker 缺失或 logical Worker 不同返回 `terminal-runtime-unavailable`；
+5. 精确保留记录缺失返回 `terminal-unavailable`；
+6. 保留的 Worker generation 不同返回 `terminal-runtime-unavailable`；
+7. 保留 phase 无法 attach 返回 `terminal-unavailable`；
+8. attachment identity 耗尽或已知未改变的 capacity 不足返回 `server-busy`。
+
+Workbench exposure 与 retained-target resolution 一起 linearize。之后 Workbench retired 不会取消
+已固定的 operation。Attachment 成功在既有 post-IPC current-Worker check 处线性化；
+检查后的 Worker loss 可能与响应交付竞争，由下一次 operation 的 fence 拦截。`poll` 与 `detach`
+没有其他字段。请求不能提供或转移 attachment identity。Session 丢失会分离临时查看状态，绝不
+终止保留的终端。该 action 只改变 OBCS JSON；既有 OBCN relay、OBSR framing 与 byte limit 不变。
 
 `frame-applied` 携带 `sequence`、`generation` 和 `revision`；`need-snapshot` 携带 `sequence`
 和 `reason`。计数器使用 unsigned 64-bit 范围内的规范十进制字符串，无前导零或符号；sequence
@@ -128,10 +152,13 @@ Session 丢失会分离临时查看状态，绝不终止保留的终端。
 JSON 查看附件 outcome 包括：带 `attachmentId` 和 `hostEpoch`（非零 32 字符小写 hex）的
 `attached`；无其他字段的 `empty`、`feedback-accepted`、`detached`；reason 为 `already-attached`、
 `terminal-unavailable` 或 `feedback-mismatch` 的 `rejected`；reason 为 `server-busy` 或
-`terminal-runtime-unavailable` 的 `unavailable`。Attached 回答 Attach；Empty 或二进制记录回答
-Poll；FeedbackAccepted 回答两种反馈；Detached 回答 Detach，包括附件已不存在的情况。Rejected
-和 Unavailable 可回答任意 action。错误 kind 或 correlation 会让 Client carrier 退役。
-查看失败绝不授权自动 replay 或 retargeting。
+`terminal-runtime-unavailable`，或仅用于 viewer 的 `workbench-unavailable` 的 `unavailable`。
+Attached 回答 Attach 或 AttachBinding；Empty 或二进制记录回答 Poll；FeedbackAccepted 回答两种
+反馈；Detached 回答 Detach，包括附件已不存在的情况。Rejected 和 Unavailable 可回答任意
+action。错误 kind 或 correlation 会让 Client carrier 退役。只有已知未 commit 任何 effect 的
+correlated `server-busy` result 才可使用既有 bounded retry policy：Client 保留完全相同的 action
+value，使用新的 `requestId`，并处于同一 logical deadline 内。Ambiguous failure 绝不授权 replay、
+fallback 或 retargeting。
 
 记录结果使用二进制 `OBSR`，不使用 JSON：四个 magic byte、big-endian u16 version 1、两个为零
 的保留字节，以及 big-endian u32 payload length。Payload 是以 16 个 big-endian byte 表示的确切
@@ -187,7 +214,10 @@ mutating intent；ambiguous result 应改由未来的只读 projection 或 obser
 oracle。它包含每个 message、result category、reason、accepted-state variant 与 accepted-start
 transition，以及 malformed 和 semantically invalid payload。Repeated-value recipe 以紧凑形式
 materialize 精确 byte-boundary、multibyte 与 worst-case JSON path input。Binding 消费该 corpus 时
-不能从自己的 codec 派生 expected result。
+不能从自己的 codec 派生 expected result。AttachBinding fixture 覆盖精确 field name、required 与
+additional field、lexical identity failure、zero sentinel，以及错误 message/result kind。其独立
+typed identity domain 之间相同的有效 byte 是 canonical。Schema validation 无法判断 well-formed
+tuple 是否指向当前暴露的 terminal；该 semantic refusal 由 Server test 负责。
 
 从仓库根目录运行：
 
@@ -199,3 +229,29 @@ CARGO_TARGET_DIR="$PWD/target" cargo clippy -p orchbee-client-server-protocol --
 这些检查建立 schema-to-binding corpus agreement 与 deterministic frame behavior。它们不建立
 authentication、authorization decision、replay lookup、duplicate-history 或 idempotency storage、
 cancellation、terminal execution、persistence、recovery 或任何 live transport integration。
+
+## 独立终端打开
+
+尚未发布的 version-1 扩展 `terminal.open` 携带 `protocolVersion`、Client 新生成的
+`requestId` 和完整 `geometry`。它打开本机单主体 Server 的独立终端引用：首次准备使用
+Worker 默认 cwd 创建立即启动的终端；后续打开返回同一个引用。Open 自身不 dispatch 或提交 Resize；Client 可随后 attach、获取 controller 权限，并提交独立的已校验 Resize。
+此终端线协议不增加 Workbench payload。原生 Server 拥有启动前首次共享独立终端成员关系的提交，
+具体定义见其
+[Workbench 权威](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md#独立终端成员关系模型)；
+Client 通过独立的 Workbench 协议观察该结构。
+
+`terminal.open.result` 关联确切的调用请求，并返回一个封闭 outcome：
+带 `terminalCreateRequestId` 的 `opened`；带 Create unavailable 原因的 `unavailable`；
+带 `terminal-create-failed` 的 `failed`；或仅有标签的 `outcome-unknown`。
+返回的引用可以标识 Server 内部生成的 create。它独立于调用者的关联 ID，不授予 viewer 或
+controller 权限，仍须经过普通 Session attach 和 controller 准入。AttachBinding 不改变该 result
+shape；原生 standalone 流程观察独立 Workbench snapshot，而不会把这个 Create reference 当作
+canonical selection state。熵源失败或引用冲突在准备前返回 server-busy，并保持独立终端槽位
+为空。Dispatch 后的失败或不确定性不允许再次创建。Client 不重试未知效果；另一次打开只观察
+已保留的独立终端结果。
+
+Schema、Rust binding 与 canonical corpus 共同定义增量 Open 和 AttachBinding contract。它们仍
+未发布，且不改变 frame version、byte limit、既有 action encoding、admission 或 unknown-effect
+replay rule；legacy Attach 仍然可用。安装后的 exact runtime cohort 是 Client、Server、Worker 与
+Host。Schema 与 Rust source 是 contract input，不是已安装的 cohort artifact。发布前，未发布的
+source contract 与 runtime cohort 一起 rollback。该扩展不增加 persisted state 或 migration。

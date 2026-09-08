@@ -196,7 +196,7 @@ struct ContextTreeState {
     node_count: usize,
 }
 
-fn validate_snapshot(snapshot: &Snapshot) -> Result<(), ContractError> {
+pub(crate) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), ContractError> {
     validate_navigation_structure(&snapshot.navigation)
         .map_err(|_error| ContractError::InvalidDocument)?;
     if !strictly_ordered_by(&snapshot.navigation.projects, |project| &project.project_id)
@@ -496,7 +496,7 @@ fn increment_reference(
         .or_insert(1);
 }
 
-fn enforce_encoded_limit(encoded: &[u8], maximum: usize) -> Result<(), ContractError> {
+pub(crate) fn enforce_encoded_limit(encoded: &[u8], maximum: usize) -> Result<(), ContractError> {
     if encoded.len() > maximum {
         return Err(ContractError::EncodedValueTooLarge {
             actual: encoded.len(),

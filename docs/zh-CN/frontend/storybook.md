@@ -56,6 +56,8 @@ pnpm storybook:build
 
 `pnpm storybook` 启动一个进程；Rsbuild 把声明的公共源码入口纳入原生 HMR，不需要并行包 watcher。静态构建通过 Storybook 工作区 `build` 任务进入 `pnpm verify`，其工作区测试要求每个公共 `@orchbee/ui` 组件模块都有 Story。
 
+`pnpm storybook:build` 和根构建都会先完成共享包构建，再启动静态宿主构建。发现的应用 Story 可能导入宿主直接依赖列表之外的包；全新静态构建需要在 Storybook 启动前准备好这些包的导出。
+
 浏览器 Agent 先在侧边栏发现 Story，再使用 `iframe.html?id=<story-id>&viewMode=story` 进行 DOM、交互、无障碍、计算样式和截图检查。
 
 主要参考：[Story 加载](https://storybook.js.org/docs/configure/index)、[tag](https://storybook.js.org/docs/writing-stories/tags)、[Composition](https://storybook.js.org/docs/sharing/storybook-composition) 和 [Rsbuild 集成](https://storybook.rsbuild.dev/guide/)。

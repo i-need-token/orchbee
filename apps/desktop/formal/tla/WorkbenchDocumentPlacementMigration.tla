@@ -4,7 +4,10 @@ EXTENDS TLC
 \* Bounded model of the one-way Workbench shared-document v1-to-v2 migration.
 \* A present v2 file is always authoritative, even when invalid. A valid v1
 \* file is read only when v2 is missing, is projected to local placements, and
-\* is never changed. Rename-before-confirmation is reconciled by loading v2.
+\* is never changed. PostRenameFailure is a caller-invisible overapproximation
+\* of the store's inline recovery step. ReloadV2 represents only an exact,
+\* successful v2 reload. Reload failure and settlement progress are outside
+\* this safety-only model; no fairness or temporal claim is configured.
 
 DocumentStates == {"missing", "valid", "invalid"}
 Outcomes == {"none", "missing", "available", "unavailable", "indeterminate"}

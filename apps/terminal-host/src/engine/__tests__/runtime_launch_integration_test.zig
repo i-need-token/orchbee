@@ -428,9 +428,11 @@ test "Linux session descendant with a forged newline comm stays contained until 
     // The leader forks one background subshell that closes its PTY descriptors,
     // writes the forged "worker) Z\nX" main-thread comm (the embedded newline is
     // not trailing, so /proc/self/comm keeps it), and blocks forever reading
-    // /dev/zero; the leader echoes the descendant PID and exits. On the pre-fix
-    // parser the single fgets line reads as a non-live 'Z'.
+    // /dev/zero; the leader echoes the descendant PID and exits. Ignore HUP
+    // before forking so the descendant survives the session leader's exit.
+    // On the pre-fix parser the single fgets line reads as a non-live 'Z'.
     const script =
+        "trap '' HUP; " ++
         "( printf 'worker) Z\\nX' >/proc/self/comm; printf 'ORCHBEE-FORGED\\n'; exec 0</dev/zero 1>&- 2>&-; read x ) & " ++
         "printf 'ORCHBEE-DESC %s\\n' \"$!\"; exit 0";
     const arguments = [_][]const u8{ "-c", script };

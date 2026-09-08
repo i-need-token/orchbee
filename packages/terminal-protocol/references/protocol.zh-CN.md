@@ -103,6 +103,16 @@ JSON 内的规范无符号 64 位整数使用十进制文本，除了值 `0` 之
 
 `TerminateTerminal` 和 `ForceTerminateTerminal` 是不同的请求类型。线材允许Desktop直接发力；主机拥有的生命周期决定当前阶段是否接受请求并保证强制包含优雅的意图。这两个请求都不会处理保留的身份。 Desktop 拥有升级计时，并在请求处置之前等待 `TerminalExited` 或 `TerminalFailed`。丢失的身份和无效的当前状态请求将被报告为类型化失败，而不会被编解码器重新解释。
 
+成功的 `TerminateTerminal`、`ForceTerminateTerminal` 和 `DisposeTerminal` 响应保留
+请求 kind（`12`、`18` 和 `13`），且仅携带由 `TerminalAcknowledgedSchema` 校验的
+`{ terminalId }`。Rust 生命周期接受变体保留该类型化的 `TerminalTarget`；它们拒绝
+缺失、格式错误、重复或额外字段。解码确认消息只保留其目标，不决定它是否与待处理请求匹配。
+消费者负责 envelope 关联和目标匹配；终止请求被接受不代表进程已退出，也不授予处置权限。
+现有 `outputs.terminal_acknowledged` 一致性 fixture 定义了这三类响应的规范字节。
+Rust 生命周期 fixture 往返、目标保留和畸形输入用例使用与 Host Zig 编码器一致性测试
+相同的 fixture 验证这一有界编解码器声明。它们不证明 Host 运行时转换、异步顺序
+或消费者的关闭工作流。
+
 该线路不会暴露主机的物理代理会话身份。主机将附件绑定到其一个活动代理会话，并通过该会话解析每个 `AttachmentId`。 `ClientId`是诊断元数据，不合并、转让、独立授予权限。
 
 每个附件至少请求输入、读取或调整大小权限之一。仅当也请求并授予调整大小权限时，调整大小租约才是合法的。空的请求能力绑定和没有调整大小权限的调整大小租约在附件准入时格式错误。仅输入附件降级后，完整的当前能力值可以全部为 false。

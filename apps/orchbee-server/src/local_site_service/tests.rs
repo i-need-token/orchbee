@@ -22,7 +22,7 @@ use orchbee_local_site_protocol::{
 
 use crate::{
     worker_obcn_carrier::{WorkerOperationRequest, WorkerOperationResult},
-    worker_registry::WorkerRegistry,
+    worker_registry::{WorkerRegistry, generation_is_retired},
 };
 
 use super::handle_candidate;
@@ -65,7 +65,7 @@ fn accepted_stream_becomes_one_generation_scoped_obcn_carrier() -> TestResult {
     first_peer
         .join()
         .map_err(|_panic| "first fake Worker panicked")??;
-    wait_for_disconnect(&registry)?;
+    wait_for_generation_retirement(&registry, first_generation)?;
     assert!(!first_handle.is_active());
 
     let (mut replacement_worker, replacement_generation) = admit_worker(&registry, SECOND_WORKER)?;
@@ -97,7 +97,7 @@ fn accepted_stream_becomes_one_generation_scoped_obcn_carrier() -> TestResult {
     replacement_peer
         .join()
         .map_err(|_panic| "replacement fake Worker panicked")??;
-    wait_for_disconnect(&registry)?;
+    wait_for_generation_retirement(&registry, replacement_generation)?;
     Ok(())
 }
 
@@ -144,8 +144,12 @@ fn admit_worker(
         &LocalSiteMessage::WorkerHello(WorkerHello::new(COHORT, worker_id)?),
     )?;
     handle_candidate(server, registry, COHORT);
-    let LocalSiteMessage::WorkerAccepted { generation } = read_site_message(&mut worker)? else {
-        return Err(io::Error::other("fake Worker was not accepted").into());
+    let reply = read_site_message(&mut worker)?;
+    let LocalSiteMessage::WorkerAccepted { generation } = reply else {
+        return Err(io::Error::other(format!(
+            "fake Worker {worker_id:?} was not accepted: {reply:?}"
+        ))
+        .into());
     };
     Ok((worker, generation))
 }
@@ -160,21 +164,24 @@ fn request_handle(
         .ok_or_else(|| io::Error::other("Worker request handle was not registered").into())
 }
 
-fn wait_for_disconnect(registry: &Arc<Mutex<WorkerRegistry>>) -> TestResult {
+fn wait_for_generation_retirement(
+    registry: &Arc<Mutex<WorkerRegistry>>,
+    generation: NonZeroU64,
+) -> TestResult {
     let deadline = Instant::now() + COMPLETION_TIMEOUT;
     loop {
-        if registry
+        let registry_guard = registry
             .lock()
-            .map_err(|_poisoned| io::Error::other("Worker registry was poisoned"))?
-            .request_handle()
-            .is_none()
-        {
+            .map_err(|_poisoned| io::Error::other("Worker registry was poisoned"))?;
+        let retired = generation_is_retired(&registry_guard, generation);
+        drop(registry_guard);
+        if retired {
             return Ok(());
         }
         if Instant::now() >= deadline {
             return Err(io::Error::new(
                 io::ErrorKind::TimedOut,
-                "Worker carrier cleanup did not finish",
+                format!("Worker generation {generation} retirement did not finish"),
             )
             .into());
         }

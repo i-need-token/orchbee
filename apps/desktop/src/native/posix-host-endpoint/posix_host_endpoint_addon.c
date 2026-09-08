@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "posix_host_endpoint.h"
 
 #include <node_api.h>
@@ -5,6 +7,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 static napi_value throw_endpoint_error(

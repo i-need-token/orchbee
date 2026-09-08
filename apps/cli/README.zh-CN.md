@@ -61,10 +61,12 @@ projection 读取当前 tail。它默认读取 80 行，最多接受 1,000 行�
 以及精确 generation、revision、行范围与 truncation 状态。Soft-wrapped row 会被拼接；ANSI escape、style、
 graphic、hyperlink、raw VT byte 与未来输出均不公开。Live local Terminal、已连接 SSH Terminal 与保留的
 local archive 均可读取。该 query 绝不启动或重连 Terminal，不发送 input、不 resize、不 focus，也不跨 stale
-frame 重试。Stale、retired、unavailable、cleanup-failed、cancelled 或五秒 read deadline 的 outcome 都会显式
-返回，且绝不返回旧文本。Output 不会自动脱敏，可能包含 secret；caller 不应 echo、持久化或转发不需要的
-内容。只有现有有界、易失的 semantic execution ledger 会保留 result；此 command 是一次性 read，不是 wait
-或 durable history。
+frame 重试。Stale、retired、unavailable、cleanup-failed、cancelled 或五秒 deadline 的 outcome 都会显式
+返回，且绝不返回旧文本。该 deadline 限制 lease acquisition 与 frame/row collection。取得 lease 后，Desktop
+会在 publication 前等待一次 cleanup attempt；dispose rejection 返回 `cleanup-failed`，而 cleanup 可能让
+publication 超过五秒。Output 不会自动脱敏，可能包含 secret；caller 不应 echo、持久化或转发不需要的
+内容。只有现有有界、易失的 semantic execution ledger 会保留 result；此 command 是一次性 read，不是
+wait 或 durable history。
 
 `agent changes` 是 global canonical change feed。第一次不带 `--cursor` 调用会返回空 baseline，以及位于
 当前 Agent runtime revision 的签名 `nextCursor`。把该 cursor 传回，可以接收最多 100 条有序 applied

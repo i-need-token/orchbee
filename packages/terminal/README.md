@@ -58,7 +58,13 @@ preserve physical key identity, including for Shift-produced punctuation. Native
 participates in the same ordered input dispatcher: an intervening key, paste, or pointer input seals
 the current native batch before that later input is admitted, so deferred digits and punctuation
 cannot move past subsequent physical keys. The same short-lived settlement marker handles browser
-event orders where the native `input` arrives before `keydown`.
+event orders where the native `input` arrives before `keydown`. The bounded native-settlement model
+compares the actual textarea value with its captured baseline across two requests, two repair-epoch
+advances, and two value transitions, including a changed-then-restored ABA order. An independent
+beforeinput observed during that window is suppressed and receives no separate later publication;
+the current timer owns the sole native, fallback, or no-op outcome. A cancelled timer identity and
+epoch are inert after repair and re-admission. Empty or over-byte-limit sealed values and concrete
+keyboard-admission partitions remain deterministic adapter evidence.
 
 On macOS, the projected terminal also consumes a source-neutral Option-as-Alt mode: `off`, `left`,
 `right`, or `both`. It tracks the physical Option side from `AltLeft` and `AltRight`, resolves one
@@ -108,7 +114,9 @@ Ordinary admitted input remains FIFO within one dispatcher generation, including
 is pending. Lifecycle repair closes admission and invalidates that generation before snapshotting
 cleanup, so reset, blur, visibility loss, and disposal do not wait for a paste review that may never
 settle. Queued commands and late review resolutions or rejections from an invalidated generation are
-observed but inert. A newly opened generation progresses independently after repair.
+observed but inert. A newly opened generation progresses independently after repair. Its finite
+queue abstraction covers one representative retained item plus focus-in before key; arbitrary queue
+depth and queued text payloads remain OrderedInputDispatcher and ProjectedTerminal test evidence.
 
 Paste inspection retains the original text before replacing unsafe C0/C1 controls with spaces, and
 detects an embedded bracketed-paste terminator in that original text. Multiline text without
@@ -222,7 +230,10 @@ before one focus-out, while entering through a non-textarea descendant publishes
 focus-in. The application decides when to call `focus()`; an open surface synchronizes its local
 padding, scrollbar, hidden-input anchor, and current resize proposal before moving native focus to
 the hidden textarea. Opening the package surface does not claim initial product focus.
-Desktop and pen pointer activation focuses the hidden textarea on pointer down.
+Desktop and pen pointer activation focuses the hidden textarea on pointer down. TerminalInputRepair
+proves key-before-mouse-before-focus cleanup for one representative key and one representative mouse
+button; plural identity completeness and within-class press order remain deterministic
+ProjectedTerminal evidence.
 
 ### Mobile touch and native-input model
 
@@ -250,7 +261,10 @@ native read-only guard but restores no prior input or queued work; the next admi
 stamped only with the new revision.
 If the projected client disappears before this cleanup completes, Terminal Host releases only that
 attachment's accepted key, application-mouse, and focus ownership before revoking its capability;
-another attachment is unaffected.
+another attachment is unaffected. The formal input-repair model owns valid next-revision
+replacements, including a downgrade re-entered from an active send. Malformed, stale, replayed,
+conflicting, skipped, or non-advancing updates and the committed-versus-local admission split remain
+deterministic ProjectedTerminal evidence.
 
 `injectInput(...)` is the narrow bridge for a trusted, application-owned live input surface. It
 accepts either committed text or one physical key tap together with the exact opaque revision
@@ -350,7 +364,7 @@ does not require reopening the attachment.
 
 An open attachment accepts one complete `TerminalPresentationConfiguration` transaction containing
 `fontFamily`, `fontSize`, `fontWeight`, `fontWeightBold`, `fontLigatures`,
-`fontMetricModifiers`, `paddingBalance`, `allowTransparency`, `backgroundOpacity`, and
+`fontMetricModifiers`, `terminalPadding`, `paddingBalance`, `allowTransparency`, `backgroundOpacity`, and
 `defaultColorOverride`. The override is either `null` or a strict, normalized lowercase `#RRGGBB`
 foreground/background pair. `backgroundOpacity` is a source-neutral `0..1` configuration value;
 the composing client applies it to its own default-background root rather than to the terminal
@@ -363,7 +377,7 @@ renderer measurements before publishing any field. Requests are latest-wins: sup
 disposed preparation returns a typed cancellation, and validation, font, or renderer preparation
 failure leaves the previous configuration visible.
 
-One successful local commit replaces all ten fields, remeasures once, resets the glyph atlas once,
+One successful local commit replaces all eleven fields, remeasures once, resets the glyph atlas once,
 invalidates the whole surface, and schedules one current repaint. The same commit realigns the
 hidden textarea and active IME preedit anchor, invalidates geometry-dependent link hover, repairs
 local geometry gestures without introducing a copy effect, and computes at most one new resize

@@ -142,6 +142,15 @@ describe('createWorkbenchClientRuntime', () => {
 		);
 		expect(runtime.terminalSurfaceCapability.platformEffects).toEqual({});
 		expect(runtime.terminalSurfaceCapability.observeTerminalMetadata).toBeTypeOf('function');
+		const applyTerminalNaturalMetadataObservation = vi.spyOn(
+			runtime.projectWorkspaceRuntime,
+			'applyTerminalNaturalMetadataObservation',
+		);
+		const firstTerminalIdentity = {
+			creationId: '11'.repeat(16),
+			hostEpoch: '22'.repeat(16),
+			terminalId: '33'.repeat(16),
+		};
 		runtime.terminalSurfaceCapability.observeTerminalMetadata(initialPresentationId, {
 			closeActivity: 'idle',
 			currentDirectory: 'file://ORCHBEE-HOST/workspace/My%20Project',
@@ -161,25 +170,136 @@ describe('createWorkbenchClientRuntime', () => {
 		});
 		publishSession?.({
 			metadata: {
-				currentDirectory: 'file://orchbee-host/workspace/background-agent',
-				identity: {
-					creationId: '11'.repeat(16),
-					hostEpoch: '22'.repeat(16),
-					terminalId: '33'.repeat(16),
-				},
+				currentDirectory: 'file://orchbee-host/workspace/conflict',
+				identity: firstTerminalIdentity,
 				presentationId: initialPresentationId,
-				revision: '2',
-				title: 'background agent',
+				revision: '1',
+				title: 'conflicting surface-first revision',
 			},
 			sequence: '1',
 			type: 'terminal-metadata-published',
 		});
+		expect(applyTerminalNaturalMetadataObservation).not.toHaveBeenCalled();
+		expect(terminalContext.tabModel.getSnapshot().tabs[0]?.title).toBe('vim');
+		expect(terminalContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
+			primaryPresentation: {
+				closeActivity: 'idle',
+				currentCwd: '/workspace/My Project',
+				naturalTitle: 'vim',
+			},
+		});
+		publishSession?.({
+			metadata: {
+				currentDirectory: 'file://ORCHBEE-HOST/workspace/My%20Project',
+				identity: firstTerminalIdentity,
+				presentationId: initialPresentationId,
+				revision: '1',
+				title: 'vim\0',
+			},
+			sequence: '2',
+			type: 'terminal-metadata-published',
+		});
+		expect(applyTerminalNaturalMetadataObservation).not.toHaveBeenCalled();
+		publishSession?.({
+			metadata: {
+				currentDirectory: 'file://orchbee-host/workspace/background-agent',
+				identity: firstTerminalIdentity,
+				presentationId: initialPresentationId,
+				revision: '2',
+				title: 'background agent',
+			},
+			sequence: '3',
+			type: 'terminal-metadata-published',
+		});
+		expect(applyTerminalNaturalMetadataObservation).toHaveBeenCalledOnce();
 		expect(terminalContext.tabModel.getSnapshot().tabs[0]?.title).toBe('background agent');
 		expect(terminalContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
 			primaryPresentation: {
 				closeActivity: 'idle',
 				currentCwd: '/workspace/background-agent',
 				naturalTitle: 'background agent',
+			},
+		});
+		publishSession?.({
+			metadata: {
+				currentDirectory: 'file://orchbee-host/workspace/background-agent',
+				identity: firstTerminalIdentity,
+				presentationId: initialPresentationId,
+				revision: '2',
+				title: 'background agent',
+			},
+			sequence: '4',
+			type: 'terminal-metadata-published',
+		});
+		expect(applyTerminalNaturalMetadataObservation).toHaveBeenCalledOnce();
+		publishSession?.({
+			metadata: {
+				currentDirectory: 'file://orchbee-host/workspace/conflict',
+				identity: firstTerminalIdentity,
+				presentationId: initialPresentationId,
+				revision: '2',
+				title: 'conflicting equal revision',
+			},
+			sequence: '5',
+			type: 'terminal-metadata-published',
+		});
+		expect(applyTerminalNaturalMetadataObservation).toHaveBeenCalledOnce();
+		expect(terminalContext.tabModel.getSnapshot().tabs[0]?.title).toBe('background agent');
+		expect(terminalContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
+			primaryPresentation: {
+				closeActivity: 'idle',
+				currentCwd: '/workspace/background-agent',
+				naturalTitle: 'background agent',
+			},
+		});
+
+		// Surface-owned close activity can change without advancing the Host
+		// metadata revision, so identityless equal-revision observations stay live.
+		runtime.terminalSurfaceCapability.observeTerminalMetadata(initialPresentationId, {
+			closeActivity: 'unknown',
+			currentDirectory: 'file://orchbee-host/workspace/background-agent',
+			revision: 2n,
+			title: 'background agent',
+		});
+		expect(terminalContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
+			primaryPresentation: { closeActivity: 'unknown' },
+		});
+		runtime.terminalSurfaceCapability.observeTerminalMetadata(initialPresentationId, {
+			closeActivity: 'active',
+			currentDirectory: 'file://orchbee-host/workspace/surface-conflict',
+			revision: 2n,
+			title: 'surface conflicting equal revision',
+		});
+		expect(terminalContext.tabModel.getSnapshot().tabs[0]?.title).toBe('background agent');
+		expect(terminalContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
+			primaryPresentation: {
+				closeActivity: 'unknown',
+				currentCwd: '/workspace/background-agent',
+				naturalTitle: 'background agent',
+			},
+		});
+
+		publishSession?.({
+			metadata: {
+				currentDirectory: 'file://orchbee-host/workspace/replacement',
+				identity: {
+					creationId: '44'.repeat(16),
+					hostEpoch: '55'.repeat(16),
+					terminalId: '66'.repeat(16),
+				},
+				presentationId: initialPresentationId,
+				revision: '1',
+				title: 'replacement terminal',
+			},
+			sequence: '6',
+			type: 'terminal-metadata-published',
+		});
+		expect(applyTerminalNaturalMetadataObservation).toHaveBeenCalledTimes(2);
+		expect(terminalContext.tabModel.getSnapshot().tabs[0]?.title).toBe('replacement terminal');
+		expect(terminalContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
+			primaryPresentation: {
+				currentCwd: '/workspace/replacement',
+				naturalTitle: 'replacement terminal',
 			},
 		});
 		const startRejected = {

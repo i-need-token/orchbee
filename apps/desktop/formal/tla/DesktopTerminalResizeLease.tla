@@ -1,5 +1,5 @@
 ---------------- MODULE DesktopTerminalResizeLease ----------------
-EXTENDS FiniteSets, Naturals, TLC
+EXTENDS FiniteSets, Naturals, Sequences, TLC
 
 CONSTANTS Attachments, NoAttachment, MaxRevision, MaxRank, Scenario
 
@@ -51,13 +51,10 @@ VARIABLES
   nextRank,
   claimRank,
   nextClaimRank,
-  activityRank,
-  nextActivityRank,
+  activityOrder,
   desiredOwner,
   activitiesOpen,
   claimRejected,
-  lastActivity,
-  lastClaimed,
   operationKind,
   operationAttachment,
   releaseSuccessor,
@@ -70,10 +67,6 @@ VARIABLES
   resizeRevision,
   lastAction,
   lastActor,
-  previousGeometry,
-  previousOwner,
-  previousDesiredOwner,
-  lastPromoted,
   inputEligible,
   resizeEligible,
   terminalRunning,
@@ -89,11 +82,7 @@ VARIABLES
   brokerMeasurementSeen,
   brokerLatestGeometry,
   brokerCleanupRequested,
-  brokerLastAction,
-  brokerPreviousActive,
-  brokerPreviousActiveGeometry,
-  brokerPreviousPending,
-  brokerPreviousPendingGeometry
+  brokerLastAction
 
 LeaseVars == <<
   attached,
@@ -102,13 +91,10 @@ LeaseVars == <<
   nextRank,
   claimRank,
   nextClaimRank,
-  activityRank,
-  nextActivityRank,
+  activityOrder,
   desiredOwner,
   activitiesOpen,
   claimRejected,
-  lastActivity,
-  lastClaimed,
   operationKind,
   operationAttachment,
   releaseSuccessor,
@@ -120,11 +106,7 @@ LeaseVars == <<
   resizeRequestGeometry,
   resizeRevision,
   lastAction,
-  lastActor,
-  previousGeometry,
-  previousOwner,
-  previousDesiredOwner,
-  lastPromoted
+  lastActor
 >>
 
 PolicyVars == <<
@@ -146,11 +128,7 @@ BrokerVars == <<
   brokerMeasurementSeen,
   brokerLatestGeometry,
   brokerCleanupRequested,
-  brokerLastAction,
-  brokerPreviousActive,
-  brokerPreviousActiveGeometry,
-  brokerPreviousPending,
-  brokerPreviousPendingGeometry
+  brokerLastAction
 >>
 
 vars == <<LeaseVars, PolicyVars, BrokerVars>>
@@ -168,10 +146,16 @@ MostRecentBy(rank, candidates) ==
 
 MostRecentClaimed(candidates) == MostRecentBy(claimRank, candidates)
 
-PreferredRemaining(candidates) ==
-  LET active == {attachment \in candidates: activityRank[attachment] > 0}
-  IN IF active # {} THEN MostRecentBy(activityRank, active)
-     ELSE MostRecentClaimed(candidates)
+SequenceMembers(sequence) ==
+  {sequence[index] : index \in 1..Len(sequence)}
+
+Position(sequence, item) ==
+  CHOOSE index \in 1..Len(sequence): sequence[index] = item
+
+MostRecentActivity(candidates) ==
+  CHOOSE candidate \in candidates:
+    \A other \in candidates:
+      Position(activityOrder, candidate) >= Position(activityOrder, other)
 
 ClaimEligible(attachment) ==
   /\ attachment \in attached
@@ -187,24 +171,17 @@ EligibleRemaining(candidates) ==
 
 PreferredEligibleRemaining(candidates) ==
   LET eligible == EligibleRemaining(candidates)
-      active == {attachment \in eligible: activityRank[attachment] > 0}
+      active == eligible \cap SequenceMembers(activityOrder)
   IN IF eligible = {} THEN NoAttachment
-     ELSE IF active # {} THEN MostRecentBy(activityRank, active)
+     ELSE IF active # {} THEN MostRecentActivity(active)
      ELSE MostRecentClaimed(eligible)
 
 Record(action, actor) ==
   /\ lastAction' = action
   /\ lastActor' = actor
-  /\ previousGeometry' = canonicalGeometry
-  /\ previousOwner' = owner
-  /\ previousDesiredOwner' = desiredOwner
 
 BrokerRecord(action) ==
   /\ brokerLastAction' = action
-  /\ brokerPreviousActive' = brokerResizeActive
-  /\ brokerPreviousActiveGeometry' = brokerActiveGeometry
-  /\ brokerPreviousPending' = brokerResizePending
-  /\ brokerPreviousPendingGeometry' = brokerPendingGeometry
 
 LeaseInit ==
   /\ attached = {}
@@ -213,13 +190,10 @@ LeaseInit ==
   /\ nextRank = 1
   /\ claimRank = [attachment \in Attachments |-> 0]
   /\ nextClaimRank = 1
-  /\ activityRank = [attachment \in Attachments |-> 0]
-  /\ nextActivityRank = 1
+  /\ activityOrder = <<>>
   /\ desiredOwner = NoAttachment
   /\ activitiesOpen = TRUE
   /\ claimRejected = FALSE
-  /\ lastActivity = NoAttachment
-  /\ lastClaimed = NoAttachment
   /\ operationKind = "idle"
   /\ operationAttachment = NoAttachment
   /\ releaseSuccessor = NoAttachment
@@ -232,10 +206,6 @@ LeaseInit ==
   /\ resizeRevision = 0
   /\ lastAction = "init"
   /\ lastActor = NoAttachment
-  /\ previousGeometry = canonicalGeometry
-  /\ previousOwner = owner
-  /\ previousDesiredOwner = desiredOwner
-  /\ lastPromoted = NoAttachment
 
 PolicyInit ==
   /\ inputEligible = [attachment \in Attachments |-> FALSE]
@@ -259,10 +229,6 @@ BrokerInit ==
   /\ brokerLatestGeometry = 0
   /\ brokerCleanupRequested = FALSE
   /\ brokerLastAction = "init"
-  /\ brokerPreviousActive = brokerResizeActive
-  /\ brokerPreviousActiveGeometry = brokerActiveGeometry
-  /\ brokerPreviousPending = brokerResizePending
-  /\ brokerPreviousPendingGeometry = brokerPendingGeometry
 
 Init ==
   /\ LeaseInit
@@ -278,11 +244,10 @@ BeginOpenBase(attachment) ==
   /\ operationAttachment' = attachment
   /\ UNCHANGED <<
        attached, owner, admissionRank, nextRank, claimRank, nextClaimRank,
-       activityRank, nextActivityRank, desiredOwner, activitiesOpen,
-       claimRejected, lastActivity, lastClaimed, releaseSuccessor,
+       activityOrder, desiredOwner, activitiesOpen, claimRejected,
+       releaseSuccessor,
        canonicalGeometry, canonicalRevision, observedGeometry, observedRevision,
-       resizeObservationPending, resizeRequestGeometry, resizeRevision,
-       lastPromoted
+       resizeObservationPending, resizeRequestGeometry, resizeRevision
      >>
   /\ Record("begin-open", attachment)
 
@@ -302,14 +267,11 @@ CommitOpenBase ==
             IF owner = NoAttachment THEN nextClaimRank + 1 ELSE nextClaimRank
        /\ desiredOwner' =
             IF owner = NoAttachment THEN attachment ELSE desiredOwner
-       /\ lastClaimed' =
-            IF owner = NoAttachment THEN attachment ELSE lastClaimed
-       /\ lastPromoted' = IF owner = NoAttachment THEN attachment ELSE NoAttachment
   /\ operationKind' = "idle"
   /\ operationAttachment' = NoAttachment
   /\ releaseSuccessor' = NoAttachment
-  /\ UNCHANGED <<activityRank, nextActivityRank, activitiesOpen,
-       claimRejected, lastActivity, canonicalGeometry, canonicalRevision, observedGeometry,
+  /\ UNCHANGED <<activityOrder, activitiesOpen,
+       claimRejected, canonicalGeometry, canonicalRevision, observedGeometry,
        observedRevision, resizeObservationPending, resizeRequestGeometry,
        resizeRevision>>
   /\ Record("commit-open", operationAttachment)
@@ -325,11 +287,10 @@ BeginReleaseBase(attachment) ==
        ELSE NoAttachment
   /\ UNCHANGED <<
        attached, owner, admissionRank, nextRank, claimRank, nextClaimRank,
-       activityRank, nextActivityRank, desiredOwner, activitiesOpen,
-       claimRejected, lastActivity, lastClaimed, canonicalGeometry,
+       activityOrder, desiredOwner, activitiesOpen,
+       claimRejected, canonicalGeometry,
        canonicalRevision, observedGeometry, observedRevision,
-       resizeObservationPending, resizeRequestGeometry, resizeRevision,
-       lastPromoted
+       resizeObservationPending, resizeRequestGeometry, resizeRevision
      >>
   /\ Record("begin-release", attachment)
 
@@ -339,6 +300,8 @@ CommitReleaseBase ==
          remaining == attached \ {attachment}
      IN
        /\ attached' = attached \ {attachment}
+       /\ activityOrder' =
+            SelectSeq(activityOrder, LAMBDA item: item # attachment)
        /\ owner' = IF attachment = owner THEN releaseSuccessor ELSE owner
        /\ desiredOwner' =
             IF remaining = {} THEN NoAttachment
@@ -349,13 +312,11 @@ CommitReleaseBase ==
                       THEN desiredOwner
                       ELSE PreferredEligibleRemaining(remaining)
                  ELSE PreferredEligibleRemaining(remaining)
-       /\ lastPromoted' = IF attachment = owner THEN releaseSuccessor ELSE NoAttachment
   /\ operationKind' = "idle"
   /\ operationAttachment' = NoAttachment
   /\ releaseSuccessor' = NoAttachment
   /\ UNCHANGED <<admissionRank, nextRank, claimRank, nextClaimRank,
-       activityRank, nextActivityRank, activitiesOpen, claimRejected,
-       lastActivity, lastClaimed, canonicalGeometry,
+       activitiesOpen, claimRejected, canonicalGeometry,
        canonicalRevision, observedGeometry, observedRevision,
        resizeObservationPending, resizeRequestGeometry, resizeRevision>>
   /\ Record("commit-release", operationAttachment)
@@ -363,30 +324,26 @@ CommitReleaseBase ==
 RecordActivityBase(attachment) ==
   /\ activitiesOpen
   /\ attachment \in attached
-  /\ nextActivityRank <= MaxRank
-  /\ activityRank' = [activityRank EXCEPT ![attachment] = nextActivityRank]
-  /\ nextActivityRank' = nextActivityRank + 1
+  /\ activityOrder' =
+       SelectSeq(activityOrder, LAMBDA item: item # attachment) \o <<attachment>>
   /\ desiredOwner' = attachment
   /\ claimRejected' = FALSE
-  /\ lastActivity' = attachment
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activitiesOpen, lastClaimed, operationKind,
+       nextClaimRank, activitiesOpen, operationKind,
        operationAttachment, releaseSuccessor, canonicalGeometry,
        canonicalRevision, observedGeometry, observedRevision,
-       resizeObservationPending, resizeRequestGeometry, resizeRevision,
-       lastPromoted>>
+       resizeObservationPending, resizeRequestGeometry, resizeRevision>>
   /\ Record("record-activity", attachment)
 
 QuiesceActivityBase ==
   /\ activitiesOpen
   /\ activitiesOpen' = FALSE
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       claimRejected, lastActivity, lastClaimed, operationKind,
+       nextClaimRank, activityOrder, desiredOwner,
+       claimRejected, operationKind,
        operationAttachment, releaseSuccessor, canonicalGeometry,
        canonicalRevision, observedGeometry, observedRevision,
-       resizeObservationPending, resizeRequestGeometry, resizeRevision,
-       lastPromoted>>
+       resizeObservationPending, resizeRequestGeometry, resizeRevision>>
   /\ Record("quiesce-activity", NoAttachment)
 
 BeginClaimBase ==
@@ -397,11 +354,11 @@ BeginClaimBase ==
   /\ operationKind' = "claim"
   /\ operationAttachment' = desiredOwner
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, claimRejected, lastActivity, lastClaimed,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, claimRejected,
        releaseSuccessor, canonicalGeometry, canonicalRevision,
        observedGeometry, observedRevision, resizeObservationPending,
-       resizeRequestGeometry, resizeRevision, lastPromoted>>
+       resizeRequestGeometry, resizeRevision>>
   /\ Record("begin-claim", desiredOwner)
 
 CommitClaimBase ==
@@ -411,13 +368,11 @@ CommitClaimBase ==
        /\ owner' = attachment
        /\ claimRank' = [claimRank EXCEPT ![attachment] = nextClaimRank]
        /\ nextClaimRank' = nextClaimRank + 1
-       /\ lastClaimed' = attachment
   /\ operationKind' = "idle"
   /\ operationAttachment' = NoAttachment
-  /\ lastPromoted' = NoAttachment
-  /\ UNCHANGED <<attached, admissionRank, nextRank, activityRank,
-       nextActivityRank, desiredOwner, activitiesOpen, claimRejected,
-       lastActivity, releaseSuccessor, canonicalGeometry, canonicalRevision,
+  /\ UNCHANGED <<attached, admissionRank, nextRank, activityOrder,
+       desiredOwner, activitiesOpen, claimRejected,
+       releaseSuccessor, canonicalGeometry, canonicalRevision,
        observedGeometry, observedRevision, resizeObservationPending,
        resizeRequestGeometry, resizeRevision>>
   /\ Record("commit-claim", operationAttachment)
@@ -427,12 +382,12 @@ ClaimCurrentOwnerBase(attachment) ==
   /\ attachment = owner
   /\ attachment \in attached
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, claimRejected, lastActivity, lastClaimed,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, claimRejected,
        operationKind, operationAttachment, releaseSuccessor,
        canonicalGeometry, canonicalRevision, observedGeometry,
        observedRevision, resizeObservationPending, resizeRequestGeometry,
-       resizeRevision, lastPromoted>>
+       resizeRevision>>
   /\ Record("claim-current", attachment)
 
 RejectClaimOverflowBase ==
@@ -442,11 +397,11 @@ RejectClaimOverflowBase ==
   /\ nextClaimRank > MaxRank
   /\ claimRejected' = TRUE
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner, activitiesOpen,
-       lastActivity, lastClaimed, operationKind, operationAttachment,
+       nextClaimRank, activityOrder, desiredOwner, activitiesOpen,
+       operationKind, operationAttachment,
        releaseSuccessor, canonicalGeometry, canonicalRevision,
        observedGeometry, observedRevision, resizeObservationPending,
-       resizeRequestGeometry, resizeRevision, lastPromoted>>
+       resizeRequestGeometry, resizeRevision>>
   /\ Record("reject-claim-overflow", desiredOwner)
 
 AttemptResizeBase(attachment) ==
@@ -465,10 +420,10 @@ AttemptResizeBase(attachment) ==
                  resizeRevision>>
   /\ UNCHANGED <<
        attached, owner, admissionRank, nextRank, claimRank, nextClaimRank,
-       activityRank, nextActivityRank, desiredOwner, activitiesOpen,
-       claimRejected, lastActivity, lastClaimed, operationKind,
+       activityOrder, desiredOwner, activitiesOpen,
+       claimRejected, operationKind,
        operationAttachment, releaseSuccessor, observedGeometry,
-       observedRevision, lastPromoted
+       observedRevision
      >>
   /\ Record("resize", attachment)
 
@@ -479,12 +434,11 @@ AttemptHandoffResizeBase(attachment) ==
        THEN canonicalGeometry' = 1 - canonicalGeometry
        ELSE UNCHANGED canonicalGeometry
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, claimRejected, lastActivity, lastClaimed,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, claimRejected,
        operationKind, operationAttachment, releaseSuccessor,
        canonicalRevision, observedGeometry, observedRevision,
-       resizeObservationPending, resizeRequestGeometry, resizeRevision,
-       lastPromoted>>
+       resizeObservationPending, resizeRequestGeometry, resizeRevision>>
   /\ Record("resize", attachment)
 
 AdvanceRuntimeDuringResizeBase ==
@@ -494,11 +448,11 @@ AdvanceRuntimeDuringResizeBase ==
   /\ canonicalRevision' = canonicalRevision + 1
   /\ canonicalGeometry' \in 0..1
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, claimRejected, lastActivity, lastClaimed, operationKind,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, claimRejected, operationKind,
        operationAttachment, releaseSuccessor, observedGeometry,
        observedRevision, resizeObservationPending, resizeRequestGeometry,
-       resizeRevision, lastPromoted>>
+       resizeRevision>>
   /\ Record("runtime-advance", owner)
 
 SynchronizeResizeObservationBase ==
@@ -508,11 +462,10 @@ SynchronizeResizeObservationBase ==
   /\ observedRevision' = canonicalRevision
   /\ resizeObservationPending' = FALSE
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, claimRejected, lastActivity, lastClaimed, operationKind,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, claimRejected, operationKind,
        operationAttachment, releaseSuccessor, canonicalGeometry,
-       canonicalRevision, resizeRequestGeometry, resizeRevision,
-       lastPromoted>>
+       canonicalRevision, resizeRequestGeometry, resizeRevision>>
   /\ Record("synchronize-resize", owner)
 
 BeginOpen(attachment) ==
@@ -625,12 +578,12 @@ RejectIneligibleActivity(attachment) ==
   /\ attachment \in attached
   /\ ~ClaimEligible(attachment)
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, claimRejected, lastActivity, lastClaimed,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, claimRejected,
        operationKind, operationAttachment, releaseSuccessor,
        canonicalGeometry, canonicalRevision, observedGeometry,
        observedRevision, resizeObservationPending, resizeRequestGeometry,
-       resizeRevision, lastPromoted>>
+       resizeRevision>>
   /\ Record("reject-ineligible-activity", attachment)
   /\ UNCHANGED PolicyVars
   /\ UNCHANGED BrokerVars
@@ -648,12 +601,11 @@ RevokeInput(attachment) ==
   /\ claimRejected' =
        (claimRejected \/ (attachment = desiredOwner /\ attachment # owner))
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank,
-       activitiesOpen, lastActivity, lastClaimed, operationKind,
+       nextClaimRank, activityOrder,
+       activitiesOpen, operationKind,
        operationAttachment, releaseSuccessor, canonicalGeometry,
        canonicalRevision, observedGeometry, observedRevision,
-       resizeObservationPending, resizeRequestGeometry, resizeRevision,
-       lastPromoted>>
+       resizeObservationPending, resizeRequestGeometry, resizeRevision>>
   /\ Record("revoke-input", attachment)
   /\ UNCHANGED <<resizeEligible, terminalRunning, measuredGeometry,
        projectedGeometry, grantSubmissionPending, grantAttachment>>
@@ -668,12 +620,11 @@ StopTerminal ==
   /\ grantSubmissionPending' = FALSE
   /\ grantAttachment' = NoAttachment
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, lastActivity, lastClaimed, operationKind,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, operationKind,
        operationAttachment, releaseSuccessor, canonicalGeometry,
        canonicalRevision, observedGeometry, observedRevision,
-       resizeObservationPending, resizeRequestGeometry, resizeRevision,
-       lastPromoted>>
+       resizeObservationPending, resizeRequestGeometry, resizeRevision>>
   /\ Record("stop-terminal", NoAttachment)
   /\ UNCHANGED <<inputEligible, resizeEligible, measuredGeometry,
        projectedGeometry>>
@@ -687,11 +638,11 @@ RejectInFlightClaim ==
   /\ operationAttachment' = NoAttachment
   /\ claimRejected' = TRUE
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, lastActivity, lastClaimed, releaseSuccessor,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, releaseSuccessor,
        canonicalGeometry, canonicalRevision, observedGeometry,
        observedRevision, resizeObservationPending, resizeRequestGeometry,
-       resizeRevision, lastPromoted>>
+       resizeRevision>>
   /\ Record("reject-in-flight-claim", operationAttachment)
   /\ UNCHANGED PolicyVars
   /\ UNCHANGED BrokerVars
@@ -702,12 +653,12 @@ ObserveCanonical(attachment) ==
   /\ projectedGeometry' =
        [projectedGeometry EXCEPT ![attachment] = canonicalGeometry]
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, claimRejected, lastActivity, lastClaimed,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, claimRejected,
        operationKind, operationAttachment, releaseSuccessor,
        canonicalGeometry, canonicalRevision, observedGeometry,
        observedRevision, resizeObservationPending, resizeRequestGeometry,
-       resizeRevision, lastPromoted>>
+       resizeRevision>>
   /\ Record("observe-canonical", attachment)
   /\ UNCHANGED <<inputEligible, resizeEligible, terminalRunning,
        measuredGeometry, grantSubmissionPending, grantAttachment>>
@@ -722,12 +673,11 @@ SubmitGrantedGeometry ==
   /\ grantSubmissionPending' = FALSE
   /\ grantAttachment' = NoAttachment
   /\ UNCHANGED <<attached, owner, admissionRank, nextRank, claimRank,
-       nextClaimRank, activityRank, nextActivityRank, desiredOwner,
-       activitiesOpen, claimRejected, lastActivity, lastClaimed,
+       nextClaimRank, activityOrder, desiredOwner,
+       activitiesOpen, claimRejected,
        operationKind, operationAttachment, releaseSuccessor,
        canonicalRevision, observedGeometry, observedRevision,
-       resizeObservationPending, resizeRequestGeometry, resizeRevision,
-       lastPromoted>>
+       resizeObservationPending, resizeRequestGeometry, resizeRevision>>
   /\ Record("submit-granted-geometry", grantAttachment)
   /\ UNCHANGED <<inputEligible, resizeEligible, terminalRunning,
        measuredGeometry, projectedGeometry>>
@@ -839,13 +789,12 @@ TypeOK ==
   /\ nextRank \in 1..(Cardinality(Attachments) + 1)
   /\ claimRank \in [Attachments -> 0..MaxRank]
   /\ nextClaimRank \in 1..(MaxRank + 1)
-  /\ activityRank \in [Attachments -> 0..MaxRank]
-  /\ nextActivityRank \in 1..(MaxRank + 1)
+  /\ activityOrder \in Seq(Attachments)
+  /\ Len(activityOrder) = Cardinality(SequenceMembers(activityOrder))
+  /\ SequenceMembers(activityOrder) \subseteq attached
   /\ desiredOwner \in attached \cup {NoAttachment}
   /\ activitiesOpen \in BOOLEAN
   /\ claimRejected \in BOOLEAN
-  /\ lastActivity \in Attachments \cup {NoAttachment}
-  /\ lastClaimed \in Attachments \cup {NoAttachment}
   /\ operationKind \in OperationKinds
   /\ operationAttachment \in Attachments \cup {NoAttachment}
   /\ releaseSuccessor \in Attachments \cup {NoAttachment}
@@ -858,10 +807,6 @@ TypeOK ==
   /\ resizeRevision \in 0..MaxRevision
   /\ lastAction \in Actions
   /\ lastActor \in Attachments \cup {NoAttachment}
-  /\ previousGeometry \in 0..1
-  /\ previousOwner \in Attachments \cup {NoAttachment}
-  /\ previousDesiredOwner \in Attachments \cup {NoAttachment}
-  /\ lastPromoted \in Attachments \cup {NoAttachment}
   /\ inputEligible \in [Attachments -> BOOLEAN]
   /\ resizeEligible \in [Attachments -> BOOLEAN]
   /\ terminalRunning \in BOOLEAN
@@ -878,10 +823,6 @@ TypeOK ==
   /\ brokerLatestGeometry \in 0..1
   /\ brokerCleanupRequested \in BOOLEAN
   /\ brokerLastAction \in Actions
-  /\ brokerPreviousActive \in BOOLEAN
-  /\ brokerPreviousActiveGeometry \in 0..1
-  /\ brokerPreviousPending \in BOOLEAN
-  /\ brokerPreviousPendingGeometry \in 0..1
 
 AdmissionRanksAreUnique ==
   \A left, right \in Attachments:
@@ -910,45 +851,75 @@ ClaimRanksAreUnique ==
     /\ claimRank[left] = claimRank[right]
     => left = right
 
+EligibleActivityRemainsEnabled ==
+  Scenario \in {"handoff", "eligibility", "grant-convergence"} =>
+    \A attachment \in Attachments:
+      /\ activitiesOpen
+      /\ ClaimEligible(attachment)
+      => ENABLED RecordActivity(attachment)
+
 LatestActivityBecomesDesired ==
-  lastAction = "record-activity" => desiredOwner = lastActivity
+  lastAction' = "record-activity" => desiredOwner' = lastActor'
+
+LatestActivityMovesToEnd ==
+  lastAction' = "record-activity" =>
+    /\ Len(activityOrder') > 0
+    /\ activityOrder'[Len(activityOrder')] = lastActor'
 
 RecordedActivityRequiresEligibility ==
-  lastAction = "record-activity" => ClaimEligible(lastActivity)
+  lastAction' = "record-activity" => ClaimEligible(lastActor')
 
 RejectedActivityPreservesDesired ==
-  lastAction = "reject-ineligible-activity" => desiredOwner = previousDesiredOwner
+  lastAction' = "reject-ineligible-activity" => desiredOwner' = desiredOwner
 
 OnlyLifecycleOrClaimChangesOwner ==
-  owner # previousOwner =>
-    lastAction \in {"commit-open", "commit-release", "commit-claim"}
+  owner' # owner =>
+    lastAction' \in {"commit-open", "commit-release", "commit-claim"}
 
 ClaimCommitSelectsTarget ==
-  lastAction = "commit-claim" => owner = lastClaimed
+  lastAction' = "commit-claim" => owner' = lastActor'
 
 ClaimCommitRequiresEligibility ==
-  lastAction = "commit-claim" => ClaimEligible(lastClaimed)
+  lastAction' = "commit-claim" => ClaimEligible(lastActor')
 
 OverflowRejectionPreservesIntent ==
-  lastAction = "reject-claim-overflow" => desiredOwner = lastActor
+  lastAction' = "reject-claim-overflow" => desiredOwner' = lastActor'
 
 InFlightRejectionPreservesIntent ==
-  lastAction = "reject-in-flight-claim" => desiredOwner = previousDesiredOwner
+  lastAction' = "reject-in-flight-claim" => desiredOwner' = desiredOwner
 
 OnlyOwnerChangesCanonicalGeometry ==
-  lastAction = "resize" /\ lastActor # previousOwner =>
-    canonicalGeometry = previousGeometry
+  lastAction' = "resize" /\ lastActor' # owner =>
+    canonicalGeometry' = canonicalGeometry
 
 ReleasePromotesRecordedSuccessor ==
-  lastAction = "commit-release" => owner = lastPromoted \/ owner = previousOwner
+  lastAction' = "commit-release" =>
+    owner' = owner \/ owner' = releaseSuccessor
 
 ReleasePrefersNewestClaim ==
-  /\ lastAction = "commit-release"
-  /\ lastPromoted # NoAttachment
-  => \A other \in attached:
-       \/ claimRank[lastPromoted] > claimRank[other]
-       \/ /\ claimRank[lastPromoted] = claimRank[other]
-          /\ admissionRank[lastPromoted] <= admissionRank[other]
+  /\ lastAction' = "commit-release"
+  /\ lastActor' = owner
+  /\ releaseSuccessor # NoAttachment
+  => \A other \in attached':
+       \/ claimRank'[releaseSuccessor] > claimRank'[other]
+       \/ /\ claimRank'[releaseSuccessor] = claimRank'[other]
+          /\ admissionRank'[releaseSuccessor] <= admissionRank'[other]
+
+LeaseActionStep ==
+  /\ LatestActivityBecomesDesired
+  /\ LatestActivityMovesToEnd
+  /\ RecordedActivityRequiresEligibility
+  /\ RejectedActivityPreservesDesired
+  /\ OnlyLifecycleOrClaimChangesOwner
+  /\ ClaimCommitSelectsTarget
+  /\ ClaimCommitRequiresEligibility
+  /\ OverflowRejectionPreservesIntent
+  /\ InFlightRejectionPreservesIntent
+  /\ OnlyOwnerChangesCanonicalGeometry
+  /\ ReleasePromotesRecordedSuccessor
+  /\ ReleasePrefersNewestClaim
+
+LeaseActionSafety == [] [LeaseActionStep]_vars
 
 OneOperationAtATime ==
   operationKind = "idle" => operationAttachment = NoAttachment
@@ -956,17 +927,17 @@ OneOperationAtATime ==
 ObservedRevisionNeverLeadsRuntime == observedRevision <= canonicalRevision
 
 SynchronizedResizeDoesNotRegress ==
-  lastAction = "synchronize-resize" => observedRevision >= resizeRevision
+  lastAction' = "synchronize-resize" => observedRevision' >= resizeRevision'
 
 ExactResizeObservationMatchesRequest ==
-  /\ lastAction = "synchronize-resize"
-  /\ observedRevision = resizeRevision
-  => observedGeometry = resizeRequestGeometry
+  /\ lastAction' = "synchronize-resize"
+  /\ observedRevision' = resizeRevision'
+  => observedGeometry' = resizeRequestGeometry'
 
 NewestRuntimeObservationWins ==
-  lastAction = "synchronize-resize" =>
-    /\ observedRevision = canonicalRevision
-    /\ observedGeometry = canonicalGeometry
+  lastAction' = "synchronize-resize" =>
+    /\ observedRevision' = canonicalRevision'
+    /\ observedGeometry' = canonicalGeometry'
 
 GrantPendingBelongsToOwner ==
   grantSubmissionPending =>
@@ -974,8 +945,16 @@ GrantPendingBelongsToOwner ==
     /\ grantAttachment \in attached
 
 GrantedSubmissionUsesMeasuredGeometry ==
-  lastAction = "submit-granted-geometry" =>
-    canonicalGeometry = measuredGeometry[lastActor]
+  lastAction' = "submit-granted-geometry" =>
+    canonicalGeometry' = measuredGeometry'[lastActor']
+
+ResizeActionStep ==
+  /\ SynchronizedResizeDoesNotRegress
+  /\ ExactResizeObservationMatchesRequest
+  /\ NewestRuntimeObservationWins
+  /\ GrantedSubmissionUsesMeasuredGeometry
+
+ResizeActionSafety == [] [ResizeActionStep]_vars
 
 BrokerInactiveGeometryIsEmpty ==
   /\ ~brokerResizeActive => brokerActiveGeometry = 0
@@ -992,17 +971,23 @@ BrokerActiveIsNewestWithoutPending ==
   => brokerActiveGeometry = brokerLatestGeometry
 
 BrokerMeasurementDoesNotReplaceActive ==
-  /\ brokerLastAction = "measure-broker-resize"
-  /\ brokerPreviousActive
-  => /\ brokerResizeActive
-     /\ brokerActiveGeometry = brokerPreviousActiveGeometry
+  /\ brokerLastAction' = "measure-broker-resize"
+  /\ brokerResizeActive
+  => /\ brokerResizeActive'
+     /\ brokerActiveGeometry' = brokerActiveGeometry
 
 BrokerSettlementPromotesLatestPending ==
-  /\ brokerLastAction = "settle-broker-resize"
-  /\ brokerPreviousPending
-  => /\ brokerResizeActive
-     /\ brokerActiveGeometry = brokerPreviousPendingGeometry
-     /\ ~brokerResizePending
+  /\ brokerLastAction' = "settle-broker-resize"
+  /\ brokerResizePending
+  => /\ brokerResizeActive'
+     /\ brokerActiveGeometry' = brokerPendingGeometry
+     /\ ~brokerResizePending'
+
+BrokerActionStep ==
+  /\ BrokerMeasurementDoesNotReplaceActive
+  /\ BrokerSettlementPromotesLatestPending
+
+BrokerActionSafety == [] [BrokerActionStep]_vars
 
 BrokerCleanupDropsPending ==
   brokerCleanupRequested =>
@@ -1027,14 +1012,9 @@ QuiescedActivityEventuallySettles ==
            \/ desiredOwner # attachment )
 
 GrantedOwnerEventuallySubmits ==
+  \* Covers every pending grant, including equal measured/projected geometry.
   Scenario = "grant-convergence" =>
     (grantSubmissionPending ~> ~grantSubmissionPending)
-
-EqualProjectedGrantEventuallySubmits ==
-  Scenario = "grant-convergence" =>
-    ( /\ grantSubmissionPending
-      /\ measuredGeometry[grantAttachment] = projectedGeometry[grantAttachment]
-      ~> ~grantSubmissionPending )
 
 BrokerQuiescenceEventuallyDrains ==
   ~brokerMeasurementsOpen ~> (~brokerResizeActive /\ ~brokerResizePending)

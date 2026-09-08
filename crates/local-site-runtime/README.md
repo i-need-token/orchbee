@@ -1,0 +1,172 @@
+# Local Site Runtime
+
+Private Unix native runtime facilities shared by the Client, Server, and Worker. This library
+owns descriptor-relative runtime admission, lock/marker primitives, and immutable development
+cohort verification. Applications own process launch, service state, and terminal authorization.
+
+## Local startup model
+
+Bare Linux `orchbee` admits its inherited input/output TTY and validates its geometry before
+runtime creation or process launch. It opens the per-user scope `orchbee-native-<effective-uid>`
+under `/tmp`; `ORCHBEE_RUNTIME_BASE` can select another existing absolute base for isolated
+development. Runtime directories must be owned by the effective user with mode 0700; lock files
+are regular, single-link, owned files with mode 0600. Existing invalid paths are rejected, never
+repaired, followed through symlinks, unlinked, or replaced.
+
+The managed Linux boundary admits only ext4-family and tmpfs objects. Every opened final directory,
+cohort artifact, marker, and lock must have no access or default POSIX ACL: fd-based filesystem
+inspection and ACL queries reject every result except ENODATA absence. It never strips ACLs.
+Overlayfs, XFS, btrfs, DrvFS, network filesystems, and non-Linux public startup are unclaimed.
+First-creation concurrency assumes an umask that preserves owner bits (for example 0022 or 0077);
+a user-bit-restrictive umask may expose an incomplete directory and fails closed.
+
+The Client owns one absolute 20-second startup deadline, from TTY admission through the first
+validated Host frame applied to its projection. Connect, OBLC, initial OBCS requests, readiness
+polling, and first-frame waiting consume this same budget. A delayed localized progress notice
+appears after 500 ms; normal fast startup is silent. This is a cooperative deadline, excluding
+kernel/filesystem stalls and process suspension. Timeout closes only the Client connection.
+
+| State / observation                                                        | Action and next state                                                                 |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Admitted compatible Client socket                                          | Reuse that exact connection; no process launch                                        |
+| Definite absent/refused socket, activation lock contended                  | Wait and retry connection until the original deadline                                 |
+| Activation lock acquired                                                   | Recheck socket and lifetime before any launch                                         |
+| No marker, no socket residue, lifetime free                                | Client exclusively creates `activation.started`, then spawns Server once              |
+| Marker present, lifetime held                                              | Wait for compatible Server + Worker readiness                                         |
+| Marker present, lifetime free; or no marker with lifetime held             | RecoveryRequired; never launch                                                        |
+| Invalid socket / cohort / permissions, incompatible or ambiguous admission | Explicit failure; no fallback                                                         |
+| Launch failure after marker creation                                       | Retain marker; this and later attempts require explicit recovery                      |
+| Server + Worker ready                                                      | Release activation lock, submit one standalone Open, attach viewer, decide controller |
+| First validated frame applied before deadline                              | Enter TUI with the same inherited TTY and prepared Session                            |
+| Client exit / deadline                                                     | Release Client resources; retain Server, Worker, Host, and terminal                   |
+| Worker / Host loss                                                         | Unavailable or unknown outcome; never respawn, adopt, or replay                       |
+
+`activation.started` is an immutable, empty, regular, single-link, effective-user-owned 0600
+file. The Client is its sole writer, using descriptor-relative O_EXCL, CLOEXEC, and NOFOLLOW.
+It is a launch-attempt commit, not a PID or success report. The activation guard spans that commit,
+spawn, and OBLC readiness. The Server alone holds the lifetime lock, binds the Worker listener,
+starts exactly one cohort Worker, and publishes the Client listener only after Worker registration.
+The Client listener is bound under a private pending name, chmodded, then published with an atomic
+no-replace rename; clients never observe its pre-permission state. Worker spawning follows final
+Worker socket permissions. The Worker waits for its newly spawned Host socket to reach exact 0600
+before the sole handshake attempt; a pre-existing endpoint still fails immediately.
+The Server starts a new session with `setsid`; Client exit does not signal or kill its children.
+Child owners reap exits without killing retained services; no reaper grants restart authority.
+
+The Worker registers without starting a Host. Its authorization kernel admits the first Launch
+and prepares launch facts before spawning one exact cohort Host in a private `host` directory.
+Invalid authorization produces the existing typed result without a Host. The admitted dispatch
+and kernel survive Host startup; the Host handoff revalidates authorization. Preparation or
+startup failure settles a pre-handoff failure when deliverable and retires the Worker. Any
+existing Host endpoint is an explicit recovery failure. No Host reconnect/adoption is allowed.
+
+## Development cohort contract
+
+`cohort.json` is bounded to 16 KiB, strict JSON with `schemaVersion: 1` and exactly four
+`artifacts` fields, in this canonical order: `orchbee`, `orchbee-server`,
+`orchbee-worker`, `orchbee-terminal-host`. Each value is the lowercase 64-character SHA-256
+of the complete executable. The directory is effective-user-owned 0700. Files are regular,
+single-link, owned, and not writable by group/other; executables have an owner execute bit.
+Manifest and executables are opened relative to the verified directory with NOFOLLOW and
+CLOEXEC. Each managed Rust role (Client, Server, Worker) validates all four artifacts, including on warm startup.
+Host consumes the verified sibling executable; it does not implement the manifest reader.
+
+The exact cohort identity is lowercase SHA-256 of UTF-8 `orchbee-native-cohort-v1\n` followed,
+in the above fixed order, by each artifact name, one NUL byte, its hexadecimal hash, and LF.
+JSON key order is immaterial. Sibling paths come only from these fixed names. Missing, changed,
+mixed, malformed, or unsafe artifacts fail admission before activation. Explicit endpoint test
+modes retain their existing version cohort and do not acquire managed startup authority.
+
+The staging script builds and copies all four executables into a new private directory and writes
+the manifest last. This is unsigned, per-user development staging: release signing, installers,
+same-user malicious mutation, and verification-to-exec races are excluded. The manifest establishes
+a coherent exact artifact set, not publisher authenticity.
+
+## Correctness case
+
+| Claim                                                                 | Owner / refinement                                                  | Evidence                                                            |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| LS01 at most one launch attempt per runtime lifetime                  | Exclusive activation marker; Client under activation guard          | LocalSiteStartup model; contention and failed-marker process traces |
+| LS02 no implicit recovery or Client-owned termination                 | Persistent marker, Server lifetime guard, dropped Client connection | Model losses/timeouts; disconnect/reopen real process trace         |
+| LS03 no Host before authorized Launch; one retained dispatch          | Worker authorization kernel and lazy startup adapter                | Model authorization; Worker invalid/valid Launch process tests      |
+| LS04 coherent roles and private rendezvous before effects             | NativeCohort and ModeCheckedLocalSiteRendezvous                     | Manifest corruption, mode, symlink, and existing lock tests         |
+| LS05 startup readiness includes a valid first frame within one budget | Client deadline, TerminalSession projection, same TTY handoff       | Admission/submission deadline tests and bare TTY process tests      |
+
+`formal/tla/LocalSiteStartup.tla` bounds two Clients, one Server launch attempt, and one Host
+attempt. It abstracts filesystem checks as admitted facts, abstracts deadline observation as an expiry event, and
+checks safety without scheduler fairness. Per-Client timeout fairness supports bounded-attempt
+termination only, not service availability. Real kernel locks, peers, hashing, PTYs, and
+cancellation are exercised by Linux tests. Remote, Workbench membership, daemon restart,
+automatic cleanup/recovery, persistence across Server loss, and non-Linux public startup are
+outside this contract.
+
+## POSIX local Site rendezvous foundation
+
+The crate-private `rendezvous` module exposes mode-checked Unix rendezvous primitives to the
+Client, Server, and Worker. Installation composition
+must supply a stable `SiteScope`; cohort version and digest do not belong in that scope, so an
+update keeps one Site identity while release, local, and checkout-scoped development installations
+can remain distinct. `SiteScope` accepts 1 through 63 ASCII bytes in the canonical form
+`[a-z][a-z0-9]*(?:-[a-z0-9]+)*` and therefore cannot add a path separator, dot component, or
+platform-dependent encoding.
+
+For one trusted, existing, exactly normalized absolute per-user runtime base, the exact derived
+paths are:
+
+| Role               | Stable path                                      |
+| ------------------ | ------------------------------------------------ |
+| Scope directory    | `<runtime-base>/<site-scope>`                    |
+| Activation lock    | `<runtime-base>/<site-scope>/activation.lock`    |
+| Site lifetime lock | `<runtime-base>/<site-scope>/site-lifetime.lock` |
+| Client socket      | `<runtime-base>/<site-scope>/client.sock`        |
+| Worker socket      | `<runtime-base>/<site-scope>/worker.sock`        |
+
+`ModeCheckedLocalSiteRendezvous` retains its mode-checked name for other Unix targets. Preparation
+creates only the scope directory when absent. Preparation and validation open `/` as the trusted
+root, then open every runtime-base component and the controlled scope descriptor-relatively with
+`O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC`. They neither canonicalize nor ask the operating system to
+normalize the supplied base. Apart from `/` itself, an accepted base has exactly one leading slash,
+one or more nonempty normal components separated by single slashes, no trailing slash, no `.` or
+`..` component, and no NUL byte. A malformed base is rejected before filesystem access beyond the
+trusted root; a symbolic-link or non-directory component is rejected at that component. The
+retained scope must be a directory owned by the effective UID with exact mode `0700`. A new scope
+is inspected without following its leaf, checked for directory type and effective-UID ownership,
+changed descriptor-relatively to `0700` before a permissions-dependent open, and then admitted only
+when the opened descriptor has the same device and inode. This reaches exact `0700` even when the
+process umask removes every requested permission, without changing the process umask. An existing
+wrong mode is rejected without repair.
+
+Each lock operation opens or creates only its fixed leaf through the retained directory descriptor
+with `O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC`. The leaf must be a regular file owned by the effective
+UID with exact mode `0600` and exactly one hard link. An existing valid stale file is reused without
+truncation or replacement. `try_acquire_activation_lock` and `try_acquire_site_lifetime_lock` each perform one
+nonblocking exclusive kernel lock attempt and return either an owned guard or `Contended`; they do
+not wait, retry, or infer process health. File creation and advisory-lock acquisition are separate:
+a caller returning `Contended` may have created and normalized a previously missing durable lock
+inode before another descriptor won the lock. A contended attempt never truncates, replaces,
+unlinks, or changes the ownership of an existing inode, and never repairs a pre-existing invalid
+entry. Dropping a guard releases only its advisory lock. The runtime directory, durable lock files,
+socket paths, and any entries at those paths are never removed by this module.
+
+The primitive remains mode-checked on other Unix systems. Linux adds the restricted-filesystem
+and ACL-absence boundary above before directory, lock, marker, or cohort admission; socket metadata
+and same-user peer proof are enforced by its managed consumers. Client, Server, and Worker now
+share this crate, and Server owns the lifetime guard. The primitive does not itself select
+application startup policy, retry, remove stale endpoints, or grant recovery authority.
+
+### Modeling and evidence
+
+| Field        | Rendezvous primitive contract                                                                                                                                                                                                                                                                                                                         |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | Provide shared path, permission, lock and attempt-marker admission; applications own launch, readiness and recovery policy.                                                                                                                                                                                                                           |
+| Inputs       | A trusted existing exactly normalized absolute base, canonical scope, effective UID, and potentially invalid directory, lock, marker or socket entries.                                                                                                                                                                                               |
+| Data         | Stable paths, retained scope descriptor, owned advisory-lock guards, and an immutable empty attempt marker. No PID or process-health inference.                                                                                                                                                                                                       |
+| Outputs      | Validated rendezvous or typed failure; Acquired/Contended lock outcome; marker and socket existence with metadata validation. Path getters perform no I/O.                                                                                                                                                                                            |
+| Invariants   | Descriptor-relative no-follow traversal; exact final type, owner, mode and regular-file link count; new directory identity matches its inspected inode. Linux final objects pass the restricted-filesystem and ACL-absence checks. Existing invalid entries are never repaired or removed. Guard drop only releases its lock.                         |
+| Decisions    | Normalized path and scope syntax, create-versus-existing metadata, lock kind, one nonblocking lock outcome, and exclusive marker creation determine results.                                                                                                                                                                                          |
+| Model        | Atomic POSIX primitives without application retry or process observation. LocalSiteStartup composes these facts with Client/Server/Worker state; LocalSiteActivation retains the earlier abstract connect-first model.                                                                                                                                |
+| Transitions  | Missing scope/lock becomes a validated durable inode. Lock creation and lock acquisition may have different winners. Guard acquisition/drop changes only lock ownership. An absent marker can be committed once and is never cleared.                                                                                                                 |
+| Dependencies | Safe nix/rustix filesystem wrappers and File::try_lock; Linux fd-based filesystem and ACL queries. No child-process or service dependency in rendezvous.                                                                                                                                                                                              |
+| Ownership    | This crate owns derivation and admission. Client chooses the development base/scope and owns the activation guard and marker commit; Server owns the lifetime guard.                                                                                                                                                                                  |
+| Verification | Scope/path partitions, symlink/hardlink/FIFO rejection, wrong owner/mode, restrictive-umask initialization, concurrent owner-preserving creation, stale inode preservation, contention/reacquisition, marker exclusivity and socket impostors. Linux ACL tests retain exact 0700/0600 modes while adding named access ACLs or directory default ACLs. |
+| Limits       | One effective user; wrong-owner tests inject the expected UID. Kernel metadata and advisory locks are trusted. Concurrent creation requires owner-preserving umask. Durable means no unlink/truncate, not fsync. Cooperative deadlines exclude kernel stalls and process suspension. The model does not prove filesystem or kernel semantics.         |

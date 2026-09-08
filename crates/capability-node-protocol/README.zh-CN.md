@@ -11,6 +11,83 @@ public API 或 compatibility promise。
 [README.md](README.md)。
 如有冲突，以英文为准。
 
+## 本地 Close 生命周期步骤
+
+[规范终端 Tab Close](../../apps/orchbee-server/docs/terminal-tab-close.zh-CN.md) 拥有已接受的
+Server 继续执行及精确 Worker/Host 清理契约。其 OBCN 扩展是窄范围获授权生命周期步骤，
+携带产品绑定、Worker 代次、完整 Host 身份及操作/步骤关联。每步至多准入一个既有 Host 请求；
+仅有 Viewer/controller 授权绝不允许终止。保留效果或发布 Disposed 前必须验证含目标的 Host
+确认及完整 OBCN 结果关联。
+
+Worker 保留精确生命周期观察，在返回 Disposed 前仅清理已销毁目标的 viewer/controller 及
+排队 feedback/frame 条目。Server 保留精确目标撤销并清除匹配预留；确认丢失时，由已观察的
+所有者保留已知/未知事实。新的 Control Acquire 与 Attach/Input/Resize/Start 一起受到栅栏
+保护。Close 保留既有 1s Host exchange、2s Server 帧 I/O 及单独 20s 响应等待；Server 的
+30s 尝试预算仅控制下一步准入，不能丢弃未结回执。
+
+生命周期编解码器及 Server carrier 关联实现以下有界表示。Worker 执行及 Server 继续执行
+仍待实现；编解码器不实现重放、准入、清理或完整库存遍历。协议、Server、Worker 及原生
+Close 共同激活。旧私有 cohort 拒绝新增 tag；不定义混合 cohort 回退。
+
+kind 9 `TerminalLifecycleRequest` 和 kind 10 `TerminalLifecycleResult` 保持帧版本 1 及
+8 KiB payload 上限。整数均为无符号大端，ID 均为非零 16 字节值。请求 kind 后依次为：
+生命周期能力版本（`u16`，当前为 1）、产品 Terminal ID（16）、Worker ID（16）、Worker
+代次（正 `u64`）、保留绑定 fence（正 `u64`）、新 lease ID（16）、lease Unix 毫秒到期值
+（正 `u64`）、Close 操作 ID（16）、步骤请求 ID（16）、尝试代次（正 `u64`）、步骤序号
+（`u8`，1 至 32）、Host creation/epoch/terminal ID（各 16）及 action（`u8`）。生命周期
+能力独立于 launch 能力版本 2。fence 精确引用当前保留的 Launch/Start 绑定，不替换它。
+新生命周期 lease 独立于原 launch lease，不包含 Viewer/controller 授权。已认证 Server
+签发新的步骤请求 ID；仅编解码校验不能证明授权或重放安全。
+
+action tag 1 至 4 为 Terminate、Force、Dispose 和 InventoryPage。InventoryPage 添加
+cursor 选项 tag（`0` 无，`1` 有）；有 cursor 时添加正库存代次及 offset（各 `u64`）。
+每次 Host 查询固定请求最多 128 个终端。结果回显完整请求体，再添加 outcome tag：
+1 TerminateAccepted、2 ForceAccepted、3 Disposed、4 InventoryPage、5 Rejected、
+6 HostFailure、7 InventoryFailure、8 OutcomeUnknown 或 9 HostUnavailableBeforeHandoff
+（无额外 payload）。构造器及解码拒绝 action/outcome
+矛盾。Host 成功校验 ACK 的实际终端 ID 及 envelope 的 role、kind、epoch 和 correlation；
+保留的完整请求 seal 提供 Host ACK 未回显的产品、creation、Worker 和尝试身份。
+
+InventoryPage 添加正库存代次、可选 next cursor、返回行数（`u16`，0 至 128）及目标
+选项（`0` NoMatch，`1` Match）。Match 添加 revision（`u64`）和 phase：1 AwaitingStart、
+2 Running、3 Finishing、4 ContainingFailure、5 Exited、6 Failed。Running、Finishing 和
+Exited 添加精确 `terminateRequested` 布尔值（`0` 或 `1`）；其他 phase 不携带此字段。
+Match 要求返回行数为正。行数涵盖所有扫描的 Host 摘要，而非匹配数。成功页代次必须匹配
+请求中提供的 cursor；next cursor 须保持同一代次，按返回行数精确前进且不溢出。NoMatch
+仅表示本页未匹配，绝不表示不存在。Worker 校验完整 Host 页，发现重复或矛盾的 terminal ID
+或 creation ID 匹配时加以隔离，再投影精确目标。Server 拥有跨页一致性、重复匹配、完整耗尽、
+不存在判断及继续执行。Finishing 和 ContainingFailure 不是已结算结果。此固定大小投影
+不携带原始 Host 库存、theme、配置或无关身份。
+
+Rejected 添加 reason tag 1 至 8：WrongWorker、StaleWorkerGeneration、UnsupportedCapability、
+LeaseExpired、BindingUnavailable、BindingFenceMismatch、HostIdentityMismatch、LifecycleConflict。
+这些是交接前拒绝。LifecycleConflict 保守涵盖不同 Close 所有者、旧步骤及冲突步骤；它
+绝不授权重放结果不明的变更。HostFailure 的 reason tag 1 和 2 为 HostRefused 和
+CleanupIncomplete；后者仅允许用于 Dispose。关联的 Host 类型化失败是已知观察，不证明
+没有效果。InventoryFailure 仅允许用于 InventoryPage，添加 tag 1 至 4：StaleCursor、
+PageRejected、InvalidPage、IdentityConflict。前两者分类关联的 Host 失败，后两者分类
+矛盾页观察。OutcomeUnknown 添加 tag 1 至 3：TransportLost、Deadline、InvalidResponse。
+查询未知结果在 Server 工作流映射为 inventory-incomplete；变更未知结果保留受影响的
+生命周期 phase。不序列化任意错误文本。
+
+HostUnavailableBeforeHandoff 可用于每个 action，表示已知未发送任何生命周期 Host 请求。
+它不会撤销已准入的 Server 到 Worker 步骤及其继续执行计数。Worker 仅在首次可能的
+生命周期 Host 写入前发出此结果，包括 `HostExchange::prepare` 期间失败；后续写入边界
+由 `round_trip` 拥有。Server 将此已知不可用映射为 CleanupBlocked(worker-unavailable)，
+绝不映射为 HostFailure 或 OutcomeUnknown。
+
+生命周期请求最多 182 payload 字节，结果最多 221（含帧分别为 190 和 229 字节）。手工
+推导的 golden 字节、所有 outcome/reason 往返、严格前缀及畸形边界、action/page 矛盾、
+精确最大长度及 Server 关联字段变异测试验证此表示。它们不证明新鲜性、Host 执行、缓存
+清理、耗时预算、重放策略或异步进展；这些义务仍属于 Close 模型及运行时细化。回滚共同
+替换私有 cohort，不迁移持久数据。
+
+Launch 拒绝 tag 9 和 Start 拒绝 tag 10 添加 `LifecycleActive`。精确原始缓存 Launch/Start
+重放仍可读取；不同操作（包括更高 fence）不能替换 Close 拥有的绑定。该拒绝不是旧 fence
+或 Host 失败观察。Server 将其映射到既有 terminal-runtime-unavailable 结果。生命周期
+变更 Unknown 在跨尝试间保持；新 lease 或更高尝试代次都不授权再次变更。库存表示本身
+不创建针对 Unknown 的 Server 对账或 Resume 路径。
+
 ## Framing 与 message
 
 一条 canonical frame 包含固定 `OBCN` magic、unsigned big-endian frame version、unsigned

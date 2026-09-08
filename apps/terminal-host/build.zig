@@ -52,7 +52,16 @@ pub fn build(builder: *std.Build) void {
         );
     }
 
-    const target = builder.standardTargetOptions(.{});
+    var target = builder.standardTargetOptions(.{});
+    // Zig's bundled MSVC headers fail to compile the Wuffs and Ghostty C/C++
+    // sources on some Windows SDK configurations, and Zig links with its own
+    // lld anyway, so fall back to the GNU ABI unless one was requested
+    // explicitly.
+    if (target.result.os.tag == .windows and target.query.abi == null) {
+        var query = target.query;
+        query.abi = .gnu;
+        target = builder.resolveTargetQuery(query);
+    }
     const optimize = builder.standardOptimizeOption(.{});
     const strip = builder.option(
         bool,
@@ -172,8 +181,13 @@ pub fn build(builder: *std.Build) void {
         // ABI-compatible minimal stdlib/string headers specifically safe on
         // every target, so put those ahead of the system headers without
         // patching the pinned dependency.
-        const wuffs_c_module = wuffs_module.import_table.get("wuffs_c") orelse
-            @panic("Ghostty Wuffs module no longer exports wuffs_c");
+        const wuffs_c_module = wuffs_module.import_table.get("wuffs_c") orelse {
+            // First configure pass: translate_c is a nested lazy dependency
+            // that has not been fetched yet, so Wuffs cannot register wuffs_c.
+            // Returning now lets the build runner fetch it and re-run the
+            // configure phase, where wuffs_c will be present.
+            return;
+        };
         wuffs_c_module.addIncludePath(wuffs.path("include"));
         const wuffs_c_root = wuffs_c_module.root_source_file orelse
             @panic("Ghostty Wuffs C module has no generated root");
@@ -221,6 +235,7 @@ pub fn build(builder: *std.Build) void {
     terminal_host_module.addImport("terminal-host-service", service_module);
     terminal_host_module.addImport("terminal-host-transport", transport_module);
     executable_module.addImport("terminal-host", terminal_host_module);
+    executable_module.addImport("terminal-host-platform", platform_module);
     black_box_test_module.addImport("terminal-protocol", protocol_module);
     black_box_test_module.addImport("terminal-host-platform", platform_module);
     const benchmark_module = builder.createModule(.{
@@ -342,6 +357,9 @@ pub fn build(builder: *std.Build) void {
                         "lib",
                     }) });
                 } else {
+                    platform_module.addLibraryPath(
+                        builder.path("src/platform/darwin-cross-libraries"),
+                    );
                     pty_c.addAfterIncludePath(
                         builder.path("src/platform/darwin-cross-headers"),
                     );

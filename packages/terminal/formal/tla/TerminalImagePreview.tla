@@ -18,6 +18,7 @@ Actions == {
   "complete-current",
   "fail-current",
   "complete-stale",
+  "repeat-completion",
   "leave-hover",
   "retire-hover",
   "revoke-capability",
@@ -35,6 +36,8 @@ VARIABLES
   inFlight,
   requestTarget,
   requestHoverEpoch,
+  admittedRequests,
+  publicationByRequest,
   visibleTarget,
   visibleRequest,
   admissions,
@@ -49,11 +52,14 @@ VARIABLES
   priorInFlight,
   priorRequestTarget,
   priorRequestHoverEpoch,
+  priorAdmittedRequests,
+  priorPublicationByRequest,
   priorVisibleTarget,
   priorVisibleRequest,
   priorAdmissions,
   priorPublicationCount,
-  lastAction
+  lastAction,
+  lastTarget
 
 vars == <<
   active,
@@ -66,6 +72,8 @@ vars == <<
   inFlight,
   requestTarget,
   requestHoverEpoch,
+  admittedRequests,
+  publicationByRequest,
   visibleTarget,
   visibleRequest,
   admissions,
@@ -80,15 +88,19 @@ vars == <<
   priorInFlight,
   priorRequestTarget,
   priorRequestHoverEpoch,
+  priorAdmittedRequests,
+  priorPublicationByRequest,
   priorVisibleTarget,
   priorVisibleRequest,
   priorAdmissions,
   priorPublicationCount,
-  lastAction
+  lastAction,
+  lastTarget
 >>
 
 EmptyRequestTarget == [request \in Requests |-> NoTarget]
 EmptyRequestEpoch == [request \in Requests |-> 0]
+EmptyPublicationCount == [request \in Requests |-> 0]
 
 Init ==
   /\ active = TRUE
@@ -101,6 +113,8 @@ Init ==
   /\ inFlight = {}
   /\ requestTarget = EmptyRequestTarget
   /\ requestHoverEpoch = EmptyRequestEpoch
+  /\ admittedRequests = {}
+  /\ publicationByRequest = EmptyPublicationCount
   /\ visibleTarget = NoTarget
   /\ visibleRequest = NoRequest
   /\ admissions = 0
@@ -115,13 +129,16 @@ Init ==
   /\ priorInFlight = {}
   /\ priorRequestTarget = EmptyRequestTarget
   /\ priorRequestHoverEpoch = EmptyRequestEpoch
+  /\ priorAdmittedRequests = {}
+  /\ priorPublicationByRequest = EmptyPublicationCount
   /\ priorVisibleTarget = NoTarget
   /\ priorVisibleRequest = NoRequest
   /\ priorAdmissions = 0
   /\ priorPublicationCount = 0
   /\ lastAction = "init"
+  /\ lastTarget = NoRequest
 
-Record(action) ==
+Record(action, target) ==
   /\ priorActive' = active
   /\ priorCapability' = capability
   /\ priorPhase' = phase
@@ -132,11 +149,14 @@ Record(action) ==
   /\ priorInFlight' = inFlight
   /\ priorRequestTarget' = requestTarget
   /\ priorRequestHoverEpoch' = requestHoverEpoch
+  /\ priorAdmittedRequests' = admittedRequests
+  /\ priorPublicationByRequest' = publicationByRequest
   /\ priorVisibleTarget' = visibleTarget
   /\ priorVisibleRequest' = visibleRequest
   /\ priorAdmissions' = admissions
   /\ priorPublicationCount' = publicationCount
   /\ lastAction' = action
+  /\ lastTarget' = target
 
 ObserveIneligibleHover ==
   /\ active
@@ -145,9 +165,10 @@ ObserveIneligibleHover ==
   /\ UNCHANGED <<
        active, capability, phase, hoverTarget, hoverEpoch, requestCounter,
        currentRequest, inFlight, requestTarget, requestHoverEpoch,
+       admittedRequests, publicationByRequest,
        visibleTarget, visibleRequest, admissions, publicationCount
      >>
-  /\ Record("observe-ineligible-hover")
+  /\ Record("observe-ineligible-hover", NoRequest)
 
 StartHover ==
   /\ active
@@ -163,9 +184,10 @@ StartHover ==
   /\ visibleRequest' = NoRequest
   /\ UNCHANGED <<
        active, capability, requestCounter, inFlight, requestTarget,
-       requestHoverEpoch, admissions, publicationCount
+       requestHoverEpoch, admittedRequests, publicationByRequest, admissions,
+       publicationCount
      >>
-  /\ Record("start-hover")
+  /\ Record("start-hover", NoRequest)
 
 ReplaceHover ==
   /\ active
@@ -182,9 +204,10 @@ ReplaceHover ==
   /\ visibleRequest' = NoRequest
   /\ UNCHANGED <<
        active, capability, requestCounter, inFlight, requestTarget,
-       requestHoverEpoch, admissions, publicationCount
+       requestHoverEpoch, admittedRequests, publicationByRequest, admissions,
+       publicationCount
      >>
-  /\ Record("replace-hover")
+  /\ Record("replace-hover", NoRequest)
 
 DwellElapsed ==
   /\ active
@@ -199,12 +222,13 @@ DwellElapsed ==
        /\ inFlight' = inFlight \cup {request}
        /\ requestTarget' = [requestTarget EXCEPT ![request] = hoverTarget]
        /\ requestHoverEpoch' = [requestHoverEpoch EXCEPT ![request] = hoverEpoch]
+       /\ admittedRequests' = admittedRequests \cup {request}
   /\ admissions' = admissions + 1
   /\ UNCHANGED <<
        active, capability, hoverTarget, hoverEpoch, visibleTarget,
-       visibleRequest, publicationCount
+       visibleRequest, publicationByRequest, publicationCount
      >>
-  /\ Record("dwell-elapsed")
+  /\ Record("dwell-elapsed", requestCounter + 1)
 
 CurrentRequestHasAuthority ==
   /\ active
@@ -216,17 +240,20 @@ CurrentRequestHasAuthority ==
 
 CompleteCurrent ==
   /\ CurrentRequestHasAuthority
+  /\ publicationByRequest[currentRequest] = 0
   /\ phase' = "visible"
   /\ inFlight' = inFlight \ {currentRequest}
   /\ visibleTarget' = hoverTarget
   /\ visibleRequest' = currentRequest
   /\ currentRequest' = NoRequest
   /\ publicationCount' = publicationCount + 1
+  /\ publicationByRequest' =
+       [publicationByRequest EXCEPT ![currentRequest] = @ + 1]
   /\ UNCHANGED <<
        active, capability, hoverTarget, hoverEpoch, requestCounter,
-       requestTarget, requestHoverEpoch, admissions
+       requestTarget, requestHoverEpoch, admittedRequests, admissions
      >>
-  /\ Record("complete-current")
+  /\ Record("complete-current", currentRequest)
 
 FailCurrent ==
   /\ CurrentRequestHasAuthority
@@ -237,27 +264,40 @@ FailCurrent ==
   /\ visibleRequest' = NoRequest
   /\ UNCHANGED <<
        active, capability, hoverTarget, hoverEpoch, requestCounter,
-       requestTarget, requestHoverEpoch, admissions, publicationCount
+       requestTarget, requestHoverEpoch, admittedRequests,
+       publicationByRequest, admissions, publicationCount
      >>
-  /\ Record("fail-current")
+  /\ Record("fail-current", currentRequest)
 
-CompleteStale ==
-  /\ \E request \in inFlight:
-       /\ \/ request # currentRequest
-          \/ ~active
-          \/ ~capability
-          \/ phase # "loading"
-          \/ requestTarget[request] # hoverTarget
-          \/ requestHoverEpoch[request] # hoverEpoch
-       /\ inFlight' = inFlight \ {request}
+CompleteStale(request) ==
+  /\ request \in inFlight
+  /\ \/ request # currentRequest
+     \/ ~active
+     \/ ~capability
+     \/ phase # "loading"
+     \/ requestTarget[request] # hoverTarget
+     \/ requestHoverEpoch[request] # hoverEpoch
+  /\ inFlight' = inFlight \ {request}
   /\ UNCHANGED <<
        active, capability, phase, hoverTarget, hoverEpoch, requestCounter,
        currentRequest, requestTarget, requestHoverEpoch, visibleTarget,
-       visibleRequest, admissions, publicationCount
+       visibleRequest, admittedRequests, publicationByRequest, admissions,
+       publicationCount
      >>
-  /\ Record("complete-stale")
+  /\ Record("complete-stale", request)
 
-ClearHover(action) ==
+RepeatCompletion(request) ==
+  /\ request \in admittedRequests
+  /\ request \notin inFlight
+  /\ UNCHANGED <<
+       active, capability, phase, hoverTarget, hoverEpoch, requestCounter,
+       currentRequest, inFlight, requestTarget, requestHoverEpoch,
+       admittedRequests, publicationByRequest, visibleTarget, visibleRequest,
+       admissions, publicationCount
+     >>
+  /\ Record("repeat-completion", request)
+
+LeaveHover ==
   /\ active
   /\ phase # "idle"
   /\ hoverEpoch < MaxRequests + 2
@@ -269,20 +309,27 @@ ClearHover(action) ==
   /\ visibleRequest' = NoRequest
   /\ UNCHANGED <<
        active, capability, requestCounter, inFlight, requestTarget,
-       requestHoverEpoch, admissions, publicationCount
+       requestHoverEpoch, admittedRequests, publicationByRequest, admissions,
+       publicationCount
      >>
-  /\ Record(action)
+  /\ Record("leave-hover", NoRequest)
 
-LeaveHover == ClearHover("leave-hover")
-RetireHover == ClearHover("retire-hover")
-
-CoverageLeaveHover ==
-  /\ lastAction = "leave-hover"
-  /\ UNCHANGED vars
-
-CoverageRetireHover ==
-  /\ lastAction = "retire-hover"
-  /\ UNCHANGED vars
+RetireHover ==
+  /\ active
+  /\ phase # "idle"
+  /\ hoverEpoch < MaxRequests + 2
+  /\ phase' = "idle"
+  /\ hoverTarget' = NoTarget
+  /\ hoverEpoch' = hoverEpoch + 1
+  /\ currentRequest' = NoRequest
+  /\ visibleTarget' = NoTarget
+  /\ visibleRequest' = NoRequest
+  /\ UNCHANGED <<
+       active, capability, requestCounter, inFlight, requestTarget,
+       requestHoverEpoch, admittedRequests, publicationByRequest, admissions,
+       publicationCount
+     >>
+  /\ Record("retire-hover", NoRequest)
 
 RevokeCapability ==
   /\ active
@@ -296,9 +343,9 @@ RevokeCapability ==
   /\ visibleRequest' = NoRequest
   /\ UNCHANGED <<
        active, requestCounter, inFlight, requestTarget, requestHoverEpoch,
-       admissions, publicationCount
+       admittedRequests, publicationByRequest, admissions, publicationCount
      >>
-  /\ Record("revoke-capability")
+  /\ Record("revoke-capability", NoRequest)
 
 Dispose ==
   /\ active
@@ -311,9 +358,10 @@ Dispose ==
   /\ visibleRequest' = NoRequest
   /\ UNCHANGED <<
        capability, requestCounter, inFlight, requestTarget,
-       requestHoverEpoch, admissions, publicationCount
+       requestHoverEpoch, admittedRequests, publicationByRequest, admissions,
+       publicationCount
      >>
-  /\ Record("dispose")
+  /\ Record("dispose", NoRequest)
 
 Next ==
   \/ ObserveIneligibleHover
@@ -322,11 +370,10 @@ Next ==
   \/ DwellElapsed
   \/ CompleteCurrent
   \/ FailCurrent
-  \/ CompleteStale
+  \/ \E request \in Requests: CompleteStale(request)
+  \/ \E request \in Requests: RepeatCompletion(request)
   \/ LeaveHover
   \/ RetireHover
-  \/ CoverageLeaveHover
-  \/ CoverageRetireHover
   \/ RevokeCapability
   \/ Dispose
 
@@ -343,6 +390,8 @@ TypeOK ==
   /\ inFlight \subseteq Requests
   /\ requestTarget \in [Requests -> {NoTarget} \cup Targets]
   /\ requestHoverEpoch \in [Requests -> 0..(MaxRequests + 2)]
+  /\ admittedRequests \subseteq Requests
+  /\ publicationByRequest \in [Requests -> 0..2]
   /\ visibleTarget \in {NoTarget} \cup Targets
   /\ visibleRequest \in {NoRequest} \cup Requests
   /\ admissions \in 0..MaxRequests
@@ -357,11 +406,14 @@ TypeOK ==
   /\ priorInFlight \subseteq Requests
   /\ priorRequestTarget \in [Requests -> {NoTarget} \cup Targets]
   /\ priorRequestHoverEpoch \in [Requests -> 0..(MaxRequests + 2)]
+  /\ priorAdmittedRequests \subseteq Requests
+  /\ priorPublicationByRequest \in [Requests -> 0..2]
   /\ priorVisibleTarget \in {NoTarget} \cup Targets
   /\ priorVisibleRequest \in {NoRequest} \cup Requests
   /\ priorAdmissions \in 0..MaxRequests
   /\ priorPublicationCount \in 0..MaxRequests
   /\ lastAction \in Actions
+  /\ lastTarget \in {NoRequest} \cup Requests
 
 CurrentRequestIsLatest ==
   currentRequest # NoRequest =>
@@ -389,9 +441,13 @@ NoPresentationWithoutCapability ==
     /\ visibleRequest = NoRequest
 
 PublicationChangesOnlyOnCurrentCompletion ==
-  publicationCount # priorPublicationCount =>
+  (publicationCount # priorPublicationCount \/
+      publicationByRequest # priorPublicationByRequest) =>
     /\ lastAction = "complete-current"
     /\ publicationCount = priorPublicationCount + 1
+    /\ lastTarget \in priorAdmittedRequests
+    /\ publicationByRequest =
+         [priorPublicationByRequest EXCEPT ![lastTarget] = @ + 1]
 
 PublicationRequiresCurrentAuthority ==
   lastAction = "complete-current" =>
@@ -413,6 +469,19 @@ StaleCompletionCannotPublish ==
     /\ visibleTarget = priorVisibleTarget
     /\ visibleRequest = priorVisibleRequest
     /\ publicationCount = priorPublicationCount
+    /\ publicationByRequest = priorPublicationByRequest
+
+RepeatedCompletionCannotPublish ==
+  lastAction = "repeat-completion" =>
+    /\ lastTarget \in priorAdmittedRequests
+    /\ phase = priorPhase
+    /\ hoverTarget = priorHoverTarget
+    /\ hoverEpoch = priorHoverEpoch
+    /\ currentRequest = priorCurrentRequest
+    /\ visibleTarget = priorVisibleTarget
+    /\ visibleRequest = priorVisibleRequest
+    /\ publicationCount = priorPublicationCount
+    /\ publicationByRequest = priorPublicationByRequest
 
 RetirementClearsPresentation ==
   lastAction \in {"leave-hover", "retire-hover", "revoke-capability", "dispose"} =>
@@ -420,6 +489,14 @@ RetirementClearsPresentation ==
     /\ visibleTarget = NoTarget
     /\ visibleRequest = NoRequest
 
-AtMostOnePublicationPerAdmission == publicationCount <= admissions
+AdmissionIdentityAccounting ==
+  /\ admissions = Cardinality(admittedRequests)
+  /\ publicationCount =
+       Cardinality({request \in Requests: publicationByRequest[request] > 0})
+
+AtMostOnePublicationPerRequest ==
+  \A request \in Requests:
+    /\ publicationByRequest[request] <= 1
+    /\ publicationByRequest[request] > 0 => request \in admittedRequests
 
 =============================================================================

@@ -160,6 +160,15 @@ fn lost_worker_after_delivery_returns_unknown_and_never_retargets_create_referen
 #[test]
 fn real_clients_server_worker_host_start_view_and_disconnect_retain_one_running_terminal()
 -> TestResult {
+    run_real_terminal_vertical(false)
+}
+
+#[test]
+fn real_standalone_opens_share_and_reopen_one_retained_shell() -> TestResult {
+    run_real_terminal_vertical(true)
+}
+
+fn run_real_terminal_vertical(standalone: bool) -> TestResult {
     let server = RunningServer::start()?;
     let host_directory = HostDirectory::new()?;
     let runtime = host_directory.0.as_path();
@@ -208,19 +217,49 @@ fn real_clients_server_worker_host_start_view_and_disconnect_retain_one_running_
             .args(["--terminal-host-endpoint-id", endpoint_id]),
         true,
     )?;
-    let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
-    assert!(
-        matches!(exchange(&mut first,&create(1)?)?,ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::Accepted {state:CreateAcceptedState::AwaitingStart})
-    );
-    drop(first);
-    let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
-    assert!(
-        matches!(exchange(&mut second,&start(2,1)?)?,ServerMessage::TerminalStartResult(result) if result.outcome()==StartOutcome::Accepted {geometry:geometry()?,transition:StartTransition::Started})
-    );
-    assert!(
-        matches!(exchange(&mut second,&start(3,1)?)?,ServerMessage::TerminalStartResult(result) if result.outcome()==StartOutcome::Accepted {geometry:geometry()?,transition:StartTransition::AlreadyStarted})
-    );
-    viewers::exercise_real_viewers(&server, &mut second, runtime)?;
+    let (mut second, reference) = if standalone {
+        let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
+        let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
+        write_client_message(&mut first, &standalone::open(1, geometry()?)?)?;
+        write_client_message(&mut second, &standalone::open(2, geometry()?)?)?;
+        let reference = standalone::opened(read_server_message(&mut first)?, 1)?;
+        assert_eq!(
+            standalone::opened(read_server_message(&mut second)?, 2)?,
+            reference
+        );
+        assert_ne!(reference, id(1)?);
+        assert_ne!(reference, id(2)?);
+        drop(first);
+        drop(second);
+        let (mut reopened, _) = connect_bounded_client(server.client_endpoint())?;
+        assert_eq!(
+            standalone::opened(
+                exchange(
+                    &mut reopened,
+                    &standalone::open(3, Geometry::new(100, 30, 8, 16)?)?
+                )?,
+                3
+            )?,
+            reference
+        );
+        (reopened, reference)
+    } else {
+        let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
+        assert!(
+            matches!(exchange(&mut first,&create(1)?)?,ServerMessage::TerminalCreateResult(result) if result.outcome()==CreateOutcome::Accepted {state:CreateAcceptedState::AwaitingStart})
+        );
+        drop(first);
+        let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
+        assert!(
+            matches!(exchange(&mut second,&start(2,1)?)?,ServerMessage::TerminalStartResult(result) if result.outcome()==StartOutcome::Accepted {geometry:geometry()?,transition:StartTransition::Started})
+        );
+        assert!(
+            matches!(exchange(&mut second,&start(3,1)?)?,ServerMessage::TerminalStartResult(result) if result.outcome()==StartOutcome::Accepted {geometry:geometry()?,transition:StartTransition::AlreadyStarted})
+        );
+
+        (second, id(1)?)
+    };
+    viewers::exercise_real_viewers(&server, &mut second, runtime, &reference, !standalone)?;
     drop(second);
     drop(worker);
     assert_eq!(
@@ -377,3 +416,9 @@ impl Drop for HostDirectory {
 
 #[path = "terminal_operations/viewers.rs"]
 mod viewers;
+
+#[path = "terminal_operations/standalone.rs"]
+mod standalone;
+
+#[path = "terminal_operations/tab_close.rs"]
+mod tab_close;

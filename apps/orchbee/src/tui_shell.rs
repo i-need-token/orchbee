@@ -163,7 +163,7 @@ fn run_with_client(
 ) -> Result<(), TuiFailure> {
     let inherited = InheritedTerminal::admit().map_err(TuiFailure::Admission)?;
     let dimensions = inherited.window_dimensions().map_err(TuiFailure::Runtime)?;
-    let mut terminal_input: Box<dyn TerminalSurface> = match connection {
+    let terminal_input: Box<dyn TerminalSurface> = match connection {
         Some((client, intent)) => {
             let geometry = terminal_geometry(dimensions, &ClientView::new(dimensions.columns))
                 .map_err(TuiFailure::Runtime)?;
@@ -174,6 +174,25 @@ fn run_with_client(
         }
         None => Box::new(UnavailableTerminalInputPort),
     };
+    run_prepared_surface(locale, inherited, dimensions, terminal_input)
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn run_prepared(
+    locale: Locale,
+    inherited: InheritedTerminal,
+    dimensions: WindowDimensions,
+    session: crate::terminal_session::TerminalSession,
+) -> Result<(), TuiFailure> {
+    run_prepared_surface(locale, inherited, dimensions, Box::new(session))
+}
+
+fn run_prepared_surface(
+    locale: Locale,
+    inherited: InheritedTerminal,
+    dimensions: WindowDimensions,
+    mut terminal_input: Box<dyn TerminalSurface>,
+) -> Result<(), TuiFailure> {
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
     let mut modes = TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone()))
         .map_err(TuiFailure::Runtime)?;
@@ -223,19 +242,18 @@ fn run_event_loop<B: Backend + ResizableBackend>(
     mut dimensions: WindowDimensions,
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
     let mut view = ClientView::new(dimensions.columns);
-    terminal
-        .draw(|frame| {
-            render_terminal_shell(
-                frame,
-                &view,
-                locale,
-                terminal_input.projection(),
-                terminal_input.status(),
-            )
-        })
-        .map_err(LoopFailure::Terminal)?;
-
-    terminal_input.after_draw();
+    if termination.requested() {
+        return Ok(LoopExit::Signal);
+    }
+    synchronize_viewport(
+        terminal,
+        viewport,
+        &mut view,
+        terminal_input,
+        &mut dimensions,
+    )?;
+    let _changed = terminal_input.tick();
+    draw_surface(terminal, &view, locale, terminal_input)?;
     loop {
         if termination.requested() {
             return Ok(LoopExit::Signal);
@@ -245,9 +263,21 @@ fn run_event_loop<B: Backend + ResizableBackend>(
                 EVENT_POLL_INTERVAL_MILLISECONDS,
             )))
             .map_err(LoopFailure::Input)?;
-        let mut redraw = terminal_input.tick();
+        let mut redraw = synchronize_viewport(
+            terminal,
+            viewport,
+            &mut view,
+            terminal_input,
+            &mut dimensions,
+        )?;
+        redraw |= terminal_input.tick();
         if let Some(input) = input {
-            if dispatch_input(&mut view, &input, terminal_input) == DispatchOutcome::Exit {
+            let outcome =
+                dispatch_input(&mut view, &input, terminal_input, |view, terminal_input| {
+                    synchronize_viewport(terminal, viewport, view, terminal_input, &mut dimensions)
+                        .map(|_changed| ())
+                })?;
+            if outcome == DispatchOutcome::Exit {
                 return Ok(LoopExit::User);
             }
             redraw = true;
@@ -256,42 +286,55 @@ fn run_event_loop<B: Backend + ResizableBackend>(
             return Ok(LoopExit::Signal);
         }
 
-        let next_dimensions = viewport
-            .window_dimensions()
-            .map_err(LoopFailure::Viewport)?;
-        if next_dimensions != dimensions {
-            terminal
-                .backend_mut()
-                .set_window_dimensions(next_dimensions);
-            terminal
-                .resize(to_area(next_dimensions))
-                .map_err(LoopFailure::Terminal)?;
-            view.resize(next_dimensions.columns);
-            dimensions = next_dimensions;
-            redraw = true;
-        }
-        if terminal_input.status().is_some() {
-            let geometry = terminal_geometry(dimensions, &view).map_err(LoopFailure::Viewport)?;
-            terminal_input.resize(geometry);
-        }
         if redraw {
-            terminal
-                .draw(|frame| {
-                    render_terminal_shell(
-                        frame,
-                        &view,
-                        locale,
-                        terminal_input.projection(),
-                        terminal_input.status(),
-                    )
-                })
-                .map_err(LoopFailure::Terminal)?;
-            terminal_input.after_draw();
+            draw_surface(terminal, &view, locale, terminal_input)?;
         }
     }
 }
 
-fn terminal_geometry(
+fn draw_surface<B: Backend>(
+    terminal: &mut Terminal<B>,
+    view: &ClientView,
+    locale: Locale,
+    surface: &mut (impl TerminalSurface + ?Sized),
+) -> Result<(), LoopFailure<B::Error>> {
+    let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
+    terminal
+        .draw(|frame| {
+            receipt = render_terminal_shell(frame, view, locale, surface.view());
+        })
+        .map_err(LoopFailure::Terminal)?;
+    surface.after_close_draw(receipt);
+    surface.after_draw();
+    Ok(())
+}
+
+fn synchronize_viewport<B: Backend + ResizableBackend>(
+    terminal: &mut Terminal<B>,
+    viewport: &impl ViewportSource,
+    view: &mut ClientView,
+    terminal_input: &mut (impl TerminalSurface + ?Sized),
+    dimensions: &mut WindowDimensions,
+) -> Result<bool, LoopFailure<B::Error>> {
+    let next = viewport
+        .window_dimensions()
+        .map_err(LoopFailure::Viewport)?;
+    let changed = next != *dimensions;
+    if changed {
+        terminal_input.invalidate_close_display();
+        terminal.backend_mut().set_window_dimensions(next);
+        terminal
+            .resize(to_area(next))
+            .map_err(LoopFailure::Terminal)?;
+        view.resize(next.columns);
+        *dimensions = next;
+    }
+    let geometry = terminal_geometry(*dimensions, view).map_err(LoopFailure::Viewport)?;
+    terminal_input.observe_geometry(geometry);
+    Ok(changed)
+}
+
+pub(crate) fn terminal_geometry(
     dimensions: WindowDimensions,
     view: &ClientView,
 ) -> io::Result<orchbee_client_server_protocol::Geometry> {
@@ -315,11 +358,8 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
         false
     }
     fn after_draw(&mut self) {}
-    fn resize(&mut self, _geometry: orchbee_client_server_protocol::Geometry) {}
-    fn projection(&self) -> Option<&crate::terminal_projection::TerminalProjection> {
-        None
-    }
-    fn status(&self) -> Option<crate::terminal_session::TerminalStatus> {
+    fn after_close_draw(&mut self, _receipt: crate::terminal_session::NativeDrawReceipt) {}
+    fn view(&self) -> Option<crate::terminal_session::TerminalSessionView<'_>> {
         None
     }
 }
@@ -331,14 +371,11 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     fn after_draw(&mut self) {
         self.after_draw()
     }
-    fn resize(&mut self, geometry: orchbee_client_server_protocol::Geometry) {
-        self.resize(geometry)
+    fn after_close_draw(&mut self, receipt: crate::terminal_session::NativeDrawReceipt) {
+        self.after_close_draw(receipt)
     }
-    fn projection(&self) -> Option<&crate::terminal_projection::TerminalProjection> {
-        self.projection()
-    }
-    fn status(&self) -> Option<crate::terminal_session::TerminalStatus> {
-        Some(self.status())
+    fn view(&self) -> Option<crate::terminal_session::TerminalSessionView<'_>> {
+        Some(self.view())
     }
 }
 
@@ -347,7 +384,7 @@ const fn to_area(dimensions: WindowDimensions) -> Rect {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 #[cfg(test)]
 mod connected_tests;

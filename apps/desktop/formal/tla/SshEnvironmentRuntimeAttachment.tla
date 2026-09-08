@@ -16,9 +16,24 @@ NoGeneration == 0
 NoEpoch == "none"
 UnsupportedPlatform == "unsupported"
 Components == {"ssh-environment-runtime", "terminal-host"}
+RuntimeRole == "runtime"
+TerminalHostRole == "terminal-host"
+NoBootstrapRole == "none"
+BootstrapComplete == "complete"
+BootstrapRoles == {NoBootstrapRole, RuntimeRole, TerminalHostRole, BootstrapComplete}
+ComponentForRole(role) ==
+  IF role = RuntimeRole THEN "ssh-environment-runtime" ELSE "terminal-host"
+NextBootstrapRole(role) ==
+  IF role = RuntimeRole THEN TerminalHostRole ELSE BootstrapComplete
 InstallDigests == {"absent", "expected", "mismatch"}
 InstallModes == {"none", "present", "upload"}
-ExpectedServices == {"project-root-v2", "terminal-host-v1"}
+NoHello == "no-hello"
+ExactHello == "exact"
+HelloCandidates == {
+  ExactHello, "missing-service", "extra-service", "reversed-services",
+  "metadata-mismatch"
+}
+HelloIsExact(candidate) == candidate = ExactHello
 Phases == {
   "stopped", "verifying-catalog", "negotiating", "uploading",
   "daemon-ready", "attaching", "handshaking", "connected",
@@ -27,7 +42,8 @@ Phases == {
 Actions == {
   "init", "begin-verification", "verify-catalog", "reject-catalog",
   "report-present", "request-upload", "reject-installed-mismatch",
-  "reject-unsupported", "upload-component", "concurrent-install-wins",
+  "reject-unsupported", "reject-bootstrap-order", "upload-component",
+  "concurrent-install-wins",
   "converge-cohort", "reject-concurrent-mismatch", "start-daemon",
   "begin-handshake", "accept-hello", "reject-hello", "heartbeat",
   "lose-attachment", "retry-elapsed", "restart-daemon",
@@ -60,12 +76,14 @@ VARIABLES
   remoteWorkRetained,
   replayedUnknownEffect,
   advertisedServices,
+  bootstrapRole,
   lastAction
 
 vars == <<phase, generation, catalogVerified, remotePlatform,
   installedDigests, installMode, requestedUploads, loadedArtifacts,
   daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-  remoteWorkRetained, replayedUnknownEffect, advertisedServices, lastAction>>
+  remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+  bootstrapRole, lastAction>>
 
 Init ==
   /\ phase = "stopped"
@@ -82,7 +100,8 @@ Init ==
   /\ knownEpoch = NoEpoch
   /\ remoteWorkRetained = TRUE
   /\ replayedUnknownEffect = FALSE
-  /\ advertisedServices = {}
+  /\ advertisedServices = NoHello
+  /\ bootstrapRole = NoBootstrapRole
   /\ lastAction = "init"
 
 BeginVerification ==
@@ -96,7 +115,8 @@ BeginVerification ==
   /\ loadedArtifacts' = {}
   /\ attachmentGeneration' = NoGeneration
   /\ helloGeneration' = NoGeneration
-  /\ advertisedServices' = {}
+  /\ advertisedServices' = NoHello
+  /\ bootstrapRole' = NoBootstrapRole
   /\ UNCHANGED <<remotePlatform, installedDigests, daemonEpoch, knownEpoch,
        remoteWorkRetained, replayedUnknownEffect>>
   /\ lastAction' = "begin-verification"
@@ -105,6 +125,7 @@ VerifyCatalog ==
   /\ phase = "verifying-catalog"
   /\ phase' = "negotiating"
   /\ catalogVerified' = TRUE
+  /\ bootstrapRole' = RuntimeRole
   /\ UNCHANGED <<generation, remotePlatform, installedDigests, installMode,
        requestedUploads, loadedArtifacts, daemonEpoch, attachmentGeneration,
        helloGeneration, knownEpoch, remoteWorkRetained,
@@ -118,47 +139,50 @@ RejectCatalog ==
   /\ UNCHANGED <<generation, remotePlatform, installedDigests, installMode,
        requestedUploads, loadedArtifacts, daemonEpoch, attachmentGeneration,
        helloGeneration, knownEpoch, remoteWorkRetained,
-       replayedUnknownEffect, advertisedServices>>
+       replayedUnknownEffect, advertisedServices, bootstrapRole>>
   /\ lastAction' = "reject-catalog"
 
-ReportPresent ==
+ReportPresent(component) ==
   /\ phase = "negotiating"
   /\ remotePlatform \in Platforms
-  /\ AllExpected(installedDigests)
-  /\ phase' = "daemon-ready"
-  /\ installMode' = "present"
-  /\ requestedUploads' = {}
-  /\ loadedArtifacts' = {}
-  /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
-       installedDigests, daemonEpoch, attachmentGeneration, helloGeneration,
-       knownEpoch, remoteWorkRetained, replayedUnknownEffect,
-       advertisedServices>>
+  /\ bootstrapRole \in {RuntimeRole, TerminalHostRole}
+  /\ component = ComponentForRole(bootstrapRole)
+  /\ installedDigests[component] = "expected"
+  /\ bootstrapRole' = NextBootstrapRole(bootstrapRole)
+  /\ installMode' = IF requestedUploads = {} THEN "present" ELSE installMode
+  /\ UNCHANGED <<phase, generation, catalogVerified, remotePlatform,
+       installedDigests, requestedUploads, loadedArtifacts, daemonEpoch,
+       attachmentGeneration, helloGeneration, knownEpoch, remoteWorkRetained,
+       replayedUnknownEffect, advertisedServices>>
   /\ lastAction' = "report-present"
 
-RequestUpload ==
+RequestUpload(component) ==
   /\ phase = "negotiating"
   /\ remotePlatform \in Platforms
-  /\ MismatchComponents(installedDigests) = {}
-  /\ AbsentComponents(installedDigests) # {}
+  /\ bootstrapRole \in {RuntimeRole, TerminalHostRole}
+  /\ component = ComponentForRole(bootstrapRole)
+  /\ installedDigests[component] = "absent"
   /\ phase' = "uploading"
   /\ installMode' = "upload"
-  /\ requestedUploads' = AbsentComponents(installedDigests)
-  /\ loadedArtifacts' = {}
+  /\ requestedUploads' = requestedUploads \cup {component}
   /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
-       installedDigests, daemonEpoch, attachmentGeneration, helloGeneration,
-       knownEpoch, remoteWorkRetained, replayedUnknownEffect,
-       advertisedServices>>
+       installedDigests, loadedArtifacts, daemonEpoch, attachmentGeneration,
+       helloGeneration, knownEpoch, remoteWorkRetained,
+       replayedUnknownEffect, advertisedServices, bootstrapRole>>
   /\ lastAction' = "request-upload"
 
-RejectInstalledMismatch ==
+RejectInstalledMismatch(component) ==
   /\ phase = "negotiating"
   /\ remotePlatform \in Platforms
-  /\ MismatchComponents(installedDigests) # {}
+  /\ bootstrapRole \in {RuntimeRole, TerminalHostRole}
+  /\ component = ComponentForRole(bootstrapRole)
+  /\ installedDigests[component] = "mismatch"
   /\ phase' = "blocked"
   /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-       remoteWorkRetained, replayedUnknownEffect, advertisedServices>>
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
   /\ lastAction' = "reject-installed-mismatch"
 
 RejectUnsupported ==
@@ -168,16 +192,33 @@ RejectUnsupported ==
   /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-       remoteWorkRetained, replayedUnknownEffect, advertisedServices>>
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
   /\ lastAction' = "reject-unsupported"
+
+RejectBootstrapOrder(component) ==
+  /\ phase \in {"negotiating", "uploading"}
+  /\ bootstrapRole \in {RuntimeRole, TerminalHostRole}
+  /\ component \in Components \ {ComponentForRole(bootstrapRole)}
+  /\ phase' = "blocked"
+  /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
+       installedDigests, installMode, requestedUploads, loadedArtifacts,
+       daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
+  /\ lastAction' = "reject-bootstrap-order"
 
 UploadComponent(component) ==
   /\ phase = "uploading"
+  /\ bootstrapRole \in {RuntimeRole, TerminalHostRole}
   /\ component \in requestedUploads
+  /\ component = ComponentForRole(bootstrapRole)
   /\ installedDigests[component] = "absent"
+  /\ phase' = "negotiating"
   /\ installedDigests' = [installedDigests EXCEPT ![component] = "expected"]
   /\ loadedArtifacts' = loadedArtifacts \cup {component}
-  /\ UNCHANGED <<phase, generation, catalogVerified, remotePlatform,
+  /\ bootstrapRole' = NextBootstrapRole(bootstrapRole)
+  /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
        installMode, requestedUploads, daemonEpoch, attachmentGeneration,
        helloGeneration, knownEpoch, remoteWorkRetained,
        replayedUnknownEffect, advertisedServices>>
@@ -185,35 +226,43 @@ UploadComponent(component) ==
 
 ConcurrentInstallWins(component) ==
   /\ phase = "uploading"
+  /\ bootstrapRole \in {RuntimeRole, TerminalHostRole}
   /\ component \in requestedUploads
+  /\ component = ComponentForRole(bootstrapRole)
   /\ installedDigests[component] = "absent"
+  /\ phase' = "negotiating"
   /\ installedDigests' = [installedDigests EXCEPT ![component] = "expected"]
-  /\ UNCHANGED <<phase, generation, catalogVerified, remotePlatform,
+  /\ bootstrapRole' = NextBootstrapRole(bootstrapRole)
+  /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
        installMode, requestedUploads, loadedArtifacts, daemonEpoch,
        attachmentGeneration, helloGeneration, knownEpoch, remoteWorkRetained,
        replayedUnknownEffect, advertisedServices>>
   /\ lastAction' = "concurrent-install-wins"
 
 ConvergeCohort ==
-  /\ phase = "uploading"
+  /\ phase = "negotiating"
+  /\ bootstrapRole = BootstrapComplete
   /\ AllExpected(installedDigests)
   /\ phase' = "daemon-ready"
   /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-       remoteWorkRetained, replayedUnknownEffect, advertisedServices>>
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
   /\ lastAction' = "converge-cohort"
 
 RejectConcurrentMismatch(component) ==
   /\ phase = "uploading"
+  /\ bootstrapRole \in {RuntimeRole, TerminalHostRole}
   /\ component \in requestedUploads
+  /\ component = ComponentForRole(bootstrapRole)
   /\ installedDigests[component] = "absent"
   /\ phase' = "blocked"
   /\ installedDigests' = [installedDigests EXCEPT ![component] = "mismatch"]
   /\ UNCHANGED <<generation, catalogVerified, remotePlatform, installMode,
        requestedUploads, loadedArtifacts, daemonEpoch, attachmentGeneration,
        helloGeneration, knownEpoch, remoteWorkRetained,
-       replayedUnknownEffect, advertisedServices>>
+       replayedUnknownEffect, advertisedServices, bootstrapRole>>
   /\ lastAction' = "reject-concurrent-mismatch"
 
 StartDaemon ==
@@ -229,7 +278,7 @@ StartDaemon ==
   /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        helloGeneration, knownEpoch, remoteWorkRetained,
-       replayedUnknownEffect, advertisedServices>>
+       replayedUnknownEffect, advertisedServices, bootstrapRole>>
   /\ lastAction' = "start-daemon"
 
 BeginHandshake ==
@@ -239,40 +288,69 @@ BeginHandshake ==
   /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-       remoteWorkRetained, replayedUnknownEffect, advertisedServices>>
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
   /\ lastAction' = "begin-handshake"
 
-AcceptHello ==
+AcceptHello(candidate) ==
   /\ phase = "handshaking"
   /\ attachmentGeneration = generation
   /\ daemonEpoch \in Epochs
+  /\ candidate \in HelloCandidates
+  /\ HelloIsExact(candidate)
   /\ phase' = "connected"
   /\ helloGeneration' = generation
   /\ knownEpoch' = daemonEpoch
-  /\ advertisedServices' = ExpectedServices
+  /\ advertisedServices' = candidate
   /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, remoteWorkRetained,
-       replayedUnknownEffect>>
+       replayedUnknownEffect, bootstrapRole>>
   /\ lastAction' = "accept-hello"
 
-RejectHello ==
+RejectHello(candidate) ==
   /\ phase = "handshaking"
+  /\ candidate \in HelloCandidates
+  /\ ~HelloIsExact(candidate)
   /\ phase' = "blocked"
   /\ attachmentGeneration' = NoGeneration
   /\ helloGeneration' = NoGeneration
-  /\ advertisedServices' = {}
+  /\ advertisedServices' = candidate
   /\ UNCHANGED <<generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
-       daemonEpoch, knownEpoch, remoteWorkRetained, replayedUnknownEffect>>
+       daemonEpoch, knownEpoch, remoteWorkRetained, replayedUnknownEffect,
+       bootstrapRole>>
   /\ lastAction' = "reject-hello"
+
+\* Named aliases keep all invalid Hello equivalence classes visible to the
+\* inventory coverage gate without changing the transition graph.
+RejectHelloMissingService ==
+  /\ attachmentGeneration = generation
+  /\ daemonEpoch \in Epochs
+  /\ RejectHello("missing-service")
+
+RejectHelloExtraService ==
+  /\ attachmentGeneration = generation
+  /\ daemonEpoch \in Epochs
+  /\ RejectHello("extra-service")
+
+RejectHelloReversedServices ==
+  /\ attachmentGeneration = generation
+  /\ daemonEpoch \in Epochs
+  /\ RejectHello("reversed-services")
+
+RejectHelloMetadataMismatch ==
+  /\ attachmentGeneration = generation
+  /\ daemonEpoch \in Epochs
+  /\ RejectHello("metadata-mismatch")
 
 Heartbeat ==
   /\ phase = "connected"
   /\ UNCHANGED <<phase, generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-       remoteWorkRetained, replayedUnknownEffect, advertisedServices>>
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
   /\ lastAction' = "heartbeat"
 
 LoseAttachment ==
@@ -285,6 +363,7 @@ LoseAttachment ==
   /\ installMode' = "none"
   /\ requestedUploads' = {}
   /\ loadedArtifacts' = {}
+  /\ bootstrapRole' = NoBootstrapRole
   /\ UNCHANGED <<catalogVerified, remotePlatform, installedDigests,
        daemonEpoch, knownEpoch, remoteWorkRetained, replayedUnknownEffect,
        advertisedServices>>
@@ -297,7 +376,7 @@ RetryElapsed ==
   /\ UNCHANGED <<generation, remotePlatform, installedDigests, installMode,
        requestedUploads, loadedArtifacts, daemonEpoch, attachmentGeneration,
        helloGeneration, knownEpoch, remoteWorkRetained,
-       replayedUnknownEffect, advertisedServices>>
+       replayedUnknownEffect, advertisedServices, bootstrapRole>>
   /\ lastAction' = "retry-elapsed"
 
 RestartDaemon ==
@@ -307,7 +386,7 @@ RestartDaemon ==
   /\ UNCHANGED <<phase, generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        attachmentGeneration, helloGeneration, knownEpoch, remoteWorkRetained,
-       replayedUnknownEffect, advertisedServices>>
+       replayedUnknownEffect, advertisedServices, bootstrapRole>>
   /\ lastAction' = "restart-daemon"
 
 RejectCompetingAttachment ==
@@ -316,16 +395,18 @@ RejectCompetingAttachment ==
   /\ UNCHANGED <<phase, generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-       remoteWorkRetained, replayedUnknownEffect, advertisedServices>>
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
   /\ lastAction' = "reject-competing-attachment"
 
 RejectUnadvertisedService ==
   /\ phase = "connected"
-  /\ advertisedServices = ExpectedServices
+  /\ HelloIsExact(advertisedServices)
   /\ UNCHANGED <<phase, generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-       remoteWorkRetained, replayedUnknownEffect, advertisedServices>>
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
   /\ lastAction' = "reject-unadvertised-service"
 
 Stop ==
@@ -338,7 +419,8 @@ Stop ==
   /\ loadedArtifacts' = {}
   /\ attachmentGeneration' = NoGeneration
   /\ helloGeneration' = NoGeneration
-  /\ advertisedServices' = {}
+  /\ advertisedServices' = NoHello
+  /\ bootstrapRole' = NoBootstrapRole
   /\ UNCHANGED <<remotePlatform, installedDigests, daemonEpoch, knownEpoch,
        remoteWorkRetained, replayedUnknownEffect>>
   /\ lastAction' = "stop"
@@ -348,7 +430,8 @@ RepeatStop ==
   /\ UNCHANGED <<phase, generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-       remoteWorkRetained, replayedUnknownEffect, advertisedServices>>
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
   /\ lastAction' = "repeat-stop"
 
 StaleHello(staleGeneration) ==
@@ -357,25 +440,31 @@ StaleHello(staleGeneration) ==
   /\ UNCHANGED <<phase, generation, catalogVerified, remotePlatform,
        installedDigests, installMode, requestedUploads, loadedArtifacts,
        daemonEpoch, attachmentGeneration, helloGeneration, knownEpoch,
-       remoteWorkRetained, replayedUnknownEffect, advertisedServices>>
+       remoteWorkRetained, replayedUnknownEffect, advertisedServices,
+       bootstrapRole>>
   /\ lastAction' = "stale-hello"
 
 Next ==
   \/ BeginVerification
   \/ VerifyCatalog
   \/ RejectCatalog
-  \/ ReportPresent
-  \/ RequestUpload
-  \/ RejectInstalledMismatch
+  \/ \E component \in Components: ReportPresent(component)
+  \/ \E component \in Components: RequestUpload(component)
+  \/ \E component \in Components: RejectInstalledMismatch(component)
   \/ RejectUnsupported
+  \/ \E component \in Components: RejectBootstrapOrder(component)
   \/ \E component \in Components : UploadComponent(component)
   \/ \E component \in Components : ConcurrentInstallWins(component)
   \/ ConvergeCohort
   \/ \E component \in Components : RejectConcurrentMismatch(component)
   \/ StartDaemon
   \/ BeginHandshake
-  \/ AcceptHello
-  \/ RejectHello
+  \/ \E candidate \in HelloCandidates: AcceptHello(candidate)
+  \/ \E candidate \in HelloCandidates: RejectHello(candidate)
+  \/ RejectHelloMissingService
+  \/ RejectHelloExtraService
+  \/ RejectHelloReversedServices
+  \/ RejectHelloMetadataMismatch
   \/ Heartbeat
   \/ LoseAttachment
   \/ RetryElapsed
@@ -403,7 +492,8 @@ TypeOK ==
   /\ knownEpoch \in Epochs \cup {NoEpoch}
   /\ remoteWorkRetained \in BOOLEAN
   /\ replayedUnknownEffect \in BOOLEAN
-  /\ advertisedServices \subseteq ExpectedServices
+  /\ advertisedServices \in HelloCandidates \cup {NoHello}
+  /\ bootstrapRole \in BootstrapRoles
   /\ lastAction \in Actions
 
 SingleCurrentAttachment ==
@@ -425,7 +515,18 @@ PresentSkipsArtifactRead ==
 
 ActivationRequiresWholeCohort ==
   phase \notin {"daemon-ready", "attaching", "handshaking", "connected"} \/
-    (remotePlatform \in Platforms /\ AllExpected(installedDigests))
+    (remotePlatform \in Platforms /\ AllExpected(installedDigests) /\
+      bootstrapRole = BootstrapComplete)
+
+BootstrapUsesFixedRoleOrder ==
+  /\ (phase = "uploading" =>
+       /\ bootstrapRole \in {RuntimeRole, TerminalHostRole}
+       /\ ComponentForRole(bootstrapRole) \in requestedUploads)
+  /\ (phase \in {"daemon-ready", "attaching", "handshaking", "connected"} =>
+       bootstrapRole = BootstrapComplete)
+
+RejectedBootstrapOrderFailsClosed ==
+  lastAction = "reject-bootstrap-order" => phase = "blocked"
 
 PartialInstallNeverActivates ==
   ~AllExpected(installedDigests) =>
@@ -439,7 +540,7 @@ ConnectedRequiresVerifiedHello ==
   phase # "connected" \/
     (catalogVerified /\ daemonEpoch \in Epochs /\
       attachmentGeneration = generation /\ helloGeneration = generation /\
-      knownEpoch = daemonEpoch)
+      knownEpoch = daemonEpoch /\ HelloIsExact(advertisedServices))
 
 AttachmentLossDoesNotDeleteDaemon ==
   phase # "retry-wait" \/ daemonEpoch \in Epochs
@@ -453,7 +554,10 @@ RemoteWorkIsRetained == remoteWorkRetained
 UnknownEffectsAreNeverReplayed == ~replayedUnknownEffect
 
 ExactServiceAuthorityInSlice ==
-  phase # "connected" \/ advertisedServices = ExpectedServices
+  phase # "connected" \/ HelloIsExact(advertisedServices)
+
+RejectedHelloIsInexact ==
+  lastAction = "reject-hello" => ~HelloIsExact(advertisedServices)
 
 RetryWaitEventuallyLeaves == [](phase = "retry-wait" ~> phase # "retry-wait")
 

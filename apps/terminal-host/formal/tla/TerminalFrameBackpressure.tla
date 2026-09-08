@@ -11,6 +11,9 @@ EXTENDS FiniteSets, Naturals, TLC
 \* abstracts every generation-changing canonical mutation, including application
 \* clear and reset: acknowledged bases are generation-scoped and every attachment
 \* is forced to recover through a full snapshot.
+\* Raw acknowledgements are adversarial inputs. Only an exact current
+\* (sequence, revision, generation) tuple may resolve a flight; duplicates,
+\* abandoned replies, future replies, and mixed tuples preserve current work.
 
 CONSTANTS Attachments, MaxRevision, MaxGeneration, MaxSequence
 
@@ -43,9 +46,10 @@ VARIABLES
   commitGuard,
   failurePublished,
   containmentConfirmed,
-  handoffDuringUnconfirmed
+  handoffDuringUnconfirmed,
+  acknowledgementInputSafe
 
-vars ==
+coreVars ==
   <<revision, generation, finalized, captured, capturedRevision,
     capturedGeneration, demand, blocked, blockedRevision, acknowledgedRevision,
     acknowledgedGeneration, inFlight, frameBase, frameRevision,
@@ -53,6 +57,8 @@ vars ==
     lastAbandonedSequence, pendingDirty, forceSnapshot, provisional,
     commitGuard, failurePublished, containmentConfirmed,
     handoffDuringUnconfirmed>>
+
+vars == <<coreVars, acknowledgementInputSafe>>
 
 AnyDemand(demands) == \E attachment \in Attachments: demands[attachment]
 Readable == ~failurePublished \/ containmentConfirmed
@@ -84,6 +90,7 @@ Init ==
   /\ failurePublished = FALSE
   /\ containmentConfirmed = FALSE
   /\ handoffDuringUnconfirmed = FALSE
+  /\ acknowledgementInputSafe = TRUE
 
 Mutate ==
   /\ ~finalized
@@ -101,7 +108,7 @@ Mutate ==
                   frameGeneration, frameSequence, nextSequence,
                   lastAppliedSequence, lastAbandonedSequence, forceSnapshot,
                   provisional, commitGuard, failurePublished,
-                  containmentConfirmed, handoffDuringUnconfirmed>>
+                  containmentConfirmed, handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 ResizeOrScreenSwitch ==
   /\ ~finalized
@@ -123,7 +130,7 @@ ResizeOrScreenSwitch ==
                   frameBase, frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAppliedSequence, lastAbandonedSequence,
                   commitGuard, failurePublished,
-                  containmentConfirmed, handoffDuringUnconfirmed>>
+                  containmentConfirmed, handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 SetDemand(attachment, active) ==
   /\ attachment \in Attachments
@@ -168,7 +175,7 @@ SetDemand(attachment, active) ==
                   capturedGeneration, frameBase, frameRevision,
                   frameGeneration, frameSequence, nextSequence,
                   lastAppliedSequence, commitGuard, failurePublished,
-                  containmentConfirmed, handoffDuringUnconfirmed>>
+                  containmentConfirmed, handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 ReadyForProjection(attachment) ==
   /\ demand[attachment]
@@ -195,7 +202,7 @@ Capture ==
                   nextSequence, lastAppliedSequence, lastAbandonedSequence,
                   pendingDirty, forceSnapshot, provisional, commitGuard,
                   failurePublished, containmentConfirmed,
-                  handoffDuringUnconfirmed>>
+                  handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 CaptureFailure(attachment) ==
   /\ attachment \in Attachments
@@ -210,7 +217,7 @@ CaptureFailure(attachment) ==
                   lastAppliedSequence, lastAbandonedSequence,
                   pendingDirty, forceSnapshot, provisional, commitGuard,
                   failurePublished, containmentConfirmed,
-                  handoffDuringUnconfirmed>>
+                  handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 ReadyToEncode(attachment) ==
   /\ ReadyForProjection(attachment)
@@ -239,7 +246,7 @@ EncodeFailure(attachment) ==
                   lastAppliedSequence, lastAbandonedSequence,
                   pendingDirty, forceSnapshot, provisional, commitGuard,
                   failurePublished, containmentConfirmed,
-                  handoffDuringUnconfirmed>>
+                  handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 PrepareFrame(attachment) ==
   /\ attachment \in Attachments
@@ -253,7 +260,7 @@ PrepareFrame(attachment) ==
                   frameBase, frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAppliedSequence, lastAbandonedSequence,
                   pendingDirty, forceSnapshot, commitGuard, failurePublished,
-                  containmentConfirmed, handoffDuringUnconfirmed>>
+                  containmentConfirmed, handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 AcquireReadCommit(attachment) ==
   /\ attachment \in Attachments
@@ -267,7 +274,7 @@ AcquireReadCommit(attachment) ==
                   frameBase, frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAppliedSequence, lastAbandonedSequence,
                   pendingDirty, forceSnapshot, provisional, failurePublished,
-                  containmentConfirmed, handoffDuringUnconfirmed>>
+                  containmentConfirmed, handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 Emit(attachment) ==
   /\ attachment \in Attachments
@@ -295,7 +302,7 @@ Emit(attachment) ==
                   acknowledgedRevision,
                   acknowledgedGeneration, lastAppliedSequence,
                   lastAbandonedSequence, failurePublished,
-                  containmentConfirmed>>
+                  containmentConfirmed, acknowledgementInputSafe>>
 
 RefreshBlocked(attachment) ==
   /\ attachment \in Attachments
@@ -312,7 +319,7 @@ RefreshBlocked(attachment) ==
                   frameGeneration, frameSequence, nextSequence,
                   lastAppliedSequence, lastAbandonedSequence, provisional,
                   commitGuard, failurePublished, containmentConfirmed,
-                  handoffDuringUnconfirmed>>
+                  handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 PublishFailure ==
   /\ ~failurePublished
@@ -326,7 +333,7 @@ PublishFailure ==
                   frameBase, frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAppliedSequence, lastAbandonedSequence,
                   pendingDirty, forceSnapshot, commitGuard,
-                  containmentConfirmed, handoffDuringUnconfirmed>>
+                  containmentConfirmed, handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 ConfirmContainment ==
   /\ failurePublished
@@ -339,11 +346,28 @@ ConfirmContainment ==
                   frameBase, frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAppliedSequence, lastAbandonedSequence,
                   pendingDirty, forceSnapshot, provisional, commitGuard,
-                  failurePublished, handoffDuringUnconfirmed>>
+                  failurePublished, handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
-FrameApplied(attachment) ==
+ExactFrameAppliedInput(attachment, receivedSequence, receivedRevision, receivedGeneration) ==
   /\ attachment \in Attachments
   /\ inFlight[attachment]
+  /\ receivedSequence = frameSequence[attachment]
+  /\ receivedRevision = frameRevision[attachment]
+  /\ receivedGeneration = frameGeneration[attachment]
+
+MonitorFrameAppliedInput(attachment, receivedSequence, receivedRevision, receivedGeneration) ==
+  acknowledgementInputSafe' =
+    acknowledgementInputSafe
+      /\ (ExactFrameAppliedInput(attachment, receivedSequence,
+                                 receivedRevision, receivedGeneration)
+          \/ coreVars' = coreVars)
+
+FrameApplied(attachment, receivedSequence, receivedRevision, receivedGeneration) ==
+  /\ attachment \in Attachments
+  /\ inFlight[attachment]
+  /\ receivedSequence = frameSequence[attachment]
+  /\ receivedRevision = frameRevision[attachment]
+  /\ receivedGeneration = frameGeneration[attachment]
   /\ acknowledgedRevision' =
        [acknowledgedRevision EXCEPT ![attachment] = frameRevision[attachment]]
   /\ acknowledgedGeneration' =
@@ -357,29 +381,79 @@ FrameApplied(attachment) ==
        ELSE captured
   /\ pendingDirty' = IF frameRevision[attachment] < revision
                          \/ frameGeneration[attachment] # generation
-       THEN [pendingDirty EXCEPT ![attachment] = TRUE]
-       ELSE pendingDirty
+        THEN [pendingDirty EXCEPT ![attachment] = TRUE]
+        ELSE pendingDirty
   /\ UNCHANGED <<revision, generation, finalized, capturedRevision,
                   capturedGeneration, demand, blocked, blockedRevision, frameBase,
                   frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAbandonedSequence, forceSnapshot,
                   provisional, commitGuard, failurePublished,
                   containmentConfirmed, handoffDuringUnconfirmed>>
+  /\ MonitorFrameAppliedInput(attachment, receivedSequence, receivedRevision,
+                              receivedGeneration)
 
-DuplicateFrameApplied(attachment) ==
+DuplicateFrameApplied(attachment, receivedSequence, receivedRevision, receivedGeneration) ==
   /\ attachment \in Attachments
-  /\ ~inFlight[attachment]
   /\ lastAppliedSequence[attachment] > 0
-  /\ UNCHANGED vars
+  /\ receivedSequence = lastAppliedSequence[attachment]
+  /\ receivedRevision = acknowledgedRevision[attachment]
+  /\ receivedGeneration = acknowledgedGeneration[attachment]
+  /\ UNCHANGED coreVars
+  /\ MonitorFrameAppliedInput(attachment, receivedSequence, receivedRevision,
+                              receivedGeneration)
 
-AbandonedFrameApplied(attachment) ==
+AbandonedFrameApplied(attachment, receivedSequence, receivedRevision, receivedGeneration) ==
   /\ attachment \in Attachments
-  /\ lastAbandonedSequence[attachment] > 0
-  /\ UNCHANGED vars
+  /\ receivedSequence > 0
+  /\ receivedSequence <= lastAbandonedSequence[attachment]
+  /\ receivedRevision \in 0..None
+  /\ receivedGeneration \in 1..NoGeneration
+  /\ ~(lastAppliedSequence[attachment] > 0
+       /\ receivedSequence = lastAppliedSequence[attachment]
+       /\ receivedRevision = acknowledgedRevision[attachment]
+       /\ receivedGeneration = acknowledgedGeneration[attachment])
+  /\ UNCHANGED coreVars
+  /\ MonitorFrameAppliedInput(attachment, receivedSequence, receivedRevision,
+                              receivedGeneration)
 
-NeedSnapshot(attachment) ==
+RejectedFrameApplied(attachment, receivedSequence, receivedRevision, receivedGeneration) ==
+  /\ attachment \in Attachments
+  /\ receivedSequence \in 0..(MaxSequence + 1)
+  /\ receivedRevision \in 0..None
+  /\ receivedGeneration \in 1..NoGeneration
+  /\ ~(inFlight[attachment]
+       /\ receivedSequence = frameSequence[attachment]
+       /\ receivedRevision = frameRevision[attachment]
+       /\ receivedGeneration = frameGeneration[attachment])
+  /\ ~(lastAppliedSequence[attachment] > 0
+       /\ receivedSequence = lastAppliedSequence[attachment]
+       /\ receivedRevision = acknowledgedRevision[attachment]
+       /\ receivedGeneration = acknowledgedGeneration[attachment])
+  /\ ~(receivedSequence > 0
+       /\ receivedSequence <= lastAbandonedSequence[attachment]
+       /\ ~(lastAppliedSequence[attachment] > 0
+            /\ receivedSequence = lastAppliedSequence[attachment]
+            /\ receivedRevision = acknowledgedRevision[attachment]
+            /\ receivedGeneration = acknowledgedGeneration[attachment]))
+  /\ UNCHANGED coreVars
+  /\ MonitorFrameAppliedInput(attachment, receivedSequence, receivedRevision,
+                              receivedGeneration)
+
+ExactNeedSnapshotInput(attachment, receivedSequence) ==
   /\ attachment \in Attachments
   /\ inFlight[attachment]
+  /\ receivedSequence = frameSequence[attachment]
+
+MonitorNeedSnapshotInput(attachment, receivedSequence) ==
+  acknowledgementInputSafe' =
+    acknowledgementInputSafe
+      /\ (ExactNeedSnapshotInput(attachment, receivedSequence)
+          \/ coreVars' = coreVars)
+
+NeedSnapshot(attachment, receivedSequence) ==
+  /\ attachment \in Attachments
+  /\ inFlight[attachment]
+  /\ receivedSequence = frameSequence[attachment]
   /\ inFlight' = [inFlight EXCEPT ![attachment] = FALSE]
   /\ lastAbandonedSequence' =
        [lastAbandonedSequence EXCEPT ![attachment] = frameSequence[attachment]]
@@ -393,11 +467,24 @@ NeedSnapshot(attachment) ==
                   lastAppliedSequence, provisional, commitGuard,
                   failurePublished, containmentConfirmed,
                   handoffDuringUnconfirmed>>
+  /\ MonitorNeedSnapshotInput(attachment, receivedSequence)
 
-AbandonedNeedSnapshot(attachment) ==
+AbandonedNeedSnapshot(attachment, receivedSequence) ==
   /\ attachment \in Attachments
-  /\ lastAbandonedSequence[attachment] > 0
-  /\ UNCHANGED vars
+  /\ receivedSequence > 0
+  /\ receivedSequence <= lastAbandonedSequence[attachment]
+  /\ UNCHANGED coreVars
+  /\ MonitorNeedSnapshotInput(attachment, receivedSequence)
+
+RejectedNeedSnapshot(attachment, receivedSequence) ==
+  /\ attachment \in Attachments
+  /\ receivedSequence \in 0..(MaxSequence + 1)
+  /\ ~(inFlight[attachment]
+       /\ receivedSequence = frameSequence[attachment])
+  /\ ~(receivedSequence > 0
+       /\ receivedSequence <= lastAbandonedSequence[attachment])
+  /\ UNCHANGED coreVars
+  /\ MonitorNeedSnapshotInput(attachment, receivedSequence)
 
 Finalize ==
   /\ ~finalized
@@ -411,7 +498,7 @@ Finalize ==
                   lastAppliedSequence, lastAbandonedSequence,
                   pendingDirty, forceSnapshot, provisional, commitGuard,
                   failurePublished, containmentConfirmed,
-                  handoffDuringUnconfirmed>>
+                  handoffDuringUnconfirmed, acknowledgementInputSafe>>
 
 Next ==
   \/ Mutate
@@ -429,11 +516,21 @@ Next ==
        \/ AcquireReadCommit(attachment)
        \/ Emit(attachment)
        \/ RefreshBlocked(attachment)
-       \/ FrameApplied(attachment)
-       \/ DuplicateFrameApplied(attachment)
-       \/ AbandonedFrameApplied(attachment)
-       \/ NeedSnapshot(attachment)
-       \/ AbandonedNeedSnapshot(attachment)
+       \/ \E receivedSequence \in 0..(MaxSequence + 1),
+             receivedRevision \in 0..None,
+             receivedGeneration \in 1..NoGeneration:
+            \/ FrameApplied(attachment, receivedSequence, receivedRevision,
+                            receivedGeneration)
+            \/ DuplicateFrameApplied(attachment, receivedSequence,
+                                     receivedRevision, receivedGeneration)
+            \/ AbandonedFrameApplied(attachment, receivedSequence,
+                                     receivedRevision, receivedGeneration)
+            \/ RejectedFrameApplied(attachment, receivedSequence,
+                                    receivedRevision, receivedGeneration)
+       \/ \E receivedSequence \in 0..(MaxSequence + 1):
+            \/ NeedSnapshot(attachment, receivedSequence)
+            \/ AbandonedNeedSnapshot(attachment, receivedSequence)
+            \/ RejectedNeedSnapshot(attachment, receivedSequence)
 
 Spec ==
   /\ Init
@@ -443,7 +540,6 @@ Spec ==
   /\ \A attachment \in Attachments: WF_vars(AcquireReadCommit(attachment))
   /\ \A attachment \in Attachments: WF_vars(Emit(attachment))
   /\ \A attachment \in Attachments: WF_vars(RefreshBlocked(attachment))
-  /\ \A attachment \in Attachments: WF_vars(FrameApplied(attachment))
 
 TypeOK ==
   /\ revision \in 0..MaxRevision
@@ -472,11 +568,7 @@ TypeOK ==
   /\ failurePublished \in BOOLEAN
   /\ containmentConfirmed \in BOOLEAN
   /\ handoffDuringUnconfirmed \in BOOLEAN
-
-OneFrameAndDirtyMarker ==
-  \A attachment \in Attachments:
-    /\ inFlight[attachment] \in BOOLEAN
-    /\ pendingDirty[attachment] \in BOOLEAN
+  /\ acknowledgementInputSafe \in BOOLEAN
 
 DeltaBaseMatchesAcknowledgement ==
   \A attachment \in Attachments:
@@ -495,10 +587,6 @@ SequenceCommittedOnlyWithFrame ==
   \A attachment \in Attachments:
     /\ frameSequence[attachment] < nextSequence[attachment]
     /\ inFlight[attachment] => frameSequence[attachment] > lastAppliedSequence[attachment]
-
-PausedOrBlockedCannotBecomeReady ==
-  \A attachment \in Attachments:
-    (~demand[attachment] \/ blocked[attachment]) => ~ReadyForProjection(attachment)
 
 PausedOwnsNoDeliveryWork ==
   \A attachment \in Attachments:
@@ -551,8 +639,6 @@ ReadyDemandEventuallyEmits ==
     ReadyToEncode(attachment) ~>
       (inFlight[attachment] \/ blocked[attachment] \/ ~demand[attachment] \/ ~captured)
 
-InFlightEventuallyClears ==
-  \A attachment \in Attachments:
-    inFlight[attachment] ~> ~inFlight[attachment]
+NonExactAcknowledgementPreservation == acknowledgementInputSafe
 
 =============================================================================

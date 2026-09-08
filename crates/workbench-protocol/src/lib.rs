@@ -1,6 +1,28 @@
+mod carrier;
+mod command;
 mod identity;
 mod model;
 mod validation;
+
+pub use carrier::{
+    WORKBENCH_MAGIC, WorkbenchWireError, read_workbench_request, read_workbench_response,
+    write_workbench_request, write_workbench_response,
+};
+pub use command::{
+    MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, WorkbenchAction, WorkbenchCommand,
+    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
+    WorkbenchLabel, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason,
+    WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
+    WorkbenchTabClosePublicationReason, WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome,
+    WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeOutcome,
+    WorkbenchTabCloseResumeRejectionReason, WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
+    WorkbenchTabCloseUnavailableReason, WorkbenchTabCloseUnknownPhase,
+    WorkbenchTabCloseUnknownReason, WorkbenchTabMoveDirection, WorkbenchTerminalFailureReason,
+    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
+    parse_workbench_request, parse_workbench_response, serialize_workbench_request,
+    serialize_workbench_response,
+};
 
 pub use identity::{
     IdentityError, ProtocolVersion, RevisionError, SiteId, TerminalId, TerminalPresentationId,

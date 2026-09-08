@@ -16,13 +16,18 @@ use orchbee_terminal_protocol::{
     encode_transport_envelope,
 };
 
+#[cfg(target_os = "linux")]
+mod admission;
+
 mod events;
 pub(crate) use events::{consume_event, validate_event};
 
 mod controllers;
 mod exchange;
+mod target_cleanup;
 mod viewers;
 pub(crate) use exchange::{HostExchange, PeerFailure, exchange};
+pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -35,6 +40,7 @@ pub(crate) struct HostBrokerConnection {
     stream: UnixStream,
     pub(crate) viewers: RefCell<HostViewers>,
     pub(crate) controllers: RefCell<controllers::HostControllers>,
+    retired_targets: RefCell<target_cleanup::RetiredTargets>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,6 +51,28 @@ pub(crate) struct NegotiatedHostLimits {
 }
 
 impl HostBrokerConnection {
+    #[cfg(target_os = "linux")]
+    pub(crate) fn connect_before(
+        endpoint: &Path,
+        deadline: std::time::Instant,
+    ) -> Result<Self, Box<dyn Error>> {
+        let mut transport = admission::Admission::connect(endpoint, deadline)?;
+        let expected = requested_hello()?;
+        let correlation_id = CorrelationId::from_bytes(HELLO_CORRELATION_BYTES)?;
+        write_hello(&mut transport, &expected, correlation_id)?;
+        let (host_epoch, negotiated_limits) =
+            validate_hello_accepted(&mut transport, &expected, correlation_id)?;
+        transport.remaining()?;
+        Ok(Self {
+            host_epoch,
+            negotiated_limits,
+            stream: transport.stream,
+            viewers: RefCell::new(HostViewers::default()),
+            controllers: RefCell::new(controllers::HostControllers::default()),
+            retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
+        })
+    }
+
     pub(crate) fn connect(endpoint: &Path) -> Result<Self, Box<dyn Error>> {
         let mut stream = UnixStream::connect(endpoint)?;
         require_same_effective_user(&stream)?;
@@ -65,6 +93,7 @@ impl HostBrokerConnection {
             stream,
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
+            retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
         })
     }
 
@@ -77,6 +106,13 @@ impl HostBrokerConnection {
     }
 
     pub(crate) fn receive_event(&self, record: Vec<u8>) -> io::Result<()> {
+        if self
+            .retired_targets
+            .borrow()
+            .accept_event(&record, self.host_epoch)?
+        {
+            return Ok(());
+        }
         let envelope = orchbee_terminal_protocol::decode_transport_envelope(&record)
             .map_err(io::Error::other)?;
         if envelope.kind == 23 {
@@ -122,7 +158,7 @@ fn requested_hello() -> Result<Hello, Box<dyn Error>> {
 }
 
 fn write_hello(
-    stream: &mut UnixStream,
+    stream: &mut impl Write,
     hello: &Hello,
     correlation_id: CorrelationId,
 ) -> Result<(), Box<dyn Error>> {
@@ -142,7 +178,7 @@ fn write_hello(
 }
 
 fn validate_hello_accepted(
-    stream: &mut UnixStream,
+    stream: &mut impl Read,
     requested: &Hello,
     correlation_id: CorrelationId,
 ) -> Result<(orchbee_terminal_protocol::HostEpoch, NegotiatedHostLimits), Box<dyn Error>> {
@@ -181,7 +217,7 @@ fn validate_hello_accepted(
     ))
 }
 
-fn read_transport_record(stream: &mut UnixStream) -> Result<Vec<u8>, Box<dyn Error>> {
+fn read_transport_record(stream: &mut impl Read) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut header = [0_u8; TRANSPORT_ENVELOPE_HEADER_BYTES];
     stream.read_exact(&mut header)?;
     let total_length = usize::try_from(u32::from_le_bytes([

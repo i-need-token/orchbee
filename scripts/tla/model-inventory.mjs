@@ -146,6 +146,9 @@ export function validateInventory(inventory) {
 				`${field}.timeoutMilliseconds must be a positive integer`,
 			);
 		}
+		if (model.workers !== undefined) {
+			assert(model.workers === 1 || model.workers === 2, `${field}.workers must be 1 or 2`);
+		}
 		if (model.variants !== undefined) {
 			assert(
 				Array.isArray(model.variants) && model.variants.length > 0,

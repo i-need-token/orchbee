@@ -19,9 +19,9 @@ OBCS has these adjacent boundaries:
 
 Version 1 admits `terminal.create`, `terminal.create.result`, `terminal.start`,
 `terminal.start.result`, `terminal.viewer`, `terminal.viewer.result`, `terminal.control`, and
-`terminal.control.result`. It defines no close, cancel, retry
-transport, authentication, authorization policy, Server state store, Worker operation, Host launch,
-or Workbench mutation.
+`terminal.control.result`, plus the unshipped `terminal.open` / `terminal.open.result` and viewer
+`attach-binding` extensions. It defines no close, cancel, retry transport, authentication,
+authorization policy, Server state store, Worker operation, Host launch, or Workbench mutation.
 
 ## Frame
 
@@ -49,12 +49,14 @@ rejected. Canonical encoding is deterministic compact JSON and emits ordinary in
 
 ## Identity, path, and geometry
 
-`requestId`, `terminalCreateRequestId`, and `workerId` are opaque, nonzero 128-bit values encoded as
-exactly 32 lowercase hexadecimal characters. `requestId` correlates one submitted request with its
-result; it is not a replay or Server-ledger identity. A Client generates a fresh `requestId` for
-every submitted request and does not reuse it within one active Server authority and authenticated
-subject. This is a Client producer obligation, not a promise that Server retains or searches request
-history. A `terminal.start` request uses distinct `requestId` and `terminalCreateRequestId` values.
+`requestId`, `terminalCreateRequestId`, `siteId`, `workerId`, and `terminalId` are opaque, nonzero
+128-bit values encoded as exactly 32 lowercase hexadecimal characters. Site, Worker, Terminal, and
+request identities are distinct semantic domains, but their encoded bytes need not differ; each
+field is validated independently. `requestId` correlates one submitted request with its result; it
+is not a replay or Server-ledger identity. A Client generates a fresh `requestId` for every submitted
+request and does not reuse it within one active Server authority and authenticated subject. This is
+a Client producer obligation, not a promise that Server retains or searches request history. The
+separate `terminal.start` invariant requires distinct `requestId` and `terminalCreateRequestId` values.
 Its `terminalCreateRequestId` identifies the deferred create within that same authority and subject,
 independent of the particular Client Session transport.
 
@@ -84,9 +86,9 @@ Every geometry contains all four integer fields and satisfies every invariant:
 | `startMode`        | `{ "kind": "immediate", "geometry": ... }`, or exactly `{ "kind": "deferred" }` |
 
 Deferred creation carries no geometry or fallback. Immediate creation carries one complete valid
-geometry. A Client never supplies a Terminal identity, Worker generation, operation, lease, fence,
-Host identity or epoch, executable, argument vector, environment or overlay, Project, Workspace,
-Panel, Worktree, Client generation, profile, or configuration fact.
+geometry. A `terminal.create` request never supplies a Terminal identity, Worker generation,
+operation, lease, fence, Host identity or epoch, executable, argument vector, environment or
+overlay, Project, Workspace, Panel, Worktree, Client generation, profile, or configuration fact.
 
 `terminal.start` contains `protocolVersion`, a new `requestId`, the distinct
 `terminalCreateRequestId` that identifies the deferred create request, and one complete valid
@@ -118,9 +120,33 @@ Create/Start results expose no internal Terminal, Worker, operation, lease, fenc
 `terminal.viewer` contains `protocolVersion`, a fresh `requestId`, and one closed `action`. Each
 admitted Client Session owns at most one read-only viewer. `attach` supplies only
 `terminalCreateRequestId`; Server resolves an accepted terminal in the same authority and subject,
-pins its existing Worker generation and Host epoch, and issues a fresh attachment identity. `poll`
-and `detach` have no additional fields. No request can supply or transfer an attachment identity.
-Session loss detaches transient viewing state and never terminates the retained terminal.
+pins its existing Worker generation and Host epoch, and issues a fresh attachment identity.
+`attach-binding` instead supplies exactly `siteId`, `workerId`, and logical `terminalId` obtained
+from a canonical Workbench snapshot. It carries no Workbench revision, Worker generation, Host
+identity, operation, lease, or Create reference.
+
+The binding triple selects an existing terminal and grants no authorization. Server requires the
+current active Site and exact Worker/Terminal pair to remain exposed by a canonical Workbench
+presentation before resolving the exact retained terminal and its pinned Worker generation. Selection performs no Open,
+Create, Start, launch, membership, rebind, navigation, input, resize, or controller effect. Target
+validation has this precedence after the one-viewer Session guard:
+
+1. poisoned registry or Site ownership returns `server-busy`;
+2. missing or retired Workbench returns `workbench-unavailable`;
+3. wrong Site or an unexposed exact pair returns `terminal-unavailable`;
+4. missing current Worker or a different logical Worker returns `terminal-runtime-unavailable`;
+5. a missing exact retained record returns `terminal-unavailable`;
+6. a different retained Worker generation returns `terminal-runtime-unavailable`;
+7. a retained phase that cannot attach returns `terminal-unavailable`; and
+8. attachment identity exhaustion or known unchanged capacity returns `server-busy`.
+
+Workbench exposure and retained-target resolution linearize together. Later Workbench retirement
+does not cancel the pinned operation. Attachment success linearizes at the existing post-IPC
+current-Worker check; Worker loss after that check can race response delivery and is fenced by the
+next operation. `poll` and `detach` have no additional fields. No request can supply or transfer an
+attachment identity. Session loss detaches transient viewing state and never terminates the retained
+terminal. The action changes only OBCS JSON; the existing OBCN relay, OBSR framing, and byte limits
+remain unchanged.
 
 `frame-applied` carries `sequence`, `generation`, and `revision`; `need-snapshot` carries `sequence`
 and `reason`. These counters are canonical decimal strings in the unsigned 64-bit range, with no
@@ -133,10 +159,13 @@ A new attachment requires a new baseline; viewer attachment grants neither input
 JSON viewer outcomes are `attached` with `attachmentId` and `hostEpoch` (nonzero 32-character
 lowercase hex), fieldless `empty`, `feedback-accepted`, or `detached`, `rejected` with reason
 `already-attached`, `terminal-unavailable`, or `feedback-mismatch`, and `unavailable` with reason
-`server-busy` or `terminal-runtime-unavailable`. Attached answers Attach; Empty or a binary record
-answers Poll; FeedbackAccepted answers either feedback action; Detached answers Detach, including
-an already absent viewer. Rejected and Unavailable can answer any action. Wrong kind or correlation
-retires the Client carrier. Viewer failure never authorizes automatic replay or retargeting.
+`server-busy`, `terminal-runtime-unavailable`, or viewer-only `workbench-unavailable`. Attached
+answers Attach or AttachBinding; Empty or a binary record answers Poll; FeedbackAccepted answers
+either feedback action; Detached answers Detach, including an already absent viewer. Rejected and
+Unavailable can answer any action. Wrong kind or correlation retires the Client carrier. Only a
+correlated `server-busy` result known to have committed no effect may use the existing bounded retry
+policy: the Client retains identical action values, uses a fresh `requestId`, and stays within the
+same logical deadline. Ambiguous failure never authorizes replay, fallback, or retargeting.
 
 A record result uses binary `OBSR`, not JSON: four magic bytes, big-endian u16 version 1, two zero
 reserved bytes, then big-endian u32 payload length. The payload is the exact request ID as 16
@@ -197,7 +226,11 @@ reconciled through a future read-only projection or observation boundary instead
 cross-language oracle. It includes every message, result category, reason, accepted-state variant,
 and accepted-start transition, plus malformed and semantically invalid payloads. Repeated-value
 recipes compactly materialize exact byte-boundary, multibyte, and worst-case JSON path inputs.
-Bindings consume the corpus without deriving expected results from their own codec.
+Bindings consume the corpus without deriving expected results from their own codec. AttachBinding
+fixtures cover exact field names, required and additional fields, lexical identity failures, zero
+sentinels, and wrong message/result kinds. Equal valid bytes across its separately typed identity
+domains are canonical. Schema validation cannot determine whether a well-formed tuple names the
+current exposed terminal; Server tests own that semantic refusal.
 
 Run from the repository root:
 
@@ -210,3 +243,33 @@ These checks establish the schema-to-binding corpus agreement and deterministic 
 They do not establish authentication, authorization decisions, replay lookup, duplicate-history or
 idempotency storage, cancellation, terminal execution, persistence, recovery, or any live transport
 integration.
+
+## Standalone terminal opening
+
+The unshipped version-1 extension `terminal.open` carries `protocolVersion`, a fresh
+Client-generated `requestId`, and complete `geometry`. It opens the local single-subject
+Server's standalone terminal reference: first prepare creates an immediate terminal using
+Worker-default cwd; later opens return the same reference. Open itself neither dispatches nor commits Resize; a Client may subsequently attach, acquire controller authority, and submit a separate validated Resize.
+This terminal wire contract adds no Workbench payload. The native Server owns the first shared
+standalone membership commit before launch, as defined in its
+[Workbench authority](../../apps/orchbee-server/docs/workbench-authority.md#standalone-terminal-membership-model);
+Clients observe that structure through the separate Workbench protocol.
+
+`terminal.open.result` correlates the exact calling request and returns one closed outcome:
+`opened` with `terminalCreateRequestId`; `unavailable` with a Create unavailable reason;
+`failed` with `terminal-create-failed`; or exactly `outcome-unknown`.
+The returned reference may identify a Server-generated internal create. It is independent of the
+caller's correlation ID and grants no viewer or controller authority: normal Session attachment
+and controller admission still apply. AttachBinding does not change this result shape; the native
+standalone flow observes the separate Workbench snapshot rather than treating this Create reference
+as canonical selection state. Entropy failure or reference collision returns server-busy before
+preparation and leaves the standalone slot empty. Once dispatched, failure or uncertainty does not
+authorize another create. No Client retries an unknown effect; another open only observes the
+already reserved standalone result.
+
+The schema, Rust binding, and canonical corpus define the additive Open and AttachBinding contracts
+together. They remain unshipped and change no frame version, byte limit, existing action encoding,
+admission, or unknown-effect replay rule; legacy Attach remains available. The installed exact
+runtime cohort is Client, Server, Worker, and Host. Schema and Rust source are contract inputs, not
+installed cohort artifacts. Before publication, the unpublished source contract and runtime cohort
+roll back together. This extension adds no persisted state or migration.

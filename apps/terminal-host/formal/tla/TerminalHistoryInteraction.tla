@@ -29,8 +29,13 @@ VARIABLES
   pendingAnchor,
   pendingAnchorValid,
   pendingAnchorSequence,
+  pendingAnchorRevision,
+  pendingAnchorGeneration,
   committedAnchor,
   committedAnchorValid,
+  committedAnchorSequence,
+  committedAnchorRevision,
+  committedAnchorGeneration,
   historyEventInFlight,
   historyDirty,
   selectionPresent,
@@ -42,19 +47,27 @@ VARIABLES
   exportChunkSequence,
   lastExportSequence,
   searchActive,
+  searchSequence,
+  lastSearchSequence,
   searchRevision,
   searchGeneration,
   searchAccepted,
-  promotionSafe
+  promotionSafe,
+  receivedInputSafe
 
-vars ==
+coreVars ==
   <<revision, generation, attached, rowInFlight, rowSequence, lastRowSequence,
     pendingAnchor, pendingAnchorValid, pendingAnchorSequence, committedAnchor,
-    committedAnchorValid, historyEventInFlight, historyDirty,
+    pendingAnchorRevision, pendingAnchorGeneration, committedAnchorValid,
+    committedAnchorSequence, committedAnchorRevision,
+    committedAnchorGeneration, historyEventInFlight, historyDirty,
     selectionPresent, selectionValid, exportInFlight, exportChunkInFlight,
     exportRemaining, exportSequence, exportChunkSequence, lastExportSequence,
-    searchActive, searchRevision, searchGeneration,
+    searchActive, searchSequence, lastSearchSequence, searchRevision,
+    searchGeneration,
     searchAccepted, promotionSafe>>
+
+vars == <<coreVars, receivedInputSafe>>
 
 Init ==
   /\ revision = 0
@@ -66,8 +79,13 @@ Init ==
   /\ pendingAnchor = [attachment \in Attachments |-> FALSE]
   /\ pendingAnchorValid = [attachment \in Attachments |-> FALSE]
   /\ pendingAnchorSequence = [attachment \in Attachments |-> NoSequence]
+  /\ pendingAnchorRevision = [attachment \in Attachments |-> NoRevision]
+  /\ pendingAnchorGeneration = [attachment \in Attachments |-> NoGeneration]
   /\ committedAnchor = [attachment \in Attachments |-> FALSE]
   /\ committedAnchorValid = [attachment \in Attachments |-> FALSE]
+  /\ committedAnchorSequence = [attachment \in Attachments |-> NoSequence]
+  /\ committedAnchorRevision = [attachment \in Attachments |-> NoRevision]
+  /\ committedAnchorGeneration = [attachment \in Attachments |-> NoGeneration]
   /\ historyEventInFlight = [attachment \in Attachments |-> FALSE]
   /\ historyDirty = [attachment \in Attachments |-> FALSE]
   /\ selectionPresent = [attachment \in Attachments |-> FALSE]
@@ -79,10 +97,13 @@ Init ==
   /\ exportChunkSequence = [attachment \in Attachments |-> NoChunkSequence]
   /\ lastExportSequence = [attachment \in Attachments |-> 0]
   /\ searchActive = [attachment \in Attachments |-> FALSE]
+  /\ searchSequence = [attachment \in Attachments |-> NoSequence]
+  /\ lastSearchSequence = [attachment \in Attachments |-> 0]
   /\ searchRevision = [attachment \in Attachments |-> NoRevision]
   /\ searchGeneration = [attachment \in Attachments |-> NoGeneration]
   /\ searchAccepted = [attachment \in Attachments |-> FALSE]
   /\ promotionSafe = TRUE
+  /\ receivedInputSafe = TRUE
 
 Mutate ==
   /\ revision < MaxRevision
@@ -96,6 +117,7 @@ Mutate ==
           IF attached[attachment] /\ historyEventInFlight[attachment] THEN TRUE
           ELSE historyDirty[attachment]]
   /\ searchActive' = [attachment \in Attachments |-> FALSE]
+  /\ searchSequence' = [attachment \in Attachments |-> NoSequence]
   /\ searchAccepted' = [attachment \in Attachments |-> FALSE]
   /\ UNCHANGED <<generation, attached, rowInFlight, rowSequence,
                   lastRowSequence, pendingAnchor, pendingAnchorValid,
@@ -103,7 +125,10 @@ Mutate ==
                   committedAnchorValid, selectionPresent, selectionValid,
                   exportInFlight, exportChunkInFlight, exportRemaining,
                   exportSequence, exportChunkSequence, lastExportSequence,
-                  searchRevision, searchGeneration, promotionSafe>>
+                  searchRevision, searchGeneration, promotionSafe,
+                  pendingAnchorRevision, pendingAnchorGeneration,
+                  committedAnchorSequence, committedAnchorRevision,
+                  committedAnchorGeneration, lastSearchSequence, receivedInputSafe>>
 
 ResizeScreenOrScrollbackEviction ==
   /\ revision < MaxRevision
@@ -115,8 +140,13 @@ ResizeScreenOrScrollbackEviction ==
   /\ pendingAnchor' = [attachment \in Attachments |-> FALSE]
   /\ pendingAnchorValid' = [attachment \in Attachments |-> FALSE]
   /\ pendingAnchorSequence' = [attachment \in Attachments |-> NoSequence]
+  /\ pendingAnchorRevision' = [attachment \in Attachments |-> NoRevision]
+  /\ pendingAnchorGeneration' = [attachment \in Attachments |-> NoGeneration]
   /\ committedAnchor' = [attachment \in Attachments |-> FALSE]
   /\ committedAnchorValid' = [attachment \in Attachments |-> FALSE]
+  /\ committedAnchorSequence' = [attachment \in Attachments |-> NoSequence]
+  /\ committedAnchorRevision' = [attachment \in Attachments |-> NoRevision]
+  /\ committedAnchorGeneration' = [attachment \in Attachments |-> NoGeneration]
   /\ historyEventInFlight' =
        [attachment \in Attachments |-> attached[attachment]]
   /\ historyDirty' = [attachment \in Attachments |-> FALSE]
@@ -128,10 +158,12 @@ ResizeScreenOrScrollbackEviction ==
   /\ exportSequence' = [attachment \in Attachments |-> NoSequence]
   /\ exportChunkSequence' = [attachment \in Attachments |-> NoChunkSequence]
   /\ searchActive' = [attachment \in Attachments |-> FALSE]
+  /\ searchSequence' = [attachment \in Attachments |-> NoSequence]
   /\ searchRevision' = [attachment \in Attachments |-> NoRevision]
   /\ searchGeneration' = [attachment \in Attachments |-> NoGeneration]
   /\ searchAccepted' = [attachment \in Attachments |-> FALSE]
-  /\ UNCHANGED <<attached, lastRowSequence, lastExportSequence, promotionSafe>>
+  /\ UNCHANGED <<attached, lastRowSequence, lastExportSequence,
+                  lastSearchSequence, promotionSafe, receivedInputSafe>>
 
 RequestRows(attachment, sequence) ==
   /\ attachment \in Attachments
@@ -149,7 +181,7 @@ RequestRows(attachment, sequence) ==
                   exportChunkInFlight, exportRemaining, exportSequence,
                   exportChunkSequence, lastExportSequence, searchActive,
                   searchRevision, searchGeneration, searchAccepted,
-                  promotionSafe>>
+                  promotionSafe, pendingAnchorRevision, pendingAnchorGeneration, committedAnchorSequence, committedAnchorRevision, committedAnchorGeneration, searchSequence, lastSearchSequence, receivedInputSafe>>
 
 CompleteRows(attachment) ==
   /\ attachment \in Attachments
@@ -160,6 +192,10 @@ CompleteRows(attachment) ==
   /\ pendingAnchorValid' = [pendingAnchorValid EXCEPT ![attachment] = TRUE]
   /\ pendingAnchorSequence' =
        [pendingAnchorSequence EXCEPT ![attachment] = rowSequence[attachment]]
+  /\ pendingAnchorRevision' =
+       [pendingAnchorRevision EXCEPT ![attachment] = revision]
+  /\ pendingAnchorGeneration' =
+       [pendingAnchorGeneration EXCEPT ![attachment] = generation]
   /\ rowSequence' = [rowSequence EXCEPT ![attachment] = NoSequence]
   /\ UNCHANGED <<revision, generation, attached, lastRowSequence,
                   committedAnchor, committedAnchorValid, historyEventInFlight,
@@ -167,7 +203,9 @@ CompleteRows(attachment) ==
                   exportInFlight, exportChunkInFlight, exportRemaining,
                   exportSequence, exportChunkSequence, lastExportSequence,
                   searchActive, searchRevision, searchGeneration,
-                  searchAccepted, promotionSafe>>
+                  searchAccepted, promotionSafe, committedAnchorSequence,
+                  committedAnchorRevision, committedAnchorGeneration,
+                  searchSequence, lastSearchSequence, receivedInputSafe>>
 
 CancelRows(attachment) ==
   /\ attachment \in Attachments
@@ -182,21 +220,51 @@ CancelRows(attachment) ==
                   exportRemaining, exportSequence, exportChunkSequence,
                   lastExportSequence,
                   searchActive, searchRevision,
-                  searchGeneration, searchAccepted, promotionSafe>>
+                  searchGeneration, searchAccepted, promotionSafe, pendingAnchorRevision, pendingAnchorGeneration, committedAnchorSequence, committedAnchorRevision, committedAnchorGeneration, searchSequence, lastSearchSequence, receivedInputSafe>>
 
-RowsApplied(attachment, sequence) ==
+ExactRowsAppliedInput(attachment, sequence, acknowledgedRevision, acknowledgedGeneration) ==
   /\ attachment \in Attachments
-  /\ sequence \in 1..MaxSequence
   /\ attached[attachment]
   /\ pendingAnchor[attachment]
   /\ pendingAnchorValid[attachment]
   /\ pendingAnchorSequence[attachment] = sequence
+  /\ pendingAnchorRevision[attachment] = acknowledgedRevision
+  /\ pendingAnchorGeneration[attachment] = acknowledgedGeneration
+
+MonitorRowsAppliedInput(attachment, sequence, acknowledgedRevision, acknowledgedGeneration) ==
+  receivedInputSafe' =
+    receivedInputSafe
+      /\ (ExactRowsAppliedInput(attachment, sequence, acknowledgedRevision,
+                                acknowledgedGeneration)
+          \/ coreVars' = coreVars)
+
+RowsApplied(attachment, sequence, acknowledgedRevision, acknowledgedGeneration) ==
+  /\ attachment \in Attachments
+  /\ sequence \in 1..MaxSequence
+  /\ acknowledgedRevision \in 0..MaxRevision
+  /\ acknowledgedGeneration \in 1..MaxGeneration
+  /\ attached[attachment]
+  /\ pendingAnchor[attachment]
+  /\ pendingAnchorValid[attachment]
+  /\ pendingAnchorSequence[attachment] = sequence
+  /\ pendingAnchorRevision[attachment] = acknowledgedRevision
+  /\ pendingAnchorGeneration[attachment] = acknowledgedGeneration
   /\ committedAnchor' = [committedAnchor EXCEPT ![attachment] = TRUE]
   /\ committedAnchorValid' = [committedAnchorValid EXCEPT ![attachment] = TRUE]
+  /\ committedAnchorSequence' =
+       [committedAnchorSequence EXCEPT ![attachment] = sequence]
+  /\ committedAnchorRevision' =
+       [committedAnchorRevision EXCEPT ![attachment] = acknowledgedRevision]
+  /\ committedAnchorGeneration' =
+       [committedAnchorGeneration EXCEPT ![attachment] = acknowledgedGeneration]
   /\ pendingAnchor' = [pendingAnchor EXCEPT ![attachment] = FALSE]
   /\ pendingAnchorValid' = [pendingAnchorValid EXCEPT ![attachment] = FALSE]
   /\ pendingAnchorSequence' =
        [pendingAnchorSequence EXCEPT ![attachment] = NoSequence]
+  /\ pendingAnchorRevision' =
+       [pendingAnchorRevision EXCEPT ![attachment] = NoRevision]
+  /\ pendingAnchorGeneration' =
+       [pendingAnchorGeneration EXCEPT ![attachment] = NoGeneration]
   /\ promotionSafe' = promotionSafe /\ pendingAnchorValid[attachment]
   /\ UNCHANGED <<revision, generation, attached, rowInFlight,
                   rowSequence, lastRowSequence, historyEventInFlight,
@@ -204,16 +272,24 @@ RowsApplied(attachment, sequence) ==
                   exportInFlight, exportChunkInFlight, exportRemaining,
                   exportSequence, exportChunkSequence, lastExportSequence,
                   searchActive, searchRevision, searchGeneration,
-                  searchAccepted>>
+                  searchAccepted, searchSequence, lastSearchSequence>>
+  /\ MonitorRowsAppliedInput(attachment, sequence, acknowledgedRevision,
+                             acknowledgedGeneration)
 
-StaleRowsApplied(attachment, sequence) ==
+StaleRowsApplied(attachment, sequence, acknowledgedRevision, acknowledgedGeneration) ==
   /\ attachment \in Attachments
-  /\ sequence \in 1..MaxSequence
-  /\ attached[attachment]
-  /\ sequence <= lastRowSequence[attachment]
-  /\ (~pendingAnchor[attachment]
-      \/ pendingAnchorSequence[attachment] # sequence)
-  /\ UNCHANGED vars
+  /\ sequence \in 0..NoSequence
+  /\ acknowledgedRevision \in 0..NoRevision
+  /\ acknowledgedGeneration \in 1..NoGeneration
+  /\ ~(attached[attachment]
+       /\ pendingAnchor[attachment]
+       /\ pendingAnchorValid[attachment]
+       /\ pendingAnchorSequence[attachment] = sequence
+       /\ pendingAnchorRevision[attachment] = acknowledgedRevision
+       /\ pendingAnchorGeneration[attachment] = acknowledgedGeneration)
+  /\ UNCHANGED coreVars
+  /\ MonitorRowsAppliedInput(attachment, sequence, acknowledgedRevision,
+                             acknowledgedGeneration)
 
 Evict(attachment) ==
   /\ attachment \in Attachments
@@ -228,13 +304,17 @@ Evict(attachment) ==
   /\ exportChunkSequence' =
        [exportChunkSequence EXCEPT ![attachment] = NoChunkSequence]
   /\ searchActive' = [searchActive EXCEPT ![attachment] = FALSE]
+  /\ searchSequence' = [searchSequence EXCEPT ![attachment] = NoSequence]
   /\ searchAccepted' = [searchAccepted EXCEPT ![attachment] = FALSE]
   /\ UNCHANGED <<revision, generation, attached, rowInFlight,
                   rowSequence, lastRowSequence, pendingAnchor,
                   pendingAnchorSequence, committedAnchor,
                   historyEventInFlight, historyDirty, selectionPresent,
                   lastExportSequence, searchRevision, searchGeneration,
-                  promotionSafe>>
+                  promotionSafe, pendingAnchorRevision,
+                  pendingAnchorGeneration, committedAnchorSequence,
+                  committedAnchorRevision, committedAnchorGeneration,
+                  lastSearchSequence, receivedInputSafe>>
 
 ObserveHistory(attachment) ==
   /\ attachment \in Attachments
@@ -250,7 +330,7 @@ ObserveHistory(attachment) ==
                   exportInFlight, exportChunkInFlight, exportRemaining,
                   exportSequence, exportChunkSequence, lastExportSequence,
                   searchActive, searchRevision, searchGeneration,
-                  searchAccepted, promotionSafe>>
+                  searchAccepted, promotionSafe, pendingAnchorRevision, pendingAnchorGeneration, committedAnchorSequence, committedAnchorRevision, committedAnchorGeneration, searchSequence, lastSearchSequence, receivedInputSafe>>
 
 SetSelection(attachment) ==
   /\ attachment \in Attachments
@@ -264,7 +344,7 @@ SetSelection(attachment) ==
                   exportInFlight, exportChunkInFlight, exportRemaining,
                   exportSequence, exportChunkSequence, lastExportSequence,
                   searchActive, searchRevision, searchGeneration,
-                  searchAccepted, promotionSafe>>
+                  searchAccepted, promotionSafe, pendingAnchorRevision, pendingAnchorGeneration, committedAnchorSequence, committedAnchorRevision, committedAnchorGeneration, searchSequence, lastSearchSequence, receivedInputSafe>>
 
 StartExport(attachment, sequence) ==
   /\ attachment \in Attachments
@@ -285,7 +365,7 @@ StartExport(attachment, sequence) ==
                   committedAnchorValid, historyEventInFlight, historyDirty,
                   selectionPresent, selectionValid, exportChunkInFlight,
                   searchActive, searchRevision, searchGeneration,
-                  searchAccepted, promotionSafe>>
+                  searchAccepted, promotionSafe, pendingAnchorRevision, pendingAnchorGeneration, committedAnchorSequence, committedAnchorRevision, committedAnchorGeneration, searchSequence, lastSearchSequence, receivedInputSafe>>
 
 EmitExportChunk(attachment) ==
   /\ attachment \in Attachments
@@ -301,7 +381,7 @@ EmitExportChunk(attachment) ==
                   exportRemaining, exportSequence, exportChunkSequence,
                   lastExportSequence,
                   searchActive, searchRevision,
-                  searchGeneration, searchAccepted, promotionSafe>>
+                  searchGeneration, searchAccepted, promotionSafe, pendingAnchorRevision, pendingAnchorGeneration, committedAnchorSequence, committedAnchorRevision, committedAnchorGeneration, searchSequence, lastSearchSequence, receivedInputSafe>>
 
 ApplyExportChunk(attachment, sequence, chunkSequence) ==
   /\ attachment \in Attachments
@@ -330,7 +410,7 @@ ApplyExportChunk(attachment, sequence, chunkSequence) ==
                   selectionPresent, selectionValid, lastExportSequence,
                   searchActive,
                   searchRevision, searchGeneration, searchAccepted,
-                  promotionSafe>>
+                  promotionSafe, pendingAnchorRevision, pendingAnchorGeneration, committedAnchorSequence, committedAnchorRevision, committedAnchorGeneration, searchSequence, lastSearchSequence, receivedInputSafe>>
 
 StaleExportChunkApplied(attachment, sequence, chunkSequence) ==
   /\ attachment \in Attachments
@@ -365,12 +445,17 @@ CancelExport(attachment) ==
                   selectionPresent, selectionValid, lastExportSequence,
                   searchActive,
                   searchRevision, searchGeneration, searchAccepted,
-                  promotionSafe>>
+                  promotionSafe, pendingAnchorRevision, pendingAnchorGeneration, committedAnchorSequence, committedAnchorRevision, committedAnchorGeneration, searchSequence, lastSearchSequence, receivedInputSafe>>
 
-BeginSearch(attachment) ==
+BeginSearch(attachment, sequence) ==
   /\ attachment \in Attachments
+  /\ sequence \in 1..MaxSequence
   /\ attached[attachment]
+  /\ sequence > lastSearchSequence[attachment]
   /\ searchActive' = [searchActive EXCEPT ![attachment] = TRUE]
+  /\ searchSequence' = [searchSequence EXCEPT ![attachment] = sequence]
+  /\ lastSearchSequence' =
+       [lastSearchSequence EXCEPT ![attachment] = sequence]
   /\ searchRevision' = [searchRevision EXCEPT ![attachment] = revision]
   /\ searchGeneration' = [searchGeneration EXCEPT ![attachment] = generation]
   /\ searchAccepted' = [searchAccepted EXCEPT ![attachment] = FALSE]
@@ -380,13 +465,38 @@ BeginSearch(attachment) ==
                   committedAnchorValid, historyEventInFlight, historyDirty,
                   selectionPresent, selectionValid, exportInFlight,
                   exportChunkInFlight, exportRemaining, exportSequence,
-                  exportChunkSequence, lastExportSequence, promotionSafe>>
+                  exportChunkSequence, lastExportSequence, promotionSafe,
+                  pendingAnchorRevision, pendingAnchorGeneration,
+                  committedAnchorSequence, committedAnchorRevision,
+                  committedAnchorGeneration, receivedInputSafe>>
 
-AcceptSearchPage(attachment) ==
+ExactSearchPageInput(attachment, sequence, requestRevision, requestGeneration) ==
   /\ attachment \in Attachments
   /\ searchActive[attachment]
-  /\ searchRevision[attachment] = revision
-  /\ searchGeneration[attachment] = generation
+  /\ searchSequence[attachment] = sequence
+  /\ searchRevision[attachment] = requestRevision
+  /\ searchGeneration[attachment] = requestGeneration
+  /\ requestRevision = revision
+  /\ requestGeneration = generation
+
+MonitorSearchPageInput(attachment, sequence, requestRevision, requestGeneration) ==
+  receivedInputSafe' =
+    receivedInputSafe
+      /\ (ExactSearchPageInput(attachment, sequence, requestRevision,
+                               requestGeneration)
+          \/ coreVars' = coreVars)
+
+AcceptSearchPage(attachment, sequence, requestRevision, requestGeneration) ==
+  /\ attachment \in Attachments
+  /\ sequence \in 1..MaxSequence
+  /\ requestRevision \in 0..MaxRevision
+  /\ requestGeneration \in 1..MaxGeneration
+  /\ searchActive[attachment]
+  /\ searchSequence[attachment] = sequence
+  /\ searchRevision[attachment] = requestRevision
+  /\ searchGeneration[attachment] = requestGeneration
+  /\ requestRevision = revision
+  /\ requestGeneration = generation
   /\ searchAccepted' = [searchAccepted EXCEPT ![attachment] = TRUE]
   /\ UNCHANGED <<revision, generation, attached, rowInFlight,
                   rowSequence, lastRowSequence, pendingAnchor,
@@ -395,7 +505,28 @@ AcceptSearchPage(attachment) ==
                   selectionPresent, selectionValid, exportInFlight,
                   exportChunkInFlight, exportRemaining, exportSequence,
                   exportChunkSequence, lastExportSequence, searchActive,
-                  searchRevision, searchGeneration, promotionSafe>>
+                  searchRevision, searchGeneration, promotionSafe,
+                  pendingAnchorRevision, pendingAnchorGeneration,
+                  committedAnchorSequence, committedAnchorRevision,
+                  committedAnchorGeneration, searchSequence,
+                  lastSearchSequence>>
+  /\ MonitorSearchPageInput(attachment, sequence, requestRevision,
+                            requestGeneration)
+
+StaleSearchPage(attachment, sequence, requestRevision, requestGeneration) ==
+  /\ attachment \in Attachments
+  /\ sequence \in 0..NoSequence
+  /\ requestRevision \in 0..NoRevision
+  /\ requestGeneration \in 1..NoGeneration
+  /\ ~(searchActive[attachment]
+       /\ searchSequence[attachment] = sequence
+       /\ searchRevision[attachment] = requestRevision
+       /\ searchGeneration[attachment] = requestGeneration
+       /\ requestRevision = revision
+       /\ requestGeneration = generation)
+  /\ UNCHANGED coreVars
+  /\ MonitorSearchPageInput(attachment, sequence, requestRevision,
+                            requestGeneration)
 
 Detach(attachment) ==
   /\ attachment \in Attachments
@@ -407,8 +538,18 @@ Detach(attachment) ==
   /\ pendingAnchorValid' = [pendingAnchorValid EXCEPT ![attachment] = FALSE]
   /\ pendingAnchorSequence' =
        [pendingAnchorSequence EXCEPT ![attachment] = NoSequence]
+  /\ pendingAnchorRevision' =
+       [pendingAnchorRevision EXCEPT ![attachment] = NoRevision]
+  /\ pendingAnchorGeneration' =
+       [pendingAnchorGeneration EXCEPT ![attachment] = NoGeneration]
   /\ committedAnchor' = [committedAnchor EXCEPT ![attachment] = FALSE]
   /\ committedAnchorValid' = [committedAnchorValid EXCEPT ![attachment] = FALSE]
+  /\ committedAnchorSequence' =
+       [committedAnchorSequence EXCEPT ![attachment] = NoSequence]
+  /\ committedAnchorRevision' =
+       [committedAnchorRevision EXCEPT ![attachment] = NoRevision]
+  /\ committedAnchorGeneration' =
+       [committedAnchorGeneration EXCEPT ![attachment] = NoGeneration]
   /\ historyEventInFlight' =
        [historyEventInFlight EXCEPT ![attachment] = FALSE]
   /\ historyDirty' = [historyDirty EXCEPT ![attachment] = FALSE]
@@ -421,11 +562,12 @@ Detach(attachment) ==
   /\ exportChunkSequence' =
        [exportChunkSequence EXCEPT ![attachment] = NoChunkSequence]
   /\ searchActive' = [searchActive EXCEPT ![attachment] = FALSE]
+  /\ searchSequence' = [searchSequence EXCEPT ![attachment] = NoSequence]
   /\ searchRevision' = [searchRevision EXCEPT ![attachment] = NoRevision]
   /\ searchGeneration' = [searchGeneration EXCEPT ![attachment] = NoGeneration]
   /\ searchAccepted' = [searchAccepted EXCEPT ![attachment] = FALSE]
   /\ UNCHANGED <<revision, generation, lastRowSequence, lastExportSequence,
-                  promotionSafe>>
+                  lastSearchSequence, promotionSafe, receivedInputSafe>>
 
 Next ==
   \/ Mutate
@@ -438,25 +580,34 @@ Next ==
        \/ SetSelection(attachment)
        \/ EmitExportChunk(attachment)
        \/ CancelExport(attachment)
-       \/ BeginSearch(attachment)
-       \/ AcceptSearchPage(attachment)
        \/ Detach(attachment)
        \/ \E sequence \in 1..MaxSequence:
-            \/ RequestRows(attachment, sequence)
-            \/ RowsApplied(attachment, sequence)
-            \/ StaleRowsApplied(attachment, sequence)
-            \/ StartExport(attachment, sequence)
-            \/ \E chunkSequence \in 0..(MaxExportChunks - 1):
-                 \/ ApplyExportChunk(attachment, sequence, chunkSequence)
-                 \/ StaleExportChunkApplied(attachment, sequence, chunkSequence)
+             \/ RequestRows(attachment, sequence)
+             \/ StartExport(attachment, sequence)
+             \/ BeginSearch(attachment, sequence)
+             \/ \E chunkSequence \in 0..(MaxExportChunks - 1):
+                  \/ ApplyExportChunk(attachment, sequence, chunkSequence)
+                  \/ StaleExportChunkApplied(attachment, sequence, chunkSequence)
+       \/ \E sequence \in 0..NoSequence,
+             acknowledgedRevision \in 0..NoRevision,
+             acknowledgedGeneration \in 1..NoGeneration:
+            \/ RowsApplied(attachment, sequence, acknowledgedRevision,
+                           acknowledgedGeneration)
+            \/ StaleRowsApplied(attachment, sequence, acknowledgedRevision,
+                                acknowledgedGeneration)
+       \/ \E sequence \in 0..NoSequence,
+             requestRevision \in 0..NoRevision,
+             requestGeneration \in 1..NoGeneration:
+            \/ AcceptSearchPage(attachment, sequence, requestRevision,
+                                requestGeneration)
+            \/ StaleSearchPage(attachment, sequence, requestRevision,
+                               requestGeneration)
 
 Spec ==
   /\ Init
   /\ [][Next]_vars
   /\ \A attachment \in Attachments: WF_vars(CompleteRows(attachment))
-  /\ \A attachment \in Attachments: WF_vars(ObserveHistory(attachment))
   /\ \A attachment \in Attachments: WF_vars(EmitExportChunk(attachment))
-  /\ \A attachment \in Attachments: WF_vars(ApplyCurrentExportChunk(attachment))
 
 TypeOK ==
   /\ revision \in 0..MaxRevision
@@ -468,8 +619,13 @@ TypeOK ==
   /\ pendingAnchor \in [Attachments -> BOOLEAN]
   /\ pendingAnchorValid \in [Attachments -> BOOLEAN]
   /\ pendingAnchorSequence \in [Attachments -> 1..NoSequence]
+  /\ pendingAnchorRevision \in [Attachments -> 0..NoRevision]
+  /\ pendingAnchorGeneration \in [Attachments -> 1..NoGeneration]
   /\ committedAnchor \in [Attachments -> BOOLEAN]
   /\ committedAnchorValid \in [Attachments -> BOOLEAN]
+  /\ committedAnchorSequence \in [Attachments -> 1..NoSequence]
+  /\ committedAnchorRevision \in [Attachments -> 0..NoRevision]
+  /\ committedAnchorGeneration \in [Attachments -> 1..NoGeneration]
   /\ historyEventInFlight \in [Attachments -> BOOLEAN]
   /\ historyDirty \in [Attachments -> BOOLEAN]
   /\ selectionPresent \in [Attachments -> BOOLEAN]
@@ -481,16 +637,13 @@ TypeOK ==
   /\ exportChunkSequence \in [Attachments -> 0..NoChunkSequence]
   /\ lastExportSequence \in [Attachments -> 0..MaxSequence]
   /\ searchActive \in [Attachments -> BOOLEAN]
+  /\ searchSequence \in [Attachments -> 1..NoSequence]
+  /\ lastSearchSequence \in [Attachments -> 0..MaxSequence]
   /\ searchRevision \in [Attachments -> 0..NoRevision]
   /\ searchGeneration \in [Attachments -> 1..NoGeneration]
   /\ searchAccepted \in [Attachments -> BOOLEAN]
   /\ promotionSafe \in BOOLEAN
-
-OneBoundedInteractionFlight ==
-  \A attachment \in Attachments:
-    /\ rowInFlight[attachment] \in BOOLEAN
-    /\ historyEventInFlight[attachment] \in BOOLEAN
-    /\ exportChunkInFlight[attachment] \in BOOLEAN
+  /\ receivedInputSafe \in BOOLEAN
 
 OnlyValidPendingAnchorPromotes == promotionSafe
 
@@ -526,6 +679,7 @@ SearchResultHasOneCurrentRevision ==
   \A attachment \in Attachments:
     searchAccepted[attachment] =>
       /\ searchActive[attachment]
+      /\ searchSequence[attachment] = lastSearchSequence[attachment]
       /\ searchRevision[attachment] = revision
       /\ searchGeneration[attachment] = generation
 
@@ -543,18 +697,21 @@ DetachedAttachmentOwnsNothing ==
       /\ exportSequence[attachment] = NoSequence
       /\ exportChunkSequence[attachment] = NoChunkSequence
       /\ ~searchActive[attachment]
+      /\ searchSequence[attachment] = NoSequence
       /\ ~searchAccepted[attachment]
+
+PendingAnchorNamesExactRowIdentity ==
+  \A attachment \in Attachments:
+    pendingAnchorValid[attachment] =>
+      /\ pendingAnchor[attachment]
+      /\ pendingAnchorSequence[attachment] \in 1..MaxSequence
+      /\ pendingAnchorRevision[attachment] \in 0..MaxRevision
+      /\ pendingAnchorGeneration[attachment] \in 1..MaxGeneration
+
+RejectedInputPreservation == receivedInputSafe
 
 RowFlightEventuallySettles ==
   \A attachment \in Attachments:
     rowInFlight[attachment] ~> ~rowInFlight[attachment]
-
-HistoryEventEventuallyObserved ==
-  \A attachment \in Attachments:
-    historyEventInFlight[attachment] ~> ~historyEventInFlight[attachment]
-
-ExportEventuallyCompletes ==
-  \A attachment \in Attachments:
-    exportInFlight[attachment] ~> ~exportInFlight[attachment]
 
 =============================================================================

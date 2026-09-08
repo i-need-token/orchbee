@@ -298,8 +298,13 @@ fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u
         "--endpoint-id",
         &endpoint_id,
     };
+    const inherited_file = try std.fs.path.join(allocator, &.{ runtime_directory.path(), "launcher-owned" });
+    defer allocator.free(inherited_file);
+    const linux_host_arguments = [_][]const u8{
+        "/bin/sh", "-c", "exec 9>\"$1\"; shift; exec \"$@\"", "orchbee-host-launch-fixture", inherited_file,
+    } ++ host_arguments;
     var child = try std.process.spawn(io, .{
-        .argv = &host_arguments,
+        .argv = if (builtin.os.tag == .linux) &linux_host_arguments else &host_arguments,
         .stdin = .ignore,
     });
     var child_reaped = false;
@@ -318,6 +323,19 @@ fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u
     try trace.observe(.ipc_connected);
 
     const host_epoch = try handshake(allocator, &client);
+    if (builtin.os.tag == .linux) {
+        const process_id = child.id orelse return error.HostExitedBeforeHandshake;
+        const descriptor_path = try std.fmt.allocPrint(allocator, "/proc/{d}/fd/9", .{process_id});
+        defer allocator.free(descriptor_path);
+        var link_buffer: [std.fs.max_path_bytes]u8 = undefined;
+        const link_length = std.Io.Dir.readLinkAbsolute(io, descriptor_path, &link_buffer) catch |err| switch (err) {
+            error.FileNotFound => 0,
+            else => return err,
+        };
+        if (std.mem.eql(u8, inherited_file, link_buffer[0..link_length])) {
+            return error.RetainedLauncherDescriptor;
+        }
+    }
     try trace.observe(.hello_accepted);
     var session: Session = .{
         .allocator = allocator,

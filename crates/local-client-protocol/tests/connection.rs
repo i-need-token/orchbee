@@ -21,6 +21,10 @@ use orchbee_local_peer_credentials::require_same_effective_user;
 
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
 
+#[cfg(target_os = "linux")]
+#[path = "connection/admission_deadline.rs"]
+mod admission_deadline;
+
 #[test]
 fn connecting_adapter_authenticates_handshakes_and_observes_server_loss() -> io::Result<()> {
     let fixture = TestDirectory::new()?;

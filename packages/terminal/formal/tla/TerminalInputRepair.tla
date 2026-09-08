@@ -44,7 +44,6 @@ QueuedOwnershipInputs == {
 MaxTextPublications == 2
 
 InputActions == {
-    "focus",
     "begin-paste-review",
     "resolve-paste-review",
     "reject-paste-review",
@@ -53,7 +52,9 @@ InputActions == {
     "queue-mouse-press",
     "queue-mouse-release",
     "queue-focus-in",
+    "queue-key-after-focus",
     "begin-queued-send",
+    "begin-queued-focus-before-key",
     "begin-key-press-send",
     "begin-key-release-send",
     "begin-mouse-press-send",
@@ -66,12 +67,8 @@ InputActions == {
     "continue-current-input",
     "start-composition",
     "update-composition",
-    "record-key",
-    "release-key",
     "record-paste",
     "consume-paste-beforeinput",
-    "record-mouse",
-    "release-mouse",
     "consume-key-beforeinput",
     "consume-composition-beforeinput",
     "publish-beforeinput-eligible",
@@ -95,9 +92,11 @@ HostInputAttemptActions == {
     "begin-focus-reconciliation",
     "begin-stateless-send",
     "begin-queued-send",
+    "begin-queued-focus-before-key",
     "begin-repair-key-send",
     "begin-repair-mouse-send",
-    "begin-repair-focus-send"
+    "begin-repair-focus-send",
+    "begin-repair-reopen-focus-send"
 }
 
 VARIABLES
@@ -249,7 +248,7 @@ TargetedSendSuccessAllowed ==
     ~(Scenario = "review-composition" /\
       cancelledReviewPending /\
       sendState = "focus-in" /\
-      lastAction = "repair-reopen-admission")
+      lastAction = "begin-repair-reopen-focus-send")
 
 RecordHistoryFields(action) ==
     /\ lastAction' = action
@@ -346,6 +345,7 @@ TypeOK ==
           "repair-mouse-send-failure",
           "repair-focus-send-failure",
           "repair-reopen-admission",
+          "begin-repair-reopen-focus-send",
           "resolve-cancelled-review",
           "dispose-complete",
           "capability-downgrade",
@@ -438,7 +438,6 @@ ApplyCapabilityDowngrade ==
     /\ InputReady
     /\ inputEnabled
     /\ capabilityRevision < MaxCapabilityRevision
-    /\ sendState = "none"
     /\ inputEnabled' = FALSE
     /\ capabilityRevision' = capabilityRevision + 1
     /\ phase' = IF phase = "eligible" THEN "cancelled-awaiting-end" ELSE phase
@@ -485,33 +484,7 @@ ApplyCapabilityUpgrade ==
     /\ RecordHistoryFields("capability-upgrade")
     /\ UNCHANGED <<coreRuntimeVars, stagedContinuation, dispatcherOwnershipVars, sendTransactionVars>>
 
-GainFocus ==
-    /\ InputReady
-    /\ ~focused
-    /\ phase' = IF phase = "cancelled-awaiting-end" THEN "idle" ELSE phase
-    /\ focused' = TRUE
-    /\ focusOutPublished' = FALSE
-    /\ RecordHistory("focus")
-    /\ UNCHANGED <<
-        stagedContinuation,
-        settlement,
-        preeditPublished,
-        textareaDirty,
-        availableCorrelations,
-        lastConsumedCorrelation,
-        compositionPublicationCount,
-        totalTextPublicationCount,
-        keyPressed,
-        mousePressed,
-        needsFocusOut,
-        admission,
-        repairStage,
-        repairReason,
-        disposePending,
-        disposed
-        >>
-
-StartComposition ==
+StartCompositionCore ==
     /\ InputReady
     /\ phase \in {"idle", "cancelled-awaiting-end"}
     /\ phase' = "eligible"
@@ -537,7 +510,7 @@ StartComposition ==
         disposed
         >>
 
-UpdateEligibleComposition ==
+UpdateEligibleCompositionCore ==
     /\ InputReady
     /\ phase = "eligible"
     /\ compositionPublicationCount = 0
@@ -564,60 +537,7 @@ UpdateEligibleComposition ==
         disposed
         >>
 
-RecordKeyInput ==
-    /\ InputReady
-    /\ phase # "eligible"
-    /\ phase' = "idle"
-    /\ availableCorrelations' = availableCorrelations \cup {"key"}
-    /\ lastConsumedCorrelation' =
-          IF lastConsumedCorrelation = "key" THEN "none" ELSE lastConsumedCorrelation
-    /\ keyPressed' = TRUE
-    /\ RecordHistory("record-key")
-    /\ UNCHANGED <<
-        stagedContinuation,
-        settlement,
-        preeditPublished,
-        textareaDirty,
-        compositionPublicationCount,
-        totalTextPublicationCount,
-        mousePressed,
-        focused,
-        needsFocusOut,
-        focusOutPublished,
-        admission,
-        repairStage,
-        repairReason,
-        disposePending,
-        disposed
-        >>
-
-ReleaseKeyInput ==
-    /\ InputReady
-    /\ keyPressed
-    /\ keyPressed' = FALSE
-    /\ RecordHistory("release-key")
-    /\ UNCHANGED <<
-        stagedContinuation,
-        phase,
-        settlement,
-        preeditPublished,
-        textareaDirty,
-        availableCorrelations,
-        lastConsumedCorrelation,
-        compositionPublicationCount,
-        totalTextPublicationCount,
-        mousePressed,
-        focused,
-        needsFocusOut,
-        focusOutPublished,
-        admission,
-        repairStage,
-        repairReason,
-        disposePending,
-        disposed
-        >>
-
-RecordClipboardPaste ==
+RecordClipboardPasteCore ==
     /\ InputReady
     /\ phase = "idle"
     /\ availableCorrelations' = availableCorrelations \cup {"paste"}
@@ -644,7 +564,7 @@ RecordClipboardPaste ==
         disposed
         >>
 
-ConsumePasteBeforeInputDuplicate ==
+ConsumePasteBeforeInputDuplicateCore ==
     /\ InputReady
     /\ "paste" \in availableCorrelations
     /\ availableCorrelations' = availableCorrelations \ {"paste"}
@@ -670,59 +590,7 @@ ConsumePasteBeforeInputDuplicate ==
         disposed
         >>
 
-RecordMouseInput ==
-    /\ InputReady
-    /\ availableCorrelations' = availableCorrelations \cup {"mouse"}
-    /\ lastConsumedCorrelation' =
-          IF lastConsumedCorrelation = "mouse" THEN "none" ELSE lastConsumedCorrelation
-    /\ mousePressed' = TRUE
-    /\ RecordHistory("record-mouse")
-    /\ UNCHANGED <<
-        stagedContinuation,
-        phase,
-        settlement,
-        preeditPublished,
-        textareaDirty,
-        compositionPublicationCount,
-        totalTextPublicationCount,
-        keyPressed,
-        focused,
-        needsFocusOut,
-        focusOutPublished,
-        admission,
-        repairStage,
-        repairReason,
-        disposePending,
-        disposed
-        >>
-
-ReleaseMouseInput ==
-    /\ InputReady
-    /\ mousePressed
-    /\ mousePressed' = FALSE
-    /\ availableCorrelations' = availableCorrelations \ {"mouse"}
-    /\ lastConsumedCorrelation' = "mouse"
-    /\ RecordHistory("release-mouse")
-    /\ UNCHANGED <<
-        stagedContinuation,
-        phase,
-        settlement,
-        preeditPublished,
-        textareaDirty,
-        compositionPublicationCount,
-        totalTextPublicationCount,
-        keyPressed,
-        focused,
-        needsFocusOut,
-        focusOutPublished,
-        admission,
-        repairStage,
-        repairReason,
-        disposePending,
-        disposed
-        >>
-
-ConsumeKeyBeforeInputDuplicate ==
+ConsumeKeyBeforeInputDuplicateCore ==
     /\ InputReady
     /\ "key" \in availableCorrelations
     /\ phase' = IF phase = "cancelled-awaiting-end" THEN "idle" ELSE phase
@@ -748,7 +616,7 @@ ConsumeKeyBeforeInputDuplicate ==
         disposed
         >>
 
-ConsumeCompositionBeforeInputDuplicate ==
+ConsumeCompositionBeforeInputDuplicateCore ==
     /\ InputReady
     /\ "key" \notin availableCorrelations
     /\ "composition" \in availableCorrelations
@@ -812,13 +680,13 @@ PublishBeforeInput(authority, action) ==
         disposed
         >>
 
-PublishEligibleBeforeInput ==
+PublishEligibleBeforeInputCore ==
     PublishBeforeInput("eligible", "publish-beforeinput-eligible")
 
-PublishIdleBeforeInput ==
+PublishIdleBeforeInputCore ==
     PublishBeforeInput("idle", "publish-beforeinput-idle")
 
-ConsumeBeforeInputCompositionEndDuplicate ==
+ConsumeBeforeInputCompositionEndDuplicateCore ==
     /\ InputReady
     /\ phase = "eligible"
     /\ "beforeinput" \in availableCorrelations
@@ -845,7 +713,7 @@ ConsumeBeforeInputCompositionEndDuplicate ==
         disposed
         >>
 
-PublishEligibleCompositionEnd ==
+PublishEligibleCompositionEndCore ==
     /\ InputReady
     /\ phase = "eligible"
     /\ compositionPublicationCount = 0
@@ -875,7 +743,7 @@ PublishEligibleCompositionEnd ==
         disposed
         >>
 
-ConsumeCompositionOriginBeforeInput ==
+ConsumeCompositionOriginBeforeInputCore ==
     /\ InputReady
     /\ phase # "eligible"
     /\ settlement \in {"awaiting-native-end", "awaiting-beforeinput"}
@@ -906,7 +774,7 @@ ConsumeCompositionOriginBeforeInput ==
         disposed
         >>
 
-EndCancelledComposition ==
+EndCancelledCompositionCore ==
     /\ InputReady
     /\ (phase = "cancelled-awaiting-end" \/
         (phase = "idle" /\ settlement \in {"awaiting-native-end", "beforeinput-observed"}))
@@ -962,19 +830,14 @@ StartRepair(reason, action) ==
         disposed
         >>
 
-StartEligibleRepair(reason) ==
-    /\ phase = "eligible"
-    /\ StartRepair(reason, "repair-eligible")
+StartEligibleRepairCore(reason) ==
+    StartRepair(reason, "repair-eligible")
 
-StartSettledRepair(reason) ==
-    /\ phase # "eligible"
-    /\ settlement # "none"
-    /\ StartRepair(reason, "repair-settled")
+StartSettledRepairCore(reason) ==
+    StartRepair(reason, "repair-settled")
 
-StartPlainRepair(reason) ==
-    /\ phase # "eligible"
-    /\ settlement = "none"
-    /\ StartRepair(reason, "repair-plain")
+StartPlainRepairCore(reason) ==
+    StartRepair(reason, "repair-plain")
 
 StartDispose(action) ==
     /\ ~disposed
@@ -1005,29 +868,19 @@ StartDispose(action) ==
         disposed
         >>
 
-StartFocusedDispose ==
-    /\ InputReady
-    /\ focused
-    /\ StartDispose("start-dispose-focused")
+StartFocusedDisposeCore ==
+    StartDispose("start-dispose-focused")
 
-StartUnfocusedDispose ==
-    /\ InputReady
-    /\ ~focused
-    /\ StartDispose("start-dispose-unfocused")
+StartUnfocusedDisposeCore ==
+    StartDispose("start-dispose-unfocused")
 
-StartDisposeAfterCompletedFocusRepair ==
-    /\ admission = "repairing"
-    /\ repairStage = "complete"
-    /\ repairReason \in FocusRepairReasons
-    /\ StartDispose("start-dispose-after-repair")
+StartDisposeAfterCompletedFocusRepairCore ==
+    StartDispose("start-dispose-after-repair")
 
-StartCoalescedResetFocusRepair ==
-    /\ InputReady
-    /\ focused
-    /\ StartRepair("window-blur", "coalesce-focus-repair-during-reset")
+StartCoalescedResetFocusRepairCore ==
+    StartRepair("window-blur", "coalesce-focus-repair-during-reset")
 
-CoalesceFocusRepairDuringActiveReset ==
-    /\ admission = "repairing"
+CoalesceFocusRepairDuringActiveResetCore ==
     /\ repairReason = "reset"
     /\ repairStage \in (ActiveRepairStages \cup {"complete"})
     /\ focused
@@ -1054,8 +907,7 @@ CoalesceFocusRepairDuringActiveReset ==
         disposed
         >>
 
-RequestDisposeDuringRepair ==
-    /\ admission = "repairing"
+RequestDisposeDuringRepairCore ==
     /\ repairStage \in ActiveRepairStages
     /\ repairReason # "dispose"
     /\ admission' = "disposed"
@@ -1081,9 +933,8 @@ RequestDisposeDuringRepair ==
         disposed
         >>
 
-BeginPendingDispose ==
+BeginPendingDisposeCore ==
     /\ admission = "disposed"
-    /\ disposePending
     /\ repairStage = "complete"
     /\ disposePending' = FALSE
     /\ disposed' = TRUE
@@ -1108,9 +959,8 @@ BeginPendingDispose ==
         repairReason
         >>
 
-PublishRepairKeyRelease ==
+PublishRepairKeyReleaseCore ==
     /\ repairStage = "transient-cleared"
-    /\ keyPressed
     /\ sendState = "none"
     /\ sendState' = "key-release"
     /\ sendFromRepair' = TRUE
@@ -1137,10 +987,9 @@ PublishRepairKeyRelease ==
         disposed
         >>
 
-SkipRepairKeyRelease ==
+SkipRepairKeyReleaseCore ==
     /\ repairStage = "transient-cleared"
     /\ sendState = "none"
-    /\ ~keyPressed
     /\ keyPressed' = FALSE
     /\ repairStage' = "keys-released"
     /\ RecordHistory("repair-skip-key-release")
@@ -1164,11 +1013,8 @@ SkipRepairKeyRelease ==
         disposed
         >>
 
-ReleaseRepairKeys == PublishRepairKeyRelease \/ SkipRepairKeyRelease
-
-PublishRepairMouseRelease ==
+PublishRepairMouseReleaseCore ==
     /\ repairStage = "keys-released"
-    /\ mousePressed
     /\ sendState = "none"
     /\ sendState' = "mouse-release"
     /\ sendFromRepair' = TRUE
@@ -1195,10 +1041,9 @@ PublishRepairMouseRelease ==
         disposed
         >>
 
-SkipRepairMouseRelease ==
+SkipRepairMouseReleaseCore ==
     /\ repairStage = "keys-released"
     /\ sendState = "none"
-    /\ ~mousePressed
     /\ mousePressed' = FALSE
     /\ repairStage' = "mouse-released"
     /\ RecordHistory("repair-skip-mouse-release")
@@ -1222,12 +1067,9 @@ SkipRepairMouseRelease ==
         disposed
         >>
 
-ReleaseRepairMouse == PublishRepairMouseRelease \/ SkipRepairMouseRelease
-
-CompleteRepairWithoutFocusOut ==
+CompleteRepairWithoutFocusOutCore ==
     /\ repairStage = "mouse-released"
     /\ sendState = "none"
-    /\ ~needsFocusOut
     /\ repairStage' = "complete"
     /\ RecordHistory("repair-complete-without-focusout")
     /\ UNCHANGED <<
@@ -1251,9 +1093,8 @@ CompleteRepairWithoutFocusOut ==
         disposed
         >>
 
-PublishFocusOut ==
+PublishFocusOutCore ==
     /\ repairStage = "mouse-released"
-    /\ needsFocusOut
     /\ focused
     /\ repairReason \in FocusRepairReasons \cup {"dispose"}
     /\ sendState = "none"
@@ -1282,7 +1123,7 @@ PublishFocusOut ==
         disposed
         >>
 
-ReopenInputAdmission ==
+ReopenInputAdmissionBase(action, nextSendState) ==
     /\ admission = "repairing"
     /\ repairStage = "complete"
     /\ repairReason # "dispose"
@@ -1292,9 +1133,9 @@ ReopenInputAdmission ==
     /\ repairStage' = "none"
     /\ repairReason' = "none"
     /\ focusOutPublished' = FALSE
-    /\ sendState' = IF localFocused /\ ~focused THEN "focus-in" ELSE "none"
+    /\ sendState' = nextSendState
     /\ sendFromRepair' = FALSE
-    /\ RecordHistory("repair-reopen-admission")
+    /\ RecordHistory(action)
     /\ UNCHANGED <<
         stagedContinuation,
         phase,
@@ -1313,12 +1154,16 @@ ReopenInputAdmission ==
         disposed
         >>
 
-CompleteDispose ==
+ReopenInputAdmissionWithoutFocusCommandCore ==
+    ReopenInputAdmissionBase("repair-reopen-admission", "none")
+
+BeginRepairReopenFocusSendCore ==
+    ReopenInputAdmissionBase("begin-repair-reopen-focus-send", "focus-in")
+
+CompleteDisposeCore ==
     /\ admission = "disposed"
     /\ repairStage = "complete"
     /\ repairReason = "dispose"
-    /\ ~disposePending
-    /\ ~needsFocusOut
     /\ sendState = "none"
     /\ disposed' = TRUE
     /\ RecordHistory("dispose-complete")
@@ -1364,67 +1209,7 @@ PublishInputAction(action) ==
     /\ UNCHANGED dispatcherOwnershipVars
     /\ UNCHANGED sendTransactionVars
 
-PublishGainFocus ==
-    /\ DispatcherReady
-    /\ GainFocus
-    /\ localFocused' = TRUE
-    /\ UNCHANGED <<
-        localKeyPressed,
-        localMousePressed,
-        reviewStalled,
-        cancelledReviewPending,
-        queuedOwnershipInput
-        >>
-
-PublishKeyInput ==
-    /\ DispatcherReady
-    /\ RecordKeyInput
-    /\ localKeyPressed' = TRUE
-    /\ UNCHANGED <<
-        localMousePressed,
-        localFocused,
-        reviewStalled,
-        cancelledReviewPending,
-        queuedOwnershipInput
-        >>
-
-PublishKeyRelease ==
-    /\ DispatcherReady
-    /\ ReleaseKeyInput
-    /\ localKeyPressed' = FALSE
-    /\ UNCHANGED <<
-        localMousePressed,
-        localFocused,
-        reviewStalled,
-        cancelledReviewPending,
-        queuedOwnershipInput
-        >>
-
-PublishMouseInput ==
-    /\ DispatcherReady
-    /\ RecordMouseInput
-    /\ localMousePressed' = TRUE
-    /\ UNCHANGED <<
-        localKeyPressed,
-        localFocused,
-        reviewStalled,
-        cancelledReviewPending,
-        queuedOwnershipInput
-        >>
-
-PublishMouseRelease ==
-    /\ DispatcherReady
-    /\ ReleaseMouseInput
-    /\ localMousePressed' = FALSE
-    /\ UNCHANGED <<
-        localKeyPressed,
-        localFocused,
-        reviewStalled,
-        cancelledReviewPending,
-        queuedOwnershipInput
-        >>
-
-BeginKeyPressSend ==
+BeginKeyPressSendCore ==
     /\ DispatcherReady
     /\ FocusConverged
     /\ phase # "eligible"
@@ -1461,7 +1246,7 @@ BeginKeyPressSend ==
         disposed
         >>
 
-BeginKeyReleaseSend ==
+BeginKeyReleaseSendCore ==
     /\ DispatcherReady
     /\ FocusConverged
     /\ localKeyPressed
@@ -1480,7 +1265,7 @@ BeginKeyReleaseSend ==
         queuedOwnershipInput
         >>
 
-BeginMousePressSend ==
+BeginMousePressSendCore ==
     /\ DispatcherReady
     /\ FocusConverged
     /\ ~localMousePressed
@@ -1516,7 +1301,7 @@ BeginMousePressSend ==
         disposed
         >>
 
-BeginMouseReleaseSend ==
+BeginMouseReleaseSendCore ==
     /\ DispatcherReady
     /\ FocusConverged
     /\ localMousePressed
@@ -1552,7 +1337,7 @@ BeginMouseReleaseSend ==
         disposed
         >>
 
-BeginFocusSend ==
+BeginFocusSendCore ==
     /\ DispatcherReady
     /\ ~localFocused
     /\ ~focused
@@ -1587,7 +1372,7 @@ BeginFocusSend ==
         disposed
         >>
 
-BeginFocusReconciliation ==
+BeginFocusReconciliationCore ==
     /\ DispatcherReady
     /\ localFocused
     /\ ~focused
@@ -1596,7 +1381,7 @@ BeginFocusReconciliation ==
     /\ RecordHistory("begin-focus-reconciliation")
     /\ UNCHANGED <<coreRuntimeVars, stagedContinuation, dispatcherOwnershipVars>>
 
-BeginStatelessSend ==
+BeginStatelessSendCore ==
     /\ DispatcherReady
     /\ FocusConverged
     /\ sendState' = "stateless"
@@ -1816,11 +1601,34 @@ QueueFocusIn ==
     /\ localFocused' = TRUE
     /\ UNCHANGED <<localKeyPressed, localMousePressed>>
 
+QueueKeyAfterFocus ==
+    /\ Scenario = "review-focus"
+    /\ InputReady
+    /\ reviewStalled
+    /\ queuedOwnershipInput = "focus-in"
+    /\ localFocused
+    /\ ~focused
+    /\ ~localKeyPressed
+    /\ ~keyPressed
+    /\ queuedOwnershipInput' = "key-press"
+    /\ localKeyPressed' = TRUE
+    /\ RecordHistory("queue-key-after-focus")
+    /\ UNCHANGED <<
+        coreRuntimeVars,
+        stagedContinuation,
+        localMousePressed,
+        localFocused,
+        reviewStalled,
+        cancelledReviewPending,
+        sendTransactionVars
+        >>
+
 PublishQueuedOwnershipBase(kind) ==
     /\ InputReady
     /\ ~reviewStalled
     /\ queuedOwnershipInput = kind
     /\ sendState = "none"
+    /\ (kind = "focus-in" \/ FocusConverged)
     /\ queuedOwnershipInput' = "none"
     /\ sendState' = kind
     /\ sendFromRepair' = FALSE
@@ -1848,6 +1656,21 @@ PublishQueuedOwnershipBase(kind) ==
         disposePending,
         disposed
         >>
+
+BeginQueuedFocusBeforeKey ==
+    /\ Scenario = "review-focus"
+    /\ InputReady
+    /\ ~reviewStalled
+    /\ queuedOwnershipInput = "key-press"
+    /\ localKeyPressed
+    /\ ~keyPressed
+    /\ localFocused
+    /\ ~focused
+    /\ sendState = "none"
+    /\ sendState' = "focus-in"
+    /\ sendFromRepair' = FALSE
+    /\ RecordHistory("begin-queued-focus-before-key")
+    /\ UNCHANGED <<coreRuntimeVars, stagedContinuation, dispatcherOwnershipVars>>
 
 PublishQueuedKeyPress ==
     /\ PublishQueuedOwnershipBase("key-press")
@@ -2070,6 +1893,13 @@ CoverageReentrantRepairDuringSend ==
     /\ sendState # "none"
     /\ UNCHANGED vars
 
+CoverageCapabilityDowngradeDuringSend ==
+    /\ lastAction = "capability-downgrade"
+    /\ priorSendState = "key-press"
+    /\ sendState = "none"
+    /\ lastAttemptedCapabilityRevision = priorCapabilityRevision
+    /\ UNCHANGED vars
+
 CoverageFocusReconciliation ==
     /\ lastAction = "begin-focus-reconciliation"
     /\ priorLocalFocused
@@ -2077,10 +1907,11 @@ CoverageFocusReconciliation ==
     /\ UNCHANGED vars
 
 CoverageRepairReopenFocusReconciliation ==
-    /\ lastAction = "repair-reopen-admission"
+    /\ lastAction = "begin-repair-reopen-focus-send"
     /\ priorLocalFocused
     /\ ~priorFocused
     /\ sendState = "focus-in"
+    /\ lastAttemptedCapabilityRevision = capabilityRevision
     /\ UNCHANGED vars
 
 CoveragePasteReviewRejection ==
@@ -2156,7 +1987,7 @@ BlockTextPublicationOnFocusMismatch ==
     /\ RecordHistory("block-text-publication-focus-mismatch")
     /\ UNCHANGED runtimeVars
 
-StageInputContinuation ==
+StageInputContinuationCore ==
     /\ InputReady
     /\ stagedContinuation = "none"
     /\ phase = "eligible"
@@ -2185,7 +2016,7 @@ StageInputContinuation ==
         disposed
         >>
 
-ContinueCurrentInput ==
+ContinueCurrentInputCore ==
     /\ InputReady
     /\ stagedContinuation = "current"
     /\ stagedContinuation' = "none"
@@ -2211,59 +2042,220 @@ ContinueCurrentInput ==
         disposed
         >>
 
-DiscardStaleInputContinuation ==
+DiscardStaleInputContinuationCore ==
     /\ stagedContinuation = "stale"
     /\ stagedContinuation' = "none"
     /\ RecordHistory("discard-stale-input-continuation")
     /\ UNCHANGED coreRuntimeVars
 
+\* Keep every maintained semantic transition as a named top-level Next
+\* disjunct. The Core operators contain the transition itself; these wrappers
+\* retain the original scenario, dispatcher, and lifecycle gates while making
+\* TLC action coverage report the public semantic operator name.
+StageInputContinuation ==
+    /\ Scenario \in {"composition", "review-composition"}
+    /\ PublishInputAction(StageInputContinuationCore)
+
+ContinueCurrentInput ==
+    /\ Scenario \in {"composition", "review-composition"}
+    /\ DispatchAction(ContinueCurrentInputCore)
+
+DiscardStaleInputContinuation ==
+    /\ Scenario \in {"composition", "review-composition"}
+    /\ KeepDispatcherOwnership(DiscardStaleInputContinuationCore)
+
+StartComposition ==
+    /\ Scenario \in {"composition", "review-composition"}
+    /\ DispatchAction(StartCompositionCore)
+
+UpdateEligibleComposition ==
+    /\ Scenario \in {"composition", "review-composition"}
+    /\ DispatchAction(UpdateEligibleCompositionCore)
+
+BeginFocusSend ==
+    /\ Scenario \in {"focus", "review-focus", "lifecycle"}
+    /\ BeginFocusSendCore
+
+BeginFocusReconciliation ==
+    /\ Scenario \in {"focus", "review-focus", "review-composition", "lifecycle"}
+    /\ BeginFocusReconciliationCore
+
+BeginKeyPressSend ==
+    /\ Scenario \in {"key", "review-key", "lifecycle"}
+    /\ BeginKeyPressSendCore
+
+BeginKeyReleaseSend ==
+    /\ Scenario \in {"key", "review-key", "lifecycle"}
+    /\ BeginKeyReleaseSendCore
+
+RecordClipboardPaste ==
+    /\ Scenario \in {"composition", "review-key", "review-mouse", "review-focus"}
+    /\ DispatchAction(RecordClipboardPasteCore)
+
+ConsumePasteBeforeInputDuplicate ==
+    /\ Scenario \in {"composition", "review-key", "review-mouse", "review-focus"}
+    /\ DispatchAction(ConsumePasteBeforeInputDuplicateCore)
+
+BeginMousePressSend ==
+    /\ Scenario \in {"mouse", "review-mouse", "lifecycle"}
+    /\ BeginMousePressSendCore
+
+BeginMouseReleaseSend ==
+    /\ Scenario \in {"mouse", "review-mouse", "lifecycle"}
+    /\ BeginMouseReleaseSendCore
+
+BeginStatelessSend ==
+    /\ Scenario = "key"
+    /\ BeginStatelessSendCore
+
+ConsumeKeyBeforeInputDuplicate ==
+    /\ Scenario \in {"composition", "key"}
+    /\ DispatchAction(ConsumeKeyBeforeInputDuplicateCore)
+
+ConsumeCompositionBeforeInputDuplicate ==
+    /\ Scenario = "composition"
+    /\ DispatchAction(ConsumeCompositionBeforeInputDuplicateCore)
+
+PublishEligibleBeforeInput ==
+    /\ Scenario \in {"composition", "review-composition"}
+    /\ PublishInputAction(PublishEligibleBeforeInputCore)
+
+PublishIdleBeforeInput ==
+    /\ Scenario \in {"composition", "review-composition"}
+    /\ PublishInputAction(PublishIdleBeforeInputCore)
+
+ConsumeBeforeInputCompositionEndDuplicate ==
+    /\ Scenario = "composition"
+    /\ DispatchAction(ConsumeBeforeInputCompositionEndDuplicateCore)
+
+PublishEligibleCompositionEnd ==
+    /\ Scenario \in {"composition", "review-composition"}
+    /\ PublishInputAction(PublishEligibleCompositionEndCore)
+
+ConsumeCompositionOriginBeforeInput ==
+    /\ Scenario = "composition"
+    /\ DispatchAction(ConsumeCompositionOriginBeforeInputCore)
+
+EndCancelledComposition ==
+    /\ Scenario \in {"composition", "review-composition"}
+    /\ DispatchAction(EndCancelledCompositionCore)
+
+StartEligibleRepair ==
+    /\ phase = "eligible"
+    /\ \E reason \in ScenarioRepairReasons:
+           InvalidateDispatcherForLifecycle(StartEligibleRepairCore(reason))
+
+StartSettledRepair ==
+    /\ phase # "eligible"
+    /\ settlement # "none"
+    /\ \E reason \in ScenarioRepairReasons:
+           InvalidateDispatcherForLifecycle(StartSettledRepairCore(reason))
+
+StartPlainRepair ==
+    /\ phase # "eligible"
+    /\ settlement = "none"
+    /\ \E reason \in ScenarioRepairReasons:
+           InvalidateDispatcherForLifecycle(StartPlainRepairCore(reason))
+
+StartFocusedDispose ==
+    /\ InputReady
+    /\ focused
+    /\ InvalidateDispatcherForLifecycle(StartFocusedDisposeCore)
+
+StartUnfocusedDispose ==
+    /\ InputReady
+    /\ ~focused
+    /\ InvalidateDispatcherForLifecycle(StartUnfocusedDisposeCore)
+
+StartDisposeAfterCompletedFocusRepair ==
+    /\ admission = "repairing"
+    /\ repairStage = "complete"
+    /\ repairReason \in FocusRepairReasons
+    /\ InvalidateDispatcherForLifecycle(StartDisposeAfterCompletedFocusRepairCore)
+
+StartCoalescedResetFocusRepair ==
+    /\ InputReady
+    /\ focused
+    /\ InvalidateDispatcherForLifecycle(StartCoalescedResetFocusRepairCore)
+
+CoalesceFocusRepairDuringActiveReset ==
+    /\ admission = "repairing"
+    /\ InvalidateDispatcherForLifecycle(CoalesceFocusRepairDuringActiveResetCore)
+
+RequestDisposeDuringRepair ==
+    /\ admission = "repairing"
+    /\ InvalidateDispatcherForLifecycle(RequestDisposeDuringRepairCore)
+
+BeginPendingDispose ==
+    /\ disposePending
+    /\ KeepDispatcherOwnership(BeginPendingDisposeCore)
+
+PublishRepairKeyRelease ==
+    /\ keyPressed
+    /\ PreserveDispatcherOwnership(PublishRepairKeyReleaseCore)
+
+SkipRepairKeyRelease ==
+    /\ ~keyPressed
+    /\ KeepDispatcherOwnership(SkipRepairKeyReleaseCore)
+
+PublishRepairMouseRelease ==
+    /\ mousePressed
+    /\ PreserveDispatcherOwnership(PublishRepairMouseReleaseCore)
+
+SkipRepairMouseRelease ==
+    /\ ~mousePressed
+    /\ KeepDispatcherOwnership(SkipRepairMouseReleaseCore)
+
+CompleteRepairWithoutFocusOut ==
+    /\ ~needsFocusOut
+    /\ KeepDispatcherOwnership(CompleteRepairWithoutFocusOutCore)
+
+PublishFocusOut ==
+    /\ needsFocusOut
+    /\ PreserveDispatcherOwnership(PublishFocusOutCore)
+
+ReopenInputAdmissionWithoutFocusCommand ==
+    /\ ~(localFocused /\ ~focused)
+    /\ PreserveDispatcherOwnership(ReopenInputAdmissionWithoutFocusCommandCore)
+
+BeginRepairReopenFocusSend ==
+    /\ localFocused
+    /\ ~focused
+    /\ PreserveDispatcherOwnership(BeginRepairReopenFocusSendCore)
+
+ReopenInputAdmission ==
+    ReopenInputAdmissionWithoutFocusCommand \/ BeginRepairReopenFocusSend
+
+CompleteDispose ==
+    /\ ~disposePending
+    /\ ~needsFocusOut
+    /\ KeepDispatcherOwnership(CompleteDisposeCore)
+
 ModeStep ==
     \/ ApplyCapabilityDowngrade
     \/ ApplyCapabilityUpgrade
-    \/ /\ Scenario \in {"composition", "review-composition"}
-       /\ PublishInputAction(StageInputContinuation)
-    \/ /\ Scenario \in {"composition", "review-composition"}
-       /\ DispatchAction(ContinueCurrentInput)
-    \/ /\ Scenario \in {"composition", "review-composition"}
-       /\ KeepDispatcherOwnership(DiscardStaleInputContinuation)
-    \/ /\ Scenario \in {"composition", "review-composition"}
-       /\ DispatchAction(StartComposition)
-    \/ /\ Scenario \in {"composition", "review-composition"}
-       /\ DispatchAction(UpdateEligibleComposition)
-    \/ /\ Scenario \in {"focus", "review-focus", "lifecycle"}
-       /\ BeginFocusSend
-    \/ /\ Scenario \in {"focus", "review-focus", "review-composition", "lifecycle"}
-       /\ BeginFocusReconciliation
-    \/ /\ Scenario \in {"key", "review-key", "lifecycle"}
-       /\ BeginKeyPressSend
-    \/ /\ Scenario \in {"key", "review-key", "lifecycle"}
-       /\ BeginKeyReleaseSend
-    \/ /\ Scenario \in {"composition", "review-key", "review-mouse", "review-focus"}
-       /\ DispatchAction(RecordClipboardPaste)
-    \/ /\ Scenario \in {"composition", "review-key", "review-mouse", "review-focus"}
-       /\ DispatchAction(ConsumePasteBeforeInputDuplicate)
-    \/ /\ Scenario \in {"mouse", "review-mouse", "lifecycle"}
-       /\ BeginMousePressSend
-    \/ /\ Scenario \in {"mouse", "review-mouse", "lifecycle"}
-       /\ BeginMouseReleaseSend
-    \/ /\ Scenario = "key"
-       /\ BeginStatelessSend
-    \/ /\ Scenario = "composition"
-       /\ DispatchAction(ConsumeKeyBeforeInputDuplicate)
-    \/ /\ Scenario = "composition"
-       /\ DispatchAction(ConsumeCompositionBeforeInputDuplicate)
-    \/ /\ Scenario \in {"composition", "review-composition"}
-       /\ PublishInputAction(PublishEligibleBeforeInput)
-    \/ /\ Scenario \in {"composition", "review-composition"}
-       /\ PublishInputAction(PublishIdleBeforeInput)
-    \/ /\ Scenario = "composition"
-       /\ DispatchAction(ConsumeBeforeInputCompositionEndDuplicate)
-    \/ /\ Scenario \in {"composition", "review-composition"}
-       /\ PublishInputAction(PublishEligibleCompositionEnd)
-    \/ /\ Scenario = "composition"
-       /\ DispatchAction(ConsumeCompositionOriginBeforeInput)
-    \/ /\ Scenario \in {"composition", "review-composition"}
-       /\ DispatchAction(EndCancelledComposition)
+    \/ StageInputContinuation
+    \/ ContinueCurrentInput
+    \/ DiscardStaleInputContinuation
+    \/ StartComposition
+    \/ UpdateEligibleComposition
+    \/ BeginFocusSend
+    \/ BeginFocusReconciliation
+    \/ BeginKeyPressSend
+    \/ BeginKeyReleaseSend
+    \/ RecordClipboardPaste
+    \/ ConsumePasteBeforeInputDuplicate
+    \/ BeginMousePressSend
+    \/ BeginMouseReleaseSend
+    \/ BeginStatelessSend
+    \/ ConsumeKeyBeforeInputDuplicate
+    \/ ConsumeCompositionBeforeInputDuplicate
+    \/ PublishEligibleBeforeInput
+    \/ PublishIdleBeforeInput
+    \/ ConsumeBeforeInputCompositionEndDuplicate
+    \/ PublishEligibleCompositionEnd
+    \/ ConsumeCompositionOriginBeforeInput
+    \/ EndCancelledComposition
     \/ BeginPasteReview
     \/ BlockTextPublicationOnFocusMismatch
     \/ ResolvePasteReview
@@ -2274,29 +2266,29 @@ ModeStep ==
     \/ QueueMousePress
     \/ QueueMouseRelease
     \/ QueueFocusIn
+    \/ QueueKeyAfterFocus
+    \/ BeginQueuedFocusBeforeKey
     \/ PublishQueuedOwnershipInput
     \/ CompleteSend
-    \/ \E reason \in ScenarioRepairReasons :
-          InvalidateDispatcherForLifecycle(StartEligibleRepair(reason))
-    \/ \E reason \in ScenarioRepairReasons :
-          InvalidateDispatcherForLifecycle(StartSettledRepair(reason))
-    \/ \E reason \in ScenarioRepairReasons :
-          InvalidateDispatcherForLifecycle(StartPlainRepair(reason))
-    \/ InvalidateDispatcherForLifecycle(StartFocusedDispose)
-    \/ InvalidateDispatcherForLifecycle(StartUnfocusedDispose)
-    \/ InvalidateDispatcherForLifecycle(StartDisposeAfterCompletedFocusRepair)
-    \/ InvalidateDispatcherForLifecycle(StartCoalescedResetFocusRepair)
-    \/ InvalidateDispatcherForLifecycle(CoalesceFocusRepairDuringActiveReset)
-    \/ InvalidateDispatcherForLifecycle(RequestDisposeDuringRepair)
-    \/ KeepDispatcherOwnership(BeginPendingDispose)
-    \/ PreserveDispatcherOwnership(PublishRepairKeyRelease)
-    \/ KeepDispatcherOwnership(SkipRepairKeyRelease)
-    \/ PreserveDispatcherOwnership(PublishRepairMouseRelease)
-    \/ KeepDispatcherOwnership(SkipRepairMouseRelease)
-    \/ KeepDispatcherOwnership(CompleteRepairWithoutFocusOut)
-    \/ PreserveDispatcherOwnership(PublishFocusOut)
-    \/ PreserveDispatcherOwnership(ReopenInputAdmission)
-    \/ KeepDispatcherOwnership(CompleteDispose)
+    \/ StartEligibleRepair
+    \/ StartSettledRepair
+    \/ StartPlainRepair
+    \/ StartFocusedDispose
+    \/ StartUnfocusedDispose
+    \/ StartDisposeAfterCompletedFocusRepair
+    \/ StartCoalescedResetFocusRepair
+    \/ CoalesceFocusRepairDuringActiveReset
+    \/ RequestDisposeDuringRepair
+    \/ BeginPendingDispose
+    \/ PublishRepairKeyRelease
+    \/ SkipRepairKeyRelease
+    \/ PublishRepairMouseRelease
+    \/ SkipRepairMouseRelease
+    \/ CompleteRepairWithoutFocusOut
+    \/ PublishFocusOut
+    \/ ReopenInputAdmissionWithoutFocusCommand
+    \/ BeginRepairReopenFocusSend
+    \/ CompleteDispose
     \/ CoverageCompositionAuthorityAntecedent
     \/ CoverageExplicitPublicationOriginAntecedent
     \/ CoverageEligibleRepairGuardAntecedent
@@ -2331,6 +2323,7 @@ ModeStep ==
     \/ CoveragePublishedKeyReleaseAntecedent
     \/ CoveragePublishedMouseReleaseAntecedent
     \/ CoverageReentrantRepairDuringSend
+    \/ CoverageCapabilityDowngradeDuringSend
     \/ CoverageFocusReconciliation
     \/ CoverageRepairReopenFocusReconciliation
     \/ CoveragePasteReviewRejection
@@ -2348,15 +2341,15 @@ Spec ==
     /\ Init
     /\ [][Next]_vars
     /\ WF_vars(CompleteSend)
-    /\ WF_vars(PreserveDispatcherOwnership(PublishRepairKeyRelease))
-    /\ WF_vars(KeepDispatcherOwnership(SkipRepairKeyRelease))
-    /\ WF_vars(PreserveDispatcherOwnership(PublishRepairMouseRelease))
-    /\ WF_vars(KeepDispatcherOwnership(SkipRepairMouseRelease))
-    /\ WF_vars(KeepDispatcherOwnership(CompleteRepairWithoutFocusOut))
-    /\ WF_vars(PreserveDispatcherOwnership(PublishFocusOut))
-    /\ WF_vars(PreserveDispatcherOwnership(ReopenInputAdmission))
-    /\ WF_vars(KeepDispatcherOwnership(BeginPendingDispose))
-    /\ WF_vars(KeepDispatcherOwnership(CompleteDispose))
+    /\ WF_vars(PublishRepairKeyRelease)
+    /\ WF_vars(SkipRepairKeyRelease)
+    /\ WF_vars(PublishRepairMouseRelease)
+    /\ WF_vars(SkipRepairMouseRelease)
+    /\ WF_vars(CompleteRepairWithoutFocusOut)
+    /\ WF_vars(PublishFocusOut)
+    /\ WF_vars(ReopenInputAdmission)
+    /\ WF_vars(BeginPendingDispose)
+    /\ WF_vars(CompleteDispose)
 
 AtMostOneCompositionPublication == compositionPublicationCount <= 1
 
@@ -2387,6 +2380,13 @@ CapabilityDowngradeRepairsImmediately ==
         ~localKeyPressed /\ ~localMousePressed /\ ~localFocused /\
         ~reviewStalled /\ queuedOwnershipInput = "none" /\
         ~needsFocusOut /\ stagedContinuation # "current"
+
+CapabilityDowngradeCancelsInFlightSend ==
+    (lastAction = "capability-downgrade" /\ priorSendState # "none") =>
+        sendState = "none" /\
+        lastAttemptedCapabilityRevision = priorCapabilityRevision /\
+        ~keyPressed /\ ~mousePressed /\ ~focused /\
+        ~localKeyPressed /\ ~localMousePressed /\ ~localFocused
 
 ReadOnlyHasNoInputOwnership ==
     ~inputEnabled =>
@@ -2483,17 +2483,26 @@ OrdinaryReleaseRequiresPublishedOwnership ==
     /\ lastAction = "begin-mouse-release-send" => priorMousePressed
 
 RepairReopenReconcilesFocus ==
-    (lastAction = "repair-reopen-admission" /\ localFocused /\ ~focused) =>
-        sendState = "focus-in" /\ ~sendFromRepair
+    /\ lastAction = "begin-repair-reopen-focus-send" =>
+          localFocused /\ ~focused /\ sendState = "focus-in" /\
+          ~sendFromRepair /\ lastAttemptedCapabilityRevision = capabilityRevision
+    /\ lastAction = "repair-reopen-admission" => sendState = "none"
 
 InputPublicationRequiresFocusConvergence ==
-    lastAction \in {
-        "begin-key-press-send",
-        "begin-key-release-send",
-        "begin-mouse-press-send",
-        "begin-mouse-release-send",
-        "begin-stateless-send"
-    } => (~priorLocalFocused \/ priorFocused)
+    /\ lastAction \in {
+          "begin-key-press-send",
+          "begin-key-release-send",
+          "begin-mouse-press-send",
+          "begin-mouse-release-send",
+          "begin-stateless-send"
+       } => (~priorLocalFocused \/ priorFocused)
+    /\ (lastAction = "begin-queued-send" /\
+          priorQueuedOwnershipInput # "focus-in") =>
+          (~priorLocalFocused \/ priorFocused)
+    /\ lastAction = "begin-queued-focus-before-key" =>
+          priorQueuedOwnershipInput = "key-press" /\
+          priorLocalFocused /\ ~priorFocused /\
+          queuedOwnershipInput = "key-press" /\ sendState = "focus-in"
 
 TextPublicationRequiresFocusConvergence ==
     totalTextPublicationCount > priorTotalTextPublicationCount =>

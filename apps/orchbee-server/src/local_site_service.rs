@@ -22,17 +22,37 @@ use crate::{
     worker_registry::{WorkerAdmission, WorkerRegistry},
 };
 
+#[cfg(target_os = "linux")]
+mod managed;
+
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub(crate) fn run(
     arguments: impl Iterator<Item = OsString>,
     expected_cohort: &str,
 ) -> io::Result<()> {
+    let mut arguments = arguments.peekable();
+    #[cfg(target_os = "linux")]
+    if arguments
+        .peek()
+        .is_some_and(|argument| argument == "--local-site")
+    {
+        arguments.next();
+        let runtime = arguments
+            .next()
+            .map(PathBuf::from)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "missing Site runtime"))?;
+        if arguments.next().is_some() {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        return managed::run(&runtime);
+    }
     let endpoints = parse_endpoints(arguments)?;
     let listener = UnixListener::bind(&endpoints.worker)?;
     fs::set_permissions(&endpoints.worker, fs::Permissions::from_mode(0o600))?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let terminals = Arc::new(LocalTerminalService::new(Arc::clone(&registry)));
+    terminals.start_close_maintenance()?;
     let _client_service = endpoints
         .client
         .as_deref()

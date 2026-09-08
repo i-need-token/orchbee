@@ -9,6 +9,8 @@ use crate::client_session_registry::{
 
 use super::{ClientSessionRegistration, ConnectionSlots, MAXIMUM_CLIENT_CONNECTIONS};
 
+mod workbench;
+
 #[test]
 fn bounds_connection_threads_and_reuses_a_released_slot() {
     let slots = Arc::new(ConnectionSlots::new());
@@ -95,4 +97,35 @@ fn unwind_releases_the_exact_session_and_handler_capacity() {
         assert!(registry.disconnect(retained_generation));
     }
     assert!(registry.disconnect(replacement_generation));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn managed_socket_publication_has_final_permissions_and_never_replaces_an_entry()
+-> std::io::Result<()> {
+    use std::{
+        fs,
+        os::unix::{fs::PermissionsExt, net::UnixStream},
+    };
+    let directory = std::env::temp_dir().join(format!("ob-publish-{}", std::process::id()));
+    fs::create_dir(&directory)?;
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))?;
+    let endpoint = directory.join("client.sock");
+    let listener = super::bind_managed(&endpoint)?;
+    assert_eq!(
+        fs::metadata(&endpoint)?.permissions().mode() & 0o7777,
+        0o600
+    );
+    assert!(!directory.join("client-pending.sock").exists());
+    let client = UnixStream::connect(&endpoint)?;
+    drop(client);
+    drop(listener);
+    assert_eq!(
+        super::bind_managed(&endpoint).unwrap_err().kind(),
+        std::io::ErrorKind::AlreadyExists
+    );
+    assert!(endpoint.exists());
+    assert!(directory.join("client-pending.sock").exists());
+    fs::remove_dir_all(directory)?;
+    Ok(())
 }

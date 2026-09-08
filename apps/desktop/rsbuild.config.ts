@@ -5,20 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type RsbuildPlugin } from '@rsbuild/core';
 import { pluginSourceBuild } from '@rsbuild/plugin-source-build';
 
-import {
-	createNodeDesktopDevelopmentRuntimeDependencies,
-	DesktopDevelopmentRuntime,
-	type DesktopDevelopmentRuntimeLogger,
-} from './src/development';
+import type { DesktopDevelopmentRuntime, DesktopDevelopmentRuntimeLogger } from './src/development';
 import { buildPosixHostEndpoint } from './scripts/build-posix-host-endpoint.mjs';
 import { buildSemanticCommandEndpoint } from './scripts/build-semantic-command-endpoint.mjs';
 import { prepareDesktopDevelopmentExecutable } from './scripts/prepare-desktop-development-application.mjs';
-import { prepareDevelopmentSshEnvironmentRelease } from './scripts/development-ssh-environment-release.mjs';
-
-const sourceElectronExecutable: unknown = createRequire(import.meta.url)('electron');
-if (typeof sourceElectronExecutable !== 'string') {
-	throw new Error('Electron development executable path is unavailable.');
-}
 
 const desktopRoot = path.dirname(fileURLToPath(import.meta.url));
 
@@ -45,10 +35,19 @@ export default defineConfig(({ command }) => {
 			};
 			api.onAfterStartDevServer(async () => {
 				if (developmentRuntime !== undefined) return;
+				const sourceElectronExecutable: unknown = createRequire(import.meta.url)('electron');
+				if (typeof sourceElectronExecutable !== 'string') {
+					throw new Error('Electron development executable path is unavailable.');
+				}
+				// Configuration inspection runs before workspace build artifacts exist.
+				const { DesktopDevelopmentRuntime, createNodeDesktopDevelopmentRuntimeDependencies } =
+					await import('./src/development');
 				const sshEnvironmentRelease =
 					process.platform === 'win32'
 						? undefined
-						: await prepareDevelopmentSshEnvironmentRelease({
+						: await (
+								await import('./scripts/development-ssh-environment-release.mjs')
+							).prepareDevelopmentSshEnvironmentRelease({
 								outputRoot: path.join(desktopRoot, 'out', 'development-ssh-environment'),
 								sourceRoot,
 							});

@@ -69,10 +69,13 @@ bounds, and truncation state. Soft-wrapped rows are joined; ANSI escapes, stylin
 hyperlinks, raw VT bytes, and future output are not exposed. Live local Terminals, already-connected
 SSH Terminals, and retained local archives are eligible. The query never starts or reconnects a
 Terminal, sends input, resizes, focuses, or retries across a stale frame. A stale, retired,
-unavailable, cleanup-failed, cancelled, or five-second read-deadline outcome is explicit and never
-returns old text. Output is not automatically redacted and may contain secrets; callers should not
-echo, persist, or forward content they do not need. Only the existing bounded volatile semantic
-execution ledger retains the result; this command is a one-shot read, not a wait or durable history.
+unavailable, cleanup-failed, cancelled, or five-second deadline outcome is explicit and never
+returns old text. The deadline bounds lease acquisition and frame/row collection. After acquiring a
+lease, Desktop awaits one cleanup attempt before publication; disposal rejection returns
+`cleanup-failed`, and cleanup may delay publication beyond five seconds. Output is not automatically
+redacted and may contain secrets; callers should not echo, persist, or forward content they do not
+need. Only the existing bounded volatile semantic execution ledger retains the result; this command
+is a one-shot read, not a wait or durable history.
 
 `agent changes` is a global canonical change feed. The first invocation without `--cursor` returns
 an empty baseline and a signed `nextCursor` at the current Agent runtime revision. Pass that cursor

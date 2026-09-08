@@ -67,6 +67,7 @@ pub const PosixTestRuntimeDirectory = if (builtin.os.tag == .windows) void else 
         errdefer std.Io.Dir.cwd().deleteDir(std.testing.io, path_bytes) catch {};
         const directory = try std.Io.Dir.openDirAbsolute(std.testing.io, path_bytes, .{
             .follow_symlinks = false,
+            .iterate = true,
         });
         return .{
             .allocator = allocator,

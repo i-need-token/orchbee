@@ -43,8 +43,44 @@ accepted connection 实现 `Read` 与 `Write`，因此调用方可以成为下�
 使用 semantic phase 的调用方则直接读取该 phase。
 
 adapter 不发现 endpoint、不激活 service、不 retry、不启动 process 或 thread、不渲染 TUI，
-也不监督 Server lifetime。公开 `orchbee` 尚未调用它；process test 在不改变 bare、help 或
-version 行为的前提下，用它连接真实私有 Server。
+也不监督 Server lifetime。Linux 裸 `orchbee` 已消费带截止时间的 adapter；help 与 version 仍无副作用。
+
+## Linux 有截止时间的连接准入
+
+已接受的懒激活流程需要调用方拥有一个覆盖连接与握手的截止时间。增量的 Linux 专用
+ClientSessionConnection::connect_before(endpoint, cohort, deadline) 提供该边界，
+apps/orchbee 通过私有 LocalClient::connect_before 消费它。现有 connect 保留独立的
+两秒握手超时。两个入口都不发现或激活 Site。macOS 截止时间 adapter 与原生验证尚未完成；
+此次增加保留既有 connect 入口不变。
+
+只有 `ConnectFailed` 报告连接完成前的失败，从而保留拨号错误来源。
+托管启动可将其中的 NotFound/ConnectionRefused 当作不存在；连接后相同错误编号属于 `Io`，
+不能授权激活。Peer、握手、拒绝和协议失败均不表示不存在。两个变体都不允许 adapter 自行重试。
+
+### 准入建模记录
+
+| 字段         | 契约                                                                                                                                                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | 静默或逐步响应的本机 Server 不能延长 Client 启动准入预算。本切片是一次连接尝试，不是完整 Site 激活。                                                                                                                       |
+| Inputs       | 调用方选定的 endpoint 与绝对单调时钟 Instant；effect 前验证 cohort；不可信的内核连接、就绪、peer 观察与一条 OBLC 响应。                                                                                                    |
+| Data         | 一个独占的 nonblocking socket、一个不变的截止时间、一条 hello、解码进度与有类型结果。没有 socket clone、进程、锁、重试账本或产品 state。                                                                                   |
+| Outputs      | 精确的已接受 generation 及同一条 blocking、无缓冲 stream；现有有类型 IO、protocol 或 rejection error。过期携带 TimedOut。失败仅关闭候选连接。                                                                              |
+| Invariants   | 一次 connect syscall；同 effective user 证明后才发送 hello；部分进展不续期；接受必须满足精确响应、成功恢复 blocking 与最后的 now < deadline；失败释放候选连接。                                                            |
+| Decisions    | 无效 cohort 在 effect 前拒绝。已过期的有效请求不打开 socket。只有 EINPROGRESS 等待连接完成；就绪还须验证 SO_ERROR 为零。Backlog EAGAIN、其他连接错误、错误 peer、IO 错误与无效响应都直接失败且不重新连接。                 |
+| Model        | [LocalClientAdmission](formal/tla/LocalClientAdmission.tla) 建模一次尝试、两个抽象 hello chunk 与两个响应 chunk，外部完成与截止时间事件独立发生。                                                                          |
+| Transitions  | 已验证请求 → connecting → peer proof → writing → reading → decoded response → blocking restoration → accepted。无效输入、IO、peer 或响应失败，或观察到过期，都进入 failed 并释放候选连接。                                 |
+| Dependencies | Linux 原子 SOCK_CLOEXEC/SOCK_NONBLOCK、已有固定版本 Nix socket/poll wrapper、内核 peer credential、单调时钟与不变的 OBLC codec。                                                                                           |
+| Ownership    | 本 crate 拥有准入与候选连接清理；调用方选择截止时间并拥有已接受 stream。Server 拥有自身 Session，并独立观察连接丢失。                                                                                                      |
+| Verification | 确定性部分 I/O 与截止时间边界测试；真实 Linux Unix socket 接受、拒绝、静默/EOF、backlog 拒绝与下一阶段字节保留；旧 connect 回归；已登记 TLC 安全性、最终结束与每个语义动作。                                               |
+| Correctness  | 下方 AD-01–AD-04 把有界模型对应到 adapter 证据。仅截止时间过期及其观察采用弱公平；外部连接、就绪和响应不作公平性假设。                                                                                                     |
+| Limits       | 仅一次 Linux 准入，不证明 service readiness、激活、OS 进程调度或 Server 清理时长。Adapter 无法抢占内核调用或调度，只能在可控制的边界及返回成功前检查截止时间。排除 macOS 与 Windows 截止时间 adapter；不选择生产超时数值。 |
+
+| Claim                                                           | 实现与可执行证据                                                                        | 模型证据                                                                                   |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| AD-01：无效或已过期准入没有 socket effect；一次尝试不重新连接。 | connect_before；无效、已过期及 Linux backlog 测试。                                     | InvalidCohortHasNoSocket、NoReconnect、SettledNeverReenters；BeginConnect 是唯一连接动作。 |
+| AD-02：peer proof 先于一条 hello 与一条精确、无缓冲响应。       | 现有 credential 边界与 codec；同 stream OBCS 与合并下一阶段字节测试。                   | HelloRequiresVerifiedPeer、ResponseFollowsOneHello；字节保留仅由运行时证据证明。           |
+| AD-03：一个总截止时间覆盖部分进展与最终接受。                   | 带截止时间的 poll/read/write 与最终检查；步进时钟写、读及最终边界测试。                 | DeadlineNeverRenews、AcceptedIsExactAndTimely、AdmissionEventuallySettles。                |
+| AD-04：失败仅关闭候选连接；成功返回已接受的 blocking stream。   | 静默 Server EOF、有类型负面响应与 blocking mode 测试；现有调用方保留 stream ownership。 | FailureReleasesCandidate、ReturnConnection、ObserveDeadline、IoFails。                     |
 
 ## Server 准入与上限
 
@@ -56,7 +92,7 @@ timeout。
 
 已交付的私有 Server 把 accepted unbuffered stream 保留为 Session carrier，并把 next-phase byte
 交给由 [`orchbee-client-server-protocol`](../client-server-protocol/README.zh-CN.md) 单独拥有的 OBCS
-decoder。本 crate 既不定义也不解码该 phase。Server 的 deny-only runtime、fault handling 与
+decoder。本 crate 既不定义也不解码该 phase。Server 的本机主体策略、fault handling 与
 generation-scoped cleanup 由其
 [`apps/orchbee-server` 指南](../../apps/orchbee-server/README.zh-CN.md) 拥有。
 
@@ -77,6 +113,6 @@ persistence、Windows named pipe、remote authentication 与 production service 
 ```sh
 cargo test -p orchbee-local-client-protocol --all-targets --all-features --locked
 cargo clippy -p orchbee-local-client-protocol --all-targets --all-features --locked -- -D warnings
-node scripts/tla/run-models.mjs --models local-client-sessions,local-client-sessions-obcs
+node scripts/tla/run-models.mjs --models local-client-admission,local-client-sessions,local-client-sessions-obcs
 pnpm verify
 ```

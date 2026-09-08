@@ -1,19 +1,26 @@
 use super::*;
 use orchbee_capability_node_protocol::{
-    TerminalViewerAction as WorkerAction, TerminalViewerOutcome as WorkerOutcome,
-    TerminalViewerRequest as WorkerRequest, TerminalViewerResult as WorkerResult,
+    TerminalLaunchMode, TerminalViewerAction as WorkerAction,
+    TerminalViewerOutcome as WorkerOutcome, TerminalViewerRequest as WorkerRequest,
+    TerminalViewerResult as WorkerResult,
 };
 use orchbee_client_server_protocol::{
-    TerminalViewerAction as Action, TerminalViewerOutcome as Outcome, TerminalViewerRequest,
-    ViewerRejectedReason, ViewerSnapshotReason,
+    SiteId as ClientSiteId, TerminalId as ClientTerminalId, TerminalViewerAction as Action,
+    TerminalViewerOutcome as Outcome, TerminalViewerRequest, ViewerRejectedReason,
+    ViewerSnapshotReason, WorkerId as ClientWorkerId,
 };
 use orchbee_terminal_protocol::{TerminalFrameRoute, inspect_terminal_frame_route};
 
+static NEXT_VIEWER_REQUEST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(500);
+
+fn next_viewer_request() -> TestResult<RequestId> {
+    id(u128::from(
+        NEXT_VIEWER_REQUEST.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+    ))
+}
+
 fn viewer(client: &mut UnixStream, action: Action) -> TestResult<Outcome> {
-    static NEXT_REQUEST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(500);
-    let request_id = id(u128::from(
-        NEXT_REQUEST.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-    ))?;
+    let request_id = next_viewer_request()?;
     let ServerMessage::TerminalViewerResult(result) = exchange(
         client,
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(request_id.clone(), action)),
@@ -25,11 +32,14 @@ fn viewer(client: &mut UnixStream, action: Action) -> TestResult<Outcome> {
     Ok(result.into_outcome())
 }
 
-fn attach(client: &mut UnixStream) -> TestResult<orchbee_client_server_protocol::ViewerId> {
+fn attach(
+    client: &mut UnixStream,
+    reference: &RequestId,
+) -> TestResult<orchbee_client_server_protocol::ViewerId> {
     let Outcome::Attached { attachment_id, .. } = viewer(
         client,
         Action::Attach {
-            terminal_create_request_id: id(1)?,
+            terminal_create_request_id: reference.clone(),
         },
     )?
     else {
@@ -60,10 +70,12 @@ pub(super) fn exercise_real_viewers(
     server: &RunningServer,
     first: &mut UnixStream,
     runtime: &Path,
+    reference: &RequestId,
+    deferred: bool,
 ) -> TestResult {
     let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
-    let first_id = attach(first)?;
-    let second_id = attach(&mut second)?;
+    let first_id = attach(first, reference)?;
+    let second_id = attach(&mut second, reference)?;
     assert_ne!(first_id, second_id);
     let first_frame = next_frame(first)?;
     let second_frame = next_frame(&mut second)?;
@@ -96,11 +108,32 @@ pub(super) fn exercise_real_viewers(
         }
     );
     assert_eq!(viewer(&mut second, feedback)?, Outcome::FeedbackAccepted {});
-    assert!(
-        matches!(exchange(&mut second, &start(4, 1)?)?, ServerMessage::TerminalStartResult(result) if result.outcome() == StartOutcome::Accepted { geometry: geometry()?, transition: StartTransition::AlreadyStarted })
+    let ServerMessage::TerminalStartResult(result) = exchange(
+        &mut second,
+        &ClientMessage::TerminalStart(TerminalStartRequest::new(
+            id(4)?,
+            reference.clone(),
+            geometry()?,
+        )?),
+    )?
+    else {
+        return Err("missing Start result".into());
+    };
+    assert_eq!(
+        result.outcome(),
+        if deferred {
+            StartOutcome::Accepted {
+                geometry: geometry()?,
+                transition: StartTransition::AlreadyStarted,
+            }
+        } else {
+            StartOutcome::Rejected {
+                reason: StartRejectedReason::TerminalNotAwaitingStart,
+            }
+        }
     );
     assert_eq!(viewer(first, Action::Detach {})?, Outcome::Detached {});
-    assert_ne!(attach(first)?, first_id);
+    assert_ne!(attach(first, reference)?, first_id);
     let _fresh_frame = next_frame(first)?;
     controllers::exercise(first, &mut second, runtime)?;
     // The second handler's Drop owns its Detach; the terminal remains owned by Host.
@@ -141,6 +174,188 @@ fn reply(worker: &mut UnixStream, request: WorkerRequest, outcome: WorkerOutcome
             outcome,
         }),
     )?;
+    Ok(())
+}
+
+fn send_viewer(client: &mut UnixStream, action: Action) -> TestResult<RequestId> {
+    let request_id = next_viewer_request()?;
+    write_client_message(
+        client,
+        &ClientMessage::TerminalViewer(TerminalViewerRequest::new(request_id.clone(), action)),
+    )?;
+    Ok(request_id)
+}
+
+fn receive_viewer(client: &mut UnixStream, request_id: &RequestId) -> TestResult<Outcome> {
+    let ServerMessage::TerminalViewerResult(result) = read_server_message(client)? else {
+        return Err("missing viewer result".into());
+    };
+    assert_eq!(result.request_id(), request_id);
+    Ok(result.into_outcome())
+}
+
+fn different_identity(value: &str) -> String {
+    let mut bytes = value.as_bytes().to_vec();
+    bytes[0] = if bytes[0] == b'0' { b'1' } else { b'0' };
+    String::from_utf8(bytes).unwrap()
+}
+
+#[test]
+fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_scoped()
+-> TestResult {
+    let server = RunningServer::start()?;
+    let mut worker = connect_worker(server.worker_endpoint(), FIRST_WORKER)?;
+    let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
+    let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
+
+    write_client_message(&mut first, &standalone::open(1, geometry()?)?)?;
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = read_obcn(&mut worker)? else {
+        return Err("missing standalone Launch".into());
+    };
+    let TerminalLaunchMode::Immediate(launch_geometry) = launch.mode() else {
+        return Err("standalone Launch was not immediate".into());
+    };
+    let host_identity = identity()?;
+    write_obcn(
+        &mut worker,
+        &CapabilityNodeMessage::TerminalLaunchResult(TerminalLaunchResult::new(
+            launch.authorization(),
+            TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
+                host_identity,
+                HostLaunchState::Started(launch_geometry),
+            )),
+        )?),
+    )?;
+    let _reference = standalone::opened(read_server_message(&mut first)?, 1)?;
+
+    let snapshot = standalone::read_snapshot(&mut first, 700)?;
+    let binding = standalone::standalone_binding(&snapshot)?;
+    let site_id = ClientSiteId::parse(snapshot.site_id.as_str())?;
+    let worker_id = ClientWorkerId::parse(binding.worker_id.as_str())?;
+    let terminal_id = ClientTerminalId::parse(binding.terminal_id.as_str())?;
+    assert_eq!(
+        worker_id.as_str(),
+        format!(
+            "{:032x}",
+            u128::from_be_bytes(launch.authorization().worker_id().as_bytes())
+        )
+    );
+    assert_eq!(
+        terminal_id.as_str(),
+        format!(
+            "{:032x}",
+            u128::from_be_bytes(launch.authorization().terminal_id().as_bytes())
+        )
+    );
+    assert_ne!(
+        terminal_id.as_str(),
+        format!(
+            "{:032x}",
+            u128::from_be_bytes(host_identity.terminal_id().as_bytes())
+        )
+    );
+    let exact = Action::AttachBinding {
+        site_id: site_id.clone(),
+        worker_id: worker_id.clone(),
+        terminal_id: terminal_id.clone(),
+    };
+
+    for wrong in [
+        Action::AttachBinding {
+            site_id: ClientSiteId::parse(&different_identity(site_id.as_str()))?,
+            worker_id: worker_id.clone(),
+            terminal_id: terminal_id.clone(),
+        },
+        Action::AttachBinding {
+            site_id: site_id.clone(),
+            worker_id: ClientWorkerId::parse(&different_identity(worker_id.as_str()))?,
+            terminal_id: terminal_id.clone(),
+        },
+        Action::AttachBinding {
+            site_id: site_id.clone(),
+            worker_id: worker_id.clone(),
+            terminal_id: ClientTerminalId::parse(&different_identity(terminal_id.as_str()))?,
+        },
+    ] {
+        assert_eq!(
+            viewer(&mut first, wrong)?,
+            Outcome::Rejected {
+                reason: ViewerRejectedReason::TerminalUnavailable,
+            }
+        );
+    }
+
+    let first_request = send_viewer(&mut first, exact.clone())?;
+    let first_attach = read_viewer(&mut worker)?;
+    assert_eq!(first_attach.worker_id, launch.authorization().worker_id());
+    assert_eq!(
+        first_attach.worker_generation,
+        launch.authorization().worker_generation()
+    );
+    assert_eq!(
+        first_attach.action,
+        WorkerAction::Attach {
+            host_epoch: host_identity.host_epoch(),
+            terminal_id: host_identity.terminal_id(),
+        }
+    );
+    reply(&mut worker, first_attach, WorkerOutcome::Attached)?;
+    let Outcome::Attached {
+        attachment_id: first_attachment,
+        host_epoch,
+    } = receive_viewer(&mut first, &first_request)?
+    else {
+        return Err("first binding Attach failed".into());
+    };
+    assert_eq!(
+        host_epoch.as_str(),
+        format!(
+            "{:032x}",
+            u128::from_be_bytes(host_identity.host_epoch().as_bytes())
+        )
+    );
+
+    assert_eq!(
+        viewer(&mut first, exact.clone())?,
+        Outcome::Rejected {
+            reason: ViewerRejectedReason::AlreadyAttached,
+        }
+    );
+    let second_request = send_viewer(&mut second, exact)?;
+    let second_attach = read_viewer(&mut worker)?;
+    assert_eq!(second_attach.action, first_attach.action);
+    assert_ne!(second_attach.attachment_id, first_attach.attachment_id);
+    reply(&mut worker, second_attach, WorkerOutcome::Attached)?;
+    let Outcome::Attached {
+        attachment_id: second_attachment,
+        host_epoch: second_epoch,
+    } = receive_viewer(&mut second, &second_request)?
+    else {
+        return Err("second binding Attach failed".into());
+    };
+    assert_ne!(first_attachment, second_attachment);
+    assert_eq!(host_epoch, second_epoch);
+
+    let first_detach = send_viewer(&mut first, Action::Detach {})?;
+    let first_cleanup = read_viewer(&mut worker)?;
+    assert_eq!(first_cleanup.action, WorkerAction::Detach);
+    assert_eq!(first_cleanup.attachment_id, first_attach.attachment_id);
+    reply(&mut worker, first_cleanup, WorkerOutcome::Detached)?;
+    assert_eq!(
+        receive_viewer(&mut first, &first_detach)?,
+        Outcome::Detached {}
+    );
+
+    let second_detach = send_viewer(&mut second, Action::Detach {})?;
+    let second_cleanup = read_viewer(&mut worker)?;
+    assert_eq!(second_cleanup.action, WorkerAction::Detach);
+    assert_eq!(second_cleanup.attachment_id, second_attach.attachment_id);
+    reply(&mut worker, second_cleanup, WorkerOutcome::Detached)?;
+    assert_eq!(
+        receive_viewer(&mut second, &second_detach)?,
+        Outcome::Detached {}
+    );
+    assert_eq!(standalone::read_snapshot(&mut first, 705)?, snapshot);
     Ok(())
 }
 

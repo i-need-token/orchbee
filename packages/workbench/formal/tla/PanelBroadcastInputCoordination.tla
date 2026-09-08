@@ -1,4 +1,7 @@
 ---------------- MODULE PanelBroadcastInputCoordination ----------------
+\* Dispatch begins after the concrete coordinator has issued its all-target
+\* Promise.all fan-out. Abstract partial-delivery quotients every settled
+\* non-full result, including concrete delivery-failed when no target accepts.
 EXTENDS FiniteSets, Naturals, Sequences, TLC
 
 Targets == {"target-a", "target-b", "target-c"}

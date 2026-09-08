@@ -6,6 +6,8 @@ use ratatui::{
     text::Span,
 };
 
+use crate::terminal_text::is_forbidden_terminal_scalar;
+
 pub(super) fn render(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -36,7 +38,7 @@ pub(super) fn render(
                 continue;
             }
             let width = if cell.width == 1 { 2 } else { 1 };
-            let printable = !cell.text.chars().any(char::is_control)
+            let printable = !cell.text.chars().any(is_forbidden_terminal_scalar)
                 && Span::raw(cell.text.as_ref()).width() == width;
             if width == 2 && column.saturating_add(1) >= area.width {
                 output.set_symbol(" ");

@@ -109,7 +109,9 @@ Desktop 把当前文件解析为 `<userData>/environment-registry-v2.json`。边
 temporary file，以原子 rename 覆盖 registry，然后同步 parent directory。Temporary-name collision 或
 其他 rename 前 error 会保持旧文件不变。如果 rename 已完成但 directory synchronization 失败，adapter
 不会宣称成功。显式 reload 观察 filesystem 呈现的任一严格 document；调用方随后可以安全 replay 相同的
-预分配 record。
+预分配 record。恢复不会保留隐藏的 pending request，也不会预留 caller ordering：rename 前失败后，或
+indeterminate result 完成 reload 后，每个后续 create 都会根据恢复后的 canonical document 重新求值。
+replay 相同 identity 是安全的，但不是必需的。
 
 只有当前文件缺失且不存在有效的旧版版本 1 文件时，missing current file 才表示 empty。版本 2 缺失时，
 Desktop 可以读取 `<userData>/environment-registry-v1.json`、严格验证它，并把相同 revision 与 record
@@ -139,6 +141,8 @@ effect。
 post-rename uncertainty、process restart、reload 与 caller replay 的有界 TLA+ model。它检查 canonical
 identity 与 target uniqueness、稳定 append order、revision/count agreement、capacity、已保留成功 claim，
 以及 reload fairness 下离开 indeterminate phase 的 progress。
+Failure 与 reload 不会保留 request-owned gate；下一个 caller 可以提交任意 record，并按普通到达顺序对
+恢复后的 document 进行检查。
 
 | 声明                                                 | 确定性 evidence                                                  | 边界与排除项                                                          |
 | ---------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------- |

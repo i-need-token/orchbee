@@ -78,7 +78,7 @@ Electron Main 拥有渲染器文档生成及其客户端会话、投影和应用
 
 渲染器文档开始加载时，会停用上一页面的控制对象并记录待处理生成。`did-finish-load` 只为最新生成发布一个新的原子 bootstrap；退役失败会封闭该生成。Main 只允许在配置的渲染器源内进行顶层导航，使开发重新加载与打包后的浏览器 Router 文档请求能够完成；跨源导航和新窗口仍被拒绝。同文档浏览器 Router 更新与子帧导航保留当前生成及全部活动控制对象。渲染器进程丢失与窗口关闭仍是显式退役路径；Host 终端与规范共享文档在页面退役后继续存在。同一窗口重载时，替换后的 Web 组合会在确认精确 Presentation 仍属于 bootstrap 文档后，独立恢复其有界会话焦点提示；Main 不接收 Client View 或浏览器存储能力。该模型不新增投影重试、控制端口超时或 IPC 契约。
 
-`startsDesktopRendererDocument` 拥有纯决策权。 `DesktopApplication` 拥有生成转换和 Electron 效果。单元测试涵盖所有四个决策行和完整的导航/重新加载排序； `DesktopLifecycle` 的 `renderer-document` 配置检查忽略导航保留、当前一代控制所有权、替换前的退役以及通过一代 `2` 的有界挂起一代进度。 Electron 42.8.0 提供导航分类和事件顺序； Electron 发出事件之前操作系统终止仍然不属于此声明范围。
+`startsDesktopRendererDocument` 拥有纯决策权。`DesktopApplication` 拥有 generation transition 与 Electron effect。单元测试覆盖全部四个 decision row 以及完整 navigation/reload ordering；`DesktopLifecycle` 的 `renderer-document` configuration 检查 ignored-navigation preservation、current-generation control ownership、replacement 前 retirement，以及直到 generation `2` 的 failure-safe generation ownership。`RendererFailDocument` 会让 top-level load 失败的 generation 保持没有 control；以后一次符合条件的 navigation 可以开始新的 generation。成功 bootstrap progress 以 Electron 发出 `did-finish-load` 为条件；model 不假定 Browser、network 或 load callback 最终发生。Electron 42.8.0 提供 navigation classification 与 event order；Electron 发出 event 前发生的 operating-system termination 不在该声明范围内。
 
 ## 原生项目文件夹获取
 
@@ -208,7 +208,7 @@ Desktop 应用构造期间的致命失败会在 Electron 退出前把进程退�
 
 stop 会封闭退出所有者页面上的终端创建，把每个可见或隐藏的 Workbench Presentation 投影为持久 `stop`，对完整共享文档执行 compare-and-swap，随后才释放关闭命令。成功的关闭结果会把 Presentation 变为 `stopped`，同时保留 Project、Workspace、Tab、Panel、Split、标题及启动 CWD。水合绝不会启动已停止的 Presentation。可见的“开始新会话”Action 会用新标识替换已停止的 PresentationId，并只 provision 所选 Presentation。
 
-当持久 stop 到达最终 Host revision 时，Main 会在终端结果之后、Host Dispose 之前打开一个临时只读附件。它为该 Presentation 归档最新 5,000 行最终渲染行或 10 MiB，以先达到的边界为准。归档格式 `2` 会存储最终 viewport 投影及其完整 OBKG 资源快照，并在每个 render-detail OBRW `0.0.3` 分块中保留独立图形快照；解码器只接受格式 `2` 与精确的当前嵌套格式，不会静默回退。Desktop 本地存储使用带内容校验、私有权限的原子文件，并施加 250 MiB 的全局 least-recently-used 上限。有效归档会在本地 Electron 的 stopped surface 中供现有终端 renderer 使用，保留图形、滚动、搜索、选择与复制，并永久拒绝输入和调整尺寸。归档缺失、损坏、超时、不可写或被淘汰时，会回退到空的 stopped 状态，且绝不阻塞 Host Dispose 或应用退出。归档不会进入共享文档、renderer bootstrap、Gateway、Browser storage 或 cloud。普通关闭会移除任何归档，共享文档协调会移除孤立条目，“开始新会话”会删除旧关联；归档行与图像绝不会恢复到新 VT 或与其拼接。
+当持久 stop 到达最终 Host revision 时，Main 会在终端结果之后、Host Dispose 之前打开一个临时只读附件。它为该 Presentation 归档最新 5,000 行最终渲染行或 10 MiB，以先达到的边界为准。归档格式 `2` 会存储最终 viewport 投影及其完整 OBKG 资源快照，并在每个 render-detail OBRW `0.0.3` 分块中保留独立图形快照；解码器只接受格式 `2` 与精确的当前嵌套格式，不会静默回退。Desktop 本地存储使用带内容校验、私有权限的原子文件，并施加 250 MiB 的全局 least-recently-used 上限。有效归档会在本地 Electron 的 stopped surface 中供现有终端 renderer 使用，保留图形、滚动、搜索、选择与复制，并永久拒绝输入和调整尺寸。归档缺失、损坏、超时、不可写或被淘汰时，会回退到空的 stopped 状态，且绝不阻塞 Host Dispose 或应用退出。归档不会进入共享文档、renderer bootstrap、Gateway、Browser storage 或 cloud。普通关闭和“开始新会话”会立即移除 archive association；它们的 best-effort store deletion 与 shared-document orphan reconciliation 可能留下一个无法访问的 physical file，供以后 reconcile。归档行与图像绝不会恢复到新 VT 或与其拼接。
 
 被引用的 Presentation 停止后，Main 会加载精确的已提交共享文档修订，并关闭由它拥有但文档未引用的每项绑定。随后要求绑定注册表为空，并扫描 Host 清单。未知 Host 终端会被报告为未解决，绝不会静默终止。部分失败会让 Desktop 进入不可逆恢复对话框，并在受支持时重试，同时显示明确的“仍然退出”警告。“仍然退出”可能让进程继续运行；持久 `stop` 意图会保留到下次启动时的重放权限。本工作流不声明 OS 关机、注销或强制终止行为。
 
@@ -402,6 +402,13 @@ release 的 package 会 block activation。持续维护的连接合约、转换�
 | `terminal-parity/LC-08-browser-access`                                                                           | 精确有界面 LAN 工作流、`src/main/browser-access/__tests__`、Gateway/Server 集成测试及 [`formal/tla/DesktopLifecycle.tla`](formal/tla/DesktopLifecycle.tla) 的 `browser-access` 配置执行默认 loopback、显式 LAN 绑定、个人访问令牌登录、刷新时 Cookie 保持、启动失败清理、未鉴权拒绝，以及停止访问或重置令牌时的 session 撤销。                                                                                                                                                                                                                                    |
 | `terminal-parity/LC-12-feature-failures`                                                                         | Desktop Host/Broker 错误测试、Gateway codec 测试、Workbench 客户端合约测试及投影渲染器/表面测试执行精确操作/关联标识、可重试性、传输保留、终端控制封闭和本地化用户后果。                                                                                                                                                                                                                                                                                                                                                                                          |
 
+`DesktopTerminalMetadataDelivery` 使用两个 terminal identity、revision `0..3` 与三个非空 payload
+value，覆盖 older、equal 与 newer token、equal-revision conflict 以及 identity replacement。它检查
+identity/revision/payload provenance、一个 identity 内的 monotonic client observation、每个 client
+revision 只有一个 payload、fresh-terminal clearing，以及 hidden-tab state 不会禁用已经可以 delivery
+的 update。它不假设 Host、transport、client 或 visibility 最终取得进展。这些只是 finite model
+check；本 README 不声明当前 runtime 会拒绝每一个 equal-revision conflicting payload。
+
 重点跟踪范围包括：
 
 - 严格的客户端会话和投影边界验证、格式错误的消息退出、精确的提案关联以及页面附件处理；
@@ -488,13 +495,25 @@ release 的 package 会 block activation。持续维护的连接合约、转换�
 - 一个 Electron 渲染器和两个普通浏览器页面共享规范工作台和终端状态，同时保留新页面会话、Client View 和附件标识，包括浏览器复制、链接、断开连接、拒绝和重新连接行为；
 - 用户退出保留/取消/停止、空闲运行终端的自动保留、面板关闭保护的精确重用、隐藏终端停止、failed-CAS 抑制、部分停止重试、未引用绑定耗尽、unknown-Host-orphan 拒绝、更新重新启动保留、开发主机停止/阶段/就绪排序以及显式启动停止会话后的新身份。
 
-桌面终端生命周期适配器模型检查新的延迟绑定是否等待已安装的几何图形，启动失败返回到等待状态而不提交几何图形，启动成功提交精确观察到的几何图形，并且排队关闭遵循配置或退休前的启动。现有的 TLA+ 模型继续检查独立有界终端绑定恢复和退出事件恢复、生命周期适配器序列化、投影需求和工作台删除安全性。恢复检查分别执行主机纪元/创建/文档生成行为以及跨主要发布和重新获取的持久退出准入/发布；每个声明的恢复操作都必须有可联系的 TLC 见证人。 `DesktopLifecycle` 将应用程序生命周期、浏览器访问、开发运行时、项目文件夹获取、渲染器文档、终端绑定关闭和窗口状态保留为一个注册工件中的七个场景隔离配置；每个配置都保留其转换系统、不变量、进度属性和所需的动作见证，而无需乘以七个状态空间。其项目文件夹获取配置检查一个实时请求、仅选择的突变、取消和无突变的失败、过时或重复的工作台目标、渲染器退休和延迟本机完成。它的窗口状态配置检查有序的正常边界捕获、序列化持久性、瞬时全屏排除、刷新完成以及跨可写和不可用存储分支的处置。它的渲染器文档配置检查忽略了相同文档和子帧导航、生成范围的控件替换以及有界加载进度。其应用程序生命周期配置检查提示、保留、停止、更新和开发主机重启路径；收盘前停止订单；持久的重启准备和计划准备；未引用的绑定漏极；生效前取消；干净的退出；以及显式的强制退出转义。它的开发运行时配置检查失败构建保留、合并进程生成、就绪计划排序以及关闭而不重新启动。其末端结合关闭配置保留了精确目标突变和无关结合保留。Desktop resize-lease model 检查三个 attachment、串行 open/release/claim operation、latest-activity intent、当前 input/resize/running 资格、幂等与遭拒 claim、successful-claim recency promotion、仅 owner 可改变 canonical geometry、即使 canonical metadata 陈旧也会在 grant 边沿提交当前测量 geometry，以及 ownership、显式拒绝或 intent 失效三种收敛结果。桌面共享文档存储模型还检查下一个 CAS、冲突保留、序列化、不可用存储、生成处理以及修订版 `2` 的进度。桌面多客户端模型检查两个会话、缺少/可用的引导程序、等效和不同的竞争、影响发布排序、附件/会话所有权、断开连接、静默切换、不可用存储和有限的发布进度。桌面预写模型在提供、恢复、关闭或停止调度之前检查匹配的持久意图；提交失败保存；无需创建替换即可恢复；渲染器处理和重新加载重放；以及一个抽象演示的实时生成进度。 Workbench 的终端停止模型检查布局保留、无绑定停止、重试身份和新的 PresentationId 生成。`ProjectWorktreeCreation` 另行检查有界的逐 repository 创建、Git/产品一致性、恢复 ledger 覆盖、response 顺序，以及最终 commit 或保留 recovery 的结果。存储库没有为此集成切片强加新的吞吐量接受门；可选的基准仍然是一种诊断工具。
+桌面终端生命周期适配器模型检查新的 deferred binding 是否等待 mounted geometry，start failure 会在不提交 geometry 的情况下返回等待，start success 会提交精确 observed geometry，并且 queued close 会在 retirement 前跟随 provision 或 start。
 
-Desktop terminal-archive 模型会另外检查 stop/close 分离、Host disposal 前 capture 收敛、有界只读 archive projection、corruption/eviction fallback、cleanup 与 fresh-session non-merging。
+这个 finite instance 使用两个 presentation、两个 binding 与两个 geometry，覆盖 pairwise target isolation 以及 exact-versus-mismatched startup geometry。`TargetedMutationPreservesOthers` 覆盖 phase、binding、effect、start phase、pending 与 initial geometry，以及 queued-close state。每个 lifecycle branch 都代表一次 invocation。TLA+ queued-close branch 覆盖 provision 与 start；restore-then-close serialization 映射到 lifecycle-adapter deterministic trace。
+
+现有 TLA+ model 继续检查各自有界的 terminal binding recovery 与 exit-event recovery、lifecycle-adapter serialization、projection demand 与 Workbench removal safety。Recovery check 分别覆盖 Host epoch/create/document-generation behavior，以及 Main release/reacquisition 期间的 durable exit admission/publication；每个声明的 recovery action 都必须有可达 TLC witness。`DesktopLifecycle` 把 application lifetime、Browser access、development runtime、Project Folder acquisition、renderer document、terminal binding close 与 window state 保留为一个 registered artifact 中七个 scenario-isolated configuration；每个 configuration 保留自己的 transition system、invariant、progress property 与 required action witness，而不把七个 state space 相乘。其 Project Folder-acquisition configuration 检查一个 live request、selected-only mutation、cancellation 与 failure without mutation、stale 或 duplicate Workbench target、renderer retirement 与 late native completion。其 window-state configuration 检查 ordered normal-bounds capture、serialized persistence、transient full-screen exclusion、flush completion，以及 writable 和 unavailable storage branch 中的 disposal。其 renderer-document configuration 检查 ignored same-document 与 subframe navigation、generation-scoped control replacement、failure-safe pending-generation ownership，以及 callback-conditioned bootstrap completion。其 application-lifetime configuration 检查 prompt、preserve、stop、update 与 development Host restart path；stop-before-close ordering；durable restart staging 与 plan readiness；unreferenced binding drain；effect 前 cancellation；clean exit；以及显式 forced-exit escape。其 development-runtime configuration 检查 failed-build preservation、coalesced process generation、ready-plan ordering，以及 close without relaunch。其 terminal-binding-close configuration 保留 exact-target mutation 与 unrelated-binding preservation。Desktop resize-lease model 检查三个 attachment、serialized open/release/claim operation、latest-activity intent、当前 input/resize/running eligibility、idempotent 与 rejected claim、successful-claim recency promotion、owner-only canonical geometry mutation、即使 canonical metadata stale 也在 grant edge 提交当前 measured geometry，以及 ownership、explicit rejection 或 intent invalidation 三种收敛结果。Desktop shared-document-store model 另外检查 exact-next CAS、conflict preservation、serialization、unavailable storage、disposed generation 的 queued work suppression，同时允许 already-active work 完成，以及到 revision `2` 的 progress。Desktop multi-client model 检查两个 session、missing/available bootstrap、equivalent 与 divergent race、effect publication ordering、attachment/session ownership、disconnect、quiescing handoff、unavailable storage 与 bounded publication progress。Desktop write-ahead model 检查 provision、restore、close 或 stop dispatch 前匹配的 durable intent；failed-commit preservation；one-operation effect 与 creation counter；settled-result replay without repeated execution；restore without replacement creation；renderer disposal 与 reload recovery；以及一个 abstract presentation 和一个 reusable operation identity 的 live-generation progress。Workbench terminal-stop model 检查 layout retention、stopped-without-binding、retry identity 与 fresh PresentationId generation。`ProjectWorktreeCreation` 另行检查有界 per-repository creation、Git/product parity、recovery-ledger coverage、response ordering，以及最终 committed 或 retained-recovery outcome。Repository 不为这个 integration slice 增加 throughput acceptance gate；optional benchmark 仍只是 diagnostic tool。
+
+这个 three-attachment resize instance 保留真实的 bounded Host claim rank 与显式 overflow，但把
+Desktop activity recency 表示为没有 duplicate 的 move-to-end order。Eligible activity 在
+`activitiesOpen` 期间保持 enabled，并且可以任意重复；`RecordActivity` 与 `QuiesceActivity` 仍是
+unfair environment action，只有显式 quiescence 后才声明 activity convergence。
+
+Desktop terminal-archive model 另外检查一个 retiring generation 的 stop/close separation、Host disposal 前 capture settlement、有界 read-only archive projection、corruption 与 eviction fallback，以及 close 或 fresh-session cleanup 时从逻辑上移除旧 archive association。Fresh PresentationId 与 Host creation 由 Workbench terminal-stop model 检查；physical archive file 与 orphan reconciliation 仍属于 deterministic store/composition evidence。
 
 调整大小租约工件还把 Broker 串行器隔离在独立场景中：最新测量会替换一个待处理调整大小；活动调整大小绝不会被超越；结算会提升最新待处理几何；清理会移除待处理工作；静止状态最终会排空串行器。
 
 ## 开发
+
+Rsbuild 配置可以在没有工作区构建产物或已安装 Electron 可执行文件时被检查。
+它只在开发服务器启动钩子中加载开发运行时依赖并解析 Electron；检查配置不会准备 SSH 发布产物。
 
 `pnpm desktop` 拥有一个开发运行时，其中包含 Web 开发服务器 Electron 和受监督的 Terminal Host。运行时遵循以下更新策略：
 

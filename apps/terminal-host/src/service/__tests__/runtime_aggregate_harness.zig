@@ -380,9 +380,16 @@ test "launch fixtures retain every borrowed Windows value until deinit" {
         &long_running_windows_arguments
     else
         &long_running_posix_arguments;
-    try std.testing.expect(
-        validated_fixture.validated.launch.arguments.ptr == expected_validated_arguments.ptr,
+    try std.testing.expectEqual(
+        expected_validated_arguments.len,
+        validated_fixture.validated.launch.arguments.len,
     );
+    // Empty slices borrow no storage and have no meaningful pointer identity.
+    if (expected_validated_arguments.len != 0) {
+        try std.testing.expect(
+            validated_fixture.validated.launch.arguments.ptr == expected_validated_arguments.ptr,
+        );
+    }
 
     var process_fixture = try longRunningProcessLaunch();
     defer process_fixture.deinit();

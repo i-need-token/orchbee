@@ -24,6 +24,8 @@ pub fn prepareRuntimeDirectoryForUser(
     };
     var directory = try std.Io.Dir.openDirAbsolute(io, runtime_directory, .{
         .follow_symlinks = false,
+        // Descriptor-based ACL operations require a readable fd, not Linux O_PATH.
+        .iterate = true,
     });
     errdefer directory.close(io);
     const initial_status = try directory.stat(io);
@@ -49,6 +51,8 @@ pub fn validateRuntimeDirectoryForUser(
     if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
     var directory = try std.Io.Dir.openDirAbsolute(io, runtime_directory, .{
         .follow_symlinks = false,
+        // Descriptor-based ACL operations require a readable fd, not Linux O_PATH.
+        .iterate = true,
     });
     errdefer directory.close(io);
     try requireSecurityStatus(c.ob_posix_validate_runtime_directory(

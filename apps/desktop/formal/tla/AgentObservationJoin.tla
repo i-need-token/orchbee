@@ -1,8 +1,15 @@
 ----------------------- MODULE AgentObservationJoin -----------------------
 EXTENDS FiniteSets, Naturals, TLC
 
+CONSTANT CorrelationVariant
+
+CorrelationVariants == {"singleton", "pair"}
 Presentations == {"presentation-1", "presentation-2"}
-Correlations == {"correlation-1", "correlation-2"}
+AllCorrelations == {"correlation-1", "correlation-2"}
+Correlations ==
+  IF CorrelationVariant = "singleton"
+  THEN {"correlation-1"}
+  ELSE AllCorrelations
 Generations == 1..2
 NoGeneration == 0
 NoPresentation == "no-presentation"
@@ -32,10 +39,7 @@ VARIABLES
   lastRetiredPresentation,
   lastAction,
   previousApplicationCount,
-  previousPublishedAttachments,
-  previousMatchedPresentation,
-  previousMatchedGeneration,
-  previousCurrentGeneration
+  previousPublishedAttachments
 
 core ==
   <<currentGeneration, eventPhase, applied, settlementScheduled,
@@ -45,9 +49,7 @@ core ==
     barrierActive, applicationAtBarrier, lastRetiredPresentation>>
 
 history ==
-  <<lastAction, previousApplicationCount, previousPublishedAttachments,
-    previousMatchedPresentation, previousMatchedGeneration,
-    previousCurrentGeneration>>
+  <<lastAction, previousApplicationCount, previousPublishedAttachments>>
 
 vars == <<core, history>>
 
@@ -78,9 +80,6 @@ Record(action) ==
   /\ lastAction' = action
   /\ previousApplicationCount' = applicationCount
   /\ previousPublishedAttachments' = publishedAttachments
-  /\ previousMatchedPresentation' = matchedPresentation
-  /\ previousMatchedGeneration' = matchedGeneration
-  /\ previousCurrentGeneration' = currentGeneration
 
 Init ==
   /\ currentGeneration = [presentation \in Presentations |-> NoGeneration]
@@ -108,9 +107,6 @@ Init ==
   /\ lastAction = "init"
   /\ previousApplicationCount = applicationCount
   /\ previousPublishedAttachments = publishedAttachments
-  /\ previousMatchedPresentation = matchedPresentation
-  /\ previousMatchedGeneration = matchedGeneration
-  /\ previousCurrentGeneration = currentGeneration
 
 RegisterPresentation(presentation) ==
   /\ ~disposed
@@ -179,7 +175,7 @@ JoinPartial(correlation) ==
        lastRetiredPresentation>>
   /\ Record("join-partial")
 
-JoinComplete(correlation) ==
+CompleteJoin(correlation, action) ==
   /\ Joinable(correlation)
   /\ ~GenerationConflict(correlation)
   /\ ~applied
@@ -203,7 +199,15 @@ JoinComplete(correlation) ==
   /\ UNCHANGED <<currentGeneration, eventPhase, hintEventMatches,
        hintPresentation, hintGeneration, disposed, barrierActive,
        applicationAtBarrier, lastRetiredPresentation>>
-  /\ Record("join-complete")
+  /\ Record(action)
+
+JoinSingleton(correlation) ==
+  /\ CorrelationVariant = "singleton"
+  /\ CompleteJoin(correlation, "join-singleton")
+
+JoinComplete(correlation) ==
+  /\ CorrelationVariant = "pair"
+  /\ CompleteJoin(correlation, "join-complete")
 
 Settle ==
   /\ ~disposed
@@ -370,6 +374,7 @@ Next ==
        matchesEvent \in BOOLEAN:
        ReceiveHint(correlation, presentation, matchesEvent)
   \/ \E correlation \in Correlations: JoinPartial(correlation)
+  \/ \E correlation \in Correlations: JoinSingleton(correlation)
   \/ \E correlation \in Correlations: JoinComplete(correlation)
   \/ Settle
   \/ \E correlation \in Correlations: JoinLate(correlation)
@@ -389,6 +394,7 @@ Next ==
 Spec == Init /\ [][Next]_vars
 
 TypeOK ==
+  /\ CorrelationVariant \in CorrelationVariants
   /\ currentGeneration \in [Presentations -> 0..2]
   /\ eventPhase \in EventPhases
   /\ applied \in BOOLEAN
@@ -412,10 +418,9 @@ TypeOK ==
   /\ lastRetiredPresentation \in Presentations \cup {NoPresentation}
   /\ previousApplicationCount \in 0..1
   /\ previousPublishedAttachments \subseteq AttachmentPairs
-  /\ previousMatchedPresentation \in
-       [Correlations -> Presentations \cup {NoPresentation}]
-  /\ previousMatchedGeneration \in [Correlations -> 0..2]
-  /\ previousCurrentGeneration \in [Presentations -> 0..2]
+
+SingletonNeverSchedulesSettlement ==
+  Cardinality(Correlations) = 1 => ~settlementScheduled
 
 ApplicationRequiresExactLiveJoin ==
   applicationCount = 1 =>

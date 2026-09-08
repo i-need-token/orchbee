@@ -1,10 +1,11 @@
 # Orchbee Native Entry
 
-Experimental, unshipped Rust process entry, application-private local Client transport and
-rendezvous primitive, checked Client-side local Site activation refinement, and staged uninvoked
-TUI shell with a connected single-terminal adapter for the accepted native-command and local-terminal milestone. The emitted
-executable is named `orchbee`. It participates in the root Cargo verification gate but is not
-consumed by Desktop, packaging, an installer, or a package manager.
+Experimental, unpackaged native Rust Client. On Linux, bare invocation connects or activates a
+local Site from a verified development cohort and enters its TUI after the first validated terminal
+projection frame. Native Clients can create, select, move and refresh shared Tabs while keeping independent
+selection and retained terminal processes. Remote and full Workbench operations are not integrated.
+The emitted `orchbee` participates in root Cargo verification; Desktop, installers, and package
+managers do not consume it.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -20,17 +21,73 @@ orchbee --help
 orchbee --version
 ```
 
-Bare invocation selects the future TUI route and reports a localized development-unavailable
-result. It does not inspect terminal devices, enter terminal mode, register signals, or render the
-staged shell. `--help` and `--version` retain their exact output and likewise complete without TUI
-or backend initialization. Every other, additional, or non-Unicode argument is a usage failure.
-There are no short flags, aliases, abbreviations, business commands, target discovery,
-current-directory inference, or compatibility behavior.
+Bare Linux invocation first admits the same inherited input/output TTY and valid cell/pixel
+geometry, then runs the local startup workflow below. Other platforms return localized
+unavailability. `--help` and `--version` initialize neither TUI nor service. Every other,
+additional, or non-Unicode argument is a usage failure; there are no abbreviations, business
+commands, or remote selection.
 
-Help writes only stdout. The unavailable and usage results write only stderr. Version writes one
-locale-neutral `orchbee <version>` line to stdout. Development exit statuses remain `0` for help
-and version, `1` for the unavailable bare TUI route, and `2` for usage failure. They are not the
-future stable public exit table.
+Help writes stdout, failures write stderr, and version writes one locale-neutral
+`orchbee <version>` line. Development status is `0` for normal TUI close/help/version,
+`1` for startup/runtime failure, and `2` for usage failure. This is not a stable public exit table.
+
+## Linux local startup
+
+Build a new development cohort from the repository root:
+
+```sh
+node scripts/stage-native-site.mjs --output /tmp/orchbee-native-dev
+# From a Windows host using WSL Linux:
+node scripts/stage-native-site.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
+```
+
+Then run `/tmp/orchbee-native-dev/orchbee` in an interactive Linux terminal.
+The script rebuilds three Rust release binaries and the Zig ReleaseSafe Host from locked inputs;
+existing output directories are rejected. `--cargo-target-dir <absolute-directory>` can reuse a
+Cargo build cache. This does not install a system service or replace the existing TypeScript CLI.
+
+The default Site is `/tmp/orchbee-native-<effective-uid>`; development/tests can isolate a Site
+by setting `ORCHBEE_RUNTIME_BASE` to another existing absolute directory.
+The [shared runtime contract](../../crates/local-site-runtime/README.md) owns the 0700 directory,
+0600 locks/sockets/immutable attempt marker, exact four-artifact cohort, shared 20-second deadline,
+and delayed 500-ms progress notice. Server + Worker readiness and first terminal frame readiness
+are distinct phases. Initial Open, snapshot read, attach, acquire, authorized resize, and first-frame Poll all
+consume the original startup deadline. Native Ready requires a drawn full frame, its exact accepted
+feedback and current controlling geometry. The worker restores the ordinary request budget after
+consuming the Ready reply. Undrawn FrameApplied feedback is never sent early; NeedSnapshot recovery
+feedback may advance initial frame acquisition.
+
+The Client never restarts or adopts a failed Site. Failed/residual runtimes explicitly require
+recovery and are not deleted automatically. `Ctrl+B q` or `Ctrl+B d` closes only this Client;
+reopening attaches to the same retained shell. Additional concurrent Clients are read-only unless
+they acquire an independent controller grant. TTY admission occurs once, every duplicate is
+CLOEXEC, and the prepared Session plus that same TTY are handed to the interface. Terminals must
+report real valid cell/pixel dimensions; missing pixel values are not guessed. Linux is the only
+platform with public startup process evidence; release performance budgets remain unclaimed.
+
+## Native Tab interactions
+
+The standalone native Session renders the Server's ordered Tabs and canonical labels. Each Client
+owns its own active selection, navigator and viewport; another Client's new Tabs become visible on
+explicit refresh. These controls use the existing `Ctrl+B` prefix:
+
+| Key       | Connected native behavior                                                                 |
+| --------- | ----------------------------------------------------------------------------------------- |
+| `c`       | Request one Server-owned Tab creation, then select its validated committed member.        |
+| `n` / `p` | Select the next / previous Tab in the current Client snapshot.                            |
+| `1` … `9` | Select that position when present.                                                        |
+| `<` / `>` | Move the active Tab before / after its neighbor, wrapping at either boundary.             |
+| `w`       | Open the navigator and refresh shared Tabs while preserving the active terminal identity. |
+| `q` / `d` | Close this Client while retained execution continues.                                     |
+
+Creation drains earlier accepted work and preserves known commit facts through deadline and Client
+retirement. Switching releases the old viewer before attaching the selected binding; it does not
+stop or recreate either terminal. Moving changes shared order while preserving the active terminal
+and its viewer/controller. If a committed Move receives a definite denied/unavailable snapshot result, the Client
+keeps terminal interaction available and uses `w` for explicit snapshot recovery before another
+structural operation. The [native Session contract](docs/native-tab-session.md) owns admission,
+geometry, feedback, failure, recovery and evidence bounds. Tab Close and Panel operations are not
+supplied by this cohort.
 
 ## Private local Client transport
 
@@ -38,11 +95,15 @@ On Unix, the application-private `LocalClient` accepts an endpoint and executabl
 an internal caller. It delegates admission to `orchbee-local-client-protocol`, which validates the
 cohort before connecting, proves the Server has the same effective operating-system user, performs
 the exact `OBLC` handshake with two-second read/write timeouts, and returns the accepted generation
-plus the same unbuffered stream. Those existing handshake timeouts remain a separate OBLC boundary;
-this slice does not add one total deadline around connect plus handshake. The application switches
-the admitted stream to nonblocking I/O before the `OBCS` phase.
+plus the same unbuffered stream. Those existing handshake timeouts remain a separate OBLC boundary.
+On Linux, private `LocalClient::connect_before` instead passes the caller's absolute monotonic
+deadline through connection, peer proof, hello, response and final admission. Its
+[owning adapter and correctness record](../../crates/local-client-protocol/README.md#deadline-bounded-linux-admission)
+define failure cleanup and the unchanged-deadline guarantee. Both paths switch the admitted stream
+to nonblocking I/O before `OBCS`. Ordinary requests have an independent budget; initial local
+requests are clamped to the original startup deadline. macOS deadline admission remains unfinished.
 
-`submit_terminal_create`, `submit_terminal_start`, `submit_terminal_viewer`, and `submit_terminal_control` each take ownership of one already validated
+`submit_terminal_open`, `submit_terminal_create`, `submit_terminal_start`, `submit_terminal_viewer`, and `submit_terminal_control` each take ownership of one already validated
 typed request and encode its complete OBCS frame before submission. Encoding failure is definite
 and leaves the Session available. A successful encoding starts one fifty-second monotonic deadline
 covering the complete frame write and the one Server-frame read; readiness waits recompute the
@@ -53,11 +114,9 @@ incompatible result, wrong result kind, or wrong correlation makes the effect ou
 replay. A correctly correlated Server `outcome-unknown` result remains a valid OBCS result rather
 than a transport ambiguity.
 
-No current invocation reaches this transport. The private connected TUI now consumes an already
-admitted `LocalClient`, allocates fresh request identities, and submits Create, viewer and control
-intent. Endpoint selection/discovery, activation, reconnection, reconciliation and public invocation
-wiring remain separate boundaries. Its close-only `LocalClientShutdown` handle lets the TUI stop
-a blocked exchange without acquiring another stream reader or writer.
+Bare Linux startup consumes this transport for standalone Open, viewer, and control intent.
+Its close-only `LocalClientShutdown` handle stops a blocked exchange without acquiring another
+stream reader or writer. Reconnection and reconciliation remain separate boundaries.
 
 The fifty-second submission bound accommodates Server's one queued and one in-flight Worker
 exchange (each at most two seconds writing plus twenty seconds reading) and Client result delivery.
@@ -111,11 +170,14 @@ explicit later acquisition. Cleanup after Session loss may outlive a submission 
 | LC-04: only exact kind and identity complete, while a correlated Server `outcome-unknown` is data rather than transport ambiguity. | Exact Create/Start, wrong-kind, wrong-ID, and correlated-unknown fake-Server tests exercise the result classifier.                                                                                        | Matching and wrong-result arrival actions; `AcceptedResultIsExactAndBeforeDeadline`.                           |
 | LC-05: one monotonic deadline covers the full write and read and is not renewed by progress.                                       | `SubmissionDeadline` is created once; every readiness boundary recomputes its remainder. Stepping-clock tests force sub-deadline byte progress across both read and write until the total budget expires. | `WriteDeadlineExpires`, `ResultDeadlineExpires`, `RetireTimedOutResult`; `TimeoutCannotProduceAcceptedResult`. |
 
-## Staged TUI shell foundation
+## TUI shell foundation
 
-The following application-private modules are compiled and tested, but no current invocation
-enters them. The unconnected `run` adapter keeps the unavailable shell behavior below;
-`run_connected` composes the accepted terminal refinement in the next section:
+Application-private shell adapters own the following terminal and presentation boundaries.
+Bare Linux startup uses the prepared Session; unconnected `run` and explicit `run_connected`
+remain test and composition seams.
+
+The input and transition tables below describe the unconnected fallback. Connected standalone Tab
+actions are handled by the native Session described above.
 
 | Concern     | Current contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -124,7 +186,7 @@ enters them. The unconnected `run` adapter keeps the unavailable shell behavior 
 | Client View | One invocation owns prefix mode, viewport class, sidebar projection, active overlay, and transient notice. It owns no shared Tab, Panel, Workspace, Site, or Terminal fact and persists nothing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Layout      | At 96 columns or wider, a 30-column Orchbee business sidebar is docked beside the Workbench region. Narrower viewports keep the Workbench full width and expose the sidebar only as a left overlay. The Workbench projection contains a Tab strip and Panel/Terminal region but labels them as unavailable rather than fabricating shared data.                                                                                                                                                                                                                                                                                                                                                                            |
 | Input       | The staged adapter polls and reads at most 4,096 raw bytes at a time from the admitted stdin descriptor. Every completed read is dispatched in order before any subsequent signal, viewport query, or resize decision can terminate that loop iteration. `Ctrl+B` enters visible prefix mode. `b`, `w`, `?`, `q`, and `d` drive only local shell state or exit. Typed Tab and Panel actions remain unavailable. Outside prefix mode, all bytes—including `Ctrl+C`, `Ctrl+D`, escape sequences, UTF-8, and input while an overlay is visible—reach an injectable terminal-input port in order; prefix then `Ctrl+B` forwards one literal byte.                                                                              |
-| Outcome     | No current command reaches this shell. The seam does not claim a Server, Client Session, real terminal, detach, attachment, retained-terminal, activation, Workbench mutation, or Site-lifetime behavior.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Outcome     | The shell consumes its prepared Session. Bootstrap owns activation; Server owns terminal identity; Host owns terminal lifetime. The shell does not mutate Workbench state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 The deterministic Client View transition model is:
 
@@ -136,7 +198,7 @@ The deterministic Client View transition model is:
 | Prefix + `w` or `?`                              | Leave Prefix and open the Workbench navigator or shortcut-help overlay locally.                                                                                                                                                                                          |
 | Prefix + `c`, `n`, `p`, `1` … `9`, or `h/j/k/l`  | Leave Prefix, preserve shared state, and surface the mapped backend-dependent action as unavailable; no command is submitted.                                                                                                                                            |
 | Prefix + `Ctrl+B`                                | Leave Prefix and offer one literal `Ctrl+B` event to the terminal-input port.                                                                                                                                                                                            |
-| Prefix + `q` or `d`                              | Leave Prefix and close this unavailable shell.                                                                                                                                                                                                                           |
+| Prefix + `q` or `d`                              | Leave Prefix and close this Client shell.                                                                                                                                                                                                                                |
 | Prefix + `Esc`                                   | Cancel Prefix without changing an overlay. Outside Prefix, `Esc` and its following bytes are ordinary terminal input.                                                                                                                                                    |
 | Resize                                           | Query the admitted stdout descriptor, update the fixed backend viewport, and recompute only the Client-local viewport class. Crossing into narrow mode hides the docked sidebar; returning wide closes a sidebar overlay and restores the prior wide-sidebar preference. |
 | Event/draw error, panic, or termination signal   | Stop the loop and attempt cursor, alternate-screen, and raw-mode restoration without starting or stopping another process.                                                                                                                                               |
@@ -146,7 +208,7 @@ remain ordered, the unconnected adapter never changes shared Workbench or termin
 possibly acquired terminal mode retains one bounded restoration owner. Unit tests cover state,
 input-port, fixed-backend, layout, renderer, real-PTY same-terminal admission, an actual panic hook,
 all four signals, cross-thread setup interleaving, post-read viewport/resize failures, and lifecycle
-fault injection. Native PTY process tests separately prove that the current bare/help/version paths
+fault injection. Native PTY process tests separately prove that missing-cohort bare and help/version paths
 leave terminal modes untouched, that Linux PTY-master `EIO` after the final slave closes is a normal
 hangup, and that the linked public binary contains no `/dev/tty` or `tput` fallback token. The staged
 runtime and all of its third-party dependencies are Unix-only; the Windows target dependency tree
@@ -159,7 +221,10 @@ The accepted local-terminal milestone gives the private TUI an actual consumer o
 `run_connected` receives an already admitted Client and explicit create-or-attach intent. It does
 not select an endpoint, activate services, change public grammar, or publish shared Workbench facts.
 A real process/PTY witness renders a Server/Worker/Host terminal through this adapter;
-bare-entry rendezvous and lazy activation remain the next missing integration boundary.
+bare Linux startup enters the same prepared shell after bounded Site activation.
+
+The following record retains the explicit private Create/Attach adapter and its regression tests.
+Standalone startup uses the native Tab Session rather than this adapter's single-terminal queue.
 
 | Field        | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -168,13 +233,48 @@ bare-entry rendezvous and lazy activation remain the next missing integration bo
 | Data         | One connection-owning task, eight queued commands of at most 4,096 input bytes each, one response slot, one pending frame feedback, one bounded text projection, fresh request IDs, and one controller sequence. Host alone owns VT and history. Acquiring an existing terminal also submits its initial panel geometry; input and subsequent resize share the same increasing sequence.                                                                                                                                                                                                                                                                                                                                |
 | Outputs      | Create/attach and explicit acquire, ordered admitted raw input and geometry, text/style/cursor rendering, exact applied feedback or NeedSnapshot, localized connecting/read-only/blocked/failure states, and Session-only cleanup.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Invariants   | No UI thread performs Server I/O. The task serializes every exchange. It never retries an effect. A queue-full input is explicitly unsubmitted. Unknown outcome closes the task and discards unsent commands. No task survives its TUI owner.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Model        | Opening -> attached controller or read-only viewer -> polling -> received record -> atomic text projection commit -> draw -> feedback -> polling. Control intent is queued separately from the single projection flight. Closing shuts down the admitted socket and joins the task; Server owns generation-scoped detach cleanup.                                                                                                                                                                                                                                                                                                                                                                                       |
+| Model        | Opening -> standalone snapshot selection where applicable -> attached controller or read-only viewer -> polling -> received record -> atomic text projection commit -> draw -> feedback -> polling. Control intent is queued separately from the single projection flight. Closing shuts down the admitted socket and joins the task; Server owns generation-scoped detach cleanup.                                                                                                                                                                                                                                                                                                                                     |
 | Decisions    | Snapshot replaces all rows without moving the committed revision backwards, including after a projection reset; delta needs the exact attachment, epoch, sequence, generation, base revision, screen, and geometry. Invalid content requests a new snapshot without applying any row. Wrong envelope or scope retires the Session. ProjectionBlocked clears presentation until a later-revision snapshot. No controller auto-promotion, reconnect, or unknown-input replay.                                                                                                                                                                                                                                             |
 | Dependencies | Existing OBCS and Rust Terminal Protocol bindings, bounded channels, POSIX socket shutdown, the admitted descriptors, existing Ratatui renderer, and localized copy. No new third-party dependency, direct Host path, or VT emulator.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Ownership    | `terminal_session` owns the connection task and input admission; `terminal_projection` owns Client text state and feedback; the Terminal Protocol binding owns bounded OBTF text decoding; the shell owns modes and draw ordering.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Verification | Canonical OBTF fixtures, malformed/boundary partitions, deterministic snapshot/delta and queue/retirement traces, render buffer assertions, and real process/PTY witnesses. Existing LocalClientSubmission and LocalTerminalRelay map transport retirement and projection/control ordering; their finite bounds are not performance guarantees.                                                                                                                                                                                                                                                                                                                                                                         |
 | Limits       | Text cells and basic styles/cursor are projected; graphics, hyperlink activation, history, selection, terminal interaction-mode negotiation, cursor-shape parity, and full Workbench behavior are excluded. Unsupported cell widths use a replacement glyph. Missing or invalid inherited cell/pixel geometry rejects before Create or initial attach, or ends an active TUI through its restoration boundary; no pixel size is invented. Optional extension contents remain opaque and are not retained by the text decoder. The projection counts shared text allocations and rejects a retained text budget above 36 MiB before commit. Control characters in displayed cells never become terminal escape commands. |
-| Review       | Current-context adversarial review checks memory amplification, at-most-once effects, failed draw feedback, and joined cancellation; it is not independent review evidence. Full milestone acceptance and the previously reported authority-model timeout remain open.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Review       | Checks cover memory amplification, at-most-once effects, failed draw feedback, and joined cancellation. The former authority-model timeout is resolved; startup has separate independent review and Linux process evidence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+`terminal_text` owns the forbidden display-scalar rule: Unicode control characters and
+U+2028/U+2029. Terminal-cell rendering uses this rule with its existing width checks, and the final
+backend `Print` independently replaces forbidden scalars with U+FFFD. Safe text is borrowed without
+allocation; canonical strings remain unchanged. Captured-output tests verify that cell payloads
+cannot inject terminal commands while preserving the backend's own cursor and style commands.
+
+## Known-unchanged Client backpressure
+
+The carrier retains one queued request and one wire owner; even an idle wire may briefly have a
+full queue. Terminal Session owns a bounded response to exact viewer/control ServerBusy results:
+each is a completed, correlated request that dispatched no Host action. It waits 10 ms, then makes
+a fresh request with a fresh ID. Carrier Backpressure precedes OBCN dispatch; an Attach Worker
+capacity rejection can follow an OBCN exchange but precedes Host attachment creation. Input and Resize also use a fresh increasing controller sequence,
+because Server consumes the earlier sequence before queue admission. The logical operation retains
+one absolute deadline, clamped to the original startup deadline before the first frame and to the
+ordinary 50-second budget afterward. Each underlying LocalClient submission still writes once.
+
+Create, Open and Start are never resubmitted. Generic rejection, controller contention, unavailable
+runtime, malformed responses, transport failures and unknown outcomes are final. Feedback remains
+the same exact owed feedback until accepted; this policy cannot acknowledge an undrawn frame.
+Client cancellation closes the stream, interrupts an exchange, and joins after at most one 10-ms
+backoff under normal scheduling. Expiry or identity exhaustion ends the operation.
+
+| Claim                                                       | Refinement and evidence                                                                                                                                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Only known-unchanged capacity results allow another attempt | Server viewer/control ServerBusy producers establish unchanged Host effects; Client matches only that exact result. Fake Server partitions check busy, rejection, unavailable and unknown. |
+| No possible effect is replayed                              | LocalClientSubmission still owns each once-only wire exchange; LocalClientBackpressure permits another submission only after a known-unchanged response.                                   |
+| Deadline and identity do not reset                          | One operation deadline covers all attempts; request IDs and controller sequence increase; bounded fake Server traces exercise expiry and busy Resize.                                      |
+| Retained feedback and cancellation stay bounded             | The Session keeps one active command and the existing eight-slot queue; fake Server tests and real concurrent Client traces cover preservation and joined drop.                            |
+
+LocalClientBackpressure abstracts one viewer/control operation, up to three fresh request identities,
+and a finite deadline. It trusts the ServerBusy-to-no-dispatch classification, exact response
+validation and the existing transport model; it does not prove OS scheduling or grant new retry
+authority to other callers or protocols.
 
 ## Localization and authority
 
@@ -183,98 +283,21 @@ Authored help and diagnostics ship in `en-US` and `zh-CN`. Locale selection chec
 falls back to canonical `en-US`. Locale data affects presentation only and is never persisted or
 used as authority.
 
-The three delivered invocation routes use only Rust standard-library argument, environment,
-stdout, and stderr capabilities. They select neither private module, open no file or socket, start
-no process or thread, initialize no terminal mode, and read no product state. The local Client
-transport and rendezvous primitive are compiled on Unix but remain unreachable from public
-dispatch. The delivered TypeScript
-[`apps/cli`](../cli/README.md) remains the current CLI authority until a separately accepted
-packaged cutover.
+Only help/version/usage one-shot routes use standard-library arguments, environment, and streams alone.
+Bare Linux invocation composes the shared runtime, private Client transport, and TUI; terminal
+dependencies remain Unix-only. The delivered TypeScript [`apps/cli`](../cli/README.md) remains
+the shipped CLI authority until a separately accepted packaged cutover.
 
 ## POSIX local Site rendezvous foundation
 
-The application-private `local_site_rendezvous` module stages a mode-checked macOS/Linux
-rendezvous primitive for a later accepted activation workflow. Future installation composition
-must supply a stable `SiteScope`; cohort version and digest do not belong in that scope, so an
-update keeps one Site identity while release, local, and checkout-scoped development installations
-can remain distinct. `SiteScope` accepts 1 through 63 ASCII bytes in the canonical form
-`[a-z][a-z0-9]*(?:-[a-z0-9]+)*` and therefore cannot add a path separator, dot component, or
-platform-dependent encoding.
-
-For one trusted, existing, exactly normalized absolute per-user runtime base, the exact derived
-paths are:
-
-| Role               | Stable path                                      |
-| ------------------ | ------------------------------------------------ |
-| Scope directory    | `<runtime-base>/<site-scope>`                    |
-| Activation lock    | `<runtime-base>/<site-scope>/activation.lock`    |
-| Site lifetime lock | `<runtime-base>/<site-scope>/site-lifetime.lock` |
-| Client socket      | `<runtime-base>/<site-scope>/client.sock`        |
-| Worker socket      | `<runtime-base>/<site-scope>/worker.sock`        |
-
-`ModeCheckedLocalSiteRendezvous` deliberately names the incomplete security boundary. Preparation
-creates only the scope directory when absent. Preparation and validation open `/` as the trusted
-root, then open every runtime-base component and the controlled scope descriptor-relatively with
-`O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC`. They neither canonicalize nor ask the operating system to
-normalize the supplied base. Apart from `/` itself, an accepted base has exactly one leading slash,
-one or more nonempty normal components separated by single slashes, no trailing slash, no `.` or
-`..` component, and no NUL byte. A malformed base is rejected before filesystem access beyond the
-trusted root; a symbolic-link or non-directory component is rejected at that component. The
-retained scope must be a directory owned by the effective UID with exact mode `0700`. A new scope
-is inspected without following its leaf, checked for directory type and effective-UID ownership,
-changed descriptor-relatively to `0700` before a permissions-dependent open, and then admitted only
-when the opened descriptor has the same device and inode. This reaches exact `0700` even when the
-process umask removes every requested permission, without changing the process umask. An existing
-wrong mode is rejected without repair.
-
-Each lock operation opens or creates only its fixed leaf through the retained directory descriptor
-with `O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC`. The leaf must be a regular file owned by the effective
-UID with exact mode `0600` and exactly one hard link. An existing valid stale file is reused without
-truncation or replacement. `try_acquire_activation_lock` and `try_acquire_site_lifetime_lock` each perform one
-nonblocking exclusive kernel lock attempt and return either an owned guard or `Contended`; they do
-not wait, retry, or infer process health. File creation and advisory-lock acquisition are separate:
-a caller returning `Contended` may have created and normalized a previously missing durable lock
-inode before another descriptor won the lock. A contended attempt never truncates, replaces,
-unlinks, or changes the ownership of an existing inode, and never repairs a pre-existing invalid
-entry. Dropping a guard releases only its advisory lock. The runtime directory, durable lock files,
-socket paths, and any entries at those paths are never removed by this module.
-
-This foundation does not yet establish a production-private runtime boundary on filesystems where
-an inherited or extended ACL can grant access beyond the mode bits: it neither inspects nor removes
-ACLs. Public activation must remain unwired until an ACL-capable boundary closes that gap. It also
-does not choose the runtime base or scope, validate Unix-socket path length or socket metadata,
-bind, connect, authenticate peers, launch a process, wait for readiness, unlink an endpoint, or
-claim stale-process recovery.
-
-The primitive remains owned by `apps/orchbee` because only the public Client-side activation
-boundary has an admitted need in this slice; there is no second source consumer.
-`apps/orchbee-server` cannot import another application and does not yet acquire
-`site-lifetime.lock`; a later Server lifecycle slice must admit a real shared owner or an explicit
-composition seam before both applications can use the same contract.
-
-### Modeling and evidence
-
-| Field        | Current staged contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | Give a later local Client activation workflow one path-component-safe, same-effective-UID, mode-checked rendezvous identity without prematurely implementing process activation, readiness, cleanup, or recovery.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Inputs       | A trusted existing exactly normalized absolute runtime base; an installation-owned scope string parsed at the 63-byte ASCII boundary; effective UID; and adversarial directory and lock entries. Relative and non-normal bases, missing scope, links, wrong types, owners, modes, stale files, and held locks are explicit cases.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Data         | Canonical `SiteScope`; exact derived paths; one retained scope-directory descriptor; and one owned file descriptor per acquired advisory lock. No PID, readiness marker, process identity, durable record payload, or socket state exists.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Outputs      | Preparation or validation returns the retained rendezvous or a typed failure. Each lock attempt returns `Acquired`, `Contended`, or a typed filesystem failure. Client and Worker socket methods return the exact stable paths and perform no I/O.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Invariants   | Every runtime-base component and opened controlled directory or lock entry uses no-follow; a newly initialized scope's opened identity matches the entry inspected before chmod; accepted entries have exact type, effective-UID ownership, mode, and lock link count at admission; accepted activation and lifetime leaves cannot alias one inode at admission; a contended lock attempt never truncates, replaces, unlinks, changes the ownership of an existing inode, or repairs a pre-existing invalid entry, though it may create and mode-normalize a missing lock inode; dropping resources removes nothing; and scope identity is independent of executable cohort.                                                                                                    |
-| Decisions    | Exact normalized-base syntax, each descriptor-relative base-component result, scope syntax and length, create-versus-validate policy, descriptor metadata, lock kind, create-versus-existing lock file, and one kernel lock outcome completely determine the result.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Model        | A pure bounded scope/path resolver feeds a POSIX adapter that walks from a trusted root descriptor without canonicalization, then retains the validated scope descriptor. The adapter has no retry loop, clock, process observer, or recovery branch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Transitions  | A missing scope may become one identity-matched validated directory even under a fully restrictive umask. A missing lock leaf may become one durable validated regular file, including when its creator ultimately returns `Contended`; the creation winner and advisory-lock winner need not be the same caller. An unlocked leaf may become guard-held and returns to unlocked when the guard drops. Existing invalid entries are unchanged.                                                                                                                                                                                                                                                                                                                                  |
-| Dependencies | Rust path/value operations, safe `nix` wrappers for effective UID and descriptor-relative POSIX calls, and `File::try_lock` for one advisory exclusive attempt. No network, socket, child-process, thread, time, randomness, persistence payload, or Server dependency is present.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Ownership    | The typed scope comes from future installation composition; this application owns derivation, directory validation, lock-file validation, and guard lifetime. A future activation workflow will own deadlines and process sequencing; Server must separately gain an accepted lifetime-lock seam.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Verification | Owner-local deterministic tests cover valid and invalid scope names, exact paths, relative and malformed lexical bases, trailing slash and dot/parent components, intermediate/final base links, scope links, restrictive-umask initialization, concurrent permissive-umask creation, non-directories, wrong owner/mode, lock symbolic/hard links, directories, FIFOs, wrong metadata, independent contention, stale inode/content preservation, reacquisition, and cleanup non-ownership.                                                                                                                                                                                                                                                                                      |
-| Limits       | The tests run under one effective user and trust kernel metadata and advisory-lock semantics. They inject a different expected UID rather than executing cross-user. Concurrent creation is exercised with a permissive umask; the primitive has no retry if a separate caller observes the short pre-chmod window created by another process with a user-bit-restrictive umask. Durable means that this owner never unlinks or truncates lock files, not that it fsyncs them; kernel filesystem calls have no wall-clock guarantee. No TLA+ model is selected for this atomic primitive; `LocalSiteActivation` owns the accepted workflow's bounded singleton/process-order and abstract total-deadline claims without refining this POSIX adapter or implementing activation. |
+Shared ownership and the complete primitive modeling record are maintained by
+[local-site-runtime](../../crates/local-site-runtime/README.md); the application keeps no duplicate implementation.
 
 ## Accepted local Site activation modeling record
 
 [`LocalSiteActivation`](formal/tla/LocalSiteActivation.tla) is maintained design evidence for the
-accepted connect-first and lazy-activation workflow. It changes no runtime behavior: bare
-invocation still reaches the development-unavailable TUI result, and public activation remains
-unwired.
+accepted connect-first and lazy-activation workflow. This abstract model is independent of its later runtime refinement; the shared runtime record
+owns concrete attempt markers, processes, lifetime locks, and first-frame deadlines.
 
 | Field        | Accepted refinement target                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -287,7 +310,7 @@ unwired.
 | Model        | A bounded workflow over exactly two Client slots and four supported initial Site classes. One scalar `activationOwner` models `activation.lock`; `launchCount` and `launchedCohort` expose singleton exact-cohort launch; `serviceLifetimeOwner` distinguishes the ready Site from every Client. External launcher/readiness actions are nondeterministic and have no fairness assumption.                                                                                                |
 | Transitions  | `idle -> connecting -> connected` for a present compatible Site; `connecting -> failed` for present incompatible or partial state; `connecting -> lock-ready -> lock-held -> waiting-readiness` for the launch winner; `lock-ready -> waiting-readiness` for contention; waiting or recheck states settle as connected or one typed failure; `connected -> exited` preserves Site state. Help/version go directly from `idle` to information completion.                                  |
 | Dependencies | The model composes the accepted command contract with the current private `LocalClient` admission boundary and `ModeCheckedLocalSiteRendezvous` lock semantics only at their named abstractions. Future runtime refinement must supply installation-owned cohort selection, typed readiness, and one monotonic total deadline. This slice adds no process, socket, filesystem, localization, or public-command implementation.                                                            |
-| Ownership    | `apps/orchbee` owns the future Client bootstrap workflow, deadline, activation guard, and typed Client result. Installation composition owns the exact cohort capability. Server and Worker own their readiness and service lifetimes after success. The model grants no Client authority to supervise, stop, replace, downgrade, clean up, or recover a Site.                                                                                                                            |
+| Ownership    | `apps/orchbee` owns the Client bootstrap workflow, deadline, activation guard, and typed Client result. Installation composition owns the exact cohort capability. Server and Worker own their readiness and service lifetimes after success. The model grants no Client authority to supervise, stop, replace, downgrade, clean up, or recover a Site.                                                                                                                                   |
 | Verification | The registered TLC configuration explores four initial Site classes and exactly two Client identities, reaches every maintained semantic action, and checks safety plus Client-local deadline progress. It checks 850 distinct states to depth 13. Symmetry reduction is intentionally disabled because TLC liveness checking with symmetry can miss violations. Runtime refinement evidence is N/A for this model-only slice and remains required before wiring.                         |
 | Correctness  | LA-01 through LA-05 below map the accepted claims to actions, invariants, and progress properties. `WF_vars(DeadlineExpires(client))` is the only fairness clause: it represents the contract-guaranteed local total deadline. `CohortBecomesReady`, typed cohort failures, and `LauncherFails` are intentionally unfair, so a permanently silent external process still yields a bounded Client failure rather than an assumed response.                                                 |
 | Limits       | The abstraction proves only the checked two-Client, one-Site state space. It does not prove runtime refinement, operating-system scheduling, process creation or detachment, daemonization, service-manager behavior, runtime base or scope, ACLs, socket metadata, cleanup, recovery, retry, update, a concrete deadline or progress threshold, localization, TUI behavior, packaging, public wiring, or external process progress.                                                      |
@@ -304,7 +327,7 @@ unwired.
 | Pending Client       | Typed result or total deadline is observed                           | Connect or return `incompatible`, `partial-cohort`, `launcher-failure`, or `timeout`; release any caller-owned activation guard |
 | Connected Client     | Client exits                                                         | End only the Client Session; preserve Site, cohort, readiness, launch, and service-lifetime state                               |
 
-Runtime refinement is deliberately N/A in this slice because no invocation reaches activation.
+This model abstracts runtime refinement; `LocalSiteStartup` supplies the concrete startup safety case.
 Future wiring must add deterministic process tests before claiming the model maps to implementation.
 
 | Claim                                                                                                    | TLA+ evidence                                                                                                                                                                                                                               | Bound                                                                                                                                                       |
@@ -314,15 +337,6 @@ Future wiring must add deterministic process tests before claiming the model map
 | LA-03: incompatibility, partial cohort, launcher failure, and timeout are explicit and do not stop Site. | Direct, recheck, and readiness failure actions plus `DeadlineExpires`; `ClientShapeIsExact`, `ExplicitFailureHasNoServiceStopEffect`.                                                                                                       | Failure presentation, cleanup, recovery, retry, and stale-artifact policy remain excluded.                                                                  |
 | LA-04: connection releases Client activation ownership; Client exit does not supervise or stop Site.     | `RecheckCompatible`, `ObserveReady`, `ExitClient`; `SettledClientReleasesItsActivationResource`, `ReadySiteOwnsItsServiceLifetime`, `NoClientSupervisesServiceLifetime`, `ClientExitPreservesSite`, `ActivationResourceEventuallyReleases`. | Models ready-service ownership only; it does not select how processes detach or how service lifetime is implemented.                                        |
 | LA-05: every started TUI settles without assuming that an external process responds.                     | `EveryPendingTuiEventuallySettles` under only per-Client weak fairness for `DeadlineExpires`; external cohort and launcher completions have no fairness clause.                                                                             | Assumes the future adapter actually guarantees observation of one finite monotonic total deadline; no numerical value, OS scheduling, or external liveness. |
-
-The current one-shot process path uses only Rust standard-library argument, environment, stdout,
-and stderr capabilities. It opens no file or socket, starts no process or thread, reads no product
-state, and never reaches the staged shell. The staged modules use Ratatui for stateful rendering,
-Crossterm only for queued ANSI output, Nix/Rustix only against inherited descriptors, and
-signal-hook for atomic flags. They have no Server, Worker, or Terminal Host dependency, and all of
-these third-party dependencies are declared only for Unix targets. The delivered TypeScript
-[`apps/cli`](../cli/README.md) remains the current CLI authority until a separately accepted
-packaged cutover.
 
 ## Measurement
 
@@ -338,21 +352,37 @@ memory where `/usr/bin/time` exposes it. Results describe only the printed host,
 and invocation. They are not acceptance budgets, cold-cache guarantees, or evidence for future TUI
 performance.
 
-The staged-shell, current-public-path reference run on 2026-09-03 used Apple M1 arm64, Darwin
-23.6.0, Rust 1.97.0, the default Cargo release profile, 5 warmups, and 50 measured invocations:
+The current Linux reference on 2026-09-07 used source commit `ac620e35`, x86_64 WSL2,
+Linux 6.18.33.2, Rust 1.97.0, the default Cargo release profile and the same-cohort Zig ReleaseSafe
+Host. Python 3.14.4 drove 5 version warmups and 50 version samples, plus a 120×32-cell,
+960×640-pixel PTY over 5 fresh Sites and 3 reopens per Site. The isolated invocation environment
+contained only account HOME/USER/LOGNAME, Cargo and standard executable paths, repository-root PWD,
+`LANG=LC_ALL=en_US.UTF-8`, `SHELL=/usr/bin/zsh`, `TERM=xterm-256color`, and a unique
+`ORCHBEE_RUNTIME_BASE`. The filesystem cache is warm; a fresh Site does not imply a cold OS cache.
 
-| Measurement          | Reference observation |
-| -------------------- | --------------------- |
-| Executable size      | 432,144 bytes         |
-| Warm startup minimum | 1.216 ms              |
-| Warm startup p50     | 1.564 ms              |
-| Warm startup p95     | 1.936 ms              |
-| Warm startup maximum | 2.151 ms              |
-| Peak resident memory | 1,343,488 bytes       |
+Interface timing spans Client spawn to a complete draw containing `[*1 1]` and the bottom-row
+`Tab 1 · Ready · controlling` footer, downstream of the full-frame draw, exact FrameApplied /
+FeedbackAccepted exchange and latest-geometry UI Ready publication. It does not prove that the
+worker has consumed the Ready reply or cleared the startup ceiling. Client VmHWM is sampled at
+that endpoint: it measures peak residence through Ready, not the entire TUI lifetime.
+Every close verifies exact terminal-mode restoration and alternate-screen exit. Before each warm
+reopen, a condition wait outside the timed interval verifies the previous Server Session task and
+socket have retired. Queued viewer Detach has no public completion witness; any remaining detach
+work can enter the next attachment's measured latency. Earlier single-terminal references used
+different readiness witnesses; these observations are not a strict before/after comparison.
 
-Rerun and replace this reference after a later accepted slice changes the executable's reachable
-dependency graph or invoked startup path. This staged module is not reachable from an invocation route.
-Supported-platform acceptance budgets remain reserved.
+| Measurement                                                      | Reference observation            |
+| ---------------------------------------------------------------- | -------------------------------- |
+| Client executable size                                           | 2,989,768 bytes                  |
+| Version startup min / p50 / p95 / max                            | 0.791 / 0.834 / 1.176 / 1.406 ms |
+| Version peak resident memory                                     | 2,818,048 bytes                  |
+| Fresh Site complete Ready frame p50 / p95 (5 samples)            | 485.526 / 501.903 ms             |
+| Warm Site complete Ready frame p50 / p95 (15 samples)            | 439.502 / 486.007 ms             |
+| Client peak resident memory through Ready p50 / max (20 samples) | 4,792,320 / 4,894,720 bytes      |
+
+These are host observations, not performance promises or direct comparisons with another OS,
+driver or the old one-shot artifact. Remeasure and replace the reference when reachable dependencies
+or startup paths change; supported-platform release acceptance budgets remain reserved.
 
 ## Verification
 
@@ -364,7 +394,81 @@ cargo build -p orchbee-server -p orchbee-worker --locked
 cargo test -p orchbee --all-targets --all-features --locked
 cargo clippy -p orchbee --all-targets --all-features --locked -- -D warnings
 node scripts/tla/check-inventory.mjs
-node scripts/tla/run-models.mjs --models local-client-submission,local-site-activation
+node scripts/tla/run-models.mjs --models local-client-admission,local-client-submission,local-client-backpressure,local-site-activation,local-site-startup,workbench-terminal-selection
 cargo tree -p orchbee --target x86_64-pc-windows-msvc --locked
 pnpm verify
 ```
+
+Set `ORCHBEE_TEST_NATIVE_COHORT` to an absolute staged directory to run the same real-process
+acceptance suite against the actual release artifacts. Fixtures validate that cohort and copy it
+into isolated directories; tests do not change the source cohort or default Site.
+
+```sh
+ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test local_startup_process --locked
+```
+
+## Standalone terminal intent
+
+The private connected TUI accepts `TerminalIntent::Standalone`. It submits one
+`submit_terminal_open` and requires Opened, then reads a correlated OBWP snapshot on that same
+admitted connection. It uses the snapshot's exact Site/Worker/Server-terminal binding to submit
+OBCS `attach-binding`; the Open create reference remains an explicit legacy value and does not
+select this viewer. Bare Linux invocation consumes this path through verified local Site
+activation and Worker lazy Host startup. Explicit Create and Attach intents keep their existing
+Create-reference attachment behavior.
+
+The pure projector requires exactly one context matching the standalone context ID, no groups,
+and zero through 256 ordered, ungrouped, unpinned Tabs. Every root must be a Panel with no child
+Presentations and a bound primary Presentation. It retains both labels, all membership identities
+and each binding exactly; one unsupported member rejects the entire projection. Cold startup
+separately requires the first ordered Tab and uses its binding. Canonical OBWP validation owns
+global uniqueness and reference integrity. Pure refresh and created-member validators enforce
+revision, immutable member and correlated creation facts. Interactive creation, switching, refresh
+and Workbench rendering are integrated; the native Session record distinguishes their checked
+baseline from the pending Move refinement.
+
+The terminal projection adapter also provides the native Session's controlling full-frame geometry
+gate. A supplied expected geometry must match all four fields; mismatch clears the visible frame
+and requests a snapshot without resetting sequence, revision, or blocked-revision fences. Native
+controlling setup consumes this gate; the retained explicit Create/Attach adapter passes no expected
+geometry. Focused tests cover each field and recovery with a fresh matching full frame.
+
+Open, snapshot read, attach, controller acquisition, initial controller-authorized Resize and
+the first validated terminal projection frame share the existing startup ceiling. An observer
+does not resize. The snapshot exchange keeps one carrier and the existing nonblocking deadline
+I/O owner; Workbench request IDs remain distinct from OBCS correlation and logical terminal IDs.
+
+| Condition                                                                                                      | Carrier state and standalone behavior                                                                                    |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Local encoding or definite pre-first-write failure                                                             | Retain the carrier and return a definite not-submitted failure; the workflow exits unavailable without retry.            |
+| I/O after possible handoff; malformed, excessive, truncated, wrong-kind or wrong-correlation snapshot response | Retire the mixed carrier and report snapshot-read failure; an already successful Open does not become an unknown launch. |
+| Valid denied or unavailable snapshot result                                                                    | Return the typed result without protocol retirement; the workflow exits unavailable and drops its Session.               |
+| Valid snapshot with unsupported standalone shape                                                               | Exit unavailable without another selection or fallback to the Open reference.                                            |
+| Known-unchanged viewer server-busy result                                                                      | Existing retry retains the exact binding tuple, uses a fresh OBCS request ID and keeps the same logical deadline.        |
+| Unknown Open/submission or ambiguous attachment result                                                         | Stop without replaying Open, substituting Create or falling back to Create-reference attachment.                         |
+
+There is no snapshot-read retry. Existing controller and projection admission still follow
+attachment, and binding possession grants no controller authority. Equal encoded bytes across
+distinct Site/Worker/Terminal identity domains remain valid; each field is independently typed
+and validated.
+
+The [Server-owned record](../orchbee-server/docs/workbench-authority.md#terminal-selection-from-workbench-bindings)
+defines exact membership lookup, failure precedence, retained Worker generation and attachment
+linearization. This Client neither owns the standalone terminal nor writes Workbench membership.
+Session traces cover the mixed request order, exact selected tuple, structural refusal, bounded
+I/O and absence of fallback; fresh release PTY tests cover first open and retained-shell reentry.
+The Server's WorkbenchTerminalSelection model proves bounded selection safety, while existing
+carrier and Client deadline models and runtime tests own progress. Remote access, restart
+adoption, persistence and a full Workbench Client remain outside this slice.
+
+The accepted [native Tab Session contract](docs/native-tab-session.md) owns the multi-Tab
+creation, local selection and explicit refresh refinement, its shared-carrier barriers, and
+the required implementation and process evidence. Its pure projection and classified TabCreate
+adapter are implemented. The adapter distinguishes definite precommit, committed and unknown
+outcomes; caller-deadline methods use the earliest ordinary, caller and startup deadline from one
+shared injected clock. The deterministic Session state and bounded mailbox implement atomic
+selection admission, Create/refresh barriers, exact event settlement, geometry gating, and carrier
+retirement. Retirement preserves the first cause and distinguishes explicitly unknown outcomes
+from definite failures. These kernels are staged: the native connection executor and UI consumers
+remain the next integration boundary. Complete generated barrier coverage, scripted-carrier traces,
+and the real two-Client Tab/refresh witness are still required before claiming multi-Tab delivery.

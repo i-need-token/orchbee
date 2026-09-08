@@ -22,6 +22,7 @@ registryVars == <<creationOf, launchFingerprintOf, overlayFingerprintOf, statusO
 vars == <<brokerPhase, registryVars, lastCreateResult>>
 
 PresentTerminals == {terminal \in Terminals: statusOf[terminal] # "absent"}
+FreeTerminals == Terminals \ PresentTerminals
 UsedCreations == {creationOf[terminal]: terminal \in PresentTerminals}
 
 Init ==
@@ -63,8 +64,13 @@ AttemptCreate(creation, launchFingerprint, overlayFingerprint, enforceOverlayMat
   /\ enforceOverlayMatch \in BOOLEAN
   /\ terminal \in Terminals
   /\ spawnSucceeds \in BOOLEAN
+  \* A fresh terminal ID is generated internally after capacity reservation.
+  \* A collision is retried before this post-reservation action is observed, so
+  \* an available slot may never be exposed as a rejected occupied selection.
+  /\ ((creation \notin UsedCreations /\ FreeTerminals # {}) =>
+       terminal \in FreeTerminals)
   /\ IF creation \notin UsedCreations
-        /\ statusOf[terminal] = "absent"
+        /\ FreeTerminals # {}
         /\ spawnSucceeds
      THEN
        /\ creationOf' = [creationOf EXCEPT ![terminal] = creation]
@@ -74,8 +80,8 @@ AttemptCreate(creation, launchFingerprint, overlayFingerprint, enforceOverlayMat
             [overlayFingerprintOf EXCEPT ![terminal] = overlayFingerprint]
        /\ statusOf' = [statusOf EXCEPT ![terminal] = "running"]
      ELSE
-       \* Spawn failure, replay, conflict, and an occupied slot all leave the
-       \* committed registry unchanged.
+       \* Capacity or spawn failure, replay, and conflict leave the committed
+       \* registry unchanged.
        UNCHANGED registryVars
   /\ IF creation \in UsedCreations
        THEN
@@ -85,7 +91,7 @@ AttemptCreate(creation, launchFingerprint, overlayFingerprint, enforceOverlayMat
                overlayFingerprintOf[existing] = overlayFingerprint)
            THEN lastCreateResult' = "replayed"
            ELSE lastCreateResult' = "conflict"
-       ELSE IF statusOf[terminal] = "absent" /\ spawnSucceeds
+       ELSE IF FreeTerminals # {} /\ spawnSucceeds
          THEN lastCreateResult' = "created"
          ELSE lastCreateResult' = "rejected"
   /\ UNCHANGED brokerPhase
@@ -157,6 +163,22 @@ FailedSpawnIsAtomic ==
        AttemptCreate(creation, launchFingerprint, overlayFingerprint,
                      enforceOverlayMatch, terminal, FALSE) =>
          UNCHANGED registryVars]_vars
+
+FreshSuccessfulCreateCommitsWholeEntry ==
+  [][\A creation \in CreationIds,
+       launchFingerprint \in LaunchFingerprints,
+       overlayFingerprint \in OverlayFingerprints,
+       enforceOverlayMatch \in BOOLEAN, terminal \in Terminals:
+       /\ creation \notin UsedCreations
+       /\ FreeTerminals # {}
+       /\ AttemptCreate(creation, launchFingerprint, overlayFingerprint,
+                        enforceOverlayMatch, terminal, TRUE)
+       => /\ terminal \in FreeTerminals
+          /\ lastCreateResult' = "created"
+          /\ creationOf'[terminal] = creation
+          /\ launchFingerprintOf'[terminal] = launchFingerprint
+          /\ overlayFingerprintOf'[terminal] = overlayFingerprint
+          /\ statusOf'[terminal] = "running"]_vars
 
 WildcardReplayIgnoresOverlayFingerprint ==
   [][\A creation \in UsedCreations,

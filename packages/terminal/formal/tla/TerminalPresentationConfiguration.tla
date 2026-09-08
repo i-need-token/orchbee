@@ -27,15 +27,22 @@ VARIABLES
   published,
   disposed,
   lastAction,
+  previousPreparation,
+  previousOutcome,
+  previousEligible,
   previousLatest,
   previousCommitted,
   previousPublished
 
 vars == <<preparation, outcome, eligible, latest, committed, published,
-  disposed, lastAction, previousLatest, previousCommitted, previousPublished>>
+  disposed, lastAction, previousPreparation, previousOutcome,
+  previousEligible, previousLatest, previousCommitted, previousPublished>>
 
 Record(action) ==
   /\ lastAction' = action
+  /\ previousPreparation' = preparation
+  /\ previousOutcome' = outcome
+  /\ previousEligible' = eligible
   /\ previousLatest' = latest
   /\ previousCommitted' = committed
   /\ previousPublished' = published
@@ -49,6 +56,9 @@ Init ==
   /\ published = [field \in Fields |-> 0]
   /\ disposed = FALSE
   /\ lastAction = "init"
+  /\ previousPreparation = preparation
+  /\ previousOutcome = outcome
+  /\ previousEligible = eligible
   /\ previousLatest = latest
   /\ previousCommitted = committed
   /\ previousPublished = published
@@ -72,9 +82,7 @@ Request(request) ==
   /\ outcome' = [candidate \in Requests |->
        IF candidate = request
        THEN "pending"
-       ELSE IF eligible[candidate]
-         /\ preparation[candidate] = "ready"
-         /\ outcome[candidate] = "ready"
+       ELSE IF eligible[candidate] /\ outcome[candidate] \in {"pending", "ready"}
        THEN "cancelled"
        ELSE outcome[candidate]]
   /\ eligible' = [candidate \in Requests |-> candidate = request]
@@ -86,19 +94,19 @@ PreparationCompletes(request) ==
   /\ preparation[request] = "in-flight"
   /\ preparation' = [preparation EXCEPT ![request] = "ready"]
   /\ outcome' = [outcome EXCEPT ![request] =
-       IF CommitEligible(request) THEN "ready" ELSE "cancelled"]
+       IF CommitEligible(request) THEN "ready" ELSE @]
   /\ eligible' = [eligible EXCEPT ![request] = CommitEligible(request)]
   /\ UNCHANGED <<latest, committed, published, disposed>>
-  /\ Record(IF CommitEligible(request) THEN "prepared" ELSE "cancelled-completion")
+  /\ Record(IF CommitEligible(request) THEN "prepared" ELSE "retired-completion")
 
 PreparationFails(request) ==
   /\ preparation[request] = "in-flight"
   /\ preparation' = [preparation EXCEPT ![request] = "failed"]
   /\ outcome' = [outcome EXCEPT ![request] =
-       IF CommitEligible(request) THEN "failed" ELSE "cancelled"]
+       IF CommitEligible(request) THEN "failed" ELSE @]
   /\ eligible' = [eligible EXCEPT ![request] = FALSE]
   /\ UNCHANGED <<latest, committed, published, disposed>>
-  /\ Record("preparation-failed")
+  /\ Record(IF CommitEligible(request) THEN "preparation-failed" ELSE "retired-failure")
 
 Commit(request) ==
   /\ CommitReady(request)
@@ -115,8 +123,7 @@ Dispose ==
   /\ eligible' = [request \in Requests |-> FALSE]
   /\ outcome' = [request \in Requests |->
        IF eligible[request]
-         /\ preparation[request] = "ready"
-         /\ outcome[request] = "ready"
+         /\ outcome[request] \in {"pending", "ready"}
        THEN "cancelled"
        ELSE outcome[request]]
   /\ UNCHANGED <<preparation, latest, committed, published>>
@@ -144,8 +151,11 @@ TypeOK ==
   /\ disposed \in BOOLEAN
   /\ lastAction \in {
        "init", "request", "supersede", "prepared", "commit",
-       "cancelled-completion", "preparation-failed", "dispose"
+       "retired-completion", "preparation-failed", "retired-failure", "dispose"
      }
+  /\ previousPreparation \in [Requests -> PreparationPhases]
+  /\ previousOutcome \in [Requests -> Outcomes]
+  /\ previousEligible \in [Requests -> BOOLEAN]
   /\ previousLatest \in 0..2
   /\ previousCommitted \in 0..2
   /\ previousPublished \in [Fields -> 0..2]
@@ -168,7 +178,7 @@ CancelledCannotPublish ==
   \A request \in Requests: outcome[request] = "cancelled" => committed # request
 
 CancellationPreservesPublication ==
-  lastAction \in {"cancelled-completion", "dispose"} =>
+  lastAction \in {"retired-completion", "retired-failure", "dispose"} =>
     committed = previousCommitted /\ published = previousPublished
 
 SupersessionPreservesPublication ==
@@ -176,8 +186,25 @@ SupersessionPreservesPublication ==
     committed = previousCommitted /\ published = previousPublished
 
 FailurePreservesPublication ==
-  lastAction = "preparation-failed" =>
+  lastAction \in {"preparation-failed", "retired-failure"} =>
     committed = previousCommitted /\ published = previousPublished
+
+SupersededCallerIsCancelled ==
+  lastAction = "supersede" =>
+    \A request \in Requests:
+      previousEligible[request] => outcome[request] = "cancelled"
+
+DisposedCallerIsCancelled ==
+  lastAction = "dispose" =>
+    \A request \in Requests:
+      previousEligible[request] => outcome[request] = "cancelled"
+
+LatePreparationCannotChangeCallerOutcome ==
+  lastAction \in {"retired-completion", "retired-failure"} =>
+    /\ outcome = previousOutcome
+    /\ eligible = previousEligible
+    /\ committed = previousCommitted
+    /\ published = previousPublished
 
 PublicationChangesOnlyOnCommit ==
   (committed # previousCommitted \/ published # previousPublished) =>

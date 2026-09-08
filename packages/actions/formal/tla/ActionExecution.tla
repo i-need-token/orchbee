@@ -31,6 +31,7 @@ Actions == {
   "replace-registration", "resolve-parallel", "resolve-reject-first",
   "reject-duplicate", "resolve-replacement-first",
   "resolve-replacement-after", "resolve-serialized", "start-queued",
+  "invalidate-eligibility", "block-ineligible-before-handler",
   "accept-confirmation", "reject-confirmation", "report-progress", "commit",
   "cancel-before-handler", "cancel-running", "finish", "dispose-runtime"
 }
@@ -46,6 +47,8 @@ VARIABLES
   bindingGeneration,
   capturedContext,
   handlerContext,
+  currentEligible,
+  handlerBindingGeneration,
   committed,
   handlerStarts,
   resultCount,
@@ -53,13 +56,15 @@ VARIABLES
   invocationOrder,
   currentExecution,
   stalePrepared,
+  lastFinishWasCancellingUncommitted,
   lastAction,
   lastTarget
 
 vars == <<policy, runtimeActive, registrationActive, registrationGeneration,
   callerContext, phase, bindingGeneration, capturedContext, handlerContext,
-  committed, handlerStarts, resultCount, progressCount, invocationOrder,
-  currentExecution, stalePrepared, lastAction, lastTarget>>
+  currentEligible, handlerBindingGeneration, committed, handlerStarts,
+  resultCount, progressCount, invocationOrder, currentExecution, stalePrepared,
+  lastFinishWasCancellingUncommitted, lastAction, lastTarget>>
 
 Range(sequence) == {sequence[index] : index \in DOMAIN sequence}
 
@@ -96,6 +101,19 @@ CanStartQueued(execution) ==
 StartableQueued == {execution \in Executions : CanStartQueued(execution)}
 
 Record(action, execution) ==
+  /\ currentEligible' =
+       IF action = "invalidate-eligibility"
+       THEN [currentEligible EXCEPT ![execution] = FALSE]
+       ELSE currentEligible
+  /\ handlerBindingGeneration' =
+       IF action = "accept-confirmation"
+       THEN [handlerBindingGeneration EXCEPT
+              ![execution] = bindingGeneration[execution]]
+       ELSE handlerBindingGeneration
+  /\ lastFinishWasCancellingUncommitted' =
+       IF action = "finish"
+       THEN phase[execution] = "cancelling" /\ execution \notin committed
+       ELSE FALSE
   /\ lastAction' = action
   /\ lastTarget' = execution
 
@@ -109,6 +127,8 @@ Init ==
   /\ bindingGeneration = [execution \in Executions |-> NoGeneration]
   /\ capturedContext = [execution \in Executions |-> NoContext]
   /\ handlerContext = [execution \in Executions |-> NoContext]
+  /\ currentEligible = [execution \in Executions |-> TRUE]
+  /\ handlerBindingGeneration = [execution \in Executions |-> NoGeneration]
   /\ committed = {}
   /\ handlerStarts = [execution \in Executions |-> 0]
   /\ resultCount = [execution \in Executions |-> 0]
@@ -116,6 +136,7 @@ Init ==
   /\ invocationOrder = <<>>
   /\ currentExecution = NoExecution
   /\ stalePrepared = {}
+  /\ lastFinishWasCancellingUncommitted = FALSE
   /\ lastAction = "init"
   /\ lastTarget = NoExecution
 
@@ -330,8 +351,31 @@ StartQueued(execution) ==
        progressCount, invocationOrder, stalePrepared>>
   /\ Record("start-queued", execution)
 
+InvalidateEligibility(execution) ==
+  /\ phase[execution] \in {"queued", "awaiting"}
+  /\ currentEligible[execution]
+  /\ UNCHANGED <<policy, runtimeActive, registrationActive,
+       registrationGeneration, callerContext, phase, bindingGeneration,
+       capturedContext, handlerContext, committed, handlerStarts, resultCount,
+       progressCount, invocationOrder, currentExecution, stalePrepared>>
+  /\ Record("invalidate-eligibility", execution)
+
+BlockIneligibleBeforeHandler(execution) ==
+  /\ phase[execution] = "awaiting"
+  /\ ~currentEligible[execution]
+  /\ phase' = [phase EXCEPT ![execution] = "blocked"]
+  /\ resultCount' = [resultCount EXCEPT ![execution] = @ + 1]
+  /\ currentExecution' =
+       IF currentExecution = execution THEN NoExecution ELSE currentExecution
+  /\ UNCHANGED <<policy, runtimeActive, registrationActive,
+       registrationGeneration, callerContext, bindingGeneration,
+       capturedContext, handlerContext, committed, handlerStarts,
+       progressCount, invocationOrder, stalePrepared>>
+  /\ Record("block-ineligible-before-handler", execution)
+
 AcceptConfirmation(execution) ==
   /\ phase[execution] = "awaiting"
+  /\ currentEligible[execution]
   /\ phase' = [phase EXCEPT ![execution] = "running"]
   /\ handlerStarts' = [handlerStarts EXCEPT ![execution] = @ + 1]
   /\ handlerContext' = [handlerContext EXCEPT ![execution] = capturedContext[execution]]
@@ -458,6 +502,8 @@ Next ==
        ResolveReplacementAfter(execution, previous)
   \/ \E execution \in Executions: ResolveSerialized(execution)
   \/ StartAnyQueued
+  \/ \E execution \in Executions: InvalidateEligibility(execution)
+  \/ \E execution \in Executions: BlockIneligibleBeforeHandler(execution)
   \/ \E execution \in Executions: AcceptConfirmation(execution)
   \/ \E execution \in Executions: RejectConfirmation(execution)
   \/ \E execution \in Executions: ReportProgress(execution)
@@ -481,6 +527,8 @@ TypeOK ==
   /\ bindingGeneration \in [Executions -> 0..MaxGeneration]
   /\ capturedContext \in [Executions -> Contexts \cup {NoContext}]
   /\ handlerContext \in [Executions -> Contexts \cup {NoContext}]
+  /\ currentEligible \in [Executions -> BOOLEAN]
+  /\ handlerBindingGeneration \in [Executions -> 0..MaxGeneration]
   /\ committed \subseteq Executions
   /\ handlerStarts \in [Executions -> 0..1]
   /\ resultCount \in [Executions -> 0..1]
@@ -489,6 +537,7 @@ TypeOK ==
   /\ Len(invocationOrder) = Cardinality(Range(invocationOrder))
   /\ currentExecution \in Executions \cup {NoExecution}
   /\ stalePrepared \subseteq Executions
+  /\ lastFinishWasCancellingUncommitted \in BOOLEAN
   /\ lastAction \in Actions
   /\ lastTarget \in Executions \cup {NoExecution}
 
@@ -521,6 +570,21 @@ HandlerUsesCapturedContext ==
       /\ capturedContext[execution] \in Contexts
       /\ handlerContext[execution] = capturedContext[execution]
 
+HandlerUsesBoundRegistration ==
+  \A execution \in Executions:
+    handlerStarts[execution] = 1 =>
+      /\ bindingGeneration[execution] \in 1..MaxGeneration
+      /\ handlerBindingGeneration[execution] = bindingGeneration[execution]
+
+IneligibleExecutionNeverStarts ==
+  \A execution \in Executions:
+    ~currentEligible[execution] => handlerStarts[execution] = 0
+
+BlockedRecheckDoesNotStart ==
+  lastAction = "block-ineligible-before-handler" =>
+    /\ phase[lastTarget] = "blocked"
+    /\ handlerStarts[lastTarget] = 0
+
 BoundExecutionKeepsRegistrationGeneration ==
   \A execution \in Executions:
     phase[execution] \in {"prepared", "resolving", "queued", "awaiting", "running", "cancelling"} =>
@@ -540,9 +604,8 @@ CommittedExecutionIsNeverCancelled ==
   \A execution \in committed: phase[execution] # "cancelled"
 
 CancellationBeforeCommitDoesNotComplete ==
-  \A execution \in Executions:
-    phase[execution] = "completed" =>
-      execution \in committed \/ handlerStarts[execution] = 1
+  lastAction = "finish" /\ lastFinishWasCancellingUncommitted =>
+    phase[lastTarget] = "cancelled"
 
 SerializedExclusion ==
   policy = "serialize" => Cardinality(ActiveExecutions) <= 1

@@ -7,7 +7,11 @@ mod local_site_service;
 #[cfg(unix)]
 mod local_terminal_service;
 #[cfg(unix)]
+mod site_coordinator;
+#[cfg(unix)]
 mod terminal_coordinator;
+#[cfg(unix)]
+mod workbench_service;
 #[cfg(unix)]
 mod worker_obcn_carrier;
 #[cfg(unix)]

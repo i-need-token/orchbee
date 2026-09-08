@@ -1,4 +1,6 @@
 use super::{LocalTerminalService, placement, viewer_session::ViewerAttachment};
+use crate::site_coordinator::{SiteCoordinator, TargetLifecycle};
+use crate::terminal_coordinator::BindingViewerTarget;
 use crate::worker_obcn_carrier::{
     WorkerOperationRequest, WorkerOperationResult, WorkerRequestError, WorkerRequestHandle,
 };
@@ -20,22 +22,50 @@ pub(super) struct ControlTarget {
     pub(super) terminal: [u8; 16],
 }
 
+impl From<BindingViewerTarget> for ControlTarget {
+    fn from(target: BindingViewerTarget) -> Self {
+        Self {
+            worker: target.worker.worker_id.as_bytes(),
+            generation: target.worker.generation.get(),
+            host_epoch: target.identity.host_epoch().as_bytes(),
+            terminal: target.identity.terminal_id().as_bytes(),
+        }
+    }
+}
+
 pub(super) struct ControllerLease<'service> {
     service: &'service LocalTerminalService,
     handle: WorkerRequestHandle,
-    target: ControlTarget,
+    target: BindingViewerTarget,
     cleanup: WorkerRequest,
     armed: bool,
     sequence: u64,
 }
+
+impl ControllerLease<'_> {
+    pub(super) fn disarm_known_disposed(&mut self) {
+        self.armed = false;
+    }
+}
+
 impl Drop for ControllerLease<'_> {
     fn drop(&mut self) {
+        let target = ControlTarget::from(self.target);
+        let revoked = self
+            .service
+            .controllers
+            .lock()
+            .is_ok_and(|owners| owners.get(&target) != Some(&self.cleanup.controller_id));
+        if revoked {
+            return;
+        }
         let settled = !self.armed
+            || self.service.target_lifecycle(self.target) == Some(TargetLifecycle::Disposed)
             || matches!(self.handle.cleanup_control(self.cleanup.clone()), Ok(WorkerOperationResult::Control(result)) if result.outcome==WorkerOutcome::Released);
         if (settled || !self.handle.is_active())
             && let Ok(mut owners) = self.service.controllers.lock()
         {
-            remove_exact(&mut owners, self.target, self.cleanup.controller_id);
+            remove_exact(&mut owners, target, self.cleanup.controller_id);
         }
     }
 }
@@ -82,9 +112,6 @@ pub(super) fn execute<'service>(
     if sequence.get() <= controller.sequence {
         return rejected(Rejected::SequenceMismatch);
     }
-    let Some(request_id) = service.next_viewer_operation() else {
-        return unavailable(Unavailable::ServerBusy);
-    };
     let action = match request.action() {
         Action::Input { bytes, .. } => {
             match orchbee_capability_node_protocol::ControlInput::new(bytes.as_bytes().to_vec()) {
@@ -105,7 +132,38 @@ pub(super) fn execute<'service>(
         }
         Action::Acquire {} => unreachable!("effect matched"),
     };
-    controller.sequence = sequence.get();
+    let request_id = {
+        let Ok(workers) = service.workers.lock() else {
+            return unavailable(Unavailable::ServerBusy);
+        };
+        if !controller.handle.is_active()
+            || placement(workers.request_handle().as_ref()) != placement(Some(&controller.handle))
+        {
+            return unavailable(Unavailable::TerminalRuntimeUnavailable);
+        }
+        let Ok(mut coordinator) = service.coordinator.lock() else {
+            return unavailable(Unavailable::ServerBusy);
+        };
+        if coordinator.target_lifecycle(controller.target) != TargetLifecycle::Unfenced {
+            return rejected(Rejected::ViewerUnavailable);
+        }
+        let Ok(owners) = service.controllers.lock() else {
+            return unavailable(Unavailable::ServerBusy);
+        };
+        if owners.get(&ControlTarget::from(controller.target))
+            != Some(&controller.cleanup.controller_id)
+        {
+            return rejected(Rejected::NotController);
+        }
+        let Some(request_id) = coordinator
+            .allocate_identity()
+            .and_then(|bytes| OperationId::from_bytes(bytes).ok())
+        else {
+            return unavailable(Unavailable::ServerBusy);
+        };
+        controller.sequence = sequence.get();
+        request_id
+    };
     let command = WorkerRequest {
         request_id,
         action,
@@ -155,18 +213,11 @@ fn acquire<'service>(
     if viewer.controller.is_some() {
         return rejected(Rejected::ControllerBusy);
     }
-    let (Some(controller_id), Some(request_id), Some(cleanup_id)) = (
-        service.next_viewer_operation(),
-        service.next_viewer_operation(),
-        service.next_viewer_operation(),
-    ) else {
-        return unavailable(Unavailable::ServerBusy);
-    };
     let Some(template) = viewer.cleanup else {
         return rejected(Rejected::ViewerUnavailable);
     };
     // Generation selection and reservation are one short critical section, never a transport call.
-    {
+    let (controller_id, request_id, cleanup_id) = {
         let Ok(workers) = service.workers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
@@ -175,16 +226,33 @@ fn acquire<'service>(
         {
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         }
+        let Ok(mut coordinator) = service.coordinator.lock() else {
+            return unavailable(Unavailable::ServerBusy);
+        };
+        if coordinator.target_lifecycle(viewer.target) != TargetLifecycle::Unfenced {
+            return rejected(Rejected::ViewerUnavailable);
+        }
         let Ok(mut owners) = service.controllers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
+        let mut next = || {
+            coordinator
+                .allocate_identity()
+                .and_then(|bytes| OperationId::from_bytes(bytes).ok())
+        };
+        let (Some(controller_id), Some(request_id), Some(cleanup_id)) = (next(), next(), next())
+        else {
+            return unavailable(Unavailable::ServerBusy);
+        };
+        let selected = ControlTarget::from(viewer.target);
         owners.retain(|target, _| {
-            target.worker == viewer.target.worker && target.generation == viewer.target.generation
+            target.worker == selected.worker && target.generation == selected.generation
         });
-        if !reserve(&mut owners, viewer.target, controller_id) {
+        if !reserve(&mut owners, selected, controller_id) {
             return rejected(Rejected::ControllerBusy);
         }
-    }
+        (controller_id, request_id, cleanup_id)
+    };
     let mut lease = ControllerLease {
         service,
         handle: viewer.handle.clone(),
@@ -216,8 +284,8 @@ fn acquire<'service>(
                 )) else {
                     return Outcome::OutcomeUnknown {};
                 };
-                viewer.controller = Some(lease);
-                Outcome::Acquired { controller_id }
+                let mut candidate = Some(lease);
+                install_controller(service, viewer, &mut candidate, controller_id)
             }
             WorkerOutcome::Rejected(reason) => {
                 lease.armed = false;
@@ -234,6 +302,77 @@ fn acquire<'service>(
             lease.armed = false;
             unavailable(Unavailable::TerminalRuntimeUnavailable)
         }
+    }
+}
+
+fn install_controller<'service>(
+    service: &'service LocalTerminalService,
+    viewer: &mut ViewerAttachment<'service>,
+    candidate: &mut Option<ControllerLease<'service>>,
+    controller_id: ControllerId,
+) -> Outcome {
+    let Ok(workers) = service.workers.lock() else {
+        return unavailable(Unavailable::ServerBusy);
+    };
+    if !viewer.handle.is_active()
+        || placement(workers.request_handle().as_ref()) != placement(Some(&viewer.handle))
+    {
+        return unavailable(Unavailable::TerminalRuntimeUnavailable);
+    }
+    let Ok(coordinator) = service.coordinator.lock() else {
+        return unavailable(Unavailable::ServerBusy);
+    };
+    if coordinator.target_lifecycle(viewer.target) != TargetLifecycle::Unfenced {
+        return unavailable(Unavailable::TerminalRuntimeUnavailable);
+    }
+    let Ok(owners) = service.controllers.lock() else {
+        return unavailable(Unavailable::ServerBusy);
+    };
+    let Some(lease) = candidate.as_ref() else {
+        return unavailable(Unavailable::TerminalRuntimeUnavailable);
+    };
+    if owners.get(&ControlTarget::from(lease.target)) != Some(&lease.cleanup.controller_id) {
+        return unavailable(Unavailable::TerminalRuntimeUnavailable);
+    }
+    viewer.controller = candidate.take();
+    Outcome::Acquired { controller_id }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum TargetCleanupError {
+    UnprovenTarget,
+    ControllerRegistryUnavailable,
+}
+
+impl LocalTerminalService {
+    pub(super) fn target_lifecycle(&self, target: BindingViewerTarget) -> Option<TargetLifecycle> {
+        Some(self.coordinator.lock().ok()?.target_lifecycle(target))
+    }
+
+    /// The caller holds Site through this cleanup and the authority's cleanup marker.
+    pub(super) fn complete_disposed_target_cleanup(
+        &self,
+        coordinator: &SiteCoordinator,
+        close_id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        runtime: orchbee_server::WorkbenchTabCloseRuntimeTarget,
+    ) -> Result<(), TargetCleanupError> {
+        if !coordinator.is_disposed_close_target(close_id, runtime) {
+            return Err(TargetCleanupError::UnprovenTarget);
+        }
+        let target = ControlTarget {
+            worker: runtime.worker_id().as_bytes(),
+            generation: runtime.worker_generation().get(),
+            host_epoch: runtime.host_identity().host_epoch().as_bytes(),
+            terminal: runtime.host_identity().terminal_id().as_bytes(),
+        };
+        let mut owners = self
+            .controllers
+            .lock()
+            .map_err(|_| TargetCleanupError::ControllerRegistryUnavailable)?;
+        if let Some(id) = owners.get(&target).copied() {
+            remove_exact(&mut owners, target, id);
+        }
+        Ok(())
     }
 }
 fn reserve(

@@ -72,6 +72,7 @@ Actions == {
   "begin-workbench-commit", "commit-folder-new", "settle-folder-existing",
   "reject-missing-target", "reject-environment-conflict",
   "reject-cross-project-location", "workbench-commit-indeterminate",
+  "restart-load-committed", "restart-load-prior",
   "reconcile-workbench-commit", "reconcile-workbench-missing",
   "publish-canonical-folder", "observe-published-folder",
   "publication-target-missing", "cancel-before-workbench-commit",
@@ -103,6 +104,7 @@ VARIABLES
   workspaceCounts,
   activeLocation,
   terminalEffectCount,
+  coordinatorAvailable,
   lastAction,
   lastRequest
 
@@ -112,7 +114,8 @@ vars == <<
   canonicalFolders, publishedFolders, requestPhase, requestProject,
   requestEnvironment, requestPath, activeRequest, connectionPhase, generation,
   promptOwner, promptGeneration, projectNames, primaryDirectories,
-  workspaceCounts, activeLocation, terminalEffectCount, lastAction, lastRequest
+  workspaceCounts, activeLocation, terminalEffectCount, coordinatorAvailable,
+  lastAction, lastRequest
 >>
 
 Init ==
@@ -139,6 +142,7 @@ Init ==
   /\ workspaceCounts = [project \in Projects |-> 1]
   /\ activeLocation = NoProject
   /\ terminalEffectCount = 0
+  /\ coordinatorAvailable = TRUE
   /\ lastAction = "init"
   /\ lastRequest = NoRequest
 
@@ -152,6 +156,8 @@ OpenPort(request) ==
        requestPath, activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "open-port"
   /\ lastRequest' = request
 
@@ -179,6 +185,8 @@ SeedFolder(project, environment, path) ==
        generation, promptOwner, promptGeneration, projectNames,
        primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "seed-folder"
   /\ lastRequest' = NoRequest
 
@@ -200,6 +208,8 @@ RemoveProject(project) ==
        generation, promptOwner, promptGeneration, projectNames,
        primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "remove-project"
   /\ lastRequest' = NoRequest
 
@@ -218,6 +228,8 @@ RequestAttachment(request, project, environment) ==
        publishedFolders, requestPath, connectionPhase, generation,
        promptOwner, promptGeneration, projectNames, primaryDirectories,
        workspaceCounts, activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "request-attachment"
   /\ lastRequest' = request
 
@@ -232,6 +244,8 @@ RejectBusy(project, environment) ==
        generation, promptOwner, promptGeneration, projectNames,
        primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reject-busy"
   /\ lastRequest' = ForeignRequest
 
@@ -246,6 +260,8 @@ ResolveTarget(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "resolve-target"
   /\ lastRequest' = request
 
@@ -261,6 +277,8 @@ TargetResolutionFails(request) ==
        connectionPhase, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "target-resolution-fails"
   /\ lastRequest' = request
 
@@ -278,6 +296,8 @@ CommitRegistryNew(request) ==
        generation, promptOwner, promptGeneration, projectNames,
        primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "commit-registry-new"
   /\ lastRequest' = request
 
@@ -293,6 +313,8 @@ ReuseRegistry(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reuse-registry"
   /\ lastRequest' = request
 
@@ -309,6 +331,8 @@ RegistryWriteFails(request) ==
        connectionPhase, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "registry-write-fails"
   /\ lastRequest' = request
 
@@ -329,6 +353,8 @@ StartConnection(request) ==
        activeRequest, promptOwner, promptGeneration, projectNames,
        primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "start-connection"
   /\ lastRequest' = request
 
@@ -346,6 +372,8 @@ ReuseConnection(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reuse-connection"
   /\ lastRequest' = request
 
@@ -366,6 +394,8 @@ RequestInteraction(request) ==
        publishedFolders, requestProject, requestEnvironment, requestPath,
        activeRequest, generation, projectNames, primaryDirectories,
        workspaceCounts, activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "request-interaction"
   /\ lastRequest' = request
 
@@ -387,6 +417,8 @@ SubmitInteraction(request) ==
        publishedFolders, requestProject, requestEnvironment, requestPath,
        activeRequest, generation, projectNames, primaryDirectories,
        workspaceCounts, activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "submit-interaction"
   /\ lastRequest' = request
 
@@ -408,6 +440,8 @@ CancelInteraction(request) ==
        publishedFolders, requestProject, requestEnvironment, requestPath,
        generation, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "cancel-interaction"
   /\ lastRequest' = request
 
@@ -422,6 +456,8 @@ RejectStaleInteraction(staleGeneration) ==
        requestPath, activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reject-stale-interaction"
   /\ lastRequest' = ForeignRequest
 
@@ -439,6 +475,8 @@ ConnectionReady(request) ==
        activeRequest, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "connection-ready"
   /\ lastRequest' = request
 
@@ -458,6 +496,8 @@ ConnectionFails(request) ==
        publishedFolders, requestProject, requestEnvironment, requestPath,
        generation, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "connection-fails"
   /\ lastRequest' = request
 
@@ -475,6 +515,8 @@ PublishInitialDirectory(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "publish-initial-directory"
   /\ lastRequest' = request
 
@@ -490,6 +532,8 @@ InitialDirectoryListingFails(request) ==
        connectionPhase, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "initial-directory-listing-fails"
   /\ lastRequest' = request
 
@@ -504,6 +548,8 @@ NavigateDirectory(request) ==
        requestPath, activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "navigate-directory"
   /\ lastRequest' = request
 
@@ -518,6 +564,8 @@ DirectoryNavigationFails(request) ==
        requestPath, activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "directory-navigation-fails"
   /\ lastRequest' = request
 
@@ -532,6 +580,8 @@ RejectStaleDirectorySelection ==
        requestPath, activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reject-stale-directory-selection"
   /\ lastRequest' = ForeignRequest
 
@@ -548,6 +598,8 @@ SelectDirectory(request, path) ==
        connectionPhase, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "select-directory"
   /\ lastRequest' = request
 
@@ -563,6 +615,8 @@ InspectProjectRoot(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "inspect-project-root"
   /\ lastRequest' = request
 
@@ -577,6 +631,8 @@ InspectionCompletes(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "inspection-completes"
   /\ lastRequest' = request
 
@@ -592,6 +648,8 @@ InspectionFails(request) ==
        connectionPhase, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "inspection-fails"
   /\ lastRequest' = request
 
@@ -610,6 +668,8 @@ BeginWorkbenchCommit(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "begin-workbench-commit"
   /\ lastRequest' = request
 
@@ -635,6 +695,8 @@ CommitFolderNew(request) ==
        requestEnvironment, requestPath, connectionPhase, generation,
        promptOwner, promptGeneration, projectNames, primaryDirectories,
        workspaceCounts, activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "commit-folder-new"
   /\ lastRequest' = request
 
@@ -656,6 +718,8 @@ SettleFolderExisting(request) ==
        connectionPhase, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "settle-folder-existing"
   /\ lastRequest' = request
 
@@ -672,6 +736,8 @@ RejectMissingTarget(request) ==
        connectionPhase, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reject-missing-target"
   /\ lastRequest' = request
 
@@ -690,6 +756,8 @@ RejectEnvironmentConflict(request) ==
        connectionPhase, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reject-environment-conflict"
   /\ lastRequest' = request
 
@@ -710,6 +778,8 @@ RejectCrossProjectLocation(request) ==
        connectionPhase, generation, promptOwner, promptGeneration,
        projectNames, primaryDirectories, workspaceCounts, activeLocation,
        terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reject-cross-project-location"
   /\ lastRequest' = request
 
@@ -733,6 +803,8 @@ WorkbenchCommitIndeterminate(request) ==
        requestPath, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = FALSE
   /\ lastAction' = "workbench-commit-indeterminate"
   /\ lastRequest' = request
 
@@ -753,6 +825,8 @@ ReconcileWorkbenchCommit(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reconcile-workbench-commit"
   /\ lastRequest' = request
 
@@ -768,7 +842,59 @@ ReconcileWorkbenchMissing(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "reconcile-workbench-missing"
+  /\ lastRequest' = request
+
+\* A write-indeterminate result freezes the current coordinator.  A later
+\* process generation must load durable state before it can reconcile.  The
+\* post-rename directory-sync failure permits either the renamed document or
+\* the prior document to be durable after a crash; ordinary project deletion
+\* is never used to manufacture that uncertainty.
+RestartLoadCommitted(request) ==
+  LET directory == DirectoryRecord(
+        requestProject[request], requestEnvironment[request], requestPath[request]
+      ) IN
+  /\ ~coordinatorAvailable
+  /\ requestPhase[request] = "outcome-unknown"
+  /\ directory \in storedFolders
+  /\ storedProjectEnvironment[requestProject[request]] = requestEnvironment[request]
+  /\ coordinatorAvailable' = TRUE
+  /\ UNCHANGED <<ports, liveProjects, registryEnvironments,
+       storedProjectEnvironment, canonicalProjectEnvironment,
+       publishedProjectEnvironment, storedFolders, canonicalFolders,
+       publishedFolders, requestPhase, requestProject, requestEnvironment,
+       requestPath, activeRequest, connectionPhase, generation, promptOwner,
+       promptGeneration, projectNames, primaryDirectories, workspaceCounts,
+       activeLocation, terminalEffectCount>>
+  /\ lastAction' = "restart-load-committed"
+  /\ lastRequest' = request
+
+RestartLoadPrior(request) ==
+  LET project == requestProject[request] IN
+  LET directory == DirectoryRecord(
+        project, requestEnvironment[request], requestPath[request]
+      ) IN
+  LET priorFolders == storedFolders \ {directory} IN
+  /\ ~coordinatorAvailable
+  /\ requestPhase[request] = "outcome-unknown"
+  /\ directory \in storedFolders
+  /\ storedProjectEnvironment[project] = requestEnvironment[request]
+  /\ storedFolders' = priorFolders
+  /\ storedProjectEnvironment' =
+       IF FoldersForProject(priorFolders, project) = {}
+       THEN [storedProjectEnvironment EXCEPT ![project] = NoEnvironment]
+       ELSE storedProjectEnvironment
+  /\ coordinatorAvailable' = TRUE
+  /\ UNCHANGED <<ports, liveProjects, registryEnvironments,
+       canonicalProjectEnvironment, publishedProjectEnvironment,
+       canonicalFolders, publishedFolders, requestPhase, requestProject,
+       requestEnvironment, requestPath, activeRequest, connectionPhase,
+       generation, promptOwner, promptGeneration, projectNames,
+       primaryDirectories, workspaceCounts, activeLocation,
+       terminalEffectCount>>
+  /\ lastAction' = "restart-load-prior"
   /\ lastRequest' = request
 
 PublishCanonicalFolder(request) ==
@@ -788,6 +914,8 @@ PublishCanonicalFolder(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "publish-canonical-folder"
   /\ lastRequest' = request
 
@@ -806,6 +934,8 @@ ObservePublishedFolder(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "observe-published-folder"
   /\ lastRequest' = request
 
@@ -820,6 +950,8 @@ PublicationTargetMissing(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "publication-target-missing"
   /\ lastRequest' = request
 
@@ -836,6 +968,8 @@ CancelBeforeWorkbenchCommit(request) ==
        publishedFolders, requestProject, requestEnvironment, requestPath,
        connectionPhase, generation, projectNames, primaryDirectories,
        workspaceCounts, activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "cancel-before-workbench-commit"
   /\ lastRequest' = request
 
@@ -849,6 +983,8 @@ CancelDuringWorkbenchCommit(request) ==
        requestPath, activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "cancel-during-workbench-commit"
   /\ lastRequest' = request
 
@@ -867,6 +1003,8 @@ RetirePortBeforeCommit(request) ==
        publishedFolders, requestProject, requestEnvironment, requestPath,
        connectionPhase, generation, projectNames, primaryDirectories,
        workspaceCounts, activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "retire-port-before-commit"
   /\ lastRequest' = request
 
@@ -882,6 +1020,8 @@ RetirePortDuringCommit(request) ==
        requestPath, activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "retire-port-during-commit"
   /\ lastRequest' = request
 
@@ -898,6 +1038,8 @@ RetirePortAfterCommit(request) ==
        activeRequest, connectionPhase, generation, promptOwner,
        promptGeneration, projectNames, primaryDirectories, workspaceCounts,
        activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "retire-port-after-commit"
   /\ lastRequest' = request
 
@@ -915,6 +1057,8 @@ RetryRequest(request) ==
        publishedFolders, activeRequest, connectionPhase, generation,
        promptOwner, promptGeneration, projectNames, primaryDirectories,
        workspaceCounts, activeLocation, terminalEffectCount>>
+  /\ coordinatorAvailable
+  /\ coordinatorAvailable' = TRUE
   /\ lastAction' = "retry-request"
   /\ lastRequest' = request
 
@@ -968,6 +1112,8 @@ Next ==
   \/ \E request \in Requests: RetirePortDuringCommit(request)
   \/ \E request \in Requests: RetirePortAfterCommit(request)
   \/ \E request \in Requests: RetryRequest(request)
+  \/ \E request \in Requests: RestartLoadCommitted(request)
+  \/ \E request \in Requests: RestartLoadPrior(request)
 
 Spec == Init /\ [][Next]_vars
 
@@ -995,6 +1141,7 @@ TypeOK ==
   /\ workspaceCounts \in [Projects -> Nat]
   /\ activeLocation \in Projects \cup {NoProject}
   /\ terminalEffectCount \in Nat
+  /\ coordinatorAvailable \in BOOLEAN
   /\ lastAction \in Actions
   /\ lastRequest \in Requests \cup {NoRequest, ForeignRequest}
 
@@ -1071,5 +1218,12 @@ CancellationDuringCommitDoesNotRollBack ==
   lastAction = "cancel-during-workbench-commit" =>
     /\ activeRequest = lastRequest
     /\ requestPhase[lastRequest] = "committing"
+
+IndeterminateFreezesCurrentCoordinator ==
+  lastAction = "workbench-commit-indeterminate" => ~coordinatorAvailable
+
+ReconciliationRunsAfterRestart ==
+  lastAction \in {"reconcile-workbench-commit", "reconcile-workbench-missing"} =>
+    coordinatorAvailable
 
 =============================================================================

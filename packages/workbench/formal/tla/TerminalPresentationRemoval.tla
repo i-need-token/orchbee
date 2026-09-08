@@ -1,4 +1,8 @@
 -------------------- MODULE TerminalPresentationRemoval --------------------
+\* This bounded slice admits one whole-topology explicit removal or one
+\* natural singleton removal. Abstract running quotients concrete
+\* provisioning, restoring, reconciling, and running admission states.
+\* Disjoint concurrent removals and survivor-priority choice are test-owned.
 EXTENDS FiniteSets, Naturals, TLC
 
 CONSTANT InitialShape

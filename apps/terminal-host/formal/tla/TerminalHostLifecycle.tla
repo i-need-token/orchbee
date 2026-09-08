@@ -1,5 +1,5 @@
 ------------------------ MODULE TerminalHostLifecycle ------------------------
-EXTENDS TLC
+EXTENDS Naturals, TLC
 
 \* Refines runtime-model claims TH-008 and TH-009 through Start,
 \* ChildExited, PtyDrained, WriterQuiesced, ClassifyNormalCompletion, EnterFailure,
@@ -12,24 +12,26 @@ EXTENDS TLC
 \* TerminalHostRegistry and TerminalHostShutdown so their independent state
 \* dimensions do not multiply this per-terminal lifecycle proof.
 \* Awaiting start retains identity and launch ownership without a child, PTY,
-\* Core geometry, or visible frame. Start receives the mounted geometry; its
-\* abstract version becomes the first runtime-visible version only after spawn
-\* succeeds. A failed start is a stutter that retains the same startable owner.
-\* visibleVersion abstracts content, generation, geometry, configuration, and
-\* revision. resizeEffectInFlight exposes the production interval in which a
+\* Core geometry, or visible frame. Start receives the mounted geometry and
+\* publishes it only after spawn succeeds. A failed start is a stutter that
+\* retains the same startable owner. visibleGeometry carries only geometry;
+\* visibleRevision separately counts every canonical resize commit or content
+\* mutation. resizeEffectInFlight exposes the production interval in which a
 \* platform resize has started but its canonical commit or compensation has
 \* not settled. Normal classification waits for that interval to close.
-\* EnterFailure is the visible-state fence: the version committed before that
-\* transition remains immutable throughout containment and after settlement.
-\* settledVersion captures the exact tuple published by the terminal outcome
+\* EnterFailure is the visible-state fence: the geometry and revision committed
+\* before that transition remain immutable throughout containment and after
+\* settlement. settledGeometry and settledRevision capture the exact tuple
+\* published by the terminal outcome
 \* and remains immutable until explicit disposal.
 \* RetainSettledCleanup covers both fatal aggregate teardown and a Dispose whose
 \* runtime shutdown fails after the terminal outcome has settled. Cleanup then
 \* retries independently without changing the settled outcome.
 
-CONSTANTS Versions, InitialVersion
+CONSTANTS Geometries, MaxRevision
 
 None == "none"
+NoRevision == MaxRevision + 1
 NormalPhases == {"running", "finishing_child", "finishing_output"}
 FailurePhases == {"containing_failure", "containment_blocked", "failed"}
 SettledPhases == {"exited", "failed"}
@@ -58,19 +60,20 @@ VARIABLES
   retainedCleanupRetryDue,
   processResolution,
   resizeEffectInFlight,
-  resizeTargetVersion,
-  visibleVersion,
-  settledVersion
+  resizeTargetGeometry,
+  visibleGeometry,
+  visibleRevision,
+  settledGeometry,
+  settledRevision
 
 vars ==
   <<phase, terminationIntent, writerQuiesced, normalCompletionReady,
     cleanupFailure, cleanupRetryDue, outputAbortRequested, processResolution,
     retainedCleanupState, retainedCleanupFailure, retainedCleanupRetryDue,
-    resizeEffectInFlight, resizeTargetVersion, visibleVersion,
-    settledVersion>>
+    resizeEffectInFlight, resizeTargetGeometry, visibleGeometry,
+    visibleRevision, settledGeometry, settledRevision>>
 
 Init ==
-  /\ InitialVersion \in Versions
   /\ phase = "awaiting_start"
   /\ terminationIntent = None
   /\ writerQuiesced = FALSE
@@ -83,25 +86,28 @@ Init ==
   /\ retainedCleanupRetryDue = FALSE
   /\ processResolution = "pending"
   /\ resizeEffectInFlight = FALSE
-  /\ resizeTargetVersion = None
-  /\ visibleVersion = None
-  /\ settledVersion = None
+  /\ resizeTargetGeometry = None
+  /\ visibleGeometry = None
+  /\ visibleRevision = NoRevision
+  /\ settledGeometry = None
+  /\ settledRevision = NoRevision
 
-Start(initialVersion, succeeds) ==
+Start(initialGeometry, succeeds) ==
   /\ phase = "awaiting_start"
-  /\ initialVersion \in Versions
+  /\ initialGeometry \in Geometries
   /\ succeeds \in BOOLEAN
   /\ IF succeeds
      THEN
        /\ phase' = "running"
-       /\ visibleVersion' = initialVersion
+       /\ visibleGeometry' = initialGeometry
+       /\ visibleRevision' = 0
        /\ UNCHANGED <<terminationIntent, writerQuiesced,
                        normalCompletionReady, cleanupFailure, cleanupRetryDue,
                        outputAbortRequested,
                        retainedCleanupState, retainedCleanupFailure,
                        retainedCleanupRetryDue, processResolution,
-                       resizeEffectInFlight, resizeTargetVersion,
-                       settledVersion>>
+                       resizeEffectInFlight, resizeTargetGeometry,
+                       settledGeometry, settledRevision>>
      ELSE UNCHANGED vars
 
 ChildExited ==
@@ -110,14 +116,16 @@ ChildExited ==
         /\ normalCompletionReady
   /\ phase' = IF phase = "finishing_output" THEN "exited"
                 ELSE "finishing_child"
-  /\ settledVersion' = IF phase = "finishing_output" THEN visibleVersion
-                         ELSE settledVersion
+  /\ settledGeometry' = IF phase = "finishing_output" THEN visibleGeometry
+                         ELSE settledGeometry
+  /\ settledRevision' = IF phase = "finishing_output" THEN visibleRevision
+                         ELSE settledRevision
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   outputAbortRequested,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue, processResolution, resizeEffectInFlight,
-                  resizeTargetVersion, visibleVersion>>
+                  resizeTargetGeometry, visibleGeometry, visibleRevision>>
 
 PtyDrained ==
   /\ \/ phase = "running"
@@ -126,14 +134,16 @@ PtyDrained ==
   /\ ~outputAbortRequested
   /\ phase' = IF phase = "finishing_child" THEN "exited"
                 ELSE "finishing_output"
-  /\ settledVersion' = IF phase = "finishing_child" THEN visibleVersion
-                         ELSE settledVersion
+  /\ settledGeometry' = IF phase = "finishing_child" THEN visibleGeometry
+                         ELSE settledGeometry
+  /\ settledRevision' = IF phase = "finishing_child" THEN visibleRevision
+                         ELSE settledRevision
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   outputAbortRequested,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue, processResolution, resizeEffectInFlight,
-                  resizeTargetVersion, visibleVersion>>
+                  resizeTargetGeometry, visibleGeometry, visibleRevision>>
 
 WriterQuiesced ==
   /\ phase \in NormalPhases
@@ -144,8 +154,8 @@ WriterQuiesced ==
                   processResolution,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue,
-                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
-                  settledVersion>>
+                  resizeEffectInFlight, resizeTargetGeometry, visibleGeometry,
+                  settledGeometry, visibleRevision, settledRevision>>
 
 ClassifyNormalCompletion ==
   /\ phase \in {"finishing_child", "finishing_output"}
@@ -158,8 +168,8 @@ ClassifyNormalCompletion ==
                   processResolution,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue,
-                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
-                  settledVersion>>
+                  resizeEffectInFlight, resizeTargetGeometry, visibleGeometry,
+                  settledGeometry, visibleRevision, settledRevision>>
 
 EnterFailure ==
   /\ phase \in NormalPhases
@@ -171,9 +181,9 @@ EnterFailure ==
   /\ outputAbortRequested' = TRUE
   /\ processResolution' = "pending"
   /\ UNCHANGED <<writerQuiesced, resizeEffectInFlight,
-                  resizeTargetVersion, visibleVersion, settledVersion,
+                  resizeTargetGeometry, visibleGeometry, settledGeometry,
                   retainedCleanupState, retainedCleanupFailure,
-                  retainedCleanupRetryDue>>
+                  retainedCleanupRetryDue, visibleRevision, settledRevision>>
 
 RequestGraceful(effectSucceeds) ==
   /\ phase \in NormalPhases
@@ -188,8 +198,8 @@ RequestGraceful(effectSucceeds) ==
                        processResolution,
                        retainedCleanupState, retainedCleanupFailure,
                        retainedCleanupRetryDue,
-                       resizeEffectInFlight, resizeTargetVersion,
-                       visibleVersion, settledVersion>>
+                       resizeEffectInFlight, resizeTargetGeometry,
+                       visibleGeometry, settledGeometry, visibleRevision, settledRevision>>
      ELSE EnterFailure
 
 RequestForce(effectSucceeds) ==
@@ -205,8 +215,8 @@ RequestForce(effectSucceeds) ==
                        processResolution,
                        retainedCleanupState, retainedCleanupFailure,
                        retainedCleanupRetryDue,
-                       resizeEffectInFlight, resizeTargetVersion,
-                       visibleVersion, settledVersion>>
+                       resizeEffectInFlight, resizeTargetGeometry,
+                       visibleGeometry, settledGeometry, visibleRevision, settledRevision>>
      ELSE EnterFailure
 
 ContainmentBlocked(cleanup) ==
@@ -220,8 +230,8 @@ ContainmentBlocked(cleanup) ==
                   processResolution,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue,
-                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
-                  settledVersion>>
+                  resizeEffectInFlight, resizeTargetGeometry, visibleGeometry,
+                  settledGeometry, visibleRevision, settledRevision>>
 
 CleanupRetryDue ==
   /\ phase = "containment_blocked"
@@ -232,8 +242,8 @@ CleanupRetryDue ==
                   outputAbortRequested, processResolution,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue,
-                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
-                  settledVersion>>
+                  resizeEffectInFlight, resizeTargetGeometry, visibleGeometry,
+                  settledGeometry, visibleRevision, settledRevision>>
 
 RetryContainment(succeeds, nextCleanup, observation) ==
   /\ phase = "containment_blocked"
@@ -246,13 +256,14 @@ RetryContainment(succeeds, nextCleanup, observation) ==
   /\ cleanupFailure' = IF succeeds THEN None ELSE nextCleanup
   /\ cleanupRetryDue' = FALSE
   /\ processResolution' = IF succeeds THEN observation ELSE "pending"
-  /\ settledVersion' = IF succeeds THEN visibleVersion ELSE None
+  /\ settledGeometry' = IF succeeds THEN visibleGeometry ELSE None
+  /\ settledRevision' = IF succeeds THEN visibleRevision ELSE NoRevision
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
                   normalCompletionReady, outputAbortRequested,
                   resizeEffectInFlight,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue,
-                  resizeTargetVersion, visibleVersion>>
+                  resizeTargetGeometry, visibleGeometry, visibleRevision>>
 
 CleanupRetryAttempt ==
   \E succeeds \in BOOLEAN, nextCleanup \in CleanupFailures,
@@ -267,13 +278,14 @@ ConfirmContainment(observation) ==
   /\ cleanupFailure' = None
   /\ cleanupRetryDue' = FALSE
   /\ processResolution' = observation
-  /\ settledVersion' = visibleVersion
+  /\ settledGeometry' = visibleGeometry
+  /\ settledRevision' = visibleRevision
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
                   normalCompletionReady, outputAbortRequested,
                   resizeEffectInFlight,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue,
-                  resizeTargetVersion, visibleVersion>>
+                  resizeTargetGeometry, visibleGeometry, visibleRevision>>
 
 RequestOutputAbort ==
   /\ phase \in NormalPhases \cup FailurePhases \cup SettledPhases
@@ -283,8 +295,8 @@ RequestOutputAbort ==
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue, processResolution,
-                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
-                  settledVersion>>
+                  resizeEffectInFlight, resizeTargetGeometry, visibleGeometry,
+                  settledGeometry, visibleRevision, settledRevision>>
 
 RetainSettledCleanup(cleanup) ==
   /\ phase \in SettledPhases
@@ -297,7 +309,7 @@ RetainSettledCleanup(cleanup) ==
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   outputAbortRequested,
                   processResolution, resizeEffectInFlight,
-                  resizeTargetVersion, visibleVersion, settledVersion>>
+                  resizeTargetGeometry, visibleGeometry, settledGeometry, visibleRevision, settledRevision>>
 
 RetainedCleanupRetryDue ==
   /\ retainedCleanupState = "blocked"
@@ -308,7 +320,7 @@ RetainedCleanupRetryDue ==
                   outputAbortRequested,
                   retainedCleanupState, retainedCleanupFailure,
                   processResolution, resizeEffectInFlight,
-                  resizeTargetVersion, visibleVersion, settledVersion>>
+                  resizeTargetGeometry, visibleGeometry, settledGeometry, visibleRevision, settledRevision>>
 
 RetryRetainedCleanup(succeeds, nextCleanup) ==
   /\ retainedCleanupState = "blocked"
@@ -322,7 +334,7 @@ RetryRetainedCleanup(succeeds, nextCleanup) ==
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   outputAbortRequested,
                   processResolution, resizeEffectInFlight,
-                  resizeTargetVersion, visibleVersion, settledVersion>>
+                  resizeTargetGeometry, visibleGeometry, settledGeometry, visibleRevision, settledRevision>>
 
 RetainedCleanupRetryAttempt ==
   \E succeeds \in BOOLEAN, nextCleanup \in CleanupFailures:
@@ -336,61 +348,64 @@ ExhaustRetainedCleanup ==
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   outputAbortRequested,
                   retainedCleanupFailure, processResolution,
-                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
-                  settledVersion>>
+                  resizeEffectInFlight, resizeTargetGeometry, visibleGeometry,
+                  settledGeometry, visibleRevision, settledRevision>>
 
-BeginResizeEffect(nextVersion) ==
+BeginResizeEffect(nextGeometry) ==
   /\ phase \in NormalPhases
   /\ ~normalCompletionReady
   /\ ~resizeEffectInFlight
-  /\ nextVersion \in Versions
-  /\ nextVersion # visibleVersion
+  /\ nextGeometry \in Geometries
+  /\ nextGeometry # visibleGeometry
   /\ resizeEffectInFlight' = TRUE
-  /\ resizeTargetVersion' = nextVersion
+  /\ resizeTargetGeometry' = nextGeometry
   /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   outputAbortRequested,
                   retainedCleanupState, retainedCleanupFailure,
-                  retainedCleanupRetryDue, processResolution, visibleVersion,
-                  settledVersion>>
+                  retainedCleanupRetryDue, processResolution, visibleGeometry,
+                  settledGeometry, visibleRevision, settledRevision>>
 
 CommitResizeEffect ==
   /\ resizeEffectInFlight
   /\ phase \in NormalPhases
   /\ ~normalCompletionReady
-  /\ visibleVersion' = resizeTargetVersion
+  /\ visibleRevision < MaxRevision
+  /\ visibleGeometry' = resizeTargetGeometry
+  /\ visibleRevision' = visibleRevision + 1
   /\ resizeEffectInFlight' = FALSE
-  /\ resizeTargetVersion' = None
+  /\ resizeTargetGeometry' = None
   /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   outputAbortRequested,
                   retainedCleanupState, retainedCleanupFailure,
-                  retainedCleanupRetryDue, processResolution, settledVersion>>
+                  retainedCleanupRetryDue, processResolution,
+                  settledGeometry, settledRevision>>
 
 CompensateResizeEffect ==
   /\ resizeEffectInFlight
   /\ phase # "disposed"
   /\ resizeEffectInFlight' = FALSE
-  /\ resizeTargetVersion' = None
+  /\ resizeTargetGeometry' = None
   /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   outputAbortRequested,
                   retainedCleanupState, retainedCleanupFailure,
-                  retainedCleanupRetryDue, processResolution, visibleVersion,
-                  settledVersion>>
+                  retainedCleanupRetryDue, processResolution, visibleGeometry,
+                  settledGeometry, visibleRevision, settledRevision>>
 
-MutateVisibleState(nextVersion) ==
+MutateVisibleState ==
   /\ phase \in NormalPhases
   /\ ~normalCompletionReady
-  /\ nextVersion \in Versions
-  /\ nextVersion # visibleVersion
-  /\ visibleVersion' = nextVersion
+  /\ visibleRevision < MaxRevision
+  /\ visibleRevision' = visibleRevision + 1
   /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
                   outputAbortRequested,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue, processResolution, resizeEffectInFlight,
-                  resizeTargetVersion, settledVersion>>
+                  resizeTargetGeometry, visibleGeometry, settledGeometry,
+                  settledRevision>>
 
 Dispose ==
   /\ phase \in SettledPhases \cup {"awaiting_start"}
@@ -402,11 +417,11 @@ Dispose ==
                   outputAbortRequested,
                   retainedCleanupState, retainedCleanupFailure,
                   retainedCleanupRetryDue, processResolution, resizeEffectInFlight,
-                  resizeTargetVersion, visibleVersion, settledVersion>>
+                  resizeTargetGeometry, visibleGeometry, settledGeometry, visibleRevision, settledRevision>>
 
 Next ==
-  \/ \E initialVersion \in Versions, succeeds \in BOOLEAN:
-       Start(initialVersion, succeeds)
+  \/ \E initialGeometry \in Geometries, succeeds \in BOOLEAN:
+       Start(initialGeometry, succeeds)
   \/ ChildExited
   \/ PtyDrained
   \/ WriterQuiesced
@@ -424,10 +439,10 @@ Next ==
   \/ RetainedCleanupRetryDue
   \/ RetainedCleanupRetryAttempt
   \/ ExhaustRetainedCleanup
-  \/ \E version \in Versions: BeginResizeEffect(version)
+  \/ \E geometry \in Geometries: BeginResizeEffect(geometry)
   \/ CommitResizeEffect
   \/ CompensateResizeEffect
-  \/ \E version \in Versions: MutateVisibleState(version)
+  \/ MutateVisibleState
   \/ Dispose
 
 Spec ==
@@ -451,18 +466,22 @@ TypeOK ==
   /\ retainedCleanupRetryDue \in BOOLEAN
   /\ processResolution \in ProcessResolutions
   /\ resizeEffectInFlight \in BOOLEAN
-  /\ resizeTargetVersion \in Versions \cup {None}
-  /\ visibleVersion \in Versions \cup {None}
-  /\ settledVersion \in Versions \cup {None}
+  /\ resizeTargetGeometry \in Geometries \cup {None}
+  /\ visibleGeometry \in Geometries \cup {None}
+  /\ visibleRevision \in 0..NoRevision
+  /\ settledGeometry \in Geometries \cup {None}
+  /\ settledRevision \in 0..NoRevision
 
 LifecycleIntegrity ==
-  /\ resizeEffectInFlight <=> resizeTargetVersion # None
+  /\ resizeEffectInFlight <=> resizeTargetGeometry # None
   /\ resizeEffectInFlight => ~normalCompletionReady
   /\ (phase # "disposed" /\ normalCompletionReady) =>
        phase \in {"finishing_child", "finishing_output", "exited"}
   /\ phase = "awaiting_start" =>
-       /\ visibleVersion = None
-       /\ settledVersion = None
+       /\ visibleGeometry = None
+       /\ visibleRevision = NoRevision
+       /\ settledGeometry = None
+       /\ settledRevision = NoRevision
        /\ terminationIntent = None
        /\ ~writerQuiesced
        /\ ~normalCompletionReady
@@ -474,62 +493,67 @@ LifecycleIntegrity ==
        /\ ~retainedCleanupRetryDue
        /\ processResolution = "pending"
        /\ ~resizeEffectInFlight
-       /\ resizeTargetVersion = None
+       /\ resizeTargetGeometry = None
   /\ phase = "running" =>
-       /\ visibleVersion \in Versions
+       /\ visibleGeometry \in Geometries
+       /\ visibleRevision \in 0..MaxRevision
        /\ ~normalCompletionReady
        /\ cleanupFailure = None
        /\ ~cleanupRetryDue
        /\ processResolution = "pending"
-       /\ settledVersion = None
+       /\ settledGeometry = None
+       /\ settledRevision = NoRevision
   /\ phase \in {"finishing_child", "finishing_output"} =>
        /\ cleanupFailure = None
        /\ ~cleanupRetryDue
        /\ processResolution = "pending"
-       /\ settledVersion = None
+       /\ settledGeometry = None
+       /\ settledRevision = NoRevision
   /\ phase = "containing_failure" =>
        /\ terminationIntent = "force"
        /\ ~normalCompletionReady
        /\ cleanupFailure = None
        /\ ~cleanupRetryDue
        /\ processResolution = "pending"
-       /\ settledVersion = None
+       /\ settledGeometry = None
+       /\ settledRevision = NoRevision
   /\ phase = "containment_blocked" =>
        /\ terminationIntent = "force"
        /\ ~normalCompletionReady
        /\ cleanupFailure \in CleanupFailures
        /\ processResolution = "pending"
-       /\ settledVersion = None
+       /\ settledGeometry = None
+       /\ settledRevision = NoRevision
   /\ phase = "exited" =>
        /\ writerQuiesced
        /\ normalCompletionReady
        /\ cleanupFailure = None
        /\ ~cleanupRetryDue
        /\ processResolution = "pending"
-       /\ settledVersion = visibleVersion
+       /\ settledGeometry = visibleGeometry
+       /\ settledRevision = visibleRevision
   /\ phase = "failed" =>
        /\ terminationIntent = "force"
        /\ ~normalCompletionReady
        /\ cleanupFailure = None
        /\ ~cleanupRetryDue
        /\ processResolution \in CompletedProcessResolutions
-       /\ settledVersion = visibleVersion
+       /\ settledGeometry = visibleGeometry
+       /\ settledRevision = visibleRevision
   /\ phase = "disposed" =>
-       \/ /\ visibleVersion = None
-          /\ settledVersion = None
-       \/ /\ visibleVersion \in Versions
-          /\ settledVersion = visibleVersion
+       \/ /\ visibleGeometry = None
+           /\ visibleRevision = NoRevision
+           /\ settledGeometry = None
+           /\ settledRevision = NoRevision
+       \/ /\ visibleGeometry \in Geometries
+           /\ visibleRevision \in 0..MaxRevision
+           /\ settledGeometry = visibleGeometry
+           /\ settledRevision = visibleRevision
   /\ phase \in FailurePhases => outputAbortRequested
   /\ retainedCleanupState \in {"blocked", "exhausted"} =>
        phase \in SettledPhases
   /\ retainedCleanupState = "complete" =>
        phase \in SettledPhases \cup {"disposed"}
-
-NormalExitRequiresClassification ==
-  phase = "exited" => normalCompletionReady
-
-NormalExitRequiresQuiescedWriter ==
-  phase = "exited" => writerQuiesced
 
 AbortPreventsNaturalDrainPublication ==
   [][outputAbortRequested =>
@@ -549,14 +573,21 @@ CleanupRetryIsAlwaysAvailable ==
   /\ retainedCleanupState = "blocked" /\ retainedCleanupRetryDue =>
        ENABLED RetainedCleanupRetryAttempt
 
-AwaitingStartHasNoVisibleVersion ==
-  phase = "awaiting_start" => visibleVersion = None
+StartPublishesOnlyItsMountedGeometry ==
+  [][\A initialGeometry \in Geometries:
+       Start(initialGeometry, TRUE) =>
+         /\ visibleGeometry' = initialGeometry
+         /\ visibleRevision' = 0]_vars
 
-StartPublishesOnlyItsMountedVersion ==
-  [][(/\ phase = "awaiting_start"
-      /\ phase' = "running") =>
-       /\ visibleVersion = None
-       /\ visibleVersion' \in Versions]_vars
+ResizeCommitAdvancesCurrentRevision ==
+  [][CommitResizeEffect =>
+       /\ visibleGeometry' = resizeTargetGeometry
+       /\ visibleRevision' = visibleRevision + 1]_vars
+
+ContentMutationPreservesGeometry ==
+  [][MutateVisibleState =>
+       /\ UNCHANGED visibleGeometry
+       /\ visibleRevision' = visibleRevision + 1]_vars
 
 FailureCannotBecomeNormalExit ==
   [][(phase \in FailurePhases) => (phase' # "exited")]_vars
@@ -564,17 +595,19 @@ FailureCannotBecomeNormalExit ==
 SettledStateIsFrozen ==
   [][(/\ phase \in SettledPhases
       /\ phase' \in SettledPhases) =>
-       UNCHANGED <<visibleVersion, settledVersion>>]_vars
+       UNCHANGED <<visibleGeometry, visibleRevision,
+                   settledGeometry, settledRevision>>]_vars
 
 RetainedCleanupPreservesSettlement ==
   [][(/\ phase \in SettledPhases
       /\ retainedCleanupState # "inactive"
       /\ phase' \in SettledPhases) =>
-       UNCHANGED <<phase, visibleVersion, settledVersion>>]_vars
+       UNCHANGED <<phase, visibleGeometry, visibleRevision,
+                   settledGeometry, settledRevision>>]_vars
 
 FailureEntryFreezesVisibleState ==
   [][(phase \in FailurePhases \/ phase' \in FailurePhases) =>
-       UNCHANGED visibleVersion]_vars
+       UNCHANGED <<visibleGeometry, visibleRevision>>]_vars
 
 BlockedCleanupEventuallyBecomesDue ==
   (phase = "containment_blocked" /\ ~cleanupRetryDue) ~>

@@ -5,7 +5,10 @@ EXTENDS Naturals, FiniteSets, TLC
 \* Wire delivery and Worker/Host admission remain in LocalWorkerObcnCarrier and
 \* TerminalLaunchAuthorization. This model checks the Server reservation/commit
 \* boundary; geometry/capacity/codec details have deterministic runtime witnesses.
+\* Each Client is one sequential OBCS request/publication slot, so its index is
+\* the bounded correlation surrogate; exact wire request IDs remain runtime evidence.
 CONSTANTS Clients, MaxOperation, MaxGeneration
+ResponseValues == {"none", "accepted", "unknown", "unavailable", "server-busy"}
 VARIABLES phase, workerGeneration, bindingGeneration, operation, nextOperation,
   fence, issued, pendingClient, connected, response, published, committedOperation, responseOperation
 vars == <<phase, workerGeneration, bindingGeneration, operation, nextOperation,
@@ -54,8 +57,14 @@ IssueStart(client) ==
   /\ UNCHANGED <<bindingGeneration, workerGeneration, connected, response, published, committedOperation, responseOperation>>
 RejectConcurrent(client) ==
   /\ client \in connected
+  /\ client # pendingClient
   /\ Pending
-  /\ UNCHANGED vars
+  /\ response[client] = "none"
+  /\ response' = [response EXCEPT ![client] = "server-busy"]
+  /\ responseOperation' = [responseOperation EXCEPT ![client] = 0]
+  /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
+       nextOperation, fence, issued, pendingClient, connected, published,
+       committedOperation>>
 CompleteExact ==
   /\ Pending
   /\ workerGeneration = bindingGeneration
@@ -131,8 +140,8 @@ TypeOK ==
   /\ issued \subseteq 1..MaxOperation
   /\ pendingClient \in Clients \cup {"none"}
   /\ connected \subseteq Clients
-  /\ response \in [Clients -> {"none", "accepted", "unknown", "unavailable"}]
-  /\ published \in [Clients -> {"none", "accepted", "unknown", "unavailable"}]
+  /\ response \in [Clients -> ResponseValues]
+  /\ published \in [Clients -> ResponseValues]
   /\ committedOperation \in [Clients -> 0..MaxOperation]
   /\ responseOperation \in [Clients -> 0..MaxOperation]
   /\ fence \in 0..MaxOperation
@@ -153,7 +162,23 @@ ReplacementCannotRetarget == [][ReplaceWorker =>
   /\ issued' = issued]_vars
 PublicationFollowsCommit == \A client \in Clients:
   response[client] = "accepted" => committedOperation[client] = responseOperation[client]
+ServerBusyHasNoWorkerOperation == \A client \in Clients:
+  response[client] = "server-busy" => responseOperation[client] = 0
 PendingExcludesResult == Pending => response[pendingClient] = "none"
+ConcurrentRequestReturnsServerBusy ==
+  [][\A client \in Clients: RejectConcurrent(client) =>
+    /\ response' = [response EXCEPT ![client] = "server-busy"]
+    /\ responseOperation' = [responseOperation EXCEPT ![client] = 0]
+    /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
+         nextOperation, fence, issued, pendingClient, connected, published,
+         committedOperation>>]_vars
+PublicationCopiesExactPredecessor ==
+  [][\A client \in Clients: Publish(client) =>
+    /\ published' = [published EXCEPT ![client] = response[client]]
+    /\ response' = [response EXCEPT ![client] = "none"]
+    /\ UNCHANGED <<phase, workerGeneration, bindingGeneration, operation,
+         nextOperation, fence, issued, pendingClient, connected,
+         committedOperation, responseOperation>>]_vars
 PendingEventuallySettles == Pending ~> ~Pending
 ResultEventuallySettles == \A client \in Clients: (response[client] # "none") ~> (response[client] = "none")
 =============================================================================

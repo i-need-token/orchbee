@@ -1,8 +1,7 @@
 # Rust Orchbee Worker
 
 这是第一条 POSIX 本机终端 vertical 使用的实验性、尚未发布私有 Rust Worker application。
-产出的 executable 是 `orchbee-worker`。它参与根 Cargo gate，但不会被打包、安装、由
-`orchbee` 激活，也没有被当前产品路径消费。
+产出的 executable 是 `orchbee-worker`。它参与根 Cargo gate，由 Linux 裸入口的本地 Server 激活；尚未打包或安装。
 
 英文规范原文：
 [README.md](README.md)。
@@ -40,11 +39,27 @@ invocation、connection、authentication、handshake rejection、framing、outpu
 loop 继续接收下一请求。
 
 Worker 只消费已准入 same-user Server 的 authorization，并用 OBLS generation 构造授权 kernel。
-只有 local admission 与新的 handoff check 通过后才发送 Create/Start。它不执行 retry、discovery、
-activation、daemonization、child-process supervision、terminal inventory、PTY
-operation、Agent behavior 或 durable write。Server Client Create/Start authorization 已集成。
-Endpoint selection、service supervision、Host activation、Server Client Session 查看附件路由、
-裸入口 TUI 激活与 reconciliation 仍属于后续边界；裸 `orchbee` 尚不是可用的 terminal Client。
+只有 local admission 与新的 handoff check 通过后才发送 Create/Start。显式端点模式不启动 Host；
+托管 Linux 模式使用下面的按需启动流程。不提供连接重试、重启、inventory 接管、PTY/VT 操作、
+Agent 行为、服务安装或恢复。
+
+## 托管 Linux 延迟启动 Host
+
+私有 `--local-site <absolute-runtime-directory>` 入口校验共享运行时及四产物 cohort，
+先完成 Server 注册，此时不创建 Host 目录也不启动 Host。
+[共享建模记录](../../crates/local-site-runtime/README.zh-CN.md) 定义进程与失败边界。
+
+首个 Launch 先由现有授权内核准入并解析启动事实。无效 lease/generation 的类型化拒绝
+不产生 Host；首个 Launch 之前的非 Launch 流量让连接退役。
+准入的 dispatch 和同一个内核跨 Host 启动保留，交接前再次校验授权。
+Host 目录为运行时下的 `host`，固定 endpoint ID 为 `00000000000000000000000000000001`。
+任何已有端点立即要求恢复；只为本次新启动的 Host 等待最终 0600 socket。
+Host 启动、唯一连接和严格 OBTP 握手共用五秒预算；不续期或重试连接。
+准备/启动失败在可交付时返回交接前失败结果并退役 Worker；已交接的不明确结果不重放。
+后续操作使用原串行循环和 replay cache。
+
+回收线程只等待退出，不杀死 Host。Server/Worker 连接关闭后 Host 仍拥有保留终端。
+不支持重启后接管或替代 Host。显式端点模式继续采用其既有双 peer readiness 语义。
 
 ## 实时查看附件转发细化
 
@@ -56,11 +71,11 @@ Server 仍是查看附件的唯一签发方。每个绑定代际的查看附件�
 Worker 操作槽。
 
 OBCN 查看附件载体和 Worker 附件转换现已服务于 Server 已准入 Client Session 转发，并有真实
-Host 进程轨迹。Server 拥有 OBCS 查看消息与 Session 清理；裸入口 TUI 激活仍是后续集成边界。八个存活查看附件和每附件一帧保留记录属于实现边界，不是发布性能
+Host 进程轨迹。Server 拥有 OBCS 查看消息与 Session 清理；Linux 裸入口现已消费该 relay。八个存活查看附件和每附件一帧保留记录属于实现边界，不是发布性能
 预算。缺失或矛盾的反馈绝不确认 Host 帧。`NeedSnapshot` 保留原因和序号；
 `ProjectionBlocked` 仍是附件事件。
-交付槽已满时，只关闭该查看附件并释放排队字节；它的 Host detach 在下一个 Server operation
-之前执行，关闭中附件的迟到 event 被排空，不再保留额外帧。绝不静默替换 blocked event 或帧。
+交付槽已满时，只关闭该查看附件并释放排队字节；它的 Host detach 在下一个普通 Server operation
+之前执行，lifecycle step 跳过该清理。关闭中附件的迟到 event 被排空，不再保留额外帧。绝不静默替换 blocked event 或帧。
 Broker 的 `host_connection` module 拥有 event 路由、查看附件槽、controller grant 和共享 deadline exchange；
 `terminal_viewer_operation` 映射已准入的只读 command，并校验精确 Host response。
 查看附件 state borrow 不跨越 Host I/O。Attach 依次执行两个有界 exchange（capabilities，随后
@@ -88,7 +103,8 @@ viewer/grant 或非递增 sequence。已知 Host rejection 消耗 sequence；含
 关闭 broker 且不重放。
 
 Viewer detach 或关闭先释放其 controller，再 detach viewer。仅当该 viewer 没有 controller 时，
-内部 release 才是幂等的；它绝不清除不同的当前 grant。意外的 resize lease 撤销让 broker 退役。
+内部 release 才是幂等的；它绝不清除不同的当前 grant。存活 grant 的意外 resize lease 撤销让 broker 退役。
+已知 Dispose 后，精确 retired-target event 经校验后排空。
 Release 或 loss 均不提升其他 viewer，也不终止保留执行。八个 viewer 最多允许八个额外控制
 附件；cleanup 与普通操作共用单一 Host writer。
 
@@ -168,7 +184,15 @@ rollback 不能让任何 expired lease 复活。
 | 所有权 | Server 继续拥有 placement、authorization issuance 与 reconciliation。OBCN 拥有 carrier-independent request/result type 与 wire codec。Worker 只拥有本地 validation、monotonic replay memory、单一 dispatch gate，以及 Host handoff boundary 前后的分类。Terminal Host 仍是 terminal 与 process effect 的唯一 owner。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 验证   | Table-driven unit test 对两种 operation 覆盖 wrong identity、generation、legacy 与 future capability mismatch、expiry 与 clock rollback、重叠 rejection priority、1,023/1,024/1,025 capacity boundary、无 tombstone rejection、capacity 时的 exact replay 与 higher-fence replacement、lower 与 conflicting fence、每种 accepted/rejected/failed/unknown outcome 的 exact replay、admission 后 expiry、stale 与 wrong completion、slot backpressure、initial 与 raced Start identity change、mismatched Start completion geometry、两种 Launch mode 与两种 Start success transition。OBCN test 负责 value/codec validity；注册的 TLA+ model 负责各自的 bounded abstraction。                                                                                                                                                                                                                                                               |
 | 正确性 | Server-owned [`TerminalLaunchAuthorization`](../orchbee-server/formal/tla/TerminalLaunchAuthorization.tla) 的 `acceptedBinding`、`requestPhase`、cached outcome/epoch/transition 与 pending result，分别映射到一个 kernel binding、slot phase、cached typed result 与 result-ready slot。其 `FreshOperation` guard 是 Server producer premise 的 single-terminal、single-Worker projection。Worker-owned [`WorkerTerminalBindingCapacity`](formal/tla/WorkerTerminalBindingCapacity.tla) 将其 bounded fence/cache function、retained set 与 abstract global slot 映射到 Rust binding map 和 operation/result slot。它检查 capacity、occupied-slot priority、最多一个 uncached operation/result、delivery clearing、rejection preservation，以及仅在 slot empty 后才允许 full-capacity exact replay 与 higher-fence replacement。Unit test 是 implementation-refinement evidence；TLC 仍是 bounded model evidence，而不是 Rust code proof。 |
-| 限制   | 当前没有 carrier 或 Host adapter 调用此内核，因此测试只建立 deterministic state behavior。Binding 与 cached result 都是 process-local，不做 crash persistence，并会保留到 kernel drop 或 higher fence 替换。1,024 limit 没有 release、TTL、LRU 或 eviction path；production 之前仍需要显式 retirement contract。在不维护无界 ledger 的前提下，kernel 无法检测 Server 跨 terminal 复用 `OperationId`。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 限制   | 运行中的 private Worker request loop 会调用此 kernel 及其 Host adapter。Binding 与 cached result 都是 process-local，不做 crash persistence，并会保留到 kernel drop 或 higher fence 替换。1,024 limit 没有 release、TTL、LRU 或 eviction path；production 之前仍需要显式 retirement contract。在不维护无界 ledger 的前提下，kernel 无法检测 Server 跨 terminal 复用 `OperationId`。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
+`TerminalLaunchAuthorization` 使用 domain 包含二的独立 counter，跟踪每个 operation 的 modeled
+handoff-effect occurrence。`HostEffectAtMostOncePerOperation`、
+`HostEffectCountMatchesObservations`、`HandoffRecordsExactlyOneEffectOccurrence` 与
+`EffectCountAdvanceRequiresHandoff` 检查其 bound、与 identity set 的对应关系、精确 increment，并要求只有
+`HandoffToHost` 可以推进它。这证明
+每个 operation 最多发生一次 modeled handoff-effect occurrence；具体 transport-write multiplicity 的
+证据仍由 Rust duplicate-dispatch test 提供。
 
 | 当前 slot          | 输入或 observation                                | Guard                                                           | 下一 slot          | Binding/result effect                                                              |
 | ------------------ | ------------------------------------------------- | --------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------- |
@@ -230,30 +254,36 @@ Host socket，也不改变 kernel state。
 细化其 Host effect 和 bounded result-delivery boundary。Executable 现在在两个 handshake 后
 调用它们；restart recovery 仍未实现。
 
+`LocalHostBroker` 保持已接受 `HostBrokerConnection` epoch 不变。Handoff 前 Host loss 会执行
+`LoseHostBeforeHandoff` 并 fail closed；替换该 Host 必须 teardown connection，并在这个单连接
+lifecycle 之外重新进行 Worker/Host handshake。`ActiveHostConnectionKeepsEpoch` 与
+`HostEpochInstallationRequiresHandshake` 检查这些精确 boundary。Authorization kernel 的防御性
+`HostIdentityChanged` result 仍由其 Rust test 覆盖，但此 broker model 不存在 in-place
+hot-replacement transition。
+
 | 字段   | 建模的 broker 契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 问题   | Server-first 双边 admission 完成后，Worker carrier 必须把一个已经由 authorization kernel 接纳的 dispatch 转换成最多一次 Terminal Host effect，并返回其精确 OBCN result。它必须保留 `begin_host_handoff` 期间 kernel 给出的 `ResultReady` decision，验证实际 Host response 而不是 diagnostic label，并且绝不能虚构 wire 未携带的 Host-rejection classification。                                                                                                                                                                                                                                                                                                                                               |
-| 输入   | 已接受的 Server 与 Host link 及 handshake Host epoch；一个已经通过 kernel identity、generation、intrinsic capability、lease、fence、1,024-binding capacity 与 global-slot gate 的 OBCN Launch 或 Start `Dispatch`；Start target Host epoch；传给 `begin_host_handoff` 的当前 Host epoch；一个非零 command correlation；实际 Host response role、kind、correlation 与 epoch；timeout 或 link loss；以及一次有界 OBCN result-delivery opportunity。Worker loss 后也可能观察到 retained Host terminal。                                                                                                                                                                                                          |
-| 数据   | 一个 process-local broker phase；映射到 kernel 唯一全局 `empty`/`awaiting-handoff`/`handed-off`/`result-ready` slot 的一个 operation phase；Launch/Start kind；handoff-attempt 与 effect-boundary count；Start target 与 observed handoff Host epoch；mapped Host command 与 correlation；保留的 response role、kind、correlation 与 epoch；Host 是否应用 command；精确 completion source 与 cached-result fact；一个有界 delivery count；unknown retry barrier；以及 retained-terminal disposition。不引入 adapter queue 或 durable state。                                                                                                                                                                  |
-| 输出   | Launch 只映射到 Host `CreateTerminal`；Start 只映射到 Host `StartTerminal`。`begin_host_handoff` 期间的 lease expiry 返回 cached OBCN `Rejected(LeaseExpired)`；变化的 Start Host epoch 返回带 observed epoch 的 cached `Rejected(HostIdentityChanged)`；两者都不越过 effect boundary。调用前的确定 transport failure 仍是 cached `Failed(HostUnavailableBeforeHandoff)`。精确 success 变为 `HostAccepted`；精确 generic Terminal Protocol `TypedFailure` 变为 `Failed(HostReportedFailure)`。Unknown 与 retained-state outcome 沿用之前的有界 lifecycle。                                                                                                                                                    |
-| 不变量 | Server admission 先于 Host contact。Readiness 要求两条 link 都已接受且 Host epoch 非零。最多存在一个 kernel-global operation/result slot 与一个 Host command。成功的 `begin_host_handoff` 先于第一个可能的 Host effect；其 `ResultReady` branch 会保留一次 attempted call，但 crossed boundary、command 与 effect 都为零。已知 Host completion 必须具有实际 `Response` role、request-specific expected kind、精确 command correlation 与精确保留的 handoff Host epoch。精确 generic `TypedFailure` 只能产生 `HostReportedFailure`；mismatch 会 fail closed 为 cached unknown，且两者都不能产生 `HostRejected`。Unknown 绝不 retry。                                                                           |
-| 决策   | Dispatch 前的 kernel result（包括 `CapacityExceeded` 与 `SlotOccupied`）保持不同且绝不进入本 adapter model。Handoff 期间，lease expiry 与 Start identity replacement 是精确 cached rejection，而不是 transport failure。当前 Terminal Protocol 不存在 authoritative Host-rejection discriminator，因此相同的精确 generic `TypedFailure` input 绝不被非确定性拆分：它保守映射到 OBCN `Failed(HostReportedFailure)`。OBCN `HostRejected` 留给未来显式 classified owner contract。Post-handoff loss、timeout 或 invalid response 为 `OutcomeUnknown`。                                                                                                                                                           |
+| 输入   | 已接受的 Server 与 Host link 及其不可变 handshake Host epoch；一个已经通过 kernel identity、generation、intrinsic capability、lease、fence、1,024-binding capacity 与 global-slot gate 的 OBCN Launch 或 Start `Dispatch`；Start target Host epoch；传给 `begin_host_handoff` 的 retained connection epoch；一个非零 command correlation；实际 Host response role、kind、correlation 与 epoch；timeout 或 link loss；以及一次有界 OBCN result-delivery opportunity。Worker loss 后也可能观察到 retained Host terminal。                                                                                                                                                                                       |
+| 数据   | 一个 process-local broker phase；映射到 kernel 唯一全局 `empty`/`awaiting-handoff`/`handed-off`/`result-ready` slot 的一个 operation phase；Launch/Start kind；handoff-attempt 与 effect-boundary count；Start target 与 retained handoff Host epoch；mapped Host command 与 correlation；保留的 response role、kind、correlation 与 epoch；Host 是否应用 command；精确 completion source 与 cached-result fact；一个有界 delivery count；unknown retry barrier；以及 retained-terminal disposition。不引入 adapter queue 或 durable state。                                                                                                                                                                  |
+| 输出   | Launch 只映射到 Host `CreateTerminal`；Start 只映射到 Host `StartTerminal`。`begin_host_handoff` 期间的 lease expiry 返回 cached OBCN `Rejected(LeaseExpired)`，且不越过 effect boundary。调用前的确定 transport failure 或 Host loss 仍是 cached `Failed(HostUnavailableBeforeHandoff)`。精确 success 变为 `HostAccepted`；精确 generic Terminal Protocol `TypedFailure` 变为 `Failed(HostReportedFailure)`。Unknown 与 retained-state outcome 沿用之前的有界 lifecycle。                                                                                                                                                                                                                                    |
+| 不变量 | Server admission 先于 Host contact。Readiness 要求两条 link 都已接受且 Host epoch 非零。Active connection 的 Host epoch 不能改变。最多存在一个 kernel-global operation/result slot 与一个 Host command。成功的 `begin_host_handoff` 先于第一个可能的 Host effect；其 modeled `ResultReady` branch 会保留一次 attempted call，但 crossed boundary、command 与 effect 都为零。已知 Host completion 必须具有实际 `Response` role、request-specific expected kind、精确 command correlation 与精确保留的 handoff Host epoch。精确 generic `TypedFailure` 只能产生 `HostReportedFailure`；mismatch 会 fail closed 为 cached unknown，且两者都不能产生 `HostRejected`。Unknown 绝不 retry。                         |
+| 决策   | Dispatch 前的 kernel result（包括 `CapacityExceeded`、`SlotOccupied` 与防御性 Start `HostIdentityChanged`）保持不同且绝不进入本 adapter model。Modeled handoff 期间，lease expiry 是精确 cached rejection，而不是 transport failure。Host loss 会 fail closed，且只能由全新的 connection lifecycle 安装不同 Host epoch。当前 Terminal Protocol 不存在 authoritative Host-rejection discriminator，因此相同的精确 generic `TypedFailure` input 会保守映射到 OBCN `Failed(HostReportedFailure)`。OBCN `HostRejected` 留给未来显式 classified owner contract。Post-handoff loss、timeout 或 invalid response 为 `OutcomeUnknown`。                                                                               |
 | 模型   | [`LocalHostBroker`](formal/tla/LocalHostBroker.tla) 保留 Server-first handshake 与 coupled lifecycle，接收来自 Server-owned [`TerminalLaunchAuthorization`](../orchbee-server/formal/tla/TerminalLaunchAuthorization.tla) 的一个 admitted dispatch，并把详细 `awaiting-handoff`/`handed-off` phase 映射到 `WorkerTerminalBindingCapacity` 的单一 `operation-pending` global kernel slot。其 Host-side effect boundary 与 lost-reply classification refine [`TerminalHostRequestOutcome`](../terminal-host/formal/tla/TerminalHostRequestOutcome.tla) 和 [Terminal Host runtime model](../terminal-host/docs/runtime-model.zh-CN.md)；它不重新实现任何 authority，也不改变 wire contract。                     |
-| 转换   | 下表覆盖 admission、两个 `begin_host_handoff -> ResultReady` branch、确定 pre-call transport failure、成功 handoff、command 发出与可能 apply、concrete response validation、保守 generic failure、独立排序的 Server/Host loss、有界 exact-result delivery、unknown retry barrier，以及 retained-terminal recovery。                                                                                                                                                                                                                                                                                                                                                                                           |
+| 转换   | 下表覆盖 admission、lease-expiry `begin_host_handoff -> ResultReady` branch、确定 pre-call transport failure、成功 handoff、command 发出与可能 apply、concrete response validation、保守 generic failure、独立排序的 Server/Host loss、有界 exact-result delivery、unknown retry barrier，以及 retained-terminal recovery。                                                                                                                                                                                                                                                                                                                                                                                   |
 | 依赖   | Adapter 依赖 authorization kernel 以及单独检查的 `WorkerTerminalBindingCapacity` bound 与 global slot、OBCN semantic value 与 codec、local-Site carrier、Terminal Protocol binding、Terminal Host runtime outcome contract、authenticated socket 与 bounded timer。Model 把 kernel 的 post-capacity `Dispatch`、decoded Host record 与 liveness 当作输入。它不选择 carrier byte、deadline value、queue implementation、activation、shell、working directory、PTY behavior 或 reconciliation policy。                                                                                                                                                                                                          |
 | 所有权 | Server 拥有 placement、issuance、generation 与 reconciliation。Worker authorization kernel 拥有 binding capacity、admission/replay、精确 cached result 与唯一 global operation/result slot。Adapter 只能消费 `Dispatch`，不得增加 parallel slot 或 capacity counter。`WorkerTerminalBindingCapacity` 检查该 bound，并把本 model 的 pre-result adapter phase 折叠到其 `operation-pending` phase。OBCN 拥有 result variant。Terminal Protocol 拥有 response role、kind、correlation、epoch 与 generic `TypedFailure`，但不拥有 generic rejected/failed discriminator。Terminal Host 拥有 request commit/effect/reply ordering。Worker 只拥有 mapping、strict observation、loss classification 与 link cleanup。 |
-| 验证   | TLA inventory 要求每个 admission、两个 handoff-result branch、command/effect、concrete response mismatch、accepted/generic-failure outcome、delivery、ordered loss、retry-block 与 recovery action。Trigger 覆盖 kernel 与 carrier surface、两种 Terminal Protocol binding、Terminal Host source 与 runtime model、`TerminalHostRequestOutcome`，以及已接受 topology/capacity authority。TLC 在 weak fairness 下检查 safety 与 finite progress。Host exchange 与集成 request loop 具有下文描述的 socket 和 real-process refinement witness。                                                                                                                                                                  |
-| 正确性 | 已检查 invariant 把 operation phase 映射到 kernel-global slot；区分 attempted handoff 与 crossed effect boundary；要求精确 cached lease/identity rejection 与 pre-call failure classification；在有界 delivery 或 abandonment 中保留完整 handoff-result projection；验证已保留 response field；把精确 generic `TypedFailure` 分类为 `HostReportedFailure`、把 mismatched generic failure 分类为 unknown，且不把两者分类为 rejected；并保留此前 one-command、unknown/no-retry、link-cleanup、result-delivery 与 recovery property。这些是 bounded model claim，而不是 Rust kernel、carrier、Host、codec 或 capacity implementation 的证明。                                                                    |
-| 限制   | State space 包含一个 Worker、一个 admitted operation、两个 symbolic nonzero Host epoch、一个 operation correlation 加一个 mismatched correlation、一个 kernel-global result slot，且最多一次 delivery。Model 从 dispatch 后开始，因此 pre-admission rejection/replay 与 1,024-binding bound 的枚举留在 kernel 和 `WorkerTerminalBindingCapacity`；显式 slot projection 阻止 adapter 虚构另一个 outstanding operation。Byte framing、数值 timeout duration、failure-code taxonomy、carrier integration、inventory 与 recovery 不在本切片范围内。当前 runtime behavior 或 production adoption 不能由该 abstraction 推出。                                                                                       |
+| 验证   | TLA inventory 要求每个 admission、lease-expiry handoff-result branch、command/effect、concrete response mismatch、accepted/generic-failure outcome、delivery、ordered loss、retry-block、recovery action 与 immutable-epoch check。Trigger 覆盖 kernel 与 carrier surface、两种 Terminal Protocol binding、Terminal Host source 与 runtime model、`TerminalHostRequestOutcome`，以及已接受 topology/capacity authority。TLC 在 weak fairness 下检查 safety 与 finite progress。Host exchange 与集成 request loop 具有下文描述的 socket 和 real-process refinement witness。                                                                                                                                   |
+| 正确性 | 已检查 invariant 把 operation phase 映射到 kernel-global slot；区分 attempted handoff 与 crossed effect boundary；要求精确 cached lease rejection 与 pre-call failure classification；保持 active Host epoch 不变且只允许 handshake 安装 epoch；在有界 delivery 或 abandonment 中保留完整 handoff-result projection；验证已保留 response field；把精确 generic `TypedFailure` 分类为 `HostReportedFailure`、把 mismatched generic failure 分类为 unknown，且不把两者分类为 rejected；并保留此前 one-command、unknown/no-retry、link-cleanup、result-delivery 与 recovery property。这些是 bounded model claim，而不是 Rust kernel、carrier、Host、codec 或 capacity implementation 的证明。                   |
+| 限制   | State space 包含一个 Worker、一个 admitted operation、一个已安装的 nonzero Host epoch 加一个不同的 mismatched response epoch、一个 operation correlation 加一个 mismatched correlation、一个 kernel-global result slot，且最多一次 delivery。Model 从 dispatch 后开始，因此 pre-admission rejection/replay 与 1,024-binding bound 的枚举留在 kernel 和 `WorkerTerminalBindingCapacity`；显式 slot projection 阻止 adapter 虚构另一个 outstanding operation。Byte framing、数值 timeout duration、failure-code taxonomy、carrier integration、inventory 与 recovery 不在本切片范围内。该 bounded abstraction 本身不能证明 Rust implementation 或 production adoption。                                         |
 
 | 当前状态                        | Observation 或 action                                                  | 下一状态                 | 精确 result 与 lifecycle 规则                                                                                        |
 | ------------------------------- | ---------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | Server admission 前             | Host connect attempt                                                   | Forbidden                | 没有启用 Host contact transition。                                                                                   |
 | Ready，kernel slot empty        | 消费一个 kernel `Dispatch`                                             | `admitted`               | 把 global slot 映射到 `awaiting-handoff`；capacity、replay、rejection 与 occupied-slot result 不会 dispatch。        |
 | `admitted`                      | `begin_host_handoff` 观察到 expired lease                              | `result-ready`           | Cache 并 queue 精确 `Rejected(LeaseExpired)`；记录一次 attempted call，不越过 effect boundary，也没有 Host command。 |
-| `admitted` Start                | `begin_host_handoff` 观察到与 target 不同的 Host epoch                 | `result-ready`           | Cache 并 queue 带 target 与 observed epoch 的精确 `Rejected(HostIdentityChanged)`；不执行 Host effect。              |
-| `admitted`                      | Handoff call 前的确定 transport failure 或 Host loss                   | `result-ready`           | Cache 并 queue `Failed(HostUnavailableBeforeHandoff)`，与两个 handoff rejection 保持不同。                           |
-| `admitted`                      | 使用保留的当前 Host epoch 成功调用 `begin_host_handoff`                | `handed-off`             | 恰好一次越过具名 external-effect boundary，并把 kernel slot 映射到 `handed-off`。                                    |
+| `admitted`                      | Handoff call 前的确定 transport failure 或 Host loss                   | `result-ready`           | Cache 并 queue `Failed(HostUnavailableBeforeHandoff)`，与 lease rejection 保持不同。                                 |
+| `admitted`                      | 使用保留的不可变 Host epoch 成功调用 `begin_host_handoff`              | `handed-off`             | 恰好一次越过具名 external-effect boundary，并把 kernel slot 映射到 `handed-off`。                                    |
 | `handed-off`                    | 使用一个 operation correlation 发出 mapped command                     | `awaiting-host`          | 最多发送一个 Host command；在 response 可观察之前，Host 可能已经 apply。                                             |
 | `awaiting-host`                 | `Response` + expected success kind + 精确 correlation + handoff epoch  | `result-ready`           | Queue cached OBCN `HostAccepted`。                                                                                   |
 | `awaiting-host`                 | `Response` + generic `TypedFailure` + 精确 correlation + handoff epoch | `result-ready`           | Queue cached `Failed(HostReportedFailure)`；绝不从同一精确 record 推导 `HostRejected`。                              |
@@ -266,7 +296,7 @@ Host socket，也不改变 kernel state。
 Runtime refinement 必须把 capacity、`SlotOccupied`、pre-admission rejection、cached replay 与一个
 global slot 留在 `AuthorizedHostOperationKernel`；adapter 只能消费其 post-capacity `Dispatch`，
 不得引入 adapter-local operation queue。调用一次
-`begin_host_handoff`，并在发送任何 Host message 前检查其返回：原样转发精确 `ResultReady` rejection，
+`begin_host_handoff`，并在发送任何 Host message 前检查其返回：原样转发精确 `ResultReady` lease rejection，
 或为一个 command 保留其返回的 handoff epoch。为该 dispatch 分配一个非零 correlation。已知 completion
 要求实际 `Response` role、request-specific success kind 或 generic `TypedFailure`、精确 correlation
 与精确 handoff Host epoch。在 authoritative classified Host-rejection contract 出现前，generic
@@ -294,7 +324,7 @@ metadata event 按下文规则排空，包括 handoff 之前以及 command write
 | 边界             | Runtime 细化与证据义务                                                                                                                                                                                                                                                                         |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Handoff 之前     | 不消费 Server byte 地检查两个 peer。观察到 Server loss 或意外 Server data 时关闭两条 link 并放弃 pending operation。Host loss 或 invalid unsolicited Host data 会关闭 Host，并记录 kernel 的精确 pre-handoff failure（或 expired-lease rejection）。Preparation 与 invalid budget 不发送内容。 |
-| Handoff          | 使用保留的 handshake epoch 与新采样的 lease clock 调用一次 `begin_host_handoff`。它的 `ResultReady` 分支不发送内容，保留精确缓存的 lease 或 Host-identity rejection。只有 `HandedOff` 才允许第一次 write。                                                                                     |
+| Handoff          | 使用保留的不可变 handshake epoch 与新采样的 lease clock 调用一次 `begin_host_handoff`。它的 `ResultReady` branch 不发送内容，保留精确 cached lease rejection。只有 `HandedOff` 才允许第一次 write。                                                                                            |
 | Response         | 在解码 operation-specific success 或 generic `TypedFailure` 之前，要求精确 protocol、mandatory control encoding、Response role、command correlation 与 handoff epoch。现有 mapper 验证 payload identity 与 geometry。Generic failure 只映射为 `HostReportedFailure`。                          |
 | 不确定性         | Handoff 之后的任何 write/read/timeout/invalid-response failure 都记录 kernel 的精确 unknown result，并关闭 Host。观察到 Server loss 时关闭两条 link；绝不重发 command。                                                                                                                        |
 | Result ownership | Success 与每种已分类 failure 都保留在 kernel slot。调用方必须交付或放弃 result，并遵守 `HostClosed`/`ServerClosed`；此 adapter 从不清空 slot，也不声称已交付 OBCN。                                                                                                                            |
@@ -411,6 +441,112 @@ slot 组合起来；其 TLC configuration 使用 capacity two 加一个 unseen i
 检查 production value 1,024。Model authority 与其 Rust enforcement 是同一个 additive、unshipped
 delivery cohort；model-only commit 不是可独立 ship 的 boundary。
 
+## Close 生命周期单步模型
+
+已接受的 [Close 契约](../orchbee-server/docs/terminal-tab-close.zh-CN.md) 由
+[`WorkerTerminalLifecycleStep`](formal/tla/WorkerTerminalLifecycleStep.tla) 细化。这是尚未发布 cohort
+的有界模型证据。Worker 实现及其确定性／进程见证映射如下；Server 编排与 reservation 所有权保持独立。模型拥有一个已授权生命周期
+请求或 inventory page 及其精确目标缓存结算，不拥有 Server 的完整 inventory walk 或 Close attempt。
+
+`identity` configuration 探索 Terminate、Force、Dispose 和一个 inventory page，以及一个当前
+product/Worker/generation/Host epoch/creation/terminal tuple 与每个字段的独立不匹配值。
+`target-cleanup` configuration 固定 Dispose，探索空、目标、无关以及满（两个 slot）的 viewer
+cache，目标／无关 controller reservation，不同的 old/new controller ID、已排队的目标 frame/feedback、
+旧 lease 和已接纳的 Acquire。这些有限边界不证明实际八个 slot 的边界。初始状态假设一个已经认证接纳、
+epoch/generation 不变的 broker；没有替换或接管转换。Configuration 不使用 symmetry、state constraint
+或 fairness 假设，也不承诺清理最终成功。
+
+| 所有的 claim                                      | 模型动作和属性                                                                                                                                                                                                                   | 必需的实现细化                                                                                                                                                                              |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 精确的新鲜授权，以及每个 step/page 一个 Host 请求 | `RejectAuthorization`、`RejectFreshHandoff`、`SubmitHostRequest`；`HandoffRequiresFreshExactAuthorization`、`OneHostRequestPerStep`                                                                                              | 在副作用前拒绝每个错误的 product/Worker/Host 字段、grant 和过期 handoff；统计每种 step 的实际 Host 请求。                                                                                   |
+| 已知确认与不确定交付保持区分                      | `ReceiveExactAck`、`ReceiveTypedFailure`、`ReceiveInvalidAck`、timeout/loss 动作；`KnownAckRequiresFullCorrelation`、`KnownDisposeNeverRegresses`、`UnknownNeverDispatchesAnotherLifecycleRequest`                               | 检查实际成功 ACK 的 terminal ID 和 envelope role/kind/epoch/correlation；typed failure 保守分类，不虚构 terminal 回显。另行检查 OBCN result 的完整保留 identity 和 operation/attempt/step。 |
+| Dispose 成功等待精确的 Worker 和 Server 清理      | `CommitWorkerTargetCleanup`、`ObserveExactWorkerResult`、`CommitServerTargetCleanup`；`WorkerDisposedResultRequiresTargetCleanup`、`TargetFrameAndFeedbackFreed`、`ServerCompletionRequiresExactReservationRevocation`           | Dispose 前准备有界精确清理；无分配地移除目标前保留已知 ACK；覆盖全部八个 slot、排队 frame/feedback、无关项保留、Worker result 丢失和 Server 清理失败。                                      |
+| Closing 阻止新 grant，旧清理保持精确              | `RejectAcquireAfterClose`、`DropOldLeaseExactMatch`、`DropOldLeaseMismatchedReservation`、`DropOldViewer`；`LateAcquireCannotRestoreClosingTarget`、`OldLeaseCannotDeleteDifferentReservation`、`OldLeaseAfterRevocationIsLocal` | Acquire 确认后重新校验；撤销后的旧 lease Drop 不发送过期 Host 调用，也不能移除较新的 controller ID。Unknown Close 仍允许合法的精确 lease 清理。                                             |
+| Attempt 到期保留已接纳 receipt                    | `ExpireAttempt`、`ReceiveLateExactAck`；`ExpiryCannotDiscardOutstandingOrKnownReceipt`                                                                                                                                           | 超过 30s attempt 接纳期限仍保留在途 result 和精确迟到 ACK；Resume 或接纳下一步前先结算。                                                                                                    |
+
+`prepared` 包括已经接纳到 carrier 的 step 和清理 seal；`sent` 是首次可能发生 Host 副作用的位置。
+它们映射到 `LocalHostBroker` 的 admitted/awaiting-host phase，随后对应其 result-ready 和
+completed/abandoned 边界。模型不驱逐 `WorkerTerminalBindingCapacity` 所有的 launch binding。
+Generic typed failure 检查相关 envelope，即使此前发生副作用仍归类为已知失败。
+Inventory-page success 只是一个不透明的精确 page 观察，绝不表示不存在或允许 Dispose。
+Host containment 和完整 walk 校验仍分别属于 Host 和 Server owner。
+
+独立的到期动作抽象现有 **1s Worker HostExchange**、**2s Server frame I/O**、**20s Server response
+wait** 和 **30s Close attempt 接纳**边界。它们不模拟数值时间，也不保证返回／join 时间。
+即使 Server 只能报告 Unknown，Worker 的精确 Dispose 知识仍在丢失后保留。Server 本地清理可以无限期
+保持 pending；含糊的生命周期副作用后没有自动 retry。ACK 后不分配的 claim 需要代码内有界移除证据；
+此模型只证明排序，不证明 allocator 行为。
+
+生命周期 adapter、carrier result、viewer/controller 清理或 Server reservation fence 改变时，同步
+更新此模型和注册的 action coverage。当受维护的替代模型拥有这些 claim 及其可执行细化映射时，
+一起移除此模型和注册。
+
+### 保留的生命周期 receipt
+
+已接受的 Worker 细化在每个现有保留终端 binding 内保存一个可选 Close cell，不驱逐 binding，也不增加
+第二个全局 operation/result slot。Cell 拥有固定的 Close operation/target、最高 attempt/step、最后一个
+精确 step receipt、最后一个精确 mutation receipt，以及不可回退的 mutation-Unknown/KnownDisposed。
+[WorkerTerminalLifecycleReceipts](formal/tla/WorkerTerminalLifecycleReceipts.tla) 在单步模型之外
+单独检查此有界序列。[Lifecycle kernel](src/terminal_authorization/lifecycle.rs)
+在现有 binding 和全局 slot 内实现该 receipt 状态。
+
+校验当前 Worker/generation/target association 和 lifecycle capability 后，精确 last-step replay 返回
+缓存结果；否则精确 last-mutation replay 在 query 后仍可读取。复用这两个保留 request ID 却修改字段返回
+`LifecycleConflict`。其他过期／冲突 step 无副作用拒绝；没有无界 receipt ledger。新 dispatch 需要新鲜
+lifecycle lease 和 handoff 再校验；精确缓存 replay 不要求续租。当前 attempt 要求严格更大的 step ordinal；
+更晚 attempt 从 ordinal one 开始。Wire domain 是 ordinal **1..32** 和非零 u64 attempt generation；
+两者均不回绕，耗尽时仍可读取精确保留的 replay。
+
+Inventory 观察不能抹去 mutation Unknown 或 KnownDisposed。Mutation 一旦 Unknown，就拒绝所有后续
+mutation，包括更高 attempt。当前 Server 将此状态停在不可恢复位置，不授予新的 query/reconciliation
+预算。已知 blocked 状态可以 Resume；Worker 允许观察不意味着新增 Server recovery 路径。
+KnownDisposed 后 query 失败也不能抹去 disposal；仅精确保留的 Dispose receipt 能 replay Disposed，
+并且必须已经完成单步清理边界。新的 termination 或 Dispose 均被拒绝。
+
+原始精确缓存 Launch/Start replay 优先于 `LifecycleActive` fence。同一 product binding 上的不同操作或
+更高 fence replacement 不能重置 Close owner 或启动新的 execution。现有全局 slot 是单 slot 的结构
+前提，不单独证明并发正确性。
+
+| 序列 claim                | 必需的有限观察                                                                                            | 必需的确定性细化                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 保留 ID 冲突不能 dispatch | Candidate 保留旧 request ID 却修改 attempt/ordinal；实际 handoff 计数允许错误值 two，并独立要求最多 one。 | 相同 ID 的更高 ordering/action 冲突；query 后精确旧 mutation replay；替换后拒绝更旧 receipt。 |
+| Query 保留生命周期事实    | 观察 mutation Unknown 后的实际 handoff history，以及 query Unknown 后保留的 KnownDisposed。               | Unknown 后 query，再拒绝更高 attempt mutation；Dispose 后 query failure 和精确 replay。       |
+| 耗尽不会抹去 replay       | 完成 maximum-attempt/maximum-ordinal receipt，再到达其精确 replay。                                       | Ordinal 31/32/耗尽和 attempt MAX-1/MAX/耗尽，无回绕或缓存结果丢失。                           |
+
+新增 receipt 模型固定一个现有 association、两个 attempt、两个 ordinal、两个新鲜 ID variant 和一个
+冲突 Close owner。派生的新鲜 ID 允许多个 query；显式保留 ID adversary 在冲突场景中使 identity 独立于
+ordering。它不包含 transport、cache product、fairness 或成功 recovery；单步模型拥有 handoff/cleanup
+细化。Runtime adapter 必须在可能发送额外 Host 请求的普通 `cleanup_closed` 前分支处理 lifecycle。
+Dispose 使用准备好的固定目标 ID 和现有无分配移除。当前 Host Dispose 移除 attachment 而不发出 false
+resize-lease event；本 slice 保持现有 event rule，不增加推测性的 pre-ACK revocation policy。
+
+### Worker runtime 细化
+
+[Lifecycle adapter](src/terminal_lifecycle_operation.rs) 消费一个已接纳请求，并复用现有一秒
+`HostExchange`。其 dispatch 分支先于 `cleanup_closed`，因此无关的已关闭 viewer 不能为 lifecycle
+step 增加 Host 请求。Preflight Host 丢失是已知的 `HostUnavailableBeforeHandoff`；handoff 后丢失
+是 Unknown。精确 ACK 知识在 result 交付前保留，包括观察 ACK 后 Host 或 Server 丢失的情况。
+Inventory 请求每次只查询一页，最多 128 个 terminal，同时受 Host control-record byte bound 限制。
+投影目标前检查每个解码 row、identity collision、cursor generation 和 offset。
+
+[Target cleanup](src/host_connection/target_cleanup.rs) 在 Host I/O 前捕获最多八个精确 viewer ID 和
+一个精确 controller ID，并预留一个 generation-local retired-target cell，受现有 1,024 个 binding
+限制。精确 Dispose ACK 后，提交已准备的 cell 并移除现有 map entry，不分配内存，也不增加 Host
+exchange。丢弃 viewer entry 会释放排队 record 和 feedback flight。精确 retired ID 吸收经校验的
+迟到 event，使旧 viewer Detach 本地完成；拒绝向已 disposed 目标新建 attachment。没有 ACK 的
+prepared cleanup 既不移除 owner，也不建立 disposal 事实。
+
+| Runtime 边界                                       | 可执行证据                                                                                                                                                                                                      |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Receipt 排序、identity、到期与耗尽                 | [Kernel 测试](src/terminal_authorization/lifecycle/tests.rs) 覆盖多次 query 后的旧 mutation replay、修改保留 ID、Unknown 后全部后续 mutation、原始 Launch/Start replay 和 `LifecycleActive` fence。             |
+| 一个请求、ACK correlation、page 校验与 result 丢失 | [Adapter 测试](src/terminal_lifecycle_operation/tests.rs) 覆盖带无关已关闭 viewer 的实际 dispatch loop、所有 mutation ACK kind、一个固定上限 page、每种目标 phase、identity conflict 和 pre/post-handoff 丢失。 |
+| 精确有界无分配清理                                 | [Cleanup 测试](src/host_connection/target_cleanup/tests.rs) 覆盖零／一／七／八个 viewer、第九个拒绝、排队 record/flight 移除、七个 controller 保留、不同的后续 ID 和 1,024-cell 边界。                          |
+| 真实 Worker 与 Host                                | [进程见证](tests/process/terminal_operations/lifecycle.rs) 保留八个目标 viewer entry，执行 Force 并观察结算，Dispose 目标，inventory 后 replay，本地 detach 旧 ID，并向 sibling attach 八个新 viewer。          |
+
+这些 Worker 见证不证明 Server 的八个存活 Client reservation、延迟 Acquire 再校验、旧 Client lease
+Drop 或最终 Closed 发布 gate。这些仍是 Server 所有的细化义务；Worker receipt 不允许自动恢复
+mutation Unknown。
+
 ## 验证
 
 从仓库根目录运行。真实 Host process witness 使用正常 Terminal Host build artifact，所以执行聚焦
@@ -424,5 +560,7 @@ cargo test -p orchbee-capability-node-protocol --all-targets --all-features --lo
 cargo clippy -p orchbee-capability-node-protocol --all-targets --all-features --locked -- -D warnings
 cargo test -p orchbee-local-peer-credentials --all-targets --all-features --locked
 node scripts/tla/run-models.mjs --models local-site-process-spine,terminal-launch-authorization,worker-terminal-binding-capacity,local-host-broker,terminal-host-request-outcome
+node scripts/tla/run-models.mjs --models worker-terminal-lifecycle-step --jobs 1
+node scripts/tla/run-models.mjs --models worker-terminal-lifecycle-receipts --jobs 1
 pnpm verify
 ```

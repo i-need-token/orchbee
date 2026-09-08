@@ -76,6 +76,24 @@ impl HostViewers {
         self.viewers.remove(&id.as_bytes());
     }
 
+    pub(super) fn target_ids(
+        &self,
+        terminal: orchbee_capability_node_protocol::HostTerminalId,
+    ) -> Result<
+        [Option<OperationId>; MAXIMUM_VIEWERS],
+        orchbee_capability_node_protocol::ProtocolError,
+    > {
+        let mut ids = [None; MAXIMUM_VIEWERS];
+        for (destination, (id, _)) in ids.iter_mut().zip(
+            self.viewers
+                .iter()
+                .filter(|(_, viewer)| viewer.terminal_id == terminal),
+        ) {
+            *destination = Some(OperationId::from_bytes(*id)?);
+        }
+        Ok(ids)
+    }
+
     pub(crate) fn closed_ids(&self) -> Vec<[u8; 16]> {
         self.viewers
             .iter()

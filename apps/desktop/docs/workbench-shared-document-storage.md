@@ -45,6 +45,11 @@ historical v1 parser, add local placement to every Directory, and atomically wri
 document. The v1 file remains byte-for-byte untouched. Missing v1 remains `missing`; invalid or
 unreadable v1 is `unavailable` and is never repaired. There is no reverse migration.
 
+`WorkbenchDocumentPlacementMigration` checks this one-way authority and immutable-v1 safety over
+all missing, valid, and invalid v1/v2 combinations. Its post-rename state is an internal
+overapproximation, and its reload transition covers only an exact successful v2 reload. Reload
+failure and settlement progress remain deterministic file-store evidence rather than TLA+ claims.
+
 `commit(expectedRevision, document)` is serialized with every operation on the store instance and
 applies these rules:
 
@@ -113,8 +118,11 @@ storage permanently fails that renderer generation; no divergent document is ove
 An available `retain` presentation starts restore-only reconciliation after coordinator startup.
 Main accepts restore only for a binding already retained by its ledger or established during the
 same Main lifetime. Restore never allocates a new terminal. Renderer disposal suppresses pending
-responses and new dispatch; already accepted Main work may finish, and durable intent permits a new
-generation to reconcile it.
+responses and new dispatch. A document proposal still waiting in the session queue is suppressed
+before it reaches storage when its renderer generation is disposed; a proposal or terminal effect
+already accepted by Main may finish. Main retains the settled result for a durable terminal
+operation identity, so a new renderer generation can apply that result without executing the same
+effect again. An unsettled durable intent remains available for reconciliation.
 
 A Main-only remote-Workspace admission enters the same serialized canonical queue but has no
 renderer write-ahead command. Its Project, Directory, Workspace, and empty context either share one
@@ -138,20 +146,21 @@ or Split weights and avoids accidentally sharing page-local state with a future 
 
 ## Invariants and evidence
 
-| Claim                                                       | Evidence                                                                             | Limits                                                             |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| Only exact-next CAS changes the stored revision             | `DesktopWorkbenchDocumentStore.tla` and deterministic core tests                     | TLC checks two submitters and revisions missing through `2`        |
-| Invalid/current unavailable state is never overwritten      | File-store corruption and injected failure tests                                     | Selected filesystem failures                                       |
-| v1 migration is one-way and v2-present is authoritative     | `WorkbenchDocumentPlacementMigration.tla` and migration tests                        | Exact historical version 1 only                                    |
-| Client View-only transitions do not write shared state      | Workbench projection plus coordinator fingerprint tests                              | Each Client View remains client-local                              |
-| Renderer receives no generic IPC or filesystem authority    | Contract, broker, preload, and renderer-client tests                                 | Electron structured clone is trusted                               |
-| Remote Workspace admission is atomic and Main-owned         | Remote-admission TLA+, persistence, concurrency, and forgery tests                   | No terminal presentation or Host effect in Slice 3.2A              |
-| First remote terminal commits before its target effect      | Remote-provision TLA+, queue/commit traces, target-routing, retry, and forgery tests | One exact singleton presentation; projection/input remain reserved |
-| Terminal effects require previously durable matching intent | `DesktopWorkbenchWriteAhead.tla` and coordinator traces                              | One abstract presentation in the TLA+ model                        |
-| Restore cannot create a replacement terminal                | Restore-only adapter and renderer recovery traces                                    | Binding ledger and Host reconciliation remain trusted              |
-| Cleanup failure retains replayable intent                   | Write-ahead model and managed-removal integration traces                             | Product recovery UI remains out of scope                           |
+| Claim                                                               | Evidence                                                                             | Limits                                                                   |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Only exact-next CAS changes the stored revision                     | `DesktopWorkbenchDocumentStore.tla` and deterministic core tests                     | TLC checks two submitters and revisions missing through `2`              |
+| Disposed queued work is suppressed before storage                   | `DesktopWorkbenchDocumentStore.tla` and session queue regression                     | Two renderer generations with one request each; accepted work may finish |
+| Invalid/current unavailable state is never overwritten              | File-store corruption and injected failure tests                                     | Selected filesystem failures                                             |
+| v1 migration is one-way and v2-present is authoritative             | `WorkbenchDocumentPlacementMigration.tla` and migration tests                        | Exact v1; TLA+ covers successful exact post-rename reload only           |
+| Client View-only transitions do not write shared state              | Workbench projection plus coordinator fingerprint tests                              | Each Client View remains client-local                                    |
+| Renderer receives no generic IPC or filesystem authority            | Contract, broker, preload, and renderer-client tests                                 | Electron structured clone is trusted                                     |
+| Remote Workspace admission is atomic and Main-owned                 | Remote-admission TLA+, persistence, concurrency, and forgery tests                   | No terminal presentation or Host effect in Slice 3.2A                    |
+| First remote terminal commits before its target effect              | Remote-provision TLA+, queue/commit traces, target-routing, retry, and forgery tests | One exact singleton presentation; projection/input remain reserved       |
+| Durable intent precedes effects; settled retries do not repeat them | `DesktopWorkbenchWriteAhead.tla` and reconciler traces                               | One abstract presentation and one reusable operation identity            |
+| Restore cannot create a replacement terminal                        | Restore-only adapter and renderer recovery traces                                    | Binding ledger and Host reconciliation remain trusted                    |
+| Cleanup failure retains replayable intent                           | Write-ahead model and managed-removal integration traces                             | Product recovery UI remains out of scope                                 |
 
 The renamed CAS model retains the existing transition semantics; this slice changes the persisted
-payload contract but not its asynchronous queue or revision algorithm. Multi-client arbitration,
-broadcast ordering, disconnect behavior, and progress remain owned and modeled by the separate
-Desktop session coordinator.
+payload contract but not its asynchronous queue or revision algorithm. Broader multi-client
+arbitration, broadcast ordering, reconnect behavior, and quiescing progress remain owned and modeled
+by the separate Desktop session coordinator.

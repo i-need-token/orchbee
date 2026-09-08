@@ -20,6 +20,10 @@ use crate::{
 };
 
 mod launch_facts;
+#[cfg(target_os = "linux")]
+mod lazy;
+#[cfg(target_os = "linux")]
+pub(crate) use lazy::run as run_lazy;
 mod server_transport;
 
 // Leave room for result delivery within the Server carrier's response budget.
@@ -33,10 +37,56 @@ pub(crate) fn run(
 ) -> Result<(), Box<dyn Error>> {
     server.set_nonblocking(true)?;
     host.stream().set_nonblocking(true)?;
-    let mut kernel = AuthorizedHostOperationKernel::new(worker_id, generation)?;
+    let kernel = AuthorizedHostOperationKernel::new(worker_id, generation)?;
+    run_admitted(server, host, worker_id, generation, kernel)
+}
+
+pub(crate) fn run_admitted(
+    server: &UnixStream,
+    host: &mut HostBrokerConnection,
+    worker_id: WorkerId,
+    generation: NonZeroU64,
+    mut kernel: AuthorizedHostOperationKernel,
+) -> Result<(), Box<dyn Error>> {
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
-        let request = server_transport::receive(server, host)?;
+        let request = server_transport::receive(server, Some(host))?;
+        if let CapabilityNodeMessage::TerminalLifecycleRequest(request) = request {
+            let disposition = match kernel.admit_lifecycle(request, unix_milliseconds(), epoch)? {
+                crate::terminal_authorization::LifecycleAdmission::Dispatch(dispatch) => {
+                    crate::terminal_lifecycle_operation::PreparedLifecycleOperation::new(
+                        dispatch, host,
+                    )?
+                    .execute(
+                        &mut kernel,
+                        host,
+                        server,
+                        unix_milliseconds,
+                        HOST_OPERATION_BUDGET,
+                    )?
+                }
+                crate::terminal_authorization::LifecycleAdmission::ResultReady => {
+                    HostOperationDisposition::ResultReady
+                }
+                crate::terminal_authorization::LifecycleAdmission::SlotOccupied => {
+                    return Err(io::Error::other("Worker lifecycle slot is still occupied").into());
+                }
+            };
+            if disposition == HostOperationDisposition::ServerClosed {
+                return Err(peer_closed().into());
+            }
+            let result = kernel
+                .take_lifecycle_result()
+                .ok_or_else(|| io::Error::other("Worker lifecycle result is missing"))?;
+            if server_transport::send(
+                server,
+                (disposition == HostOperationDisposition::ResultReady).then_some(&*host),
+                &CapabilityNodeMessage::TerminalLifecycleResult(result),
+            )? {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
         crate::terminal_viewer_operation::cleanup_closed(host, server)?;
         if let CapabilityNodeMessage::TerminalControlRequest(request) = request {
             let result = crate::terminal_control_operation::execute(
@@ -73,6 +123,8 @@ pub(crate) fn run(
                 kernel.admit_start(start, now, epoch)?
             }
             CapabilityNodeMessage::TerminalControlRequest(_)
+            | CapabilityNodeMessage::TerminalLifecycleRequest(_)
+            | CapabilityNodeMessage::TerminalLifecycleResult(_)
             | CapabilityNodeMessage::TerminalControlResult(_)
             | CapabilityNodeMessage::TerminalLaunchResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_)
@@ -101,17 +153,7 @@ pub(crate) fn run(
         if disposition == HostOperationDisposition::ServerClosed {
             return Err(peer_closed().into());
         }
-        let result = match kernel
-            .take_result()
-            .ok_or_else(|| io::Error::other("Worker operation has no result"))?
-        {
-            AuthorizedHostOperationResult::Launch(result) => {
-                CapabilityNodeMessage::TerminalLaunchResult(result)
-            }
-            AuthorizedHostOperationResult::Start(result) => {
-                CapabilityNodeMessage::TerminalStartResult(result)
-            }
-        };
+        let result = take_result(&mut kernel)?;
         // No next admission occurs while this exact result is being delivered. A
         // failed write abandons the process; it never causes a Host retry.
         let host_closed = server_transport::send(
@@ -121,6 +163,20 @@ pub(crate) fn run(
         )?;
         if host_closed {
             return Err(peer_closed().into());
+        }
+    }
+}
+
+fn take_result(kernel: &mut AuthorizedHostOperationKernel) -> io::Result<CapabilityNodeMessage> {
+    match kernel
+        .take_result()
+        .ok_or_else(|| io::Error::other("Worker operation has no result"))?
+    {
+        AuthorizedHostOperationResult::Launch(result) => {
+            Ok(CapabilityNodeMessage::TerminalLaunchResult(result))
+        }
+        AuthorizedHostOperationResult::Start(result) => {
+            Ok(CapabilityNodeMessage::TerminalStartResult(result))
         }
     }
 }

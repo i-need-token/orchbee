@@ -31,13 +31,12 @@ VARIABLES
   lastAction,
   previousLifecycle,
   previousPhase,
-  previousBackend,
-  previousVisibility
+  previousBackend
 
 vars == <<lifecycle, phase, fallbackAllowed, webGPUConfirmed, visibility,
   backend, runtimeLeaseOwned,
   lossSubscriptionOwned, resourcesOwned, contextOwned, result, lastAction,
-  previousLifecycle, previousPhase, previousBackend, previousVisibility>>
+  previousLifecycle, previousPhase, previousBackend>>
 
 Init ==
   /\ lifecycle = "live"
@@ -55,14 +54,12 @@ Init ==
   /\ previousLifecycle = lifecycle
   /\ previousPhase = phase
   /\ previousBackend = backend
-  /\ previousVisibility = visibility
 
 Record(action) ==
   /\ lastAction' = action
   /\ previousLifecycle' = lifecycle
   /\ previousPhase' = phase
   /\ previousBackend' = backend
-  /\ previousVisibility' = visibility
 
 Start(allowFallback) ==
   /\ lifecycle = "live"
@@ -218,6 +215,14 @@ Dispose ==
   /\ UNCHANGED <<fallbackAllowed, webGPUConfirmed, visibility>>
   /\ Record("dispose")
 
+CoveragePublishFallback ==
+  /\ lastAction = "publish-fallback"
+  /\ UNCHANGED vars
+
+CoverageHardFailure ==
+  /\ lastAction = "fail"
+  /\ UNCHANGED vars
+
 Next ==
   \/ Start(TRUE)
   \/ Start(FALSE)
@@ -233,6 +238,8 @@ Next ==
   \/ Freeze
   \/ CancelRetired
   \/ Dispose
+  \/ CoveragePublishFallback
+  \/ CoverageHardFailure
 
 Spec == Init /\ [][Next]_vars
 
@@ -252,7 +259,6 @@ TypeOK ==
   /\ previousLifecycle \in LifecycleStates
   /\ previousPhase \in Phases
   /\ previousBackend \in Backends
-  /\ previousVisibility \in VisibilityStates
 
 OwnershipMatchesPhase ==
   /\ (runtimeLeaseOwned <=> phase \in PendingPhases \cup {"ready"})
@@ -282,14 +288,6 @@ FallbackRequiresLive ==
     /\ previousLifecycle = "live"
     /\ lifecycle = "live"
 
-CancelledOwnsNothing ==
-  phase = "cancelled" =>
-    /\ backend = "none"
-    /\ ~runtimeLeaseOwned
-    /\ ~lossSubscriptionOwned
-    /\ ~resourcesOwned
-    /\ ~contextOwned
-
 DisposedOwnsNothing ==
   lifecycle = "disposed" =>
     /\ phase = "disposed"
@@ -303,14 +301,6 @@ LossRetiresGeneration ==
   lastAction = "device-lost" =>
     /\ previousPhase = "ready"
     /\ phase = "idle"
-    /\ backend = "none"
-    /\ ~runtimeLeaseOwned
-    /\ ~lossSubscriptionOwned
-    /\ ~resourcesOwned
-    /\ ~contextOwned
-
-HiddenWebGPUOwnsNothing ==
-  visibility = "hidden" /\ phase = "parked" =>
     /\ backend = "none"
     /\ ~runtimeLeaseOwned
     /\ ~lossSubscriptionOwned

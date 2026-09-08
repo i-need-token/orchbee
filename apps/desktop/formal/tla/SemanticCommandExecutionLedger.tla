@@ -22,7 +22,7 @@ Actions == {
   "request-cancellation", "repeat-cancellation", "cancel-terminal",
   "cancel-committed",
   "mark-committed", "complete-uncommitted", "complete-committed",
-  "disconnect", "reconnect", "restart"
+  "restart"
 }
 
 VARIABLES
@@ -32,17 +32,19 @@ VARIABLES
   executionPhase,
   terminalResult,
   cancellationForwards,
+  previousCancellationForwards,
   commitAttempts,
   handlerStarts,
+  executionAdmissionCount,
   usedExecutions,
   terminalOrder,
-  connected,
   generation,
   lastAction
 
 vars == <<requestFingerprint, requestExecution, executionRequest,
-  executionPhase, terminalResult, cancellationForwards, commitAttempts,
-  handlerStarts, usedExecutions, terminalOrder, connected, generation,
+  executionPhase, terminalResult, cancellationForwards,
+  previousCancellationForwards, commitAttempts, handlerStarts,
+  executionAdmissionCount, usedExecutions, terminalOrder, generation,
   lastAction>>
 
 ActiveExecutions == {execution \in Executions : executionPhase[execution] = "active"}
@@ -63,6 +65,10 @@ TrimTerminalOrder(sequence) ==
   THEN sequence
   ELSE TrimTerminalOrder(Tail(sequence))
 
+Record(action) ==
+  /\ lastAction' = action
+  /\ previousCancellationForwards' = cancellationForwards
+
 Init ==
   /\ requestFingerprint = [request \in Requests |-> NoFingerprint]
   /\ requestExecution = [request \in Requests |-> NoExecution]
@@ -70,11 +76,12 @@ Init ==
   /\ executionPhase = [execution \in Executions |-> "absent"]
   /\ terminalResult = [execution \in Executions |-> NoResult]
   /\ cancellationForwards = [execution \in Executions |-> 0]
+  /\ previousCancellationForwards = cancellationForwards
   /\ commitAttempts = [execution \in Executions |-> 0]
   /\ handlerStarts = [request \in Requests |-> 0]
+  /\ executionAdmissionCount = [execution \in Executions |-> 0]
   /\ usedExecutions = {}
   /\ terminalOrder = <<>>
-  /\ connected = TRUE
   /\ generation = 1
   /\ lastAction = "init"
 
@@ -83,16 +90,18 @@ RejectInvalid(request) ==
   /\ requestExecution[request] = NoExecution
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "reject-invalid"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("reject-invalid")
 
 RejectUnauthorized(request) ==
   /\ request \in Requests
   /\ requestExecution[request] = NoExecution
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "reject-unauthorized"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("reject-unauthorized")
 
 RejectCapacity(request, fingerprint) ==
   /\ request \in Requests
@@ -101,8 +110,9 @@ RejectCapacity(request, fingerprint) ==
   /\ Cardinality(ActiveExecutions) >= MaxActive
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "reject-capacity"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("reject-capacity")
 
 Admit(request, fingerprint, execution) ==
   /\ request \in Requests
@@ -116,10 +126,12 @@ Admit(request, fingerprint, execution) ==
   /\ executionRequest' = [executionRequest EXCEPT ![execution] = request]
   /\ executionPhase' = [executionPhase EXCEPT ![execution] = "active"]
   /\ handlerStarts' = [handlerStarts EXCEPT ![request] = @ + 1]
+  /\ executionAdmissionCount' =
+       [executionAdmissionCount EXCEPT ![execution] = @ + 1]
   /\ usedExecutions' = usedExecutions \cup {execution}
   /\ UNCHANGED <<terminalResult, cancellationForwards, commitAttempts,
-       terminalOrder, connected, generation>>
-  /\ lastAction' = "admit"
+       terminalOrder, generation>>
+  /\ Record("admit")
 
 ReplaySame(request, fingerprint) ==
   /\ request \in Requests
@@ -128,8 +140,9 @@ ReplaySame(request, fingerprint) ==
   /\ requestFingerprint[request] = fingerprint
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "replay-same"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("replay-same")
 
 RejectConflict(request, fingerprint) ==
   /\ request \in Requests
@@ -138,24 +151,27 @@ RejectConflict(request, fingerprint) ==
   /\ requestFingerprint[request] # fingerprint
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "reject-conflict"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("reject-conflict")
 
 ReadRetained(request) ==
   /\ request \in Requests
   /\ requestExecution[request] # NoExecution
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "read-retained"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("read-retained")
 
 ReadMissing(request) ==
   /\ request \in Requests
   /\ requestExecution[request] = NoExecution
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "read-missing"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("read-missing")
 
 RequestCancellation(execution) ==
   /\ execution \in ActiveExecutions
@@ -164,8 +180,8 @@ RequestCancellation(execution) ==
   /\ cancellationForwards' = [cancellationForwards EXCEPT ![execution] = 1]
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, commitAttempts, handlerStarts,
-       usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "request-cancellation"
+       executionAdmissionCount, usedExecutions, terminalOrder, generation>>
+  /\ Record("request-cancellation")
 
 RepeatCancellation(execution) ==
   /\ execution \in ActiveExecutions
@@ -173,23 +189,26 @@ RepeatCancellation(execution) ==
   /\ cancellationForwards[execution] = 1
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "repeat-cancellation"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("repeat-cancellation")
 
 CancelTerminal(execution) ==
   /\ execution \in TerminalExecutions
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "cancel-terminal"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("cancel-terminal")
 
 CancelCommitted(execution) ==
   /\ execution \in ActiveExecutions
   /\ commitAttempts[execution] = 1
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "cancel-committed"
+       handlerStarts, executionAdmissionCount, usedExecutions, terminalOrder,
+       generation>>
+  /\ Record("cancel-committed")
 
 MarkCommitted(execution) ==
   /\ execution \in ActiveExecutions
@@ -197,8 +216,8 @@ MarkCommitted(execution) ==
   /\ commitAttempts' = [commitAttempts EXCEPT ![execution] = 1]
   /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
        executionPhase, terminalResult, cancellationForwards, handlerStarts,
-       usedExecutions, terminalOrder, connected, generation>>
-  /\ lastAction' = "mark-committed"
+       executionAdmissionCount, usedExecutions, terminalOrder, generation>>
+  /\ Record("mark-committed")
 
 FinishExecution(execution, result) ==
   LET retainedOrder == TrimTerminalOrder(Append(terminalOrder, execution))
@@ -240,36 +259,20 @@ FinishExecution(execution, result) ==
     /\ handlerStarts' =
          [request \in Requests |->
            IF requestExecution[request] \in discarded THEN 0 ELSE handlerStarts[request]]
-    /\ UNCHANGED <<usedExecutions, connected, generation>>
+    /\ UNCHANGED <<executionAdmissionCount, usedExecutions, generation>>
 
 CompleteUncommitted(execution, result) ==
   /\ execution \in ActiveExecutions
   /\ result \in UncommittedResults
   /\ commitAttempts[execution] = 0
   /\ FinishExecution(execution, result)
-  /\ lastAction' = "complete-uncommitted"
+  /\ Record("complete-uncommitted")
 
 CompleteCommitted(execution) ==
   /\ execution \in ActiveExecutions
   /\ commitAttempts[execution] = 1
   /\ FinishExecution(execution, "completed")
-  /\ lastAction' = "complete-committed"
-
-Disconnect ==
-  /\ connected
-  /\ connected' = FALSE
-  /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
-       executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, generation>>
-  /\ lastAction' = "disconnect"
-
-Reconnect ==
-  /\ ~connected
-  /\ connected' = TRUE
-  /\ UNCHANGED <<requestFingerprint, requestExecution, executionRequest,
-       executionPhase, terminalResult, cancellationForwards, commitAttempts,
-       handlerStarts, usedExecutions, terminalOrder, generation>>
-  /\ lastAction' = "reconnect"
+  /\ Record("complete-committed")
 
 Restart ==
   /\ generation < MaxGeneration
@@ -281,11 +284,11 @@ Restart ==
   /\ cancellationForwards' = [execution \in Executions |-> 0]
   /\ commitAttempts' = [execution \in Executions |-> 0]
   /\ handlerStarts' = [request \in Requests |-> 0]
+  /\ executionAdmissionCount' = [execution \in Executions |-> 0]
   /\ usedExecutions' = {}
   /\ terminalOrder' = <<>>
   /\ generation' = generation + 1
-  /\ UNCHANGED connected
-  /\ lastAction' = "restart"
+  /\ Record("restart")
 
 Next ==
   \/ \E request \in Requests: RejectInvalid(request)
@@ -307,8 +310,6 @@ Next ==
   \/ \E execution \in Executions, result \in UncommittedResults:
        CompleteUncommitted(execution, result)
   \/ \E execution \in Executions: CompleteCommitted(execution)
-  \/ Disconnect
-  \/ Reconnect
   \/ Restart
 
 Spec == Init /\ [][Next]_vars
@@ -320,12 +321,13 @@ TypeOK ==
   /\ executionRequest \in [Executions -> Requests \cup {NoRequest}]
   /\ executionPhase \in [Executions -> Phases]
   /\ terminalResult \in [Executions -> Results \cup {NoResult}]
-  /\ cancellationForwards \in [Executions -> 0..1]
+  /\ cancellationForwards \in [Executions -> 0..2]
+  /\ previousCancellationForwards \in [Executions -> 0..2]
   /\ commitAttempts \in [Executions -> 0..1]
   /\ handlerStarts \in [Requests -> 0..1]
+  /\ executionAdmissionCount \in [Executions -> 0..2]
   /\ usedExecutions \subseteq Executions
   /\ terminalOrder \in Seq(Executions)
-  /\ connected \in BOOLEAN
   /\ generation \in 1..MaxGeneration
   /\ lastAction \in Actions
 
@@ -347,8 +349,13 @@ RetainedRequestHasOneHandlerStart ==
     requestExecution[request] # NoExecution <=> handlerStarts[request] = 1
 
 ExecutionIdentityIsProcessUnique ==
-  \A execution \in Executions:
-    executionPhase[execution] # "absent" => execution \in usedExecutions
+  /\ \A execution \in Executions:
+       executionAdmissionCount[execution] <= 1
+  /\ usedExecutions =
+       {execution \in Executions: executionAdmissionCount[execution] = 1}
+  /\ \A execution \in Executions:
+       executionPhase[execution] # "absent" =>
+         executionAdmissionCount[execution] = 1
 
 ActiveExecutionCapacity == Cardinality(ActiveExecutions) <= MaxActive
 
@@ -366,6 +373,10 @@ ExecutionResultMatchesPhase ==
 
 CancellationForwardedAtMostOnce ==
   \A execution \in Executions: cancellationForwards[execution] <= 1
+
+CancelCommittedDoesNotForward ==
+  lastAction = "cancel-committed" =>
+    cancellationForwards = previousCancellationForwards
 
 CommittedExecutionNeverCancels ==
   \A execution \in Executions:

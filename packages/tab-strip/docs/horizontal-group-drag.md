@@ -75,17 +75,29 @@ An armed or active group drag records:
 Pointer coordinates, DOM nodes, timers, and animation objects are not semantic state. Adapters
 convert them into target observations, logical clock events, and render commands.
 
+The TLA+ bound contains six tab identities: one pinned tab, two ordered members of the dragged
+Research group, two ordered members of the neighboring Build group, and one ungrouped tab. It
+explores every initial collapsed-group subset and active tab, three whole-block positions for the
+Research members, and one membership invalidation between arm and activation. Research is the only
+drag source in this finite model. Lean and generated property tests cover arbitrary valid member
+lists beyond that bound.
+
 ## Events
 
-| Event          | Required data                  | Meaning                                                                                                                                        |
-| -------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ArmGroup`     | Group identity                 | Record a possible header drag without changing authoritative state                                                                             |
-| `ActivateDrag` | None                           | Cross the activation threshold and enter the drag loop                                                                                         |
-| `MoveTo`       | Valid pre-removal target index | Preview and apply a whole-group reorder                                                                                                        |
-| `Commit`       | None                           | Keep the final order and restore post-drag collapse and selection semantics                                                                    |
-| `Cancel`       | None                           | Restore the complete pre-drag authoritative state                                                                                              |
-| `Settle`       | None                           | End the release animation after the final logical frame                                                                                        |
-| `ToggleGroup`  | Group identity                 | Collapse or expand the group without changing an active member's identity; collapse changes its visible surface from child tab to group header |
+| Event                        | Required data                  | Meaning                                                                                                                                        |
+| ---------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ArmGroup`                   | Group identity                 | Record a possible header drag without changing authoritative state                                                                             |
+| `ActivateDrag`               | None                           | Cross the activation threshold and enter the drag loop                                                                                         |
+| `MoveTo`                     | Valid pre-removal target index | Preview and apply a whole-group reorder                                                                                                        |
+| `Commit`                     | None                           | Keep the final order and restore post-drag collapse and selection semantics                                                                    |
+| `Cancel`                     | None                           | Restore the complete pre-drag authoritative state                                                                                              |
+| `Settle`                     | None                           | End the release animation after the final logical frame                                                                                        |
+| `ToggleGroup`                | Group identity                 | Collapse or expand the group without changing an active member's identity; collapse changes its visible surface from child tab to group header |
+| `InvalidateSourceMembership` | Captured member                | Represent a bounded owner-state change after arm and before activation                                                                         |
+| `RejectStaleActivation`      | None                           | Retire an armed gesture whose captured members no longer form the source group without an authoritative command                                |
+| `RejectMissingGroup`         | Group identity                 | Receive and reject an unknown group without changing authoritative state or emitting a command                                                 |
+| `RejectOutOfPhaseEvent`      | Event                          | Receive and reject an event in the wrong drag phase without changing state or emitting a command                                               |
+| `RejectRepeatedEvent`        | Event                          | Receive a repeated event as an exact no-op                                                                                                     |
 
 Repeated or out-of-phase events are explicit no-ops. An event referencing a missing group, missing
 member, or invalid target must not partially mutate state.
@@ -94,30 +106,32 @@ member, or invalid target must not partially mutate state.
 
 These names are stable evidence identifiers:
 
-| Claim                               | Required truth                                                                                                                |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `UniqueTabIdentity`                 | No two tabs have the same identity                                                                                            |
-| `KnownGroupMembership`              | Every non-null tab group references a known group                                                                             |
-| `PinnedPrefix`                      | Pinned tabs form one contiguous prefix and are not grouped                                                                    |
-| `GroupContiguous`                   | Every group's members occupy one contiguous range                                                                             |
-| `ActiveTabExists`                   | A non-null active identity exists in `tabs`                                                                                   |
-| `StableActiveSurfaceExists`         | Outside temporary `dragging`, the active identity has a visible tab or collapsed group-header surface                         |
-| `CollapsedActiveUsesGroupHeader`    | If a collapsed group contains the active tab, its header is the active surface while the child identity remains authoritative |
-| `SelectionExists`                   | Every selected identity exists in `tabs`                                                                                      |
-| `DragSourceExists`                  | Every armed, dragging, or settling group and member still exists                                                              |
-| `GroupMovePermutation`              | Moving a group preserves the complete ordered set of tab identities up to permutation                                         |
-| `GroupMoveAtomic`                   | A group-header move preserves membership and moves the entire group as one block                                              |
-| `GroupTargetBoundary`               | A committed group boundary never splits another group                                                                         |
-| `CollapsedDragStaysCompact`         | A group collapsed before activation remains collapsed and uses one compact header visual                                      |
-| `ExpandedDragKeepsFullVisual`       | A group expanded before activation uses a full header-plus-tabs visual while its backing model is temporarily collapsed       |
-| `CompletionRestoresCollapsedIntent` | Commit restores the exact pre-drag collapsed intent                                                                           |
-| `CompletionSelectsRecordedActive`   | Commit leaves only the recorded group member selected and active; a collapsed result projects it through the header           |
-| `CancelRestoresAuthoritativeState`  | Cancel restores order, membership, collapse, active, selection, anchor, and focus facts                                       |
-| `NoInvalidDropFeedback`             | The observable projection exposes no drop location that `MoveTo` would reject                                                 |
-| `SettledVisualsDoNotOverlap`        | At settle, distinct collection slots have no undeclared occupied-bounds overlap                                               |
+| Claim                                        | Required truth                                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `UniqueTabIdentity`                          | No two tabs have the same identity                                                                                            |
+| `KnownGroupMembership`                       | Every non-null tab group references a known group                                                                             |
+| `PinnedPrefix`                               | Pinned tabs form one contiguous prefix and are not grouped                                                                    |
+| `GroupContiguous`                            | Every group's members occupy one contiguous range                                                                             |
+| `ActiveTabExists`                            | A non-null active identity exists in `tabs`                                                                                   |
+| `StableActiveSurfaceExists`                  | Outside temporary `dragging`, the active identity has a visible tab or collapsed group-header surface                         |
+| `CollapsedActiveUsesGroupHeader`             | If a collapsed group contains the active tab, its header is the active surface while the child identity remains authoritative |
+| `SelectionExists`                            | Every selected identity exists in `tabs`                                                                                      |
+| `DragSourceExists`                           | Every armed, dragging, or settling group and member still exists                                                              |
+| `GroupMovePermutation`                       | Moving a group preserves the complete ordered set of tab identities up to permutation                                         |
+| `GroupMoveAtomic`                            | A group-header move preserves membership and moves the entire group as one block                                              |
+| `GroupTargetBoundary`                        | A committed group boundary never splits another group                                                                         |
+| `CollapsedDragStaysCompact`                  | A group collapsed before activation remains collapsed and uses one compact header visual                                      |
+| `ExpandedDragKeepsFullVisual`                | A group expanded before activation uses a full header-plus-tabs visual while its backing model is temporarily collapsed       |
+| `CompletionRestoresCollapsedIntent`          | Commit restores the exact pre-drag collapsed intent                                                                           |
+| `CompletionSelectsRecordedActive`            | Commit leaves only the recorded group member selected and active; a collapsed result projects it through the header           |
+| `CancelRestoresAuthoritativeState`           | Cancel restores order, membership, collapse, active, selection, and selection-anchor facts                                    |
+| `NoInvalidDropFeedback`                      | The observable projection exposes no drop location that `MoveTo` would reject                                                 |
+| `SettledVisualsDoNotOverlap`                 | At settle, distinct collection slots have no undeclared occupied-bounds overlap                                               |
+| `RejectedInputPreservesAuthorityAndCommands` | Missing, stale, repeated, out-of-phase, and invalid-target inputs emit no authoritative command or mutation                   |
+| `StaleActivationRetiresWithoutMutation`      | A source-membership mismatch retires the armed gesture while preserving the newer authoritative state                         |
 
-The last two claims require deterministic geometry traces. The remaining claims are owned by the
-semantic transition and can be checked without a browser.
+`NoInvalidDropFeedback` and `SettledVisualsDoNotOverlap` require deterministic geometry traces.
+The remaining claims are owned by the semantic transition and can be checked without a browser.
 
 ## Transition contract
 
@@ -134,6 +148,10 @@ semantic transition and can be checked without a browser.
 `ActivateDrag` may temporarily change the backing group's collapsed value to remove the original
 collection from layout. This is a projection mechanism, not a change in the user's collapsed
 intent, so both facts remain explicit in state.
+
+The model assumes no fairness for activation, release, cancellation, or settling. A pointer may
+remain below threshold or held during a drag indefinitely; transitions occur only after the
+corresponding environment event is received.
 
 ## Observable checkpoints
 
@@ -158,6 +176,12 @@ intent, so both facts remain explicit in state.
 | Cancellation                               | Required                | Optional restoration lemma       | Required            | Escape and pointer-cancel traces | Controller revert path                  |
 | Dragged visual and displacement            | Abstract ownership only | Not applicable: geometry adapter | Geometry properties | Required                         | Source layout plus recorded observation |
 | Settle and non-overlap                     | Abstract release phase  | Not applicable: geometry adapter | Geometry properties | Required                         | Recorded observation                    |
+
+The semantic state owns `selectionAnchorId`, so cancellation restores it in TLA+ and refinement
+tests. DOM focus is adapter state and is not part of `CancelRestoresAuthoritativeState`; the
+deterministic browser suite owns focus projection, including the focused collapsed group-header
+checkpoint. The Escape cancellation trace checks the restored semantic and painted state without
+claiming an unmodeled DOM-focus identity.
 
 ## Implementation bridge
 

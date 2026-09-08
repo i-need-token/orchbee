@@ -50,7 +50,8 @@ VARIABLES
   priorGeometryRevision,
   priorTerminalState,
   lastAction,
-  lastSession
+  lastSession,
+  viewerTransitionValid
 
 DomainVars == <<
   serverUp,
@@ -72,7 +73,8 @@ AuditVars == <<
   priorGeometryRevision,
   priorTerminalState,
   lastAction,
-  lastSession
+  lastSession,
+  viewerTransitionValid
 >>
 
 vars == <<DomainVars, AuditVars>>
@@ -119,6 +121,14 @@ Record(action, session) ==
   /\ lastAction' = action
   /\ lastSession' = session
 
+RecordPreservingViewers(action, session) ==
+  /\ Record(action, session)
+  /\ UNCHANGED viewerTransitionValid
+
+RecordViewerTransition(action, session, expectedViewers) ==
+  /\ Record(action, session)
+  /\ viewerTransitionValid' = (viewers' = expectedViewers)
+
 Init ==
   /\ serverUp = TRUE
   /\ workerUp = TRUE
@@ -137,6 +147,7 @@ Init ==
   /\ priorTerminalState = terminalState
   /\ lastAction = "init"
   /\ lastSession = NoController
+  /\ viewerTransitionValid = TRUE
 
 OpenInitialSession(client) ==
   /\ serverUp
@@ -146,7 +157,7 @@ OpenInitialSession(client) ==
   /\ sessionGeneration' = [sessionGeneration EXCEPT ![client] = 1]
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, viewers,
        controller, pendingCleanup, inputSequence, geometryRevision>>
-  /\ Record(
+  /\ RecordPreservingViewers(
        "open-initial-session",
        [client |-> client, generation |-> 1]
      )
@@ -160,7 +171,7 @@ ReconnectSession(client) ==
        /\ sessionOpen' = [sessionOpen EXCEPT ![client] = TRUE]
        /\ sessionGeneration' =
             [sessionGeneration EXCEPT ![client] = nextGeneration]
-       /\ Record(
+       /\ RecordPreservingViewers(
             "reconnect-session",
             [client |-> client, generation |-> nextGeneration]
           )
@@ -175,7 +186,11 @@ AttachFirstViewer(client) ==
      IN
        /\ session \notin viewers
        /\ viewers' = viewers \cup {session}
-       /\ Record("attach-first-viewer", session)
+       /\ RecordViewerTransition(
+            "attach-first-viewer",
+            session,
+            viewers \cup {session}
+          )
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, controller, pendingCleanup, inputSequence,
        geometryRevision>>
@@ -188,7 +203,11 @@ AttachAdditionalViewer(client) ==
      IN
        /\ session \notin viewers
        /\ viewers' = viewers \cup {session}
-       /\ Record("attach-additional-viewer", session)
+       /\ RecordViewerTransition(
+            "attach-additional-viewer",
+            session,
+            viewers \cup {session}
+          )
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, controller, pendingCleanup, inputSequence,
        geometryRevision>>
@@ -201,7 +220,7 @@ AcquireUnownedController(client) ==
      IN
        /\ session \in viewers
        /\ controller' = session
-       /\ Record("acquire-unowned-controller", session)
+       /\ RecordPreservingViewers("acquire-unowned-controller", session)
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, viewers, pendingCleanup, inputSequence,
        geometryRevision>>
@@ -214,7 +233,7 @@ AcceptControllerInput(client) ==
      IN
        /\ session = controller
        /\ inputSequence' = inputSequence + 1
-       /\ Record("accept-controller-input", session)
+       /\ RecordPreservingViewers("accept-controller-input", session)
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, viewers, controller, pendingCleanup,
        geometryRevision>>
@@ -226,7 +245,7 @@ RejectNonControllerInput(client) ==
      IN
        /\ session \in viewers
        /\ session # controller
-       /\ Record("reject-non-controller-input", session)
+       /\ RecordPreservingViewers("reject-non-controller-input", session)
   /\ UNCHANGED DomainVars
 
 AcceptControllerResize(client) ==
@@ -237,7 +256,7 @@ AcceptControllerResize(client) ==
      IN
        /\ session = controller
        /\ geometryRevision' = geometryRevision + 1
-       /\ Record("accept-controller-resize", session)
+       /\ RecordPreservingViewers("accept-controller-resize", session)
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, viewers, controller, pendingCleanup,
        inputSequence>>
@@ -249,7 +268,7 @@ RejectNonControllerResize(client) ==
      IN
        /\ session \in viewers
        /\ session # controller
-       /\ Record("reject-non-controller-resize", session)
+       /\ RecordPreservingViewers("reject-non-controller-resize", session)
   /\ UNCHANGED DomainVars
 
 DetachControllerAttachment(client) ==
@@ -260,7 +279,11 @@ DetachControllerAttachment(client) ==
        /\ session = controller
        /\ viewers' = viewers \ {session}
        /\ controller' = NoController
-       /\ Record("detach-controller", session)
+       /\ RecordViewerTransition(
+            "detach-controller",
+            session,
+            viewers \ {session}
+          )
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, pendingCleanup, inputSequence, geometryRevision>>
 
@@ -272,7 +295,11 @@ DetachViewerAttachment(client) ==
        /\ session \in viewers
        /\ session # controller
        /\ viewers' = viewers \ {session}
-       /\ Record("detach-viewer", session)
+       /\ RecordViewerTransition(
+            "detach-viewer",
+            session,
+            viewers \ {session}
+          )
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, controller, pendingCleanup, inputSequence,
        geometryRevision>>
@@ -287,7 +314,11 @@ DisconnectController(client) ==
        /\ viewers' = viewers \ {session}
        /\ controller' = NoController
        /\ pendingCleanup' = pendingCleanup \cup {session}
-       /\ Record("disconnect-controller", session)
+       /\ RecordViewerTransition(
+            "disconnect-controller",
+            session,
+            viewers \ {session}
+          )
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState,
        sessionGeneration, inputSequence, geometryRevision>>
 
@@ -301,7 +332,11 @@ DisconnectViewer(client) ==
        /\ sessionOpen' = [sessionOpen EXCEPT ![client] = FALSE]
        /\ viewers' = viewers \ {session}
        /\ pendingCleanup' = pendingCleanup \cup {session}
-       /\ Record("disconnect-viewer", session)
+       /\ RecordViewerTransition(
+            "disconnect-viewer",
+            session,
+            viewers \ {session}
+          )
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState,
        sessionGeneration, controller, inputSequence, geometryRevision>>
 
@@ -312,10 +347,15 @@ DisconnectUnattachedSession(client) ==
      IN
        /\ session \notin viewers
        /\ sessionOpen' = [sessionOpen EXCEPT ![client] = FALSE]
+       /\ viewers' = viewers
        /\ pendingCleanup' = pendingCleanup \cup {session}
-       /\ Record("disconnect-unattached-session", session)
+       /\ RecordViewerTransition(
+            "disconnect-unattached-session",
+            session,
+            viewers
+          )
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState,
-       sessionGeneration, viewers, controller, inputSequence,
+       sessionGeneration, controller, inputSequence,
        geometryRevision>>
 
 CleanupDisconnectedSession(session) ==
@@ -329,7 +369,11 @@ CleanupDisconnectedSession(session) ==
        IF controller = session THEN NoController ELSE controller
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, inputSequence, geometryRevision>>
-  /\ Record("cleanup-disconnected-session", session)
+  /\ RecordViewerTransition(
+       "cleanup-disconnected-session",
+       session,
+       viewers \ {session}
+     )
 
 HasNewControllerFor(session) ==
   /\ controller \in SessionRefs
@@ -347,7 +391,11 @@ CleanupStaleSession(session) ==
        IF controller = session THEN NoController ELSE controller
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, inputSequence, geometryRevision>>
-  /\ Record("cleanup-stale-session", session)
+  /\ RecordViewerTransition(
+       "cleanup-stale-session",
+       session,
+       viewers \ {session}
+     )
 
 CleanupStaleAfterRegrant(session) ==
   /\ serverUp
@@ -360,7 +408,11 @@ CleanupStaleAfterRegrant(session) ==
        IF controller = session THEN NoController ELSE controller
   /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, inputSequence, geometryRevision>>
-  /\ Record("cleanup-stale-after-regrant", session)
+  /\ RecordViewerTransition(
+       "cleanup-stale-after-regrant",
+       session,
+       viewers \ {session}
+     )
 
 LoseServer ==
   /\ serverUp
@@ -369,7 +421,7 @@ LoseServer ==
   /\ UNCHANGED <<workerUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, viewers, pendingCleanup,
        inputSequence, geometryRevision>>
-  /\ Record("lose-server", controller)
+  /\ RecordPreservingViewers("lose-server", controller)
 
 LoseWorker ==
   /\ workerUp
@@ -378,7 +430,7 @@ LoseWorker ==
   /\ UNCHANGED <<serverUp, hostUp, terminalState, sessionOpen,
        sessionGeneration, viewers, pendingCleanup,
        inputSequence, geometryRevision>>
-  /\ Record("lose-worker", controller)
+  /\ RecordPreservingViewers("lose-worker", controller)
 
 LoseHost ==
   /\ hostUp
@@ -388,7 +440,7 @@ LoseHost ==
   /\ UNCHANGED <<serverUp, workerUp, sessionOpen, sessionGeneration,
        viewers, controller, pendingCleanup, inputSequence,
        geometryRevision>>
-  /\ Record("lose-host", controller)
+  /\ RecordPreservingViewers("lose-host", controller)
 
 CleanupAny ==
   \/ \E session \in SessionRefs: CleanupDisconnectedSession(session)
@@ -441,6 +493,7 @@ TypeOK ==
   /\ priorTerminalState \in TerminalStates
   /\ lastAction \in Actions
   /\ lastSession \in ControllerValues
+  /\ viewerTransitionValid \in BOOLEAN
 
 ViewerBelongsToCurrentSession ==
   \A session \in viewers: SessionRecordIsCurrent(session)
@@ -522,6 +575,8 @@ ViewerDetachPreservesSession ==
   lastAction = "detach-viewer" =>
     /\ lastSession \notin viewers
     /\ SessionRecordIsCurrent(lastSession)
+
+ViewerTransitionsAreExact == viewerTransitionValid
 
 StaleCleanupPreservesNewAuthority ==
   lastAction = "cleanup-stale-after-regrant" =>

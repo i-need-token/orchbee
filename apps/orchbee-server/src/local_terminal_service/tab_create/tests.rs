@@ -1,0 +1,294 @@
+use super::*;
+use crate::{
+    site_coordinator::PreparedTerminalTabCreate,
+    terminal_coordinator::{Completion, WorkerPlacement},
+    worker_obcn_carrier::{WorkerWireExit, create_worker_carrier},
+    worker_registry::{WorkerAdmission, WorkerRegistry},
+};
+use orchbee_capability_node_protocol::{
+    CapabilityNodeMessage, WorkerGeneration, read_message as read_capability_message,
+};
+use orchbee_client_server_protocol::{Geometry, OpenOutcome, TerminalOpenRequest};
+use orchbee_local_site_protocol::WorkerId as LocalWorkerId;
+use orchbee_workbench_protocol::{
+    WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason, WorkbenchLabel,
+    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
+    WorkbenchSnapshotOutcome, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+};
+use std::{
+    error::Error,
+    num::NonZeroU64,
+    os::unix::net::UnixStream,
+    sync::{Arc, Mutex, mpsc},
+    thread,
+    time::Duration,
+};
+
+type TestResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
+
+fn command(service: &LocalTerminalService, request: u128, revision: u64) -> WorkbenchCommand {
+    let snapshot = snapshot(service);
+    WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{request:032x}")).unwrap(),
+        site_id: snapshot.site_id,
+        expected_revision: WorkbenchRevision::new(revision),
+        action: WorkbenchAction::TabCreate {
+            terminal_context_id: snapshot.navigation.standalone_terminal_context_id,
+            label: WorkbenchLabel::parse("service tab").unwrap(),
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+        },
+    }
+}
+
+fn snapshot(service: &LocalTerminalService) -> orchbee_workbench_protocol::Snapshot {
+    let request = WorkbenchRequest::SnapshotRead(orchbee_workbench_protocol::SnapshotReadIntent {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{:032x}", 9_999)).unwrap(),
+    });
+    let response = service
+        .execute_workbench(request.try_into().unwrap(), false)
+        .unwrap();
+    let WorkbenchResponse::Snapshot(result) = response else {
+        panic!("Snapshot result expected")
+    };
+    let WorkbenchSnapshotOutcome::Available { snapshot } = result.outcome else {
+        panic!("available Snapshot expected")
+    };
+    snapshot
+}
+
+fn worker() -> WorkerPlacement {
+    WorkerPlacement {
+        worker_id: orchbee_capability_node_protocol::WorkerId::from_bytes([9; 16]).unwrap(),
+        generation: WorkerGeneration::new(NonZeroU64::MIN),
+    }
+}
+
+#[test]
+fn service_replays_pending_and_final_before_missing_entropy_clock_or_worker() {
+    let service = LocalTerminalService::new(Arc::new(Mutex::new(WorkerRegistry::new())));
+    let command = command(&service, 1_001, 0);
+    let pending = {
+        let mut coordinator = service.coordinator.lock().unwrap();
+        let PreparedTerminalTabCreate::Dispatch(pending) = coordinator.prepare_terminal_tab_create(
+            command.clone(),
+            Some(RequestId::parse(&format!("{:032x}", 1_002)).unwrap()),
+            lease_expiry(),
+            Some(worker()),
+        ) else {
+            panic!("dispatch expected")
+        };
+        pending
+    };
+
+    let replay = service
+        .execute_terminal_tab_create_with_candidates(command.clone(), None, None)
+        .unwrap();
+    assert!(matches!(
+        replay.outcome,
+        WorkbenchCommandOutcome::TabCreatePending { .. }
+    ));
+
+    let final_result = service
+        .coordinator
+        .lock()
+        .unwrap()
+        .complete_terminal_tab_create(pending, Completion::Unknown, Some(worker()))
+        .unwrap()
+        .result;
+    assert_eq!(
+        service
+            .execute_terminal_tab_create_with_candidates(command, None, None)
+            .unwrap(),
+        final_result
+    );
+}
+
+#[test]
+fn registry_and_site_gate_failures_before_commit_return_server_busy() {
+    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
+    let service = LocalTerminalService::new(Arc::clone(&registry));
+    let registry_command = command(&service, 1_051, 0);
+    let poison = Arc::clone(&registry);
+    assert!(
+        thread::spawn(move || {
+            let _guard = poison.lock().unwrap();
+            panic!("poison Worker registry for tab.create boundary")
+        })
+        .join()
+        .is_err()
+    );
+    assert!(matches!(
+        service
+            .execute_terminal_tab_create_with_candidates(registry_command, None, None)
+            .unwrap()
+            .outcome,
+        WorkbenchCommandOutcome::Unavailable {
+            reason: WorkbenchCommandUnavailableReason::ServerBusy,
+        }
+    ));
+
+    let service = LocalTerminalService::new(Arc::new(Mutex::new(WorkerRegistry::new())));
+    let site_command = command(&service, 1_052, 0);
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = service.coordinator.lock().unwrap();
+            panic!("poison Site gate for tab.create boundary")
+        }))
+        .is_err()
+    );
+    assert!(matches!(
+        service
+            .execute_terminal_tab_create_with_candidates(site_command, None, None)
+            .unwrap()
+            .outcome,
+        WorkbenchCommandOutcome::Unavailable {
+            reason: WorkbenchCommandUnavailableReason::ServerBusy,
+        }
+    ));
+}
+
+#[test]
+fn site_gate_loss_after_commit_returns_only_the_close_outcome_unknown_signal() -> TestResult {
+    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
+    let worker_id = LocalWorkerId::from_bytes([9; 16]);
+    let generation = {
+        let mut registry = registry
+            .lock()
+            .map_err(|_poison| "Worker registry poisoned before admission")?;
+        let WorkerAdmission::Accepted { generation } = registry.admit(worker_id) else {
+            return Err("test Worker was not admitted".into());
+        };
+        generation
+    };
+    let carrier = create_worker_carrier(worker_id, generation);
+    let owner = WorkerRegistry::register_carrier(&registry, generation, carrier)
+        .ok_or("test Worker carrier was not registered")?;
+    let (server, mut worker_peer) = UnixStream::pair()?;
+    worker_peer.set_read_timeout(Some(Duration::from_secs(5)))?;
+    let owner_thread = thread::spawn(move || owner.run(server));
+
+    let service = Arc::new(LocalTerminalService::new(registry));
+    let command = command(&service, 1_075, 0);
+    let creator_service = Arc::clone(&service);
+    let (creator_sender, creator_result) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let _ignored = creator_sender.send(creator_service.execute_terminal_tab_create(command));
+    });
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(_launch) =
+        read_capability_message(&mut worker_peer)?
+    else {
+        return Err("tab.create did not dispatch a terminal Launch".into());
+    };
+
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = service.coordinator.lock().unwrap();
+            panic!("poison Site gate after joint commit")
+        }))
+        .is_err()
+    );
+    drop(worker_peer);
+    assert_eq!(
+        creator_result
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|_timeout| "creator did not observe the postcommit Site failure")?,
+        Err(PostcommitCoordinationError)
+    );
+    assert_eq!(
+        owner_thread
+            .join()
+            .map_err(|_panic| "Worker owner panicked")?,
+        WorkerWireExit::RequestFailed
+    );
+    Ok(())
+}
+
+#[test]
+fn silent_worker_timeout_settles_both_owners_and_notifies_first_open_waiter() -> TestResult {
+    const OUTER_DEADLINE: Duration = Duration::from_secs(35);
+
+    let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
+    let worker_id = LocalWorkerId::from_bytes([9; 16]);
+    let generation = {
+        let mut registry = registry
+            .lock()
+            .map_err(|_poison| "Worker registry poisoned before admission")?;
+        let WorkerAdmission::Accepted { generation } = registry.admit(worker_id) else {
+            return Err("test Worker was not admitted".into());
+        };
+        generation
+    };
+    let carrier = create_worker_carrier(worker_id, generation);
+    let owner = WorkerRegistry::register_carrier(&registry, generation, carrier)
+        .ok_or("test Worker carrier was not registered")?;
+    let (server, mut worker_peer) = UnixStream::pair()?;
+    worker_peer.set_read_timeout(Some(Duration::from_secs(5)))?;
+    let owner_thread = thread::spawn(move || owner.run(server));
+
+    let mut service = LocalTerminalService::new(Arc::clone(&registry));
+    service.standalone_wait = Duration::from_secs(30);
+    let service = Arc::new(service);
+    let command = command(&service, 1_101, 0);
+    let terminal_context_id = match &command.action {
+        WorkbenchAction::TabCreate {
+            terminal_context_id,
+            ..
+        } => terminal_context_id.clone(),
+        _ => unreachable!("test constructs tab.create"),
+    };
+    let creator_service = Arc::clone(&service);
+    let (creator_sender, creator_result) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let _ignored = creator_sender.send(creator_service.execute_terminal_tab_create(command));
+    });
+
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(_launch) =
+        read_capability_message(&mut worker_peer)?
+    else {
+        return Err("tab.create did not dispatch a terminal Launch".into());
+    };
+
+    let waiter_service = Arc::clone(&service);
+    let (waiter_sender, waiter_result) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let outcome = waiter_service.open_standalone(&TerminalOpenRequest::new(
+            RequestId::parse(&format!("{:032x}", 1_102)).unwrap(),
+            Geometry::new(80, 24, 8, 16).unwrap(),
+        ));
+        let _ignored = waiter_sender.send(outcome);
+    });
+
+    let result = creator_result
+        .recv_timeout(OUTER_DEADLINE)
+        .map_err(|_timeout| "tab.create did not settle after the production Worker deadline")??;
+    assert_eq!(
+        result.outcome,
+        WorkbenchCommandOutcome::TabCreated {
+            revision: WorkbenchRevision::new(1),
+            terminal_context_id,
+            tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&format!("{:032x}", 2))?,
+            panel_id: orchbee_workbench_protocol::WorkbenchPanelId::parse(&format!("{:032x}", 3))?,
+            presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(&format!(
+                "{:032x}",
+                4
+            ))?,
+            terminal_outcome: WorkbenchTerminalOutcome::OutcomeUnknown {},
+        }
+    );
+    assert_eq!(
+        waiter_result
+            .recv_timeout(OUTER_DEADLINE)
+            .map_err(|_timeout| "Open waiter was not notified after terminal settlement")?,
+        OpenOutcome::OutcomeUnknown {}
+    );
+    assert_eq!(
+        owner_thread
+            .join()
+            .map_err(|_panic| "Worker owner panicked")?,
+        WorkerWireExit::RequestFailed
+    );
+    drop(worker_peer);
+    Ok(())
+}

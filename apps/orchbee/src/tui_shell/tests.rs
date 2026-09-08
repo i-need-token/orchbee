@@ -12,7 +12,7 @@ use std::{
 use ratatui::{Terminal, TerminalOptions, Viewport, backend::TestBackend};
 
 use crate::{
-    client_view::ClientView,
+    client_view::{ClientAction, ClientView, SessionActionDisposition},
     localization::Locale,
     terminal_device::WindowDimensions,
     terminal_input::{TerminalInputPort, TerminalInputUnavailable},
@@ -24,6 +24,86 @@ use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, 
 
 struct QueueInputSource {
     inputs: VecDeque<io::Result<Option<Vec<u8>>>>,
+}
+
+pub(crate) fn run_native_close_resize_confirmation(
+    session: &mut crate::terminal_session::TerminalSession,
+) -> io::Result<Vec<bool>> {
+    struct Surface<'a> {
+        session: &'a mut crate::terminal_session::TerminalSession,
+        prompts_after_draw: Vec<bool>,
+    }
+    impl TerminalInputPort for Surface<'_> {
+        fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            self.session.forward(bytes)
+        }
+        fn apply_client_action(
+            &mut self,
+            action: ClientAction,
+        ) -> Option<SessionActionDisposition> {
+            self.session.apply_client_action(action)
+        }
+        fn capture_confirmation_key(&mut self, key: crate::client_view::ClientKey) -> bool {
+            self.session.capture_confirmation_key(key)
+        }
+        fn invalidate_close_display(&mut self) {
+            self.session.invalidate_close_display();
+        }
+        fn observe_geometry(&mut self, geometry: orchbee_client_server_protocol::Geometry) {
+            self.session.observe_geometry(geometry);
+        }
+    }
+    impl super::TerminalSurface for Surface<'_> {
+        fn tick(&mut self) -> bool {
+            self.session.tick()
+        }
+        fn after_draw(&mut self) {
+            self.session.after_draw();
+        }
+        fn after_close_draw(&mut self, receipt: crate::terminal_session::NativeDrawReceipt) {
+            self.session.after_close_draw(receipt);
+            self.prompts_after_draw.push(matches!(self.session.view(),
+                crate::terminal_session::TerminalSessionView::Native(view) if view.close_confirmation().is_some()));
+        }
+        fn view(&self) -> Option<crate::terminal_session::TerminalSessionView<'_>> {
+            Some(self.session.view())
+        }
+    }
+    let initial = dimensions(100, 24);
+    let resized = dimensions(70, 24);
+    let mut terminal = test_terminal(initial);
+    let mut inputs = QueueInputSource {
+        inputs: VecDeque::from([
+            Ok(Some(b"y".to_vec())),
+            Ok(Some(b"n".to_vec())),
+            Ok(Some(b"\x02q".to_vec())),
+        ]),
+    };
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([
+            Ok(initial),
+            Ok(resized),
+            Ok(resized),
+            Ok(resized),
+        ])),
+    };
+    let mut surface = Surface {
+        session,
+        prompts_after_draw: Vec::new(),
+    };
+    assert_eq!(
+        test_loop(
+            &mut terminal,
+            Locale::EnUs,
+            &mut inputs,
+            &mut surface,
+            &FixedTermination(false),
+            &viewport,
+            initial
+        )?,
+        LoopExit::User
+    );
+    Ok(surface.prompts_after_draw)
 }
 
 impl InputSource for QueueInputSource {
@@ -48,14 +128,22 @@ struct QueueViewportSource {
 }
 
 struct FailingResizeViewportSource {
-    dimensions: WindowDimensions,
+    initial: WindowDimensions,
+    changed: WindowDimensions,
+    calls: std::cell::Cell<usize>,
     writer_failure: Arc<AtomicBool>,
 }
 
 impl ViewportSource for FailingResizeViewportSource {
     fn window_dimensions(&self) -> io::Result<WindowDimensions> {
-        self.writer_failure.store(true, Ordering::Relaxed);
-        Ok(self.dimensions)
+        let calls = self.calls.get();
+        self.calls.set(calls + 1);
+        if calls == 0 {
+            Ok(self.initial)
+        } else {
+            self.writer_failure.store(true, Ordering::Relaxed);
+            Ok(self.changed)
+        }
     }
 }
 
@@ -202,7 +290,7 @@ fn exits_through_the_prefixed_user_binding_without_forwarding_it() -> io::Result
         inputs: VecDeque::from([Ok(Some(b"\x02q".to_vec()))]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial)])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial), Ok(initial)])),
     };
     let mut input = RecordingTerminalInput::default();
 
@@ -230,7 +318,7 @@ fn returns_from_a_requested_signal_without_reading_input_or_viewport() -> io::Re
         inputs: VecDeque::new(),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::new()),
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial)])),
     };
     let mut input = RecordingTerminalInput::default();
 
@@ -257,7 +345,7 @@ fn propagates_input_errors_to_the_restoring_session_boundary() -> io::Result<()>
         inputs: VecDeque::from([Err(io::Error::other("injected poll failure"))]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::new()),
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial)])),
     };
     let mut input = RecordingTerminalInput::default();
 
@@ -274,17 +362,120 @@ fn propagates_input_errors_to_the_restoring_session_boundary() -> io::Result<()>
     Ok(())
 }
 
+#[derive(Debug, Eq, PartialEq)]
+enum SurfaceEvent {
+    InvalidateCloseDisplay,
+    Observe(orchbee_client_server_protocol::Geometry),
+    Tick,
+    AfterDraw,
+    Action(ClientAction),
+    Forward(Vec<u8>),
+}
+
+#[derive(Default)]
+struct OrderedSurface {
+    events: Vec<SurfaceEvent>,
+}
+
+impl TerminalInputPort for OrderedSurface {
+    fn invalidate_close_display(&mut self) {
+        self.events.push(SurfaceEvent::InvalidateCloseDisplay);
+    }
+    fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
+        self.events.push(SurfaceEvent::Forward(input.to_vec()));
+        Ok(())
+    }
+
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        self.events.push(SurfaceEvent::Action(action));
+        Some(SessionActionDisposition::KeepNavigator)
+    }
+
+    fn observe_geometry(&mut self, geometry: orchbee_client_server_protocol::Geometry) {
+        self.events.push(SurfaceEvent::Observe(geometry));
+    }
+}
+
+impl super::TerminalSurface for OrderedSurface {
+    fn tick(&mut self) -> bool {
+        self.events.push(SurfaceEvent::Tick);
+        false
+    }
+
+    fn after_draw(&mut self) {
+        self.events.push(SurfaceEvent::AfterDraw);
+    }
+}
+
 #[test]
-fn forwards_read_input_before_a_subsequent_viewport_failure() -> io::Result<()> {
+fn observes_fresh_geometry_before_initial_draw_tick_and_same_batch_effects() -> io::Result<()> {
+    let inherited = dimensions(120, 30);
+    let measured = dimensions(100, 28);
+    let mut terminal = test_terminal(inherited);
+    let mut inputs = QueueInputSource {
+        inputs: VecDeque::from([Ok(Some(b"\x02b\x02cbytes\x02q".to_vec()))]),
+    };
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([
+            Ok(measured),
+            Ok(measured),
+            Ok(measured),
+        ])),
+    };
+    let mut surface = OrderedSurface::default();
+
+    assert_eq!(
+        test_loop(
+            &mut terminal,
+            Locale::EnUs,
+            &mut inputs,
+            &mut surface,
+            &FixedTermination(false),
+            &viewport,
+            inherited,
+        )?,
+        LoopExit::User
+    );
+
+    let docked = super::terminal_geometry(measured, &ClientView::new(measured.columns))?;
+    let mut expanded_view = ClientView::new(measured.columns);
+    let prefix = expanded_view.decide(crate::client_view::ClientKey::ControlB);
+    expanded_view.commit(prefix, SessionActionDisposition::KeepNavigator);
+    let toggle = expanded_view.decide(crate::client_view::ClientKey::Plain('b'));
+    expanded_view.commit(toggle, SessionActionDisposition::KeepNavigator);
+    let expanded = super::terminal_geometry(measured, &expanded_view)?;
+    assert_ne!(docked, expanded);
+    assert_eq!(
+        surface.events,
+        [
+            SurfaceEvent::InvalidateCloseDisplay,
+            SurfaceEvent::Observe(docked),
+            SurfaceEvent::Tick,
+            SurfaceEvent::AfterDraw,
+            SurfaceEvent::Observe(docked),
+            SurfaceEvent::Tick,
+            SurfaceEvent::Action(ClientAction::ToggleBusinessSidebar),
+            SurfaceEvent::Observe(expanded),
+            SurfaceEvent::Action(ClientAction::CreateTab),
+            SurfaceEvent::Forward(b"bytes".to_vec()),
+            SurfaceEvent::Action(ClientAction::Exit),
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn required_viewport_failure_prevents_dispatch_of_an_already_read_batch() -> io::Result<()> {
     let initial = dimensions(80, 24);
     let mut terminal = test_terminal(initial);
     let mut inputs = QueueInputSource {
         inputs: VecDeque::from([Ok(Some(b"already read".to_vec()))]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Err(io::Error::other(
-            "injected viewport failure",
-        ))])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([
+            Ok(initial),
+            Err(io::Error::other("injected viewport failure")),
+        ])),
     };
     let mut input = RecordingTerminalInput::default();
 
@@ -299,12 +490,12 @@ fn forwards_read_input_before_a_subsequent_viewport_failure() -> io::Result<()> 
     );
 
     assert!(matches!(result, Err(error) if error.kind() == io::ErrorKind::Other));
-    assert_eq!(input.forwarded, [b"already read".to_vec()]);
+    assert!(input.forwarded.is_empty());
     Ok(())
 }
 
 #[test]
-fn forwards_read_input_before_a_subsequent_terminal_resize_failure() -> io::Result<()> {
+fn required_terminal_resize_failure_prevents_dispatch_of_an_already_read_batch() -> io::Result<()> {
     let initial = dimensions(120, 30);
     let narrow = dimensions(70, 24);
     let writer_failure = Arc::new(AtomicBool::new(false));
@@ -324,7 +515,9 @@ fn forwards_read_input_before_a_subsequent_terminal_resize_failure() -> io::Resu
         inputs: VecDeque::from([Ok(Some(b"before resize".to_vec()))]),
     };
     let viewport = FailingResizeViewportSource {
-        dimensions: narrow,
+        initial,
+        changed: narrow,
+        calls: std::cell::Cell::new(0),
         writer_failure: Arc::clone(&writer_failure),
     };
     let mut input = RecordingTerminalInput::default();
@@ -344,7 +537,7 @@ fn forwards_read_input_before_a_subsequent_terminal_resize_failure() -> io::Resu
         result,
         Err(LoopFailure::Terminal(error)) if error.kind() == io::ErrorKind::BrokenPipe
     ));
-    assert_eq!(input.forwarded, [b"before resize".to_vec()]);
+    assert!(input.forwarded.is_empty());
     Ok(())
 }
 
@@ -361,7 +554,12 @@ fn applies_explicit_viewport_changes_without_backend_global_queries() -> io::Res
         ]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(narrow), Ok(narrow), Ok(narrow)])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([
+            Ok(initial),
+            Ok(narrow),
+            Ok(narrow),
+            Ok(narrow),
+        ])),
     };
     let mut input = RecordingTerminalInput::default();
 
@@ -392,6 +590,8 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
     struct Surface {
         failure: Arc<AtomicBool>,
         acknowledged: usize,
+        close_acknowledged: usize,
+        ticks: usize,
     }
     impl TerminalInputPort for Surface {
         fn forward(&mut self, _input: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -399,8 +599,14 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
         }
     }
     impl super::TerminalSurface for Surface {
+        fn after_close_draw(&mut self, _receipt: crate::terminal_session::NativeDrawReceipt) {
+            self.close_acknowledged += 1;
+        }
         fn tick(&mut self) -> bool {
-            self.failure.store(true, Ordering::Relaxed);
+            self.ticks += 1;
+            if self.ticks == 2 {
+                self.failure.store(true, Ordering::Relaxed);
+            }
             true
         }
         fn after_draw(&mut self) {
@@ -425,12 +631,14 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
     let mut surface = Surface {
         failure,
         acknowledged: 0,
+        close_acknowledged: 0,
+        ticks: 0,
     };
     let mut inputs = QueueInputSource {
         inputs: VecDeque::from([Ok(None)]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(dimensions)])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(dimensions), Ok(dimensions)])),
     };
     assert!(matches!(
         run_event_loop(
@@ -448,4 +656,54 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
         surface.acknowledged, 1,
         "only the successful initial draw may publish feedback"
     );
+    assert_eq!(
+        surface.close_acknowledged, 1,
+        "failed draw cannot publish a Close visibility receipt"
+    );
+}
+
+#[test]
+fn outer_resize_invalidates_close_before_input_even_when_terminal_geometry_is_equal()
+-> io::Result<()> {
+    let initial = dimensions(100, 24);
+    let resized = dimensions(70, 24);
+    let mut terminal = test_terminal(initial);
+    let mut inputs = QueueInputSource {
+        inputs: VecDeque::from([Ok(Some(b"y\x02q".to_vec()))]),
+    };
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial), Ok(resized)])),
+    };
+    let mut surface = OrderedSurface::default();
+    assert_eq!(
+        test_loop(
+            &mut terminal,
+            Locale::EnUs,
+            &mut inputs,
+            &mut surface,
+            &FixedTermination(false),
+            &viewport,
+            initial
+        )?,
+        LoopExit::User
+    );
+    let geometry = super::terminal_geometry(initial, &ClientView::new(100))?;
+    assert_eq!(
+        geometry,
+        super::terminal_geometry(resized, &ClientView::new(70))?
+    );
+    assert_eq!(
+        surface.events,
+        [
+            SurfaceEvent::Observe(geometry),
+            SurfaceEvent::Tick,
+            SurfaceEvent::AfterDraw,
+            SurfaceEvent::InvalidateCloseDisplay,
+            SurfaceEvent::Observe(geometry),
+            SurfaceEvent::Tick,
+            SurfaceEvent::Forward(b"y".to_vec()),
+            SurfaceEvent::Action(ClientAction::Exit),
+        ]
+    );
+    Ok(())
 }

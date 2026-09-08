@@ -1,4 +1,7 @@
 ---------------- MODULE TerminalTabPresentationHandoff ----------------
+\* This model covers handoff to a surviving non-null target. The projector's
+\* zero-layer clear, two-layer bound, and same-revision key reuse are owned by
+\* deterministic projection tests rather than derived TLA+ layer assertions.
 EXTENDS FiniteSets, Naturals, TLC
 
 Tabs == {"tab-a", "tab-b", "tab-c"}
@@ -404,14 +407,6 @@ ActivationBarrierFollowsDisplayBarrier ==
     /\ targetDisplayCommitted
     /\ expected \subseteq displayReady
     /\ ~(expected \subseteq activationReady)
-
-MountedLayerCount ==
-  IF phase = "preparing" /\ displayedTarget # target THEN 2 ELSE 1
-
-LayersRemainBounded == MountedLayerCount \in 1..2
-
-SameRevisionReturnReusesLayer ==
-  phase = "preparing" /\ displayedTarget = target => MountedLayerCount = 1
 
 IgnoredReportsDoNotMutate ==
   lastReportIgnored =>

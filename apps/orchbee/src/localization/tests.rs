@@ -59,8 +59,286 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(english.shortcuts.len(), 10);
+    assert_eq!(english.shortcuts.len(), 12);
     assert_eq!(chinese.shortcuts.len(), english.shortcuts.len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
+
+    for shortcut in [
+        "Ctrl+B c",
+        "Ctrl+B x",
+        "Ctrl+B < / >",
+        "Ctrl+B n / p",
+        "Ctrl+B 1 … 9",
+        "Ctrl+B w",
+    ] {
+        assert!(
+            english
+                .shortcuts
+                .iter()
+                .any(|line| line.starts_with(shortcut))
+        );
+        assert!(
+            chinese
+                .shortcuts
+                .iter()
+                .any(|line| line.starts_with(shortcut))
+        );
+    }
+    assert!(
+        english
+            .shortcuts
+            .contains(&"Ctrl+B w       Toggle Workbench navigator")
+    );
+    assert!(
+        chinese
+            .shortcuts
+            .contains(&"Ctrl+B w       切换 Workbench 导航器")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn native_tab_copy_matches_the_accepted_english_table() {
+    let locale = Locale::EnUs;
+
+    assert_eq!(locale.native_creating(), "Creating Tab…");
+    assert_eq!(
+        locale.native_create_not_created(),
+        "Tab not created · previous Tab unchanged"
+    );
+    assert_eq!(locale.native_refreshing(), "Refreshing Tabs…");
+    assert_eq!(
+        locale.native_refresh_success(u64::MAX),
+        format!("Tabs refreshed · revision {}", u64::MAX)
+    );
+    assert_eq!(
+        locale.native_refresh_failure(41),
+        "Tab refresh failed · showing revision 41"
+    );
+    assert_eq!(locale.native_local_busy(), "Client busy · no command sent");
+    assert_eq!(locale.native_no_tab(9), "No Tab at position 9");
+    assert_eq!(locale.native_connecting(10), "Tab 10 · Connecting…");
+    assert_eq!(
+        locale.native_waiting_for_frame(10),
+        "Tab 10 · Connecting · waiting for full frame"
+    );
+    assert_eq!(
+        locale.native_display_blocked(10),
+        "Tab 10 · Connecting · display blocked"
+    );
+    assert_eq!(
+        locale.native_ready_controlling(10),
+        "Tab 10 · Ready · controlling"
+    );
+    assert_eq!(
+        locale.native_ready_read_only(10),
+        "Tab 10 · Ready · view only"
+    );
+    assert_eq!(
+        locale.native_committed_refresh_required(),
+        "Created Tab committed · refresh required"
+    );
+    assert_eq!(
+        locale.native_terminal_pending(10),
+        "Tab 10 · terminal creation pending · no replay"
+    );
+    assert_eq!(
+        locale.native_terminal_unavailable(10),
+        "Tab 10 · terminal unavailable"
+    );
+    assert_eq!(
+        locale.native_terminal_failed(10),
+        "Tab 10 · terminal creation failed"
+    );
+    assert_eq!(
+        locale.native_terminal_outcome_unknown(10),
+        "Tab 10 · terminal result unknown · no replay"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn native_tab_copy_matches_the_accepted_chinese_table() {
+    let locale = Locale::ZhCn;
+
+    assert_eq!(locale.native_creating(), "正在创建 Tab…");
+    assert_eq!(
+        locale.native_create_not_created(),
+        "未创建 Tab · 原 Tab 未更改"
+    );
+    assert_eq!(locale.native_refreshing(), "正在刷新 Tab…");
+    assert_eq!(
+        locale.native_refresh_success(u64::MAX),
+        format!("Tab 已刷新 · 修订 {}", u64::MAX)
+    );
+    assert_eq!(
+        locale.native_refresh_failure(41),
+        "Tab 刷新失败 · 正在显示修订 41"
+    );
+    assert_eq!(locale.native_local_busy(), "Client 正忙 · 未发送命令");
+    assert_eq!(locale.native_no_tab(9), "第 9 个 Tab 不存在");
+    assert_eq!(locale.native_connecting(10), "Tab 10 · 正在连接…");
+    assert_eq!(
+        locale.native_waiting_for_frame(10),
+        "Tab 10 · 正在连接 · 等待完整帧"
+    );
+    assert_eq!(
+        locale.native_display_blocked(10),
+        "Tab 10 · 正在连接 · 显示已阻塞"
+    );
+    assert_eq!(
+        locale.native_ready_controlling(10),
+        "Tab 10 · 已就绪 · 可控制"
+    );
+    assert_eq!(
+        locale.native_ready_read_only(10),
+        "Tab 10 · 已就绪 · 仅查看"
+    );
+    assert_eq!(
+        locale.native_committed_refresh_required(),
+        "已提交创建的 Tab · 需要刷新"
+    );
+    assert_eq!(
+        locale.native_terminal_pending(10),
+        "Tab 10 · 终端创建等待中 · 不会重放"
+    );
+    assert_eq!(
+        locale.native_terminal_unavailable(10),
+        "Tab 10 · 终端不可用"
+    );
+    assert_eq!(locale.native_terminal_failed(10), "Tab 10 · 终端创建失败");
+    assert_eq!(
+        locale.native_terminal_outcome_unknown(10),
+        "Tab 10 · 终端结果未知 · 不会重放"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn native_notice_and_refresh_enums_select_the_exact_copy() {
+    use crate::terminal_session::{NativeRefreshStatus, NativeSessionNotice};
+
+    assert_eq!(
+        Locale::EnUs.native_notice(NativeSessionNotice::CloseRequestNotApplied),
+        "Close request was not applied"
+    );
+    assert_eq!(
+        Locale::ZhCn.native_notice(NativeSessionNotice::CloseRequestNotApplied),
+        "关闭请求未执行"
+    );
+
+    assert_eq!(
+        Locale::EnUs.native_notice(NativeSessionNotice::MoveNotMoved),
+        "Tab was not moved"
+    );
+    assert_eq!(
+        Locale::ZhCn.native_notice(NativeSessionNotice::MoveNotMoved),
+        "标签未移动"
+    );
+
+    assert_eq!(
+        Locale::EnUs.native_notice(NativeSessionNotice::LocalBusy),
+        "Client busy · no command sent"
+    );
+    assert_eq!(
+        Locale::ZhCn.native_notice(NativeSessionNotice::NoTabAtPosition(9)),
+        "第 9 个 Tab 不存在"
+    );
+    assert_eq!(
+        Locale::EnUs.native_notice(NativeSessionNotice::CreateNotCreated),
+        "Tab not created · previous Tab unchanged"
+    );
+    assert_eq!(
+        Locale::EnUs.native_refresh_status(NativeRefreshStatus::Refreshing),
+        "Refreshing Tabs…"
+    );
+    assert_eq!(
+        Locale::ZhCn.native_refresh_status(NativeRefreshStatus::Success(42)),
+        "Tab 已刷新 · 修订 42"
+    );
+    assert_eq!(
+        Locale::EnUs.native_refresh_status(NativeRefreshStatus::Failure(41)),
+        "Tab refresh failed · showing revision 41"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn native_empty_without_attachment_retains_the_manual_create_instruction() {
+    use crate::terminal_session::{NativeDisplayPhase, NativeProjectionStatus};
+    for (locale, expected) in [
+        (Locale::EnUs, "No terminal tabs · Ctrl+B c to create a Tab"),
+        (Locale::ZhCn, "没有终端标签 · 按 Ctrl+B 后按 c 创建 Tab"),
+    ] {
+        assert_eq!(
+            locale.native_phase_status_values(
+                NativeDisplayPhase::Empty,
+                None,
+                None,
+                None,
+                NativeProjectionStatus::Empty,
+                None
+            ),
+            expected
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn native_prebootstrap_starting_remains_connecting_without_a_selected_tab() {
+    use crate::terminal_session::{NativeProjectionStatus, TerminalStatus};
+
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        assert_eq!(
+            locale.native_starting_status(None, NativeProjectionStatus::Empty),
+            locale.terminal_status(TerminalStatus::Connecting)
+        );
+        assert_eq!(
+            locale.native_switching_status(None, NativeProjectionStatus::Empty),
+            locale.terminal_status(TerminalStatus::Unavailable)
+        );
+    }
+    assert_eq!(
+        Locale::EnUs.native_starting_status(Some(1), NativeProjectionStatus::WaitingForFullFrame),
+        "Tab 1 · Connecting · waiting for full frame"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn native_prebootstrap_retirement_overrides_the_synthetic_starting_phase() {
+    use crate::terminal_session::{
+        NativeDisplayPhase, NativeDisplayRetirement, NativeProjectionStatus,
+    };
+
+    for (locale, unavailable, outcome_unknown) in [
+        (
+            Locale::EnUs,
+            "Terminal disconnected · Ctrl+B then q to exit",
+            "Terminal operation result unknown · no replay · Ctrl+B then q to exit",
+        ),
+        (
+            Locale::ZhCn,
+            "终端已断连 · 按 Ctrl+B 后按 q 退出",
+            "终端操作结果未知 · 不会重放 · 按 Ctrl+B 后按 q 退出",
+        ),
+    ] {
+        let status = |retirement| {
+            locale.native_phase_status_values(
+                NativeDisplayPhase::Starting,
+                None,
+                None,
+                None,
+                NativeProjectionStatus::Empty,
+                Some(retirement),
+            )
+        };
+        assert_eq!(status(NativeDisplayRetirement::Unavailable), unavailable);
+        assert_eq!(
+            status(NativeDisplayRetirement::OutcomeUnknown),
+            outcome_unknown
+        );
+    }
 }

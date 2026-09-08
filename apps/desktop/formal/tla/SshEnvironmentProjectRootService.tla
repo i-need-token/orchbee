@@ -2,8 +2,8 @@
 EXTENDS FiniteSets, Naturals, TLC
 
 \* Bounded abstraction of the project-root inspection and directory-listing
-\* service. One authenticated Runtime attachment advertises one exact service.
-\* Desktop opens bounded single-request channels, both peers consume explicit
+\* service after transport admission has selected this handler. Desktop opens
+\* bounded single-request channels, both peers consume explicit
 \* byte credit, filesystem workers remain bounded, and attachment replacement
 \* never replays a request or publishes a stale worker result.
 
@@ -11,8 +11,6 @@ CONSTANT Channels, Epochs, MaxConcurrent
 
 NoEpoch == "none"
 NoOutcome == "none"
-ExpectedService == "project-root-v2"
-ExpectedServices == {ExpectedService}
 
 ChannelPhases == {
   "unused", "opening", "open", "request-sent", "inspecting",
@@ -27,20 +25,11 @@ WorkerOutcomes == {
 
 Settlements == WorkerOutcomes \cup {NoOutcome, "cancelled", "attachment-lost"}
 
-Actions == {
-  "init", "connect", "reconnect", "open-channel", "accept-channel",
-  "send-request", "start-inspection", "reject-busy", "reject-invalid-payload",
-  "complete-inspection", "timeout-inspection", "publish-result",
-  "cancel-channel", "cancel-result-crossover", "discard-crossed-result",
-  "begin-completed-close", "acknowledge-close", "lose-attachment",
-  "retire-lost-channel", "retire-late-worker", "reject-replay",
-  "heartbeat", "transport-violation", "stale-result"
-}
-
+\* Action coverage carries transition identity; no diagnostic history variable
+\* multiplies states that agree on every service-owned value.
 VARIABLES
   connected,
   runtimeEpoch,
-  advertisedServices,
   usedChannels,
   channelPhase,
   channelEpoch,
@@ -48,13 +37,11 @@ VARIABLES
   resultCredit,
   workerRunning,
   workerOutcome,
-  settlement,
-  replayedChannels,
-  lastAction
+  settlement
 
-vars == <<connected, runtimeEpoch, advertisedServices, usedChannels,
+vars == <<connected, runtimeEpoch, usedChannels,
   channelPhase, channelEpoch, requestCredit, resultCredit, workerRunning,
-  workerOutcome, settlement, replayedChannels, lastAction>>
+  workerOutcome, settlement>>
 
 ActiveWorkers == {channel \in Channels : workerRunning[channel]}
 
@@ -66,7 +53,6 @@ OpenChannelPhases == {
 Init ==
   /\ connected = FALSE
   /\ runtimeEpoch = NoEpoch
-  /\ advertisedServices = {}
   /\ usedChannels = {}
   /\ channelPhase = [channel \in Channels |-> "unused"]
   /\ channelEpoch = [channel \in Channels |-> NoEpoch]
@@ -75,42 +61,32 @@ Init ==
   /\ workerRunning = [channel \in Channels |-> FALSE]
   /\ workerOutcome = [channel \in Channels |-> NoOutcome]
   /\ settlement = [channel \in Channels |-> NoOutcome]
-  /\ replayedChannels = {}
-  /\ lastAction = "init"
 
 Connect ==
   /\ ~connected
   /\ usedChannels = {}
   /\ \E epoch \in Epochs : runtimeEpoch' = epoch
   /\ connected' = TRUE
-  /\ advertisedServices' = ExpectedServices
   /\ UNCHANGED <<usedChannels, channelPhase, channelEpoch, requestCredit,
-       resultCredit, workerRunning, workerOutcome, settlement,
-       replayedChannels>>
-  /\ lastAction' = "connect"
+       resultCredit, workerRunning, workerOutcome, settlement>>
 
 Reconnect ==
   /\ ~connected
   /\ usedChannels # {}
   /\ \E epoch \in Epochs : runtimeEpoch' = epoch
   /\ connected' = TRUE
-  /\ advertisedServices' = ExpectedServices
   /\ UNCHANGED <<usedChannels, channelPhase, channelEpoch, requestCredit,
-       resultCredit, workerRunning, workerOutcome, settlement,
-       replayedChannels>>
-  /\ lastAction' = "reconnect"
+       resultCredit, workerRunning, workerOutcome, settlement>>
 
 OpenChannel(channel) ==
   /\ connected
-  /\ advertisedServices = ExpectedServices
   /\ channel \in Channels \ usedChannels
   /\ usedChannels' = usedChannels \cup {channel}
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "opening"]
   /\ channelEpoch' = [channelEpoch EXCEPT ![channel] = runtimeEpoch]
   /\ resultCredit' = [resultCredit EXCEPT ![channel] = 1]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, requestCredit,
-       workerRunning, workerOutcome, settlement, replayedChannels>>
-  /\ lastAction' = "open-channel"
+  /\ UNCHANGED <<connected, runtimeEpoch, requestCredit,
+       workerRunning, workerOutcome, settlement>>
 
 AcceptChannel(channel) ==
   /\ connected
@@ -118,10 +94,8 @@ AcceptChannel(channel) ==
   /\ channelEpoch[channel] = runtimeEpoch
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "open"]
   /\ requestCredit' = [requestCredit EXCEPT ![channel] = 1]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, resultCredit, workerRunning, workerOutcome, settlement,
-       replayedChannels>>
-  /\ lastAction' = "accept-channel"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, resultCredit, workerRunning, workerOutcome, settlement>>
 
 SendRequest(channel) ==
   /\ connected
@@ -130,10 +104,8 @@ SendRequest(channel) ==
   /\ requestCredit[channel] = 1
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "request-sent"]
   /\ requestCredit' = [requestCredit EXCEPT ![channel] = 0]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, resultCredit, workerRunning, workerOutcome, settlement,
-       replayedChannels>>
-  /\ lastAction' = "send-request"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, resultCredit, workerRunning, workerOutcome, settlement>>
 
 StartInspection(channel) ==
   /\ connected
@@ -142,10 +114,8 @@ StartInspection(channel) ==
   /\ Cardinality(ActiveWorkers) < MaxConcurrent
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "inspecting"]
   /\ workerRunning' = [workerRunning EXCEPT ![channel] = TRUE]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, requestCredit, resultCredit, workerOutcome, settlement,
-       replayedChannels>>
-  /\ lastAction' = "start-inspection"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, requestCredit, resultCredit, workerOutcome, settlement>>
 
 RejectBusy(channel) ==
   /\ connected
@@ -154,10 +124,8 @@ RejectBusy(channel) ==
   /\ Cardinality(ActiveWorkers) >= MaxConcurrent
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "result-ready"]
   /\ workerOutcome' = [workerOutcome EXCEPT ![channel] = "busy"]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, requestCredit, resultCredit, workerRunning, settlement,
-       replayedChannels>>
-  /\ lastAction' = "reject-busy"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, requestCredit, resultCredit, workerRunning, settlement>>
 
 RejectInvalidPayload(channel) ==
   /\ connected
@@ -166,10 +134,8 @@ RejectInvalidPayload(channel) ==
   /\ Cardinality(ActiveWorkers) < MaxConcurrent
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "result-ready"]
   /\ workerOutcome' = [workerOutcome EXCEPT ![channel] = "invalid-path"]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, requestCredit, resultCredit, workerRunning, settlement,
-       replayedChannels>>
-  /\ lastAction' = "reject-invalid-payload"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, requestCredit, resultCredit, workerRunning, settlement>>
 
 CompleteInspection(channel, outcome) ==
   /\ channelPhase[channel] = "inspecting"
@@ -178,20 +144,17 @@ CompleteInspection(channel, outcome) ==
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "result-ready"]
   /\ workerRunning' = [workerRunning EXCEPT ![channel] = FALSE]
   /\ workerOutcome' = [workerOutcome EXCEPT ![channel] = outcome]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, requestCredit, resultCredit, settlement,
-       replayedChannels>>
-  /\ lastAction' = "complete-inspection"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, requestCredit, resultCredit, settlement>>
 
 TimeoutInspection(channel) ==
   /\ channelPhase[channel] = "inspecting"
   /\ workerRunning[channel]
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "result-ready"]
+  /\ workerRunning' = [workerRunning EXCEPT ![channel] = FALSE]
   /\ workerOutcome' = [workerOutcome EXCEPT ![channel] = "timed-out"]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, requestCredit, resultCredit, workerRunning, settlement,
-       replayedChannels>>
-  /\ lastAction' = "timeout-inspection"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, requestCredit, resultCredit, settlement>>
 
 PublishResult(channel) ==
   /\ connected
@@ -203,10 +166,8 @@ PublishResult(channel) ==
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "result-published"]
   /\ resultCredit' = [resultCredit EXCEPT ![channel] = 0]
   /\ settlement' = [settlement EXCEPT ![channel] = workerOutcome[channel]]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, requestCredit, workerRunning, workerOutcome,
-       replayedChannels>>
-  /\ lastAction' = "publish-result"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, requestCredit, workerRunning, workerOutcome>>
 
 CancelChannel(channel) ==
   /\ channelPhase[channel] \in OpenChannelPhases \ {"result-published", "closing"}
@@ -215,9 +176,8 @@ CancelChannel(channel) ==
   /\ requestCredit' = [requestCredit EXCEPT ![channel] = 0]
   /\ resultCredit' = [resultCredit EXCEPT ![channel] = 0]
   /\ settlement' = [settlement EXCEPT ![channel] = "cancelled"]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, workerRunning, workerOutcome, replayedChannels>>
-  /\ lastAction' = "cancel-channel"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, workerRunning, workerOutcome>>
 
 CancelResultCrossover(channel) ==
   /\ channelPhase[channel] = "result-ready"
@@ -228,42 +188,37 @@ CancelResultCrossover(channel) ==
   /\ requestCredit' = [requestCredit EXCEPT ![channel] = 0]
   /\ resultCredit' = [resultCredit EXCEPT ![channel] = 0]
   /\ settlement' = [settlement EXCEPT ![channel] = "cancelled"]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, workerRunning, workerOutcome, replayedChannels>>
-  /\ lastAction' = "cancel-result-crossover"
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, workerRunning, workerOutcome>>
 
 DiscardCrossedResult(channel) ==
   /\ channelPhase[channel] = "cancelled-result-in-flight"
   /\ settlement[channel] = "cancelled"
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "closing"]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
        channelEpoch, requestCredit, resultCredit, workerRunning,
-       workerOutcome, settlement, replayedChannels>>
-  /\ lastAction' = "discard-crossed-result"
+       workerOutcome, settlement>>
 
 BeginCompletedClose(channel) ==
   /\ channelPhase[channel] = "result-published"
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "closing"]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
        channelEpoch, requestCredit, resultCredit, workerRunning,
-       workerOutcome, settlement, replayedChannels>>
-  /\ lastAction' = "begin-completed-close"
+       workerOutcome, settlement>>
 
 AcknowledgeClose(channel) ==
   /\ channelPhase[channel] = "closing"
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "closed"]
   /\ requestCredit' = [requestCredit EXCEPT ![channel] = 0]
   /\ resultCredit' = [resultCredit EXCEPT ![channel] = 0]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
-       channelEpoch, workerRunning, workerOutcome, settlement,
-       replayedChannels>>
-  /\ lastAction' = "acknowledge-close"
+  /\ workerRunning' = [workerRunning EXCEPT ![channel] = FALSE]
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
+       channelEpoch, workerOutcome, settlement>>
 
 LoseAttachment ==
   /\ connected
   /\ connected' = FALSE
   /\ runtimeEpoch' = NoEpoch
-  /\ advertisedServices' = {}
   /\ channelPhase' = [channel \in Channels |->
        IF channel \in usedChannels /\ channelPhase[channel] \in OpenChannelPhases
        THEN "attachment-lost"
@@ -281,50 +236,44 @@ LoseAttachment ==
        IF channel \in usedChannels /\ channelPhase[channel] \in OpenChannelPhases
        THEN 0
        ELSE resultCredit[channel]]
-  /\ UNCHANGED <<usedChannels, channelEpoch, workerRunning, workerOutcome,
-       replayedChannels>>
-  /\ lastAction' = "lose-attachment"
+  /\ workerRunning' = [channel \in Channels |-> FALSE]
+  /\ UNCHANGED <<usedChannels, channelEpoch, workerOutcome>>
 
 RetireLostChannel(channel) ==
   /\ channelPhase[channel] = "attachment-lost"
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "closed"]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
        channelEpoch, requestCredit, resultCredit, workerRunning,
-       workerOutcome, settlement, replayedChannels>>
-  /\ lastAction' = "retire-lost-channel"
+       workerOutcome, settlement>>
 
 RetireLateWorker(channel) ==
   /\ workerRunning[channel]
   /\ channelPhase[channel] # "inspecting"
   /\ workerRunning' = [workerRunning EXCEPT ![channel] = FALSE]
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
        channelPhase, channelEpoch, requestCredit, resultCredit, workerOutcome,
-       settlement, replayedChannels>>
-  /\ lastAction' = "retire-late-worker"
+       settlement>>
 
 RejectReplay(channel) ==
   /\ connected
   /\ channel \in usedChannels
   /\ settlement[channel] = "attachment-lost"
   /\ channelEpoch[channel] # runtimeEpoch
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
        channelPhase, channelEpoch, requestCredit, resultCredit, workerRunning,
-       workerOutcome, settlement, replayedChannels>>
-  /\ lastAction' = "reject-replay"
+       workerOutcome, settlement>>
 
 Heartbeat ==
   /\ connected
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
        channelPhase, channelEpoch, requestCredit, resultCredit, workerRunning,
-       workerOutcome, settlement, replayedChannels>>
-  /\ lastAction' = "heartbeat"
+       workerOutcome, settlement>>
 
 TransportViolation ==
   /\ connected
   /\ usedChannels # {}
   /\ connected' = FALSE
   /\ runtimeEpoch' = NoEpoch
-  /\ advertisedServices' = {}
   /\ channelPhase' = [channel \in Channels |->
        IF channel \in usedChannels /\ channelPhase[channel] \in OpenChannelPhases
        THEN "attachment-lost"
@@ -342,17 +291,15 @@ TransportViolation ==
        IF channel \in usedChannels /\ channelPhase[channel] \in OpenChannelPhases
        THEN 0
        ELSE resultCredit[channel]]
-  /\ UNCHANGED <<usedChannels, channelEpoch, workerRunning, workerOutcome,
-       replayedChannels>>
-  /\ lastAction' = "transport-violation"
+  /\ workerRunning' = [channel \in Channels |-> FALSE]
+  /\ UNCHANGED <<usedChannels, channelEpoch, workerOutcome>>
 
 StaleResult(channel) ==
   /\ channel \in usedChannels
   /\ (~connected \/ channelEpoch[channel] # runtimeEpoch)
-  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
+  /\ UNCHANGED <<connected, runtimeEpoch, usedChannels,
        channelPhase, channelEpoch, requestCredit, resultCredit, workerRunning,
-       workerOutcome, settlement, replayedChannels>>
-  /\ lastAction' = "stale-result"
+       workerOutcome, settlement>>
 
 Next ==
   \/ Connect
@@ -394,7 +341,6 @@ Spec ==
 TypeOK ==
   /\ connected \in BOOLEAN
   /\ runtimeEpoch \in Epochs \cup {NoEpoch}
-  /\ advertisedServices \subseteq ExpectedServices
   /\ usedChannels \subseteq Channels
   /\ channelPhase \in [Channels -> ChannelPhases]
   /\ channelEpoch \in [Channels -> Epochs \cup {NoEpoch}]
@@ -403,11 +349,6 @@ TypeOK ==
   /\ workerRunning \in [Channels -> BOOLEAN]
   /\ workerOutcome \in [Channels -> WorkerOutcomes \cup {NoOutcome}]
   /\ settlement \in [Channels -> Settlements]
-  /\ replayedChannels \subseteq Channels
-  /\ lastAction \in Actions
-
-ExactCapabilityWhenConnected ==
-  connected => advertisedServices = ExpectedServices
 
 NoChannelReuse ==
   \A channel \in usedChannels : channelPhase[channel] # "unused"
@@ -435,7 +376,10 @@ PublishedResultUsesCurrentEpoch ==
     channelPhase[channel] = "result-published" =>
       (connected /\ channelEpoch[channel] = runtimeEpoch)
 
-SettlementIsSingleAssignment == replayedChannels = {}
+SettlementIsSingleAssignment ==
+  [][\A channel \in Channels:
+    settlement[channel] # NoOutcome => settlement'[channel] = settlement[channel]
+  ]_vars
 
 CancelledNeverPublishes ==
   \A channel \in Channels :
@@ -459,7 +403,11 @@ WorkerCannotGrantAuthority ==
       NoOutcome, "cancelled", "attachment-lost", "timed-out"
     }
 
-NoAutomaticReplay == replayedChannels = {}
+RetiredWorkerDoesNotConsumeCapacity ==
+  \A channel \in Channels :
+    (workerOutcome[channel] = "timed-out" \/
+       channelPhase[channel] \in {"closed", "attachment-lost"}) =>
+      ~workerRunning[channel]
 
 WorkerEventuallyStops ==
   \A channel \in Channels : [](workerRunning[channel] ~> ~workerRunning[channel])

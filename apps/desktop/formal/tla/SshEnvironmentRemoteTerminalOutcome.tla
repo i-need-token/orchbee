@@ -11,8 +11,8 @@ EXTENDS FiniteSets, Naturals, TLC
 
 CONSTANT Environments, Identities, MaxRevision, MaxJournalEntries, Scenario
 
-ASSUME Cardinality(Environments) = 2
-ASSUME Cardinality(Identities) = 1
+ASSUME Cardinality(Environments) \in 1..2
+ASSUME Cardinality(Identities) \in 1..2
 ASSUME MaxRevision \in Nat \ {0}
 ASSUME MaxJournalEntries \in Nat \ {0}
 
@@ -26,11 +26,16 @@ Scenarios == {
   "isolation"
 }
 ExitScenarios == {"exit-retry", "admission-rejection", "restart", "isolation"}
+TargetRaceScenarios == {"metadata", "failure", "exit-retry"}
 
 ASSUME Scenario \in Scenarios
+ASSUME Scenario = "admission-rejection" => Cardinality(Identities) = 2
+ASSUME Scenario \in TargetRaceScenarios \cup {"isolation"} =>
+  Cardinality(Environments) = 2
 
 OwnEnvironment(key) == key[1]
 KeysFor(environment) == {key \in Keys : OwnEnvironment(key) = environment}
+JournalFor(journal, environment) == journal \cap KeysFor(environment)
 OtherEnvironment(key) ==
   CHOOSE environment \in Environments : environment # OwnEnvironment(key)
 FocusKey == CHOOSE key \in Keys : TRUE
@@ -202,29 +207,50 @@ AdmitExit(key) ==
   /\ KeyInScenario(key)
   /\ OwnEnvironment(key) \in s.subscribed
   /\ key \notin s.journal \cup s.rejected \cup s.ledger
-  /\ Cardinality(s.journal) < MaxJournalEntries
+  /\ Cardinality(JournalFor(s.journal, OwnEnvironment(key))) < MaxJournalEntries
   /\ s' = Record(
        [s EXCEPT !.journal = @ \cup {key}],
        "admit-exit",
        key)
+
+\* Direct coverage branch: a full journal in another Environment cannot consume
+\* this Environment's independent admission capacity.  This aliases AdmitExit
+\* and therefore adds no state or product behavior.
+AdmitExitDespiteOtherEnvironmentFull(key) ==
+  /\ Scenario = "admission-rejection"
+  /\ \E otherEnvironment \in Environments \ {OwnEnvironment(key)}:
+       Cardinality(JournalFor(s.journal, otherEnvironment)) =
+         MaxJournalEntries
+  /\ AdmitExit(key)
 
 RejectExitAdmission(key) ==
   /\ Scenario = "admission-rejection"
   /\ KeyInScenario(key)
   /\ OwnEnvironment(key) \in s.subscribed
   /\ key \notin s.journal \cup s.rejected \cup s.ledger
-  /\ Cardinality(s.journal) = MaxJournalEntries
+  /\ Cardinality(JournalFor(s.journal, OwnEnvironment(key))) = MaxJournalEntries
   /\ s' = Record(
        [s EXCEPT !.rejected = @ \cup {key}],
        "reject-exit-admission",
        key)
+
+\* Direct coverage branch for the complementary same-Environment capacity
+\* boundary.  A journal elsewhere is irrelevant to this rejection.
+RejectExitAtOwnEnvironmentFull(key) ==
+  /\ Scenario = "admission-rejection"
+  /\ Cardinality(JournalFor(s.journal, OwnEnvironment(key))) =
+       MaxJournalEntries
+  /\ \E otherEnvironment \in Environments \ {OwnEnvironment(key)}:
+       Cardinality(JournalFor(s.journal, otherEnvironment)) <
+         MaxJournalEntries
+  /\ RejectExitAdmission(key)
 
 RetryRejectedAdmission(key) ==
   /\ Scenario = "admission-rejection"
   /\ KeyInScenario(key)
   /\ key \in s.rejected
   /\ OwnEnvironment(key) \in s.recoveryLoaded
-  /\ Cardinality(s.journal) < MaxJournalEntries
+  /\ Cardinality(JournalFor(s.journal, OwnEnvironment(key))) < MaxJournalEntries
   /\ s' = Record(
        [s EXCEPT
          !.rejected = @ \ {key},
@@ -314,7 +340,7 @@ CompactExitJournal(key) ==
        key)
 
 DeleteCanonicalTarget(key) ==
-  /\ Scenario = "exit-retry"
+  /\ Scenario \in TargetRaceScenarios
   /\ key = FocusKey
   /\ s.canonicalTarget[key] = OwnEnvironment(key)
   /\ s' = Record(
@@ -323,7 +349,7 @@ DeleteCanonicalTarget(key) ==
        key)
 
 RetargetCanonicalTarget(key) ==
-  /\ Scenario = "exit-retry"
+  /\ Scenario \in TargetRaceScenarios
   /\ key = FocusKey
   /\ s.canonicalTarget[key] = OwnEnvironment(key)
   /\ s' = Record(
@@ -332,7 +358,7 @@ RetargetCanonicalTarget(key) ==
        key)
 
 RestoreCanonicalTarget(key) ==
-  /\ Scenario = "exit-retry"
+  /\ Scenario \in TargetRaceScenarios
   /\ key = FocusKey
   /\ s.canonicalTarget[key] # OwnEnvironment(key)
   /\ s' = Record(
@@ -427,7 +453,9 @@ Next ==
   \/ \E key \in Keys: RecordFailure(key)
   \/ \E key \in Keys: PublishFailure(key)
   \/ \E key \in Keys: AdmitExit(key)
+  \/ \E key \in Keys: AdmitExitDespiteOtherEnvironmentFull(key)
   \/ \E key \in Keys: RejectExitAdmission(key)
+  \/ \E key \in Keys: RejectExitAtOwnEnvironmentFull(key)
   \/ \E key \in Keys: RetryRejectedAdmission(key)
   \/ \E key \in Keys: PersistBindingOutcome(key)
   \/ \E key \in Keys: ReserveExitPublication(key)
@@ -497,7 +525,8 @@ ExitPublicationIsDurablyOrdered ==
 
 AdmissionIsNeverLost ==
   /\ s.journal \cap s.rejected = {}
-  /\ Cardinality(s.journal) <= MaxJournalEntries
+  /\ \A environment \in Environments:
+       Cardinality(JournalFor(s.journal, environment)) <= MaxJournalEntries
   /\ s.compacted \cap s.journal = {}
 
 FailureIsNeverSynthetic ==

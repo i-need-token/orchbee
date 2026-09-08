@@ -60,6 +60,12 @@ Loopback is the default. Trusted-LAN preview binds both the renderer Server and 
 
 The lifecycle is a transport refinement of the existing Desktop multi-client model; it does not add a new canonical Workbench or terminal-lifetime state machine. `formal/tla/GatewayTransportLifecycle.tla` owns the bounded listener-cancellation, authentication-deadline, and heartbeat refinement. Desktop's `ProjectedTerminalIpcReliability.tla` owns the shared bounded release/open ordering model; the Gateway regression maps its late-port closure and unrelated-request isolation claims onto the network adapter.
 
+`GatewayTransportLifecycle` treats only the Server-owned heartbeat interval as fair: a timer tick
+sends a ping while idle or closes the socket after an unanswered ping. Peer `pong` and socket-close
+events remain nondeterministic. `AuthenticatedHeartbeatRecurs` reapplies after every observed pong
+and proves, within the one-connection bound and without a wall-clock claim, that an authenticated
+idle socket either begins another ping cycle or ceases to be authenticated.
+
 ## Verification
 
 Run from the repository root:

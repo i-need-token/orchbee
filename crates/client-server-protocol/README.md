@@ -14,17 +14,17 @@ project Workbench state.
 
 ## Public API
 
-| API                                              | Contract                                                                                              |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `RequestId`, `WorkerId`, `ControllerId`          | Parse nonzero opaque 128-bit lowercase hexadecimal identities.                                        |
-| `WorkingDirectory`                               | Validate an absolute POSIX UTF-8 path of at most 4,096 encoded bytes with no NUL.                     |
-| `Geometry`                                       | Construct complete geometry only when all scalar and product bounds hold.                             |
-| `TerminalCreateRequest`, `TerminalStartRequest`  | Construct validated Client requests; start rejects equal start/create request identities.             |
-| `CreateOutcome`, `StartOutcome` and result types | Represent only the stable Client-visible result combinations admitted by OBCS v1.                     |
-| `encode_client_frame`, `decode_client_frame`     | Encode or decode exactly one complete in-memory Client-to-Server frame.                               |
-| `encode_server_frame`, `decode_server_frame`     | Encode or decode exactly one complete in-memory Server-to-Client frame.                               |
-| `read_client_message`, `read_server_message`     | Read exactly one frame from a partial-read-capable ordered stream and leave a following frame unread. |
-| `write_client_message`, `write_server_message`   | Write a complete frame through partial writes without flushing the caller.                            |
+| API                                                                                      | Contract                                                                                              |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `RequestId`, `SiteId`, `WorkerId`, `TerminalId`, `ViewerId`, `HostEpoch`, `ControllerId` | Parse separately typed nonzero opaque 128-bit lowercase hexadecimal identities.                       |
+| `WorkingDirectory`                                                                       | Validate an absolute POSIX UTF-8 path of at most 4,096 encoded bytes with no NUL.                     |
+| `Geometry`                                                                               | Construct complete geometry only when all scalar and product bounds hold.                             |
+| `TerminalCreateRequest`, `TerminalStartRequest`                                          | Construct validated Client requests; start rejects equal start/create request identities.             |
+| `CreateOutcome`, `StartOutcome` and result types                                         | Represent only the stable Client-visible result combinations admitted by OBCS v1.                     |
+| `encode_client_frame`, `decode_client_frame`                                             | Encode or decode exactly one complete in-memory Client-to-Server frame.                               |
+| `encode_server_frame`, `decode_server_frame`                                             | Encode or decode exactly one complete in-memory Server-to-Client frame.                               |
+| `read_client_message`, `read_server_message`                                             | Read exactly one frame from a partial-read-capable ordered stream and leave a following frame unread. |
+| `write_client_message`, `write_server_message`                                           | Write a complete frame through partial writes without flushing the caller.                            |
 
 All decoded objects and enums are closed. Missing explicit nullable create fields, unknown fields or
 tags, duplicate keys, BOM, invalid UTF-8, trailing JSON values, direction mismatches, invalid
@@ -36,13 +36,20 @@ Canonical encoding uses compact deterministic JSON with ordinary integer tokens.
 ## Viewer binding
 
 `TerminalViewerRequest`, `TerminalViewerAction`, `TerminalViewerResult`, and `TerminalViewerOutcome`
-provide session-scoped read-only Attach, Poll, FrameApplied, NeedSnapshot, and Detach values.
+provide session-scoped read-only Attach, AttachBinding, Poll, FrameApplied, NeedSnapshot, and Detach
+values. AttachBinding carries separately typed OBCS `SiteId`, `WorkerId`, and `TerminalId` values;
+equal encoded bytes across those domains remain valid. The crate validates their lexical contract
+but neither imports Workbench types nor decides whether a tuple is currently exposed. Server owns
+that semantic resolution. `ViewerUnavailableReason::WorkbenchUnavailable` is available only in a
+viewer result.
+
 `ViewerId` and `HostEpoch` represent Server-issued attachment scope. Feedback counters use canonical
-u64 decimal strings; the JSON corpus tests every action, outcome and reason. Record results use the
-schema-owner's OBSR binary framing and `MAXIMUM_VIEWER_RECORD_BYTES` bound; the same Server frame
-functions dispatch either JSON control or an opaque binary record. Client-direction readers reject
-OBSR. This crate does not decode OBTP or terminal presentation; Server and the eventual renderer
-own their respective routing and presentation validation. Large-record tests cover byte equality,
+u64 decimal strings; the JSON corpus tests every action, outcome, reason, closed field set, and
+identity boundary. Record results retain the schema-owner's OBSR binary framing and
+`MAXIMUM_VIEWER_RECORD_BYTES` bound; the same Server frame functions dispatch either JSON control or
+an opaque binary record. Client-direction readers reject OBSR. AttachBinding adds no OBCN or OBSR
+type. This crate does not decode OBTP or terminal presentation; Server and the eventual renderer own
+their respective routing and presentation validation. Large-record tests cover byte equality,
 partial reads, following-frame alignment, direction, and invalid header/length/identity rejection.
 
 ## Controller binding
@@ -81,3 +88,20 @@ The conformance tests consume the canonical cross-language corpus and cover fram
 strict payload decoding, construction invariants, partial I/O, and no-flush behavior. They do not
 prove a transport, Server state machine, authorization policy, Worker or Host mapping, terminal
 lifecycle, or end-to-end execution.
+
+## Standalone opening binding
+
+`TerminalOpenRequest`, `TerminalOpenResult` and `OpenOutcome` implement the unshipped
+[standalone opening contract](../../schemas/client-server/README.md#standalone-terminal-opening).
+The request carries only correlation and complete geometry; Opened returns the independent
+Server-created reference retained by legacy viewer attachment. AttachBinding does not change the
+Open result. The binding owns strict encoding and validation, while Server owns singleton selection,
+creation and lifetime.
+Canonical fixtures cover every open outcome and reject absent, extra, malformed and wrong-direction
+messages through both the JSON schema and independent Rust decoder.
+
+Open and AttachBinding are additive, unpublished OBCS v1 source contracts. They retain the existing
+frame version and limits. The installed exact runtime cohort is Client, Server, Worker, and Host;
+this Rust source binding is a contract input rather than an installed cohort artifact. Before
+publication, its source contract and the runtime cohort roll back together, with no persisted state
+or migration.

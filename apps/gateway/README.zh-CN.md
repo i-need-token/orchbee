@@ -60,6 +60,12 @@ Browser 访问 URL 只包含 renderer 路由、Gateway 端口和协议版本。D
 
 生命周期是现有 Desktop 多客户端模型的传输细化；它不添加新的规范 Workbench 或终端生命周期状态机。`formal/tla/GatewayTransportLifecycle.tla` 负责有界的监听取消、认证期限和心跳细化。Desktop 的 `ProjectedTerminalIpcReliability.tla` 负责共享的有界 release/open 排序模型；Gateway 回归把其迟到端口关闭与无关请求隔离声明映射到网络 adapter。
 
+`GatewayTransportLifecycle` 只把 Server 拥有的心跳间隔视为公平：计时器 tick 会在 idle 时发送
+ping，或在前一个 ping 未获 pong 时关闭 socket。Peer `pong` 与 socket-close 事件保持非确定且不带
+公平性假设。`AuthenticatedHeartbeatRecurs` 会在每次观察到 pong 后重新适用，并在单连接有界范围
+内证明 authenticated idle socket 最终开始下一轮 ping 或不再处于 authenticated；它不声明具体
+墙钟时长。
+
 ## 验证
 
 从仓库根目录运行：

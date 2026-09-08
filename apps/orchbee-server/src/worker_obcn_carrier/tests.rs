@@ -15,6 +15,8 @@ use std::{
     time::Duration,
 };
 
+mod lifecycle;
+
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage, HostCreationId,
     HostEpoch, HostTerminalId, HostTerminalIdentity, LeaseExpiresAtUnixMilliseconds, LeaseId,

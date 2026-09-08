@@ -12,7 +12,8 @@ orchbee-local-site-protocol = { path = "../../crates/local-site-protocol" }
 orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 
 [target.'cfg(unix)'.dependencies]
-nix = { workspace = true, features = ["fs", "poll", "user"] }
+orchbee-local-site-runtime = { path = "../../crates/local-site-runtime" }
+nix = { workspace = true, features = ["fs", "poll", "socket", "user"] }
 
 [lints]
 workspace = true

@@ -1,0 +1,8 @@
+--- !tapi-tbd
+tbd-version: 4
+targets: [arm64-macos, x86_64-macos]
+install-name: '/usr/lib/libbsm.0.dylib'
+exports:
+  - targets: [arm64-macos, x86_64-macos]
+    symbols: [_audit_token_to_pid, _audit_token_to_pidversion]
+...

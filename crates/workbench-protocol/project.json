@@ -3,9 +3,9 @@
 	"domain": "workbench-protocol",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Independent Rust binding and pure delta refinement for the language-neutral version-1 Workbench read-only projection contract.",
+	"responsibility": "Independent Rust binding for bounded Workbench projections and command requests/results, pure delta refinement, and OBWP stream codecs governed by the language-neutral version-1 schemas.",
 	"nonGoals": [
-		"Owning canonical Workbench transitions, Server state, persistence, transport, authentication, authorization, rendering, CLI grammar, terminal data, or platform effects.",
+		"Owning canonical Workbench transitions, Server state, persistence, socket or timeout lifecycle, authentication, authorization, rendering, CLI grammar, terminal data, or platform effects.",
 		"Defining Environment, Directory, Checkout, Worktree, Agent, Launch Profile, Archive, SSH, lease, fence, Host epoch, attachment, or Client-local state contracts."
 	]
 }

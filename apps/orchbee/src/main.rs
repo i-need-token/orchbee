@@ -9,15 +9,8 @@ mod invocation;
     )
 )]
 mod local_client;
-#[cfg(unix)]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the accepted private foundations are staged before TUI and activation integration"
-    )
-)]
-mod local_site_rendezvous;
+#[cfg(target_os = "linux")]
+mod local_startup;
 mod localization;
 mod presentation;
 #[cfg(unix)]
@@ -30,6 +23,8 @@ mod terminal_lifecycle;
 mod terminal_projection;
 #[cfg(unix)]
 mod terminal_session;
+#[cfg(unix)]
+mod terminal_text;
 #[cfg(unix)]
 mod termination_signal;
 #[cfg(unix)]
@@ -64,7 +59,19 @@ const _: fn(
 
 fn main() -> ExitCode {
     let locale = select_locale(|name| env::var_os(name));
-    emit(present(parse_invocation(env::args_os().skip(1)), locale))
+    let invocation = parse_invocation(env::args_os().skip(1));
+    #[cfg(target_os = "linux")]
+    if invocation == Ok(invocation::Invocation::Tui) {
+        return match local_startup::run(locale) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(failure) => emit(ProcessResult {
+                status: 1,
+                stdout: "",
+                stderr: locale.startup_failure(failure),
+            }),
+        };
+    }
+    emit(present(invocation, locale))
 }
 
 fn emit(result: ProcessResult) -> ExitCode {

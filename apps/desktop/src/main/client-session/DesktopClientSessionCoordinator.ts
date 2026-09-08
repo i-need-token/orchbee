@@ -464,7 +464,7 @@ export class DesktopClientSessionCoordinator {
 		if (
 			existing !== undefined &&
 			sameTerminalIdentity(existing.identity, metadata.identity) &&
-			BigInt(existing.revision) > BigInt(metadata.revision)
+			BigInt(existing.revision) >= BigInt(metadata.revision)
 		) {
 			return true;
 		}

@@ -38,6 +38,17 @@ test "POSIX child setup preserves standard streams when openpty reuses low descr
             _ = posix_compat.write(report[1], &.{0}) catch 0;
             posix_compat.exit(1);
         };
+        // A real parent retains the master while its child installs the slave.
+        // Keep that reference above stdio until process exit so Linux does not
+        // hang up this fixture before its result has been reported.
+        _ = posix_compat.fcntl(
+            instance.master,
+            posix.F.DUPFD_CLOEXEC,
+            posix.STDERR_FILENO + 1,
+        ) catch {
+            _ = posix_compat.write(report[1], &.{0}) catch 0;
+            posix_compat.exit(1);
+        };
         instance.childSetup() catch {
             _ = posix_compat.write(report[1], &.{0}) catch 0;
             posix_compat.exit(1);

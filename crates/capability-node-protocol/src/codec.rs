@@ -20,6 +20,7 @@ use crate::{
 };
 
 mod control;
+mod lifecycle;
 mod viewer;
 
 const FRAME_MAGIC: [u8; 4] = *b"OBCN";
@@ -42,6 +43,8 @@ pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CapabilityNodeMessage {
+    TerminalLifecycleRequest(crate::TerminalLifecycleRequest),
+    TerminalLifecycleResult(crate::TerminalLifecycleResult),
     TerminalControlRequest(crate::TerminalControlRequest),
     TerminalControlResult(crate::TerminalControlResult),
     AuthorizedTerminalLaunch(AuthorizedTerminalLaunch),
@@ -121,6 +124,8 @@ pub fn write_message(
 
 fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
     match message {
+        CapabilityNodeMessage::TerminalLifecycleRequest(value) => lifecycle::encode_request(*value),
+        CapabilityNodeMessage::TerminalLifecycleResult(value) => lifecycle::encode_result(*value),
         CapabilityNodeMessage::TerminalControlRequest(value) => control::encode_request(value),
         CapabilityNodeMessage::TerminalControlResult(value) => control::encode_result(*value),
         CapabilityNodeMessage::AuthorizedTerminalLaunch(value) => {
@@ -156,6 +161,12 @@ fn decode_header(header: &[u8; FRAME_HEADER_BYTES]) -> Result<usize, ProtocolErr
 
 fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
     match payload.first().copied() {
+        Some(9) => {
+            lifecycle::decode_request(payload).map(CapabilityNodeMessage::TerminalLifecycleRequest)
+        }
+        Some(10) => {
+            lifecycle::decode_result(payload).map(CapabilityNodeMessage::TerminalLifecycleResult)
+        }
         Some(7) => {
             control::decode_request(payload).map(CapabilityNodeMessage::TerminalControlRequest)
         }
@@ -443,6 +454,7 @@ fn decode_host_identity(
 
 fn encode_launch_rejection(payload: &mut Vec<u8>, reason: TerminalLaunchRejection) {
     match reason {
+        TerminalLaunchRejection::LifecycleActive => payload.push(9),
         TerminalLaunchRejection::WrongWorker => payload.push(1),
         TerminalLaunchRejection::StaleWorkerGeneration => payload.push(2),
         TerminalLaunchRejection::LeaseExpired => payload.push(3),
@@ -471,12 +483,14 @@ fn decode_launch_rejection(
             host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
         }),
         8 => Ok(TerminalLaunchRejection::CapacityExceeded),
+        9 => Ok(TerminalLaunchRejection::LifecycleActive),
         _ => Err(ProtocolError::InvalidPayload),
     }
 }
 
 fn encode_start_rejection(payload: &mut Vec<u8>, reason: TerminalStartRejection) {
     match reason {
+        TerminalStartRejection::LifecycleActive => payload.push(10),
         TerminalStartRejection::WrongWorker => payload.push(1),
         TerminalStartRejection::StaleWorkerGeneration => payload.push(2),
         TerminalStartRejection::LeaseExpired => payload.push(3),
@@ -514,6 +528,7 @@ fn decode_start_rejection(
             observed_host_epoch: HostEpoch::from_bytes(reader.read_array()?)?,
         }),
         9 => Ok(TerminalStartRejection::CapacityExceeded),
+        10 => Ok(TerminalStartRejection::LifecycleActive),
         _ => Err(ProtocolError::InvalidPayload),
     }
 }

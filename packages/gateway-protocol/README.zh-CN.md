@@ -43,6 +43,12 @@ Orchbee 本地开发 Browser Gateway 的严格、运行时无关契约。
 
 该协议是现有 Desktop 多客户端会话和需求附件模型的传输改进。它没有添加新的产品生命周期状态或规范文档转换。`apps/gateway/formal/tla/GatewayTransportLifecycle.tla` 只对有界的监听取消、认证期限和心跳细化具有权威性。确定性的生命周期跟踪、严格的编解码器测试和真实的 Electron-plus-two-Browser 系统跟踪提供具体传输证据。
 
+`GatewayTransportLifecycle` 只把 Server 拥有的心跳间隔视为公平：计时器 tick 会在 idle 时发送
+ping，或在前一个 ping 未获 pong 时关闭 socket。Peer `pong` 与 socket-close 事件保持非确定且不带
+公平性假设。`AuthenticatedHeartbeatRecurs` 会在每次观察到 pong 后重新适用，并在单连接有界范围
+内证明 authenticated idle socket 最终开始下一轮 ping 或不再处于 authenticated；它不声明具体
+墙钟时长。
+
 ## 验证
 
 从仓库根目录运行：

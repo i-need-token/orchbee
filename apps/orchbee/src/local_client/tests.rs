@@ -3,7 +3,7 @@ use std::{
     num::NonZeroU64,
     os::unix::net::{UnixListener, UnixStream},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicU64, Ordering},
         mpsc::{Receiver, SyncSender, sync_channel},
     },
@@ -34,9 +34,44 @@ const SECOND_REQUEST_ID: &str = "22222222222222222222222222222222";
 const TEST_REQUEST_TIMEOUT: Duration = Duration::from_millis(40);
 const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
 
-use super::test_server::{FakeServer, TestDirectory};
+use super::test_server::{FakeServer, TestDirectory, connect_with_adjustable_clock};
+
+mod workbench;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+#[test]
+#[cfg(target_os = "linux")]
+fn deadline_admission_hands_the_same_session_to_obcs() -> TestResult {
+    let create = deferred_create(FIRST_REQUEST_ID)?;
+    let expected_create = create.clone();
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 7)?;
+        require_message(
+            read_client_message(&mut stream).map_err(io::Error::other)?,
+            ClientMessage::TerminalCreate(expected_create),
+        )?;
+        write_server_message(
+            &mut stream,
+            &ServerMessage::TerminalCreateResult(create_denied(FIRST_REQUEST_ID)?),
+        )
+        .map_err(io::Error::other)
+    })?;
+    let mut client = LocalClient::connect_before(
+        server.endpoint(),
+        COHORT,
+        Instant::now() + SERVER_GUARD_TIMEOUT,
+    )?;
+    assert_eq!(client.generation().map(NonZeroU64::get), Some(7));
+    assert_eq!(
+        client.submit_terminal_create(create)?,
+        create_denied(FIRST_REQUEST_ID)?
+    );
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
 
 #[test]
 fn accepts_one_session_and_submits_create_then_start_on_the_same_stream() -> TestResult {
@@ -426,7 +461,7 @@ fn slow_trickle_read_exhausts_one_total_deadline_despite_progress() -> TestResul
         observations.clone(),
         ProgressSignal {
             sender: progress_sender,
-            written: written_receiver,
+            written: Mutex::new(written_receiver),
             first_observation: 4,
             period: 2,
         },
@@ -701,7 +736,11 @@ impl MonotonicClock for SteppingMonotonicClock {
             && (observation - signal.first_observation).is_multiple_of(signal.period)
             && signal.sender.send(()).is_ok()
         {
-            let _written = signal.written.recv();
+            let _written = signal
+                .written
+                .lock()
+                .expect("progress receiver mutex must remain usable")
+                .recv();
         }
         let multiplier = u32::try_from(observation).unwrap_or(u32::MAX);
         self.origin
@@ -713,7 +752,7 @@ impl MonotonicClock for SteppingMonotonicClock {
 #[derive(Debug)]
 struct ProgressSignal {
     sender: SyncSender<()>,
-    written: Receiver<()>,
+    written: Mutex<Receiver<()>>,
     first_observation: u64,
     period: u64,
 }
@@ -863,6 +902,246 @@ fn control_accepts_exact_unknown_and_retires_on_a_wrong_resize_geometry() -> Tes
         Err(SubmissionError::OutcomeUnknown { .. })
     ));
     assert_eq!(client.generation(), None);
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn initial_startup_budget_clamps_requests_until_explicit_readiness() -> TestResult {
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 1)?;
+        let request = read_client_message(&mut stream).map_err(io::Error::other)?;
+        require_message(
+            request,
+            ClientMessage::TerminalCreate(deferred_create(FIRST_REQUEST_ID)?),
+        )?;
+        write_server_message(
+            &mut stream,
+            &ServerMessage::TerminalCreateResult(create_denied(FIRST_REQUEST_ID)?),
+        )
+        .map_err(io::Error::other)
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    client.set_submission_deadline(Some(Instant::now()));
+    assert!(
+        matches!(client.submit_terminal_create(deferred_create(FIRST_REQUEST_ID)?),
+        Err(SubmissionError::RequestNotSubmitted(error)) if error.kind() == io::ErrorKind::TimedOut)
+    );
+    assert!(client.generation().is_some());
+    client.set_submission_deadline(None);
+    assert_eq!(
+        client.submit_terminal_create(deferred_create(FIRST_REQUEST_ID)?)?,
+        create_denied(FIRST_REQUEST_ID)?
+    );
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn caller_deadline_viewer_and_control_forms_fail_before_write_and_keep_the_carrier() -> TestResult {
+    use orchbee_client_server_protocol::{
+        TerminalControlAction, TerminalControlRequest, TerminalViewerAction, TerminalViewerRequest,
+    };
+
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 37)?;
+        require_message(
+            read_client_message(&mut stream).map_err(io::Error::other)?,
+            ClientMessage::TerminalCreate(deferred_create(SECOND_REQUEST_ID)?),
+        )?;
+        write_server_message(
+            &mut stream,
+            &ServerMessage::TerminalCreateResult(create_denied(SECOND_REQUEST_ID)?),
+        )
+        .map_err(io::Error::other)
+    })?;
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+
+    client.set_submission_deadline(Some(client.operation_clock().now()));
+    assert!(matches!(
+        client.submit_terminal_viewer_before(
+            TerminalViewerRequest::new(
+                RequestId::parse(FIRST_REQUEST_ID)?,
+                TerminalViewerAction::Poll {},
+            ),
+            client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
+        ),
+        Err(SubmissionError::RequestNotSubmitted(error))
+            if error.kind() == io::ErrorKind::TimedOut
+    ));
+    client.set_submission_deadline(None);
+
+    let deadline = client.operation_clock().now();
+    assert!(matches!(
+        client.submit_terminal_control_before(
+            TerminalControlRequest::new(
+                RequestId::parse(FIRST_REQUEST_ID)?,
+                TerminalControlAction::Acquire {},
+            ),
+            deadline,
+        ),
+        Err(SubmissionError::RequestNotSubmitted(error))
+            if error.kind() == io::ErrorKind::TimedOut
+    ));
+    assert_eq!(client.generation().map(NonZeroU64::get), Some(37));
+
+    assert_eq!(
+        client.submit_terminal_create(deferred_create(SECOND_REQUEST_ID)?)?,
+        create_denied(SECOND_REQUEST_ID)?
+    );
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn caller_deadline_viewer_and_control_forms_keep_the_shorter_exchange_budget() -> TestResult {
+    use orchbee_client_server_protocol::{
+        ControlRejectedReason, TerminalControlAction, TerminalControlOutcome,
+        TerminalControlRequest, TerminalControlResult, TerminalViewerAction, TerminalViewerOutcome,
+        TerminalViewerRequest, TerminalViewerResult, ViewerRejectedReason,
+    };
+
+    #[derive(Clone, Copy)]
+    enum RequestKind {
+        Viewer,
+        Control,
+    }
+
+    for kind in [RequestKind::Viewer, RequestKind::Control] {
+        let server = FakeServer::start(move |mut stream| {
+            expect_hello(&mut stream, COHORT)?;
+            admit(&mut stream, 49)?;
+            let request = read_client_message(&mut stream).map_err(io::Error::other)?;
+            let response = match (kind, request) {
+                (RequestKind::Viewer, ClientMessage::TerminalViewer(request)) => {
+                    ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                        request.request_id().clone(),
+                        TerminalViewerOutcome::Rejected {
+                            reason: ViewerRejectedReason::TerminalUnavailable,
+                        },
+                    ))
+                }
+                (RequestKind::Control, ClientMessage::TerminalControl(request)) => {
+                    ServerMessage::TerminalControlResult(TerminalControlResult::new(
+                        request.request_id().clone(),
+                        TerminalControlOutcome::Rejected {
+                            reason: ControlRejectedReason::ViewerUnavailable,
+                        },
+                    ))
+                }
+                _ => return Err(io::Error::other("unexpected caller-deadline request kind")),
+            };
+            write_server_message(&mut stream, &response).map_err(io::Error::other)?;
+            let mut byte = [0_u8; 1];
+            assert_eq!(stream.read(&mut byte)?, 0, "expired carrier must retire");
+            Ok(())
+        })?;
+        let observations = Arc::new(AtomicU64::new(0));
+        let clock = SteppingMonotonicClock::new(Duration::from_millis(10), observations.clone());
+        let caller_deadline = clock.origin + SERVER_GUARD_TIMEOUT;
+        let mut client = LocalClient::connect_with_submission_runtime(
+            server.endpoint(),
+            COHORT,
+            Duration::from_millis(80),
+            Box::new(clock),
+            IoChunkLimits::UNBOUNDED,
+        )?;
+        let error = match kind {
+            RequestKind::Viewer => client
+                .submit_terminal_viewer_before(
+                    TerminalViewerRequest::new(
+                        RequestId::parse(FIRST_REQUEST_ID)?,
+                        TerminalViewerAction::Poll {},
+                    ),
+                    caller_deadline,
+                )
+                .expect_err("ordinary viewer budget must clamp a later caller deadline"),
+            RequestKind::Control => client
+                .submit_terminal_control_before(
+                    TerminalControlRequest::new(
+                        RequestId::parse(FIRST_REQUEST_ID)?,
+                        TerminalControlAction::Acquire {},
+                    ),
+                    caller_deadline,
+                )
+                .expect_err("ordinary control budget must clamp a later caller deadline"),
+        };
+        assert!(matches!(
+            error,
+            SubmissionError::OutcomeUnknown {
+                request_id,
+                reason: OutcomeUnknownReason::Read(error),
+            } if request_id.as_str() == FIRST_REQUEST_ID
+                && error.kind() == io::ErrorKind::TimedOut
+        ));
+        assert_eq!(client.generation(), None);
+        server.finish()?;
+        assert_eq!(observations.load(Ordering::Relaxed), 9);
+    }
+    Ok(())
+}
+
+#[test]
+fn operation_clock_clones_share_the_injected_monotonic_source() -> TestResult {
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 38)?;
+        let mut received = Vec::new();
+        stream.read_to_end(&mut received)?;
+        assert!(received.is_empty());
+        Ok(())
+    })?;
+    let observations = Arc::new(AtomicU64::new(0));
+    let clock = SteppingMonotonicClock::new(Duration::from_millis(10), observations.clone());
+    let origin = clock.origin;
+    let client = LocalClient::connect_with_submission_runtime(
+        server.endpoint(),
+        COHORT,
+        TEST_REQUEST_TIMEOUT,
+        Box::new(clock),
+        IoChunkLimits::UNBOUNDED,
+    )?;
+    let first = client.operation_clock();
+    let second = first.clone();
+    assert_eq!(first.now(), origin);
+    assert_eq!(second.now(), origin + Duration::from_millis(10));
+    assert_eq!(
+        client.next_operation_deadline(),
+        origin + Duration::from_millis(20) + TEST_REQUEST_TIMEOUT
+    );
+    assert_eq!(observations.load(Ordering::Relaxed), 3);
+    assert_eq!(client.generation().map(NonZeroU64::get), Some(38));
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn adjustable_clock_exposes_distinct_forward_and_cleanup_cutoffs() -> TestResult {
+    let server = FakeServer::start(|mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 39)?;
+        let mut received = Vec::new();
+        stream.read_to_end(&mut received)?;
+        assert!(received.is_empty());
+        Ok(())
+    })?;
+    let elapsed_millis = Arc::new(AtomicU64::new(0));
+    let client = connect_with_adjustable_clock(server.endpoint(), COHORT, elapsed_millis.clone())?;
+    let clock = client.operation_clock();
+    let origin = clock.now();
+
+    elapsed_millis.store(45_000, Ordering::SeqCst);
+    assert_eq!(clock.now(), origin + Duration::from_secs(45));
+    elapsed_millis.store(50_000, Ordering::SeqCst);
+    assert_eq!(clock.now(), origin + Duration::from_secs(50));
+
+    assert_eq!(client.generation().map(NonZeroU64::get), Some(39));
+    drop(client);
     server.finish()?;
     Ok(())
 }

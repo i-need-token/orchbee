@@ -115,9 +115,9 @@ explicit reset. Desktop operation tests refine pagination, exact-identity reads,
 subscribe-before-recheck waits, revision fencing, signed change cursors, timeout, cancellation,
 overflow/reset, and synchronous subscription races.
 
-[`formal/tla/AgentRuntime.tla`](formal/tla/AgentRuntime.tla) is the bounded asynchronous model. It contains two Sessions, two client views, two observation generations, interleaved attention and reconnect lifecycles, limited and Turn activity, outcome-free idle settlement, client acknowledgement, visibility, notification candidates, snapshot publication, and renderer reconnect. TLC checks that acknowledgement cannot resolve a request, stale-generation rejection preserves canonical state, limited activity changes only its hint, an idle observation cannot fabricate an outcome or notification candidate, activity creates no notification candidate, candidates are fresh/live/invisible and attention-or-failure based, generation changes only on reconnect, ended Sessions have no active work, client revisions never exceed publication, and an observed or recovered snapshot exactly matches the published canonical state. Required action coverage prevents a vacuous passing model.
+[`formal/tla/AgentRuntime.tla`](formal/tla/AgentRuntime.tla) has two independent bounded scenarios. The reducer scenario explores event order across two Sessions and two clients, observation generations 0 through 1, sequences 0 through 6, and runtime revisions 0 through 6. It admits repeated and stale sequences plus wrong-generation, wrong-identity, and invalid observations as named no-ops. Authoritative `unknown`, `hidden`, and `visible` attachment visibility is part of the canonical snapshot; renderer reconnect clears only a client's cached snapshot. The scenario checks exact joined-observation admission, acknowledgement isolation, limited activity, outcome-free idle settlement, reconnect fencing, ended-Session cleanup, exact final-snapshot recovery, and notification candidates for attention, success, and failure while cancelled and interrupted outcomes remain non-notifying. Its single final publication is an explicit reduction of intermediate runtime publications.
 
-The model does not prove unbounded Session or event counts, upstream provider truthfulness, adapter payload correctness, liveness or provider termination, platform notification delivery, pixel appearance, or continuity across application restart.
+The transport-order scenario separately explores revisions 0 through 2 and checks that each semantic event is delivered only after a snapshot whose revision includes that event. Neither scenario assumes fairness or proves unbounded Session, event, or revision counts, upstream provider truthfulness, adapter payload correctness, provider termination, platform notification delivery, pixel appearance, or continuity across application restart. Required action coverage spans both scenarios and prevents either one from passing without reaching its maintained transitions.
 
 [`../../apps/desktop/formal/tla/AgentSemanticWait.tla`](../../apps/desktop/formal/tla/AgentSemanticWait.tla)
 is the application-composition wait model. Its bounded state has two Sessions, two semantic statuses,
@@ -130,9 +130,10 @@ not prove unbounded waiters, time, revisions, Sessions, or restart continuity.
 [`../../apps/desktop/formal/tla/AgentSemanticChanges.tla`](../../apps/desktop/formal/tla/AgentSemanticChanges.tla)
 is the application-composition change-feed model. With revisions 0 through 4, retention 2, page
 bound 2, and two coordinator generations, TLC checks the bounded ordered journal suffix, baseline,
-ordered batching, exact current subscription, empty timeout, invalid cursor, cancellation,
-coordinator retirement, and explicit reset instead of a silent retention gap. Those bounds do not
-prove unbounded retention, revisions, readers, cryptographic cursor security, or restart continuity.
+ordered batching, exact current subscription, `WaitingCursorIsCurrent` after the decisive recheck,
+empty timeout, invalid cursor, cancellation, coordinator retirement, and explicit reset instead of
+a silent retention gap. Those bounds do not prove unbounded retention, revisions, readers,
+cryptographic cursor security, or restart continuity.
 
 ## Verification
 

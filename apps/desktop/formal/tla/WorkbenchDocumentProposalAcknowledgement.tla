@@ -31,12 +31,22 @@ BeginFirstProposal ==
   /\ divergentApplied' = FALSE
   /\ UNCHANGED <<revision, canonical>>
 
-LocalEdit ==
+LocalEditBeforeExactPublication ==
   /\ revision = 0
-  /\ phase \in {"active", "exact-published"}
+  /\ phase = "active"
   /\ projection = "candidate"
   /\ projection' = "later"
-  /\ exactLaterPreserved' = (phase = "exact-published")
+  /\ exactLaterPreserved' = FALSE
+  /\ divergentApplied' = FALSE
+  /\ UNCHANGED <<revision, canonical, candidate, phase>>
+
+LocalEditAfterExactPublication ==
+  /\ revision = 1
+  /\ phase = "exact-published"
+  /\ canonical = candidate
+  /\ projection = "candidate"
+  /\ projection' = "later"
+  /\ exactLaterPreserved' = TRUE
   /\ divergentApplied' = FALSE
   /\ UNCHANGED <<revision, canonical, candidate, phase>>
 
@@ -101,7 +111,8 @@ BeginNextProposal ==
 
 Next ==
   \/ BeginFirstProposal
-  \/ LocalEdit
+  \/ LocalEditBeforeExactPublication
+  \/ LocalEditAfterExactPublication
   \/ PublishExact
   \/ PublishDivergent
   \/ SettleExactWithoutPublication

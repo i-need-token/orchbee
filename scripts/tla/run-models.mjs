@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { availableParallelism, totalmem } from 'node:os';
 import path from 'node:path';
 
+import { modelConcurrency, modelWorkers, runModelChecks, writeTlcOutput } from './model-checks.mjs';
 import {
 	applyConfigConstants,
-	assertRequiredCoverage,
 	changedPathsSince,
 	inventoryPath,
 	parseStateReport,
@@ -24,14 +25,20 @@ const jarPath = configuredJarPath ? path.resolve(configuredJarPath) : bundledJar
 const javaExecutable = process.env.ORCHBEE_TLA_JAVA ?? 'java';
 
 function parseArguments(commandArguments) {
-	const result = { all: false, changedSince: undefined, models: [], workspace: undefined };
+	const result = {
+		all: false,
+		changedSince: undefined,
+		jobs: undefined,
+		models: [],
+		workspace: undefined,
+	};
 	for (let index = 0; index < commandArguments.length; index += 1) {
 		const argument = commandArguments[index];
 		if (argument === '--all') {
 			result.all = true;
 			continue;
 		}
-		if (argument === '--changed-since' || argument === '--models' || argument === '--workspace') {
+		if (['--changed-since', '--models', '--workspace', '--jobs'].includes(argument)) {
 			const value = commandArguments[index + 1];
 			if (value === undefined || value.startsWith('--'))
 				throw new Error(`${argument} requires a value`);
@@ -39,6 +46,7 @@ function parseArguments(commandArguments) {
 			if (argument === '--changed-since') result.changedSince = value;
 			if (argument === '--models') result.models.push(...value.split(',').filter(Boolean));
 			if (argument === '--workspace') result.workspace = value;
+			if (argument === '--jobs') result.jobs = value;
 			continue;
 		}
 		throw new Error(`Unknown TLA+ runner argument: ${argument}`);
@@ -132,52 +140,59 @@ function configuredTimeout(model) {
 	return timeout;
 }
 
-function runChild(arguments_, timeoutMilliseconds, modelId, workingDirectory) {
-	return new Promise((resolve, reject) => {
-		const child = spawn(javaExecutable, arguments_, {
-			cwd: workingDirectory,
-			stdio: ['ignore', 'pipe', 'pipe'],
+async function runChild(
+	arguments_,
+	timeoutMilliseconds,
+	modelId,
+	workingDirectory,
+	logPath,
+	recordFailure,
+) {
+	const log = await open(logPath, 'w');
+	let result;
+	try {
+		result = await new Promise((resolve) => {
+			const child = spawn(javaExecutable, arguments_, {
+				cwd: workingDirectory,
+				stdio: ['ignore', log.fd, log.fd],
+			});
+			let launchError;
+			let processError;
+			let forceKill;
+			let timedOut = false;
+			const timeout = setTimeout(() => {
+				timedOut = true;
+				processError ??= tlcExitError(modelId, timeoutMilliseconds, {
+					code: undefined,
+					signal: undefined,
+					timedOut,
+				});
+				recordFailure(processError);
+				child.kill('SIGTERM');
+				forceKill = setTimeout(() => child.kill('SIGKILL'), 5_000);
+			}, timeoutMilliseconds);
+			child.once('error', (error) => {
+				launchError = error;
+				processError ??= error;
+				recordFailure(processError);
+			});
+			child.once('close', (code, signal) => {
+				clearTimeout(timeout);
+				clearTimeout(forceKill);
+				processError ??=
+					launchError ?? tlcExitError(modelId, timeoutMilliseconds, { code, signal, timedOut });
+				if (processError !== undefined) recordFailure(processError);
+				resolve({ code, error: processError, signal, timedOut });
+			});
 		});
-		let output = '';
-		let settled = false;
-		let forceKill;
-		let timedOut = false;
-		const timeout = setTimeout(() => {
-			timedOut = true;
-			child.kill('SIGTERM');
-			forceKill = setTimeout(() => child.kill('SIGKILL'), 5_000);
-		}, timeoutMilliseconds);
-		child.stdout.on('data', (chunk) => {
-			output += chunk.toString();
-			process.stdout.write(chunk);
-		});
-		child.stderr.on('data', (chunk) => {
-			output += chunk.toString();
-			process.stderr.write(chunk);
-		});
-		child.once('error', (error) => {
-			if (settled) return;
-			settled = true;
-			clearTimeout(timeout);
-			clearTimeout(forceKill);
-			reject(error);
-		});
-		child.once('exit', (code, signal) => {
-			if (settled) return;
-			settled = true;
-			clearTimeout(timeout);
-			clearTimeout(forceKill);
-			const error = tlcExitError(modelId, timeoutMilliseconds, { code, signal, timedOut });
-			if (error !== undefined) {
-				reject(error);
-				return;
-			}
-			resolve(output);
-		});
-	});
+	} finally {
+		await log.close();
+	}
+	const output = await readFile(logPath, 'utf8');
+	return { error: result.error, output };
 }
 
-async function runVariant(model, variant) {
+async function runVariant(model, variant, recordFailure) {
 	const modulePath = path.join(repositoryRoot, model.module);
 	const sourceModulePaths = [model.module, ...(model.supportingModules ?? [])];
 	const configuredConfigPath = path.join(repositoryRoot, model.config);
@@ -209,29 +224,7 @@ async function runVariant(model, variant) {
 		}
 		const label = variant.name === 'default' ? model.id : `${model.id}/${variant.name}`;
 		const timeoutMilliseconds = configuredTimeout(model);
-		process.stdout.write(`\nChecking ${label} (timeout ${timeoutMilliseconds}ms)\n`);
-		const start = Date.now();
-		const output = await runChild(
-			[
-				'-XX:+UseParallelGC',
-				'-jar',
-				jarPath,
-				'-fp',
-				'0',
-				'-coverage',
-				'1',
-				'-workers',
-				'1',
-				'-metadir',
-				metadataDirectory,
-				'-config',
-				configArgument,
-				moduleArgument,
-			],
-			timeoutMilliseconds,
-			label,
-			workingDirectory,
-		);
+		const workers = modelWorkers(model);
 		const digestBuilder = createHash('sha256');
 		for (const sourceModulePath of sourceModulePaths) {
 			digestBuilder
@@ -245,36 +238,73 @@ async function runVariant(model, variant) {
 			.update('\0')
 			.update(await readFile(configPath))
 			.digest('hex');
+		process.stdout.write(
+			`\nChecking ${label} (timeout ${timeoutMilliseconds}ms, workers ${workers})\n`,
+		);
+		const start = Date.now();
+		const childResult = await runChild(
+			[
+				'-XX:+UseParallelGC',
+				'-jar',
+				jarPath,
+				'-fp',
+				'0',
+				'-lncheck',
+				'final',
+				'-coverage',
+				'1',
+				'-workers',
+				String(workers),
+				'-metadir',
+				metadataDirectory,
+				'-config',
+				configArgument,
+				moduleArgument,
+			],
+			timeoutMilliseconds,
+			label,
+			workingDirectory,
+			path.join(temporaryDirectory, 'tlc.log'),
+			recordFailure,
+		);
+		if (childResult.error !== undefined) {
+			await writeTlcOutput(process.stdout, label, childResult.output);
+			throw childResult.error;
+		}
 		const report = {
-			...parseStateReport(output),
+			...parseStateReport(childResult.output),
 			durationMilliseconds: Date.now() - start,
 			model: model.id,
 			modelConfigSha256: digest,
 			variant: variant.name,
+			workers,
 		};
-		process.stdout.write(`TLA_RESULT ${JSON.stringify(report)}\n`);
-		return output;
+		await writeTlcOutput(process.stdout, label, childResult.output, report);
+		return childResult.output;
+	} catch (error) {
+		recordFailure(error);
+		throw error;
 	} finally {
 		await rm(temporaryDirectory, { force: true, recursive: true });
 	}
 }
 
 const selection = parseArguments(process.argv.slice(2));
+const concurrency = modelConcurrency(
+	selection.jobs,
+	availableParallelism(),
+	Math.min(totalmem(), process.constrainedMemory() || Infinity),
+);
 const models = await selectModels(selection);
 if (models.length === 0) {
 	process.stdout.write('No TLA+ model is affected by the selected paths.\n');
 	process.exitCode = 0;
 } else {
 	await provisionJar();
-	let configurationCount = 0;
-	for (const model of models) {
-		const outputs = [];
-		for (const variant of model.variants ?? [{ name: 'default' }]) {
-			outputs.push(await runVariant(model, variant));
-			configurationCount += 1;
-		}
-		assertRequiredCoverage(model.id, outputs, model.requiredCoverage);
-	}
+	process.stdout.write(
+		`Checking ${models.length} models with at most ${concurrency} concurrent TLC processes.\n`,
+	);
+	const configurationCount = await runModelChecks(models, concurrency, runVariant);
 	process.stdout.write(
 		`\nChecked ${configurationCount} TLA+ model configurations with required action coverage.\n`,
 	);

@@ -21,9 +21,9 @@ export function checkSteps(task) {
 			'verify',
 			[
 				'format:check',
-				'lint',
 				'test:tla:inventory',
 				'build',
+				'lint',
 				'typecheck',
 				'test',
 				'test:exports',
@@ -32,24 +32,41 @@ export function checkSteps(task) {
 		[
 			'test',
 			[
-				...[
-					'test:check-output',
-					'test:lint-rules',
-					'test:documentation-pairing',
-					'test:ghostty-source',
-					'test:style-contract',
-					'test:storage-contract',
-					'test:experience-contract',
-					'test:ssh-environment-release',
-				].map((name) => pnpmStep(name)),
-				pnpmStep('workspace tests', ['-r', 'test']),
-				nodeStep('Rust workspace tests', ['scripts/run-rust-workspace.mjs', 'test']),
-				pnpmStep('SSH Project enrollment system witness', [
-					'--filter',
-					'@orchbee/desktop',
-					'test:system:ssh-project-enrollment',
-				]),
-				pnpmStep('native cross-compilation checks', ['-r', '--if-present', 'test:cross']),
+				// Small independent gates overlap freely.
+				{
+					concurrent: [
+						'test:check-output',
+						'test:lint-rules',
+						'test:documentation-pairing',
+						'test:ghostty-source',
+						'test:style-contract',
+						'test:storage-contract',
+						'test:experience-contract',
+						'test:ssh-environment-release',
+					].map((name) => pnpmStep(name)),
+				},
+				// Independent test suites: the Node workspace and the Rust
+				// crates share no build caches. Kept off the SSH witness to
+				// avoid node_modules churn racing transient module reads on
+				// memory-constrained runners.
+				{
+					concurrent: [
+						pnpmStep('workspace tests', ['-r', 'test']),
+						nodeStep('Rust workspace tests', ['scripts/run-rust-workspace.mjs', 'test']),
+					],
+				},
+				// The SSH system witness overlaps the native cross checks:
+				// different packages, no shared caches.
+				{
+					concurrent: [
+						pnpmStep('SSH Project enrollment system witness', [
+							'--filter',
+							'@orchbee/desktop',
+							'test:system:ssh-project-enrollment',
+						]),
+						pnpmStep('native cross-compilation checks', ['-r', '--if-present', 'test:cross']),
+					],
+				},
 			],
 		],
 		[
@@ -87,6 +104,7 @@ export function checkSteps(task) {
 			'test:tla:inventory',
 			[
 				nodeStep('TLA inventory tests', ['--test', 'scripts/tla/model-inventory.test.mjs']),
+				nodeStep('TLA scheduling tests', ['--test', 'scripts/tla/model-checks.test.mjs']),
 				nodeStep('TLA inventory check', ['scripts/tla/check-inventory.mjs']),
 			],
 		],
@@ -101,7 +119,7 @@ export function checkSteps(task) {
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	try {
 		const name = process.argv[2];
-		process.exitCode = runChecks({
+		process.exitCode = await runChecks({
 			name,
 			steps: checkSteps(name),
 			verbose: checkVerbose(process.argv.slice(3)),

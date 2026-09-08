@@ -40,6 +40,12 @@ mod terminal_operations;
 #[path = "client_process/obcs.rs"]
 mod obcs;
 
+#[path = "client_process/tab_create.rs"]
+mod tab_create;
+
+#[path = "client_process/workbench.rs"]
+mod workbench;
+
 #[test]
 fn rejects_invalid_client_endpoint_invocations_without_output() -> TestResult {
     let directory = TestDirectory::new("invalid-client-endpoint")?;

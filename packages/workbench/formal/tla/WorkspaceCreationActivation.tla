@@ -1,8 +1,9 @@
 ------------------- MODULE WorkspaceCreationActivation -------------------
 \* Refines the initiating-client Workspace activation workflow in
 \* docs/project-workspace.md. A successful result may arrive before or after
-\* the canonical Workspace publication; only the latest exact published target
-\* may produce one client-local activation command.
+\* the current canonical Workspace projection; only the latest exact target
+\* in that current projection may produce one client-local activation command.
+\* Each Target atom is an injective normalized (projectId, workspaceId) pair.
 EXTENDS FiniteSets, Naturals, Sequences, TLC
 
 Targets == {"project-1/workspace-2", "project-1/workspace-3"}
@@ -14,24 +15,26 @@ VARIABLES
   phase,
   target,
   pendingRequest,
-  published,
+  currentTargets,
   latestRequest,
   requestTarget,
   activationCount,
+  activationProjection,
   lastAction
 
 vars ==
-  <<phase, target, pendingRequest, published, latestRequest, requestTarget,
-    activationCount, lastAction>>
+  <<phase, target, pendingRequest, currentTargets, latestRequest, requestTarget,
+    activationCount, activationProjection, lastAction>>
 
 Init ==
   /\ phase = "disposed"
   /\ target = None
   /\ pendingRequest = 0
-  /\ published = {}
+  /\ currentTargets = {}
   /\ latestRequest = 0
   /\ requestTarget = [request \in RequestIds |-> None]
   /\ activationCount = [request \in RequestIds |-> 0]
+  /\ activationProjection = [request \in RequestIds |-> {}]
   /\ lastAction = "init"
 
 Mount ==
@@ -39,8 +42,8 @@ Mount ==
   /\ phase' = "idle"
   /\ lastAction' = "mount"
   /\ UNCHANGED
-       <<target, pendingRequest, published, latestRequest, requestTarget,
-         activationCount>>
+       <<target, pendingRequest, currentTargets, latestRequest, requestTarget,
+         activationCount, activationProjection>>
 
 Request(candidate) ==
   /\ phase \in {"idle", "waiting"}
@@ -53,50 +56,52 @@ Request(candidate) ==
   /\ latestRequest' = latestRequest + 1
   /\ requestTarget' = [requestTarget EXCEPT ![latestRequest + 1] = candidate]
   /\ lastAction' = "request"
-  /\ UNCHANGED <<published, activationCount>>
+  /\ UNCHANGED <<currentTargets, activationCount, activationProjection>>
 
 RepeatRequest(candidate) ==
   /\ phase = "waiting"
   /\ candidate = target
   /\ lastAction' = "repeat-request"
   /\ UNCHANGED
-       <<phase, target, pendingRequest, published, latestRequest,
-         requestTarget, activationCount>>
+       <<phase, target, pendingRequest, currentTargets, latestRequest,
+         requestTarget, activationCount, activationProjection>>
 
-Publish(candidate) ==
-  /\ candidate \in Targets
-  /\ candidate \notin published
-  /\ published' = published \cup {candidate}
+Publish(nextTargets) ==
+  /\ nextTargets \subseteq Targets
+  /\ nextTargets # currentTargets
+  /\ currentTargets' = nextTargets
   /\ lastAction' = "publish"
   /\ UNCHANGED
        <<phase, target, pendingRequest, latestRequest, requestTarget,
-         activationCount>>
+         activationCount, activationProjection>>
 
 IgnoreAbsentResult ==
   /\ phase # "disposed"
   /\ lastAction' = "ignore-absent-result"
   /\ UNCHANGED
-       <<phase, target, pendingRequest, published, latestRequest,
-         requestTarget, activationCount>>
+       <<phase, target, pendingRequest, currentTargets, latestRequest,
+         requestTarget, activationCount, activationProjection>>
 
 ObserveWaiting ==
   /\ phase = "waiting"
-  /\ target \notin published
+  /\ target \notin currentTargets
   /\ lastAction' = "observe-waiting"
   /\ UNCHANGED
-       <<phase, target, pendingRequest, published, latestRequest,
-         requestTarget, activationCount>>
+       <<phase, target, pendingRequest, currentTargets, latestRequest,
+         requestTarget, activationCount, activationProjection>>
 
 ObserveActivate ==
   /\ phase = "waiting"
-  /\ target \in published
+  /\ target \in currentTargets
   /\ phase' = "idle"
   /\ target' = None
   /\ activationCount' =
        [activationCount EXCEPT ![pendingRequest] = @ + 1]
+  /\ activationProjection' =
+       [activationProjection EXCEPT ![pendingRequest] = currentTargets]
   /\ pendingRequest' = 0
   /\ lastAction' = "observe-activate"
-  /\ UNCHANGED <<published, latestRequest, requestTarget>>
+  /\ UNCHANGED <<currentTargets, latestRequest, requestTarget>>
 
 Dispose ==
   /\ phase # "disposed"
@@ -105,13 +110,14 @@ Dispose ==
   /\ pendingRequest' = 0
   /\ lastAction' = "dispose"
   /\ UNCHANGED
-       <<published, latestRequest, requestTarget, activationCount>>
+       <<currentTargets, latestRequest, requestTarget, activationCount,
+         activationProjection>>
 
 Next ==
   \/ Mount
   \/ \E candidate \in Targets: Request(candidate)
   \/ \E candidate \in Targets: RepeatRequest(candidate)
-  \/ \E candidate \in Targets: Publish(candidate)
+  \/ \E nextTargets \in SUBSET Targets: Publish(nextTargets)
   \/ IgnoreAbsentResult
   \/ ObserveWaiting
   \/ ObserveActivate
@@ -126,10 +132,11 @@ TypeOK ==
   /\ phase \in Phases
   /\ target \in Targets \cup {None}
   /\ pendingRequest \in 0..Cardinality(RequestIds)
-  /\ published \subseteq Targets
+  /\ currentTargets \subseteq Targets
   /\ latestRequest \in 0..Cardinality(RequestIds)
   /\ requestTarget \in [RequestIds -> Targets \cup {None}]
   /\ activationCount \in [RequestIds -> 0..1]
+  /\ activationProjection \in [RequestIds -> SUBSET Targets]
   /\ lastAction \in
        {"init", "mount", "request", "repeat-request", "publish",
         "ignore-absent-result", "observe-waiting", "observe-activate",
@@ -148,7 +155,8 @@ InactiveHasNoPendingIntent ==
 
 ActivationRequiresExactPublication ==
   \A request \in RequestIds:
-    activationCount[request] = 1 => requestTarget[request] \in published
+    activationCount[request] = 1 =>
+      requestTarget[request] \in activationProjection[request]
 
 EachRequestActivatesAtMostOnce ==
   \A request \in RequestIds: activationCount[request] <= 1
@@ -157,9 +165,10 @@ PublishedPendingRequestEventuallyResolves ==
   \A request \in RequestIds:
     []((/\ phase = "waiting"
         /\ pendingRequest = request
-        /\ target \in published)
+        /\ target \in currentTargets)
        ~> (\/ activationCount[request] = 1
            \/ latestRequest > request
-           \/ phase = "disposed"))
+           \/ phase = "disposed"
+           \/ target \notin currentTargets))
 
 =============================================================================

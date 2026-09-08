@@ -5,13 +5,15 @@ EXTENDS Naturals, TLC
 \* HandoffAppliedReply, Disconnect, and ReplayIdempotent distinguish rejected,
 \* applied, replayed, and unknown outcomes without duplicating an effect. The
 \* prepared state includes the encoded reply and its reserved egress capacity;
-\* Commit therefore introduces no later domain allocation. Application clear
-\* and reset refine the non_replayable kind: an unknown committed result remains
-\* stable and can never enter ReplayIdempotent.
+\* Commit therefore introduces no later domain allocation. Prepare binds the
+\* concrete clear and reset operations to the non_replayable class, so an
+\* unknown committed result remains stable and can never enter
+\* ReplayIdempotent.
 
 CONSTANTS Requests
 
 RequestKinds == {"none", "idempotent", "non_replayable"}
+RequestOperations == {"none", "clear", "reset", "idempotent_query"}
 RequestStates == {
   "unseen",
   "prepared",
@@ -25,16 +27,19 @@ ReplyKinds == {"none", "applied", "replayed"}
 
 VARIABLES
   brokerActive,
+  requestOperation,
   requestKind,
   requestState,
   effectCount,
   replyKind
 
-requestVars == <<requestKind, requestState, effectCount, replyKind>>
+requestVars ==
+  <<requestOperation, requestKind, requestState, effectCount, replyKind>>
 vars == <<brokerActive, requestVars>>
 
 Init ==
   /\ brokerActive = FALSE
+  /\ requestOperation = [request \in Requests |-> "none"]
   /\ requestKind = [request \in Requests |-> "none"]
   /\ requestState = [request \in Requests |-> "unseen"]
   /\ effectCount = [request \in Requests |-> 0]
@@ -45,12 +50,20 @@ Connect ==
   /\ brokerActive' = TRUE
   /\ UNCHANGED requestVars
 
-Prepare(request, kind) ==
+RetryClass(operation) ==
+  IF operation \in {"clear", "reset"}
+    THEN "non_replayable"
+    ELSE "idempotent"
+
+Prepare(request, operation) ==
   /\ brokerActive
   /\ request \in Requests
-  /\ kind \in {"idempotent", "non_replayable"}
+  /\ operation \in RequestOperations \ {"none"}
   /\ requestState[request] = "unseen"
-  /\ requestKind' = [requestKind EXCEPT ![request] = kind]
+  /\ requestOperation' =
+       [requestOperation EXCEPT ![request] = operation]
+  /\ requestKind' =
+       [requestKind EXCEPT ![request] = RetryClass(operation)]
   /\ requestState' = [requestState EXCEPT ![request] = "prepared"]
   /\ UNCHANGED <<brokerActive, effectCount, replyKind>>
 
@@ -60,14 +73,16 @@ AbortBeforeCommit(request) ==
   /\ requestState[request] = "prepared"
   /\ requestState' =
        [requestState EXCEPT ![request] = "retryable_rejected"]
-  /\ UNCHANGED <<brokerActive, requestKind, effectCount, replyKind>>
+  /\ UNCHANGED <<brokerActive, requestOperation, requestKind, effectCount,
+                  replyKind>>
 
 RetryRejected(request) ==
   /\ brokerActive
   /\ request \in Requests
   /\ requestState[request] = "retryable_rejected"
   /\ requestState' = [requestState EXCEPT ![request] = "prepared"]
-  /\ UNCHANGED <<brokerActive, requestKind, effectCount, replyKind>>
+  /\ UNCHANGED <<brokerActive, requestOperation, requestKind, effectCount,
+                  replyKind>>
 
 Commit(request) ==
   /\ brokerActive
@@ -75,7 +90,7 @@ Commit(request) ==
   /\ requestState[request] = "prepared"
   /\ requestState' = [requestState EXCEPT ![request] = "committed"]
   /\ effectCount' = [effectCount EXCEPT ![request] = 1]
-  /\ UNCHANGED <<brokerActive, requestKind, replyKind>>
+  /\ UNCHANGED <<brokerActive, requestOperation, requestKind, replyKind>>
 
 HandoffAppliedReply(request) ==
   /\ brokerActive
@@ -84,14 +99,15 @@ HandoffAppliedReply(request) ==
   /\ requestState' =
        [requestState EXCEPT ![request] = "reply_handed"]
   /\ replyKind' = [replyKind EXCEPT ![request] = "applied"]
-  /\ UNCHANGED <<brokerActive, requestKind, effectCount>>
+  /\ UNCHANGED <<brokerActive, requestOperation, requestKind, effectCount>>
 
 ConfirmReply(request) ==
   /\ brokerActive
   /\ request \in Requests
   /\ requestState[request] = "reply_handed"
   /\ requestState' = [requestState EXCEPT ![request] = "confirmed"]
-  /\ UNCHANGED <<brokerActive, requestKind, effectCount, replyKind>>
+  /\ UNCHANGED <<brokerActive, requestOperation, requestKind, effectCount,
+                  replyKind>>
 
 Disconnect ==
   /\ brokerActive
@@ -106,7 +122,7 @@ Disconnect ==
        IF requestState[request] \in {"committed", "reply_handed"}
        THEN "none"
        ELSE replyKind[request]]
-  /\ UNCHANGED <<requestKind, effectCount>>
+  /\ UNCHANGED <<requestOperation, requestKind, effectCount>>
 
 ReplayIdempotent(request) ==
   /\ brokerActive
@@ -116,7 +132,7 @@ ReplayIdempotent(request) ==
   /\ requestState' =
        [requestState EXCEPT ![request] = "reply_handed"]
   /\ replyKind' = [replyKind EXCEPT ![request] = "replayed"]
-  /\ UNCHANGED <<brokerActive, requestKind, effectCount>>
+  /\ UNCHANGED <<brokerActive, requestOperation, requestKind, effectCount>>
 
 ReplayConfirmedIdempotent(request) ==
   /\ brokerActive
@@ -126,7 +142,7 @@ ReplayConfirmedIdempotent(request) ==
   /\ requestState' =
        [requestState EXCEPT ![request] = "reply_handed"]
   /\ replyKind' = [replyKind EXCEPT ![request] = "replayed"]
-  /\ UNCHANGED <<brokerActive, requestKind, effectCount>>
+  /\ UNCHANGED <<brokerActive, requestOperation, requestKind, effectCount>>
 
 RejectNonReplayableRetry(request) ==
   /\ brokerActive
@@ -138,8 +154,8 @@ RejectNonReplayableRetry(request) ==
 Next ==
   \/ Connect
   \/ \E request \in Requests,
-        kind \in {"idempotent", "non_replayable"}:
-       Prepare(request, kind)
+        operation \in RequestOperations \ {"none"}:
+       Prepare(request, operation)
   \/ \E request \in Requests: AbortBeforeCommit(request)
   \/ \E request \in Requests: RetryRejected(request)
   \/ \E request \in Requests: Commit(request)
@@ -154,6 +170,7 @@ Spec == Init /\ [][Next]_vars
 
 TypeOK ==
   /\ brokerActive \in BOOLEAN
+  /\ requestOperation \in [Requests -> RequestOperations]
   /\ requestKind \in [Requests -> RequestKinds]
   /\ requestState \in [Requests -> RequestStates]
   /\ effectCount \in [Requests -> 0..1]
@@ -163,6 +180,8 @@ OutcomeIntegrity ==
   \A request \in Requests:
     /\ (requestState[request] = "unseen") <=>
          (requestKind[request] = "none")
+    /\ (requestState[request] = "unseen") <=>
+         (requestOperation[request] = "none")
     /\ requestState[request] \in {
          "unseen", "prepared", "retryable_rejected"
        } => effectCount[request] = 0
@@ -176,9 +195,16 @@ OutcomeIntegrity ==
          /\ requestKind[request] = "idempotent"
          /\ requestState[request] \in {"reply_handed", "confirmed"}
 
-UnknownRequiresCommittedEffect ==
+ClearAndResetAreNonReplayable ==
   \A request \in Requests:
-    requestState[request] = "unknown" => effectCount[request] = 1
+    requestOperation[request] \in {"clear", "reset"} =>
+      requestKind[request] = "non_replayable"
+
+ClearAndResetUnknownCannotReplay ==
+  \A request \in Requests:
+    (requestOperation[request] \in {"clear", "reset"} /\
+     requestState[request] = "unknown") =>
+      ~ENABLED ReplayIdempotent(request)
 
 NonReplayableUnknownIsStable ==
   [][\A request \in Requests:

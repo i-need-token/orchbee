@@ -46,7 +46,6 @@ VARIABLES
   terminalPrompt,
   pendingWrites,
   cachedActivity,
-  cacheFresh,
   activityEpoch,
   activityEpochExhausted,
   cadence,
@@ -55,19 +54,21 @@ VARIABLES
   snapshotRequired,
   forceSnapshotAfterFlight,
   frameActivity,
-  frameFresh,
   frameEpoch,
   frameEpochExhausted,
   frameRevision,
   frameSequence,
-  nextSequence
+  nextSequence,
+  semanticStepSafe
 
-vars ==
+coreVars ==
   <<revision, processActive, terminalPrompt, pendingWrites, cachedActivity,
-    cacheFresh, activityEpoch, activityEpochExhausted, cadence, sampledCadence,
+    activityEpoch, activityEpochExhausted, cadence, sampledCadence,
     delivery, snapshotRequired, forceSnapshotAfterFlight, frameActivity,
-    frameFresh, frameEpoch, frameEpochExhausted, frameRevision, frameSequence,
+    frameEpoch, frameEpochExhausted, frameRevision, frameSequence,
     nextSequence>>
+
+vars == <<coreVars, semanticStepSafe>>
 
 Init ==
   /\ revision = 0
@@ -75,7 +76,6 @@ Init ==
   /\ terminalPrompt = AtPrompt
   /\ pendingWrites = 0
   /\ cachedActivity = Idle
-  /\ cacheFresh = TRUE
   /\ activityEpoch = 0
   /\ activityEpochExhausted = FALSE
   /\ cadence = 0
@@ -84,12 +84,12 @@ Init ==
   /\ snapshotRequired = [attachment \in Attachments |-> TRUE]
   /\ forceSnapshotAfterFlight = [attachment \in Attachments |-> FALSE]
   /\ frameActivity = [attachment \in Attachments |-> Unknown]
-  /\ frameFresh = [attachment \in Attachments |-> FALSE]
   /\ frameEpoch = [attachment \in Attachments |-> 0]
   /\ frameEpochExhausted = [attachment \in Attachments |-> FALSE]
   /\ frameRevision = [attachment \in Attachments |-> 0]
   /\ frameSequence = [attachment \in Attachments |-> 0]
   /\ nextSequence = [attachment \in Attachments |-> 1]
+  /\ semanticStepSafe = TRUE
 
 InvalidateReady(nextDelivery, nextRequired, nextForce) ==
   /\ nextDelivery = delivery
@@ -109,7 +109,6 @@ InputCommit(hasBytes) ==
   /\ ~hasBytes \/ pendingWrites < MaxPendingWrites
   /\ pendingWrites' = IF hasBytes THEN pendingWrites + 1 ELSE pendingWrites
   /\ cachedActivity' = Unknown
-  /\ cacheFresh' = FALSE
   /\ activityEpoch' =
        IF activityEpoch < MaxActivityEpoch
          THEN activityEpoch + 1
@@ -118,19 +117,19 @@ InputCommit(hasBytes) ==
        (activityEpochExhausted \/ activityEpoch = MaxActivityEpoch)
   /\ InvalidateReady(delivery', snapshotRequired', forceSnapshotAfterFlight')
   /\ UNCHANGED <<revision, processActive, terminalPrompt, cadence, sampledCadence,
-                  frameActivity, frameFresh, frameEpoch, frameRevision,
-                  frameEpochExhausted, frameSequence, nextSequence>>
+                  frameActivity, frameEpoch, frameRevision,
+                  frameEpochExhausted, frameSequence, nextSequence, semanticStepSafe>>
 
 \* Physical delivery does not itself refresh the activity observation.
 WriterCompletesInput ==
   /\ pendingWrites > 0
   /\ pendingWrites' = pendingWrites - 1
   /\ UNCHANGED <<revision, processActive, terminalPrompt, cachedActivity,
-                  cacheFresh, activityEpoch, activityEpochExhausted, cadence,
+                  activityEpoch, activityEpochExhausted, cadence,
                   sampledCadence, delivery, snapshotRequired,
-                  forceSnapshotAfterFlight, frameActivity, frameFresh,
+                  forceSnapshotAfterFlight, frameActivity,
                   frameEpoch, frameEpochExhausted, frameRevision,
-                  frameSequence, nextSequence>>
+                  frameSequence, nextSequence, semanticStepSafe>>
 
 \* Output may move Ghostty's current semantic-prompt observation. It does not
 \* refresh the cached close activity until the next bounded sample.
@@ -140,32 +139,32 @@ OutputCommit(promptState) ==
   /\ revision' = revision + 1
   /\ terminalPrompt' = promptState
   /\ UNCHANGED <<processActive, pendingWrites, cachedActivity,
-                  cacheFresh, activityEpoch, activityEpochExhausted, cadence,
+                  activityEpoch, activityEpochExhausted, cadence,
                   sampledCadence, delivery, snapshotRequired,
-                  forceSnapshotAfterFlight, frameActivity, frameFresh,
+                  forceSnapshotAfterFlight, frameActivity,
                   frameEpoch, frameEpochExhausted, frameRevision,
-                  frameSequence, nextSequence>>
+                  frameSequence, nextSequence, semanticStepSafe>>
 
 SilentForegroundChange(active) ==
   /\ active \in BOOLEAN
   /\ active # processActive
   /\ processActive' = active
   /\ UNCHANGED <<revision, terminalPrompt, pendingWrites, cachedActivity,
-                  cacheFresh, activityEpoch, activityEpochExhausted, cadence,
+                  activityEpoch, activityEpochExhausted, cadence,
                   sampledCadence, delivery, snapshotRequired,
-                  forceSnapshotAfterFlight, frameActivity, frameFresh,
+                  forceSnapshotAfterFlight, frameActivity,
                   frameEpoch, frameEpochExhausted, frameRevision,
-                  frameSequence, nextSequence>>
+                  frameSequence, nextSequence, semanticStepSafe>>
 
 AdvanceCadence ==
   /\ cadence < MaxCadence
   /\ cadence' = cadence + 1
   /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
-                  cachedActivity, cacheFresh, activityEpoch,
+                  cachedActivity, activityEpoch,
                   activityEpochExhausted, sampledCadence, delivery,
                   snapshotRequired, forceSnapshotAfterFlight, frameActivity,
-                  frameFresh, frameEpoch, frameEpochExhausted, frameRevision,
-                  frameSequence, nextSequence>>
+                  frameEpoch, frameEpochExhausted, frameRevision,
+                  frameSequence, nextSequence, semanticStepSafe>>
 
 SampleSuccess ==
   /\ sampledCadence < cadence
@@ -178,11 +177,9 @@ SampleSuccess ==
            requestedActivity # cachedActivity /\
              activityEpoch = MaxActivityEpoch
          nextActivity == IF epochOverflow THEN Unknown ELSE requestedActivity
-         nextFresh == nextActivity # Unknown
-         changed == (nextActivity # cachedActivity \/ nextFresh # cacheFresh)
+         changed == nextActivity # cachedActivity
      IN
        /\ cachedActivity' = nextActivity
-       /\ cacheFresh' = nextFresh
        /\ activityEpoch' =
             IF requestedActivity # cachedActivity /\
                  activityEpoch < MaxActivityEpoch
@@ -199,19 +196,23 @@ SampleSuccess ==
                  /\ forceSnapshotAfterFlight' = forceSnapshotAfterFlight
   /\ sampledCadence' = cadence
   /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
-                  cadence, frameActivity, frameFresh, frameEpoch,
+                  cadence, frameActivity, frameEpoch,
                   frameEpochExhausted, frameRevision, frameSequence,
                   nextSequence>>
+  /\ semanticStepSafe' =
+       semanticStepSafe /\
+         (processActive \/ terminalPrompt = AwayFromPrompt \/
+          (cachedActivity # Idle /\ activityEpoch = MaxActivityEpoch) \/
+          cachedActivity' = Idle)
 
 SampleFailure ==
   /\ sampledCadence < cadence
   /\ ~activityEpochExhausted
   /\ LET epochOverflow ==
            cachedActivity # Unknown /\ activityEpoch = MaxActivityEpoch
-         changed == (cachedActivity # Unknown \/ cacheFresh)
+         changed == cachedActivity # Unknown
      IN
        /\ cachedActivity' = Unknown
-       /\ cacheFresh' = FALSE
        /\ activityEpoch' =
             IF cachedActivity # Unknown /\ activityEpoch < MaxActivityEpoch
               THEN activityEpoch + 1
@@ -227,9 +228,9 @@ SampleFailure ==
                  /\ forceSnapshotAfterFlight' = forceSnapshotAfterFlight
   /\ sampledCadence' = cadence
   /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
-                  cadence, frameActivity, frameFresh, frameEpoch,
+                  cadence, frameActivity, frameEpoch,
                   frameEpochExhausted, frameRevision, frameSequence,
-                  nextSequence>>
+                  nextSequence, semanticStepSafe>>
 
 PrepareSnapshot(attachment) ==
   /\ attachment \in Attachments
@@ -238,7 +239,6 @@ PrepareSnapshot(attachment) ==
   /\ nextSequence[attachment] <= MaxSequence
   /\ delivery' = [delivery EXCEPT ![attachment] = Provisional]
   /\ frameActivity' = [frameActivity EXCEPT ![attachment] = cachedActivity]
-  /\ frameFresh' = [frameFresh EXCEPT ![attachment] = cacheFresh]
   /\ frameEpoch' = [frameEpoch EXCEPT ![attachment] = activityEpoch]
   /\ frameEpochExhausted' =
        [frameEpochExhausted EXCEPT ![attachment] = activityEpochExhausted]
@@ -246,20 +246,20 @@ PrepareSnapshot(attachment) ==
   /\ frameSequence' =
        [frameSequence EXCEPT ![attachment] = nextSequence[attachment]]
   /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
-                  cachedActivity, cacheFresh, activityEpoch,
+                  cachedActivity, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
-                  snapshotRequired, forceSnapshotAfterFlight, nextSequence>>
+                  snapshotRequired, forceSnapshotAfterFlight, nextSequence, semanticStepSafe>>
 
 BatchFull(attachment) ==
   /\ attachment \in Attachments
   /\ delivery[attachment] = Provisional
   /\ delivery' = [delivery EXCEPT ![attachment] = Ready]
   /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
-                  cachedActivity, cacheFresh, activityEpoch,
+                  cachedActivity, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
                   snapshotRequired, forceSnapshotAfterFlight, frameActivity,
-                  frameFresh, frameEpoch, frameEpochExhausted, frameRevision,
-                  frameSequence, nextSequence>>
+                  frameEpoch, frameEpochExhausted, frameRevision,
+                  frameSequence, nextSequence, semanticStepSafe>>
 
 EmitSnapshot(attachment) ==
   /\ attachment \in Attachments
@@ -270,38 +270,96 @@ EmitSnapshot(attachment) ==
   /\ snapshotRequired' = [snapshotRequired EXCEPT ![attachment] = FALSE]
   /\ nextSequence' = [nextSequence EXCEPT ![attachment] = @ + 1]
   /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
-                  cachedActivity, cacheFresh, activityEpoch,
+                  cachedActivity, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
-                  forceSnapshotAfterFlight, frameActivity, frameFresh,
+                  forceSnapshotAfterFlight, frameActivity,
                   frameEpoch, frameEpochExhausted, frameRevision,
-                  frameSequence>>
+                  frameSequence, semanticStepSafe>>
 
-FrameApplied(attachment) ==
+FlightStatePreserved ==
+  /\ delivery' = delivery
+  /\ snapshotRequired' = snapshotRequired
+  /\ forceSnapshotAfterFlight' = forceSnapshotAfterFlight
+  /\ frameActivity' = frameActivity
+  /\ frameEpoch' = frameEpoch
+  /\ frameEpochExhausted' = frameEpochExhausted
+  /\ frameRevision' = frameRevision
+  /\ frameSequence' = frameSequence
+  /\ nextSequence' = nextSequence
+
+ExactFrameAppliedInput(attachment, receivedSequence, receivedRevision) ==
   /\ attachment \in Attachments
   /\ delivery[attachment] = InFlight
+  /\ receivedSequence = frameSequence[attachment]
+  /\ receivedRevision = frameRevision[attachment]
+
+MonitorFrameAppliedInput(attachment, receivedSequence, receivedRevision) ==
+  semanticStepSafe' =
+    semanticStepSafe
+      /\ (ExactFrameAppliedInput(attachment, receivedSequence,
+                                 receivedRevision)
+          \/ FlightStatePreserved)
+
+FrameApplied(attachment, receivedSequence, receivedRevision) ==
+  /\ attachment \in Attachments
+  /\ delivery[attachment] = InFlight
+  /\ receivedSequence = frameSequence[attachment]
+  /\ receivedRevision = frameRevision[attachment]
   /\ delivery' = [delivery EXCEPT ![attachment] = Ready]
   /\ snapshotRequired' = [snapshotRequired EXCEPT
        ![attachment] = forceSnapshotAfterFlight[attachment]]
   /\ forceSnapshotAfterFlight' =
        [forceSnapshotAfterFlight EXCEPT ![attachment] = FALSE]
   /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
-                  cachedActivity, cacheFresh, activityEpoch,
+                  cachedActivity, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
-                  frameActivity, frameFresh, frameEpoch, frameEpochExhausted,
+                  frameActivity, frameEpoch, frameEpochExhausted,
                   frameRevision, frameSequence, nextSequence>>
+  /\ MonitorFrameAppliedInput(attachment, receivedSequence, receivedRevision)
 
-NeedSnapshot(attachment) ==
+RejectFrameApplied(attachment, receivedSequence, receivedRevision) ==
   /\ attachment \in Attachments
   /\ delivery[attachment] = InFlight
+  /\ receivedSequence \in 0..(MaxSequence + 1)
+  /\ receivedRevision \in 0..MaxRevision
+  /\ (receivedSequence # frameSequence[attachment]
+        \/ receivedRevision # frameRevision[attachment])
+  /\ UNCHANGED coreVars
+  /\ MonitorFrameAppliedInput(attachment, receivedSequence, receivedRevision)
+
+ExactNeedSnapshotInput(attachment, receivedSequence) ==
+  /\ attachment \in Attachments
+  /\ delivery[attachment] = InFlight
+  /\ receivedSequence = frameSequence[attachment]
+
+MonitorNeedSnapshotInput(attachment, receivedSequence) ==
+  semanticStepSafe' =
+    semanticStepSafe
+      /\ (ExactNeedSnapshotInput(attachment, receivedSequence)
+          \/ FlightStatePreserved)
+
+NeedSnapshot(attachment, receivedSequence) ==
+  /\ attachment \in Attachments
+  /\ delivery[attachment] = InFlight
+  /\ receivedSequence = frameSequence[attachment]
   /\ delivery' = [delivery EXCEPT ![attachment] = Ready]
   /\ snapshotRequired' = [snapshotRequired EXCEPT ![attachment] = TRUE]
   /\ forceSnapshotAfterFlight' =
        [forceSnapshotAfterFlight EXCEPT ![attachment] = FALSE]
   /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
-                  cachedActivity, cacheFresh, activityEpoch,
+                  cachedActivity, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
-                  frameActivity, frameFresh, frameEpoch, frameEpochExhausted,
+                  frameActivity, frameEpoch, frameEpochExhausted,
                   frameRevision, frameSequence, nextSequence>>
+  /\ MonitorNeedSnapshotInput(attachment, receivedSequence)
+
+RejectNeedSnapshot(attachment, receivedSequence) ==
+  /\ attachment \in Attachments
+  /\ delivery[attachment] = InFlight
+  /\ receivedSequence \in 0..(MaxSequence + 1)
+  /\ receivedSequence # frameSequence[attachment]
+  /\ UNCHANGED coreVars
+  /\ MonitorNeedSnapshotInput(attachment, receivedSequence)
 
 Next ==
   \/ \E hasBytes \in BOOLEAN: InputCommit(hasBytes)
@@ -316,8 +374,13 @@ Next ==
        \/ PrepareSnapshot(attachment)
        \/ BatchFull(attachment)
        \/ EmitSnapshot(attachment)
-       \/ FrameApplied(attachment)
-       \/ NeedSnapshot(attachment)
+       \/ \E receivedSequence \in 0..(MaxSequence + 1),
+             receivedRevision \in 0..MaxRevision:
+            \/ FrameApplied(attachment, receivedSequence, receivedRevision)
+            \/ RejectFrameApplied(attachment, receivedSequence, receivedRevision)
+       \/ \E receivedSequence \in 0..(MaxSequence + 1):
+            \/ NeedSnapshot(attachment, receivedSequence)
+            \/ RejectNeedSnapshot(attachment, receivedSequence)
 
 Spec ==
   /\ Init
@@ -329,7 +392,6 @@ TypeOK ==
   /\ terminalPrompt \in {AtPrompt, AwayFromPrompt, PromptUnavailable}
   /\ pendingWrites \in 0..MaxPendingWrites
   /\ cachedActivity \in {Active, Idle, Unknown}
-  /\ cacheFresh \in BOOLEAN
   /\ activityEpoch \in 0..MaxActivityEpoch
   /\ activityEpochExhausted \in BOOLEAN
   /\ cadence \in 0..MaxCadence
@@ -338,36 +400,29 @@ TypeOK ==
   /\ snapshotRequired \in [Attachments -> BOOLEAN]
   /\ forceSnapshotAfterFlight \in [Attachments -> BOOLEAN]
   /\ frameActivity \in [Attachments -> {Active, Idle, Unknown}]
-  /\ frameFresh \in [Attachments -> BOOLEAN]
   /\ frameEpoch \in [Attachments -> 0..MaxActivityEpoch]
   /\ frameEpochExhausted \in [Attachments -> BOOLEAN]
   /\ frameRevision \in [Attachments -> 0..MaxRevision]
   /\ frameSequence \in [Attachments -> 0..MaxSequence]
   /\ nextSequence \in [Attachments -> 1..(MaxSequence + 1)]
-
-StaleEncodesUnknown ==
-  ~cacheFresh => cachedActivity = Unknown
-
-FreshCacheIsKnown ==
-  cacheFresh => cachedActivity \in {Active, Idle}
+  /\ semanticStepSafe \in BOOLEAN
 
 CurrentTokenFrameMatchesCache ==
   \A attachment \in Attachments:
     delivery[attachment] \in {Provisional, InFlight} /\
       frameEpoch[attachment] = activityEpoch /\
       frameEpochExhausted[attachment] = activityEpochExhausted =>
-        frameActivity[attachment] = cachedActivity /\
-          frameFresh[attachment] = cacheFresh
+        frameActivity[attachment] = cachedActivity
 
 EpochExhaustionIsUnknown ==
-  activityEpochExhausted => cachedActivity = Unknown /\ ~cacheFresh
+  activityEpochExhausted => cachedActivity = Unknown
 
 EveryReadAttachmentTracksActivityInvalidation ==
   \A attachment \in Attachments:
     delivery[attachment] = Ready /\ ~snapshotRequired[attachment] =>
       (frameEpoch[attachment] = activityEpoch /\
          frameEpochExhausted[attachment] = activityEpochExhausted) \/
-        (~frameFresh[attachment] /\ frameActivity[attachment] = Unknown)
+        frameActivity[attachment] = Unknown
 
 InFlightInvalidationForcesSnapshotRetry ==
   \A attachment \in Attachments:
@@ -383,5 +438,7 @@ BatchFullCannotConsumeSequence ==
   \A attachment \in Attachments:
     delivery[attachment] = Provisional =>
       frameSequence[attachment] = nextSequence[attachment]
+
+SemanticStepWitness == semanticStepSafe
 
 =============================================================================
