@@ -83,6 +83,25 @@ const testId = harness.testId;
 const testRequest = harness.testRequest;
 const aggregate_harness = @import("runtime_aggregate_harness.zig");
 
+// A native shell may publish startup metadata before the scheduler visits
+// interaction/projection. Each of the two feedback classes owns its own batch.
+// Do not skip an empty or unrelated batch: the caller still checks its event.
+fn pollPastStartupFeedback(service: *HostService, connection: *const ConnectionState) !Outgoing {
+    for (0..3) |_| {
+        var events = try pollEventsChecked(service, connection);
+        errdefer events.deinit();
+        var feedback_only = events.records().len != 0;
+        for (events.records()) |record| {
+            const envelope = try protocol.validateTransportEnvelope(record);
+            feedback_only = feedback_only and (envelope.kind == MessageKind.terminal_metadata_changed or
+                envelope.kind == MessageKind.terminal_application_signal);
+        }
+        if (!feedback_only) return events;
+        events.deinit();
+    }
+    return error.ExpectedInteractionOrProjectionAfterStartupFeedback;
+}
+
 test "retained exited terminals still project and export selection" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
@@ -181,7 +200,7 @@ test "retained exited terminals still project and export selection" {
         MessageKind.projection_demand_accepted,
         (try protocol.validateTransportEnvelope(demanded.records()[0])).kind,
     );
-    var projection_events = try pollEventsChecked(&service, &connection);
+    var projection_events = try pollPastStartupFeedback(&service, &connection);
     defer projection_events.deinit();
     var projected = false;
     for (projection_events.records()) |record| {
@@ -248,7 +267,7 @@ test "retained exited terminals still project and export selection" {
     }
     try std.testing.expect(started);
     try std.testing.expect(!chunked);
-    var export_events = try pollEventsChecked(&service, &connection);
+    var export_events = try pollPastStartupFeedback(&service, &connection);
     defer export_events.deinit();
     for (export_events.records()) |record| {
         const envelope = try protocol.validateTransportEnvelope(record);
@@ -258,12 +277,15 @@ test "retained exited terminals still project and export selection" {
 }
 test "two visible attachments produce one real PTY focus interval" {
     const builtin = @import("builtin");
-    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
+    const windows_fixture: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.fs.path.resolve(std.testing.allocator, &.{
+            @import("service_test_options").fixture_build_root,
+            @import("service_test_options").focus_console_fixture,
+        })
     else
         null;
-    defer if (windows_executable) |value| std.testing.allocator.free(value);
-    const executable = if (windows_executable) |value| value else "/bin/sh";
+    defer if (windows_fixture) |path| std.testing.allocator.free(path);
+    const executable = windows_fixture orelse "/bin/sh";
     const posix_arguments = [_][]const u8{
         "-c",
         "esc=$(printf '\\033'); printf '\\033[?1004hfocus-ready'; " ++
@@ -272,20 +294,8 @@ test "two visible attachments produce one real PTY focus interval" {
             "then printf 'focus-bytes:1b5b4f1b5b491b5b4f'; " ++
             "else printf 'focus-bytes:unexpected'; fi",
     };
-    const windows_arguments = [_][]const u8{
-        "/D",
-        "/Q",
-        "/V:ON",
-        "/S",
-        "/C",
-        "for /F \"delims=#\" %a in ('\"prompt #$E# & for %b in (1) do rem\"') " ++
-            "do @set \"ESC=%a\" & <nul set /p =!ESC![?1004hfocus-ready & " ++
-            "set /p value= & if \"!value!\"==\"!ESC![O!ESC![I!ESC![O\" " ++
-            "(<nul set /p =focus-bytes:1b5b4f1b5b491b5b4f) else " ++
-            "(<nul set /p =focus-bytes:unexpected)",
-    };
     const arguments: []const []const u8 = if (builtin.os.tag == .windows)
-        &windows_arguments
+        &.{}
     else
         &posix_arguments;
     var launch = aggregate_harness.validMissingExecutableLaunch();
@@ -369,7 +379,10 @@ test "two visible attachments produce one real PTY focus interval" {
     try semantic_wait.runtimeText(
         runtime,
         std.testing.allocator,
-        "focus-bytes:1b5b4f1b5b491b5b4f",
+        if (builtin.os.tag == .windows)
+            "focus-bytes:1b5b4f1b5b491b5b4f:end"
+        else
+            "focus-bytes:1b5b4f1b5b491b5b4f",
     );
     var exit_events = try semantic_wait.terminalExits(
         &service,
@@ -918,7 +931,7 @@ test "scheduler emits one uncorrelated cancellation for an invalidated export" {
     );
     defer std.testing.allocator.free(expected_payload);
 
-    var events = try pollEventsChecked(&service, &connection);
+    var events = try pollPastStartupFeedback(&service, &connection);
     defer events.deinit();
     var finished_count: usize = 0;
     var chunk_count: usize = 0;
@@ -1106,7 +1119,7 @@ test "selection export request emits pending cancellation before a newer export 
     try std.testing.expect(cancellation_position.? < started_position.?);
     try std.testing.expectEqual(@as(usize, 0), chunk_count);
 
-    var export_events = try pollEventsChecked(&service, &connection);
+    var export_events = try pollPastStartupFeedback(&service, &connection);
     defer export_events.deinit();
     for (export_events.records()) |record| {
         const envelope = try protocol.validateTransportEnvelope(record);

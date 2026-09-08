@@ -317,6 +317,27 @@ pub fn build(builder: *std.Build) void {
     service_test_module.addImport("terminal-host-model", model_module);
     service_test_module.addImport("terminal-host-platform", platform_module);
     service_test_module.addImport("terminal-host-service", service_module);
+    const service_test_options = builder.addOptions();
+    service_test_options.addOption([]const u8, "fixture_build_root", builder.pathFromRoot("."));
+    if (target.result.os.tag == .windows) {
+        const focus_fixture_module = builder.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        focus_fixture_module.addCSourceFile(.{
+            .file = builder.path("src/service/__tests__/focus_console_windows.c"),
+            .flags = authored_c_flags,
+        });
+        const focus_fixture = builder.addExecutable(.{
+            .name = "terminal-host-focus-console-fixture",
+            .root_module = focus_fixture_module,
+        });
+        service_test_options.addOptionPath("focus_console_fixture", focus_fixture.getEmittedBin());
+    } else {
+        service_test_options.addOption([]const u8, "focus_console_fixture", "");
+    }
+    service_test_module.addOptions("service_test_options", service_test_options);
     const transport_test_module = builder.createModule(.{
         .root_source_file = builder.path("src/transport/__tests__/transport_test.zig"),
         .target = target,

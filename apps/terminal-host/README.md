@@ -248,6 +248,13 @@ for those platforms. Repository CI runs the package `test` command, and therefor
 trace, natively on Linux, macOS, and Windows. FreeBSD remains compile-only evidence and is not
 reported as native PTY or IPC conformance.
 
+The Windows service focus test builds a native console child with the same target toolchain and
+enables VT input to observe the exact focus-report bytes through ConPTY. Its bounded read and
+explicit stream terminator verify the complete O/I/O interval; cooked console input can discard
+focus reports and is not this byte-stream oracle. Native projection/selection tests allow the
+scheduler's separate startup metadata and application-feedback batches before checking their
+original exact event, cancellation, and export assertions.
+
 `format:check` also enforces the package boundary rule that every hand-written production Zig file
 under `src/` stays at or below 500 physical lines. Scenario catalogs under `__tests__/` and
 `*_test.zig` files are exempt.

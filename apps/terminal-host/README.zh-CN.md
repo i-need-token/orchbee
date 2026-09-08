@@ -154,6 +154,12 @@ pnpm verify
 
 `test` 会运行当前平台的原生测试、真实本地 IPC/PTY 黑盒跟踪、跨语言协议一致性测试，以及固定 Ghostty 版本的表面夹具比较。生成的跨语言选择案例只允许 `plain`，并要求 HTML/raw VT 请求严格解码失败；`terminal-parity/HS-07-selection-export` 从所属应用系统测试套件补充 real-PTY/Electron 剪贴板结果。`test:black-box` 先运行事件判定器的确定性检查，再运行外部跟踪：启动构建后的 Host，通过本地 IPC 创建并附加真实终端，断开、重连并重放创建标识，重新附加同一附件标识，通过 PTY 输入驱动子进程，观察 PTY 输出排空、最终修订及成功退出事件，处置保留终端，并要求 Host 进程彻底停止。跟踪还会校验可能穿插于生命周期记录之间的标识作用域元数据事件，但不会把它们当作退出证据；未知事件或畸形元数据仍会失败。`test:protocol` 单独运行协议一致性测试；`test:surface-fixtures` 在临时目录重新生成并逐字节比较三个由 Host 拥有的原生夹具。主/备用 OBTF 夹具对来自同一 Ghostty 终端和 Projection，并跨越真实的备用屏幕转换。另一个 Ghostty 终端会重放丰富的主语料，加入 DECSCA 受保护与未受保护哨兵，并且只通过 `row_encoding.encode` 和 `projection_buffer.encodeRenderSnapshot` 到达 render-detail OBRW 夹具。协议包负责已跟踪字节及其导出；`@orchbee/terminal` 负责严格视图、可信视图和打包存储的精确语义判定。该证据覆盖确定性的原生投影映射，不覆盖 PTY 交付、历史锚定，也不授权其他信任路径。有意修改语料库或编码器并完成审核后，运行 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate`，并审核全部生产者与消费者断言。`test:cross` 为 Linux、FreeBSD、macOS 与 Windows 编译包括黑盒运行器在内的完整测试图；交叉编译不构成这些平台的运行时证据。仓库 CI 执行包的 `test` 命令，因此外部 Host 跟踪会在 Linux、macOS 和 Windows 上原生运行。FreeBSD 仍只有编译证据，不会报告为原生 PTY 或 IPC 一致性证据。
 
+Windows service focus test 使用同一 target toolchain 构建原生 console child，并启用 VT input，
+通过 ConPTY 观察精确 focus-report byte。有界读取与显式 stream terminator 验证完整 O/I/O interval；
+cooked console input 可能丢弃 focus report，因此不作为该 byte-stream oracle。原生 projection/selection
+test 允许 scheduler 先交付独立的 startup metadata 与 application-feedback batch，再检查原有精确
+event、cancellation 与 export 断言。
+
 `format:check` 还强制执行包边界规则，即 `src/` 下的每个手写生产 Zig 文件保持在或低于 500 物理行。 `__tests__/` 和 `*_test.zig` 文件下的场景目录除外。
 
 较窄的 POSIX 端点安全证据可以在没有完整主机套件的情况下运行：
