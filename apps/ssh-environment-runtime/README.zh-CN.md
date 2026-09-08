@@ -25,6 +25,17 @@ protocol byte。在认证连接建立前，`attach` 最多重试 private endpoin
 stale socket 不会与其替代进程竞速；连接建立后，bridge loss 会立即终止 attachment。其余 internal worker
 command 是精确 private ABI，不授予 caller-selected command、shell 或 path execution。
 
+当 socket 终结事件或终结性的 socket 写入失败结束 attachment 时，bridge 只读取一次内核报告的排队字节数，
+并将正数用作有限读取上限。它使用既有固定 buffer 和非阻塞读取，最多转发该数量的同一连接前缀字节。
+每次正长度读取都会减少剩余上限；计数查询失败、非正计数、EOF、当前没有可读字节或读取错误都会结束 drain。
+部分内核在部分读取后会高估计数，因此这只是工作量上限，而非精确快照：该上限内恰好到达的字节也可能被转发。
+Bridge 是这个普通 Unix stream 的唯一读取者，不涉及 ancillary 或 out-of-band 数据。它不会刷新计数、
+等待新的 socket 数据、解析字节、重连或重放输入。
+socket 写入失败在转发排队输出后仍返回错误。被中断的 send 只重试未发送的后缀，其他系统错误仍保留为失败。
+stdout 保持既有输出背压。这使已排队的拒绝在与 Hello 发送竞争时仍可被观察，并保留 hangup 时超过一个
+buffer 的排队输出。Socket-pair 回归覆盖两条终结路径、分次写入、有限上限、部分读取后的计数高估、空终结和发送错误；真实进程
+conformance 仍要求精确的 competing-attachment 拒绝与既有 Runtime epoch 证明。
+
 Runtime directory、lock 与 socket 必须属于 effective user，具有精确的 owner-only permission，不包含
 extended ACL grant，并且在准入时绝不跟随 symlink。Server 会先在同一目录绑定并保护一个未公开的 socket，
 然后再通过原子操作发布准入 endpoint name，因此公开 path 永远不会以宽松的创建期 permission 被观察到。

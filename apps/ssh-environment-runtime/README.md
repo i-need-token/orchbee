@@ -27,6 +27,22 @@ its replacement; after connection, bridge loss terminates the attachment immedia
 internal worker commands are exact private ABIs and grant no caller-selected command, shell, or path
 execution.
 
+When a terminal socket event or terminal socket-write failure ends an attachment, the bridge reads
+the kernel-reported queued byte count once and uses a positive count as a finite read limit. It
+forwards at most that many bytes of the same connection's prefix using the existing fixed buffer
+and nonblocking reads. Each positive read decreases the remaining limit; a failed count query,
+nonpositive count, EOF, unavailable bytes, or a read error ends the drain. Some kernels overcount
+after a partial read, so this is a work limit rather than an exact snapshot: bytes arriving within
+that limit may also be forwarded. The bridge is the sole reader of this ordinary Unix stream, with
+no ancillary or out-of-band data. It never refreshes the count,
+waits for new socket data, parses the bytes, reconnects, or replays input. A socket-write failure
+remains an error after forwarding queued output. Interrupted sends retry only the unsent suffix;
+other system errors remain failures. Stdout retains its existing output backpressure. This keeps
+an already queued rejection observable when it races a Hello send, and preserves queued output
+larger than one buffer at hangup. Socket-pair regressions cover both terminal paths, split writes,
+finite limits, partial-read overcounts, empty termination, and send errors; real-process conformance still requires the
+exact competing-attachment rejection and the existing Runtime epoch proofs.
+
 The Runtime directory, lock, and socket must be owned by the effective user, have exact owner-only
 permissions, contain no extended ACL grant, and never follow a symlink at admission. The server
 binds and secures an unpublished same-directory socket before atomically publishing the admitted

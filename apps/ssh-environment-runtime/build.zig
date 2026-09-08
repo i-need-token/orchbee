@@ -136,16 +136,21 @@ pub fn build(builder: *std.Build) void {
     const tests = builder.addTest(.{ .root_module = test_module });
     tests.root_module.link_libc = true;
     const run_tests = builder.addRunArtifact(tests);
+    const attachment_tests = builder.addTest(.{ .root_module = attachment_module });
+    attachment_tests.root_module.link_libc = true;
+    const run_attachment_tests = builder.addRunArtifact(attachment_tests);
 
     const test_step = builder.step("test", "Build the Runtime and run unit tests");
     test_step.dependOn(&executable.step);
     test_step.dependOn(&run_tests.step);
+    test_step.dependOn(&run_attachment_tests.step);
     const test_compile_step = builder.step(
         "test-compile",
         "Compile the Runtime and unit tests without running them",
     );
     test_compile_step.dependOn(&executable.step);
     test_compile_step.dependOn(&tests.step);
+    test_compile_step.dependOn(&attachment_tests.step);
 }
 
 fn supportedPlatform(target: std.Target) []const u8 {
