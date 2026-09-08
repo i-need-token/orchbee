@@ -1264,7 +1264,7 @@ Two guarded action witnesses additionally require the exact intent set `{1, 3}`,
 anchor at installed generation 2, installation from cursor 3 to generation 4, and the second
 generation's full Ready proof. They witness two completed switches without adding state or changing
 the transition union; merely allocating cursor 4 does not satisfy this evidence obligation.
-This model declares a 600,000 ms verification timeout per configuration with one TLC worker. Two
+This model declares a 600,000 ms verification timeout per configuration with two TLC workers. Two
 earlier 180,000 ms checks did not complete, including a first-target-class partition that did not
 reduce exploration sufficiently. Those timeouts remain failed evidence; neither the observed
 state counts nor the larger fixed limit guarantees completion. The verification resource limit
@@ -2061,7 +2061,7 @@ Run `node scripts/tla/run-models.mjs --models native-tab-switch --jobs 1` with p
 queues and positive generated coverage for all 77 required actions across the family, including
 the two-completed-Switch witnesses. Each configuration has three Tabs, two attachable, two admitted
 intents, `MaxQueue = 3` and `MaxGeometry = 1`; `two-switch` uses `MaxGeneration = 4`, and
-`exhaustion` uses two. The fixed verification timeout is 600,000 ms with one worker per configuration.
+`exhaustion` uses two. The fixed verification timeout is 600,000 ms with two workers per configuration.
 These results establish only the finite Switch interface described above, not membership-vector
 validation, runtime anchor proof preservation, numeric deadlines or real carrier/UI behavior.
 

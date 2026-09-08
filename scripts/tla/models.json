@@ -377,6 +377,7 @@
 		},
 		{
 			"id": "desktop-multi-client-session",
+			"workers": 2,
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
 			"module": "apps/desktop/formal/tla/DesktopMultiClientSession.tla",
@@ -3004,6 +3005,7 @@
 		},
 		{
 			"id": "native-tab-switch",
+			"workers": 2,
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/NativeTabSwitch.tla",
@@ -3337,6 +3339,7 @@
 		},
 		{
 			"id": "local-standalone-terminal",
+			"workers": 2,
 			"timeoutMilliseconds": 300000,
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",
