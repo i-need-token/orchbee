@@ -25,10 +25,11 @@ dependent implementation; exact UI consumption, cleanup and worker-exit facts re
 
 The native state owner retains Close knowledge independently of terminal selection and projection.
 Linux native input, confirmation drawing, Close/Read/Resume execution and explicit status-only
-recovery are integrated. Closed membership installation and record pruning remain pending their
-common consumers. The protocol adapter validates wire correlation; the native owner validates exact
-operation identity, nonregressing attempt generation, retained disposal/Closed facts and UI flight
-identity. These checks do not establish the complete multi-Client Close-to-Empty result.
+recovery are integrated. Closed membership installation now uses the common exact-cleanup consumer,
+and record pruning occurs only after both the exchange and reconciliation references are released.
+The protocol adapter validates wire correlation; the native owner validates exact operation identity,
+nonregressing attempt generation, retained disposal/Closed facts and UI flight identity. These checks
+do not establish the complete multi-Client Close-to-Empty process result.
 
 Retirement at an unresolved submitted mutation, including cutoff or explicit retirement, preserves
 local submission uncertainty and the exact identity for status recovery. A queued-only cancellation
@@ -1181,9 +1182,10 @@ the separate Refresh and Switch models do not claim this cross-product.
 
 ## Switch setup and supersession
 
-The shared Switch installation and handoff foundation has state, mailbox and actual UI tests.
-The Snapshot-first executor and late-discard anchor invalidation still require integration; the
-foundation alone does not establish the complete Switch runtime described below.
+The shared Switch installation and handoff foundation, Snapshot-first executor and late-discard
+anchor invalidation are integrated and covered by state, mailbox and actual UI tests. This evidence
+establishes the single-Client Switch runtime described below; the multi-Client PTY peer-removal
+recovery witness remains separate.
 
 The runtime maps Switch call handoff to one receipt under the existing mailbox mutex. The exact
 active lease, original marker, cleanup token and old attachment, shared request cursor, and original

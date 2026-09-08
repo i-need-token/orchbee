@@ -21,10 +21,10 @@ cohort 的已接受**待实现细化**；当前替换规则拒绝移除，模型
 ## Close 控制与恢复契约
 
 原生状态所有者保留 Close 已知事实，使其独立于终端选择和投影。
-Linux 原生输入、确认绘制、Close/Read/Resume 执行及显式仅状态恢复已集成。Closed 成员安装
-和记录修剪仍待共同消费者接入。协议适配器校验线协议关联；原生所有者校验精确操作身份、
-不回退的尝试代数、已保留的释放/Closed 事实以及 UI flight 身份。这些检查不证明完整的多 Client
-Close 到 Empty 结果。
+Linux 原生输入、确认绘制、Close/Read/Resume 执行及显式仅状态恢复已集成。Closed 成员安装现由
+共同精确清理消费者完成，且仅在 exchange 与 reconciliation 引用均释放后修剪记录。协议适配器
+校验线协议关联；原生所有者校验精确操作身份、不回退的尝试代数、已保留的释放/Closed 事实以及
+UI flight 身份。这些检查不证明完整的多 Client Close 到 Empty 进程结果。
 
 已提交变更尚无确定结果时，因截止或显式停用等原因退休，必须保留本地提交不确定性及用于
 状态恢复的精确身份。仅排队但未提交的取消，或确定的类型化 precommit 结果，不虚构提交
@@ -982,8 +982,9 @@ Create 与 Move 均不可用。`Ctrl+B w` 可以准入下文的显式恢复；�
 
 ## Switch 建立与取代
 
-共享 Switch 安装与交接基础已有 state、mailbox 和实际 UI 测试。Snapshot-first executor
-及迟到丢弃后的 anchor 失效仍待集成；仅该基础不证明下述完整 Switch 运行时。
+共享 Switch 安装与交接基础、Snapshot-first executor 及迟到丢弃后的 anchor 失效均已集成，
+并由 state、mailbox 和实际 UI 测试覆盖。这些证据证明下述单 Client Switch 运行时；多 Client
+PTY peer 移除恢复见证仍属独立工作。
 
 运行时把 Switch 调用 handoff 映射到既有 mailbox mutex 下的唯一 receipt。准许同步 carrier 调用
 前，一并核验精确活动 lease、原始 marker、cleanup token 与旧挂接、共享 request cursor 及原截止点。
