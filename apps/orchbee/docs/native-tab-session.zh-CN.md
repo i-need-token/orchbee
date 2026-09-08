@@ -159,6 +159,23 @@ token 保留在独占状态安装计划内部，与成员一起无失败提交�
 精确 worker/UI/交接引用释放。私有 Closed 附件证明绑定不可变目标 binding 与精确旧附件代；
 一旦真实 Detach 已交接，只有其实际关联结果才能完成该次清理。
 
+原生生产端与通用成员消费端现已通过现有有界命令队列和单一 executor 传递该 marker。
+及时放置的 Snapshot 仍可在迟到 UI tick 上消费。真实旧 UI-wait 序号在任何变更闭包运行前
+被判为 stale；把当前序号与外来关联拼接属于协议违例，不能安装成员或虚构 worker 确认。
+放置或取走 UI 回复均不释放 worker 的 marker：只有精确 lease 完成或已结束 worker 的
+join 才释放该引用。较早 Snapshot 的确认不能释放较晚重试已消费的记录。仅收到确认的
+tick 在修剪移除保留的 Closed 状态时请求重绘。
+
+`mailbox::tests::close_reconciliation` 与 `state::tests::tab_close::reconciliation` 覆盖 Full
+准入、不可变来源、手动重试、旧/当前关联、精确清理证明及消费/修剪屏障，包括非活动目标
+移除时保留幸存目标的 Ready 证明。`ui::membership_tests` 还检查仅收到确认时的重绘，以及
+Snapshot 在零时刻放置、UI 在 75 秒消费，随后 Gone 在唯一新捕获的对账预算的 0、44.999、
+45、49.999 和 50 秒发生的边界。
+`tests::close_recovery::close_membership` 中三条 Unix socket 轨迹覆盖 live Close → Closed
+Read → 全新 Snapshot → Gone → Empty、已绘制的仅状态 Closed 加新显式 `w` → Empty，以及
+Snapshot Denied 后手动以全新 ID 重试 → Empty。这些见证不证明 peer 恢复、Server/Host
+进程终止、幸存相邻目标附件、从 Empty 手动 Create 或其他操作系统。
+
 有限控制证据为 NativeClientCloseControl 的 command/status 与 Resume/status
 配置，以及针对两个合法目标的 NativeClientCloseHandoff。控制切片有一个目标和一个未完成
 exchange、规范/别名操作代表、尝试 1..3、最多一次 Close、两次 Resume 控制和有界 Read

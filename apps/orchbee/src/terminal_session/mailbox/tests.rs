@@ -18,12 +18,13 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
+mod close_reconciliation;
 mod generated;
 mod lifecycle_generated;
 mod membership;
 mod move_tab;
-mod tab_close;
 mod switch_membership;
+mod tab_close;
 
 #[test]
 fn live_empty_mailbox_admits_and_dispatches_refresh_without_rebootstrapping() {

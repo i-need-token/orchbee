@@ -1,11 +1,11 @@
 use super::{
     state::{
         AttachTarget, AttachmentKey, BootstrapTarget, CarrierFailure, CleanupContinuation,
-        CloseFlightKey, CloseOperation, CloseResult, ControllerMode, CreateOperation,
-        CreateOperationKey, CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity,
-        MembershipCleanup, MembershipResultKey, MoveDecision, MoveOperation, MoveResult,
-        OperationDeadlines, PendingRefreshStage, ReadyDecision, RefreshDecision,
-        SetupEventDisposition,
+        CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation, CloseReconciliationMarker,
+        CloseResult, ControllerMode, CreateOperation, CreateOperationKey, CreateProjectionDecision,
+        CreateTerminalProvenance, FrameIdentity, MembershipCleanup, MembershipResultKey,
+        MoveDecision, MoveOperation, MoveResult, OperationDeadlines, PendingRefreshStage,
+        ReadyDecision, RefreshDecision, SetupEventDisposition,
     },
     workbench_projection::NativeStandaloneTabs,
 };
@@ -33,10 +33,13 @@ const COMMAND_CAPACITY: usize = 8;
 const CONDITION_WAIT_SLICE: Duration = Duration::from_millis(10);
 
 mod tab_close;
+mod tab_close_reconciliation;
 use tab_close::CloseFlight;
 #[cfg(target_os = "linux")]
 pub(super) use tab_close::RetiredMailboxSeed;
 pub(super) use tab_close::{CloseAdmissionError, CloseMarker};
+use tab_close_reconciliation::CloseReconciliationFlight;
+pub(super) use tab_close_reconciliation::CloseReconciliationSettlement;
 mod membership;
 pub(super) use membership::DesiredInstall;
 #[cfg(test)]
@@ -166,6 +169,7 @@ pub(super) enum QueuedCommand {
     Refresh(RefreshMarker),
     Move(MoveMarker),
     Close(CloseMarker),
+    ReconcileClose(CloseReconciliationMarker),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -197,6 +201,11 @@ impl QueuedCommand {
             Self::Refresh(marker) => Some(marker.barrier()),
             Self::Move(marker) => Some(marker.barrier()),
             Self::Close(marker) => Some(marker.barrier()),
+            Self::ReconcileClose(marker) => Some(BarrierFence {
+                kind: BarrierKind::Close,
+                forward_cutoff: marker.deadline(),
+                total: marker.deadline(),
+            }),
             Self::Input(_) | Self::Resize(_) | Self::Poll(_) => None,
         }
     }
@@ -402,6 +411,7 @@ enum UiCorrelation {
     Refresh(u64),
     Move(WorkbenchRequestId),
     Close(CloseFlightKey),
+    CloseReconciliation(CloseFlightKey, WorkbenchRequestId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -419,6 +429,7 @@ enum UiReplyKind {
     Refresh,
     Move,
     Close,
+    CloseReconciliation,
     AttachedSettled,
     FeedbackSettled,
     Ready,
@@ -440,6 +451,14 @@ impl UiWaitKey {
 }
 
 pub(super) enum WorkerEvent {
+    CloseReconciliationSnapshot {
+        marker: CloseReconciliationMarker,
+        outcome: WorkbenchSnapshotOutcome,
+    },
+    MembershipGone {
+        cleanup: MembershipCleanup,
+        proof: std::sync::Arc<super::state::DefinitiveClosedAttachment>,
+    },
     SwitchForwardExpired {
         permit: SwitchExpiryPermit,
     },
@@ -530,6 +549,23 @@ pub(super) enum CreatePrecommitOutcome {
 impl WorkerEvent {
     fn wait_key(&self, serial: u64) -> Option<UiWaitKey> {
         let (correlation, reply_kind) = match self {
+            Self::CloseReconciliationSnapshot { marker, .. } => (
+                UiCorrelation::CloseReconciliation(
+                    marker.origin().key().clone(),
+                    marker.snapshot_request_id().clone(),
+                ),
+                UiReplyKind::CloseReconciliation,
+            ),
+            Self::MembershipGone { cleanup, .. } => {
+                let marker = cleanup.close_marker()?;
+                (
+                    UiCorrelation::CloseReconciliation(
+                        marker.origin().key().clone(),
+                        marker.snapshot_request_id().clone(),
+                    ),
+                    UiReplyKind::CloseReconciliation,
+                )
+            }
             Self::SwitchForwardExpired { permit } => (
                 UiCorrelation::Switch(permit.target().selected().key().clone()),
                 UiReplyKind::SwitchExpired,
@@ -542,8 +578,17 @@ impl WorkerEvent {
                 UiReplyKind::Switch,
             ),
             Self::MembershipDetached { cleanup, detached } => (
-                UiCorrelation::Membership(cleanup.result().clone(), detached.clone()),
+                cleanup.close_marker().map_or_else(
+                    || UiCorrelation::Membership(cleanup.result().clone(), detached.clone()),
+                    |marker| {
+                        UiCorrelation::CloseReconciliation(
+                            marker.origin().key().clone(),
+                            marker.snapshot_request_id().clone(),
+                        )
+                    },
+                ),
                 match cleanup.result() {
+                    MembershipResultKey::Close(_) => UiReplyKind::CloseReconciliation,
                     MembershipResultKey::Refresh(_) | MembershipResultKey::Create(_) => {
                         UiReplyKind::Membership
                     }
@@ -613,6 +658,7 @@ impl WorkerEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum UiReply {
+    CloseReconciliation(Box<CloseReconciliationSettlement>),
     SwitchExpired(RefreshSettlement),
     Switch(RefreshSettlement),
     Membership(RefreshSettlement),
@@ -679,6 +725,7 @@ impl RefreshSettlement {
 impl UiReply {
     const fn kind(&self) -> UiReplyKind {
         match self {
+            Self::CloseReconciliation(_) => UiReplyKind::CloseReconciliation,
             Self::SwitchExpired(_) => UiReplyKind::SwitchExpired,
             Self::Switch(_) => UiReplyKind::Switch,
             Self::Membership(_) => UiReplyKind::Membership,
@@ -723,9 +770,9 @@ impl TakenEvent {
 
 enum EventCell {
     Empty,
-    Event(WorkerEvent),
+    Event(Box<WorkerEvent>),
     AwaitingUi(UiWaitKey),
-    Reply(UiWaitKey, UiReply),
+    Reply(UiWaitKey, Box<UiReply>),
     ForwardExpired(UiWaitKey),
 }
 
@@ -838,6 +885,8 @@ struct MailboxState {
     refresh_flight: Option<RefreshFlight>,
     structural_mutation_pending: Option<MoveFlight>,
     close_flight: Option<CloseFlight>,
+    close_reconciliation: Option<CloseReconciliationFlight>,
+    close_acknowledgement: Option<CloseLeaseAcknowledgement>,
     close_queued_key: Option<CloseFlightKey>,
     close_deposited_result: Option<super::state::PendingCloseResult>,
     closed: Option<CarrierFailure>,
@@ -943,6 +992,8 @@ impl CommandMailbox {
                 refresh_flight: None,
                 structural_mutation_pending: None,
                 close_flight: None,
+                close_reconciliation: None,
+                close_acknowledgement: None,
                 close_queued_key: None,
                 close_deposited_result: None,
                 closed: None,
@@ -986,7 +1037,7 @@ impl CommandMailbox {
         let mut state = self.lock();
         Self::ensure_open_for_admission(&state)?;
         Self::ensure_bootstrapped_for_admission(&state)?;
-        if state.close_flight.is_some() {
+        if state.close_flight.is_some() || state.close_reconciliation.is_some() {
             return Err(AdmissionError::Full);
         }
         if state.queue.len() == COMMAND_CAPACITY {
@@ -1008,7 +1059,8 @@ impl CommandMailbox {
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)
             | QueuedCommand::Move(_)
-            | QueuedCommand::Close(_) => {
+            | QueuedCommand::Close(_)
+            | QueuedCommand::ReconcileClose(_) => {
                 let closed = self.close_locked(&mut state, CarrierFailure::Protocol);
                 return Err(AdmissionError::Closed(closed));
             }
@@ -1059,7 +1111,9 @@ impl CommandMailbox {
         let result = (|| {
             Self::ensure_open_for_admission(&state)?;
             Self::ensure_bootstrapped_for_admission(&state)?;
-            if state.structural_mutation_pending.is_some() || state.close_flight.is_some() {
+            if state.structural_mutation_pending.is_some()
+                || (state.close_flight.is_some() || state.close_reconciliation.is_some())
+            {
                 return Err(AdmissionError::Full);
             }
             if state.queue.len() == COMMAND_CAPACITY {
@@ -1145,7 +1199,9 @@ impl CommandMailbox {
         let result = (|| {
             Self::ensure_open_for_admission(&state)?;
             Self::ensure_bootstrapped_for_admission(&state)?;
-            if state.structural_mutation_pending.is_some() || state.close_flight.is_some() {
+            if state.structural_mutation_pending.is_some()
+                || (state.close_flight.is_some() || state.close_reconciliation.is_some())
+            {
                 return Err(AdmissionError::Full);
             }
             if state.queue.len() == COMMAND_CAPACITY {
@@ -1222,7 +1278,7 @@ impl CommandMailbox {
             if state.queue.len() == COMMAND_CAPACITY
                 || state.refresh_flight.is_some()
                 || state.structural_mutation_pending.is_some()
-                || state.close_flight.is_some()
+                || (state.close_flight.is_some() || state.close_reconciliation.is_some())
             {
                 return Err(AdmissionError::Full);
             }
@@ -1280,7 +1336,7 @@ impl CommandMailbox {
         Self::ensure_open(&state).map_err(MoveAdmissionError::Closed)?;
         if state.desired.key().is_none()
             || state.structural_mutation_pending.is_some()
-            || state.close_flight.is_some()
+            || (state.close_flight.is_some() || state.close_reconciliation.is_some())
             || state.refresh_flight.is_some()
             || state
                 .queue
@@ -1415,6 +1471,22 @@ impl CommandMailbox {
         {
             return Err(self.close_locked(&mut state, CarrierFailure::Protocol));
         }
+        let close_ack = match lease.record() {
+            QueuedCommand::Close(marker) => Some(CloseLeaseAcknowledgement::Exchange(
+                marker.operation().key().clone(),
+            )),
+            QueuedCommand::ReconcileClose(marker) => Some(
+                CloseLeaseAcknowledgement::Reconciliation(Box::new(marker.clone())),
+            ),
+            _ => None,
+        };
+        drop(lease);
+        if close_ack.is_some() {
+            if state.close_acknowledgement.is_some() {
+                return Err(self.close_locked(&mut state, CarrierFailure::Protocol));
+            }
+            state.close_acknowledgement = close_ack;
+        }
         state.active_lease = None;
         self.changed.notify_all();
         Ok(())
@@ -1444,7 +1516,10 @@ impl CommandMailbox {
         Self::ensure_open(&state)?;
         let marker_parent = matches!(
             &parent.record,
-            QueuedCommand::Switch(_) | QueuedCommand::Create(_) | QueuedCommand::Refresh(_)
+            QueuedCommand::Switch(_)
+                | QueuedCommand::Create(_)
+                | QueuedCommand::Refresh(_)
+                | QueuedCommand::ReconcileClose(_)
         );
         if !marker_parent
             || state.active_lease
@@ -1676,6 +1751,13 @@ impl CommandMailbox {
                 flight.stage = PendingRefreshStage::AwaitingUi;
             }
         }
+        if let WorkerEvent::CloseReconciliationSnapshot { marker, .. } = &event
+            && !state.place_close_reconciliation(marker, deadline, event_anchor_serial)
+        {
+            return Err(EventError::Closed(
+                self.close_locked(&mut state, CarrierFailure::Protocol),
+            ));
+        }
         if let WorkerEvent::CloseResult { operation, .. } = &event
             && !state.place_close_result(operation, deadline, event_anchor_serial)
         {
@@ -1693,7 +1775,7 @@ impl CommandMailbox {
         state.event_wait_key = Some(wait_key.clone());
         state.event_deadline = deadline;
         state.event_anchor_serial = event_anchor_serial;
-        state.event = EventCell::Event(event);
+        state.event = EventCell::Event(Box::new(event));
         self.changed.notify_all();
         Ok(wait_key)
     }
@@ -1768,7 +1850,7 @@ impl CommandMailbox {
         state.event_deadline = deadline;
         state.event_anchor_serial = Some(poll_key.serial);
         state.causal = CausalCell::Awaiting(poll_key.clone());
-        state.event = EventCell::Event(WorkerEvent::PollResult { poll_key, record });
+        state.event = EventCell::Event(Box::new(WorkerEvent::PollResult { poll_key, record }));
         self.changed.notify_all();
         Ok(MutationResult::Applied)
     }
@@ -1838,7 +1920,7 @@ impl CommandMailbox {
                 self.close_locked(&mut state, CarrierFailure::Protocol),
             ));
         };
-        if let WorkerEvent::PollResult { poll_key, .. } = &event {
+        if let WorkerEvent::PollResult { poll_key, .. } = &*event {
             if !matches!(&state.causal, CausalCell::Awaiting(current) if current == poll_key) {
                 return Err(EventError::Closed(
                     self.close_locked(&mut state, CarrierFailure::Protocol),
@@ -1850,7 +1932,7 @@ impl CommandMailbox {
             self.changed.notify_all();
             return Ok(Some(TakenEvent {
                 wait_key: None,
-                event,
+                event: *event,
             }));
         }
         let Some(wait_key) = state.event_wait_key.clone() else {
@@ -1862,7 +1944,7 @@ impl CommandMailbox {
         self.changed.notify_all();
         Ok(Some(TakenEvent {
             wait_key: Some(wait_key),
-            event,
+            event: *event,
         }))
     }
 
@@ -1917,8 +1999,9 @@ impl CommandMailbox {
             {
                 return Ok(MutationResult::Stale);
             }
-            EventCell::Event(WorkerEvent::PollResult { .. })
-                if wait_key.serial <= state.next_ui_wait_serial =>
+            EventCell::Event(event)
+                if matches!(&**event, WorkerEvent::PollResult { .. })
+                    && wait_key.serial <= state.next_ui_wait_serial =>
             {
                 return Ok(MutationResult::Stale);
             }
@@ -1962,6 +2045,13 @@ impl CommandMailbox {
                 self.close_locked(&mut state, CarrierFailure::Protocol),
             ));
         }
+        if matches!(wait_key.correlation, UiCorrelation::CloseReconciliation(..))
+            && !state.exact_close_reconciliation(&wait_key.correlation)
+        {
+            return Err(EventError::Closed(
+                self.close_locked(&mut state, CarrierFailure::Protocol),
+            ));
+        }
         let reply = match settle(&mut UiReplyTransaction {
             state: &mut state,
             observed_at,
@@ -1977,6 +2067,13 @@ impl CommandMailbox {
             ));
         }
         match &reply {
+            UiReply::CloseReconciliation(settlement) => {
+                if !state.settle_close_reconciliation(&wait_key.correlation, settlement) {
+                    return Err(EventError::Closed(
+                        self.close_locked(&mut state, CarrierFailure::Protocol),
+                    ));
+                }
+            }
             UiReply::Close(key) => {
                 if !state.settle_close_result(&wait_key.correlation, key) {
                     return Err(EventError::Closed(
@@ -2074,7 +2171,7 @@ impl CommandMailbox {
             | UiReply::Ready(_)
             | UiReply::CleanupApplied(_) => {}
         }
-        state.event = EventCell::Reply(wait_key.clone(), reply);
+        state.event = EventCell::Reply(wait_key.clone(), Box::new(reply));
         self.changed.notify_all();
         Ok(MutationResult::Applied)
     }
@@ -2130,8 +2227,9 @@ impl CommandMailbox {
             {
                 return Ok(MutationResult::Stale);
             }
-            EventCell::Event(WorkerEvent::PollResult { .. })
-                if wait_key.serial <= state.next_ui_wait_serial =>
+            EventCell::Event(event)
+                if matches!(&**event, WorkerEvent::PollResult { .. })
+                    && wait_key.serial <= state.next_ui_wait_serial =>
             {
                 return Ok(MutationResult::Stale);
             }
@@ -2178,7 +2276,10 @@ impl CommandMailbox {
         state.desired = MailboxMembership::Live {
             desired: Some(target.selected().key().clone()),
         };
-        state.event = EventCell::Reply(wait_key.clone(), UiReply::BootstrapApplied(target));
+        state.event = EventCell::Reply(
+            wait_key.clone(),
+            Box::new(UiReply::BootstrapApplied(target)),
+        );
         self.changed.notify_all();
         Ok(MutationResult::Applied)
     }
@@ -2530,7 +2631,10 @@ impl CommandMailbox {
         state: &mut MailboxState,
     ) -> Result<Option<AttachmentKey>, CarrierFailure> {
         let event = match &state.event {
-            EventCell::Event(WorkerEvent::PollResult { poll_key, .. }) => Some(poll_key),
+            EventCell::Event(event) => match &**event {
+                WorkerEvent::PollResult { poll_key, .. } => Some(poll_key),
+                _ => None,
+            },
             _ => None,
         };
         let causal = match &state.causal {
@@ -2593,7 +2697,7 @@ impl CommandMailbox {
                 state.event_deadline = EventDeadline::Unbounded;
                 state.event_anchor_serial = None;
                 self.changed.notify_all();
-                Ok(Some(reply))
+                Ok(Some(*reply))
             }
             EventCell::AwaitingUi(current) if current == wait_key => Ok(None),
             EventCell::Event(_) if state.event_wait_key.as_ref() == Some(wait_key) => Ok(None),
@@ -2615,8 +2719,9 @@ impl CommandMailbox {
             {
                 Ok(None)
             }
-            EventCell::Event(WorkerEvent::PollResult { .. })
-                if wait_key.serial <= state.next_ui_wait_serial =>
+            EventCell::Event(event)
+                if matches!(&**event, WorkerEvent::PollResult { .. })
+                    && wait_key.serial <= state.next_ui_wait_serial =>
             {
                 Ok(None)
             }
@@ -2681,7 +2786,8 @@ impl CommandMailbox {
     }
 
     fn clear_event_locked(state: &mut MailboxState) {
-        if let EventCell::Event(WorkerEvent::PollResult { poll_key, .. }) = &state.event
+        if let EventCell::Event(event) = &state.event
+            && let WorkerEvent::PollResult { poll_key, .. } = &**event
             && matches!(
                 &state.causal,
                 CausalCell::Awaiting(current) | CausalCell::Settled(current, _)
@@ -2697,7 +2803,9 @@ impl CommandMailbox {
     }
 
     fn expire_forward_event_locked(state: &mut MailboxState) {
-        if let EventCell::Event(WorkerEvent::PollResult { .. }) = &state.event {
+        if let EventCell::Event(event) = &state.event
+            && matches!(&**event, WorkerEvent::PollResult { .. })
+        {
             Self::clear_event_locked(state);
             return;
         }
@@ -2719,8 +2827,8 @@ impl CommandMailbox {
     fn clear_poll_event_locked(state: &mut MailboxState, poll_key: &PollKey) {
         let exact = matches!(
             &state.event,
-            EventCell::Event(WorkerEvent::PollResult { poll_key: current, .. })
-                if current == poll_key
+            EventCell::Event(event)
+                if matches!(&**event, WorkerEvent::PollResult { poll_key: current, .. } if current == poll_key)
         );
         if exact {
             Self::clear_event_locked(state);
@@ -2761,6 +2869,7 @@ impl CommandMailbox {
         state.refresh_flight = None;
         state.structural_mutation_pending = None;
         state.close_flight = None;
+        state.close_reconciliation = None;
         self.changed.notify_all();
         MailboxClosed { failure }
     }

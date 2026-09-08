@@ -1,4 +1,5 @@
 use super::*;
+mod close_membership;
 use orchbee_workbench_protocol::{
     WorkbenchCommand, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
     WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseStatus,

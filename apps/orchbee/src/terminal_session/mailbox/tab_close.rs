@@ -155,7 +155,7 @@ impl CommandMailbox {
             .ok_or(CloseAdmissionError::Deadline)?;
         Self::ensure_open(&state).map_err(CloseAdmissionError::Closed)?;
         if state.desired.awaiting_bootstrap()
-            || state.close_flight.is_some()
+            || (state.close_flight.is_some() || state.close_reconciliation.is_some())
             || state.structural_mutation_pending.is_some()
             || state.refresh_flight.is_some()
             || state

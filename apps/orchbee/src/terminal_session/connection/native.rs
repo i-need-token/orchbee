@@ -33,6 +33,7 @@ use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
 use orchbee_workbench_protocol::{ProtocolVersion, SnapshotReadIntent, WorkbenchSnapshotOutcome};
 use std::{num::NonZeroU64, sync::Arc, time::Instant};
 
+mod close_reconciliation;
 mod membership;
 #[cfg(target_os = "linux")]
 mod status_recovery;
@@ -562,6 +563,7 @@ impl NativeExecutor {
         loop {
             let mut lease = self.mailbox.recv().map_err(closed)?;
             if self.status_only
+                && !matches!(lease.record(), QueuedCommand::ReconcileClose(marker) if marker.membership_recovery())
                 && !matches!(lease.record(), QueuedCommand::Close(marker)
                 if matches!(marker.operation().kind(), crate::terminal_session::state::CloseOperationKind::Read { .. }
                     | crate::terminal_session::state::CloseOperationKind::Resume { .. }))
@@ -602,6 +604,9 @@ impl NativeExecutor {
                     }
                     QueuedCommand::Close(marker) => {
                         self.run_close(&lease, marker.operation().clone())?
+                    }
+                    QueuedCommand::ReconcileClose(marker) => {
+                        self.run_close_reconciliation(&lease, marker)?
                     }
                 }
             }

@@ -1,6 +1,158 @@
 use super::*;
 use orchbee_workbench_protocol::WorkbenchTabCloseReadOutcome;
 
+#[test]
+fn inactive_closed_removal_preserves_the_survivor_attachment_and_consumes_only_its_origin() {
+    use crate::terminal_session::state::{
+        CloseLeaseAcknowledgement, ControllerMode, FrameIdentity, MembershipInstallDecision,
+        OperationDeadlines,
+    };
+    let (mut state, read) = known_closed(false);
+    let now = Instant::now();
+    let old = state.desired().unwrap().clone();
+    let switch_marker = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
+    let current = AttachmentKey::new(3, state.tab(1).unwrap().tab_id().clone());
+    let deadlines = OperationDeadlines::from_sample(now).unwrap();
+    let target = state
+        .target_for_switch(1, switch_marker.clone(), deadlines)
+        .unwrap();
+    assert!(state.begin_switch(target));
+    let prepared = state
+        .prepare_switch_candidate(
+            &switch_marker,
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
+                snapshot: super::super::snapshot(2, 2, Some("2")),
+            },
+        )
+        .unwrap();
+    let cleanup = state
+        .stage_switch_membership_cleanup(&switch_marker, prepared, deadlines)
+        .unwrap();
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, &old)
+        .unwrap();
+    assert!(matches!(
+        state
+            .prepare_cleaned_membership_install(&cleanup, prepared, Some(current.clone()),)
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Attach(_)
+    ));
+    assert!(state.install_projection(&current));
+    assert!(state.record_setup_configuration(&current, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame(&current, FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted(&current, FrameIdentity::new(2)));
+    assert!(state.publish_ready(
+        &current,
+        FrameIdentity::new(2),
+        ControllerMode::ReadOnly,
+        None
+    ));
+    let marker = state
+        .plan_close_reconciliation(workbench_request_id(925), now + Duration::from_secs(50))
+        .unwrap();
+    state.begin_close_reconciliation(&marker).unwrap();
+    let mut snapshot = super::super::snapshot(2, 3, None);
+    snapshot.terminal_contexts[0].tabs.remove(0);
+    let prepared = state
+        .prepare_close_membership_candidate(
+            &marker,
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available { snapshot },
+        )
+        .unwrap()
+        .unwrap();
+    assert!(prepared.preserves_selection());
+    assert_eq!(
+        state
+            .prepare_close_membership_install(&marker, prepared, Some(current.clone()), None)
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Preserved
+    );
+    assert_eq!(state.desired(), Some(&current));
+    assert_eq!(state.attached_key(), Some(&current));
+    assert_eq!(state.projection_key(), Some(&current));
+    assert!(state.feedback_accepted());
+    assert_eq!(state.cache().tabs().len(), 1);
+    assert!(state.invariant_holds());
+    assert!(state.close_reconciliation_origin(read.key()).is_none());
+    assert!(state.has_retained_close_records());
+    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(read.key().clone()));
+    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Reconciliation(Box::new(marker)));
+    assert!(!state.has_retained_close_records());
+    assert_eq!(state.desired(), Some(&current));
+}
+
+#[test]
+fn close_membership_install_and_prune_require_exact_plan_commit_and_finished_snapshot_lease() {
+    use crate::terminal_session::state::{CloseLeaseAcknowledgement, OperationDeadlines};
+    let (mut state, read) = known_closed(false);
+    let now = Instant::now();
+    let first = state
+        .plan_close_reconciliation(workbench_request_id(920), now + Duration::from_secs(50))
+        .unwrap();
+    state.begin_close_reconciliation(&first).unwrap();
+    state.close_reconciliation_failed(&first).unwrap();
+    state.request_live_close_reconciliation();
+    let retry = state
+        .plan_close_reconciliation(workbench_request_id(921), now + Duration::from_secs(50))
+        .unwrap();
+    state.begin_close_reconciliation(&retry).unwrap();
+    let candidate = state
+        .prepare_close_membership_candidate(
+            &retry,
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
+                snapshot: super::super::snapshot(0, 2, None),
+            },
+        )
+        .unwrap()
+        .unwrap();
+    let before = state.cache().clone();
+    let cleanup = state
+        .stage_close_membership_cleanup(
+            &retry,
+            candidate,
+            OperationDeadlines::from_sample(now).unwrap(),
+        )
+        .unwrap();
+    assert!(state.validate_membership_gone(&cleanup, cleanup.closed_proof().unwrap()));
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
+        .unwrap();
+    drop(
+        state
+            .prepare_cleaned_membership_install(&cleanup, prepared, None)
+            .unwrap(),
+    );
+    assert_eq!(state.cache(), &before);
+    assert_eq!(
+        state.close_reconciliation_origin(read.key()),
+        Some(retry.origin())
+    );
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
+        .unwrap();
+    state
+        .prepare_cleaned_membership_install(&cleanup, prepared, None)
+        .unwrap()
+        .commit();
+    assert!(state.invariant_holds());
+    assert!(state.cache().tabs().is_empty());
+    assert!(state.close_reconciliation_origin(read.key()).is_none());
+    assert!(
+        state.has_retained_close_records(),
+        "UI commit alone cannot prune a worker-owned marker"
+    );
+    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(read.key().clone()));
+    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Reconciliation(Box::new(first)));
+    assert!(
+        state.has_retained_close_records(),
+        "old Snapshot retry acknowledgement cannot free the current record"
+    );
+    state.acknowledge_close_lease(CloseLeaseAcknowledgement::Reconciliation(Box::new(retry)));
+    assert!(!state.has_retained_close_records());
+}
+
 fn known_closed(handoff: bool) -> (NativeSessionState, CloseOperation) {
     let mut state = ready(2);
     let now = Instant::now();

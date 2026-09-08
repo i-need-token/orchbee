@@ -1035,9 +1035,14 @@ impl UiDriver {
                     crate::terminal_session::state::MembershipResultKey::Switch(_) => {
                         Err(test_error("Switch membership cleanup is staged"))
                     }
+                    crate::terminal_session::state::MembershipResultKey::Close(_) => {
+                        Err(test_error("use the exact Close transport consumer"))
+                    }
                 }
             }
-            WorkerEvent::CloseResult { .. } => {
+            WorkerEvent::CloseReconciliationSnapshot { .. }
+            | WorkerEvent::MembershipGone { .. }
+            | WorkerEvent::CloseResult { .. } => {
                 Err(test_error("use the exact Close transport consumer"))
             }
             WorkerEvent::MoveResult { .. } => Err(test_error("Move consumer is staged")),

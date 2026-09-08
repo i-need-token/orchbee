@@ -196,6 +196,26 @@ consumption and release of all exact worker/UI/handoff references. A private Clo
 proof binds the immutable target binding and exact old attachment generation; once real Detach
 has been handed off, only its actual correlated result can finish that cleanup.
 
+The native producer and common membership consumer now carry that marker through the existing
+bounded command queue and single executor. A timely Snapshot placement remains consumable on a
+late UI tick. An actual earlier UI-wait serial is stale before any mutation closure runs; combining
+a current serial with a foreign correlation is a protocol violation and cannot install membership
+or manufacture a worker acknowledgement. Depositing or taking a UI reply does not release the
+worker's marker: exact lease completion, or the completed worker join, releases that reference.
+An earlier Snapshot acknowledgement cannot release a later retry's consumed record. An
+acknowledgement-only tick requests a redraw when pruning removes the retained Closed status.
+
+`mailbox::tests::close_reconciliation` and `state::tests::tab_close::reconciliation` cover Full
+admission, immutable origins, manual retry, stale/current correlation, exact cleanup proof and
+consumption/pruning fences, including inactive removal preserving the survivor's Ready proof.
+`ui::membership_tests` additionally checks the acknowledgement-only redraw and Snapshot placement
+at time zero with UI consumption at 75 seconds, followed by Gone at 0, 44.999, 45, 49.999 and
+50 seconds of the one newly captured reconciliation budget. The three Unix-socket traces in
+`tests::close_recovery::close_membership` cover live Close → Closed Read → fresh Snapshot → Gone →
+Empty, drawn status-only Closed plus a new explicit `w` → Empty, and Denied Snapshot plus manual
+fresh-ID retry → Empty. These witnesses do not establish peer recovery, Server/Host process
+termination, surviving-neighbor attachment, manual Create from Empty or other operating systems.
+
 The finite control evidence is NativeClientCloseControl with command/status and
 Resume/status configurations, plus NativeClientCloseHandoff for two legal targets. The control
 cut has one target and one outstanding exchange, canonical/alias operation representatives,

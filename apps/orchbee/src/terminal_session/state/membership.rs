@@ -3,11 +3,13 @@ use super::{
     NativeStandaloneTabs, OperationDeadlines, SelectedTab, SessionPhase, SwitchSetup,
     WorkbenchTabId, validate_canonical_refresh,
 };
+mod close;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum MembershipResultKey {
     Refresh(u64),
     Create(super::CreateOperationKey),
+    Close(super::CloseFlightKey),
     Switch(AttachmentKey),
 }
 
@@ -17,9 +19,21 @@ pub(in crate::terminal_session) struct MembershipCleanup {
     old: AttachmentKey,
     deadlines: OperationDeadlines,
     installs_candidate: bool,
+    close_marker: Option<Box<super::CloseReconciliationMarker>>,
+    closed_proof: Option<std::sync::Arc<super::DefinitiveClosedAttachment>>,
 }
 
 impl MembershipCleanup {
+    pub(in crate::terminal_session) fn close_marker(
+        &self,
+    ) -> Option<&super::CloseReconciliationMarker> {
+        self.close_marker.as_deref()
+    }
+    pub(in crate::terminal_session) fn closed_proof(
+        &self,
+    ) -> Option<&std::sync::Arc<super::DefinitiveClosedAttachment>> {
+        self.closed_proof.as_ref()
+    }
     pub(in crate::terminal_session) const fn result(&self) -> &MembershipResultKey {
         &self.result
     }
@@ -78,6 +92,7 @@ pub(in crate::terminal_session) struct PreparedMembershipInstall<'a> {
     decision: MembershipInstallDecision,
     refresh_generation: Option<u64>,
     settled_create: Option<super::CommittedTabCreate>,
+    close_consumption: Option<super::tab_close::PreparedCloseConsumption>,
 }
 
 impl PreparedMembershipInstall<'_> {
@@ -104,6 +119,9 @@ impl PreparedMembershipInstall<'_> {
             self.state.accepted_frame = None;
             self.state.last_admitted_geometry = None;
             self.state.last_accepted_geometry = None;
+        }
+        if let Some(consumption) = self.close_consumption {
+            self.state.close.commit_consumption(consumption);
         }
         self.decision
     }
@@ -195,6 +213,8 @@ impl NativeSessionState {
             old,
             deadlines,
             installs_candidate: true,
+            close_marker: None,
+            closed_proof: None,
         };
         self.pending_membership = Some(PendingMembership {
             cleanup: cleanup.clone(),
@@ -233,7 +253,7 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        self.prepare_membership_install_inner(prepared, desired, Some(deadlines), None)
+        self.prepare_membership_install_inner(prepared, desired, Some(deadlines), None, None)
     }
 
     pub(in crate::terminal_session) fn prepare_membership_candidate(
@@ -288,7 +308,7 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
         deadlines: Option<OperationDeadlines>,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
-        self.prepare_membership_install_inner(prepared, desired, deadlines, None)
+        self.prepare_membership_install_inner(prepared, desired, deadlines, None, None)
     }
 
     fn prepare_membership_install_inner(
@@ -297,7 +317,17 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
         deadlines: Option<OperationDeadlines>,
         cleaned: Option<&MembershipCleanup>,
+        close_marker: Option<&super::CloseReconciliationMarker>,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
+        let close_consumption = close_marker
+            .map(|marker| {
+                self.close
+                    .prepare_consumption(marker)
+                    .map_err(|_| CarrierFailure::Protocol)
+            })
+            .transpose()?;
+        let close_recovery =
+            close_marker.is_some_and(|marker| self.close_membership_recovery_matches(marker));
         let switch_marker = match cleaned.map(MembershipCleanup::result) {
             Some(MembershipResultKey::Switch(marker)) => Some(marker),
             _ => match &self.phase {
@@ -339,6 +369,7 @@ impl NativeSessionState {
             || (!exact_cleanup
                 && !current_switch
                 && !current_create
+                && !close_recovery
                 && !matches!(
                     self.phase,
                     SessionPhase::Empty
@@ -349,7 +380,7 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let preserve = desired == self.desired && !current_create;
+        let preserve = desired == self.desired && !current_create && !close_recovery;
         if current_switch && preserve {
             return Err(CarrierFailure::Protocol);
         }
@@ -426,6 +457,7 @@ impl NativeSessionState {
             decision,
             refresh_generation: None,
             settled_create: committed_create,
+            close_consumption,
         })
     }
 
@@ -454,6 +486,8 @@ impl NativeSessionState {
             old,
             deadlines,
             installs_candidate: true,
+            close_marker: None,
+            closed_proof: None,
         };
         self.pending_membership = Some(PendingMembership {
             cleanup: cleanup.clone(),
@@ -503,6 +537,14 @@ impl NativeSessionState {
                 }
                 None
             }
+            MembershipResultKey::Close(key) => {
+                if cleanup.close_marker().is_none_or(|marker| {
+                    marker.origin().key() != key || self.close.prepare_consumption(marker).is_err()
+                }) {
+                    return Err(CarrierFailure::Protocol);
+                }
+                None
+            }
             MembershipResultKey::Refresh(generation) => {
                 if self.pending_refresh_generation != Some(*generation) {
                     return Err(CarrierFailure::Protocol);
@@ -521,6 +563,7 @@ impl NativeSessionState {
             desired,
             Some(cleanup.deadlines),
             Some(cleanup),
+            cleanup.close_marker(),
         )?;
         plan.refresh_generation = refresh_generation;
         Ok(plan)
@@ -543,7 +586,7 @@ impl NativeSessionState {
                     MembershipResultKey::Refresh(generation) => {
                         self.pending_refresh_generation == Some(*generation)
                     }
-                    MembershipResultKey::Switch(_) => false,
+                    MembershipResultKey::Close(_) | MembershipResultKey::Switch(_) => false,
                 };
                 exact_origin
                     && pending.cleanup.installs_candidate
@@ -559,8 +602,12 @@ impl NativeSessionState {
                 let Some(prepared) = &pending.prepared else {
                     return false;
                 };
-                matches!(pending.cleanup.result, MembershipResultKey::Refresh(generation)
+                (matches!(pending.cleanup.result, MembershipResultKey::Refresh(generation)
                     if self.pending_refresh_generation == Some(generation))
+                    || pending
+                        .cleanup
+                        .close_marker()
+                        .is_some_and(|marker| self.close.prepare_consumption(marker).is_ok()))
                     && &pending.cleanup.old == selected.key()
                     && pending.cleanup.installs_candidate
                     && self.cache == prepared.baseline
@@ -618,6 +665,8 @@ impl NativeSessionState {
             old,
             deadlines,
             installs_candidate: true,
+            close_marker: None,
+            closed_proof: None,
         };
         self.pending_membership = Some(PendingMembership {
             cleanup: cleanup.clone(),
@@ -652,6 +701,8 @@ impl NativeSessionState {
             old,
             deadlines: setup.target.deadlines(),
             installs_candidate: false,
+            close_marker: None,
+            closed_proof: None,
         };
         self.pending_membership = Some(PendingMembership {
             cleanup: cleanup.clone(),
@@ -673,7 +724,7 @@ impl NativeSessionState {
             return Err(CarrierFailure::Protocol);
         };
         let deadlines = setup.target.deadlines();
-        self.prepare_membership_install_inner(prepared, desired, Some(deadlines), None)
+        self.prepare_membership_install_inner(prepared, desired, Some(deadlines), None, None)
     }
 
     /// Admission already holds the mailbox gate. Only an authorized old call retains its candidate.

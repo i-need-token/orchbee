@@ -55,6 +55,15 @@ impl NativeUi {
             if transaction.observed_at() >= cleanup.deadlines().forward_cutoff() {
                 state.retire(CarrierFailure::Deadline);
                 expired = true;
+                if let Some(marker) = cleanup.close_marker() {
+                    return Ok(UiReply::CloseReconciliation(Box::new(
+                        super::super::mailbox::CloseReconciliationSettlement::new(
+                            marker.clone(),
+                            RefreshDecision::Retire,
+                            state.desired().cloned(),
+                        ),
+                    )));
+                }
                 return Ok(UiReply::Membership(RefreshSettlement::new(
                     RefreshDecision::Retire,
                     state.desired().cloned(),
@@ -94,12 +103,22 @@ impl NativeUi {
                 | MembershipInstallDecision::Empty => RefreshDecision::SettledWithoutAttachment,
                 MembershipInstallDecision::Preserved => RefreshDecision::Continue,
             };
+            if let Some(marker) = cleanup.close_marker() {
+                return Ok(UiReply::CloseReconciliation(Box::new(
+                    super::super::mailbox::CloseReconciliationSettlement::new(
+                        marker.clone(),
+                        decision,
+                        state.desired().cloned(),
+                    ),
+                )));
+            }
             let settlement = RefreshSettlement::new(decision, state.desired().cloned());
             Ok(match cleanup.result() {
                 MembershipResultKey::Refresh(_) | MembershipResultKey::Create(_) => {
                     UiReply::Membership(settlement)
                 }
                 MembershipResultKey::Switch(_) => UiReply::Switch(settlement),
+                MembershipResultKey::Close(_) => return Err(CarrierFailure::Protocol),
             })
         });
         match result {

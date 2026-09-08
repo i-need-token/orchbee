@@ -28,6 +28,7 @@ use orchbee_workbench_protocol::{
 };
 use std::sync::Arc;
 
+mod close_reconciliation;
 mod tab_close;
 pub(crate) use tab_close::{
     NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
@@ -415,6 +416,7 @@ impl NativeUi {
                 let move_accepted =
                     pending_move.is_none_or(|pending| state.retain_pending_move(pending));
                 let close_accepted = state.finalize_close_worker(close_return).is_ok();
+                state.release_joined_close_references();
                 state.finalize_retirement(failure, pending_create)
                     && move_accepted
                     && close_accepted
@@ -444,13 +446,21 @@ impl NativeUi {
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return false;
         };
+        let acknowledged = if let Some(ack) = mailbox.take_close_acknowledgement()
+            && let Some(state) = &mut self.state
+        {
+            state.acknowledge_close_lease(ack);
+            true
+        } else {
+            false
+        };
         if let Some(failure) = mailbox.is_closed() {
             self.retire(failure);
             return true;
         }
         let taken = match mailbox.take_event_before(&self.clock) {
             Ok(taken) => taken,
-            Err(EventError::ForwardExpired) => return self.pending_draw.is_some(),
+            Err(EventError::ForwardExpired) => return acknowledged || self.pending_draw.is_some(),
             Err(EventError::Closed(closed)) => {
                 self.retire(closed.failure());
                 return true;
@@ -461,10 +471,11 @@ impl NativeUi {
             None => false,
         };
         if self.retirement_failure.is_none() {
+            self.schedule_close_reconciliation(&mailbox);
             self.schedule_close_read(&mailbox);
             self.schedule_poll(&mailbox);
         }
-        changed || self.pending_draw.is_some()
+        acknowledged || changed || self.pending_draw.is_some()
     }
 
     pub(super) fn after_draw(&mut self) {
@@ -750,11 +761,24 @@ impl NativeUi {
     }
 
     fn open_navigator(&mut self) -> SessionActionDisposition {
+        let mut reconcile = false;
         if let Some(state) = &mut self.state {
             state.request_close_manual_pass();
             if state.close_status_only() {
-                return SessionActionDisposition::KeepNavigator;
+                reconcile = state.request_close_membership_recovery().is_ok();
+                if !reconcile {
+                    return SessionActionDisposition::KeepNavigator;
+                }
+            } else {
+                state.request_live_close_reconciliation();
+                reconcile = state.close_reconciliation_requested_origin().is_some();
             }
+        }
+        if reconcile {
+            if let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) {
+                self.schedule_close_reconciliation(&mailbox);
+            }
+            return SessionActionDisposition::KeepNavigator;
         }
         let pending = {
             let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
@@ -863,6 +887,21 @@ impl NativeUi {
             WorkerEvent::CreateSnapshotResult { operation, outcome } => {
                 return self.apply_create_snapshot_event(mailbox, wait_key, operation, outcome);
             }
+            WorkerEvent::CloseReconciliationSnapshot { marker, outcome } => {
+                return self.apply_close_reconciliation_event(mailbox, wait_key, marker, outcome);
+            }
+            WorkerEvent::MembershipGone { cleanup, proof } => {
+                if self
+                    .state
+                    .as_ref()
+                    .is_none_or(|state| !state.validate_membership_gone(&cleanup, &proof))
+                {
+                    self.retire(CarrierFailure::Protocol);
+                    return true;
+                }
+                let old = proof.attachment_key().clone();
+                return self.apply_membership_detached(mailbox, wait_key, cleanup, old);
+            }
             WorkerEvent::SwitchForwardExpired { permit } => {
                 return self.apply_switch_forward_expired(mailbox, wait_key, permit.into_target());
             }
@@ -896,6 +935,8 @@ impl NativeUi {
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
             let reply = match event {
                 WorkerEvent::MoveResult { .. }
+                | WorkerEvent::CloseReconciliationSnapshot { .. }
+                | WorkerEvent::MembershipGone { .. }
                 | WorkerEvent::MembershipDetached { .. }
                 | WorkerEvent::CloseResult { .. }
                 | WorkerEvent::SwitchSnapshotResult { .. }

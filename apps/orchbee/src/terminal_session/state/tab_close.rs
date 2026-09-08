@@ -15,6 +15,7 @@ pub(in crate::terminal_session) use flight::{
     CloseOperation, CloseOperationKind, CloseReadMode, CloseResult, CloseWorkerReturn,
     PendingCloseResult,
 };
+pub(in crate::terminal_session) use reconciliation::CloseLeaseAcknowledgement;
 pub(super) use reconciliation::PreparedCloseConsumption;
 pub(in crate::terminal_session) use reconciliation::{
     CloseReconciliationMarker, CloseReconciliationOrigin, DefinitiveClosedAttachment,

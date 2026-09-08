@@ -9,6 +9,11 @@ use crate::terminal_session::{
 use orchbee_workbench_protocol::{WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus};
 use std::time::Instant;
 
+pub(in crate::terminal_session) enum CloseLeaseAcknowledgement {
+    Exchange(CloseFlightKey),
+    Reconciliation(Box<CloseReconciliationMarker>),
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct CloseReconciliationOrigin {
     key: CloseFlightKey,
@@ -61,7 +66,7 @@ impl CloseReconciliationMarker {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct DefinitiveClosedAttachment {
     origin: CloseReconciliationOrigin,
     attachment_key: AttachmentKey,
@@ -81,7 +86,7 @@ enum ReconciliationProgress {
     Requested,
     WaitingManual,
     InFlight(Box<CloseReconciliationMarker>),
-    Consumed,
+    Consumed(Box<CloseReconciliationMarker>),
 }
 
 // This token stays inside the membership install plan's exclusive native-state borrow.
@@ -94,6 +99,7 @@ pub(in crate::terminal_session::state) struct PreparedCloseConsumption {
 pub(super) struct RetainedReconciliation {
     origin: CloseReconciliationOrigin,
     progress: ReconciliationProgress,
+    handoff_released: bool,
 }
 
 impl CloseState {
@@ -116,7 +122,8 @@ impl CloseState {
             index,
             consumed: RetainedReconciliation {
                 origin: retained.origin.clone(),
-                progress: ReconciliationProgress::Consumed,
+                progress: ReconciliationProgress::Consumed(Box::new(marker.clone())),
+                handoff_released: false,
             },
             restore_session: matches!(&self.carrier, CloseCarrier::MembershipRecoveryPending(origin) if origin.as_ref() == marker.origin()),
         })
@@ -169,6 +176,7 @@ impl CloseState {
                     selection: record.selection.clone(),
                 },
                 progress: ReconciliationProgress::Initial,
+                handoff_released: false,
             });
         }
         Ok(())
@@ -176,6 +184,108 @@ impl CloseState {
 }
 
 impl NativeSessionState {
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn has_retained_close_records(&self) -> bool {
+        !self.close.records.is_empty()
+    }
+    pub(in crate::terminal_session) fn acknowledge_close_lease(
+        &mut self,
+        ack: CloseLeaseAcknowledgement,
+    ) {
+        match ack {
+            CloseLeaseAcknowledgement::Exchange(key) => {
+                if self
+                    .close
+                    .completed_handoff
+                    .as_ref()
+                    .is_some_and(|pending| pending.operation().key() == &key)
+                {
+                    self.close.completed_handoff = None;
+                }
+            }
+            CloseLeaseAcknowledgement::Reconciliation(marker) => {
+                if let Some(index) = self.close.record_index(marker.origin().key().target())
+                    && let Some(retained) = &mut self.close.records[index].reconciliation
+                    && matches!(&retained.progress, ReconciliationProgress::Consumed(current) if current == &marker)
+                {
+                    retained.handoff_released = true;
+                }
+            }
+        }
+        self.prune_consumed_close_records();
+    }
+
+    pub(in crate::terminal_session) fn release_joined_close_references(&mut self) {
+        self.close.completed_handoff = None;
+        for record in &mut self.close.records {
+            if let Some(retained) = &mut record.reconciliation
+                && matches!(retained.progress, ReconciliationProgress::Consumed(_))
+            {
+                retained.handoff_released = true;
+            }
+        }
+        self.prune_consumed_close_records();
+    }
+
+    fn prune_consumed_close_records(&mut self) {
+        let pending = self
+            .close
+            .pending
+            .as_ref()
+            .map(|operation| operation.key().target());
+        let handed = self
+            .close
+            .completed_handoff
+            .as_ref()
+            .map(|receipt| receipt.operation().key().target());
+        let confirmation = self
+            .close
+            .confirmation
+            .as_ref()
+            .map(|prompt| prompt.intent.selection().target());
+        self.close.records.retain(|record| {
+            let target = record.selection.target();
+            !record.reconciliation.as_ref().is_some_and(|retained| {
+                matches!(retained.progress, ReconciliationProgress::Consumed(_))
+                    && retained.handoff_released
+                    && self.cache.tab_index(target.tab_id()).is_none()
+                    && pending != Some(target)
+                    && handed != Some(target)
+                    && confirmation != Some(target)
+                    && !self.close.manual_pass.contains(target)
+            })
+        });
+    }
+    pub(in crate::terminal_session::state) fn close_membership_recovery_matches(
+        &self,
+        marker: &CloseReconciliationMarker,
+    ) -> bool {
+        marker.membership_recovery()
+            && matches!(&self.close.carrier, CloseCarrier::MembershipRecoveryPending(origin) if origin.as_ref() == marker.origin())
+            && matches!(self.phase, super::super::SessionPhase::Retired(_))
+            && self.attached_key.is_none()
+    }
+
+    pub(in crate::terminal_session) fn close_reconciliation_requested_origin(
+        &self,
+    ) -> Option<CloseReconciliationOrigin> {
+        self.close
+            .records
+            .iter()
+            .filter_map(|record| record.reconciliation.as_ref())
+            .find(|retained| matches!(retained.progress, ReconciliationProgress::Requested))
+            .map(|retained| retained.origin.clone())
+    }
+
+    pub(in crate::terminal_session) fn retire_close_reconciliations(&mut self) {
+        for record in &mut self.close.records {
+            if let Some(retained) = &mut record.reconciliation
+                && matches!(retained.progress, ReconciliationProgress::InFlight(_))
+            {
+                retained.progress = ReconciliationProgress::WaitingManual;
+            }
+        }
+    }
     pub(in crate::terminal_session) fn plan_close_reconciliation(
         &self,
         request_id: WorkbenchRequestId,
@@ -304,7 +414,8 @@ impl NativeSessionState {
                     && record.reconciliation.as_ref().is_some_and(|retained| {
                         !matches!(
                             retained.progress,
-                            ReconciliationProgress::InFlight(_) | ReconciliationProgress::Consumed
+                            ReconciliationProgress::InFlight(_)
+                                | ReconciliationProgress::Consumed(_)
                         )
                     })
             }),
@@ -320,7 +431,7 @@ impl NativeSessionState {
             .ok_or(CloseStateError::UnknownTarget)?;
         if matches!(
             retained.progress,
-            ReconciliationProgress::InFlight(_) | ReconciliationProgress::Consumed
+            ReconciliationProgress::InFlight(_) | ReconciliationProgress::Consumed(_)
         ) {
             return Err(CloseStateError::Busy);
         }
@@ -351,7 +462,7 @@ impl NativeSessionState {
         let record = &self.close.records[self.close.record_index(key.target())?];
         let retained = record.reconciliation.as_ref()?;
         (retained.origin.key() == key
-            && !matches!(retained.progress, ReconciliationProgress::Consumed))
+            && !matches!(retained.progress, ReconciliationProgress::Consumed(_)))
         .then_some(&retained.origin)
     }
 

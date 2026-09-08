@@ -34,9 +34,9 @@ pub(crate) use tab_close::{
     CloseConfirmationKind, CloseConfirmationToken, CloseStatusKind, CloseStatusToken,
 };
 pub(super) use tab_close::{
-    CloseConfirmationView, CloseFlightKey, CloseIntent, CloseOperation, CloseOperationKind,
-    CloseReadMode, CloseReconciliationMarker, CloseReconciliationOrigin, CloseResult,
-    CloseSelection, CloseState, CloseStateError, CloseStatusView, CloseTarget, CloseWorkerReturn,
+    CloseConfirmationView, CloseFlightKey, CloseIntent, CloseLeaseAcknowledgement, CloseOperation,
+    CloseOperationKind, CloseReadMode, CloseReconciliationMarker, CloseResult, CloseSelection,
+    CloseState, CloseStateError, CloseStatusView, CloseTarget, CloseWorkerReturn,
     DefinitiveClosedAttachment, PendingCloseResult,
 };
 
@@ -1931,6 +1931,7 @@ impl NativeSessionState {
     }
 
     pub(super) fn retire(&mut self, failure: CarrierFailure) {
+        self.retire_close_reconciliations();
         self.cancel_rename_draft();
         if matches!(&self.phase, SessionPhase::Retired(_)) {
             return;

@@ -19,6 +19,22 @@ impl NativeExecutor {
             return Err(CarrierFailure::Protocol);
         }
         let total = cleanup.deadlines().total();
+        if let Some(proof) = cleanup.closed_proof().cloned() {
+            if cleanup.close_marker().is_none() || proof.attachment_key() != cleanup.old() {
+                return Err(CarrierFailure::Protocol);
+            }
+            self.attached = None;
+            let marker = cleanup
+                .close_marker()
+                .cloned()
+                .ok_or(CarrierFailure::Protocol)?;
+            let reply = self.publish_and_wait(
+                WorkerEvent::MembershipGone { cleanup, proof },
+                EventDeadline::TotalCleanup(total),
+                total,
+            )?;
+            return self.finish_close_membership_cleanup(lease, &marker, reply);
+        }
         let response = self.viewer_for_cleanup(
             SetupOwner::Lease(lease),
             TerminalViewerAction::Detach {},
@@ -31,15 +47,45 @@ impl NativeExecutor {
         }
         self.attached = None;
         let detached = cleanup.old().clone();
+        let close_marker = cleanup.close_marker().cloned();
         let reply = self.publish_and_wait(
             WorkerEvent::MembershipDetached { cleanup, detached },
             EventDeadline::TotalCleanup(total),
             total,
         )?;
+        if let Some(marker) = close_marker {
+            return self.finish_close_membership_cleanup(lease, &marker, reply);
+        }
         let UiReply::Membership(settlement) = reply else {
             return Err(CarrierFailure::Protocol);
         };
         match settlement.decision() {
+            RefreshDecision::Continue | RefreshDecision::SettledWithoutAttachment => Ok(()),
+            RefreshDecision::AttachRecovered(target) => self
+                .setup_target(
+                    SetupTarget::operation(target.clone())?,
+                    SetupOwner::Lease(lease),
+                    SetupEntryExpiry::Retire,
+                )
+                .map(|_| ()),
+            RefreshDecision::Retire => Err(CarrierFailure::Deadline),
+            RefreshDecision::Cleanup(_) => Err(CarrierFailure::Protocol),
+        }
+    }
+
+    fn finish_close_membership_cleanup(
+        &mut self,
+        lease: &CommandLease,
+        marker: &crate::terminal_session::state::CloseReconciliationMarker,
+        reply: UiReply,
+    ) -> Result<()> {
+        let UiReply::CloseReconciliation(reply) = reply else {
+            return Err(CarrierFailure::Protocol);
+        };
+        if reply.marker() != marker {
+            return Err(CarrierFailure::Protocol);
+        }
+        match reply.settlement().decision() {
             RefreshDecision::Continue | RefreshDecision::SettledWithoutAttachment => Ok(()),
             RefreshDecision::AttachRecovered(target) => self
                 .setup_target(

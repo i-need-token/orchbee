@@ -5,6 +5,207 @@ use crate::terminal_session::state::{CleanupContinuation, ControllerMode, FrameI
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+fn close_snapshot_waiting_ui(
+    elapsed: Arc<AtomicU64>,
+) -> (
+    NativeUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    super::super::mailbox::CommandLease,
+    super::super::mailbox::UiWaitKey,
+) {
+    use crate::local_client::workbench::WorkbenchTabCloseAccepted;
+    use crate::terminal_session::state::CloseResult;
+    let clock = adjustable_operation_clock(elapsed);
+    let mailbox = Arc::new(CommandMailbox::new(
+        10,
+        Geometry::new(80, 24, 8, 16).unwrap(),
+    ));
+    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let deadline = clock.now() + super::super::state::OPERATION_TOTAL;
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap {
+                cache: super::super::workbench_projection::project_native_standalone_tabs(
+                    &snapshot(1, 1),
+                )
+                .unwrap(),
+            },
+            EventDeadline::Startup(deadline),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    mailbox.take_deposited_reply(&wait).unwrap().unwrap();
+    let state = ui.state.as_mut().unwrap();
+    let old = state.desired().unwrap().clone();
+    assert!(state.install_projection(&old));
+    assert!(state.record_setup_configuration(&old, ControllerMode::ReadOnly, None));
+    assert!(state.stage_drawn_frame(&old, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted(&old, FrameIdentity::new(1)));
+    assert!(state.publish_ready(&old, FrameIdentity::new(1), ControllerMode::ReadOnly, None));
+    state.open_close_confirmation().unwrap();
+    let token = state.view().close_confirmation().unwrap().token();
+    state.acknowledge_close_draw(Some(token), None);
+    let close = state
+        .plan_close_confirmation(
+            WorkbenchRequestId::parse(&format!("{:032x}", 900)).unwrap(),
+            deadline,
+        )
+        .unwrap();
+    state.begin_close_exchange(&close, clock.now()).unwrap();
+    state
+        .settle_close_exchange(
+            &close,
+            &CloseResult::Accepted(WorkbenchTabCloseAccepted {
+                close_request_id: close.key().request_id().clone(),
+                terminal_context_id: close.key().target().terminal_context_id().clone(),
+                tab_id: close.key().target().tab_id().clone(),
+                accepted_revision: close.selection().base_revision(),
+            }),
+        )
+        .unwrap();
+    let read = state
+        .plan_close_read(
+            WorkbenchRequestId::parse(&format!("{:032x}", 901)).unwrap(),
+            deadline,
+            clock.now(),
+        )
+        .unwrap();
+    state.begin_close_exchange(&read, clock.now()).unwrap();
+    state
+        .settle_close_exchange(
+            &read,
+            &CloseResult::Read(WorkbenchTabCloseReadOutcome::Available {
+                close_request_id: close.key().request_id().clone(),
+                terminal_context_id: close.key().target().terminal_context_id().clone(),
+                tab_id: close.key().target().tab_id().clone(),
+                attempt_generation: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                status: WorkbenchTabCloseStatus::Closed {
+                    revision: WorkbenchRevision::new(2),
+                },
+            }),
+        )
+        .unwrap();
+    state.acknowledge_close_lease(
+        crate::terminal_session::state::CloseLeaseAcknowledgement::Exchange(read.key().clone()),
+    );
+    ui.schedule_close_reconciliation(&mailbox);
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::ReconcileClose(marker) = lease.record() else {
+        panic!("Close Snapshot lease");
+    };
+    assert_eq!(
+        mailbox.mark_close_reconciliation_in_flight(marker).unwrap(),
+        MutationResult::Applied
+    );
+    let wait = mailbox
+        .publish_close_reconciliation_before(
+            marker.clone(),
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: snapshot(0, 2),
+            },
+            deadline,
+            &clock,
+        )
+        .unwrap();
+    (ui, mailbox, clock, lease, wait)
+}
+
+#[test]
+fn close_acknowledgement_after_empty_install_requests_the_status_removal_redraw() {
+    let (mut ui, mailbox, clock, lease, wait) =
+        close_snapshot_waiting_ui(Arc::new(AtomicU64::new(0)));
+    assert!(ui.tick());
+    let Some(UiReply::CloseReconciliation(reply)) = mailbox.take_deposited_reply(&wait).unwrap()
+    else {
+        panic!("cleanup reply");
+    };
+    let RefreshDecision::Cleanup(cleanup) = reply.settlement().decision() else {
+        panic!("exact Gone cleanup");
+    };
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::MembershipGone {
+                cleanup: cleanup.clone(),
+                proof: Arc::clone(cleanup.closed_proof().unwrap()),
+            },
+            EventDeadline::TotalCleanup(cleanup.deadlines().total()),
+            &clock,
+        )
+        .unwrap();
+    assert!(ui.tick());
+    drop(reply);
+    mailbox.take_deposited_reply(&wait).unwrap().unwrap();
+    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    assert!(
+        ui.view().close_status().is_some(),
+        "the worker still retains its exact marker"
+    );
+    assert!(!ui.tick(), "no worker completion or event has arrived");
+    mailbox.finish_lease(lease).unwrap();
+    assert!(
+        ui.tick(),
+        "ACK-only pruning must redraw the removed Closed status"
+    );
+    assert!(ui.view().close_status().is_none());
+    assert!(!ui.tick(), "the acknowledgement is consumed once");
+}
+
+#[test]
+fn close_snapshot_late_ui_starts_one_budget_and_gone_never_installs_after_forward_expiry() {
+    for offset in [0, 44_999, 45_000, 49_999, 50_000] {
+        let elapsed = Arc::new(AtomicU64::new(0));
+        let (mut ui, mailbox, clock, lease, wait) = close_snapshot_waiting_ui(Arc::clone(&elapsed));
+        let baseline = ui.state.as_ref().unwrap().cache().clone();
+        let cursors = mailbox.cursors();
+        elapsed.store(75_000, Ordering::SeqCst);
+        assert!(
+            ui.tick(),
+            "timely Snapshot placement survives late UI consumption"
+        );
+        let Some(UiReply::CloseReconciliation(reply)) =
+            mailbox.take_deposited_reply(&wait).unwrap()
+        else {
+            panic!("cleanup reply");
+        };
+        let RefreshDecision::Cleanup(cleanup) = reply.settlement().decision() else {
+            panic!("exact Gone cleanup");
+        };
+        assert_eq!(
+            cleanup.deadlines(),
+            OperationDeadlines::from_sample(clock.now()).unwrap()
+        );
+        let wait = mailbox
+            .publish_event_before(
+                WorkerEvent::MembershipGone {
+                    cleanup: cleanup.clone(),
+                    proof: Arc::clone(cleanup.closed_proof().unwrap()),
+                },
+                EventDeadline::TotalCleanup(cleanup.deadlines().total()),
+                &clock,
+            )
+            .unwrap();
+        elapsed.store(75_000 + offset, Ordering::SeqCst);
+        assert!(ui.tick());
+        if offset < 45_000 {
+            assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+            mailbox.take_deposited_reply(&wait).unwrap().unwrap();
+            mailbox.finish_lease(lease).unwrap();
+        } else {
+            assert!(ui.retirement_requested());
+            let state = ui.state.as_ref().unwrap();
+            assert_eq!(state.cache(), &baseline);
+            assert!(state.has_retained_close_records());
+        }
+        assert_eq!(
+            mailbox.cursors().0,
+            cursors.0,
+            "cleanup never allocates a replacement key after expiry"
+        );
+    }
+}
+
 #[test]
 fn actual_attached_refresh_freezes_until_exact_cleanup_and_never_installs_after_forward_expiry() {
     for (millis, wrong_generation) in [
