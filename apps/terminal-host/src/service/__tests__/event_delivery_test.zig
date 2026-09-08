@@ -475,7 +475,12 @@ test "DisposeTerminal retains a native exit until its poll handoff commits" {
 
     var duplicate_events = try pollEventsChecked(&service, &connection);
     defer duplicate_events.deinit();
-    try std.testing.expectEqual(@as(usize, 0), duplicate_events.records().len);
+    for (duplicate_events.records()) |record| {
+        const envelope = try protocol.validateTransportEnvelope(record);
+        // ConPTY may publish its shell title after the exit event. That
+        // independent metadata notification must not look like a duplicate exit.
+        try std.testing.expectEqual(MessageKind.terminal_metadata_changed, envelope.kind);
+    }
 
     var disposed = try testRequest(
         &service,
