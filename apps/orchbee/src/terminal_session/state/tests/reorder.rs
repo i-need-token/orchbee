@@ -90,8 +90,7 @@ fn correlated_create_and_explicit_recovery_overlay_the_moved_created_id_only() {
         let (mut state, operation) = committed_create_state();
         state.provenance[0] = CreateTerminalProvenance::Started;
         assert!(!state.start_pending_refresh(9));
-        assert!(state.publish_old_detached(&operation));
-        assert!(!state.start_pending_refresh(9));
+        assert_eq!(state.attached_key(), state.desired());
         let mut candidate = snapshot(3, 3, None);
         candidate.terminal_contexts[0].tabs.rotate_left(1);
         candidate.terminal_contexts[0].tabs[0].label = "renamed created".into();
@@ -108,7 +107,7 @@ fn correlated_create_and_explicit_recovery_overlay_the_moved_created_id_only() {
                     WorkbenchSnapshotOutcome::Available {
                         snapshot: candidate
                     },
-                    None
+                    Some(OperationDeadlines::from_sample(Instant::now()).unwrap())
                 ),
                 RefreshDecision::SettledWithoutAttachment
             );
@@ -162,7 +161,7 @@ fn reused_created_id_at_a_later_revision_cannot_overlay_provenance_during_recove
                 presentation_id: existing.presentation_id().clone(),
             }
         ));
-        assert!(state.publish_old_detached(&key));
+
         let mut candidate = snapshot(3, 3, None);
         candidate.terminal_contexts[0].tabs.reverse();
         if recover {

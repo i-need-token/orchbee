@@ -344,7 +344,7 @@ impl NativeSessionState {
             PreparedMoveResult::NotMoved => self.notice = Some(SessionNotice::MoveNotMoved),
             PreparedMoveResult::Unchanged => self.notice = None,
             PreparedMoveResult::RefusedProjection(candidate) => {
-                if !self.merge_projection(candidate, None) {
+                if !self.merge_projection(candidate) {
                     self.retire(CarrierFailure::AuthorityDivergence);
                     return MoveDecision::Retire;
                 }
@@ -361,7 +361,7 @@ impl NativeSessionState {
             PreparedMoveResult::Committed { pending, candidate } => {
                 self.settled_move = Some(pending.clone());
                 if let Some(candidate) = candidate {
-                    if !self.merge_projection(candidate, None) {
+                    if !self.merge_projection(candidate) {
                         self.retire(CarrierFailure::AuthorityDivergence);
                         return MoveDecision::Retire;
                     }

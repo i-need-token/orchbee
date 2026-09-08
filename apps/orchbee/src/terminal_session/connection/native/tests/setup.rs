@@ -1511,7 +1511,7 @@ impl UiDriver {
                                     recovery_deadlines.ok_or(CarrierFailure::Deadline)?,
                                 )?)
                             } else {
-                                state.apply_prepared_refresh(prepared, recovery_deadlines)
+                                state.apply_prepared_refresh(prepared)
                             };
                         let desired = state.desired().cloned();
                         decision = Some(settled.clone());

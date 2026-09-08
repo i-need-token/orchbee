@@ -1644,7 +1644,7 @@ fn deposited_refresh_reply_can_be_superseded_before_worker_reacquires_mailbox() 
         assert_eq!(
             mailbox
                 .deposit_ui_reply_before_using(&wait, &clock, |_| {
-                    let decision = session.apply_prepared_refresh(prepared, None);
+                    let decision = session.apply_prepared_refresh(prepared);
                     assert_eq!(decision, RefreshDecision::Continue);
                     Ok(UiReply::Refresh(RefreshSettlement::new(
                         decision,
@@ -1772,7 +1772,7 @@ fn pending_refresh_blocks_retryable_selection_at_all_three_stages_until_ui_settl
     assert_eq!(
         mailbox
             .deposit_ui_reply_before_using(&wait, &clock, |_| {
-                let decision = session.apply_prepared_refresh(prepared, None);
+                let decision = session.apply_prepared_refresh(prepared);
                 Ok(UiReply::Refresh(RefreshSettlement::new(
                     decision,
                     session.desired().unwrap().clone(),

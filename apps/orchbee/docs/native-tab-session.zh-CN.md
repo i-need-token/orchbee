@@ -456,10 +456,10 @@ Tab ID 和 `AttachmentKey { generation, tab_id }` 是权威。索引由一份已
 `[Unavailable(B),Started(A),BindingOnly(C)]`；挂接身份不变。
 
 普通 Refresh/Move 安装仅限匹配的稳定阶段或精确显式恢复。Starting、Creating、
-CreateCommittedNeedDetach、AwaitingCommittedProjection、Switching 和 Retired 禁止普通替换。
-AwaitingCommittedProjection 的关联 CreateSnapshot 在保留提交握手后、旧清理前仍可安装。显式
-Create ProjectionUnavailable 恢复验证保留 create 事实：Started 使用现有新 setup 截止时间，
-非 Started 无需 setup。冷 Bootstrap 拥有初始安装。这些例外绝不准入第二个结构在途操作，也不允许
+CreateCommittedNeedDetach、Switching 和 Retired 禁止普通替换。关联 CreateSnapshot 在暂存旧清理前
+验证保留提交。显式 Create ProjectionUnavailable 恢复验证同样的事实，并为候选清理与安装采样
+新的操作预算。Started 可在该预算内继续 setup；非 Started 安装时不执行 Attach。
+冷 Bootstrap 拥有初始安装。这些例外绝不准入第二个结构在途操作，也不允许
 普通 refresh 冒充 CreateSnapshot。
 
 一个准入时的 `structural_mutation_pending` Move 在途操作涵盖排队标记、命令 I/O、SnapshotRead、
@@ -544,8 +544,10 @@ Move/Snapshot/Detach 到 Empty，或后继 Attach/Resize/Poll/帧反馈/Ready；
 这些检查不构造 Gone 证明，也不建立完整 Close 集成。
 生产入口是 `TerminalIntent::Standalone`。遗留 `Create`/`Attach`、其执行器和渲染器，以及已连接的
 遗留 TUI 入口只为测试编译。既有进程见证保留渲染、输入、Resize 和终端模式恢复断言；它不证明
-生产启动路径。仅由测试使用的 Close 检查辅助函数和重导出采用同样的明确边界。过时的
-`AwaitingCommittedProjection` 测试状态仍须迁移后严格 Clippy 才能通过；不压制任何警告。
+生产启动路径。仅由测试使用的 Close 检查辅助函数和重导出采用同样的明确边界。Create reducer
+测试在清理前准备候选，并使用共用安装计划。退休用例覆盖保留提交、已验证且待清理的候选、
+清理前确定的投影不可用，以及已安装选择。不存在单独的先 Detach 后 Snapshot 状态或成功消费者。
+Reducer 测试不声称证明载体或 mailbox 回执；这些义务仍由原生执行器与 NativeUi 成员关系测试承担。
 
 必需所属模型扩展为 `NativeClientRefreshFence` 中按 ID/来源重映射和结构在途/恢复、
 `NativeClientCreateBarrier` 中关联投影前移动创建成员，以及 `NativeTabSwitch` 中暂存候选后的
@@ -731,8 +733,7 @@ enum SessionPhase {
     Ready(ReadyAttachment),
     Creating(CreatingBarrier),
     CreateCommittedNeedDetach(CommittedTabCreate),
-    AwaitingCommittedProjection(CommittedTabCreate),
-    ProjectionUnavailable(CommittedTabCreate),
+    ProjectionUnavailableBeforeCleanup(CommittedTabCreate),
     Switching(SwitchSetup),
     SelectedWithoutAttachment(SelectedTerminalState),
     RetryableAttachUnavailable(SelectedTab),
@@ -831,20 +832,20 @@ Resize。会话单独跟踪最近一次已准入/已应用的控制器尺寸。C
 两个方向循环。`1` 至 `9` 是从一开始的精确索引；索引不存在时属于本地空操作，并显示越界提示。
 Tab 数量为零时没有可选目标。
 
-| 当前阶段和已解析目标                                                              | 精确结果                                                                                                                                                                                                                                          |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 其他条件允许选择、目标不同，且一次刷新已经排队、在途或等待 UI 结算                | 在本地拒绝切换：标记、代次、选择、挂接、投影和导航器均不改变。报告本地繁忙。此守卫先于下方目标不同的各行。                                                                                                                                        |
-| 其他条件允许选择、目标相同，且一次刷新已经排队、在途或等待 UI 结算                | 空操作，包括 RetryableAttachUnavailable：标记、代次、选择、挂接、投影和导航器均不改变。此守卫先于下方所有目标相同的各行。                                                                                                                         |
-| Ready，目标不同                                                                   | 原子准入一个 Switch 标记。成功后立即更新活动/期望目标，清除可见投影/反馈，进入 Switching，并关闭导航器。                                                                                                                                          |
-| Ready，目标是活动 Tab                                                             | 标记、代次、挂接、投影和导航器均不改变。                                                                                                                                                                                                          |
-| Switching，目标不同于当前期望 Tab                                                 | 容量/代次允许时准入另一个标记；它取代先前的建立流程。n/p 从当前期望 Tab 开始解析。                                                                                                                                                                |
-| Switching，目标等于当前期望 Tab                                                   | 空操作；不生成重复标记或代次。                                                                                                                                                                                                                    |
-| RetryableAttachUnavailable，可挂接目标等于活动目标                                | 显式选择会准入新的标记与代次；由于清理未留下查看器，执行器跳过 Detach。不存在自动重试。                                                                                                                                                           |
-| RetryableAttachUnavailable，目标不同                                              | 原子准入标记/代次；由于不存在查看器而跳过 Detach，并按照该目标保留的来源状态分派，与 SelectedWithoutAttachment 完全相同。                                                                                                                         |
-| SelectedWithoutAttachment，目标不同                                               | 原子准入同一种标记/代次转换。由于不存在查看器，执行器跳过 Detach，然后依据 **目标的**保留来源状态分派：Started/BindingOnly 执行正常 Attach 建立流程；Pending/unavailable/failed/outcome-unknown 不执行 Attach，结算为 SelectedWithoutAttachment。 |
-| SelectedWithoutAttachment，目标是已选中的不可挂接 Tab                             | 空操作；没有标记或代次。                                                                                                                                                                                                                          |
-| Creating、AwaitingCommittedProjection、ProjectionUnavailable、Starting 或 Retired | 拒绝有副作用的选择。只有下文明确列出的恢复操作仍可使用。                                                                                                                                                                                          |
-| 队列/代次已满                                                                     | 保持选择与挂接状态；报告本地繁忙。                                                                                                                                                                                                                |
+| 当前阶段和已解析目标                                                            | 精确结果                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 其他条件允许选择、目标不同，且一次刷新已经排队、在途或等待 UI 结算              | 在本地拒绝切换：标记、代次、选择、挂接、投影和导航器均不改变。报告本地繁忙。此守卫先于下方目标不同的各行。                                                                                                                                        |
+| 其他条件允许选择、目标相同，且一次刷新已经排队、在途或等待 UI 结算              | 空操作，包括 RetryableAttachUnavailable：标记、代次、选择、挂接、投影和导航器均不改变。此守卫先于下方所有目标相同的各行。                                                                                                                         |
+| Ready，目标不同                                                                 | 原子准入一个 Switch 标记。成功后立即更新活动/期望目标，清除可见投影/反馈，进入 Switching，并关闭导航器。                                                                                                                                          |
+| Ready，目标是活动 Tab                                                           | 标记、代次、挂接、投影和导航器均不改变。                                                                                                                                                                                                          |
+| Switching，目标不同于当前期望 Tab                                               | 容量/代次允许时准入另一个标记；它取代先前的建立流程。n/p 从当前期望 Tab 开始解析。                                                                                                                                                                |
+| Switching，目标等于当前期望 Tab                                                 | 空操作；不生成重复标记或代次。                                                                                                                                                                                                                    |
+| RetryableAttachUnavailable，可挂接目标等于活动目标                              | 显式选择会准入新的标记与代次；由于清理未留下查看器，执行器跳过 Detach。不存在自动重试。                                                                                                                                                           |
+| RetryableAttachUnavailable，目标不同                                            | 原子准入标记/代次；由于不存在查看器而跳过 Detach，并按照该目标保留的来源状态分派，与 SelectedWithoutAttachment 完全相同。                                                                                                                         |
+| SelectedWithoutAttachment，目标不同                                             | 原子准入同一种标记/代次转换。由于不存在查看器，执行器跳过 Detach，然后依据 **目标的**保留来源状态分派：Started/BindingOnly 执行正常 Attach 建立流程；Pending/unavailable/failed/outcome-unknown 不执行 Attach，结算为 SelectedWithoutAttachment。 |
+| SelectedWithoutAttachment，目标是已选中的不可挂接 Tab                           | 空操作；没有标记或代次。                                                                                                                                                                                                                          |
+| Creating、CreateCommittedNeedDetach、ProjectionUnavailable、Starting 或 Retired | 拒绝有副作用的选择。只有下文明确列出的恢复操作仍可使用。                                                                                                                                                                                          |
+| 队列/代次已满                                                                   | 保持选择与挂接状态；报告本地繁忙。                                                                                                                                                                                                                |
 
 对只含一个 Tab 的缓存，n/p 都解析到同一成员：Ready 是空操作，
 RetryableAttachUnavailable 仅在没有待结算刷新时才是显式重试。有待结算刷新时，所有其他条件

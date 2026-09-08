@@ -65,15 +65,43 @@ fn handoff_preserves_every_terminal_provenance_and_snapshot_cache() {
 }
 
 #[test]
-fn exact_retained_duplicate_preserves_the_before_and_after_detach_shapes() {
+fn exact_retained_duplicate_preserves_commit_cleanup_and_unavailable_shapes() {
     for (commit, _) in commit_outcomes() {
-        for cut in ["retained", "detached", "projection unavailable", "retired"] {
+        for cut in [
+            "retained",
+            "cleanup pending",
+            "projection unavailable",
+            "retired",
+        ] {
             let mut state = ready(1);
             let operation = create_operation(&state, 2, 300, "2");
             assert!(state.begin_create(operation.clone()));
             assert!(state.retain_create_commit(operation.key(), commit.clone()));
-            if matches!(cut, "detached" | "projection unavailable") {
-                assert!(state.publish_old_detached(operation.key()));
+            if cut == "cleanup pending" {
+                let PreparedCreateSnapshot::Available {
+                    baseline,
+                    committed,
+                    projection,
+                } = state.prepare_create_snapshot(
+                    operation.key(),
+                    WorkbenchSnapshotOutcome::Available {
+                        snapshot: snapshot(2, 2, Some("2")),
+                    },
+                )
+                else {
+                    panic!("known Create candidate must validate")
+                };
+                let candidate = state
+                    .prepare_create_membership_candidate(&baseline, &committed, projection)
+                    .unwrap();
+                let cleanup = state
+                    .stage_create_membership_cleanup(
+                        operation.key(),
+                        candidate,
+                        operation.deadlines(),
+                    )
+                    .unwrap();
+                assert_eq!(state.attached_key(), Some(cleanup.old()));
             }
             if cut == "projection unavailable" {
                 assert_eq!(
@@ -432,7 +460,15 @@ fn repeated_finalization_preserves_the_first_cause_and_rejects_post_retirement_e
         assert!(!state.begin_switch(switch));
         assert!(!state.restore_precommit(operation.key(), Some(geometry(80))));
         assert!(!state.retain_create_commit(operation.key(), commit));
-        assert!(!state.publish_old_detached(operation.key()));
+        assert!(matches!(
+            state.prepare_create_snapshot(
+                operation.key(),
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: snapshot(3, 3, Some("3")),
+                }
+            ),
+            PreparedCreateSnapshot::Invalid
+        ));
         assert_eq!(
             state.settle_create_snapshot(operation.key(), WorkbenchSnapshotOutcome::Denied {}),
             CreateProjectionDecision::Retire
@@ -470,7 +506,7 @@ fn completed_create() -> (
     });
     assert!(state.begin_create(operation.clone()));
     assert!(state.retain_create_commit(operation.key(), commit.clone()));
-    assert!(state.publish_old_detached(operation.key()));
+
     let CreateProjectionDecision::Attach(target) = state.settle_create_snapshot(
         operation.key(),
         WorkbenchSnapshotOutcome::Available {

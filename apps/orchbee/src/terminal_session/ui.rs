@@ -49,7 +49,6 @@ pub(crate) enum NativeDisplayPhase {
     Ready,
     Creating,
     CreateCommittedNeedDetach,
-    AwaitingCommittedProjection,
     ProjectionUnavailable,
     MoveProjectionUnavailable,
     RenameProjectionUnavailable,
@@ -143,9 +142,6 @@ impl<'a> NativeSessionView<'a> {
             SessionPhaseKind::Creating => NativeDisplayPhase::Creating,
             SessionPhaseKind::CreateCommittedNeedDetach => {
                 NativeDisplayPhase::CreateCommittedNeedDetach
-            }
-            SessionPhaseKind::AwaitingCommittedProjection => {
-                NativeDisplayPhase::AwaitingCommittedProjection
             }
             SessionPhaseKind::ProjectionUnavailable => NativeDisplayPhase::ProjectionUnavailable,
             SessionPhaseKind::MoveProjectionUnavailable => {
@@ -1200,7 +1196,7 @@ impl NativeUi {
                     }
                 }
             } else {
-                state.apply_prepared_refresh(prepared, recovery_deadlines)
+                state.apply_prepared_refresh(prepared)
             };
             if matches!(decision, RefreshDecision::Retire) {
                 clear_projection = true;

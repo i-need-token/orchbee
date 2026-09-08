@@ -764,9 +764,7 @@ fn create_committed_then_reselect(
             CreateTerminalProvenance::OutcomeUnknown,
         ),
     };
-    if !trace.session.retain_create_commit(&operation_key, commit)
-        || !trace.session.publish_old_detached(&operation_key)
-    {
+    if !trace.session.retain_create_commit(&operation_key, commit) {
         return Err("commit retention/detach");
     }
     let decision = trace.session.settle_create_snapshot(
@@ -856,7 +854,6 @@ fn reject_reused_committed_tuple(trace: &mut TraceState) -> Result<(), &'static 
                 },
             },
         )
-        || !session.publish_old_detached(&first_key)
         || !matches!(
             session.settle_create_snapshot(
                 &first_key,
@@ -904,7 +901,6 @@ fn reject_reused_committed_tuple(trace: &mut TraceState) -> Result<(), &'static 
                 presentation_id: reused.presentation_id().clone(),
             },
         )
-        || !session.publish_old_detached(&second_key)
     {
         return Err("reused committed retention");
     }
@@ -988,7 +984,7 @@ fn refresh(
         WorkbenchSnapshotOutcome::Denied {}
     };
     let prepared = trace.session.prepare_refresh(trace.refresh, outcome);
-    let decision = trace.session.apply_prepared_refresh(prepared, None);
+    let decision = trace.session.apply_prepared_refresh(prepared);
     if decision != RefreshDecision::Continue {
         return Err("refresh settlement");
     }
@@ -1029,7 +1025,7 @@ fn refresh_stale_then_current(
     let prepared = trace
         .session
         .prepare_refresh(stale, WorkbenchSnapshotOutcome::Denied {});
-    if trace.session.apply_prepared_refresh(prepared, None) != RefreshDecision::Continue
+    if trace.session.apply_prepared_refresh(prepared) != RefreshDecision::Continue
         || trace.session.pending_refresh_generation() != Some(current)
     {
         return Err("stale refresh changed current");
@@ -1051,7 +1047,7 @@ fn refresh_stale_then_current(
             snapshot: snapshot(count + 1, revision, None),
         },
     );
-    if trace.session.apply_prepared_refresh(prepared, None) != RefreshDecision::Continue
+    if trace.session.apply_prepared_refresh(prepared) != RefreshDecision::Continue
         || trace.session.cache().tabs().len() != count + 1
         || trace.session.provenance(count) != Some(&CreateTerminalProvenance::BindingOnly)
         || trace.session.active() != active.as_ref()

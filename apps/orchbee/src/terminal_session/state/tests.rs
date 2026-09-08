@@ -8,6 +8,7 @@ use orchbee_workbench_protocol::{
     WorkerId,
 };
 
+mod create_projection;
 mod generated;
 mod membership;
 mod move_tab;
@@ -260,7 +261,7 @@ fn read_only_ready_ignores_geometry_for_frames_and_never_admits_resize() {
 }
 
 #[test]
-fn commit_keeps_old_active_until_detached_then_uses_separate_committed_target() {
+fn commit_keeps_old_active_until_validated_cleanup_installs_the_committed_target() {
     let mut state = ready(1);
     let old = state.active().unwrap().key().clone();
     let operation = create_operation(&state, 2, 20, "2");
@@ -296,17 +297,7 @@ fn commit_keeps_old_active_until_detached_then_uses_separate_committed_target() 
     assert_eq!(state.active().unwrap().key(), &old);
     assert_eq!(state.desired().unwrap(), &old);
 
-    assert!(state.publish_old_detached(&operation_key));
-    assert_eq!(
-        state.phase_kind(),
-        SessionPhaseKind::AwaitingCommittedProjection
-    );
-    assert!(state.active().is_none());
-    assert_ne!(state.desired().unwrap(), &old);
-    assert_eq!(
-        state.desired().unwrap().tab_id(),
-        state.committed_target().unwrap().expectation().tab_id()
-    );
+    let committed_key = state.committed_target().unwrap().committed_key().clone();
 
     assert_eq!(
         state.settle_create_snapshot(
@@ -317,6 +308,11 @@ fn commit_keeps_old_active_until_detached_then_uses_separate_committed_target() 
         ),
         CreateProjectionDecision::SettledWithoutAttachment
     );
+    assert!(state.attached_key().is_none());
+    assert!(state.projection_key().is_none());
+    assert_ne!(state.desired().unwrap(), &old);
+    assert_eq!(state.desired(), Some(&committed_key));
+    assert_eq!(state.active().unwrap().key(), &committed_key);
     assert_eq!(
         state.phase_kind(),
         SessionPhaseKind::SelectedWithoutAttachment
@@ -390,10 +386,11 @@ fn retired_committed_create_preserves_old_active_and_known_commit_for_diagnostic
 }
 
 #[test]
-fn retired_post_detach_create_keeps_commit_without_an_ordinary_active_selection() {
+fn retired_pending_create_keeps_commit_and_historical_selection_before_cleanup() {
     for projection_unavailable in [false, true] {
         let (mut state, operation_key) = committed_create_state();
-        assert!(state.publish_old_detached(&operation_key));
+        let old = state.active().unwrap().clone();
+
         if projection_unavailable {
             assert_eq!(
                 state.settle_create_snapshot(
@@ -404,21 +401,48 @@ fn retired_post_detach_create_keeps_commit_without_an_ordinary_active_selection(
                 ),
                 CreateProjectionDecision::ProjectionUnavailable
             );
+        } else {
+            let PreparedCreateSnapshot::Available {
+                baseline,
+                committed,
+                projection,
+            } = state.prepare_create_snapshot(
+                &operation_key,
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: snapshot(2, 2, Some("2")),
+                },
+            )
+            else {
+                panic!("pending cleanup requires a validated candidate")
+            };
+            let candidate = state
+                .prepare_create_membership_candidate(&baseline, &committed, projection)
+                .unwrap();
+            let cleanup = state
+                .stage_create_membership_cleanup(
+                    &operation_key,
+                    candidate,
+                    committed.operation().deadlines(),
+                )
+                .unwrap();
+            assert_eq!(cleanup.old(), old.key());
+            assert!(state.pending_membership.is_some());
         }
         let expected_phase = if projection_unavailable {
             SessionPhaseKind::ProjectionUnavailable
         } else {
-            SessionPhaseKind::AwaitingCommittedProjection
+            SessionPhaseKind::CreateCommittedNeedDetach
         };
         assert_eq!(state.phase_kind(), expected_phase);
-        assert!(state.active().is_none());
+        assert_eq!(state.active(), Some(&old));
         let committed = state.committed_target().unwrap().clone();
         let desired = state.desired().unwrap().clone();
 
         state.retire(CarrierFailure::Deadline);
 
         assert_eq!(state.retired_failure(), Some(CarrierFailure::Deadline));
-        assert!(state.active().is_none());
+        assert!(state.pending_membership.is_none());
+        assert_eq!(state.active(), Some(&old));
         assert_eq!(state.committed_target(), Some(&committed));
         assert_eq!(state.desired().unwrap(), &desired);
         assert!(state.attached_key().is_none());
@@ -454,7 +478,7 @@ fn retirement_clears_pending_refresh_and_render_feedback_but_keeps_cache_diagnos
     assert!(state.attached_key().is_none());
     assert!(state.projection_key().is_none());
     assert_eq!(
-        state.apply_prepared_refresh(prepared_refresh, None),
+        state.apply_prepared_refresh(prepared_refresh),
         RefreshDecision::Continue
     );
     assert_eq!(state.phase_kind(), SessionPhaseKind::Retired);
@@ -514,7 +538,7 @@ fn committed_create_then_second_human_create_preserves_provenance_and_fresh_curs
             presentation_id: primary_presentation.presentation_id.clone(),
         }
     ));
-    assert!(state.publish_old_detached(&first_key));
+
     assert_eq!(
         state.settle_create_snapshot(
             &first_key,
@@ -625,7 +649,7 @@ fn created_terminal_outcomes_map_to_exact_selection_provenance() {
                 terminal_outcome,
             },
         ));
-        assert!(state.publish_old_detached(&operation_key));
+
         let decision = state.settle_create_snapshot(
             &operation_key,
             WorkbenchSnapshotOutcome::Available {
@@ -784,7 +808,6 @@ fn pending_create_accepts_later_revision_tab_rename_with_exact_presentation_anch
             presentation_id: primary_presentation.presentation_id.clone(),
         },
     ));
-    assert!(state.publish_old_detached(&operation_key));
 
     let mut later = snapshot(2, 3, Some("2"));
     later.terminal_contexts[0].tabs[1].label = "renamed after commit".into();
@@ -816,6 +839,7 @@ fn pending_create_accepts_later_revision_tab_rename_with_exact_presentation_anch
 fn projection_unavailable_moved_started_refresh_needs_a_fresh_setup_budget() {
     let mut state = ready(1);
     let operation = create_operation(&state, 2, 30, "2");
+    let original_deadlines = operation.deadlines();
     let key = operation.key().clone();
     assert!(state.begin_create(operation));
     let mut candidate = snapshot(2, 2, Some("2"));
@@ -843,7 +867,7 @@ fn projection_unavailable_moved_started_refresh_needs_a_fresh_setup_budget() {
     ));
     candidate.revision = WorkbenchRevision::new(3);
     candidate.terminal_contexts[0].tabs.swap(0, 1);
-    assert!(state.publish_old_detached(&key));
+
     assert_eq!(
         state.settle_create_snapshot(&key, WorkbenchSnapshotOutcome::Denied {}),
         CreateProjectionDecision::ProjectionUnavailable
@@ -857,27 +881,31 @@ fn projection_unavailable_moved_started_refresh_needs_a_fresh_setup_budget() {
         },
     );
     assert!(prepared.needs_recovery_deadlines());
-    assert_eq!(
-        state.apply_prepared_refresh(prepared, None),
-        RefreshDecision::Continue
-    );
+    // Preparing recovery cannot install or detach before a fresh budget is supplied.
     assert_eq!(state.phase_kind(), SessionPhaseKind::ProjectionUnavailable);
-    assert_eq!(state.pending_refresh_generation(), None);
-
-    assert!(state.start_pending_refresh(2));
-    let prepared = state.prepare_refresh(
-        2,
-        WorkbenchSnapshotOutcome::Available {
-            snapshot: candidate,
-        },
+    assert_eq!(state.pending_refresh_generation(), Some(1));
+    assert_eq!(state.attached_key(), state.desired());
+    assert_eq!(state.cache().revision(), WorkbenchRevision::new(1));
+    let PreparedRefresh::CreateMembership {
+        generation,
+        operation,
+        prepared,
+    } = prepared
+    else {
+        panic!("Create recovery must use the common membership candidate")
+    };
+    let recovery =
+        OperationDeadlines::from_sample(original_deadlines.total() + Duration::from_secs(70))
+            .unwrap();
+    assert!(recovery.forward_cutoff() > original_deadlines.total());
+    let decision = create_projection::finish_create_refresh(
+        &mut state, generation, &operation, prepared, recovery,
     );
-    assert!(prepared.needs_recovery_deadlines());
-    let recovery = OperationDeadlines::from_sample(Instant::now()).unwrap();
-    let decision = state.apply_prepared_refresh(prepared, Some(recovery));
     let RefreshDecision::AttachRecovered(target) = decision else {
         panic!("expected recovered Attach")
     };
     assert_eq!(target.deadlines(), recovery);
+    assert_eq!(state.pending_refresh_generation(), None);
     assert_eq!(target.provenance(), &CreateTerminalProvenance::Started);
     assert_eq!(target.selected().index(), 0);
     assert_eq!(target.selected().key(), state.desired().unwrap());
@@ -1384,7 +1412,22 @@ fn finish_refresh(
     recovery_deadlines: Option<OperationDeadlines>,
 ) -> RefreshDecision {
     let prepared = state.prepare_refresh(generation, outcome);
-    state.apply_prepared_refresh(prepared, recovery_deadlines)
+    if let PreparedRefresh::CreateMembership {
+        generation,
+        operation,
+        prepared,
+    } = prepared
+    {
+        create_projection::finish_create_refresh(
+            state,
+            generation,
+            &operation,
+            prepared,
+            recovery_deadlines.expect("Create recovery must sample its own budget"),
+        )
+    } else {
+        state.apply_prepared_refresh(prepared)
+    }
 }
 
 fn controlling() -> ControllerMode {

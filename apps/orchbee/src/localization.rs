@@ -361,9 +361,7 @@ impl Locale {
                     None => self.native_terminal_unavailable(position),
                 }
             }
-            Phase::Creating
-            | Phase::CreateCommittedNeedDetach
-            | Phase::AwaitingCommittedProjection => self.native_creating().to_owned(),
+            Phase::Creating | Phase::CreateCommittedNeedDetach => self.native_creating().to_owned(),
             Phase::ProjectionUnavailable => self.native_committed_refresh_required().to_owned(),
             Phase::MoveProjectionUnavailable => match self {
                 Self::EnUs => "Tab moved · Ctrl+B w to refresh tab order".to_owned(),

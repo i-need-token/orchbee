@@ -79,7 +79,7 @@ fn known_create_candidate_is_validated_before_any_attachment_or_cache_change() {
     ));
     assert_eq!(state.cache(), &cache);
     assert_eq!(state.attached_key(), attached.as_ref());
-    assert!(state.publish_old_detached(&operation));
+
     let prepared = state.prepare_create_snapshot(
         &operation,
         WorkbenchSnapshotOutcome::Available {

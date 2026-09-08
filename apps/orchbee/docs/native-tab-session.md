@@ -549,11 +549,11 @@ For `[A,B,C] -> [B,A,C]`, active A moves from index 0 to 1 and
 `[Unavailable(B),Started(A),BindingOnly(C)]`; attachment identity does not change.
 
 Ordinary Refresh/Move installation is limited to its matching stable phase or exact explicit
-recovery. Starting, Creating, CreateCommittedNeedDetach, AwaitingCommittedProjection, Switching and
-Retired prohibit ordinary replacement. Correlated CreateSnapshot from AwaitingCommittedProjection,
-after its retained-commit handshake and before old cleanup, remains allowed. Explicit Create ProjectionUnavailable recovery
-validates retained create facts: Started gets its existing fresh setup deadline, non-Started needs
-none. Cold Bootstrap owns initial installation. These exceptions never admit a second structural
+recovery. Starting, Creating, CreateCommittedNeedDetach, Switching and Retired prohibit ordinary
+replacement. Correlated CreateSnapshot validates the retained commit before staging old cleanup.
+Explicit Create ProjectionUnavailable recovery validates the same facts and samples a fresh
+operation budget for candidate cleanup and installation. Started may continue to setup within that
+budget; non-Started installs without Attach. Cold Bootstrap owns initial installation. These exceptions never admit a second structural
 flight or allow ordinary refresh to impersonate CreateSnapshot.
 
 One admission-time `structural_mutation_pending` Move flight spans queued marker, command I/O,
@@ -665,8 +665,11 @@ The production entry is `TerminalIntent::Standalone`. Legacy `Create`/`Attach`, 
 renderer, and the connected legacy TUI entry are compiled only for tests. Their existing process
 witness retains its rendering, input, resize and terminal-mode restoration assertions; it does not
 establish the production startup path. Close inspection helpers and reexports used only by tests
-have the same explicit boundary. The obsolete `AwaitingCommittedProjection` fixture state still
-requires migration before strict Clippy can pass; no warning is suppressed.
+have the same explicit boundary. Create reducer fixtures prepare the candidate before cleanup and
+use the common installation plans. Retirement cases cover retained commit, validated cleanup pending,
+definite projection unavailability before cleanup, and installed selection. There is no separate
+detach-before-Snapshot state or success consumer. Reducer fixtures do not claim carrier or mailbox
+receipt proof; those obligations remain with the native executor and NativeUi membership tests.
 
 Required owner-model extensions are ID/provenance remapping and structural flight/recovery in
 `NativeClientRefreshFence`, created-member moved before correlated projection in
@@ -887,8 +890,7 @@ enum SessionPhase {
     Ready(ReadyAttachment),
     Creating(CreatingBarrier),
     CreateCommittedNeedDetach(CommittedTabCreate),
-    AwaitingCommittedProjection(CommittedTabCreate),
-    ProjectionUnavailable(CommittedTabCreate),
+    ProjectionUnavailableBeforeCleanup(CommittedTabCreate),
     Switching(SwitchSetup),
     SelectedWithoutAttachment(SelectedTerminalState),
     RetryableAttachUnavailable(SelectedTab),
@@ -1010,7 +1012,7 @@ target.
 | RetryableAttachUnavailable, target differs                                                                 | Atomically admit a marker/generation, skip Detach because no viewer exists, and dispatch by that target's retained provenance exactly as for SelectedWithoutAttachment.                                                                                                                                             |
 | SelectedWithoutAttachment, target differs                                                                  | Atomically admit the same marker/generation transition. The executor skips Detach because no viewer exists, then dispatches by the **target's** retained provenance: Started/BindingOnly performs normal Attach setup; Pending/unavailable/failed/outcome-unknown settles SelectedWithoutAttachment without Attach. |
 | SelectedWithoutAttachment, target is the selected non-attachable Tab                                       | No-op; no marker or generation.                                                                                                                                                                                                                                                                                     |
-| Creating, AwaitingCommittedProjection, ProjectionUnavailable, Starting, or Retired                         | Reject effectful selection. Only the recovery actions explicitly named below remain available.                                                                                                                                                                                                                      |
+| Creating, CreateCommittedNeedDetach, ProjectionUnavailable, Starting, or Retired                           | Reject effectful selection. Only the recovery actions explicitly named below remain available.                                                                                                                                                                                                                      |
 | Queue/generation full                                                                                      | Preserve selection and attachment state; report local busy.                                                                                                                                                                                                                                                         |
 
 For a one-Tab cache, n/p resolve to the same member: Ready is a no-op and

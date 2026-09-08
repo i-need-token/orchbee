@@ -1,7 +1,7 @@
 use super::{
     CarrierFailure, CommittedTabCreate, CreateOperationKey, CreateProjectionDecision,
-    NativeSessionState, NativeStandaloneTabs, ReadyAttachment, SelectedTab, SessionPhase,
-    SwitchSetup, WorkbenchSnapshotOutcome, project_native_standalone_tabs, validate_created_tab,
+    NativeSessionState, NativeStandaloneTabs, ReadyAttachment, SessionPhase,
+    WorkbenchSnapshotOutcome, project_native_standalone_tabs, validate_created_tab,
 };
 use crate::terminal_session::workbench_projection::ValidatedCreatedProjection;
 
@@ -64,8 +64,6 @@ impl NativeSessionState {
         let committed = match &self.phase {
             SessionPhase::CreateCommittedNeedDetach(committed)
             | SessionPhase::ProjectionUnavailableBeforeCleanup(committed)
-            | SessionPhase::AwaitingCommittedProjection(committed)
-            | SessionPhase::ProjectionUnavailable(committed)
                 if committed.operation.key == *operation =>
             {
                 committed.clone()
@@ -96,77 +94,28 @@ impl NativeSessionState {
         }
     }
 
-    /// The existing post-detach consumer remains a separate transitional entry until reordered execution lands.
+    /// Only definite failure reaches this consumer; Available uses the shared membership owner.
     pub(in crate::terminal_session) fn apply_prepared_create_snapshot(
         &mut self,
         prepared: PreparedCreateSnapshot,
     ) -> CreateProjectionDecision {
-        let (baseline, committed, projection) = match prepared {
+        match prepared {
             PreparedCreateSnapshot::Invalid => {
                 self.retire(CarrierFailure::AuthorityDivergence);
-                return CreateProjectionDecision::Retire;
+                CreateProjectionDecision::Retire
             }
             PreparedCreateSnapshot::Unavailable {
                 baseline,
                 committed,
-            } => {
-                if self.cache == baseline
-                    && matches!(&self.phase,
-                    SessionPhase::CreateCommittedNeedDetach(current)
-                    | SessionPhase::ProjectionUnavailableBeforeCleanup(current) if current == &committed)
-                {
-                    self.phase = SessionPhase::ProjectionUnavailableBeforeCleanup(committed);
-                    return CreateProjectionDecision::ProjectionUnavailable;
-                }
-                (baseline, committed, None)
+            } if self.cache == baseline && self.create_membership_commit() == Some(&committed) => {
+                self.phase = SessionPhase::ProjectionUnavailableBeforeCleanup(committed);
+                CreateProjectionDecision::ProjectionUnavailable
             }
-            PreparedCreateSnapshot::Available {
-                baseline,
-                committed,
-                projection,
-            } => (baseline, committed, Some(projection)),
-        };
-        if self.cache != baseline
-            || !matches!(&self.phase, SessionPhase::AwaitingCommittedProjection(current) if current == &committed)
-        {
-            self.retire(CarrierFailure::Protocol);
-            return CreateProjectionDecision::Retire;
-        }
-        let Some(ValidatedCreatedProjection {
-            candidate,
-            created_index: Some(created_index),
-        }) = projection
-        else {
-            if projection.is_none() {
-                self.phase = SessionPhase::ProjectionUnavailable(committed);
-                return CreateProjectionDecision::ProjectionUnavailable;
+            PreparedCreateSnapshot::Unavailable { .. }
+            | PreparedCreateSnapshot::Available { .. } => {
+                self.retire(CarrierFailure::Protocol);
+                CreateProjectionDecision::Retire
             }
-            self.retire(CarrierFailure::AuthorityDivergence);
-            return CreateProjectionDecision::Retire;
-        };
-        if !self.merge_projection(candidate, Some(committed.provenance.clone())) {
-            self.retire(CarrierFailure::AuthorityDivergence);
-            return CreateProjectionDecision::Retire;
-        }
-        let selected = SelectedTab::new(committed.committed_key.clone(), created_index);
-        self.desired = Some(selected.key.clone());
-        if committed.provenance.attachable() {
-            let target = self.attach_target(
-                selected,
-                committed.provenance,
-                committed.operation.deadlines,
-            );
-            self.phase = SessionPhase::Switching(SwitchSetup {
-                target: target.clone(),
-                previous: None,
-                mode: None,
-                accepted_geometry: None,
-                membership: None,
-            });
-            CreateProjectionDecision::Attach(target)
-        } else {
-            self.phase = SessionPhase::SelectedWithoutAttachment(selected);
-            CreateProjectionDecision::SettledWithoutAttachment
         }
     }
 }
@@ -191,12 +140,6 @@ impl CreateAnchor {
         }
     }
     pub(super) const fn ready(&self) -> Option<&ReadyAttachment> {
-        match self {
-            Self::Ready(ready) => Some(ready),
-            Self::Empty => None,
-        }
-    }
-    pub(super) fn ready_mut(&mut self) -> Option<&mut ReadyAttachment> {
         match self {
             Self::Ready(ready) => Some(ready),
             Self::Empty => None,

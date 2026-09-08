@@ -1147,7 +1147,7 @@ impl Trace {
             observed(
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |_transaction| {
-                        let decision = session.apply_prepared_refresh(prepared, None);
+                        let decision = session.apply_prepared_refresh(prepared);
                         Ok(UiReply::Refresh(RefreshSettlement::new(
                             decision,
                             session.desired().unwrap().clone(),
