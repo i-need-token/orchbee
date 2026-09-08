@@ -2858,9 +2858,7 @@
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/NativeClientRetiredMembershipRecovery.tla",
 			"config": "apps/orchbee/formal/tla/NativeClientRetiredMembershipRecovery.cfg",
-			"claims": [
-				"apps/orchbee/docs/native-tab-session.md"
-			],
+			"claims": ["apps/orchbee/docs/native-tab-session.md"],
 			"triggers": [
 				"apps/orchbee/docs/native-tab-session.zh-CN.md",
 				"apps/orchbee/src/terminal_session.rs",

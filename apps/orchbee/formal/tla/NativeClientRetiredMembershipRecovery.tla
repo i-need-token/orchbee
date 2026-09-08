@@ -43,8 +43,7 @@ Initial(order, conflict, seed, generation) == [
   forward |-> -1, total |-> -1, candidate |-> <<>>,
   candidateRevision |-> 0, fault |-> "none", installed |-> FALSE,
   installTime |-> -1, freshReady |-> FALSE, cancelled |-> FALSE,
-  refused |-> FALSE, staleSeen |-> FALSE, oldEffectRejected |-> FALSE,
-  forbiddenRejected |-> FALSE, lastRequest |-> "none", requests |-> 0
+  lastRequest |-> "none", requests |-> 0
 ]
 
 Init == \E order \in Baselines, conflict \in {"none", "close-read", "structural"},
@@ -87,8 +86,8 @@ ReleaseOldRemoteReference ==
   /\ s' = [s EXCEPT !.oldRemoteReference = FALSE]
 
 RejectOldLocalEffect ==
-  /\ s.oldJoined /\ ~s.oldEffectRejected
-  /\ s' = [s EXCEPT !.oldEffectRejected = TRUE]
+  /\ s.oldJoined
+  /\ UNCHANGED s
 
 Eligible == s.origin /\ s.oldJoined /\ s.oldClosed /\ s.conflict = "none"
 AdmissionCapacity == s.alloc.command < MaxAllocator /\ s.alloc.refresh < MaxAllocator
@@ -104,8 +103,8 @@ BeginExplicitRecovery ==
               !.fault = "none", !.carrier = "connecting"]
 
 RejectRecoveryAdmission ==
-  /\ s.phase = "parked" /\ (~Eligible \/ ~AdmissionCapacity) /\ ~s.refused
-  /\ s' = [s EXCEPT !.refused = TRUE]
+  /\ s.phase = "parked" /\ (~Eligible \/ ~AdmissionCapacity)
+  /\ UNCHANGED s
 
 ConnectRecovery ==
   /\ s.phase = "connect" /\ s.now < s.forward
@@ -127,7 +126,7 @@ RequestIdentityExhausted ==
 
 ReceiveSnapshot ==
   /\ s.phase = "snapshot-wait" /\ s.now < s.forward
-  /\ \E candidate \in Candidates \cup {s.baseline}, revision \in {1, 2},
+  /\ \E candidate \in Candidates \cup {s.baseline}, revision \in {0, 1, 2},
          fault \in {"none", "scope", "tuple"}:
        s' = [s EXCEPT !.phase = "received", !.candidate = candidate,
               !.candidateRevision = revision, !.fault = fault, !.typedFlight = s.flight]
@@ -138,7 +137,7 @@ SnapshotUnavailable ==
 
 WrongSnapshotCorrelation ==
   /\ s.phase = "snapshot-wait"
-  /\ s' = [s EXCEPT !.phase = "retiring", !.staleSeen = TRUE]
+  /\ s' = [s EXCEPT !.phase = "retiring"]
 
 PlaceCandidate ==
   /\ s.phase = "received" /\ s.now < s.forward /\ s.alloc.wait < MaxAllocator
@@ -246,20 +245,20 @@ CloseAttemptTransport ==
               !.localViewer = "none"]
 
 RejectLateConnection ==
-  /\ s.phase = "join-attempt" /\ s.cancelled /\ ~s.staleSeen
-  /\ s' = [s EXCEPT !.staleSeen = TRUE]
+  /\ s.phase = "join-attempt" /\ s.cancelled
+  /\ UNCHANGED s
 
 JoinAttempt ==
   /\ s.phase = "join-attempt" /\ s.carrier = "none"
   /\ s' = [s EXCEPT !.phase = IF s.cancelled THEN "closed" ELSE "parked"]
 
 IgnoreOldResult ==
-  /\ s.oldJoined /\ ~s.staleSeen
-  /\ s' = [s EXCEPT !.staleSeen = TRUE]
+  /\ s.oldJoined
+  /\ UNCHANGED s
 
 RejectForbiddenObservationRequest ==
-  /\ s.phase \in BeforeInstall /\ ~s.forbiddenRejected
-  /\ s' = [s EXCEPT !.forbiddenRejected = TRUE]
+  /\ s.phase \in BeforeInstall
+  /\ UNCHANGED s
 
 Tick ==
   /\ s.now < MaxTime
@@ -284,7 +283,7 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(Tick)
 
 TypeOK ==
   /\ s.phase \in Phases /\ s.cache \in Orders /\ s.baseline \in Baselines
-  /\ s.candidate \in Orders /\ s.revision \in {1, 2}
+  /\ s.candidate \in Orders /\ s.revision \in {0, 1, 2}
   /\ s.candidateRevision \in 0..2 /\ s.cursor \in 1..MaxCursor
   /\ s.alloc \in [AllocatorNames -> 1..MaxAllocator]
   /\ s.attempt \in 0..MaxAttempts /\ s.now \in 0..MaxTime
