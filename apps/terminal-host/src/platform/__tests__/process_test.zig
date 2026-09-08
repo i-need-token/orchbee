@@ -62,7 +62,16 @@ const ProcessReader = struct {
     result: ?ProcessReadResult = null,
 
     fn run(self: *@This()) void {
-        self.result = self.process.read(self.output);
+        var length: usize = 0;
+        while (length < self.output.len) {
+            const read_length = self.process.read(self.output[length..]) catch |err| {
+                self.result = err;
+                return;
+            };
+            if (read_length == 0) break;
+            length += read_length;
+        }
+        self.result = length;
     }
 };
 
@@ -83,7 +92,7 @@ test "PTY process preserves exact arguments, environment, and exit" {
         "/D",
         "/S",
         "/C",
-        "<nul set /p =%ORCHBEE_TEST_VALUE%:argument with spaces",
+        "<nul set /p =%ORCHBEE_TEST_VALUE%:argument with spaces & exit /B 0",
     };
     const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
     const environment = [_]EnvironmentDelta{
@@ -102,11 +111,19 @@ test "PTY process preserves exact arguments, environment, and exit" {
     var output: [256]u8 = undefined;
     var reader: ProcessReader = .{ .process = &process, .output = &output };
     var reader_thread = try std.Thread.spawn(.{}, ProcessReader.run, .{&reader});
+    var reader_joined = false;
+    defer if (!reader_joined) {
+        process.abortRead() catch {};
+        reader_thread.join();
+    };
     process.registerReaderThread(reader_thread.getHandle());
+    const exit_result = try process.wait();
+    try process.finishPtyAfterChildExit();
     reader_thread.join();
+    reader_joined = true;
     const length = try reader.result.?;
     try std.testing.expect(std.mem.indexOf(u8, output[0..length], "environment:argument with spaces") != null);
-    try std.testing.expectEqual(ExitResult{ .exit_code = 0 }, try process.wait());
+    try std.testing.expectEqual(ExitResult{ .exit_code = 0 }, exit_result);
     if (builtin.os.tag != .windows) {
         try std.testing.expect(!process.exit_reaped);
     }
@@ -1378,7 +1395,7 @@ test "Windows descendants start inside the terminal kill-on-close Job" {
         "/D",
         "/S",
         "/C",
-        "start \"\" /B ping -t 127.0.0.1 >nul & ping -t 127.0.0.1 >nul",
+        "start /B ping -t 127.0.0.1 >nul & ping -t 127.0.0.1 >nul",
     };
     var process = try Process.spawn(std.testing.allocator, .{
         .arguments = &arguments,
