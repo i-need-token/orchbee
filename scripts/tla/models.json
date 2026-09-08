@@ -2914,6 +2914,92 @@
 				"IgnoreOldResult",
 				"RejectForbiddenObservationRequest",
 				"Tick"
+			],
+			"variants": [
+				{
+					"name": "singleton-normal",
+					"constants": {
+						"InitialOrdinal": 0,
+						"SeedClass": "normal"
+					}
+				},
+				{
+					"name": "singleton-near-limit",
+					"constants": {
+						"InitialOrdinal": 0,
+						"SeedClass": "near-limit"
+					}
+				},
+				{
+					"name": "singleton-exhausted",
+					"constants": {
+						"InitialOrdinal": 0,
+						"SeedClass": "exhausted"
+					}
+				},
+				{
+					"name": "first-normal",
+					"constants": {
+						"InitialOrdinal": 1,
+						"SeedClass": "normal"
+					}
+				},
+				{
+					"name": "first-near-limit",
+					"constants": {
+						"InitialOrdinal": 1,
+						"SeedClass": "near-limit"
+					}
+				},
+				{
+					"name": "first-exhausted",
+					"constants": {
+						"InitialOrdinal": 1,
+						"SeedClass": "exhausted"
+					}
+				},
+				{
+					"name": "middle-normal",
+					"constants": {
+						"InitialOrdinal": 2,
+						"SeedClass": "normal"
+					}
+				},
+				{
+					"name": "middle-near-limit",
+					"constants": {
+						"InitialOrdinal": 2,
+						"SeedClass": "near-limit"
+					}
+				},
+				{
+					"name": "middle-exhausted",
+					"constants": {
+						"InitialOrdinal": 2,
+						"SeedClass": "exhausted"
+					}
+				},
+				{
+					"name": "last-normal",
+					"constants": {
+						"InitialOrdinal": 3,
+						"SeedClass": "normal"
+					}
+				},
+				{
+					"name": "last-near-limit",
+					"constants": {
+						"InitialOrdinal": 3,
+						"SeedClass": "near-limit"
+					}
+				},
+				{
+					"name": "last-exhausted",
+					"constants": {
+						"InitialOrdinal": 3,
+						"SeedClass": "exhausted"
+					}
+				}
 			]
 		},
 		{

@@ -1,9 +1,10 @@
 ---------------- MODULE NativeClientRetiredMembershipRecovery ----------------
 EXTENDS Integers, Sequences, FiniteSets
 
-CONSTANTS MaxAttempts, MaxCursor, MaxAllocator, MaxTime, Budget, CleanupReserve
+CONSTANTS InitialOrdinal, SeedClass, MaxAttempts, MaxCursor, MaxAllocator, MaxTime, Budget, CleanupReserve
 ASSUME /\ MaxAttempts = 2 /\ MaxCursor = 3 /\ MaxAllocator = 5 /\ MaxTime = 8
        /\ Budget = 2 /\ CleanupReserve = 1
+       /\ InitialOrdinal \in 0..3 /\ SeedClass \in {"normal", "near-limit", "exhausted"}
 
 Tabs == {"A", "B", "C"}
 Members(order) == {order[i] : i \in 1..Len(order)}
@@ -16,11 +17,18 @@ Neighbor(order, ordinal) == IF order = <<>> THEN "none"
                            ELSE order[IF ordinal <= Len(order) THEN ordinal
                                       ELSE Len(order)]
 AllocatorNames == {"identity", "refresh", "command", "wait"}
-Seeds == {[name \in AllocatorNames |-> 1]} \cup
-         {[name \in AllocatorNames |-> IF name = exhausted THEN MaxAllocator ELSE 1]
-           : exhausted \in AllocatorNames} \cup
-         {[name \in AllocatorNames |-> IF name = "identity" THEN remaining ELSE 1]
+NormalSeeds == {[name \in AllocatorNames |-> 1]}
+ExhaustedSeeds == {[name \in AllocatorNames |-> IF name = exhausted THEN MaxAllocator ELSE 1]
+           : exhausted \in AllocatorNames}
+NearLimitSeeds == {[name \in AllocatorNames |-> IF name = "identity" THEN remaining ELSE 1]
            : remaining \in {MaxAllocator - 2, MaxAllocator - 1}}
+Seeds == CASE SeedClass = "normal" -> NormalSeeds
+              [] SeedClass = "near-limit" -> NearLimitSeeds
+              [] OTHER -> ExhaustedSeeds
+InitialBaseline == CASE InitialOrdinal = 0 -> <<"A">>
+                        [] InitialOrdinal = 1 -> <<"A", "B", "C">>
+                        [] InitialOrdinal = 2 -> <<"B", "A", "C">>
+                        [] OTHER -> <<"B", "C", "A">>
 BeforeInstall == {"connect", "snapshot-ready", "snapshot-wait", "received",
                   "await-ui", "staged"}
 AfterInstall == {"await-ack", "attach-ready", "setup-wait", "cleanup", "cleanup-wait"}
@@ -46,7 +54,7 @@ Initial(order, conflict, seed, generation) == [
   lastRequest |-> "none", requests |-> 0
 ]
 
-Init == \E order \in Baselines, conflict \in {"none", "close-read", "structural"},
+Init == \E order \in {InitialBaseline}, conflict \in {"none", "close-read", "structural"},
            seed \in Seeds, generation \in {1, 2, 3}:
           s = Initial(order, conflict, seed, generation)
 
