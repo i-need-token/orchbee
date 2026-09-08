@@ -539,6 +539,12 @@ can authorize an effect. Other native errors, macOS/FreeBSD behavior and contain
 their existing failure semantics. A partial force KILL whose retries fail still enters a complete CONT compensation scan; on
 FreeBSD, a successful `PROC_REAP_KILL` call with `rk_fpid` set is also a partial failure.
 
+The THCR-006 Host termination barrier captures the pending runtime before dispatch, then completes
+that runtime's shutdown before resuming the admitted graceful or force request. Normal completion
+alone is not an identity-release barrier: a descendant without PTY handles may still require owned
+containment, as covered by THCR-028. The barrier checks actual identity release and verifies that
+the resumed request issues no additional signals, commits the normal exit, and replays idempotently.
+
 Windows declares the complementary drain fact only after its kill-on-close Job has no active
 processes. Closing a pseudoconsole while a descendant remains can signal that descendant and can
 block indefinitely on supported Windows versions, so Job emptiness is part of the Windows

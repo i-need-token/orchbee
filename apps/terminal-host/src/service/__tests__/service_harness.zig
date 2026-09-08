@@ -365,7 +365,7 @@ pub const TerminationBarrierSignal = deterministic_schedule.Signal;
 pub const aggregate_module = service_boundary.testing.runtime_aggregate;
 
 // THCR-006 regression: dispatch pauses after admission observed a pending
-// engine, then the wait worker confirms the empty session and reaps the leader.
+// engine, then shutdown completes owned containment and releases the identity.
 // The resumed real terminate/forceTerminate must be an idempotent no-op that
 // never consults the now-reused numeric session identifier.
 pub const PausingTerminationDispatcher = struct {
@@ -439,8 +439,8 @@ pub const TerminationRequestOutcome = struct {
 
 /// Drives one termination-mode variant of the THCR-006 Host barrier: the
 /// initial synchronization observes a pending engine, the request is admitted
-/// for dispatch, and while dispatch is paused the wait worker completes
-/// empty-session confirmation and reaps the session leader. The resumed signal
+/// for dispatch, and while dispatch is paused shutdown completes owned
+/// containment and releases the session identity. The resumed signal
 /// must be an idempotent no-op; the numeric SID is never consulted again.
 pub fn driveIdentityReleasedTerminationBarrier(
     service: *HostService,
@@ -475,16 +475,20 @@ pub fn driveIdentityReleasedTerminationBarrier(
     // Admission observed the running engine and is pausing before the signal.
     entered.wait();
     try std.testing.expectEqual(mode, dispatcher.mode.?);
+    try std.testing.expect(dispatcher.runtime.? == runtime);
     try std.testing.expectEqual(
         terminal_runtime.CompletionState.pending,
         runtime.completion().classification,
     );
 
-    // Complete the wait-worker path: empty-session confirmation and reap.
     // The test drives the ORIGINAL owned session to exit; this is the signal
     // the retained identity is allowed to receive.
     try runtimeState(runtime).process.forceTerminate();
     _ = try runtime.waitForCompletion();
+    // Normal completion may retain the identity while descendants finish exit.
+    // Shutdown completes owned containment, worker joins, and identity release
+    // before the captured Host request resumes against this same runtime.
+    try runtime.shutdown();
     try std.testing.expect(runtimeState(runtime).process.identityReleased());
 
     // The numeric SID is free and may be rebound to a foreign session. Resume
