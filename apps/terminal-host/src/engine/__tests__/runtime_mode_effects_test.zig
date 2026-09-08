@@ -13,24 +13,28 @@ const TerminalDrivenResizeProbe = harness.TerminalDrivenResizeProbe;
 const TerminalRuntime = harness.TerminalRuntime;
 const WriterProbe = harness.WriterProbe;
 
-const ModeReportProbe = struct {
-    writer: WriterProbe = .{ .pause_at = .copied },
-    reader: harness.TestGate = .{},
-    runtime: *TerminalRuntime = undefined,
+fn GatedPtyProbe(comptime Probe: type) type {
+    return struct {
+        probe: Probe,
+        reader: harness.TestGate = .{},
+        runtime: *TerminalRuntime = undefined,
 
-    fn read(context: *anyopaque, buffer: []u8) anyerror!usize {
-        const writer: *WriterProbe = @ptrCast(@alignCast(context));
-        const self: *ModeReportProbe = @fieldParentPtr("writer", writer);
-        self.reader.pause();
-        return runtimeState(self.runtime).process.read(buffer);
-    }
+        fn read(context: *anyopaque, buffer: []u8) anyerror!usize {
+            const probe: *Probe = @ptrCast(@alignCast(context));
+            const self: *@This() = @fieldParentPtr("probe", probe);
+            self.reader.pause();
+            return runtimeState(self.runtime).process.read(buffer);
+        }
 
-    fn hooks(self: *ModeReportProbe) harness.RuntimeTestingHooks {
-        var result = self.writer.hooks();
-        result.read_pty = read;
-        return result;
-    }
-};
+        fn hooks(self: *@This()) harness.RuntimeTestingHooks {
+            var result = self.probe.hooks();
+            std.debug.assert(result.context.? == @as(*anyopaque, @ptrCast(&self.probe)));
+            std.debug.assert(result.read_pty == null);
+            result.read_pty = read;
+            return result;
+        }
+    };
+}
 
 fn viewportGeometry(runtime: *TerminalRuntime) Geometry {
     const runtime_state = runtimeState(runtime);
@@ -47,9 +51,15 @@ fn expectGeometry(expected: Geometry, actual: anytype) !void {
 }
 
 test "mode 40 restores the resize-owner viewport across every mode mutation path" {
-    var resize_probe: TerminalDrivenResizeProbe = .{};
-    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
-    defer runtime.destroy();
+    var probe: GatedPtyProbe(TerminalDrivenResizeProbe) = .{ .probe = .{} };
+    const resize_probe = &probe.probe;
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        runtime.destroy();
+    }
+    probe.reader.wait();
 
     const launch = runtime.geometry();
     try expectGeometry(.{
@@ -196,9 +206,15 @@ test "mode 40 restores the resize-owner viewport across every mode mutation path
 }
 
 test "mode 40 PTY restore failure fences before Ghostty geometry mutation" {
-    var resize_probe: TerminalDrivenResizeProbe = .{};
-    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
-    defer runtime.destroy();
+    var probe: GatedPtyProbe(TerminalDrivenResizeProbe) = .{ .probe = .{} };
+    const resize_probe = &probe.probe;
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        runtime.destroy();
+    }
+    probe.reader.wait();
     _ = try runtime.resizeGeometry(100, 30, 9, 18);
     try std.testing.expectEqual(
         ReaderBatchOutcome.committed,
@@ -226,12 +242,12 @@ test "mode 40 PTY restore failure fences before Ghostty geometry mutation" {
 }
 
 test "mode 2048 reports exact mode 40 geometry and fences a dropped restore report" {
-    var probe: ModeReportProbe = .{};
+    var probe: GatedPtyProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
     probe.runtime = runtime;
     defer {
         probe.reader.release();
-        probe.writer.copied.release();
+        probe.probe.copied.release();
         runtime.destroy();
     }
     // Native startup mode effects must not consume the reply quota before
