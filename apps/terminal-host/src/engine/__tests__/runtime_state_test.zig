@@ -109,13 +109,22 @@ const CommandClockProbe = struct {
     }
 };
 
-const PtyWriteSink = struct {
+const PtyIoGate = struct {
+    reader: TestGate = .{},
+    runtime: *TerminalRuntime = undefined,
+
+    fn read(context: *anyopaque, buffer: []u8) anyerror!usize {
+        const self: *PtyIoGate = @ptrCast(@alignCast(context));
+        self.reader.pause();
+        return runtimeState(self.runtime).process.read(buffer);
+    }
+
     fn write(_: *anyopaque, bytes: []const u8) anyerror!usize {
         return bytes.len;
     }
 
-    fn hooks(self: *PtyWriteSink) RuntimeTestingHooks {
-        return .{ .context = self, .write_pty = write };
+    fn hooks(self: *PtyIoGate) RuntimeTestingHooks {
+        return .{ .context = self, .read_pty = read, .write_pty = write };
     }
 };
 
@@ -337,14 +346,18 @@ test "dynamic scrollback configuration evicts history and can retain history aga
 test "idle scrollback compression is nonblocking bounded and representation-only" {
     // The input exercises production admission but must not introduce an
     // asynchronous PTY echo into the representation-only revision assertions.
-    var pty_write_sink: PtyWriteSink = .{};
+    // Hold native startup output until those assertions complete as well.
+    var pty_io: PtyIoGate = .{};
     const runtime = try createIdleRuntimeWithGeometryAndHooks(
         80,
         24,
         .{ .scrollback_bytes = 8 * 1024 * 1024 },
-        pty_write_sink.hooks(),
+        pty_io.hooks(),
     );
+    pty_io.runtime = runtime;
     defer destroyRuntimeWithIdentityRetry(runtime);
+    defer pty_io.reader.release();
+    pty_io.reader.wait();
     const runtime_state = runtimeState(runtime);
 
     var batch: [64 * 1024]u8 = undefined;
@@ -754,7 +767,7 @@ test "runtime parses PTY output before exposing canonical terminal state" {
         "/V:ON",
         "/S",
         "/C",
-        "set /p value=& <nul set /p =host:!value!",
+        "set /p value=& <nul set /p =host:!value!& exit /B 0",
     };
     const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
     const runtime = try TerminalRuntime.create(std.testing.allocator, .{
