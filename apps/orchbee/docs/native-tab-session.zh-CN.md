@@ -541,8 +541,9 @@ Move/Snapshot/Detach 到 Empty，或后继 Attach/Resize/Poll/帧反馈/Ready；
 作为 FIFO 证据，确认旧 Input 和 Resize 未发送请求。它还检查仍拥有旧控制器的 pre-Switch Input/Resize，以及
 已提交恢复仅发送 Snapshot。运行 `cargo test --locked -p orchbee --bin orchbee terminal_session::`
 检查这些状态和消费者。完整原生二进制测试还需既有 Server、Worker 和 terminal-host 进程二进制。
-这些检查不构造 Gone 证明，也不建立完整 Close 集成。独立分阶段 Close/Rename/Switch 接口在其
-消费者集成前仍触发严格 Clippy；不压制这些警告，也不将其计为通过 lint 门槛。
+这些检查不构造 Gone 证明，也不建立完整 Close 集成。严格 Clippy 当前在分阶段 Rename 接口、
+遗留 `TerminalIntent::{Create, Attach}` 与 `AwaitingCommittedProjection` 路径，以及仅由测试使用的
+Close 状态名称或辅助函数中报告 27 项独立诊断。不压制这些警告，也不将其计为通过 lint 门槛。
 
 必需所属模型扩展为 `NativeClientRefreshFence` 中按 ID/来源重映射和结构在途/恢复、
 `NativeClientCreateBarrier` 中关联投影前移动创建成员，以及 `NativeTabSwitch` 中暂存候选后的
