@@ -1716,3 +1716,58 @@ node scripts/tla/run-models.mjs --models native-client-create-barrier,native-cli
 | `selected-no-attach` | 470,349 / 113,340 / 28     | `eb5fe3b64033cfbceb44fceaaa688cc31817b314aa4ebabf5553ebf3cf390b6a` |
 | `retryable`          | 470,349 / 113,340 / 28     | `144f9a7b682c4ada75a2089dac158aa8ac945071f1ff5e06f72ecf860be0dd3d` |
 | `singleton`          | 1,056,290 / 147,508 / 20   | `4699f37d9ce6bcb6d030a29f13b6837c7c938fab2b1ce817d2ab809d7b3c73f3` |
+
+## 退役对等客户端的成员恢复
+
+此入口用于非 Close 发起方的原生 Client：其精确当前普通 Poll 返回了
+`TerminalRuntimeUnavailable`。入口保留该已关联请求与 attachment key、不可变绑定、规范
+Site/context 基线和历史序号。过期或 setup Poll、传输不确定、畸形回复及其他失败都不能建立
+此来源。激活要求精确旧任务成功 join、旧传输已关闭，并已结算所有返回事实。panic 或缺失返回
+证据不能建立资格。任何保留的 Close/Read 记录或 flight，或者未决结构变更、提交、setup 或
+cleanup 交接，都会排除此入口。既有 Close 状态恢复保留优先级及其全部事实。
+
+完成退役后的显式 `Ctrl+B w` 可通过保留的本地来源启动一个仅 Snapshot 的连接。不会自动重连。
+同一个任务 owner 与可处理竞争的 shutdown handle 管理该连接。取消后才建立的连接会被关闭。
+不透明的退役 mailbox seed 保留 identity、attachment、Refresh、command 和 UI-wait 分配进度；
+新队列和 flight 为空，新 mailbox 从 `Live { desired: None }` 开始。请求 ID 跨连接继续推进；
+旧选中 key 和新连接 generation 都不能替代保留的分配 cursor 或规范 authority 检查。
+
+精确 join 禁止**新的旧本地提交和 Viewer 复活**，但不禁止先前已交接的远端工作完成。
+Server Drop 可能只排入异步 Detach；本地退役既不是 Detached，也不是 Host Gone。新连接不继承
+Viewer 或 controller lease。旧远端引用仍可能存在并占用容量；此入口不声称其最终释放，也不
+允许新连接接管或释放它。这是进入公共成员安装的独立退役入口，不是放宽存活连接的清理证据。
+
+每个显式尝试捕获一次 checked deadline：forward 为 45 秒，total 为 50 秒。这个新来源策略从
+用户动作开始，覆盖连接、Snapshot 放置、验证、UI 安装及邻居 setup。它不改变普通 Refresh 从
+候选阶段开始的预算，也不改变独立的 Close 状态预算。收到结果或等待 UI 后都不会续期。
+只有新尝试 setup 的精确清理可使用最后预留时间。停放后再次尝试要求前一 carrier 已关闭并
+join，且用户执行另一次显式动作。
+
+安装前唯一请求是 SnapshotRead。完整候选必须保留 Site/context、非递减 revision、相同
+revision 下的精确成员，以及所有保留 identity 的不可变元组。原不可用 Tab 必须缺失。
+目标仍在、Snapshot 不可用或候选无效时，保留旧规范状态与来源并停放，不执行 Attach。
+缺失属于成员知识，不是清理证据。此观察入口不包含 bootstrap、Open、activation、Create、
+Start 或 Close。
+
+在 reply mutex 外准备候选，然后检查精确退役来源、基线、flight 和 forward deadline，在该
+mutex 下原子提交 state 与 mailbox 计划。按钳制后的历史序号选择邻居或 Empty。邻居仅在
+安装时推进实际已消耗的 attachment cursor 一次；Empty 保留它。保留的 provenance 遵循公共
+projector。邻居在新连接上使用剩余 setup 预算，不会自动 Start；Empty 接受 Refresh，绝不
+自动创建 terminal。安装前到期保留旧规范状态。安装后失败保留已提交候选和 cursor，并如实
+退役。过期结果不能安装进另一个 flight。
+
+`NativeClientRetiredMembershipRecovery` 拥有拟议的独立有限入口模型；十九个
+`NativeClientMembershipRemoval` 配置保留其既有终止 Retired 与 Detached/Gone 含义。
+边界为旧 A 和至多两个邻居 B/C、Empty 与有序候选、两次显式尝试、先前 attachment cursor
+为 1 或已消耗的 2 且最大为 3、有界单调分配与耗尽，以及独立保留或释放的旧远端引用。
+验证是由真实规范 projector 精化的 typed 外部输入。要求检查来源与冲突 guards、单 carrier、
+join 后无旧本地提交、不伪造 cleanup/Close 事实、目标缺失、原子安装、过期结果、固定 deadline、
+cursor 保留，以及不自动重试或 Create。进度仅假设本地 deadline 与 carrier 终止公平性；
+它承诺存活结果或如实停放退役，不承诺远端清理或恢复成功。
+
+运行时精化仍待完成：关联 Poll 交接与 join、真实 Snapshot-first 重连、冲突的保留事实、目标
+仍在或无效或不可用候选、晚到 UI 与取消、公共 Empty/邻居安装以及分配器耗尽，都需要真实
+carrier/state 测试。Linux PTY Close witness 必须先观察新的 Disconnected 帧再显式 Refresh，
+随后验证两个 Client 的 Empty 状态、精确移除后的完整公开 Snapshot 相等、原 shell 退出，以及
+有界 500 ms 新观察期间没有自动 Create。现有失败进程轨迹仍是缺失入口的证据，不是实现通过
+的声明。

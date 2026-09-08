@@ -2067,3 +2067,71 @@ all 41 required semantic actions covered across the family:
 | `selected-no-attach` | 470,349 / 113,340 / 28       | `eb5fe3b64033cfbceb44fceaaa688cc31817b314aa4ebabf5553ebf3cf390b6a` |
 | `retryable`          | 470,349 / 113,340 / 28       | `144f9a7b682c4ada75a2089dac158aa8ac945071f1ff5e06f72ecf860be0dd3d` |
 | `singleton`          | 1,056,290 / 147,508 / 20     | `4699f37d9ce6bcb6d030a29f13b6837c7c938fab2b1ce817d2ab809d7b3c73f3` |
+
+## Retired peer membership recovery
+
+This entry is for a non-initiating native Client whose exact current ordinary Poll returned
+`TerminalRuntimeUnavailable`. It retains that correlated request and attachment key, immutable
+binding, canonical Site/context baseline and historical ordinal. Stale or setup Polls, transport
+uncertainty, malformed replies and other failures do not establish this origin. Activation requires
+successful exact old-task join, closed old transport and settlement of all returned facts. Panic or
+missing return evidence cannot establish eligibility. Any retained Close/Read record or flight, or
+unresolved structural mutation, commit, setup or cleanup handoff excludes this entry. Existing
+Close status recovery retains priority and all its facts.
+
+An explicit `Ctrl+B w` after finalized retirement may start one Snapshot-only connection through the
+retained local origin. There is no automatic reconnect. The same task owner and race-safe shutdown
+handle govern the connection. A late connection after cancellation is closed. The opaque retired
+mailbox seed preserves identity, attachment, Refresh, command and UI-wait allocation progress;
+new queues and flights are empty and the new mailbox begins `Live { desired: None }`. Request IDs
+continue across connections; neither the old selected key nor the new connection generation is a
+replacement for the retained allocation cursor or canonical authority check.
+
+Exact join prohibits **new old-local submissions and Viewer reactivation**. It does not prohibit
+completion of previously handed-off remote work. Server Drop may enqueue asynchronous Detach;
+local retirement is neither Detached nor Host Gone. The new connection inherits no Viewer or
+controller lease. An old remote reference may remain and consume capacity; this entry does not
+claim its eventual release or permit the new connection to adopt or release it. This is a separate
+retired entry into common membership installation, not a relaxation of live cleanup evidence.
+
+Each explicit attempt captures one checked forward deadline at 45 seconds and total deadline at
+50 seconds. This new origin policy starts at the user action, covering connect, Snapshot placement,
+validation, UI installation and neighbor setup. It does not change ordinary Refresh's candidate-time
+budget or the separate Close status budget. There is no deadline renewal after a result or UI wait.
+Only exact cleanup of a newly attempted setup may use the final reserve. A further parked attempt
+requires another explicit action after the previous carrier has closed and joined.
+
+Before installation the only request is SnapshotRead. The full candidate must preserve Site/context,
+nondecreasing revision, exact same-revision membership and every immutable retained identity tuple.
+The old unavailable Tab must be absent. A still-present target, unavailable Snapshot or invalid
+candidate leaves the old canonical state and origin parked, with no Attach. Absence is membership
+knowledge, not cleanup evidence. Bootstrap, Open, activation, Create, Start and Close are not part
+of this observation entry.
+
+Prepare the candidate outside the reply mutex, then atomically commit the state and mailbox plans
+under that mutex after checking the exact retired origin, baseline, flight and forward deadline.
+Choose the clamped historical ordinal or Empty. A survivor advances the actual burned attachment
+cursor once at installation; Empty preserves it. Retained provenance follows the common projector.
+A survivor uses the remaining setup budget on the new connection without automatic Start; Empty
+accepts Refresh and never automatically creates a terminal. Pre-installation expiry preserves the
+old canonical state. Post-installation failure preserves the committed candidate and cursor while
+retiring truthfully. Stale results cannot install into another flight.
+
+`NativeClientRetiredMembershipRecovery` owns the proposed independent finite entry model; the
+nineteen `NativeClientMembershipRemoval` configurations retain their existing terminal Retired and
+Detached/Gone meanings. Bounds are old A and at most two neighbors B/C, Empty and ordered candidates,
+two explicit attempts, prior attachment cursor 1 or burned 2 with maximum 3, bounded monotonic
+allocation/exhaustion, and independently retained/released old remote reference. Validation is a
+typed external input refined by the real canonical projector. Required checks cover origin and
+conflict guards, single carrier, no old-local submission after join, no fabricated cleanup/Close
+fact, target absence, atomic installation, stale results, fixed deadlines, cursor preservation and
+no automatic retry/Create. Progress assumes only local deadline and carrier termination fairness;
+it promises a live result or truthful parked retirement, not remote cleanup or recovery success.
+
+Runtime refinement is pending: correlated Poll handoff and join, real Snapshot-first reconnect,
+conflicting retained facts, still-present/invalid/unavailable candidates, late UI and cancellation,
+common Empty/neighbor installation and allocator exhaustion require actual carrier/state tests.
+The Linux PTY Close witness must observe a new Disconnected frame before explicit Refresh, then
+both Clients' Empty state, full public Snapshot equality after exact removal, original shell exit
+and a bounded 500 ms fresh-observation check against automatic Create. Existing failing process
+traces remain evidence of the missing entry, not a passing implementation claim.
