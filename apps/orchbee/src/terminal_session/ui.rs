@@ -1,16 +1,15 @@
 use super::{
     mailbox::{
         AdmissionError, CausalSettlement, CommandMailbox, CreateMarker, CreatePrecommitOutcome,
-        EventError, MoveAdmissionError, MoveSettlement, MutationResult, QueuedCommand,
-        RefreshSettlement, SwitchMarker, Tagged, UiReply, WorkerEvent,
+        EventError, MoveAdmissionError, MutationResult, QueuedCommand, RefreshSettlement,
+        SwitchMarker, Tagged, UiReply, WorkerEvent,
     },
     state::{
         AttachmentKey, CarrierFailure, ControllerMode, CreateOperation, CreateOperationKey,
-        CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity, MoveDecision,
-        MoveOperation, MoveResult, NativeSessionState, NativeSessionView as StateSessionView,
-        NativeTabView as StateTabView, NavigatorRefreshStatus, OperationDeadlines,
-        PendingCreateCommit, PendingMoveCommit, RefreshDecision, SelectionPlan, SessionNotice,
-        SessionPhaseKind, SetupEventDisposition,
+        CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity, NativeSessionState,
+        NativeSessionView as StateSessionView, NativeTabView as StateTabView,
+        NavigatorRefreshStatus, OperationDeadlines, PendingCreateCommit, PendingMoveCommit,
+        RefreshDecision, SelectionPlan, SessionNotice, SessionPhaseKind, SetupEventDisposition,
     },
 };
 use crate::{
@@ -29,13 +28,14 @@ use orchbee_workbench_protocol::{
 use std::sync::Arc;
 
 mod close_reconciliation;
+mod membership;
+mod move_membership;
 mod tab_close;
 pub(crate) use tab_close::{
     NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
     NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDrawReceipt,
 };
 mod create_membership;
-mod membership;
 mod switch_membership;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -274,6 +274,8 @@ pub(super) struct NativeUi {
 mod create_membership_tests;
 #[cfg(all(test, unix))]
 mod membership_tests;
+#[cfg(all(test, unix))]
+mod move_membership_tests;
 
 impl NativeUi {
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
@@ -1190,41 +1192,6 @@ impl NativeUi {
                 if let Some(failure) = retire_after_reply {
                     self.retire(failure);
                     return true;
-                }
-                self.validate_state()
-            }
-            Ok(MutationResult::Stale) => false,
-            Err(error) => self.handle_event_error(error),
-        }
-    }
-
-    fn apply_move_event(
-        &mut self,
-        mailbox: &Arc<CommandMailbox>,
-        wait_key: super::mailbox::UiWaitKey,
-        operation: MoveOperation,
-        outcome: MoveResult,
-    ) -> bool {
-        let Some(state) = self.state.as_mut() else {
-            self.retire(CarrierFailure::Protocol);
-            return true;
-        };
-        let prepared = state.prepare_move(&operation, outcome);
-        let mut retirement = None;
-        let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |_| {
-            let decision = state.apply_prepared_move(prepared);
-            if decision == MoveDecision::Retire {
-                retirement = state.retired_failure();
-            }
-            Ok(UiReply::Move(MoveSettlement::new(
-                decision,
-                state.desired().cloned().ok_or(CarrierFailure::Protocol)?,
-            )))
-        });
-        match result {
-            Ok(MutationResult::Applied) => {
-                if let Some(failure) = retirement {
-                    self.retire(failure);
                 }
                 self.validate_state()
             }

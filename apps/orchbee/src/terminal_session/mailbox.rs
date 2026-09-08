@@ -589,9 +589,9 @@ impl WorkerEvent {
                 ),
                 match cleanup.result() {
                     MembershipResultKey::Close(_) => UiReplyKind::CloseReconciliation,
-                    MembershipResultKey::Refresh(_) | MembershipResultKey::Create(_) => {
-                        UiReplyKind::Membership
-                    }
+                    MembershipResultKey::Refresh(_)
+                    | MembershipResultKey::Create(_)
+                    | MembershipResultKey::Move(_) => UiReplyKind::Membership,
                     MembershipResultKey::Switch(_) => UiReplyKind::Switch,
                 },
             ),
@@ -681,18 +681,21 @@ pub(super) enum UiReply {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct MoveSettlement {
     decision: MoveDecision,
-    desired: AttachmentKey,
+    desired: Option<AttachmentKey>,
 }
 
 impl MoveSettlement {
-    pub(super) const fn new(decision: MoveDecision, desired: AttachmentKey) -> Self {
-        Self { decision, desired }
+    pub(super) fn new(decision: MoveDecision, desired: impl Into<Option<AttachmentKey>>) -> Self {
+        Self {
+            decision,
+            desired: desired.into(),
+        }
     }
-    pub(super) const fn decision(&self) -> MoveDecision {
-        self.decision
+    pub(super) const fn decision(&self) -> &MoveDecision {
+        &self.decision
     }
-    pub(super) const fn desired(&self) -> &AttachmentKey {
-        &self.desired
+    pub(super) const fn desired(&self) -> Option<&AttachmentKey> {
+        self.desired.as_ref()
     }
 }
 
@@ -1520,6 +1523,7 @@ impl CommandMailbox {
                 | QueuedCommand::Create(_)
                 | QueuedCommand::Refresh(_)
                 | QueuedCommand::ReconcileClose(_)
+                | QueuedCommand::Move(_)
         );
         if !marker_parent
             || state.active_lease
@@ -2052,6 +2056,30 @@ impl CommandMailbox {
                 self.close_locked(&mut state, CarrierFailure::Protocol),
             ));
         }
+        let move_request = match &wait_key.correlation {
+            UiCorrelation::Move(request) => Some((request, None)),
+            UiCorrelation::Membership(MembershipResultKey::Move(request), old) => {
+                Some((request, Some(old)))
+            }
+            _ => None,
+        };
+        if let Some((request, old)) = move_request
+            && !state
+                .structural_mutation_pending
+                .as_ref()
+                .is_some_and(|flight| {
+                    flight.operation.request_id() == request
+                        && flight.stage == PendingRefreshStage::AwaitingUi
+                        && state.active_lease.map(|lease| lease.serial) == Some(flight.serial)
+                        && state.event_anchor_serial == Some(flight.serial)
+                        && state.desired.key() == Some(flight.operation.target())
+                        && old.is_none_or(|old| old == flight.operation.target())
+                })
+        {
+            return Err(EventError::Closed(
+                self.close_locked(&mut state, CarrierFailure::Protocol),
+            ));
+        }
         let reply = match settle(&mut UiReplyTransaction {
             state: &mut state,
             observed_at,
@@ -2090,14 +2118,15 @@ impl CommandMailbox {
                 if state.structural_mutation_pending.as_ref().is_some_and(|flight| {
                     flight.operation.request_id() == request_id
                         && flight.stage == PendingRefreshStage::AwaitingUi
-                        && flight.operation.target() == settlement.desired()
                 }));
-                if !valid || state.desired.key() != Some(settlement.desired()) {
+                if !valid || state.desired.key() != settlement.desired() {
                     return Err(EventError::Closed(
                         self.close_locked(&mut state, CarrierFailure::Protocol),
                     ));
                 }
-                state.structural_mutation_pending = None;
+                if !matches!(settlement.decision(), MoveDecision::Cleanup(_)) {
+                    state.structural_mutation_pending = None;
+                }
             }
             UiReply::Membership(settlement)
                 if matches!(
@@ -2121,23 +2150,26 @@ impl CommandMailbox {
             }
             UiReply::Refresh(settlement) | UiReply::Membership(settlement) => {
                 let generation = match &wait_key.correlation {
-                    UiCorrelation::Refresh(generation) => *generation,
+                    UiCorrelation::Refresh(generation) => Some(*generation),
                     UiCorrelation::Membership(MembershipResultKey::Refresh(generation), _) => {
-                        *generation
+                        Some(*generation)
                     }
+                    UiCorrelation::Membership(MembershipResultKey::Move(_), _) => None,
                     _ => {
                         return Err(EventError::Closed(
                             self.close_locked(&mut state, CarrierFailure::Protocol),
                         ));
                     }
                 };
-                if !matches!(
-                    state.refresh_flight,
-                    Some(RefreshFlight {
-                        generation: current,
-                        stage: PendingRefreshStage::AwaitingUi,
-                    }) if current == generation
-                ) {
+                if generation.is_some_and(|generation| {
+                    !matches!(
+                        state.refresh_flight,
+                        Some(RefreshFlight {
+                            generation: current,
+                            stage: PendingRefreshStage::AwaitingUi,
+                        }) if current == generation
+                    )
+                }) {
                     return Err(EventError::Closed(
                         self.close_locked(&mut state, CarrierFailure::Protocol),
                     ));
@@ -2155,7 +2187,11 @@ impl CommandMailbox {
                     ));
                 }
                 if !matches!(settlement.decision(), RefreshDecision::Cleanup(_)) {
-                    state.refresh_flight = None;
+                    if generation.is_some() {
+                        state.refresh_flight = None;
+                    } else {
+                        state.structural_mutation_pending = None;
+                    }
                 }
             }
             UiReply::BootstrapApplied(_)

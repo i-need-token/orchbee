@@ -4,6 +4,7 @@ use super::{
     WorkbenchTabId, validate_canonical_refresh,
 };
 mod close;
+use orchbee_workbench_protocol::WorkbenchRequestId;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum MembershipResultKey {
@@ -11,6 +12,7 @@ pub(in crate::terminal_session) enum MembershipResultKey {
     Create(super::CreateOperationKey),
     Close(super::CloseFlightKey),
     Switch(AttachmentKey),
+    Move(WorkbenchRequestId),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -93,12 +95,22 @@ pub(in crate::terminal_session) struct PreparedMembershipInstall<'a> {
     refresh_generation: Option<u64>,
     settled_create: Option<super::CommittedTabCreate>,
     close_consumption: Option<super::tab_close::PreparedCloseConsumption>,
+    mutation_completion: MembershipMutationCompletion,
+}
+
+enum MembershipMutationCompletion {
+    None,
+    Move,
 }
 
 impl PreparedMembershipInstall<'_> {
     pub(in crate::terminal_session) fn commit(self) -> MembershipInstallDecision {
         if let Some(committed) = self.settled_create {
             self.state.settled_create = Some(committed);
+        }
+        if matches!(self.mutation_completion, MembershipMutationCompletion::Move) {
+            self.state.pending_move = None;
+            self.state.move_recovery = None;
         }
         if self.refresh_generation.is_some() {
             self.state.pending_refresh_generation = None;
@@ -458,6 +470,7 @@ impl NativeSessionState {
             refresh_generation: None,
             settled_create: committed_create,
             close_consumption,
+            mutation_completion: MembershipMutationCompletion::None,
         })
     }
 
@@ -557,6 +570,12 @@ impl NativeSessionState {
                 }
                 None
             }
+            MembershipResultKey::Move(request_id) => {
+                if !self.move_membership_is_current(request_id) {
+                    return Err(CarrierFailure::Protocol);
+                }
+                None
+            }
         };
         let mut plan = self.prepare_membership_install_inner(
             prepared,
@@ -566,6 +585,9 @@ impl NativeSessionState {
             cleanup.close_marker(),
         )?;
         plan.refresh_generation = refresh_generation;
+        if matches!(cleanup.result(), MembershipResultKey::Move(_)) {
+            plan.mutation_completion = MembershipMutationCompletion::Move;
+        }
         Ok(plan)
     }
 
@@ -602,13 +624,19 @@ impl NativeSessionState {
                 let Some(prepared) = &pending.prepared else {
                     return false;
                 };
-                (matches!(pending.cleanup.result, MembershipResultKey::Refresh(generation)
-                    if self.pending_refresh_generation == Some(generation))
-                    || pending
+                (match &pending.cleanup.result {
+                    MembershipResultKey::Refresh(generation) => {
+                        self.pending_refresh_generation == Some(*generation)
+                    }
+                    MembershipResultKey::Move(request_id) => {
+                        self.move_membership_is_current(request_id)
+                    }
+                    MembershipResultKey::Close(_) => pending
                         .cleanup
                         .close_marker()
-                        .is_some_and(|marker| self.close.prepare_consumption(marker).is_ok()))
-                    && &pending.cleanup.old == selected.key()
+                        .is_some_and(|marker| self.close.prepare_consumption(marker).is_ok()),
+                    MembershipResultKey::Create(_) | MembershipResultKey::Switch(_) => false,
+                }) && &pending.cleanup.old == selected.key()
                     && pending.cleanup.installs_candidate
                     && self.cache == prepared.baseline
                     && self.desired == prepared.baseline_desired
@@ -802,6 +830,58 @@ impl NativeSessionState {
         }
         let mut plan = self.prepare_membership_install(prepared, desired, deadlines)?;
         plan.refresh_generation = Some(generation);
+        Ok(plan)
+    }
+
+    pub(in crate::terminal_session) fn stage_move_membership_cleanup(
+        &mut self,
+        request_id: &WorkbenchRequestId,
+        prepared: PreparedMembershipCandidate,
+        deadlines: OperationDeadlines,
+    ) -> Result<MembershipCleanup, CarrierFailure> {
+        if !self.invariant_holds()
+            || !self.move_membership_is_current(request_id)
+            || self.pending_membership.is_some()
+            || self.cache != prepared.baseline
+            || self.desired != prepared.baseline_desired
+            || prepared.preserves_selection()
+            || !matches!(self.phase, SessionPhase::Ready(_))
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
+        if selected.key() != &old {
+            return Err(CarrierFailure::Protocol);
+        }
+        let cleanup = MembershipCleanup {
+            result: MembershipResultKey::Move(request_id.clone()),
+            old,
+            deadlines,
+            installs_candidate: true,
+            close_marker: None,
+            closed_proof: None,
+        };
+        self.pending_membership = Some(PendingMembership {
+            cleanup: cleanup.clone(),
+            prepared: Some(prepared),
+        });
+        self.phase = SessionPhase::ReconcilingMembership(selected);
+        Ok(cleanup)
+    }
+
+    pub(in crate::terminal_session) fn prepare_move_membership_install(
+        &mut self,
+        request_id: &WorkbenchRequestId,
+        prepared: PreparedMembershipCandidate,
+        desired: Option<AttachmentKey>,
+        deadlines: Option<OperationDeadlines>,
+    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
+        if !self.move_membership_is_current(request_id) || self.pending_membership.is_some() {
+            return Err(CarrierFailure::Protocol);
+        }
+        let mut plan = self.prepare_membership_install(prepared, desired, deadlines)?;
+        plan.mutation_completion = MembershipMutationCompletion::Move;
         Ok(plan)
     }
 }

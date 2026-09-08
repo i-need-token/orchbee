@@ -576,6 +576,8 @@ pub(super) enum UiEvent {
         generation: u64,
         decision: RefreshDecision,
     },
+    Move(MoveDecision),
+    Membership(RefreshDecision),
 }
 
 pub(super) struct UiDriver {
@@ -781,6 +783,21 @@ impl UiDriver {
         &mut self,
         direction: WorkbenchTabMoveDirection,
     ) -> TestResult<MoveOperation> {
+        self.admit_move_using(direction, false)
+    }
+
+    pub(super) fn admit_move(
+        &mut self,
+        direction: WorkbenchTabMoveDirection,
+    ) -> TestResult<MoveOperation> {
+        self.admit_move_using(direction, true)
+    }
+
+    fn admit_move_using(
+        &mut self,
+        direction: WorkbenchTabMoveDirection,
+        canonical: bool,
+    ) -> TestResult<MoveOperation> {
         let clock = self.clock.clone();
         let deadline = clock
             .now()
@@ -802,7 +819,13 @@ impl UiDriver {
                         deadline,
                     ))
                 },
-                |_state, _operation| Ok(()),
+                |state, operation| {
+                    if !canonical || state.begin_move(operation.clone()) {
+                        Ok(())
+                    } else {
+                        Err("canonical Move admission failed")
+                    }
+                },
             )
             .map_err(|error| test_error(&format!("Move transport admission failed: {error:?}")))
     }
@@ -1038,6 +1061,9 @@ impl UiDriver {
                     crate::terminal_session::state::MembershipResultKey::Close(_) => {
                         Err(test_error("use the exact Close transport consumer"))
                     }
+                    crate::terminal_session::state::MembershipResultKey::Move(_) => {
+                        Ok(UiEvent::Membership(decision))
+                    }
                 }
             }
             WorkerEvent::CloseReconciliationSnapshot { .. }
@@ -1045,7 +1071,45 @@ impl UiDriver {
             | WorkerEvent::CloseResult { .. } => {
                 Err(test_error("use the exact Close transport consumer"))
             }
-            WorkerEvent::MoveResult { .. } => Err(test_error("Move consumer is staged")),
+            WorkerEvent::MoveResult { operation, outcome } => {
+                let wait = wait_key.ok_or_else(|| test_error("Move wait key"))?;
+                let mailbox = Arc::clone(&self.mailbox);
+                let clock = self.clock.clone();
+                let state = self.state_mut();
+                let prepared = state.prepare_move(&operation, outcome);
+                let membership = prepared.membership_candidate().is_some();
+                let deadlines = membership
+                    .then(|| OperationDeadlines::from_sample(clock.now()))
+                    .flatten();
+                let mut decision = None;
+                require_applied(mailbox.deposit_ui_reply_before(&wait, &clock, |transaction| {
+                    let settled = if membership {
+                        let (operation, prepared) = state.retain_prepared_move_membership(prepared)?;
+                        let deadlines = deadlines.ok_or(CarrierFailure::Deadline)?;
+                        if transaction.observed_at() >= deadlines.forward_cutoff() { return Err(CarrierFailure::Deadline); }
+                        if state.attached_key().is_some() {
+                            MoveDecision::Cleanup(state.stage_move_membership_cleanup(operation.request_id(), prepared, deadlines)?)
+                        } else {
+                            let install = prepared.selected_tab_id().map_or(crate::terminal_session::mailbox::DesiredInstall::Empty,
+                                |tab| crate::terminal_session::mailbox::DesiredInstall::Fresh(tab.clone()));
+                            let desired = transaction.prepare_desired_install(install)?;
+                            let plan = state.prepare_move_membership_install(operation.request_id(), prepared, desired.desired().cloned(), Some(deadlines))?;
+                            let installed = plan.commit();
+                            desired.commit();
+                            match installed {
+                                crate::terminal_session::state::MembershipInstallDecision::Attach(target) => MoveDecision::AttachRecovered(target),
+                                crate::terminal_session::state::MembershipInstallDecision::Preserved => MoveDecision::Continue,
+                                _ => MoveDecision::SettledWithoutAttachment,
+                            }
+                        }
+                    } else { state.apply_prepared_move(prepared) };
+                    decision = Some(settled.clone());
+                    Ok(UiReply::Move(MoveSettlement::new(settled, state.desired().cloned())))
+                }))?;
+                Ok(UiEvent::Move(
+                    decision.ok_or_else(|| test_error("Move decision"))?,
+                ))
+            }
             WorkerEvent::Bootstrap { cache } => {
                 let wait_key = wait_key.ok_or_else(|| test_error("Bootstrap wait key"))?;
                 let mut installed = None;

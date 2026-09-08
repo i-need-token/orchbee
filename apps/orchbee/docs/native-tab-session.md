@@ -606,11 +606,11 @@ active ID. Failed/unavailable/unknown anchor outcome fails before Snapshot; a St
 nonattachable moved head fails at that head's AttachBinding. No fallback or scan is allowed.
 Other live Clients update only via explicit `Ctrl+B w`, with no push or terminal switch.
 
-The Move membership consumer is a staged runtime refinement. `NativeClientMoveBarrier` continues
+The Move membership consumer implements the common cleanup and installation refinement. `NativeClientMoveBarrier` continues
 to own the no-removal transport/FIFO/commit-preservation slice; the checked move origin of
 `NativeClientMembershipRemoval` owns later active-target removal, exact cleanup, fallback and Empty.
-Actual Move cleanup/installation and carrier evidence remain required before claiming this consumer
-delivered. Exact committed revision still requires the full expected permutation; only a later
+Its deterministic UI/carrier evidence is separate from the final combined native integration.
+Exact committed revision still requires the full expected permutation; only a later
 revision may remove the moved target. Preserve immutable survivor identities and creator provenance,
 then choose the common historical-ordinal neighbor or Empty. Raw absence never proves Gone.
 
@@ -621,8 +621,11 @@ exclusive state/mailbox installation plans directly. The plans atomically instal
 optional desired key and prevalidated Move finish facts; failed or dropped plans change neither
 membership nor cursors, while known commits remain retained. Fresh replacement uses the shared
 generation cursor; Empty preserves it. The exact Move flight stays fenced through cleanup settlement.
-Old-key Input queued after Move is discarded before controller lookup or sequence allocation once
-replacement/Empty is installed; a surviving target continues to send on the same controller.
+Old-key Input and Resize queued after Move are discarded before controller lookup or sequence allocation once
+replacement/Empty is installed. Validate the current lease first, then discard only when both the
+actual attachment and desired key differ from the queued key; earlier pre-Switch Input and Resize still drain
+through its owned old controller after desired advances. A surviving Move target likewise continues
+to send on the same controller.
 
 Definite `TabUnavailable` requests one Snapshot within the original Move transport budget, without
 inventing a commit. Its trusted rejection revision is a lower bound for that sequential Snapshot,
@@ -645,6 +648,20 @@ The actual Server checks expected revision before target lookup, so ordinary pee
 valid native baseline normally yields RevisionMismatch. TabUnavailable exercises defensive handling
 of an action-compatible reply, not the main peer-removal race. Same-revision absence consistency is
 a concrete reply refinement, not a newly checked model property.
+
+`state/move_tab.rs` retains the exact commit before fallible continuation and validates refusal
+revision facts. `ui/move_membership.rs` consumes the actual Move result, while the existing common
+membership owner settles Detached and commits both installation plans under the reply mutex.
+`ui/move_membership_tests.rs` covers delayed typed-result consumption, exact old cleanup, 45/50-second
+boundaries, wrong generation, direct no-viewer installation, and ordinary refusal recovery.
+`connection/native/tests/tab_move.rs` drives real carrier Move/Snapshot/Detach through Empty or a
+successor's Attach/Resize/Poll/frame-feedback/Ready; a following Snapshot is the FIFO witness that
+old Input and Resize emitted no request. It also checks still-owned pre-Switch Input/Resize and Snapshot-only committed
+recovery. Run `cargo test --locked -p orchbee --bin orchbee terminal_session::` for these state and
+consumer checks. Full native binary tests also require the existing Server, Worker and terminal-host
+process binaries. These checks do not construct a Gone proof or establish complete Close integration.
+Strict Clippy still reports the independent staged Close/Rename/Switch interfaces until their
+consumers are integrated; these warnings are not suppressed or counted as a passing lint gate.
 
 Required owner-model extensions are ID/provenance remapping and structural flight/recovery in
 `NativeClientRefreshFence`, created-member moved before correlated projection in

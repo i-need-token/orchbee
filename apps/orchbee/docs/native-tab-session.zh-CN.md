@@ -502,9 +502,9 @@ Resize 可继续。恢复仅提交 Snapshot，绝不提交 Open、Create、Start
 锚配不可挂接的新首项时，在该首项 AttachBinding 失败。不得回退选择或扫描。其他活动 Client 仅经
 显式 `Ctrl+B w` 更新，无推送或终端切换。
 
-Move 成员关系消费者是分阶段运行时细化。`NativeClientMoveBarrier` 继续负责无移除的传输/FIFO/
+Move 成员关系消费者已实现共用清理和安装细化。`NativeClientMoveBarrier` 继续负责无移除的传输/FIFO/
 提交保留切片；已检查 `NativeClientMembershipRemoval` 的 move 起点负责后续活动目标移除、
-精确清理、回退及 Empty。宣称该消费者交付前仍需实际 Move 清理/安装及载体证据。精确提交修订
+精确清理、回退及 Empty。其确定性 UI/载体证据与最终原生组合集成分开记录。精确提交修订
 仍要求完整预期置换；只有更高修订才可移除已移动目标。保留不可变存活身份及创建者来源，再按共用
 历史序号选择邻居或 Empty。原始缺席绝不证明 Gone。
 
@@ -512,8 +512,10 @@ Move 成员关系消费者是分阶段运行时细化。`NativeClientMoveBarrier
 结算精确清理；传输后仅有一次 45 秒 forward 加 5 秒清理预留预算。无查看器替换直接使用相同的
 独占状态/邮箱安装计划。两计划原子安装缓存、来源、可选 desired key 及预验证 Move 完成事实；
 失败或丢弃计划不改变成员关系和游标，已知提交仍保留。Fresh 替换使用共享代次游标；Empty 保留
-游标。精确 Move 在途栅栏持续至清理结算。替换/Empty 安装后，Move 后排队的旧 key Input 在查询
-控制器或分配序号前丢弃；目标存活时继续通过同一控制器发送。
+游标。精确 Move 在途栅栏持续至清理结算。替换/Empty 安装后，Move 后排队的旧 key Input 和 Resize 在查询
+控制器或分配序号前丢弃。先验证当前 lease，仅当实际挂接及 desired key 都不同于排队 key 时丢弃；
+desired 推进后，更早的 pre-Switch Input 和 Resize 仍通过其拥有的旧控制器排空。Move 目标存活时同样继续
+通过同一控制器发送。
 
 明确 `TabUnavailable` 在原 Move 传输预算内请求一次 Snapshot，不虚构提交。除普通规范验证外，
 其可信拒绝修订是该顺序 Snapshot 的下界，不提供置换预期。Available 成员关系使用共用续程。
@@ -530,6 +532,17 @@ Snapshot 恰为拒绝修订却包含被拒目标时，与已观察缺席矛盾�
 实际 Server 在目标查询前检查预期修订，因此有效原生基线后的普通对等移除通常返回
 RevisionMismatch。TabUnavailable 覆盖 action 相容回复的防御处理，并非主要对等移除竞争。
 同修订缺席一致性是具体回复细化，不是新增已检查模型属性。
+
+`state/move_tab.rs` 在可失败续程前保留精确提交并验证拒绝修订事实。`ui/move_membership.rs`
+消费实际 Move 结果，既有共用成员关系所有者结算 Detached，并在回复互斥锁内提交两份安装计划。
+`ui/move_membership_tests.rs` 覆盖晚类型化结果消费、精确旧清理、45/50 秒边界、错误代次、
+无查看器直接安装及普通拒绝恢复。`connection/native/tests/tab_move.rs` 使用真实载体驱动
+Move/Snapshot/Detach 到 Empty，或后继 Attach/Resize/Poll/帧反馈/Ready；随后一次 Snapshot
+作为 FIFO 证据，确认旧 Input 和 Resize 未发送请求。它还检查仍拥有旧控制器的 pre-Switch Input/Resize，以及
+已提交恢复仅发送 Snapshot。运行 `cargo test --locked -p orchbee --bin orchbee terminal_session::`
+检查这些状态和消费者。完整原生二进制测试还需既有 Server、Worker 和 terminal-host 进程二进制。
+这些检查不构造 Gone 证明，也不建立完整 Close 集成。独立分阶段 Close/Rename/Switch 接口在其
+消费者集成前仍触发严格 Clippy；不压制这些警告，也不将其计为通过 lint 门槛。
 
 必需所属模型扩展为 `NativeClientRefreshFence` 中按 ID/来源重映射和结构在途/恢复、
 `NativeClientCreateBarrier` 中关联投影前移动创建成员，以及 `NativeTabSwitch` 中暂存候选后的

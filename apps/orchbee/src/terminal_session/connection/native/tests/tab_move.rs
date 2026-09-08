@@ -1,11 +1,17 @@
-use super::{commands::drive_controlling_ready_from_snapshot, setup::*};
+use super::{
+    commands::{drive_controlling_after_attach, drive_controlling_ready_from_snapshot},
+    setup::*,
+};
 use crate::terminal_session::{
-    mailbox::WorkerEvent,
-    state::{CarrierFailure, MoveDecision, MoveOperation, MoveResult},
+    mailbox::{QueuedCommand, Tagged, WorkerEvent},
+    state::{
+        CarrierFailure, MoveDecision, MoveOperation, MoveResult, RefreshDecision, SessionPhaseKind,
+    },
 };
 use orchbee_client_server_protocol::{
-    ClientMessage, ControlInput, ServerMessage, TerminalControlAction, TerminalControlOutcome,
-    TerminalControlResult,
+    ClientMessage, ControlInput, Geometry, ServerMessage, TerminalControlAction,
+    TerminalControlOutcome, TerminalControlResult, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerResult,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult,
@@ -13,6 +19,261 @@ use orchbee_workbench_protocol::{
     WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason, WorkbenchTabMoveDirection,
 };
 use std::sync::atomic::Ordering;
+
+#[test]
+fn actual_move_membership_detaches_then_installs_empty_or_real_ready_and_discards_queued_old_input()
+-> TestResult {
+    for neighbor in [false, true] {
+        drive_move_membership_with_queued_old_controls(neighbor, false)?;
+    }
+    Ok(())
+}
+
+#[test]
+fn actual_move_empty_discards_queued_old_resize() -> TestResult {
+    drive_move_membership_with_queued_old_controls(false, true)
+}
+
+#[test]
+fn actual_move_successor_ready_discards_queued_old_resize() -> TestResult {
+    drive_move_membership_with_queued_old_controls(true, true)
+}
+
+fn drive_move_membership_with_queued_old_controls(neighbor: bool, resize: bool) -> TestResult {
+    let geometry = fixture_geometry()?;
+    let latest = if resize {
+        Geometry::new(
+            geometry.columns(),
+            geometry.rows(),
+            geometry.cell_pixel_width() + 1,
+            geometry.cell_pixel_height(),
+        )?
+    } else {
+        geometry
+    };
+    let mut kinds = steps(&[WireKind::Workbench, WireKind::Workbench, WireKind::Obcs]);
+    if neighbor {
+        kinds.extend([WireKind::Obcs; 5]);
+    }
+    kinds.push(WireKind::Workbench); // FIFO witness after the old queued controls.
+    let mut harness = Harness::start(kinds, geometry)?;
+    let (old, _) = drive_controlling_ready_from_snapshot(&mut harness, snapshot(2, 1), geometry)?;
+    let baseline = harness.ui.state().cache().clone();
+    let operation = harness.ui.admit_move(WorkbenchTabMoveDirection::Last)?;
+    harness
+        .ui
+        .admit_input(ControlInput::new(b"stale-after-move".to_vec())?)?;
+    if resize {
+        harness.ui.admit_resize(latest)?;
+    }
+    commit_move(&harness, &operation)?;
+    let mut candidate = snapshot(if neighbor { 2 } else { 0 }, 3);
+    if neighbor {
+        candidate.terminal_contexts[0].tabs.remove(0);
+    }
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate.clone(),
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Move(MoveDecision::Cleanup(_))
+    ));
+    assert_eq!(harness.ui.state().cache(), &baseline);
+    assert_eq!(harness.ui.state().attached_key(), Some(&old));
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("exact old Detach"));
+    };
+    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    let UiEvent::Membership(decision) = harness.ui.settle_next(FrameCut::None)? else {
+        return Err(test_error("Move common cleanup settlement"));
+    };
+    if neighbor {
+        let RefreshDecision::AttachRecovered(target) = decision else {
+            return Err(test_error("successor Attach"));
+        };
+        assert_eq!(target.selected().key().generation(), old.generation() + 1);
+        let next = drive_attach(&mut harness, 1)?;
+        drive_controlling_after_attach(&mut harness, &next, latest)?;
+        assert!(harness.ui.state().ready().is_some());
+    } else {
+        assert_eq!(decision, RefreshDecision::SettledWithoutAttachment);
+        assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Empty);
+        assert_eq!(harness.ui.state().desired(), None);
+    }
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .retained_move_for_test()
+            .unwrap()
+            .operation(),
+        &operation
+    );
+    harness.ui.admit_refresh()?;
+    respond_snapshot(&harness, WorkbenchSnapshotOutcome::Denied {})?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh { .. }
+    ));
+    assert!(harness.ui.state().invariant_holds());
+    harness.finish()?;
+    Ok(())
+}
+
+#[test]
+fn queued_input_before_switch_still_uses_its_owned_controller_after_desired_advances() -> TestResult
+{
+    drive_queued_control_before_switch(false)
+}
+
+#[test]
+fn queued_resize_before_switch_still_uses_its_owned_controller_after_desired_advances() -> TestResult
+{
+    drive_queued_control_before_switch(true)
+}
+
+fn drive_queued_control_before_switch(resize: bool) -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(steps(&[WireKind::Obcs, WireKind::Obcs]), geometry)?;
+    let (old, controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, snapshot(2, 1), geometry)?;
+    harness
+        .mailbox
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(old.clone(), ())))
+        .map_err(|error| test_error(&format!("Poll admission: {error:?}")))?;
+    let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
+        return Err(test_error("blocked old Poll"));
+    };
+    assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+    let latest = Geometry::new(
+        geometry.columns(),
+        geometry.rows(),
+        geometry.cell_pixel_width() + 1,
+        geometry.cell_pixel_height(),
+    )?;
+    if resize {
+        harness.ui.admit_resize(latest)?;
+    } else {
+        harness
+            .ui
+            .admit_input(ControlInput::new(b"before-switch".to_vec())?)?;
+    }
+    let next = harness.ui.admit_switch(1)?;
+    assert_ne!(next.key, old);
+    assert_eq!(harness.ui.state().attached_key(), Some(&old));
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(poll.request_id().clone(), TerminalViewerOutcome::Empty {}),
+        ))?;
+    let ClientMessage::TerminalControl(control) = harness.carrier.take_obcs()? else {
+        return Err(test_error("pre-marker control must drain"));
+    };
+    let outcome = if resize {
+        assert!(
+            matches!(control.action(), TerminalControlAction::Resize {controller_id,sequence,geometry}
+            if controller_id == &controller && sequence.get() == 2 && *geometry == latest)
+        );
+        TerminalControlOutcome::Resized { geometry: latest }
+    } else {
+        assert!(
+            matches!(control.action(), TerminalControlAction::Input {controller_id,sequence,bytes}
+            if controller_id == &controller && sequence.get() == 2 && bytes.as_bytes() == b"before-switch")
+        );
+        TerminalControlOutcome::InputAccepted {}
+    };
+    // End this bounded witness before the independently owned Switch continuation.
+    harness.mailbox.close(CarrierFailure::Closed);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalControlResult(
+            TerminalControlResult::new(control.request_id().clone(), outcome),
+        ))?;
+    harness.finish()
+}
+
+#[test]
+fn explicit_move_recovery_reads_snapshot_only_and_retains_commit_through_empty_cleanup()
+-> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(
+        steps(&[
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Obcs,
+        ]),
+        geometry,
+    )?;
+    let (old, _) = drive_controlling_ready_from_snapshot(&mut harness, snapshot(2, 1), geometry)?;
+    let operation = harness.ui.admit_move(WorkbenchTabMoveDirection::Last)?;
+    commit_move(&harness, &operation)?;
+    respond_snapshot(&harness, WorkbenchSnapshotOutcome::Denied {})?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Move(MoveDecision::Continue)
+    ));
+    assert_eq!(
+        harness.ui.state().phase_kind(),
+        SessionPhaseKind::MoveProjectionUnavailable
+    );
+    assert_eq!(harness.ui.state().attached_key(), Some(&old));
+    harness.ui.admit_refresh()?;
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(0, 3),
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh {
+            decision: RefreshDecision::Cleanup(_),
+            ..
+        }
+    ));
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("recovery exact Detach"));
+    };
+    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh {
+            decision: RefreshDecision::SettledWithoutAttachment,
+            ..
+        }
+    ));
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Empty);
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .retained_move_for_test()
+            .unwrap()
+            .operation(),
+        &operation
+    );
+    harness.finish()
+}
 
 #[test]
 fn snapshot_failure_taxonomy_preserves_io_and_protocol_causes() -> TestResult {

@@ -433,3 +433,43 @@ fn tab_unavailable_same_revision_cannot_reintroduce_the_refused_target() {
         }
     }
 }
+
+#[test]
+fn known_move_retention_precedes_a_failed_membership_install_without_changing_old_ownership() {
+    let mut state = ready(2);
+    let operation = operation(&state, 124);
+    let old = state.desired().cloned();
+    let baseline = state.cache().clone();
+    assert!(state.begin_move(operation.clone()));
+    let prepared = state.prepare_move(
+        &operation,
+        MoveResult::Committed {
+            commit: commit(&operation),
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: snapshot(0, 3, None),
+            },
+        },
+    );
+    let (retained, candidate) = state.retain_prepared_move_membership(prepared).unwrap();
+    assert_eq!(retained, operation);
+    assert_eq!(
+        state.retained_move_for_test().unwrap().operation(),
+        &operation
+    );
+    // Direct installation may not erase a still-owned Viewer, even though the commit is known.
+    assert!(
+        state
+            .prepare_membership_install(candidate, None, None)
+            .is_err()
+    );
+    assert_eq!(state.cache(), &baseline);
+    assert_eq!(state.desired(), old.as_ref());
+    assert_eq!(state.attached_key(), old.as_ref());
+    assert_eq!(state.pending_move.as_ref(), Some(&operation));
+    state.retire(CarrierFailure::Protocol);
+    assert_eq!(
+        state.retained_move_for_test().unwrap().operation(),
+        &operation
+    );
+    assert!(state.invariant_holds());
+}

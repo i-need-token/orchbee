@@ -621,6 +621,10 @@ impl NativeExecutor {
         deadline: Instant,
     ) -> ReadyResult<()> {
         let (key, input) = (tagged.key(), tagged.value().clone());
+        let desired = self.execution_desired(lease)?;
+        if self.attached_key() != Some(key) && desired.as_ref() != Some(key) {
+            return Ok(());
+        }
         let controller = self.controller_for(key)?;
         let sequence = self.next_control_sequence(key)?;
         let outcome = self.control_for_lease(
@@ -655,6 +659,10 @@ impl NativeExecutor {
     ) -> ReadyResult<()> {
         let key = tagged.key().clone();
         let geometry = *tagged.value();
+        let desired = self.execution_desired(lease)?;
+        if self.attached_key() != Some(&key) && desired.as_ref() != Some(&key) {
+            return Ok(());
+        }
         let controller = self.controller_for(&key)?;
         let sequence = self.next_control_sequence(&key)?;
         let outcome = self.control_for_lease(

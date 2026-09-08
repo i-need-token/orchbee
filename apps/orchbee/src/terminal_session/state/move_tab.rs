@@ -1,6 +1,7 @@
 use super::AttachmentKey;
 use super::{
-    CarrierFailure, NativeSessionState, PreparedMembershipCandidate, SessionNotice, SessionPhase,
+    AttachTarget, CarrierFailure, MembershipCleanup, NativeSessionState,
+    PreparedMembershipCandidate, SessionNotice, SessionPhase,
 };
 use crate::terminal_session::workbench_projection::{
     MovedTabExpectation, NativeProjectionDivergence, project_native_standalone_tabs,
@@ -136,9 +137,12 @@ pub(in crate::terminal_session) enum MoveResult {
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum MoveDecision {
     Continue,
+    Cleanup(MembershipCleanup),
+    AttachRecovered(AttachTarget),
+    SettledWithoutAttachment,
     Retire,
 }
 
@@ -332,17 +336,7 @@ impl NativeSessionState {
         &mut self,
         prepared: PreparedMove,
     ) -> MoveDecision {
-        if self.pending_move.as_ref() != Some(&prepared.operation)
-            || self.cache != prepared.operation.baseline
-            || self.desired.as_ref() != Some(&prepared.operation.target)
-            || !self.invariant_holds()
-            || !matches!(
-                &self.phase,
-                SessionPhase::Ready(_)
-                    | SessionPhase::SelectedWithoutAttachment(_)
-                    | SessionPhase::RetryableAttachUnavailable(_)
-            )
-        {
+        if !self.move_result_is_current(&prepared.operation) {
             self.retire(CarrierFailure::Protocol);
             return MoveDecision::Retire;
         }
@@ -388,6 +382,56 @@ impl NativeSessionState {
         MoveDecision::Continue
     }
 
+    fn move_result_is_current(&self, operation: &MoveOperation) -> bool {
+        self.pending_move.as_ref() == Some(operation)
+            && self.cache == operation.baseline
+            && self.desired.as_ref() == Some(&operation.target)
+            && self.invariant_holds()
+            && matches!(
+                self.phase,
+                SessionPhase::Ready(_)
+                    | SessionPhase::SelectedWithoutAttachment(_)
+                    | SessionPhase::RetryableAttachUnavailable(_)
+            )
+    }
+
+    /// The exact known command outcome survives every later cleanup/install preparation failure.
+    pub(in crate::terminal_session) fn retain_prepared_move_membership(
+        &mut self,
+        prepared: PreparedMove,
+    ) -> Result<(MoveOperation, PreparedMembershipCandidate), CarrierFailure> {
+        if !self.move_result_is_current(&prepared.operation) {
+            return Err(CarrierFailure::Protocol);
+        }
+        let PreparedMoveResult::Membership {
+            pending,
+            prepared: candidate,
+        } = prepared.result
+        else {
+            return Err(CarrierFailure::Protocol);
+        };
+        self.notice = if let Some(pending) = pending {
+            self.settled_move = Some(pending);
+            None
+        } else {
+            Some(SessionNotice::MoveNotMoved)
+        };
+        Ok((prepared.operation, candidate))
+    }
+
+    pub(super) fn move_membership_is_current(&self, request_id: &WorkbenchRequestId) -> bool {
+        self.pending_move.as_ref().is_some_and(|operation| {
+            operation.request_id() == request_id
+                && operation.baseline() == &self.cache
+                && self.desired.as_ref() == Some(operation.target())
+                && (self
+                    .settled_move
+                    .as_ref()
+                    .is_some_and(|pending| pending.operation() == operation)
+                    || self.notice == Some(SessionNotice::MoveNotMoved))
+        })
+    }
+
     pub(in crate::terminal_session) fn retain_pending_move(
         &mut self,
         pending: PendingMoveCommit,
@@ -424,8 +468,8 @@ impl NativeSessionState {
                     | SessionPhase::RetryableAttachUnavailable(_)
             )
             && !(matches!(self.phase, SessionPhase::ReconcilingMembership(_))
-                && self.move_recovery.is_some()
-                && self.pending_refresh_generation.is_some()
+                && ((self.move_recovery.is_some() && self.pending_refresh_generation.is_some())
+                    || self.pending_move.is_some())
                 && self.pending_membership.is_some())
         {
             return false;

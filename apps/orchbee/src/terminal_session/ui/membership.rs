@@ -114,9 +114,9 @@ impl NativeUi {
             }
             let settlement = RefreshSettlement::new(decision, state.desired().cloned());
             Ok(match cleanup.result() {
-                MembershipResultKey::Refresh(_) | MembershipResultKey::Create(_) => {
-                    UiReply::Membership(settlement)
-                }
+                MembershipResultKey::Refresh(_)
+                | MembershipResultKey::Create(_)
+                | MembershipResultKey::Move(_) => UiReply::Membership(settlement),
                 MembershipResultKey::Switch(_) => UiReply::Switch(settlement),
                 MembershipResultKey::Close(_) => return Err(CarrierFailure::Protocol),
             })

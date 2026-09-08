@@ -1,4 +1,6 @@
-use super::{NativeExecutor, Result, closed, event, snapshot};
+use super::{
+    NativeExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event, snapshot,
+};
 use crate::{
     local_client::workbench::{
         WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,
@@ -92,9 +94,6 @@ impl NativeExecutor {
         let UiReply::Move(settlement) = reply else {
             return Err(CarrierFailure::Protocol);
         };
-        if settlement.desired() != operation.target() {
-            return Err(CarrierFailure::Protocol);
-        }
         if self
             .pending_move
             .as_ref()
@@ -102,13 +101,46 @@ impl NativeExecutor {
         {
             return Err(CarrierFailure::Protocol);
         }
-        match settlement.decision() {
+        let result = match settlement.decision() {
             MoveDecision::Continue => {
-                self.pending_move = None;
+                if settlement.desired() != Some(operation.target()) {
+                    return Err(CarrierFailure::Protocol);
+                }
                 Ok(())
             }
+            MoveDecision::Cleanup(cleanup) => {
+                if cleanup.old() != operation.target()
+                    || cleanup.result()
+                        != &crate::terminal_session::state::MembershipResultKey::Move(
+                            operation.request_id().clone(),
+                        )
+                    || settlement.desired() != Some(operation.target())
+                {
+                    return Err(CarrierFailure::Protocol);
+                }
+                self.run_membership_cleanup(lease, cleanup.clone())
+            }
+            MoveDecision::AttachRecovered(target) => {
+                if settlement.desired() != Some(target.selected().key())
+                    || self.attached_key().is_some()
+                {
+                    return Err(CarrierFailure::Protocol);
+                }
+                self.setup_target(
+                    SetupTarget::operation(target.clone())?,
+                    SetupOwner::Lease(lease),
+                    SetupEntryExpiry::Retire,
+                )
+                .map(|_| ())
+            }
+            MoveDecision::SettledWithoutAttachment if self.attached_key().is_none() => Ok(()),
+            MoveDecision::SettledWithoutAttachment => Err(CarrierFailure::Protocol),
             MoveDecision::Retire => Err(CarrierFailure::AuthorityDivergence),
+        };
+        if result.is_ok() {
+            self.pending_move = None;
         }
+        result
     }
 
     fn read_move_snapshot(
