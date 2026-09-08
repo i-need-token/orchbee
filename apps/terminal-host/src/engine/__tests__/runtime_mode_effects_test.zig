@@ -13,6 +13,25 @@ const TerminalDrivenResizeProbe = harness.TerminalDrivenResizeProbe;
 const TerminalRuntime = harness.TerminalRuntime;
 const WriterProbe = harness.WriterProbe;
 
+const ModeReportProbe = struct {
+    writer: WriterProbe = .{ .pause_at = .copied },
+    reader: harness.TestGate = .{},
+    runtime: *TerminalRuntime = undefined,
+
+    fn read(context: *anyopaque, buffer: []u8) anyerror!usize {
+        const writer: *WriterProbe = @ptrCast(@alignCast(context));
+        const self: *ModeReportProbe = @fieldParentPtr("writer", writer);
+        self.reader.pause();
+        return runtimeState(self.runtime).process.read(buffer);
+    }
+
+    fn hooks(self: *ModeReportProbe) harness.RuntimeTestingHooks {
+        var result = self.writer.hooks();
+        result.read_pty = read;
+        return result;
+    }
+};
+
 fn viewportGeometry(runtime: *TerminalRuntime) Geometry {
     const runtime_state = runtimeState(runtime);
     runtime_state.terminal_mutex.lock();
@@ -207,12 +226,17 @@ test "mode 40 PTY restore failure fences before Ghostty geometry mutation" {
 }
 
 test "mode 2048 reports exact mode 40 geometry and fences a dropped restore report" {
-    var writer_probe: WriterProbe = .{ .pause_at = .copied };
-    const runtime = try createRuntimeWithHooks(writer_probe.hooks());
+    var probe: ModeReportProbe = .{};
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
     defer {
-        writer_probe.copied.release();
+        probe.reader.release();
+        probe.writer.copied.release();
         runtime.destroy();
     }
+    // Native startup mode effects must not consume the reply quota before
+    // the deliberately dropped restore report exercises the failure fence.
+    probe.reader.wait();
     var expected: [128]u8 = undefined;
 
     try std.testing.expectEqual(
