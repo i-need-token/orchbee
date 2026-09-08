@@ -1,6 +1,100 @@
 use super::*;
 
 #[test]
+fn candidate_first_create_unavailable_keeps_exact_old_proof_but_is_never_ready() {
+    let (mut state, operation) = committed_create_state();
+    let cache = state.cache().clone();
+    let desired = state.desired().cloned();
+    let projection = state.projection_key().cloned();
+    let frame = state.accepted_frame.clone();
+    let prepared = state.prepare_create_snapshot(
+        &operation,
+        WorkbenchSnapshotOutcome::Unavailable {
+            reason:
+                orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    );
+    assert_eq!(
+        state.apply_prepared_create_snapshot(prepared),
+        CreateProjectionDecision::ProjectionUnavailable
+    );
+    assert_eq!(state.cache(), &cache);
+    assert_eq!(state.desired(), desired.as_ref());
+    assert_eq!(state.projection_key(), projection.as_ref());
+    assert_eq!(state.accepted_frame, frame);
+    assert!(state.ready().is_none());
+    assert_eq!(
+        state.plan_selection(ClientAction::SelectNextTab),
+        SelectionPlan::Busy
+    );
+    assert!(state.phase_allows_refresh());
+    assert!(state.invariant_holds());
+    let next = create_operation(&state, 3, 21, "3");
+    assert!(!state.begin_create(next));
+    state.retire(CarrierFailure::Deadline);
+    assert!(state.committed_target().is_some());
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn known_create_candidate_is_validated_before_any_attachment_or_cache_change() {
+    let (mut state, operation) = committed_create_state();
+    let cache = state.cache().clone();
+    let old = state.desired().cloned();
+    let attached = state.attached_key().cloned();
+    let prepared = state.prepare_create_snapshot(
+        &operation,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(2, 2, Some("2")),
+        },
+    );
+    assert!(matches!(
+        prepared,
+        create_membership::PreparedCreateSnapshot::Available {
+            projection: super::super::super::workbench_projection::ValidatedCreatedProjection {
+                created_index: Some(1),
+                ..
+            },
+            ..
+        }
+    ));
+    assert_eq!(state.cache(), &cache);
+    assert_eq!(state.desired(), old.as_ref());
+    assert_eq!(state.attached_key(), attached.as_ref());
+    let prepared = state.prepare_create_snapshot(
+        &operation,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(0, 3, None),
+        },
+    );
+    assert!(matches!(
+        prepared,
+        create_membership::PreparedCreateSnapshot::Available {
+            projection: super::super::super::workbench_projection::ValidatedCreatedProjection {
+                created_index: None,
+                ..
+            },
+            ..
+        }
+    ));
+    assert_eq!(state.cache(), &cache);
+    assert_eq!(state.attached_key(), attached.as_ref());
+    assert!(state.publish_old_detached(&operation));
+    let prepared = state.prepare_create_snapshot(
+        &operation,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(2, 2, Some("2")),
+        },
+    );
+    state.retire(CarrierFailure::Deadline);
+    assert_eq!(
+        state.apply_prepared_create_snapshot(prepared),
+        CreateProjectionDecision::Retire
+    );
+    assert_eq!(state.cache(), &cache);
+}
+
+#[test]
 fn empty_create_anchor_retains_known_commit_and_refusal_restores_no_viewer_origin() {
     for committed in [false, true] {
         let mut state = state(1);

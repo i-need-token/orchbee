@@ -549,10 +549,6 @@ pub(super) enum UiEvent {
     CreateCommittedKnown {
         operation: CreateOperationKey,
     },
-    CreateOldDetached {
-        operation: CreateOperationKey,
-        published: AttachmentKey,
-    },
     CreateProjection {
         operation: CreateOperationKey,
         decision: CreateProjectionDecision,
@@ -955,11 +951,7 @@ impl UiDriver {
                 let prepared = state
                     .prepare_cleaned_membership_candidate(&cleanup, &detached)
                     .map_err(|_| test_error("exact membership cleanup"))?;
-                let crate::terminal_session::state::MembershipResultKey::Refresh(generation) =
-                    *cleanup.result()
-                else {
-                    return Err(test_error("Switch membership cleanup is staged"));
-                };
+                let result_key = cleanup.result().clone();
                 let mut decision = None;
                 require_applied(mailbox.deposit_ui_reply_before(
                     &wait_key,
@@ -974,9 +966,12 @@ impl UiDriver {
                             let install = prepared.selected_tab_id().map_or(
                                 crate::terminal_session::mailbox::DesiredInstall::Empty,
                                 |tab| {
-                                    crate::terminal_session::mailbox::DesiredInstall::Fresh(
-                                        tab.clone(),
-                                    )
+                                    if let Some(committed) = state.create_membership_commit()
+                                        && committed.committed_key().tab_id() == tab {
+                                        crate::terminal_session::mailbox::DesiredInstall::ReuseReserved(committed.committed_key().clone())
+                                    } else {
+                                        crate::terminal_session::mailbox::DesiredInstall::Fresh(tab.clone())
+                                    }
                                 },
                             );
                             let desired = transaction.prepare_desired_install(install)?;
@@ -1007,10 +1002,33 @@ impl UiDriver {
                     },
                 ))?;
                 self.projection = None;
-                Ok(UiEvent::Refresh {
-                    generation,
-                    decision: decision.ok_or_else(|| test_error("membership decision"))?,
-                })
+                let decision = decision.ok_or_else(|| test_error("membership decision"))?;
+                match result_key {
+                    crate::terminal_session::state::MembershipResultKey::Refresh(generation) => {
+                        Ok(UiEvent::Refresh {
+                            generation,
+                            decision,
+                        })
+                    }
+                    crate::terminal_session::state::MembershipResultKey::Create(operation) => {
+                        Ok(UiEvent::CreateProjection {
+                            operation,
+                            decision: match decision {
+                                RefreshDecision::AttachRecovered(target) => {
+                                    CreateProjectionDecision::Attach(target)
+                                }
+                                RefreshDecision::SettledWithoutAttachment => {
+                                    CreateProjectionDecision::SettledWithoutAttachment
+                                }
+                                RefreshDecision::Retire => CreateProjectionDecision::Retire,
+                                _ => return Err(test_error("unexpected Create cleanup decision")),
+                            },
+                        })
+                    }
+                    crate::terminal_session::state::MembershipResultKey::Switch(_) => {
+                        Err(test_error("Switch membership cleanup is staged"))
+                    }
+                }
             }
             WorkerEvent::CloseResult { .. } => {
                 Err(test_error("use the exact Close transport consumer"))
@@ -1340,39 +1358,6 @@ impl UiDriver {
                 ))?;
                 Ok(UiEvent::CreateCommittedKnown { operation })
             }
-            WorkerEvent::CreateOldDetached { operation } => {
-                let wait_key = wait_key.ok_or_else(|| test_error("CreateOldDetached wait key"))?;
-                let mut published = None;
-                let mailbox = Arc::clone(&self.mailbox);
-                let clock = self.clock.clone();
-                let state = self.state_mut();
-                require_applied(mailbox.deposit_ui_reply_before(
-                    &wait_key,
-                    &clock,
-                    |_transaction| {
-                        if !state.publish_old_detached(&operation) {
-                            return Err(CarrierFailure::Protocol);
-                        }
-                        let key = state.desired().unwrap().clone();
-                        published = Some(key.clone());
-                        Ok(UiReply::DetachPublished(key))
-                    },
-                ))?;
-                if self
-                    .projection
-                    .as_ref()
-                    .and_then(TerminalProjection::frame)
-                    .is_some()
-                {
-                    self.no_frame_redraws += 1;
-                }
-                self.projection = None;
-                Ok(UiEvent::CreateOldDetached {
-                    operation,
-                    published: published
-                        .ok_or_else(|| test_error("created target was not published"))?,
-                })
-            }
             WorkerEvent::CreateSnapshotResult { operation, outcome } => {
                 let wait_key =
                     wait_key.ok_or_else(|| test_error("CreateSnapshotResult wait key"))?;
@@ -1380,11 +1365,52 @@ impl UiDriver {
                 let mailbox = Arc::clone(&self.mailbox);
                 let clock = self.clock.clone();
                 let state = self.state_mut();
+                let prepared = state.prepare_create_snapshot(&operation, outcome);
+                if let crate::terminal_session::state::PreparedCreateSnapshot::Available {
+                    baseline,
+                    committed,
+                    projection,
+                } = prepared
+                {
+                    let prepared = state
+                        .prepare_create_membership_candidate(&baseline, &committed, projection)
+                        .map_err(|_| test_error("prepared Create candidate"))?;
+                    require_applied(mailbox.deposit_ui_reply_before(&wait_key, &clock, |transaction| {
+                        let deadlines = committed.operation().deadlines();
+                        let settled = if state.attached_key().is_some() {
+                            CreateProjectionDecision::Cleanup(state.stage_create_membership_cleanup(&operation, prepared, deadlines)?)
+                        } else {
+                            if transaction.observed_at() >= deadlines.forward_cutoff() { return Err(CarrierFailure::Deadline); }
+                            let install = match prepared.selected_tab_id() {
+                                Some(tab) if tab == committed.committed_key().tab_id() => crate::terminal_session::mailbox::DesiredInstall::ReuseReserved(committed.committed_key().clone()),
+                                Some(tab) => crate::terminal_session::mailbox::DesiredInstall::Fresh(tab.clone()),
+                                None => crate::terminal_session::mailbox::DesiredInstall::Empty,
+                            };
+                            let desired = transaction.prepare_desired_install(install)?;
+                            let plan = state.prepare_create_membership_install(&operation, prepared, desired.desired().cloned(), deadlines)?;
+                            let installed = plan.commit();
+                            desired.commit();
+                            match installed {
+                                crate::terminal_session::state::MembershipInstallDecision::Attach(target) => CreateProjectionDecision::Attach(target),
+                                crate::terminal_session::state::MembershipInstallDecision::Empty
+                                | crate::terminal_session::state::MembershipInstallDecision::SelectedWithoutAttachment => CreateProjectionDecision::SettledWithoutAttachment,
+                                crate::terminal_session::state::MembershipInstallDecision::Preserved => unreachable!("Create changes selection"),
+                            }
+                        };
+                        decision = Some(settled.clone());
+                        Ok(UiReply::CreateProjection(settled))
+                    }))?;
+                    return Ok(UiEvent::CreateProjection {
+                        operation,
+                        decision: decision
+                            .ok_or_else(|| test_error("Create candidate decision"))?,
+                    });
+                }
                 require_applied(mailbox.deposit_ui_reply_before(
                     &wait_key,
                     &clock,
                     |_transaction| {
-                        let settled = state.settle_create_snapshot(&operation, outcome);
+                        let settled = state.apply_prepared_create_snapshot(prepared);
                         decision = Some(settled.clone());
                         Ok(UiReply::CreateProjection(settled))
                     },
@@ -1416,7 +1442,9 @@ impl UiDriver {
                     &clock,
                     |_transaction| {
                         let settled =
-                            if let crate::terminal_session::state::PreparedRefresh::Membership {
+                            if let crate::terminal_session::state::PreparedRefresh::CreateMembership { generation, operation, prepared } = prepared {
+                                RefreshDecision::Cleanup(state.stage_create_refresh_cleanup(generation, &operation, prepared, recovery_deadlines.ok_or(CarrierFailure::Deadline)?)?)
+                            } else if let crate::terminal_session::state::PreparedRefresh::Membership {
                                 generation,
                                 prepared,
                             } = prepared

@@ -1,0 +1,190 @@
+use super::*;
+
+impl NativeUi {
+    pub(super) fn apply_create_recovery_event(
+        &mut self,
+        mailbox: &Arc<CommandMailbox>,
+        wait: super::super::mailbox::UiWaitKey,
+        generation: u64,
+        operation: CreateOperationKey,
+        prepared: super::super::state::PreparedMembershipCandidate,
+        deadlines: Option<OperationDeadlines>,
+    ) -> bool {
+        let Some(state) = self.state.as_mut() else {
+            self.retire(CarrierFailure::Protocol);
+            return true;
+        };
+        let mut installed = false;
+        let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
+            let deadlines = deadlines.ok_or(CarrierFailure::Deadline)?;
+            if transaction.observed_at() >= deadlines.forward_cutoff() {
+                return Err(CarrierFailure::Deadline);
+            }
+            if state.attached_key().is_some() {
+                let cleanup = state
+                    .stage_create_refresh_cleanup(generation, &operation, prepared, deadlines)?;
+                return Ok(UiReply::Refresh(RefreshSettlement::new(
+                    RefreshDecision::Cleanup(cleanup),
+                    state.desired().cloned(),
+                )));
+            }
+            let committed = state
+                .create_membership_commit()
+                .ok_or(CarrierFailure::Protocol)?;
+            let install = match prepared.selected_tab_id() {
+                Some(tab) if tab == committed.committed_key().tab_id() => {
+                    super::super::mailbox::DesiredInstall::ReuseReserved(
+                        committed.committed_key().clone(),
+                    )
+                }
+                Some(tab) => super::super::mailbox::DesiredInstall::Fresh(tab.clone()),
+                None => super::super::mailbox::DesiredInstall::Empty,
+            };
+            let desired = transaction.prepare_desired_install(install)?;
+            let plan = state.prepare_create_refresh_install(
+                generation,
+                &operation,
+                prepared,
+                desired.desired().cloned(),
+                deadlines,
+            )?;
+            let decision = plan.commit();
+            desired.commit();
+            installed = true;
+            let decision = match decision {
+                super::super::state::MembershipInstallDecision::Attach(target) => {
+                    RefreshDecision::AttachRecovered(target)
+                }
+                super::super::state::MembershipInstallDecision::Empty
+                | super::super::state::MembershipInstallDecision::SelectedWithoutAttachment => {
+                    RefreshDecision::SettledWithoutAttachment
+                }
+                super::super::state::MembershipInstallDecision::Preserved => {
+                    unreachable!("Create recovery always installs")
+                }
+            };
+            Ok(UiReply::Refresh(RefreshSettlement::new(
+                decision,
+                state.desired().cloned(),
+            )))
+        });
+        match result {
+            Ok(MutationResult::Applied) => {
+                if installed {
+                    self.clear_projection();
+                }
+                self.validate_state()
+            }
+            Ok(MutationResult::Stale) => false,
+            Err(error) => self.handle_event_error(error),
+        }
+    }
+
+    pub(super) fn apply_create_snapshot_event(
+        &mut self,
+        mailbox: &Arc<CommandMailbox>,
+        wait: super::super::mailbox::UiWaitKey,
+        operation: CreateOperationKey,
+        outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
+    ) -> bool {
+        let Some(state) = self.state.as_mut() else {
+            self.retire(CarrierFailure::Protocol);
+            return true;
+        };
+        let prepared = state.prepare_create_snapshot(&operation, outcome);
+        if let super::super::state::PreparedCreateSnapshot::Available {
+            baseline,
+            committed,
+            projection,
+        } = prepared
+        {
+            let candidate =
+                state.prepare_create_membership_candidate(&baseline, &committed, projection);
+            let candidate = match candidate {
+                Ok(candidate) => candidate,
+                Err(failure) => {
+                    self.retire(failure);
+                    return true;
+                }
+            };
+            let deadlines = committed.operation().deadlines();
+            let mut installed = false;
+            let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
+                if transaction.observed_at() >= deadlines.total() {
+                    return Err(CarrierFailure::Deadline);
+                }
+                if state.attached_key().is_some() {
+                    let cleanup =
+                        state.stage_create_membership_cleanup(&operation, candidate, deadlines)?;
+                    return Ok(UiReply::CreateProjection(
+                        CreateProjectionDecision::Cleanup(cleanup),
+                    ));
+                }
+                if transaction.observed_at() >= deadlines.forward_cutoff() {
+                    return Err(CarrierFailure::Deadline);
+                }
+                let install = match candidate.selected_tab_id() {
+                    Some(tab) if tab == committed.committed_key().tab_id() => {
+                        super::super::mailbox::DesiredInstall::ReuseReserved(
+                            committed.committed_key().clone(),
+                        )
+                    }
+                    Some(tab) => super::super::mailbox::DesiredInstall::Fresh(tab.clone()),
+                    None => super::super::mailbox::DesiredInstall::Empty,
+                };
+                let desired = transaction.prepare_desired_install(install)?;
+                let plan = state.prepare_create_membership_install(
+                    &operation,
+                    candidate,
+                    desired.desired().cloned(),
+                    deadlines,
+                )?;
+                let decision = plan.commit();
+                desired.commit();
+                installed = true;
+                Ok(UiReply::CreateProjection(match decision {
+                    super::super::state::MembershipInstallDecision::Attach(target) => {
+                        CreateProjectionDecision::Attach(target)
+                    }
+                    super::super::state::MembershipInstallDecision::SelectedWithoutAttachment
+                    | super::super::state::MembershipInstallDecision::Empty => {
+                        CreateProjectionDecision::SettledWithoutAttachment
+                    }
+                    super::super::state::MembershipInstallDecision::Preserved => {
+                        unreachable!("Create always installs a new selection")
+                    }
+                }))
+            });
+            return match result {
+                Ok(MutationResult::Applied) => {
+                    if installed {
+                        self.clear_projection();
+                    }
+                    self.validate_state()
+                }
+                Ok(MutationResult::Stale) => false,
+                Err(error) => self.handle_event_error(error),
+            };
+        }
+        let mut failure = None;
+        let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |_| {
+            let decision = state.apply_prepared_create_snapshot(prepared);
+            if decision == CreateProjectionDecision::Retire {
+                failure = state.retired_failure();
+            }
+            Ok(UiReply::CreateProjection(decision))
+        });
+        match result {
+            Ok(MutationResult::Applied) => {
+                if let Some(failure) = failure {
+                    self.retire(failure);
+                    true
+                } else {
+                    self.validate_state()
+                }
+            }
+            Ok(MutationResult::Stale) => false,
+            Err(error) => self.handle_event_error(error),
+        }
+    }
+}

@@ -414,7 +414,6 @@ enum UiReplyKind {
     SetupWithoutAttachmentApplied,
     PrecommitRestored,
     CommitRetained,
-    DetachPublished,
     CreateProjection,
     Refresh,
     Move,
@@ -493,9 +492,6 @@ pub(super) enum WorkerEvent {
         operation: CreateOperationKey,
         commit: WorkbenchTabCreateCommit,
     },
-    CreateOldDetached {
-        operation: CreateOperationKey,
-    },
     CreateSnapshotResult {
         operation: CreateOperationKey,
         outcome: WorkbenchSnapshotOutcome,
@@ -551,7 +547,9 @@ impl WorkerEvent {
             Self::MembershipDetached { cleanup, detached } => (
                 UiCorrelation::Membership(cleanup.result().clone(), detached.clone()),
                 match cleanup.result() {
-                    MembershipResultKey::Refresh(_) => UiReplyKind::Membership,
+                    MembershipResultKey::Refresh(_) | MembershipResultKey::Create(_) => {
+                        UiReplyKind::Membership
+                    }
                     MembershipResultKey::Switch(_) => UiReplyKind::Switch,
                 },
             ),
@@ -587,10 +585,6 @@ impl WorkerEvent {
             Self::CreateCommittedKnown { operation, .. } => (
                 UiCorrelation::Create(operation.clone()),
                 UiReplyKind::CommitRetained,
-            ),
-            Self::CreateOldDetached { operation } => (
-                UiCorrelation::Create(operation.clone()),
-                UiReplyKind::DetachPublished,
             ),
             Self::CreateSnapshotResult { operation, .. } => (
                 UiCorrelation::Create(operation.clone()),
@@ -638,7 +632,6 @@ pub(super) enum UiReply {
     SetupWithoutAttachmentApplied(CleanupContinuation),
     PrecommitRestored,
     CommitRetained,
-    DetachPublished(AttachmentKey),
     CreateProjection(CreateProjectionDecision),
     Refresh(RefreshSettlement),
     AttachedSettled(SetupEventDisposition),
@@ -706,7 +699,6 @@ impl UiReply {
             Self::SetupWithoutAttachmentApplied(_) => UiReplyKind::SetupWithoutAttachmentApplied,
             Self::PrecommitRestored => UiReplyKind::PrecommitRestored,
             Self::CommitRetained => UiReplyKind::CommitRetained,
-            Self::DetachPublished(_) => UiReplyKind::DetachPublished,
             Self::CreateProjection(_) => UiReplyKind::CreateProjection,
             Self::Refresh(_) => UiReplyKind::Refresh,
             Self::AttachedSettled(_) => UiReplyKind::AttachedSettled,
@@ -1996,11 +1988,21 @@ impl CommandMailbox {
                 }
                 state.structural_mutation_pending = None;
             }
-            UiReply::DetachPublished(key) => {
-                if let Err(failure) = Self::publish_desired_locked(&mut state, key.clone()) {
-                    return Err(EventError::Closed(self.close_locked(&mut state, failure)));
+            UiReply::Membership(settlement)
+                if matches!(
+                    &wait_key.correlation,
+                    UiCorrelation::Membership(MembershipResultKey::Create(_), _)
+                ) =>
+            {
+                if state.desired.key() != settlement.desired()
+                    || matches!(settlement.decision(), RefreshDecision::Cleanup(_))
+                    || matches!(settlement.decision(), RefreshDecision::AttachRecovered(target)
+                        if Some(target.selected().key()) != settlement.desired())
+                {
+                    return Err(EventError::Closed(
+                        self.close_locked(&mut state, CarrierFailure::Protocol),
+                    ));
                 }
-                self.abandon_stale_poll_locked(&mut state);
             }
             UiReply::Refresh(settlement) | UiReply::Membership(settlement) => {
                 let generation = match &wait_key.correlation {
@@ -2519,6 +2521,7 @@ impl CommandMailbox {
         stale_event || stale
     }
 
+    #[cfg(test)]
     fn publish_desired_locked(
         state: &mut MailboxState,
         key: AttachmentKey,

@@ -982,14 +982,6 @@ impl NativeExecutor {
         operation: CreateOperation,
         commit: crate::local_client::workbench::WorkbenchTabCreateCommit,
     ) -> Result<()> {
-        let committed_key = match &commit {
-            crate::local_client::workbench::WorkbenchTabCreateCommit::Pending {
-                tab_id, ..
-            }
-            | crate::local_client::workbench::WorkbenchTabCreateCommit::Created {
-                tab_id, ..
-            } => AttachmentKey::new(operation.key().reserved_generation(), tab_id.clone()),
-        };
         let total = operation.deadlines().total();
         let reply = self.publish_and_wait(
             WorkerEvent::CreateCommittedKnown {
@@ -1011,37 +1003,6 @@ impl NativeExecutor {
         }
         self.pending_create = None;
 
-        let old = self
-            .attached_key()
-            .cloned()
-            .ok_or(CarrierFailure::Protocol)?;
-        let outcome = self.viewer_for_cleanup(
-            SetupOwner::Lease(lease),
-            TerminalViewerAction::Detach {},
-            operation.deadlines().total(),
-        )?;
-        if !matches!(outcome, TerminalViewerOutcome::Detached {}) {
-            return Err(CarrierFailure::Protocol);
-        }
-        if self.attached_key() != Some(&old) {
-            return Err(CarrierFailure::Protocol);
-        }
-        self.attached = None;
-        let cutoff = self.effective_lease_cutoff(lease, operation.deadlines().forward_cutoff())?;
-        let reply = self.publish_and_wait(
-            WorkerEvent::CreateOldDetached {
-                operation: operation.key().clone(),
-            },
-            EventDeadline::Forward(cutoff),
-            cutoff,
-        )?;
-        let UiReply::DetachPublished(published_key) = reply else {
-            return Err(CarrierFailure::Protocol);
-        };
-        if published_key != committed_key {
-            return Err(CarrierFailure::Protocol);
-        }
-
         let cutoff = self.effective_lease_cutoff(lease, operation.deadlines().forward_cutoff())?;
         self.ensure_before(cutoff)?;
         let request_id = self
@@ -1059,15 +1020,26 @@ impl NativeExecutor {
             )
             .map_err(snapshot)?;
         let cutoff = self.effective_lease_cutoff(lease, operation.deadlines().forward_cutoff())?;
-        let reply = self.publish_and_wait(
-            WorkerEvent::CreateSnapshotResult {
-                operation: operation.key().clone(),
-                outcome: result.outcome,
-            },
-            EventDeadline::Forward(cutoff),
-            cutoff,
-        )?;
+        let wait = self
+            .mailbox
+            .publish_event_before(
+                WorkerEvent::CreateSnapshotResult {
+                    operation: operation.key().clone(),
+                    outcome: result.outcome,
+                },
+                EventDeadline::PlacementOnly(cutoff),
+                &self.clock,
+            )
+            .map_err(event)?;
+        let reply = self
+            .mailbox
+            .await_ui_reply(&wait)
+            .map_err(closed)?
+            .ok_or(CarrierFailure::Protocol)?;
         match reply {
+            UiReply::CreateProjection(CreateProjectionDecision::Cleanup(cleanup)) => {
+                self.run_membership_cleanup(lease, cleanup)
+            }
             UiReply::CreateProjection(CreateProjectionDecision::Attach(target)) => self
                 .setup_target(
                     SetupTarget::operation(target)?,

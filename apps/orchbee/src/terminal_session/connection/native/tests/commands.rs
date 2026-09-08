@@ -21,6 +21,215 @@ use orchbee_workbench_protocol::{
 use std::sync::atomic::Ordering;
 
 #[test]
+fn empty_create_started_reads_candidate_without_detach_then_attaches_reserved_generation()
+-> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut kinds = vec![WireKind::Obcs, WireKind::Workbench];
+    kinds.extend([WireKind::Obcs; 5]);
+    kinds.extend([
+        WireKind::Workbench,
+        WireKind::Obcs,
+        WireKind::Workbench,
+        WireKind::Workbench,
+    ]);
+    kinds.extend([WireKind::Obcs; 5]);
+    let mut harness = Harness::start(kinds, geometry)?;
+    drive_controlling_ready(&mut harness, geometry)?;
+    let generation = harness.ui.admit_refresh()?;
+    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
+        return Err(test_error("Refresh Snapshot"));
+    };
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+            protocol_version: ProtocolVersion,
+            request_id: read.request_id,
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: snapshot(0, 2),
+            },
+        }))?;
+    assert!(
+        matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::Refresh { generation: actual, decision: RefreshDecision::Cleanup(_) } if actual == generation)
+    );
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("Refresh exact Detach"));
+    };
+    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh {
+            decision: RefreshDecision::SettledWithoutAttachment,
+            ..
+        }
+    ));
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Empty);
+    let operation = harness.ui.admit_create()?;
+    let WorkbenchRequest::Command(command) = harness.carrier.take_workbench()? else {
+        return Err(test_error("manual Empty Create"));
+    };
+    let WorkbenchAction::TabCreate {
+        geometry: captured, ..
+    } = command.action
+    else {
+        return Err(test_error("tab.create"));
+    };
+    let mut candidate = snapshot(2, 3);
+    candidate.terminal_contexts[0].tabs.remove(0);
+    set_tab_labels(&mut candidate, 0, "1", "1")?;
+    let created = &candidate.terminal_contexts[0].tabs[0];
+    let expected = crate::terminal_session::state::AttachmentKey::new(
+        operation.reserved_generation(),
+        created.tab_id.clone(),
+    );
+    let PanelNode::Panel {
+        panel_id,
+        primary_presentation,
+        ..
+    } = &created.root
+    else {
+        return Err(test_error("Panel"));
+    };
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Command(WorkbenchCommandResult {
+            protocol_version: ProtocolVersion,
+            request_id: command.request_id,
+            outcome: WorkbenchCommandOutcome::TabCreated {
+                revision: candidate.revision,
+                terminal_context_id: candidate.terminal_contexts[0].terminal_context_id.clone(),
+                tab_id: created.tab_id.clone(),
+                panel_id: panel_id.clone(),
+                presentation_id: primary_presentation.presentation_id.clone(),
+                terminal_outcome: WorkbenchTerminalOutcome::Started { geometry: captured },
+            },
+        }))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::CreateCommittedKnown { .. }
+    ));
+    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
+        return Err(test_error(
+            "Empty Create must read before any viewer request",
+        ));
+    };
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+            protocol_version: ProtocolVersion,
+            request_id: read.request_id,
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: candidate,
+            },
+        }))?;
+    assert!(
+        matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::CreateProjection { decision: CreateProjectionDecision::Attach(ref target), .. } if target.selected().key() == &expected)
+    );
+    assert_eq!(drive_attach(&mut harness, 1)?, expected);
+    drive_controlling_after_attach(&mut harness, &expected, geometry)?;
+    assert!(harness.ui.state().ready().is_some());
+    assert_eq!(harness.ui.state().desired(), Some(&expected));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .settled_create_for_test()
+            .unwrap()
+            .operation()
+            .key(),
+        &operation
+    );
+    harness.finish()
+}
+
+#[test]
+fn candidate_first_create_unavailable_never_detaches_or_publishes_the_reserved_target() -> TestResult
+{
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(
+        vec![
+            WireKind::Obcs,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Workbench,
+            WireKind::Workbench,
+        ],
+        geometry,
+    )?;
+    let (old, _) = drive_controlling_ready(&mut harness, geometry)?;
+    let baseline = harness.ui.state().cache().clone();
+    let operation = harness.ui.admit_create()?;
+    let committed = snapshot(2, 2);
+    let created = &committed.terminal_contexts[0].tabs[1];
+    let PanelNode::Panel {
+        panel_id,
+        primary_presentation,
+        ..
+    } = &created.root
+    else {
+        return Err(test_error("simple created tab"));
+    };
+    let WorkbenchRequest::Command(command) = harness.carrier.take_workbench()? else {
+        return Err(test_error("Create"));
+    };
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Command(WorkbenchCommandResult {
+            protocol_version: ProtocolVersion,
+            request_id: command.request_id,
+            outcome: WorkbenchCommandOutcome::TabCreatePending {
+                revision: WorkbenchRevision::new(2),
+                terminal_context_id: committed.terminal_contexts[0].terminal_context_id.clone(),
+                tab_id: created.tab_id.clone(),
+                panel_id: panel_id.clone(),
+                presentation_id: primary_presentation.presentation_id.clone(),
+            },
+        }))?;
+    assert!(
+        matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::CreateCommittedKnown { operation: actual } if actual == operation)
+    );
+    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
+        return Err(test_error("candidate Snapshot must precede old Detach"));
+    };
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+        protocol_version: ProtocolVersion,
+        request_id: read.request_id,
+        outcome: WorkbenchSnapshotOutcome::Unavailable {
+            reason:
+                orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    }))?;
+    let taken = harness.ui.take_next()?;
+    harness.elapsed_millis.store(51_000, Ordering::SeqCst);
+    assert!(matches!(
+        harness.ui.settle_taken(taken, FrameCut::None)?,
+        UiEvent::CreateProjection {
+            decision: CreateProjectionDecision::ProjectionUnavailable,
+            ..
+        }
+    ));
+    assert_eq!(harness.ui.state().cache(), &baseline);
+    assert_eq!(harness.ui.state().desired(), Some(&old));
+    assert_eq!(harness.ui.state().projection_key(), Some(&old));
+    assert!(harness.ui.state().ready().is_none());
+    assert!(harness.ui.state().committed_target().is_some());
+    harness.finish()
+}
+
+#[test]
 fn attached_refresh_membership_runs_real_detach_before_empty_or_successor_ready() -> TestResult {
     for (neighbor, expires, wrong_response) in [
         (false, false, false),
@@ -597,8 +806,8 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Workbench,
-            WireKind::Obcs,
             WireKind::Workbench,
+            WireKind::Obcs,
         ],
         geometry,
     )?;
@@ -692,48 +901,13 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
         Some(&expected_provenance)
     );
 
-    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
-        return Err(test_error("CommitRetained must license exact old Detach"));
-    };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalViewerResult(
-            TerminalViewerResult::new(
-                detach.request_id().clone(),
-                TerminalViewerOutcome::Detached {},
-            ),
-        ))?;
-
-    let detached = harness.ui.take_next()?;
-    assert_eq!(
-        harness.ui.state().phase_kind(),
-        SessionPhaseKind::CreateCommittedNeedDetach
+    let published = crate::terminal_session::state::AttachmentKey::new(
+        operation.reserved_generation(),
+        created.tab_id.clone(),
     );
-    assert_eq!(
-        harness.ui.state().active().map(|tab| tab.key()),
-        Some(&old_key)
-    );
-    let published = match harness.ui.settle_taken(detached, FrameCut::None)? {
-        UiEvent::CreateOldDetached {
-            operation: actual,
-            published,
-        } if actual == operation => published,
-        _ => return Err(test_error("OldDetached must publish the committed target")),
-    };
-    assert_eq!(published.generation(), operation.reserved_generation());
-    assert_eq!(published.tab_id(), &created.tab_id);
-    assert_eq!(
-        harness.ui.state().phase_kind(),
-        SessionPhaseKind::AwaitingCommittedProjection
-    );
-    assert!(harness.ui.state().active().is_none());
-    assert_eq!(harness.ui.state().projection_key(), None);
-    assert!(!harness.ui.projection_is_some());
-
     let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
         return Err(test_error(
-            "OldDetached UI ack must license one SnapshotRead",
+            "CommitRetained must license Snapshot before old cleanup",
         ));
     };
     harness
@@ -746,6 +920,31 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
                     snapshot: candidate,
                 },
             },
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::CreateProjection {
+            operation: ref actual,
+            decision: CreateProjectionDecision::Cleanup(_),
+        } if actual == &operation
+    ));
+    assert_eq!(harness.ui.state().desired(), Some(&old_key));
+    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert!(harness.ui.state().ready().is_none());
+
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "validated candidate must license exact old Detach",
+        ));
+    };
+    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
         ))?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
@@ -781,8 +980,8 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Workbench,
-            WireKind::Obcs,
             WireKind::Workbench,
+            WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -917,28 +1116,6 @@ fn drive_pending_create_to_selected_without_attachment(
         UiEvent::CreateCommittedKnown { operation: ref actual } if actual == &operation
     ));
 
-    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
-        return Err(test_error("committed Create must detach the old viewer"));
-    };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalViewerResult(
-            TerminalViewerResult::new(
-                detach.request_id().clone(),
-                TerminalViewerOutcome::Detached {},
-            ),
-        ))?;
-    assert!(matches!(
-        harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::CreateOldDetached {
-            operation: ref actual,
-            published: ref actual_key,
-        } if actual == &operation && actual_key == &committed_key
-    ));
-    assert!(!harness.ui.state().selected_has_viewer());
-    assert_eq!(harness.ui.state().desired().unwrap(), &committed_key);
-
     let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
         return Err(test_error(
             "committed Create must read the exact projection",
@@ -953,6 +1130,23 @@ fn drive_pending_create_to_selected_without_attachment(
                 snapshot: candidate.clone(),
             },
         }))?;
+    assert!(
+        matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::CreateProjection {
+        operation: ref actual, decision: CreateProjectionDecision::Cleanup(_),
+    } if actual == &operation)
+    );
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("committed Create must detach the old viewer"));
+    };
+    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::CreateProjection {
@@ -987,8 +1181,8 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Workbench,
-            WireKind::Obcs,
             WireKind::Workbench,
+            WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1049,30 +1243,10 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
     );
     assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
 
-    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
-        return Err(test_error(
-            "committed Started Create must detach the old viewer",
-        ));
-    };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalViewerResult(
-            TerminalViewerResult::new(
-                detach.request_id().clone(),
-                TerminalViewerOutcome::Detached {},
-            ),
-        ))?;
-    let new_key = match harness.ui.settle_next(FrameCut::None)? {
-        UiEvent::CreateOldDetached {
-            operation: actual,
-            published,
-        } if actual == operation => published,
-        _ => return Err(test_error("old Detach must publish the Started target")),
-    };
-    assert_eq!(new_key.generation(), operation.reserved_generation());
-    assert_eq!(new_key.tab_id(), &expected_new_tab);
-
+    let new_key = crate::terminal_session::state::AttachmentKey::new(
+        operation.reserved_generation(),
+        expected_new_tab.clone(),
+    );
     let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
         return Err(test_error(
             "published committed target must read one snapshot",
@@ -1091,6 +1265,25 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
                     snapshot: renamed,
                 },
             },
+        ))?;
+    assert!(
+        matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::CreateProjection {
+        operation: ref actual, decision: CreateProjectionDecision::Cleanup(_),
+    } if actual == &operation)
+    );
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "committed Started Create must detach the old viewer",
+        ));
+    };
+    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
         ))?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
@@ -1152,8 +1345,7 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
 }
 
 #[test]
-fn committed_create_can_ack_and_detach_in_cleanup_reserve_but_cannot_publish_after_forward_cutoff()
--> TestResult {
+fn late_known_create_without_candidate_retains_commit_but_never_detaches() -> TestResult {
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
@@ -1165,7 +1357,6 @@ fn committed_create_can_ack_and_detach_in_cleanup_reserve_but_cannot_publish_aft
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Workbench,
-            WireKind::Obcs,
         ],
         geometry,
     )?;
@@ -1209,23 +1400,7 @@ fn committed_create_can_ack_and_detach_in_cleanup_reserve_but_cannot_publish_aft
         UiEvent::CreateCommittedKnown { operation: ref actual } if actual == &operation
     ));
 
-    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
-        return Err(test_error(
-            "known committed Create must use the final reserve for Detach",
-        ));
-    };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalViewerResult(
-            TerminalViewerResult::new(
-                detach.request_id().clone(),
-                TerminalViewerOutcome::Detached {},
-            ),
-        ))?;
-
-    // At 46 seconds the 45-second forward cutoff has passed. The exact wire Detach is still
-    // allowed by the total deadline, but its UI publication and the SnapshotRead are not.
+    // No validated candidate exists before the original forward cutoff: no cleanup is licensed.
     assert!(harness.ui.take_next().is_err());
     assert_eq!(harness.mailbox.is_closed(), Some(CarrierFailure::Deadline));
     assert_eq!(
@@ -1847,9 +2022,9 @@ fn started_projection_recovery_uses_fresh_budget_same_generation_and_new_ids() -
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Workbench,
             WireKind::Obcs,
-            WireKind::Workbench,
-            WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1870,7 +2045,7 @@ fn started_projection_recovery_uses_fresh_budget_same_generation_and_new_ids() -
             "recovery Refresh must issue one fresh SnapshotRead",
         ));
     };
-    assert_eq!(refresh.request_id.as_str(), identity(0x10b));
+    assert_eq!(refresh.request_id.as_str(), identity(0x10a));
     harness
         .carrier
         .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -1886,6 +2061,25 @@ fn started_projection_recovery_uses_fresh_budget_same_generation_and_new_ids() -
     // unbounded, and at 120 seconds it must sample a new setup budget instead of reusing either
     // the expired Create deadline or the completed Refresh deadline.
     harness.elapsed_millis.store(120_000, Ordering::SeqCst);
+    assert!(
+        matches!(harness.ui.settle_taken(completion, FrameCut::None)?, UiEvent::Refresh {
+        generation, decision: RefreshDecision::Cleanup(_),
+    } if generation == refresh_generation)
+    );
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("recovery candidate must clean old viewer"));
+    };
+    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(detach.request_id().as_str(), identity(0x10b));
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    let completion = harness.ui.take_next()?;
     assert!(matches!(
         harness.ui.settle_taken(completion, FrameCut::None)?,
         UiEvent::Refresh {
@@ -2043,7 +2237,6 @@ fn create_projection_missing_committed_tab_retires_authority_divergence() -> Tes
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Workbench,
-            WireKind::Obcs,
             WireKind::Workbench,
         ],
         geometry,
@@ -2060,10 +2253,6 @@ fn create_projection_missing_committed_tab_retires_authority_divergence() -> Tes
     else {
         return Err(test_error("created fixture must have one Panel root"));
     };
-    let committed_key = crate::terminal_session::state::AttachmentKey::new(
-        operation.reserved_generation(),
-        created.tab_id.clone(),
-    );
     let WorkbenchRequest::Command(command) = harness.carrier.take_workbench()? else {
         return Err(test_error("Create admission must submit tab.create"));
     };
@@ -2083,26 +2272,6 @@ fn create_projection_missing_committed_tab_retires_authority_divergence() -> Tes
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::CreateCommittedKnown { operation: ref actual } if actual == &operation
-    ));
-
-    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
-        return Err(test_error("committed Create must detach the old viewer"));
-    };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalViewerResult(
-            TerminalViewerResult::new(
-                detach.request_id().clone(),
-                TerminalViewerOutcome::Detached {},
-            ),
-        ))?;
-    assert!(matches!(
-        harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::CreateOldDetached {
-            operation: ref actual,
-            published: ref actual_key,
-        } if actual == &operation && actual_key == &committed_key
     ));
 
     let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
@@ -2378,34 +2547,10 @@ fn drive_started_create_to_projection_unavailable(
         UiEvent::CreateCommittedKnown { operation: ref actual } if actual == &operation
     ));
 
-    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
-        return Err(test_error("committed Create must Detach old viewer"));
-    };
-    assert_eq!(detach.request_id().as_str(), identity(0x109));
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalViewerResult(
-            TerminalViewerResult::new(
-                detach.request_id().clone(),
-                TerminalViewerOutcome::Detached {},
-            ),
-        ))?;
-    assert!(matches!(
-        harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::CreateOldDetached {
-            operation: ref actual,
-            published: ref actual_key,
-        } if actual == &operation && actual_key == &committed_key
-    ));
-    assert_eq!(harness.ui.state().desired().unwrap(), &committed_key);
-    assert_eq!(harness.ui.state().active(), None);
-    assert_eq!(harness.ui.state().projection_key(), None);
-
     let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
         return Err(test_error("committed target must issue SnapshotRead"));
     };
-    assert_eq!(read.request_id.as_str(), identity(0x10a));
+    assert_eq!(read.request_id.as_str(), identity(0x109));
     harness
         .carrier
         .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
@@ -2428,8 +2573,11 @@ fn drive_started_create_to_projection_unavailable(
         harness.ui.state().cache().revision(),
         WorkbenchRevision::new(1)
     );
-    assert_eq!(harness.ui.state().active(), None);
-    assert_eq!(harness.ui.state().desired().unwrap(), &committed_key);
+    assert_eq!(
+        harness.ui.state().active().map(|selected| selected.key()),
+        Some(&old_key)
+    );
+    assert_eq!(harness.ui.state().desired().unwrap(), &old_key);
     assert_eq!(
         harness
             .ui
@@ -2438,9 +2586,9 @@ fn drive_started_create_to_projection_unavailable(
             .map(|committed| committed.provenance()),
         Some(&CreateTerminalProvenance::Started)
     );
-    assert_eq!(harness.ui.state().projection_key(), None);
-    assert!(!harness.ui.projection_is_some());
-    assert_ne!(harness.ui.state().desired().unwrap(), &old_key);
+    assert_eq!(harness.ui.state().projection_key(), Some(&old_key));
+    assert!(harness.ui.projection_is_some());
+    assert!(harness.ui.state().ready().is_none());
     Ok((operation, candidate, committed_key))
 }
 

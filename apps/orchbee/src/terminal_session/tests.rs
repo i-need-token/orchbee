@@ -1150,21 +1150,6 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
         )
         .map_err(io::Error::other)?;
 
-        let ClientMessage::TerminalViewer(detach) =
-            read_client_message(&mut stream).map_err(io::Error::other)?
-        else {
-            return Err(io::Error::other("expected old-viewer Detach"));
-        };
-        assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
-        write_server_message(
-            &mut stream,
-            &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
-                detach.request_id().clone(),
-                TerminalViewerOutcome::Detached {},
-            )),
-        )
-        .map_err(io::Error::other)?;
-
         respond_with_snapshot(&mut stream, available_snapshot(Some(binding())))?;
         snapshot_sent.send(()).map_err(io::Error::other)?;
         let mut trailing = Vec::new();
@@ -1194,7 +1179,7 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
         matches!(
             session.view(),
             TerminalSessionView::Native(view)
-                if view.phase() == NativeDisplayPhase::AwaitingCommittedProjection
+                if view.phase() == NativeDisplayPhase::CreateCommittedNeedDetach
         )
     });
     snapshot_written

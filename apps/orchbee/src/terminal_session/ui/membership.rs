@@ -62,6 +62,19 @@ impl NativeUi {
             }
             let prepared = prepared.ok_or(CarrierFailure::Protocol)?;
             let install = match prepared.selected_tab_id() {
+                Some(tab)
+                    if state
+                        .create_membership_commit()
+                        .is_some_and(|committed| committed.committed_key().tab_id() == tab) =>
+                {
+                    super::super::mailbox::DesiredInstall::ReuseReserved(
+                        state
+                            .create_membership_commit()
+                            .ok_or(CarrierFailure::Protocol)?
+                            .committed_key()
+                            .clone(),
+                    )
+                }
                 Some(tab) => super::super::mailbox::DesiredInstall::Fresh(tab.clone()),
                 None => super::super::mailbox::DesiredInstall::Empty,
             };
@@ -83,7 +96,9 @@ impl NativeUi {
             };
             let settlement = RefreshSettlement::new(decision, state.desired().cloned());
             Ok(match cleanup.result() {
-                MembershipResultKey::Refresh(_) => UiReply::Membership(settlement),
+                MembershipResultKey::Refresh(_) | MembershipResultKey::Create(_) => {
+                    UiReply::Membership(settlement)
+                }
                 MembershipResultKey::Switch(_) => UiReply::Switch(settlement),
             })
         });

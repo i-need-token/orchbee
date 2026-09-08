@@ -7,6 +7,7 @@ use super::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum MembershipResultKey {
     Refresh(u64),
+    Create(super::CreateOperationKey),
     Switch(AttachmentKey),
 }
 
@@ -76,10 +77,14 @@ pub(in crate::terminal_session) struct PreparedMembershipInstall<'a> {
     clear_attachment: bool,
     decision: MembershipInstallDecision,
     refresh_generation: Option<u64>,
+    settled_create: Option<super::CommittedTabCreate>,
 }
 
 impl PreparedMembershipInstall<'_> {
     pub(in crate::terminal_session) fn commit(self) -> MembershipInstallDecision {
+        if let Some(committed) = self.settled_create {
+            self.state.settled_create = Some(committed);
+        }
         if self.refresh_generation.is_some() {
             self.state.pending_refresh_generation = None;
             self.state.refresh_status = Some(super::NavigatorRefreshStatus::Success(
@@ -105,6 +110,132 @@ impl PreparedMembershipInstall<'_> {
 }
 
 impl NativeSessionState {
+    pub(in crate::terminal_session) fn stage_create_refresh_cleanup(
+        &mut self,
+        generation: u64,
+        operation: &super::CreateOperationKey,
+        prepared: PreparedMembershipCandidate,
+        deadlines: OperationDeadlines,
+    ) -> Result<MembershipCleanup, CarrierFailure> {
+        if self.pending_refresh_generation != Some(generation) {
+            return Err(CarrierFailure::Protocol);
+        }
+        self.stage_create_cleanup_inner(
+            operation,
+            prepared,
+            deadlines,
+            MembershipResultKey::Refresh(generation),
+        )
+    }
+
+    pub(in crate::terminal_session) fn prepare_create_refresh_install(
+        &mut self,
+        generation: u64,
+        operation: &super::CreateOperationKey,
+        prepared: PreparedMembershipCandidate,
+        desired: Option<AttachmentKey>,
+        deadlines: OperationDeadlines,
+    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
+        if self.pending_refresh_generation != Some(generation) {
+            return Err(CarrierFailure::Protocol);
+        }
+        let mut plan = self
+            .prepare_create_membership_install_unchecked(operation, prepared, desired, deadlines)?;
+        plan.refresh_generation = Some(generation);
+        Ok(plan)
+    }
+
+    pub(in crate::terminal_session) fn stage_create_membership_cleanup(
+        &mut self,
+        operation: &super::CreateOperationKey,
+        prepared: PreparedMembershipCandidate,
+        deadlines: OperationDeadlines,
+    ) -> Result<MembershipCleanup, CarrierFailure> {
+        if self
+            .create_membership_commit()
+            .is_none_or(|committed| committed.operation.deadlines() != deadlines)
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        self.stage_create_cleanup_inner(
+            operation,
+            prepared,
+            deadlines,
+            MembershipResultKey::Create(operation.clone()),
+        )
+    }
+
+    fn stage_create_cleanup_inner(
+        &mut self,
+        operation: &super::CreateOperationKey,
+        prepared: PreparedMembershipCandidate,
+        deadlines: OperationDeadlines,
+        result: MembershipResultKey,
+    ) -> Result<MembershipCleanup, CarrierFailure> {
+        if !self.invariant_holds()
+            || self.pending_membership.is_some()
+            || self.cache != prepared.baseline
+            || self.desired != prepared.baseline_desired
+            || self
+                .create_membership_commit()
+                .is_none_or(|committed| &committed.operation.key != operation)
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        if self
+            .create_membership_commit()
+            .and_then(|committed| committed.anchor.ready())
+            .is_none_or(|ready| ready.selected.key() != &old)
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        let cleanup = MembershipCleanup {
+            result,
+            old,
+            deadlines,
+            installs_candidate: true,
+        };
+        self.pending_membership = Some(PendingMembership {
+            cleanup: cleanup.clone(),
+            prepared: Some(prepared),
+        });
+        Ok(cleanup)
+    }
+
+    pub(in crate::terminal_session) fn prepare_create_membership_install(
+        &mut self,
+        operation: &super::CreateOperationKey,
+        prepared: PreparedMembershipCandidate,
+        desired: Option<AttachmentKey>,
+        deadlines: OperationDeadlines,
+    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
+        if self
+            .create_membership_commit()
+            .is_none_or(|committed| committed.operation.deadlines() != deadlines)
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        self.prepare_create_membership_install_unchecked(operation, prepared, desired, deadlines)
+    }
+
+    fn prepare_create_membership_install_unchecked(
+        &mut self,
+        operation: &super::CreateOperationKey,
+        prepared: PreparedMembershipCandidate,
+        desired: Option<AttachmentKey>,
+        deadlines: OperationDeadlines,
+    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
+        if self.pending_membership.is_some()
+            || self
+                .create_membership_commit()
+                .is_none_or(|committed| &committed.operation.key != operation)
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        self.prepare_membership_install_inner(prepared, desired, Some(deadlines), None)
+    }
+
     pub(in crate::terminal_session) fn prepare_membership_candidate(
         &self,
         candidate: NativeStandaloneTabs,
@@ -178,12 +309,28 @@ impl NativeSessionState {
         };
         let current_switch =
             switch_marker.is_some_and(|marker| self.switch_marker_is_current(marker));
+        let committed_create = self.create_membership_commit().cloned();
+        let current_create = committed_create.is_some();
+        if let Some(committed) = &committed_create {
+            let valid_desired = match &desired {
+                Some(key) if key.tab_id() == committed.committed_key.tab_id() => {
+                    key == &committed.committed_key
+                }
+                Some(key) => key.generation() > committed.committed_key.generation(),
+                None => true,
+            };
+            if !valid_desired {
+                return Err(CarrierFailure::Protocol);
+            }
+        }
         let exact_cleanup = cleaned.is_some_and(|cleanup| {
             self.pending_membership
                 .as_ref()
                 .is_some_and(|pending| &pending.cleanup == cleanup)
                 && self.attached_key.as_ref() == Some(cleanup.old())
-                && (matches!(self.phase, SessionPhase::ReconcilingMembership(_)) || current_switch)
+                && (matches!(self.phase, SessionPhase::ReconcilingMembership(_))
+                    || current_switch
+                    || current_create)
         });
         if !self.invariant_holds()
             || self.cache != prepared.baseline
@@ -191,6 +338,7 @@ impl NativeSessionState {
             || desired.as_ref().map(AttachmentKey::tab_id) != prepared.selected_tab_id()
             || (!exact_cleanup
                 && !current_switch
+                && !current_create
                 && !matches!(
                     self.phase,
                     SessionPhase::Empty
@@ -201,7 +349,7 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let preserve = desired == self.desired;
+        let preserve = desired == self.desired && !current_create;
         if current_switch && preserve {
             return Err(CarrierFailure::Protocol);
         }
@@ -277,6 +425,7 @@ impl NativeSessionState {
             clear_attachment: !preserve,
             decision,
             refresh_generation: None,
+            settled_create: committed_create,
         })
     }
 
@@ -345,6 +494,15 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
         let refresh_generation = match &cleanup.result {
+            MembershipResultKey::Create(operation) => {
+                if self
+                    .create_membership_commit()
+                    .is_none_or(|committed| &committed.operation.key != operation)
+                {
+                    return Err(CarrierFailure::Protocol);
+                }
+                None
+            }
             MembershipResultKey::Refresh(generation) => {
                 if self.pending_refresh_generation != Some(*generation) {
                     return Err(CarrierFailure::Protocol);
@@ -372,6 +530,31 @@ impl NativeSessionState {
         match (&self.pending_membership, &self.phase) {
             (None, SessionPhase::ReconcilingMembership(_)) => false,
             (None, _) => true,
+            (
+                Some(pending),
+                SessionPhase::CreateCommittedNeedDetach(committed)
+                | SessionPhase::ProjectionUnavailableBeforeCleanup(committed),
+            ) => {
+                let Some(prepared) = &pending.prepared else {
+                    return false;
+                };
+                let exact_origin = match &pending.cleanup.result {
+                    MembershipResultKey::Create(operation) => operation == &committed.operation.key,
+                    MembershipResultKey::Refresh(generation) => {
+                        self.pending_refresh_generation == Some(*generation)
+                    }
+                    MembershipResultKey::Switch(_) => false,
+                };
+                exact_origin
+                    && pending.cleanup.installs_candidate
+                    && self.cache == prepared.baseline
+                    && self.desired == prepared.baseline_desired
+                    && self.attached_key.as_ref() == Some(pending.cleanup.old())
+                    && committed
+                        .anchor
+                        .ready()
+                        .is_some_and(|ready| ready.selected.key() == pending.cleanup.old())
+            }
             (Some(pending), SessionPhase::ReconcilingMembership(selected)) => {
                 let Some(prepared) = &pending.prepared else {
                     return false;

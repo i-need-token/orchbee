@@ -21,7 +21,7 @@ mod switch_membership;
 mod tab_close;
 pub(super) mod tab_rename;
 use create_membership::CreateAnchor;
-pub(super) use create_membership::CreateOriginKind;
+pub(super) use create_membership::{CreateOriginKind, PreparedCreateSnapshot};
 pub(super) use membership::{
     MembershipCleanup, MembershipInstallDecision, MembershipResultKey, PreparedMembershipCandidate,
     PreparedMembershipInstall,
@@ -391,7 +391,6 @@ impl CommittedTabCreate {
         })
     }
 
-    #[cfg(test)]
     pub(super) const fn operation(&self) -> &CreateOperation {
         &self.operation
     }
@@ -401,7 +400,6 @@ impl CommittedTabCreate {
         &self.expectation
     }
 
-    #[cfg(test)]
     pub(super) const fn committed_key(&self) -> &AttachmentKey {
         &self.committed_key
     }
@@ -503,6 +501,7 @@ enum SessionPhase {
     CreateCommittedNeedDetach(CommittedTabCreate),
     AwaitingCommittedProjection(CommittedTabCreate),
     ProjectionUnavailable(CommittedTabCreate),
+    ProjectionUnavailableBeforeCleanup(CommittedTabCreate),
     Switching(SwitchSetup),
     SelectedWithoutAttachment(SelectedTab),
     RetryableAttachUnavailable(SelectedTab),
@@ -523,6 +522,7 @@ pub(super) enum CarrierFailure {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum CreateProjectionDecision {
+    Cleanup(MembershipCleanup),
     Attach(AttachTarget),
     SettledWithoutAttachment,
     ProjectionUnavailable,
@@ -541,6 +541,11 @@ pub(super) enum RefreshDecision {
 #[derive(Debug)]
 pub(super) enum PreparedRefresh {
     Stale,
+    CreateMembership {
+        generation: u64,
+        operation: CreateOperationKey,
+        prepared: PreparedMembershipCandidate,
+    },
     Membership {
         generation: u64,
         prepared: PreparedMembershipCandidate,
@@ -577,10 +582,11 @@ impl PreparedRefresh {
         }
         matches!(
             self,
-            Self::RecoverCommitted {
-                provenance: CreateTerminalProvenance::Started,
-                ..
-            }
+            Self::CreateMembership { .. }
+                | Self::RecoverCommitted {
+                    provenance: CreateTerminalProvenance::Started,
+                    ..
+                }
         )
     }
 }
@@ -640,6 +646,7 @@ pub(super) struct NativeSessionState {
     close: CloseState,
     rename: rename_draft::RenameDraftState,
     pending_membership: Option<membership::PendingMembership>,
+    settled_create: Option<CommittedTabCreate>,
 }
 
 impl NativeSessionState {
@@ -684,6 +691,7 @@ impl NativeSessionState {
             close: CloseState::default(),
             rename: rename_draft::RenameDraftState::default(),
             pending_membership: None,
+            settled_create: None,
         };
         Some((state, target))
     }
@@ -705,6 +713,9 @@ impl NativeSessionState {
                 SessionPhaseKind::AwaitingCommittedProjection
             }
             SessionPhase::ProjectionUnavailable(_) => SessionPhaseKind::ProjectionUnavailable,
+            SessionPhase::ProjectionUnavailableBeforeCleanup(_) => {
+                SessionPhaseKind::ProjectionUnavailable
+            }
             SessionPhase::Switching(_) => SessionPhaseKind::Switching,
             SessionPhase::SelectedWithoutAttachment(_) => {
                 SessionPhaseKind::SelectedWithoutAttachment
@@ -733,7 +744,8 @@ impl NativeSessionState {
             | SessionPhase::RetryableAttachUnavailable(selected) => Some(selected),
             SessionPhase::Ready(ready) => Some(&ready.selected),
             SessionPhase::Creating(barrier) => barrier.anchor.ready().map(|ready| &ready.selected),
-            SessionPhase::CreateCommittedNeedDetach(committed) => {
+            SessionPhase::CreateCommittedNeedDetach(committed)
+            | SessionPhase::ProjectionUnavailableBeforeCleanup(committed) => {
                 committed.anchor.ready().map(|ready| &ready.selected)
             }
             SessionPhase::Switching(setup) => Some(&setup.target.selected),
@@ -749,7 +761,8 @@ impl NativeSessionState {
             SessionPhase::ReconcilingMembership(_) => None,
             SessionPhase::Ready(ready) => Some(&ready.mode),
             SessionPhase::Creating(barrier) => barrier.anchor.ready().map(|ready| &ready.mode),
-            SessionPhase::CreateCommittedNeedDetach(committed) => {
+            SessionPhase::CreateCommittedNeedDetach(committed)
+            | SessionPhase::ProjectionUnavailableBeforeCleanup(committed) => {
                 committed.anchor.ready().map(|ready| &ready.mode)
             }
             SessionPhase::Starting(setup) => setup.mode.as_ref(),
@@ -812,6 +825,7 @@ impl NativeSessionState {
     pub(super) fn committed_target(&self) -> Option<&CommittedTabCreate> {
         match &self.phase {
             SessionPhase::CreateCommittedNeedDetach(committed)
+            | SessionPhase::ProjectionUnavailableBeforeCleanup(committed)
             | SessionPhase::AwaitingCommittedProjection(committed)
             | SessionPhase::ProjectionUnavailable(committed) => Some(committed),
             SessionPhase::Retired(retired) => retired.committed.as_ref(),
@@ -1285,6 +1299,7 @@ impl NativeSessionState {
         true
     }
 
+    #[cfg(test)]
     pub(super) fn publish_old_detached(&mut self, operation: &CreateOperationKey) -> bool {
         let SessionPhase::CreateCommittedNeedDetach(committed) = &self.phase else {
             return false;
@@ -1306,58 +1321,14 @@ impl NativeSessionState {
         true
     }
 
+    #[cfg(test)]
     pub(super) fn settle_create_snapshot(
         &mut self,
         operation: &CreateOperationKey,
         outcome: WorkbenchSnapshotOutcome,
     ) -> CreateProjectionDecision {
-        let SessionPhase::AwaitingCommittedProjection(committed) = &self.phase else {
-            return CreateProjectionDecision::Retire;
-        };
-        if committed.operation.key != *operation {
-            return CreateProjectionDecision::Retire;
-        }
-        let committed = committed.clone();
-        let WorkbenchSnapshotOutcome::Available { snapshot } = outcome else {
-            self.phase = SessionPhase::ProjectionUnavailable(committed);
-            return CreateProjectionDecision::ProjectionUnavailable;
-        };
-        let Ok(candidate) = project_native_standalone_tabs(&snapshot) else {
-            self.retire(CarrierFailure::AuthorityDivergence);
-            return CreateProjectionDecision::Retire;
-        };
-        let Ok(super::workbench_projection::ValidatedCreatedProjection {
-            candidate,
-            created_index: Some(created_index),
-        }) = validate_created_tab(&self.cache, &committed.expectation, candidate)
-        else {
-            self.retire(CarrierFailure::AuthorityDivergence);
-            return CreateProjectionDecision::Retire;
-        };
-        if !self.merge_projection(candidate, Some(committed.provenance.clone())) {
-            self.retire(CarrierFailure::AuthorityDivergence);
-            return CreateProjectionDecision::Retire;
-        }
-        let selected = SelectedTab::new(committed.committed_key.clone(), created_index);
-        self.desired = Some(selected.key.clone());
-        if committed.provenance.attachable() {
-            let target = self.attach_target(
-                selected,
-                committed.provenance,
-                committed.operation.deadlines,
-            );
-            self.phase = SessionPhase::Switching(SwitchSetup {
-                target: target.clone(),
-                previous: None,
-                mode: None,
-                accepted_geometry: None,
-                membership: None,
-            });
-            CreateProjectionDecision::Attach(target)
-        } else {
-            self.phase = SessionPhase::SelectedWithoutAttachment(selected);
-            CreateProjectionDecision::SettledWithoutAttachment
-        }
+        let prepared = self.prepare_create_snapshot(operation, outcome);
+        self.apply_prepared_create_snapshot(prepared)
     }
 
     pub(super) fn begin_switch(&mut self, target: AttachTarget) -> bool {
@@ -1604,6 +1575,25 @@ impl NativeSessionState {
         let Ok(candidate) = project_native_standalone_tabs(&snapshot) else {
             return PreparedRefresh::Divergent { generation };
         };
+        if let SessionPhase::ProjectionUnavailableBeforeCleanup(committed) = &self.phase {
+            let Ok(projection) =
+                validate_created_tab(&self.cache, &committed.expectation, candidate)
+            else {
+                return PreparedRefresh::Divergent { generation };
+            };
+            return match self.prepare_create_membership_candidate(
+                &self.cache,
+                committed,
+                projection,
+            ) {
+                Ok(prepared) => PreparedRefresh::CreateMembership {
+                    generation,
+                    operation: committed.operation.key.clone(),
+                    prepared,
+                },
+                Err(_) => PreparedRefresh::Divergent { generation },
+            };
+        }
         if let SessionPhase::ProjectionUnavailable(committed) = &self.phase {
             let Ok(super::workbench_projection::ValidatedCreatedProjection {
                 candidate,
@@ -1679,6 +1669,7 @@ impl NativeSessionState {
         let generation = match &prepared {
             PreparedRefresh::Stale => return RefreshDecision::Continue,
             PreparedRefresh::DefiniteFailure { generation, .. }
+            | PreparedRefresh::CreateMembership { generation, .. }
             | PreparedRefresh::Membership { generation, .. }
             | PreparedRefresh::Append { generation, .. }
             | PreparedRefresh::RecoverCommitted { generation, .. }
@@ -1688,7 +1679,7 @@ impl NativeSessionState {
             return RefreshDecision::Continue;
         }
         let decision = match prepared {
-            PreparedRefresh::Membership { .. } => {
+            PreparedRefresh::Membership { .. } | PreparedRefresh::CreateMembership { .. } => {
                 self.retire(CarrierFailure::Protocol);
                 RefreshDecision::Retire
             }
@@ -1947,6 +1938,7 @@ impl NativeSessionState {
                     | SessionPhase::SelectedWithoutAttachment(_)
                     | SessionPhase::RetryableAttachUnavailable(_)
                     | SessionPhase::ProjectionUnavailable(_)
+                    | SessionPhase::ProjectionUnavailableBeforeCleanup(_)
             )
     }
 
@@ -2097,7 +2089,8 @@ impl NativeSessionState {
                     && self.attached_key.as_ref() == self.desired.as_ref()
                     && self.projection_key.as_ref() == self.desired.as_ref()
             }
-            SessionPhase::CreateCommittedNeedDetach(committed) => {
+            SessionPhase::CreateCommittedNeedDetach(committed)
+            | SessionPhase::ProjectionUnavailableBeforeCleanup(committed) => {
                 committed.anchor.ready().map(|ready| &ready.selected.key) == self.desired.as_ref()
                     && self.attached_key.as_ref() == self.desired.as_ref()
                     && self.projection_key.as_ref() == self.desired.as_ref()

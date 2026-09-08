@@ -891,43 +891,6 @@ impl Trace {
             "committed Create reply kind changed",
         )?;
 
-        let wait = observed(
-            self.mailbox.publish_event_before_using(
-                WorkerEvent::CreateOldDetached {
-                    operation: operation.clone(),
-                },
-                EventDeadline::Forward(self.base + Duration::from_secs(30)),
-                &self.clock,
-            ),
-            "publish old attachment detach",
-        )?;
-        let (taken_wait, event) = self.take_ui_event()?;
-        require(taken_wait == wait, "detach wait key changed")?;
-        require(
-            matches!(event, WorkerEvent::CreateOldDetached { operation: actual }
-                if actual == operation),
-            "old detach event changed",
-        )?;
-        let session = &mut self.session;
-        require(
-            observed(
-                self.mailbox
-                    .deposit_ui_reply_before_using(&wait, &self.clock, |_transaction| {
-                        if !session.publish_old_detached(&operation) {
-                            return Err(CarrierFailure::Protocol);
-                        }
-                        Ok(UiReply::DetachPublished(session.desired().unwrap().clone()))
-                    }),
-                "deposit old detach reply",
-            )? == MutationResult::Applied,
-            "old detach reply was stale",
-        )?;
-        require(
-            matches!(self.take_reply(&wait)?, UiReply::DetachPublished(key)
-                if key == *self.session.desired().unwrap()),
-            "detach reply did not publish the committed target",
-        )?;
-
         let outcome = WorkbenchSnapshotOutcome::Available {
             snapshot: candidate.clone(),
         };
@@ -937,7 +900,7 @@ impl Trace {
                     operation: operation.clone(),
                     outcome: outcome.clone(),
                 },
-                EventDeadline::Forward(self.base + Duration::from_secs(30)),
+                EventDeadline::PlacementOnly(self.base + Duration::from_secs(30)),
                 &self.clock,
             ),
             "publish committed snapshot",
@@ -945,30 +908,83 @@ impl Trace {
         let (taken_wait, event) = self.take_ui_event()?;
         require(taken_wait == wait, "snapshot wait key changed")?;
         require(
-            matches!(event, WorkerEvent::CreateSnapshotResult {
-                operation: actual_operation,
-                outcome: actual_outcome,
-            } if actual_operation == operation && actual_outcome == outcome),
-            "committed snapshot event changed",
+            matches!(event, WorkerEvent::CreateSnapshotResult { operation: actual, outcome: actual_outcome }
+            if actual == operation && actual_outcome == outcome),
+            "snapshot identity changed",
+        )?;
+        let crate::terminal_session::state::PreparedCreateSnapshot::Available {
+            baseline,
+            committed,
+            projection,
+        } = self.session.prepare_create_snapshot(&operation, outcome)
+        else {
+            return violation("invalid committed candidate");
+        };
+        let prepared = observed(
+            self.session
+                .prepare_create_membership_candidate(&baseline, &committed, projection),
+            "prepare Create membership",
         )?;
         let session = &mut self.session;
         require(
             observed(
                 self.mailbox
                     .deposit_ui_reply_before_using(&wait, &self.clock, |_transaction| {
-                        let decision = session.settle_create_snapshot(&operation, outcome);
-                        Ok(UiReply::CreateProjection(decision))
+                        let cleanup = session.stage_create_membership_cleanup(
+                            &operation,
+                            prepared,
+                            committed.operation().deadlines(),
+                        )?;
+                        Ok(UiReply::CreateProjection(
+                            CreateProjectionDecision::Cleanup(cleanup),
+                        ))
                     }),
-                "deposit committed snapshot reply",
+                "stage Create cleanup",
             )? == MutationResult::Applied,
-            "committed snapshot reply was stale",
+            "stale Create cleanup",
         )?;
-        require(
-            matches!(
-                self.take_reply(&wait)?,
-                UiReply::CreateProjection(CreateProjectionDecision::SettledWithoutAttachment)
+        let UiReply::CreateProjection(CreateProjectionDecision::Cleanup(cleanup)) =
+            self.take_reply(&wait)?
+        else {
+            return violation("cleanup decision missing");
+        };
+        let wait = observed(
+            self.mailbox.publish_event_before_using(
+                WorkerEvent::MembershipDetached {
+                    cleanup: cleanup.clone(),
+                    detached: cleanup.old().clone(),
+                },
+                EventDeadline::TotalCleanup(cleanup.deadlines().total()),
+                &self.clock,
             ),
-            "Pending Create did not settle without attachment",
+            "publish exact old cleanup",
+        )?;
+        let (taken_wait, event) = self.take_ui_event()?;
+        require(taken_wait == wait, "cleanup wait key changed")?;
+        require(
+            matches!(event, WorkerEvent::MembershipDetached { cleanup: actual, detached }
+            if actual == cleanup && &detached == cleanup.old()),
+            "cleanup identity changed",
+        )?;
+        let prepared = observed(
+            self.session
+                .prepare_cleaned_membership_candidate(&cleanup, cleanup.old()),
+            "prepare cleaned candidate",
+        )?;
+        let session = &mut self.session;
+        require(observed(self.mailbox.deposit_ui_reply_before_using(&wait, &self.clock, |transaction| {
+            let desired = transaction.prepare_desired_install(super::super::membership::DesiredInstall::ReuseReserved(committed.committed_key().clone()))?;
+            let plan = session.prepare_cleaned_membership_install(&cleanup, prepared, desired.desired().cloned())?;
+            let installed = plan.commit();
+            desired.commit();
+            if installed != crate::terminal_session::state::MembershipInstallDecision::SelectedWithoutAttachment { return Err(CarrierFailure::Protocol); }
+            Ok(UiReply::Membership(crate::terminal_session::mailbox::RefreshSettlement::new(
+                crate::terminal_session::state::RefreshDecision::SettledWithoutAttachment, session.desired().cloned(),
+            )))
+        }), "install committed membership")? == MutationResult::Applied, "stale Create install")?;
+        require(
+            matches!(self.take_reply(&wait)?, UiReply::Membership(_)),
+            "membership reply missing",
         )?;
         observed(self.mailbox.finish_lease(lease), "finish second Create")?;
 

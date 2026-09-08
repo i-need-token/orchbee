@@ -350,8 +350,34 @@ Definite precommit refusal restores Empty with no Resize, Detach or Ready public
 Empty-origin commit retains its exact operation and provenance even when subsequent work retires
 before publication. State, actual UI and scripted carrier witnesses cover this origin/refusal
 boundary and the next peer selection after its burned reservation. Successful committed Create
-still requires the following candidate-first common membership consumer; this origin slice alone
-does not establish that path.
+uses the same common membership consumer for both origins.
+
+The actual UI Create Snapshot handler now prepares canonical/commit validation outside the reply
+mutex, retaining the exact baseline and committed operation in a non-Clone prepared result. The
+reply transaction rechecks that baseline and current operation before staging the exact old cleanup
+or installing an Empty-origin candidate. The executor obtains this Snapshot before any old Detach.
+The former `CreateOldDetached` publication event is removed: only the common dual-plan installation
+publishes a selection. A surviving C reuses the reservation; later absence selects a checked fresh
+fallback or Empty. Typed Snapshot Unavailable keeps old attachment/projection facts frozen with no
+Ready authority. Explicit Refresh recovery validates the retained commit again and samples one new
+45s/50s reconciliation budget; timely typed placement permits late UI consumption without renewing
+the completed transport budget.
+
+Scripted carriers execute Started and non-attachable Create through candidate validation and exact
+old Detach, Empty-origin Started through Snapshot and real Ready without a Create-time Detach, and
+explicit recovery through late UI settlement, exact cleanup and the same reserved generation.
+Actual UI tests exercise reserved C, a fresh fallback to old A, Empty, and newer admission/refusal
+and pending commits that preserve the prior installed receipt. The generated mailbox lifecycle
+fixture also uses candidate-first staging and the common installation. These are local refinement
+witnesses; they do not establish Close Gone consumption or a composed two-Client Create scenario.
+
+The candidate-first Create continuation keeps one `settled_create` receipt for the latest Create
+whose membership was successfully installed. The common state-plan commit replaces this historical
+receipt atomically with the canonical installation. Admission, queueing, definite refusal or a known
+but uninstalled newer commit cannot replace it: pending B and settled A may coexist. Exact old
+worker/UI references remain tied to their own operation. Later absence of the created Tab does not
+erase the historical commit, and this receipt is not the current attachment or a retirement-shape
+anchor. This is one retained receipt, not a registry of all Create operations.
 
 One membership owner prepares a validated candidate, remapped provenance and selection by preferred
 ID, then historical ordinal, then last survivor, then Empty. Empty-origin selection uses the first
@@ -1038,8 +1064,10 @@ deposited before total expiry remains
 consumable afterward: consuming it clears the pending value because the state already owns the
 facts, but `now >= total` still prohibits SnapshotRead or Detach. Before total expiry, acknowledgment
 after the forward cutoff cannot begin SnapshotRead, because no candidate was staged before the
-cutoff. The final cleanup reserve applies only after a validated candidate already exists and old
-cleanup has begun; it never renews the original 45-second forward or 50-second total deadline.
+cutoff. The final cleanup reserve applies only after a validated candidate already exists; within
+it the executor may begin the exact old Detach or complete exact old cleanup, and completing it
+there retires without installing the candidate or attaching. It never renews the original
+45-second forward or 50-second total deadline.
 
 Native UI retirement first closes admission, records the retirement request, and clears visible projection
 and pending draw. It preserves the current state and mailbox until the owning `TerminalSession`
@@ -1725,7 +1753,7 @@ establish reorder preservation.
 | Strict 0..256 projection and identity-preserving refresh                                                                    | exhaustive partition/unit cases and corpus-derived fixtures                                                         | generated create/rename/move histories and exact commit-permutation tests       | Higher revisions may reorder and rename Tabs; immutable member facts survive.     |
 | Selection wrap/bounds/same/retry and atomic refusal                                                                         | pure selection table tests                                                                                          | generated mailbox traces with stable seeds, semantic shrinking, and replay text | Finite generated trace sizes are reported, not universal proof.                   |
 | Create drains old Poll/Feedback before submit and precommit restores                                                        | `NativeClientCreateBarrier.tla` plus fake-carrier traces                                                            | deterministic old-frame/draw/feedback checkpoint trace                          | TLA abstracts bytes, clock, geometry, and rendering.                              |
-| Commit validates/stages a Snapshot candidate before exact old cleanup and atomic selection; only surviving Started attaches | Corrected Create model checked; changed adapter/state refinement pending (existing tests cover the prior order)     | fake carrier at each blocking response                                          | Carrier retirement cleanup is not a successful Detach or candidate-install claim. |
+| Commit validates/stages a Snapshot candidate before exact old cleanup and atomic selection; only surviving Started attaches | Checked Create model; actual UI dual-plan installation, candidate-first carrier and generated mailbox traces        | fake carrier at each blocking response                                          | Carrier retirement cleanup is not a successful Detach or candidate-install claim. |
 | Rapid switch cleanup/generation/first-frame/geometry gate                                                                   | `NativeTabSwitch.tla` plus deterministic core traces                                                                | real PTY active-token + Ready checkpoints                                       | This model is separate from Create/refresh and abstracts real pixels.             |
 | Refresh single-pending generation fence/identity/active preservation and navigator toggle                                   | `NativeClientRefreshFence.tla` plus deterministic stale-event tests                                                 | two-Client/process refresh witness                                              | No push or inter-read freshness.                                                  |
 | Move preserves the selected terminal and exact known commit                                                                 | `NativeClientMoveBarrier.tla`, mailbox/state, worker and actual NativeUi/outer retirement traces                    | two Linux cohort Move scenarios                                                 | PTY shell continuity does not independently prove absence of viewer reattachment. |

@@ -290,8 +290,31 @@ Create 现在携带不可变的 `CreateOriginKind::{Ready, Empty}` 和真实的
 捕获当前规范 scope/revision 与 geometry，不虚构 attachment。Definite precommit refusal
 恢复 Empty，不发送 Resize、Detach 或发布 Ready。Empty 来源的已知 commit 即使后续工作在
 发布前退役，也保留精确 operation 和 provenance。State、实际 UI 及 scripted carrier witness
-覆盖此来源/refusal 边界，以及预留 generation 已消耗后的下一次 peer 选择。已提交 Create 的
-成功路径仍需随后接入 candidate-first 共同 membership 消费者；本来源片本身不证明该路径。
+覆盖此来源/refusal 边界，以及预留 generation 已消耗后的下一次 peer 选择。两种来源的已提交
+Create 成功路径都使用同一个共同 membership 消费者。
+
+实际 UI Create Snapshot handler 现在于回复 mutex 外准备规范/commit 校验，在不可 Clone 的
+准备结果中保留精确 baseline 与 committed operation。回复事务重新核对 baseline 和当前
+operation，再暂存精确旧清理或安装 Empty 来源候选。Executor 在任何旧 Detach 前取得此
+Snapshot。旧 `CreateOldDetached` 发布事件已移除，只有共同双 plan 安装能发布选择。
+存活 C 复用预留代次；更晚缺席则选择 checked fresh fallback 或 Empty。Typed Snapshot
+Unavailable 冻结旧 attachment/projection 事实且不保留 Ready 权限。显式 Refresh recovery
+重新校验已保留 commit，并且只采样一次新的 45s/50s 对账预算；及时 typed placement 允许
+晚 UI 消费，但不会续期已经完成的 transport 预算。
+
+Scripted carrier 执行 Started 和不可挂接 Create 的候选校验及精确旧 Detach；执行 Empty
+来源 Started 的 Snapshot 直至真实 Ready，Create 期间没有 Detach；并执行显式恢复的晚 UI
+结算、精确清理与同一预留代次。实际 UI 测试覆盖预留 C、fresh 回退到旧 A、Empty，以及新准入、
+refusal 和 pending commit 均保留先前已安装 receipt。Generated mailbox lifecycle fixture
+同样使用 candidate-first 暂存和共同安装。这些是本地细化 witness，不证明 Close Gone 消费，
+也不证明组合的双 Client Create 场景。
+
+Candidate-first Create 续程只保留一个 `settled_create` receipt，表示最近一次成功安装
+membership 的 Create。共同 state-plan commit 在规范安装的同一原子事务中替换此历史 receipt。
+准入、入队、definite refusal 或已知但尚未安装的新 commit 都不能替换它：pending B 和 settled A
+可以共存。旧 worker/UI reference 仍绑定各自精确 operation。已创建 Tab 后续缺席不会抹去历史
+commit；此 receipt 不代表当前 attachment，也不能作为 retirement 形状的 anchor。这是单个
+保留 receipt，不是全部 Create operation 的历史 registry。
 
 单一 membership owner 准备已校验 candidate、重映射 provenance，并依次按 preferred ID、历史
 ordinal、最后存活成员、Empty 选择目标。Empty origin 选择第一个存活成员。仅涉及非活动成员的
@@ -868,8 +891,9 @@ SelectedWithoutAttachment、RetryableAttachUnavailable、ProjectionUnavailable �
 或精确清理旧查看器。
 总截止时间之前放入的回复仍可在之后消费：消费会清除待确认值，因为状态已经拥有这些事实，
 但 `now >= total` 仍禁止 SnapshotRead 或 Detach。总截止时间之前，如果确认晚于前向截止点，也
-不能开始 SnapshotRead，因为前向截止点前尚未暂存候选。最终清理预留仅适用于已经有验证候选且
-旧清理已经开始的情况；它绝不续期原有 45 秒前向截止或 50 秒总截止。
+不能开始 SnapshotRead，因为前向截止点前尚未暂存候选。最终清理预留仅适用于已经有验证候选的
+情况；执行器可以在预留内开始精确旧 Detach 或完成精确旧清理，而在预留内完成只会退役，不安装
+候选、也不挂接。它绝不续期原有 45 秒前向截止或 50 秒总截止。
 
 原生 UI 退役先关闭准入、记录退役请求，并清除可见投影和待绘制内容。它保留当前状态和邮箱，直到
 所属 `TerminalSession` 关闭 socket 并在不持有邮箱锁的情况下 join 工作线程。随后使用邮箱的
@@ -1430,7 +1454,7 @@ Started，还要求精确的请求尺寸。它返回明确的 `DefinitelyNotSubm
 | 严格的 0..256 投影与保留身份的刷新                                                     | 穷尽的分区/单元用例和从语料库派生的固定样例                                                       | 生成的 create/rename/move 历史及精确提交置换检查      | 更高修订允许 Tab 重排及改名；不可变成员事实保留。  |
 | 选择的循环/边界/同目标/重试与原子拒绝                                                  | 纯选择表测试                                                                                      | 使用稳定种子、语义缩减和重放文本生成的邮箱轨迹        | 只报告有限的生成轨迹规模，并非普适证明。           |
 | Create 在提交前排空旧 Poll/Feedback，提交前拒绝会恢复                                  | `NativeClientCreateBarrier.tla` 加模拟载体轨迹                                                    | 确定性的旧帧/绘制/反馈检查点轨迹                      | TLA 抽象字节、时钟、尺寸和渲染。                   |
-| 提交后先验证/暂存 Snapshot 候选，再精确清理旧目标并原子选择；只有存活的 Started 才挂接 | 修正后的 Create 模型已检查；变更后的适配器/状态细化待验证（现有测试覆盖原顺序）                   | 每个阻塞响应处的模拟载体                              | 载体退役清理不等同于声称 Detach 成功或候选已安装。 |
+| 提交后先验证/暂存 Snapshot 候选，再精确清理旧目标并原子选择；只有存活的 Started 才挂接 | Create 模型已检查；实际 UI 双 plan 安装、candidate-first carrier 和 generated mailbox traces      | 每个阻塞响应处的模拟载体                              | 载体退役清理不等同于声称 Detach 成功或候选已安装。 |
 | 快速切换的清理/代次/首帧/尺寸门                                                        | `NativeTabSwitch.tla` 加确定性核心轨迹                                                            | 真实 PTY 活动标记与 Ready 检查点                      | 该模型与 Create/刷新分离，并抽象真实像素。         |
 | 刷新的单一待处理代次栅栏/身份/活动项保留与导航器开关                                   | `NativeClientRefreshFence.tla` 加确定性过时事件测试                                               | 双 Client/进程刷新见证                                | 不声明推送或读取之间的新鲜度。                     |
 | Move 保留所选终端及精确已知提交                                                        | `NativeClientMoveBarrier.tla`、邮箱/状态、worker 及真实 NativeUi/外层退役轨迹                     | 两项 Linux cohort Move 场景                           | PTY shell 连续性本身不证明查看器未重新附着。       |

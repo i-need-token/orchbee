@@ -253,7 +253,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     );
 }
 
-fn place_refresh(
+pub(super) fn place_refresh(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,

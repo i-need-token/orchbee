@@ -28,13 +28,14 @@ use orchbee_workbench_protocol::{
 };
 use std::sync::Arc;
 
-mod membership;
-mod switch_membership;
 mod tab_close;
 pub(crate) use tab_close::{
     NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
     NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDrawReceipt,
 };
+mod create_membership;
+mod membership;
+mod switch_membership;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeDisplayPhase {
@@ -268,6 +269,8 @@ pub(super) struct NativeUi {
     retired_mailbox_seed: Option<super::mailbox::RetiredMailboxSeed>,
 }
 
+#[cfg(test)]
+mod create_membership_tests;
 #[cfg(all(test, unix))]
 mod membership_tests;
 
@@ -856,6 +859,9 @@ impl NativeUi {
             }
         }
         let event = match event {
+            WorkerEvent::CreateSnapshotResult { operation, outcome } => {
+                return self.apply_create_snapshot_event(mailbox, wait_key, operation, outcome);
+            }
             WorkerEvent::SwitchForwardExpired { permit } => {
                 return self.apply_switch_forward_expired(mailbox, wait_key, permit.into_target());
             }
@@ -886,7 +892,6 @@ impl NativeUi {
         };
         let mut clear_projection = false;
         let mut install_projection = None;
-        let mut retire_after_reply = None;
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
             let reply = match event {
                 WorkerEvent::MoveResult { .. }
@@ -968,24 +973,7 @@ impl NativeUi {
                     .retain_create_commit(&operation, commit)
                     .then_some(UiReply::CommitRetained)
                     .ok_or(CarrierFailure::Protocol)?,
-                WorkerEvent::CreateOldDetached { operation } => {
-                    if !state.publish_old_detached(&operation) {
-                        return Err(CarrierFailure::Protocol);
-                    }
-                    clear_projection = true;
-                    UiReply::DetachPublished(
-                        state.desired().cloned().ok_or(CarrierFailure::Protocol)?,
-                    )
-                }
-                WorkerEvent::CreateSnapshotResult { operation, outcome } => {
-                    let decision = state.settle_create_snapshot(&operation, outcome);
-                    if matches!(decision, CreateProjectionDecision::Retire) {
-                        clear_projection = true;
-                        retire_after_reply =
-                            Some(state.retired_failure().unwrap_or(CarrierFailure::Protocol));
-                    }
-                    UiReply::CreateProjection(decision)
-                }
+                WorkerEvent::CreateSnapshotResult { .. } => return Err(CarrierFailure::Protocol),
                 WorkerEvent::Attached { key, projection } => {
                     let disposition = state
                         .settle_attached_event(&key)
@@ -1048,10 +1036,6 @@ impl NativeUi {
                     self.projection = Some(projection);
                     self.projection_status = NativeProjectionStatus::Empty;
                 }
-                if let Some(failure) = retire_after_reply {
-                    self.retire(failure);
-                    return true;
-                }
                 self.validate_state()
             }
             Ok(MutationResult::Stale) => false,
@@ -1077,6 +1061,21 @@ impl NativeUi {
             .needs_recovery_deadlines()
             .then(|| OperationDeadlines::from_sample(self.clock.now()))
             .flatten();
+        if let super::state::PreparedRefresh::CreateMembership {
+            generation,
+            operation,
+            prepared,
+        } = prepared
+        {
+            return self.apply_create_recovery_event(
+                mailbox,
+                wait_key,
+                generation,
+                operation,
+                prepared,
+                recovery_deadlines,
+            );
+        }
         let Some(state) = self.state.as_mut() else {
             self.retire(CarrierFailure::Protocol);
             return true;
