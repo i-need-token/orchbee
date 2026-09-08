@@ -166,6 +166,15 @@ Windows accept 使用同一个原始 timeout 完成 connection 与 identity esta
 会丢弃 buffered byte；terminal stream failure 也会清除它。已认证 read 的 polling timeout 仍可在
 同一 connection 上重试，受 Worker 既有 request deadline 限制，且不会重放已返回的 byte。
 
+Windows server write 只有在 client 已消费所写 pipe byte 后才报告成功。
+Write、helper creation 与 flush wait 共用从 write-call 入口计时的 timeout；expiration 不会发布
+部分成功 byte count。Flush helper 将阻塞 pipe I/O 与 deadline owner 分离。Timeout 先断开同一个
+owned pipe，再 join helper，包括 helper 尚未进入 flush call 的情况。在 join 完成前，listener 与
+helper context 始终保留所有权，accept、destruction 与 handle reuse 因而不会和 pending I/O 竞争。
+当 disconnect 成功或 pipe 已断开时，deadline 限制 peer waiting；它不保证 OS cleanup 的硬实时完成。
+未知 disconnect failure 会在 helper retirement 后返回 system error，随后关闭并永久退役该 listener。
+OS cleanup failure 不保证完成时间。不增加 response acknowledgement、replay 或 wire-format change。
+
 ## 正确性证据
 
 | 声明                                             | 契约           | 形式化或生成式证据                                                                                                                                             | 确定性或真实 refinement                                                                                                                                   | 边界                                                                                                                  |
@@ -202,6 +211,11 @@ Clock fixture 覆盖剩余 accept budget、读取或发布 admission 前的 expi
 sentinel；identity failure fixture 覆盖 missing/mismatched token 与 impersonation failure。Admission
 失败时 byte 不可观察，accept thread 返回时不残留 impersonation。这些有限 cut 细化不变量 11-13，
 不增加 trusted identity，也不替代真实 cross-user test。
+
+同一 verifier 还运行 `tests/windows_write.c`，以真实 named pipe 验证延迟及分段 response read、
+flush 前后两种 deadline 顺序、peer close、helper creation failure、原始 write budget 耗尽、
+未知 disconnect failure 后的 listener retirement，以及下一次已认证 connection。受控 OS failure
+仅验证错误分类与资源保留，不证明 OS failure 下 cleanup 的活性。
 
 Agent-wait model 还包含两个 Session、两个 semantic status、三个 health value、两次 Agent mutation
 （revision 0 到 2）与两个 coordinator generation。其 action coverage 包含 begin、missing、ahead、update、removal、timeout、

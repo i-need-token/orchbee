@@ -184,6 +184,17 @@ Accept timeout, peer refusal, disconnect, and the next accept discard any buffer
 stream failure also clears it. An authenticated read polling timeout remains retryable on the same
 connection under the Worker's existing request deadline and never replays an already returned byte.
 
+Windows server writes report success only after the client has consumed the written pipe bytes.
+The write, helper creation, and flush wait share the timeout measured at the write-call entry;
+expiration never publishes a partial successful byte count. A flush helper keeps blocking pipe I/O
+off the deadline owner. Timeout disconnects the same owned pipe before joining the helper, including
+when the helper has not entered the flush call yet. The listener and helper context remain owned
+until that join, so accept, destruction, and handle reuse cannot race pending I/O. The deadline
+bounds peer waiting when disconnect succeeds or the pipe is already disconnected; it is not a hard
+real-time guarantee for OS cleanup. An unexpected disconnect failure returns a system error only
+after helper retirement, then closes and permanently retires that listener. OS cleanup failure has
+no completion-time guarantee. No response acknowledgement, replay, or wire-format change is added.
+
 ## Correctness evidence
 
 | Claim                                                 | Contract          | Formal or generated evidence                                                                                                                                                         | Deterministic or real refinement                                                                                                                                      | Limits                                                                                                                       |
@@ -223,6 +234,12 @@ expiration before reading or publishing admission, and the existing infinite-tim
 identity failure fixtures cover missing/mismatched tokens and failed impersonation. The byte is
 unobservable on failed admission, and the accept thread returns without impersonation. These finite
 cuts refine invariants 11-13; they do not add trusted identities or replace real cross-user testing.
+
+The same verifier runs `tests/windows_write.c` with real named pipes to cover delayed and partial
+response reads, both flush-dispatch deadline orderings, peer close, helper creation failure,
+exhaustion of the original write budget, listener retirement after an unknown disconnect failure,
+and the next authenticated connection. Controlled OS failures verify error classification and
+resource retention, not cleanup liveness after an OS failure.
 
 The Agent-wait model adds two Sessions, two semantic statuses, three health values, two Agent
 mutations (revisions 0 through 2), and two coordinator generations. Its action coverage includes begin, missing, ahead,

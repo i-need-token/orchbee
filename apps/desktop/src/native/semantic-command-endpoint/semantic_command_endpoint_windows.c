@@ -486,13 +486,13 @@ void ob_semantic_endpoint_server_disconnect(ObSemanticCommandServer *server) {
     if (server == NULL) return;
     server->has_authenticated_byte = FALSE;
     server->authenticated_byte = 0;
-    (void)DisconnectNamedPipe(server->pipe);
+    if (server->pipe != INVALID_HANDLE_VALUE) (void)DisconnectNamedPipe(server->pipe);
 }
 
 void ob_semantic_endpoint_server_destroy(ObSemanticCommandServer *server) {
     if (server == NULL) return;
     ob_semantic_endpoint_server_disconnect(server);
-    CloseHandle(server->pipe);
+    if (server->pipe != INVALID_HANDLE_VALUE) CloseHandle(server->pipe);
     HeapFree(GetProcessHeap(), 0, server->token_user);
     free(server);
 }
@@ -500,7 +500,7 @@ void ob_semantic_endpoint_server_destroy(ObSemanticCommandServer *server) {
 static int read_before(
     HANDLE handle, uint8_t *buffer, uint32_t capacity, uint32_t timeout_ms, uint32_t *read_bytes);
 
-static uint32_t remaining_accept_time(ULONGLONG started, uint32_t timeout_ms) {
+static uint32_t remaining_time(ULONGLONG started, uint32_t timeout_ms) {
     if (timeout_ms == INFINITE) return INFINITE;
     const ULONGLONG elapsed = GetTickCount64() - started;
     return elapsed >= timeout_ms ? 0 : timeout_ms - (uint32_t)elapsed;
@@ -510,6 +510,7 @@ int ob_semantic_endpoint_server_accept_before(
     ObSemanticCommandServer *server,
     uint32_t timeout_ms) {
     if (server == NULL) return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
+    if (server->pipe == INVALID_HANDLE_VALUE) return OB_SEMANTIC_ENDPOINT_UNAVAILABLE;
     const ULONGLONG started = GetTickCount64();
     server->has_authenticated_byte = FALSE;
     server->authenticated_byte = 0;
@@ -528,7 +529,7 @@ int ob_semantic_endpoint_server_accept_before(
         } else if (error == ERROR_IO_PENDING) {
             DWORD ignored = 0;
             result = wait_overlapped(server->pipe, &overlapped,
-                remaining_accept_time(started, timeout_ms), &ignored);
+                remaining_time(started, timeout_ms), &ignored);
         } else {
             result = error == ERROR_NO_DATA ? OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED
                                             : OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
@@ -539,7 +540,7 @@ int ob_semantic_endpoint_server_accept_before(
         ob_semantic_endpoint_server_disconnect(server);
         return result;
     }
-    const uint32_t remaining = remaining_accept_time(started, timeout_ms);
+    const uint32_t remaining = remaining_time(started, timeout_ms);
     uint8_t first_byte = 0;
     uint32_t read_bytes = 0;
     // Windows impersonates the security context of the last pipe read. Keep
@@ -576,7 +577,7 @@ int ob_semantic_endpoint_server_accept_before(
         return impersonating ? OB_SEMANTIC_ENDPOINT_PEER_IDENTITY_MISMATCH
                              : OB_SEMANTIC_ENDPOINT_PEER_IDENTITY_UNAVAILABLE;
     }
-    if (remaining_accept_time(started, timeout_ms) == 0) {
+    if (remaining_time(started, timeout_ms) == 0) {
         ob_semantic_endpoint_server_disconnect(server);
         return OB_SEMANTIC_ENDPOINT_TIMEOUT;
     }
@@ -642,6 +643,7 @@ int ob_semantic_endpoint_server_read_before(
     if (server == NULL || buffer == NULL || capacity == 0 || read_bytes == NULL) {
         return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
     }
+    if (server->pipe == INVALID_HANDLE_VALUE) return OB_SEMANTIC_ENDPOINT_UNAVAILABLE;
     if (server->has_authenticated_byte) {
         buffer[0] = server->authenticated_byte;
         *read_bytes = 1;
@@ -656,6 +658,67 @@ int ob_semantic_endpoint_server_read_before(
     return result;
 }
 
+typedef struct {
+    HANDLE pipe;
+    int status;
+} FlushOperation;
+
+static DWORD WINAPI flush_pipe(LPVOID argument) {
+    FlushOperation *operation = argument;
+    if (FlushFileBuffers(operation->pipe)) {
+        operation->status = OB_SEMANTIC_ENDPOINT_OK;
+    } else {
+        const DWORD error = GetLastError();
+        operation->status = error == ERROR_BROKEN_PIPE || error == ERROR_NO_DATA ||
+                error == ERROR_PIPE_NOT_CONNECTED
+            ? OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED
+            : OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+    }
+    return 0;
+}
+
+static int flush_before(
+    ObSemanticCommandServer *server,
+    ULONGLONG started,
+    uint32_t timeout_ms) {
+    if (remaining_time(started, timeout_ms) == 0) return OB_SEMANTIC_ENDPOINT_TIMEOUT;
+    FlushOperation operation = {.pipe = server->pipe, .status = OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR};
+    HANDLE thread = CreateThread(NULL, 0, flush_pipe, &operation, 0, NULL);
+    if (thread == NULL) return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+    const DWORD waited = WaitForSingleObject(thread, remaining_time(started, timeout_ms));
+    int result = waited == WAIT_OBJECT_0 ? operation.status
+        : waited == WAIT_TIMEOUT ? OB_SEMANTIC_ENDPOINT_TIMEOUT
+                                 : OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+    if (result == OB_SEMANTIC_ENDPOINT_OK && remaining_time(started, timeout_ms) == 0) {
+        result = OB_SEMANTIC_ENDPOINT_TIMEOUT;
+    }
+    BOOL retire_pipe = FALSE;
+    if (result != OB_SEMANTIC_ENDPOINT_OK) {
+        server->has_authenticated_byte = FALSE;
+        server->authenticated_byte = 0;
+        // Disconnect also covers a helper that has not entered FlushFileBuffers
+        // yet. Cancellation alone could miss that dispatch window.
+        if (!DisconnectNamedPipe(server->pipe) && GetLastError() != ERROR_PIPE_NOT_CONNECTED) {
+            result = OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+            retire_pipe = TRUE;
+        }
+    }
+    // The peer deadline ends above. Keep the stack context and same pipe owned
+    // until OS I/O retirement; neither listener reuse nor destruction may race it.
+    // An OS cleanup failure has no promised completion time.
+    while (WaitForSingleObject(thread, INFINITE) != WAIT_OBJECT_0) {
+        result = OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+        retire_pipe = TRUE;
+        Sleep(1);
+    }
+    CloseHandle(thread);
+    if (retire_pipe) {
+        CloseHandle(server->pipe);
+        server->pipe = INVALID_HANDLE_VALUE;
+    }
+    return result;
+}
+
 int ob_semantic_endpoint_server_write_before(
     ObSemanticCommandServer *server,
     const uint8_t *buffer,
@@ -665,8 +728,15 @@ int ob_semantic_endpoint_server_write_before(
     if (server == NULL || buffer == NULL || length == 0 || written_bytes == NULL) {
         return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
     }
-    const int result = write_before(server->pipe, buffer, length, timeout_ms, written_bytes);
+    if (server->pipe == INVALID_HANDLE_VALUE) return OB_SEMANTIC_ENDPOINT_UNAVAILABLE;
+    const ULONGLONG started = GetTickCount64();
+    uint32_t transferred = 0;
+    const uint32_t remaining = remaining_time(started, timeout_ms);
+    int result = remaining == 0 ? OB_SEMANTIC_ENDPOINT_TIMEOUT
+        : write_before(server->pipe, buffer, length, remaining, &transferred);
+    if (result == OB_SEMANTIC_ENDPOINT_OK) result = flush_before(server, started, timeout_ms);
     if (result != OB_SEMANTIC_ENDPOINT_OK) ob_semantic_endpoint_server_disconnect(server);
+    else *written_bytes = transferred;
     return result;
 }
 
