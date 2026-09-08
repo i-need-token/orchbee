@@ -691,7 +691,7 @@ test "runtime can force the retained session after the root child exits" {
         "/D",
         "/S",
         "/C",
-        "start \"\" /B ping -n 31 127.0.0.1 >nul & ping -n 2 127.0.0.1 >nul",
+        "start /B ping -n 31 127.0.0.1 >nul & ping -n 2 127.0.0.1 >nul",
     };
     const runtime = try TerminalRuntime.create(std.testing.allocator, .{
         .arguments = &arguments,
