@@ -1,5 +1,7 @@
 #![cfg(target_os = "linux")]
 
+#[path = "local_startup_process/native_close.rs"]
+mod native_close;
 #[path = "local_startup_process/native_cohort.rs"]
 mod native_cohort;
 #[path = "local_startup_process/pty_client.rs"]

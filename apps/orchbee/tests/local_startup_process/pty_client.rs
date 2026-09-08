@@ -145,6 +145,36 @@ impl Client {
     }
 
     #[track_caller]
+    pub(super) fn wait_frame_text_after(
+        &mut self,
+        checkpoint: usize,
+        deadline: Instant,
+        required: &[&str],
+        forbidden: &[&str],
+        exact_content_rows: &[&str],
+    ) {
+        self.observe_after(
+            checkpoint,
+            deadline,
+            "complete expected UI frame",
+            |frame| {
+                let text = frame.text();
+                let rows = frame.rows();
+                (required.iter().all(|part| text.contains(part))
+                    && forbidden.iter().all(|part| !text.contains(part))
+                    && exact_content_rows.iter().all(|expected| {
+                        rows.iter().any(|row| {
+                            row.trim_matches(|character: char| {
+                                character.is_whitespace() || matches!(character, '│' | '┃' | '║')
+                            }) == *expected
+                        })
+                    }))
+                .then_some(())
+            },
+        );
+    }
+
+    #[track_caller]
     pub(super) fn wait_ready_after(
         &mut self,
         checkpoint: usize,
