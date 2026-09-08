@@ -527,7 +527,16 @@ retained. Containment confirmation must precede reap; after reap, the numeric se
 never consulted again. Platform preparation, enumeration, stable-reference, signal, liveness, and
 reap failures remain typed failures and preserve the retained ownership state for retry. A stable
 member signal scan records its first member error but still attempts and releases every later
-captured reference. A partial force KILL therefore enters a complete CONT compensation scan; on
+captured reference. A permanent error takes precedence over an invalidated-reference retry from
+the same scan, so a later scan cannot hide a permission, resource or unknown failure. On Linux,
+the native signal adapter preserves the explicit `EAGAIN` invalidation result and makes at most
+eight fresh whole-session scans under the original identity fence. Each failed scan releases all
+captured references and its iterator before another scan binds members and checks membership
+again. The eight-pass limit bounds retries through transient exit or identity churn; it adds no
+sleep, deadline, thread or ownership state. Only a complete successful scan returns success;
+invalidation exhaustion remains a failure and neither an old reference nor its reused numeric PID
+can authorize an effect. Other native errors, macOS/FreeBSD behavior and containment queries keep
+their existing failure semantics. A partial force KILL whose retries fail still enters a complete CONT compensation scan; on
 FreeBSD, a successful `PROC_REAP_KILL` call with `rk_fpid` set is also a partial failure.
 
 Windows declares the complementary drain fact only after its kill-on-close Job has no active

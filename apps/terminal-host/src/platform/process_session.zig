@@ -3,6 +3,10 @@ const builtin = @import("builtin");
 const monotonic = @import("monotonic.zig");
 const thread_sync = @import("thread_sync.zig");
 
+pub const testing = if (builtin.is_test) struct {
+    pub const signalWithRetry = signalStableSessionMembersWithRetry;
+} else struct {};
+
 extern "c" fn orchbee_prepare_process_tracking() c_int;
 extern "c" fn orchbee_session_member_iterator_open(
     session_id: c_int,
@@ -115,18 +119,49 @@ pub fn signalStableSessionMembers(
     var first_error: ?anyerror = null;
     while (true) {
         const captured_member = iterator.next() catch |err| {
-            if (first_error == null) first_error = err;
+            retainSignalScanError(&first_error, err);
             break;
         } orelse break;
         {
             var member = captured_member;
             defer member.deinit();
             member.signal(signal_number) catch |err| {
-                if (first_error == null) first_error = err;
+                retainSignalScanError(&first_error, err);
             };
         }
     }
     if (first_error) |err| return err;
+}
+
+fn retainSignalScanError(first_error: *?anyerror, err: anyerror) void {
+    // A retryable loss cannot hide a later permission, resource or unknown
+    // failure and turn that permanent failure into a successful fresh scan.
+    if (first_error.*) |previous| {
+        if (previous != error.StableMemberIdentityInvalidated) return;
+    }
+    first_error.* = err;
+}
+
+const stable_session_signal_maximum_attempts = 8;
+
+fn signalStableSessionMembersWithRetry(
+    session_id: std.posix.pid_t,
+    source: anytype,
+    signal_number: std.posix.SIG,
+) !void {
+    for (0..stable_session_signal_maximum_attempts) |attempt| {
+        signalStableSessionMembers(session_id, source, signal_number) catch |err| switch (err) {
+            error.StableMemberIdentityInvalidated => {
+                if (attempt + 1 == stable_session_signal_maximum_attempts) return err;
+                // The prior call released all references and its iterator.
+                // Bind and validate the next scan under the retained identity.
+                continue;
+            },
+            else => return err,
+        };
+        return;
+    }
+    unreachable;
 }
 
 pub fn countStableSessionMembers(
@@ -182,10 +217,13 @@ const NativeSessionMemberRef = struct {
     }
 
     fn signal(self: *@This(), signal_number: std.posix.SIG) !void {
-        if (orchbee_session_member_ref_signal(
+        const result = orchbee_session_member_ref_signal(
             self.raw,
             @intCast(@intFromEnum(signal_number)),
-        ) != 0) {
+        );
+        if (result != 0) {
+            if (builtin.os.tag == .linux and std.posix.errno(result) == .AGAIN)
+                return error.StableMemberIdentityInvalidated;
             return error.SessionTerminationFailed;
         }
     }
@@ -265,7 +303,12 @@ fn signalSession(session_id: std.posix.pid_t, signal_number: std.posix.SIG) !voi
         ) != 0) {
             return error.SessionTerminationFailed;
         },
-        .linux, .macos => try signalStableSessionMembers(
+        .linux => try signalStableSessionMembersWithRetry(
+            session_id,
+            NativeSessionMemberSource{},
+            signal_number,
+        ),
+        .macos => try signalStableSessionMembers(
             session_id,
             NativeSessionMemberSource{},
             signal_number,
