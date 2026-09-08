@@ -97,6 +97,40 @@ const parseDescendantPid = harness.parseDescendantPid;
 const procCommEquals = harness.procCommEquals;
 const processAlive = harness.processAlive;
 
+// These fixtures own focus-mode transitions. Native startup output must not
+// change those modes between the manual operations and their assertions.
+fn GatedFocusProbe(comptime Probe: type) type {
+    return struct {
+        probe: Probe,
+        reader: TestGate = .{},
+        runtime: *TerminalRuntime = undefined,
+
+        fn read(context: *anyopaque, buffer: []u8) anyerror!usize {
+            const self: *@This() = if (Probe == void)
+                @ptrCast(@alignCast(context))
+            else blk: {
+                const probe: *Probe = @ptrCast(@alignCast(context));
+                break :blk @fieldParentPtr("probe", probe);
+            };
+            self.reader.pause();
+            return runtimeState(self.runtime).process.read(buffer);
+        }
+
+        fn hooks(self: *@This()) RuntimeTestingHooks {
+            var result: RuntimeTestingHooks = if (Probe == void)
+                .{ .context = self }
+            else
+                self.probe.hooks();
+            if (Probe != void) {
+                std.debug.assert(result.context.? == @as(*anyopaque, @ptrCast(&self.probe)));
+            }
+            std.debug.assert(result.read_pty == null);
+            result.read_pty = read;
+            return result;
+        }
+    };
+}
+
 test "terminal generated replies are excluded from client input accounting" {
     const builtin = @import("builtin");
     if (builtin.os.tag == .windows) return error.SkipZigTest;
@@ -496,20 +530,23 @@ test "client input publication linearizes against post-exit client closure" {
     }
 }
 test "client admission closure rejects client commits while terminal replies still publish" {
-    var probe: WriterProbe = .{ .pause_at = .copied };
+    var probe: GatedFocusProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
     defer {
-        probe.copied.release();
+        probe.reader.release();
+        probe.probe.copied.release();
         clearTestingHooks(runtime);
         runtime.destroy();
     }
+    probe.reader.wait();
 
     // A terminal-generated reply reservation still publishes after client
     // admission has closed; only client source entries are gated.
     const reply = try reserveInput(runtime, 1, false, .terminal);
     closeClientInput(runtime);
     try publishInput(runtime, reply, try std.testing.allocator.dupe(u8, "r"));
-    probe.copied.wait();
+    probe.probe.copied.wait();
     const reply_snapshot = inputQueueSnapshot(runtime);
     try std.testing.expectEqual(@as(usize, 1), reply_snapshot.entry_count);
     try std.testing.expectEqual(@as(usize, 1), reply_snapshot.terminal_reply_charge.bytes);
@@ -690,15 +727,12 @@ test "zero-byte semantic encodings do not retain queue metadata" {
     const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
     const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 31 127.0.0.1 >nul" };
     const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
-    const runtime = try TerminalRuntime.create(std.testing.allocator, .{
-        .arguments = arguments,
-        .columns = 80,
-        .current_directory = null,
-        .environment = &.{},
-        .executable = executable,
-        .rows = 24,
-    });
+    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    const runtime = try createRuntimeWithHooksAndCommand(probe.hooks(), executable, arguments);
+    probe.runtime = runtime;
     defer runtime.destroy();
+    defer probe.reader.release();
+    probe.reader.wait();
 
     for (0..max_pending_input_entries + 1) |_| {
         try std.testing.expectEqual(@as(usize, 0), try runtime.enqueueFocusInput(true));
@@ -748,15 +782,12 @@ test "semantic input limits apply to encoded terminal bytes" {
     const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
     const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 31 127.0.0.1 >nul" };
     const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
-    const runtime = try TerminalRuntime.create(std.testing.allocator, .{
-        .arguments = arguments,
-        .columns = 80,
-        .current_directory = null,
-        .environment = &.{},
-        .executable = executable,
-        .rows = 24,
-    });
+    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    const runtime = try createRuntimeWithHooksAndCommand(probe.hooks(), executable, arguments);
+    probe.runtime = runtime;
     defer runtime.destroy();
+    defer probe.reader.release();
+    probe.reader.wait();
 
     try std.testing.expectEqual(@as(usize, 3), try runtime.enqueueTextInputWithLimit("abc", 3));
     try std.testing.expectError(
@@ -767,8 +798,12 @@ test "semantic input limits apply to encoded terminal bytes" {
     try runtime.forceTerminate();
 }
 test "shared terminal focus emits only aggregate zero and nonzero transitions" {
-    const runtime = try createIdleRuntime(.{});
+    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    const runtime = try harness.createIdleRuntimeWithGeometryAndHooks(80, 24, .{}, probe.hooks());
+    probe.runtime = runtime;
     defer runtime.destroy();
+    defer probe.reader.release();
+    probe.reader.wait();
     const first_attachment = AttachmentId.fromBytes([_]u8{0x21} ** 16);
     const second_attachment = AttachmentId.fromBytes([_]u8{0x22} ** 16);
     for ([_]AttachmentId{ first_attachment, second_attachment }) |attachment_id| {
@@ -811,11 +846,15 @@ test "shared terminal focus emits only aggregate zero and nonzero transitions" {
     try runtime.forceTerminate();
 }
 test "attachment repair orders key mouse and final aggregate focus release" {
-    const runtime = try createIdleRuntime(.{
+    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    const runtime = try harness.createIdleRuntimeWithGeometryAndHooks(80, 24, .{
         .cell_pixel_height = 16,
         .cell_pixel_width = 8,
-    });
+    }, probe.hooks());
+    probe.runtime = runtime;
     defer runtime.destroy();
+    defer probe.reader.release();
+    probe.reader.wait();
     const first_attachment = AttachmentId.fromBytes([_]u8{0x23} ** 16);
     const second_attachment = AttachmentId.fromBytes([_]u8{0x24} ** 16);
     for ([_]AttachmentId{ first_attachment, second_attachment }) |attachment_id| {
@@ -904,11 +943,15 @@ test "attachment repair orders key mouse and final aggregate focus release" {
     try runtime.forceTerminate();
 }
 test "attachment input reset repairs ownership, retains the ledger, and rejects stale input" {
-    const runtime = try createIdleRuntime(.{
+    var probe: GatedFocusProbe(void) = .{ .probe = {} };
+    const runtime = try harness.createIdleRuntimeWithGeometryAndHooks(80, 24, .{
         .cell_pixel_height = 16,
         .cell_pixel_width = 8,
-    });
+    }, probe.hooks());
+    probe.runtime = runtime;
     defer runtime.destroy();
+    defer probe.reader.release();
+    probe.reader.wait();
     const attachment_id = AttachmentId.fromBytes([_]u8{0x25} ** 16);
     var attachment = try runtime.prepareAttachment(
         attachment_id,
@@ -1252,12 +1295,15 @@ test "attachment detach repair uses its precharged input capacity" {
     try runtime.forceTerminate();
 }
 test "final aggregate focus release uses its precharged input capacity" {
-    var probe: WriterProbe = .{ .pause_at = .copied };
+    var probe: GatedFocusProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
     defer {
-        probe.copied.release();
+        probe.reader.release();
+        probe.probe.copied.release();
         runtime.destroy();
     }
+    probe.reader.wait();
     const attachment_id = AttachmentId.fromBytes([_]u8{0x36} ** 16);
     var attachment = try runtime.prepareAttachment(
         attachment_id,
@@ -1272,7 +1318,7 @@ test "final aggregate focus release uses its precharged input capacity" {
         std.math.maxInt(usize),
     );
     try std.testing.expectEqual(@as(usize, 3), try claim.commit());
-    probe.copied.wait();
+    probe.probe.copied.wait();
 
     const queued_before_fill = inputQueueSnapshot(runtime).client_charge.bytes;
     const fill_size = subject.testing.pending_input_limit -
@@ -1295,7 +1341,7 @@ test "final aggregate focus release uses its precharged input capacity" {
         @as(usize, 0),
         inputQueueSnapshot(runtime).repair_charge.bytes,
     );
-    probe.copied.release();
+    probe.probe.copied.release();
     try runtime.forceTerminate();
 }
 test "attachment detach repair allocation failure fences the live runtime" {
@@ -1345,12 +1391,15 @@ test "attachment detach repair allocation failure fences the live runtime" {
     ));
 }
 test "attachment input reset allocation failure fences and clears retained ownership" {
-    var containment_probe: ContainmentProbe = .{ .pause_first_attempt = false };
-    const runtime = try createRuntimeWithHooks(containment_probe.hooks());
+    var probe: GatedFocusProbe(ContainmentProbe) = .{ .probe = .{ .pause_first_attempt = false } };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
     defer {
+        probe.reader.release();
         clearTestingHooks(runtime);
         destroyRuntimeWithIdentityRetry(runtime);
     }
+    probe.reader.wait();
     const attachment_id = AttachmentId.fromBytes([_]u8{0x37} ** 16);
     var attachment = try runtime.prepareAttachment(
         attachment_id,
@@ -1831,12 +1880,15 @@ test "linefeed mode expands carriage returns before semantic and reply admission
 }
 
 test "focus mode reports the aggregate immediately and rejects stale preparation" {
-    var probe: WriterProbe = .{ .pause_at = .copied };
+    var probe: GatedFocusProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
     const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
     defer {
-        probe.copied.release();
+        probe.reader.release();
+        probe.probe.copied.release();
         runtime.destroy();
     }
+    probe.reader.wait();
     const attachment_id = AttachmentId.fromBytes([_]u8{0x71} ** 16);
     var attachment = try runtime.prepareAttachment(
         attachment_id,
