@@ -18,7 +18,9 @@ A focused command is useful while iterating, but completion requires the root ga
 
 - Do not overlap `pnpm verify` with another root gate, `pnpm test`, or a build in the same checkout.
   Independently scheduled checks may run in parallel only when their writable artifacts and
-  fixtures are isolated. This does not disable parallelism already owned by a workspace task.
+  fixtures are isolated. Root Node workspace tests finish before Rust workspace tests start:
+  separate caches do not protect native process startup deadlines from CPU-heavy Node suites.
+  This does not disable parallelism already owned by a workspace task.
 - Finish governed edits before the final gate. If relevant inputs change during or after a run,
   identify the stale evidence and rerun the required gate against the final inputs before claiming
   completion. A command's success is evidence for its checked inputs, not for later edits.

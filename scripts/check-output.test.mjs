@@ -267,7 +267,7 @@ test('the root gate preserves its ordered stages and every automatic test scope'
 		['format:check', 'test:tla:inventory', 'build', 'lint', 'typecheck', 'test', 'test:exports'],
 	);
 	const steps = checkSteps('test');
-	assert.equal(steps.length, 3);
+	assert.equal(steps.length, 4);
 	assert.deepEqual(
 		steps[0].concurrent.map((step) => step.name),
 		[
@@ -281,15 +281,15 @@ test('the root gate preserves its ordered stages and every automatic test scope'
 			'test:ssh-environment-release',
 		],
 	);
+	assert.equal(steps[1].name, 'workspace tests');
+	assert.deepEqual(steps[1].args.slice(-2), ['-r', 'test']);
+	assert.equal(steps[2].name, 'Rust workspace tests');
+	assert.deepEqual(steps[2].args, ['scripts/run-rust-workspace.mjs', 'test']);
 	assert.deepEqual(
-		steps[1].concurrent.map((step) => step.name),
-		['workspace tests', 'Rust workspace tests'],
-	);
-	assert.deepEqual(
-		steps[2].concurrent.map((step) => step.name),
+		steps[3].concurrent.map((step) => step.name),
 		['SSH Project enrollment system witness', 'native cross-compilation checks'],
 	);
-	assert.deepEqual(steps[2].concurrent[1].args.slice(-3), ['-r', '--if-present', 'test:cross']);
+	assert.deepEqual(steps[3].concurrent[1].args.slice(-3), ['-r', '--if-present', 'test:cross']);
 	assert.doesNotMatch(JSON.stringify(steps), /manual:native-window/u);
 });
 

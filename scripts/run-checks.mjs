@@ -45,16 +45,10 @@ export function checkSteps(task) {
 						'test:ssh-environment-release',
 					].map((name) => pnpmStep(name)),
 				},
-				// Independent test suites: the Node workspace and the Rust
-				// crates share no build caches. Kept off the SSH witness to
-				// avoid node_modules churn racing transient module reads on
-				// memory-constrained runners.
-				{
-					concurrent: [
-						pnpmStep('workspace tests', ['-r', 'test']),
-						nodeStep('Rust workspace tests', ['scripts/run-rust-workspace.mjs', 'test']),
-					],
-				},
+				// Native process witnesses spend real deadlines on startup and cohort verification.
+				// Isolated build caches do not isolate them from CPU-heavy Node suites.
+				pnpmStep('workspace tests', ['-r', 'test']),
+				nodeStep('Rust workspace tests', ['scripts/run-rust-workspace.mjs', 'test']),
 				// The SSH system witness overlaps the native cross checks:
 				// different packages, no shared caches.
 				{
