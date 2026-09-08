@@ -152,11 +152,13 @@ impl Client {
         required: &[&str],
         forbidden: &[&str],
         exact_content_rows: &[&str],
+        pumped_peers: &mut [&mut Client],
     ) {
-        self.observe_after(
+        self.observe_after_pumping(
             checkpoint,
             deadline,
             "complete expected UI frame",
+            pumped_peers,
             |frame| {
                 // This observer stores the terminal's wide-character continuation cells as
                 // blanks. Join displayed symbols, keeping actual spaces in the product copy.
@@ -440,10 +442,24 @@ impl Client {
         checkpoint: usize,
         deadline: Instant,
         description: &str,
+        predicate: impl FnMut(&CompletedFrame) -> Option<T>,
+    ) -> T {
+        self.observe_after_pumping(checkpoint, deadline, description, &mut [], predicate)
+    }
+
+    fn observe_after_pumping<T>(
+        &mut self,
+        checkpoint: usize,
+        deadline: Instant,
+        description: &str,
+        pumped_peers: &mut [&mut Client],
         mut predicate: impl FnMut(&CompletedFrame) -> Option<T>,
     ) -> T {
         loop {
             self.collect();
+            for peer in &mut *pumped_peers {
+                peer.collect();
+            }
             if let Some(value) =
                 self.screen
                     .observe_completed_before(checkpoint, deadline, &mut predicate)

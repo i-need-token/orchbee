@@ -89,6 +89,7 @@ fn ready(client: &mut Client, checkpoint: usize, deadline: Instant, copy: CloseC
         &["[*1 1]", copy.ready],
         &[copy.title],
         &[],
+        &mut [],
     );
 }
 
@@ -101,6 +102,7 @@ fn prompt(client: &mut Client, copy: CloseCopy) {
         &[copy.title, copy.warning, copy.actions],
         &[],
         &["1"],
+        &mut [],
     );
 }
 
@@ -172,7 +174,7 @@ fn localized_cancel_and_ordinary_exit_keep_the_exact_native_shell() -> TestResul
     Ok(())
 }
 
-fn refresh_empty(client: &mut Client, deadline: Instant) {
+fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant) {
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
     client.wait_frame_text_after(
@@ -181,6 +183,7 @@ fn refresh_empty(client: &mut Client, deadline: Instant) {
         &["No terminal tabs · Ctrl+B c to create a Tab"],
         &["[*1", "[ 1"],
         &[],
+        &mut [peer],
     );
 }
 
@@ -269,13 +272,13 @@ fn view_only_native_close_removes_the_shared_last_tab_without_automatic_create()
         peer.collect();
         thread::yield_now();
     }
-    refresh_empty(&mut controller, deadline);
-    refresh_empty(&mut peer, deadline);
+    refresh_empty(&mut controller, &mut peer, deadline);
+    refresh_empty(&mut peer, &mut controller, deadline);
     let observation_end = Instant::now() + EMPTY_OBSERVATION;
     loop {
         // Each cycle requires a new complete UI frame and fresh public Snapshot.
-        refresh_empty(&mut controller, deadline);
-        refresh_empty(&mut peer, deadline);
+        refresh_empty(&mut controller, &mut peer, deadline);
+        refresh_empty(&mut peer, &mut controller, deadline);
         assert_eq!(observer.snapshot(deadline)?, expected);
         if Instant::now() >= observation_end {
             break;
