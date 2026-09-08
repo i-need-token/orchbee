@@ -23,7 +23,8 @@ orchbee-ssh-environment-runtime attach --runtime-directory <absolute-path> --ins
 identity admitted by Desktop bootstrap. `attach` authenticates that same-user endpoint and bridges
 only stdin/stdout protocol bytes. Before that authenticated connection exists, `attach` retries the
 private endpoint for at most five seconds so an abruptly stopped daemon's stale socket cannot race
-its replacement; after connection, bridge loss terminates the attachment immediately. The remaining
+its replacement; after connection, bridge loss stops further input and retires the attachment through
+the bounded queued-output handling below. The remaining
 internal worker commands are exact private ABIs and grant no caller-selected command, shell, or path
 execution.
 

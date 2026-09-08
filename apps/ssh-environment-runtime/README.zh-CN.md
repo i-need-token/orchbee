@@ -22,7 +22,8 @@ orchbee-ssh-environment-runtime attach --runtime-directory <absolute-path> --ins
 `serve` 拥有一个 daemon epoch、lifetime lock、private Unix-domain socket，以及 Desktop bootstrap
 准入的精确 signed cohort identity。`attach` 会认证这个 same-user endpoint，并且只桥接 stdin/stdout
 protocol byte。在认证连接建立前，`attach` 最多重试 private endpoint 五秒，因此 daemon 被突然停止后留下的
-stale socket 不会与其替代进程竞速；连接建立后，bridge loss 会立即终止 attachment。其余 internal worker
+stale socket 不会与其替代进程竞速；连接建立后，bridge loss 会停止继续接收输入，并通过下述有界排队输出
+处理退役 attachment。其余 internal worker
 command 是精确 private ABI，不授予 caller-selected command、shell 或 path execution。
 
 当 socket 终结事件或终结性的 socket 写入失败结束 attachment 时，bridge 只读取一次内核报告的排队字节数，

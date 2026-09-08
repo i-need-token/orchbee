@@ -134,8 +134,8 @@
 			"zhCnSha256": "c9290becb6796baeb94ce0533b7e6b0bd2a8d44aa47d3fde4f6815b61fedb3f7"
 		},
 		"apps/ssh-environment-runtime/README.md": {
-			"englishSha256": "7818f5373e2cd3deabc6f708c83afe402f2f3e4d748695e14dffb8116b1c3bcf",
-			"zhCnSha256": "6801f0f31b3f14d20866e6049094bff2bba246298b41ab4f2fd8a3a37c1a6238"
+			"englishSha256": "7e815a8ba462aae4368e4b326d3d865419f97897f3ea416b8e6d21636b71a0ce",
+			"zhCnSha256": "6fbc6b6a12b7e014015a12be216a5b6500abed107f7ab3df1ab6d38f4d033b98"
 		},
 		"apps/terminal-host/README.md": {
 			"englishSha256": "6773a4a5826c98760f2e77f79c825fa72a8ed8929059c29199e23672b11a5055",

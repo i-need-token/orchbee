@@ -136,7 +136,13 @@ pub fn build(builder: *std.Build) void {
     const tests = builder.addTest(.{ .root_module = test_module });
     tests.root_module.link_libc = true;
     const run_tests = builder.addRunArtifact(tests);
-    const attachment_tests = builder.addTest(.{ .root_module = attachment_module });
+    const attachment_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/__tests__/attachment_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    attachment_test_module.addImport("ssh-runtime-attachment", attachment_module);
+    const attachment_tests = builder.addTest(.{ .root_module = attachment_test_module });
     attachment_tests.root_module.link_libc = true;
     const run_attachment_tests = builder.addRunArtifact(attachment_tests);
 
