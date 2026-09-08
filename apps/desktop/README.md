@@ -463,6 +463,14 @@ current-user process-SID validation. The endpoint opens no TCP listener and is s
 preload, renderer, Browser access, and Terminal Host. Shutdown removes the locator and listener
 before disposing the service.
 
+The same Node-API version-8 endpoint addon serves Node and Electron. On Windows, its
+24 required Node-API function imports resolve only from the current executable during DLL process
+attachment, before module registration or endpoint work. Missing exports reject DLL initialization;
+there is no `NODE.EXE` dependency or DLL-path fallback. The fixed Zig 0.16 build uses header-typed
+COFF import slots because its compiler driver does not expose delayed DLL imports. The endpoint
+test command checks both actual hosts, an executable missing Node-API exports, and the existing
+runtime, authenticated local HTTP and CLI paths without opening a GUI.
+
 Every Desktop-owned Terminal launch receives the exact current-platform `ORCHBEE_CLI` launcher and
 the same product-scoped `ORCHBEE_CLI_RUNTIME_DIRECTORY`. The launcher derives only its colocated or
 code-relative CLI entry and native addon. Source development uses the repository Node runtime;

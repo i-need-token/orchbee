@@ -292,6 +292,13 @@ authentication；Windows 使用 current-user named pipe DACL，并进行双向 c
 validation。该 endpoint 不打开 TCP listener，并与 preload、renderer、Browser access 和 Terminal Host
 分离。Shutdown 会先移除 locator 与 listener，再 dispose service。
 
+同一个 Node-API version-8 endpoint addon 服务于 Node 与 Electron。在 Windows 上，其必需的
+24 个 Node-API 函数导入只会在 DLL process attachment 期间从当前 executable 解析，早于 module
+registration 或 endpoint 工作。缺少 export 时拒绝 DLL initialization；没有 `NODE.EXE` 依赖或
+DLL-path fallback。固定的 Zig 0.16 build 使用由 header 确定类型的 COFF import slot，因为其
+compiler driver 不暴露 delayed DLL import。端点测试命令检查两个实际 host、缺少 Node-API
+export 的 executable，以及既有 runtime、认证 local HTTP 和 CLI 链路，全程不打开 GUI。
+
 每次 Desktop-owned Terminal launch 都会获得精确的当前平台 `ORCHBEE_CLI` launcher，以及同一个
 product-scoped `ORCHBEE_CLI_RUNTIME_DIRECTORY`。Launcher 只解析 colocated 或 code-relative CLI entry
 与 native addon。源码开发使用仓库 Node runtime；打包 application 通过 Node mode 使用自身 bundled

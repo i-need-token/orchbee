@@ -175,7 +175,9 @@ static PSECURITY_DESCRIPTOR current_user_descriptor(PSID user) {
     if (descriptor == NULL || !InitializeSecurityDescriptor(
                                   descriptor,
                                   SECURITY_DESCRIPTOR_REVISION) ||
-        !SetSecurityDescriptorDacl(descriptor, TRUE, acl, FALSE)) {
+        !SetSecurityDescriptorOwner(descriptor, user, FALSE) ||
+        !SetSecurityDescriptorDacl(descriptor, TRUE, acl, FALSE) ||
+        !SetSecurityDescriptorControl(descriptor, SE_DACL_PROTECTED, SE_DACL_PROTECTED)) {
         if (descriptor != NULL) LocalFree(descriptor);
         LocalFree(acl);
         return NULL;
@@ -211,7 +213,12 @@ static BOOL trusted_acl_sid(PSID candidate, PSID user) {
         EqualSid(candidate, administrators_buffer);
 }
 
-static BOOL private_handle(HANDLE handle, PSID user, BOOL require_directory) {
+static BOOL owned_handle(
+    HANDLE handle,
+    PSID user,
+    BOOL require_directory,
+    PSECURITY_DESCRIPTOR *descriptor,
+    PACL *dacl) {
     FILE_ATTRIBUTE_TAG_INFO tag = {0};
     if (!GetFileInformationByHandleEx(handle, FileAttributeTagInfo, &tag, sizeof(tag)) ||
         (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
@@ -219,20 +226,31 @@ static BOOL private_handle(HANDLE handle, PSID user, BOOL require_directory) {
         return FALSE;
     }
     PSID owner = NULL;
-    PACL dacl = NULL;
-    PSECURITY_DESCRIPTOR descriptor = NULL;
     const DWORD security_result = GetSecurityInfo(
         handle,
         SE_FILE_OBJECT,
         OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
         &owner,
         NULL,
-        &dacl,
+        dacl,
         NULL,
-        &descriptor);
-    if (security_result != ERROR_SUCCESS || descriptor == NULL || owner == NULL || dacl == NULL ||
+        descriptor);
+    if (security_result != ERROR_SUCCESS || *descriptor == NULL || owner == NULL ||
         !EqualSid(owner, user)) {
-        if (descriptor != NULL) LocalFree(descriptor);
+        if (*descriptor != NULL) LocalFree(*descriptor);
+        *descriptor = NULL;
+        *dacl = NULL;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static BOOL private_handle(HANDLE handle, PSID user, BOOL require_directory) {
+    PACL dacl = NULL;
+    PSECURITY_DESCRIPTOR descriptor = NULL;
+    if (!owned_handle(handle, user, require_directory, &descriptor, &dacl)) return FALSE;
+    if (dacl == NULL) {
+        LocalFree(descriptor);
         return FALSE;
     }
     BOOL private_acl = TRUE;
@@ -296,9 +314,6 @@ int ob_semantic_endpoint_prepare_runtime_directory(const char *runtime_directory
     if (!utf8_to_wide(runtime_directory, path, sizeof(path) / sizeof(path[0]))) {
         return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
     }
-    if (!CreateDirectoryW(path, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
-        return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
-    }
     BYTE *user = current_token_user();
     if (user == NULL) return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
     PSECURITY_DESCRIPTOR descriptor = current_user_descriptor(((TOKEN_USER *)user)->User.Sid);
@@ -306,32 +321,55 @@ int ob_semantic_endpoint_prepare_runtime_directory(const char *runtime_directory
         HeapFree(GetProcessHeap(), 0, user);
         return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
     }
-    BOOL present = FALSE;
-    BOOL defaulted = FALSE;
-    PACL dacl = NULL;
-    const BOOL valid_dacl = GetSecurityDescriptorDacl(
-        descriptor,
-        &present,
-        &dacl,
-        &defaulted);
-    const DWORD security_result = valid_dacl && present && dacl != NULL
-        ? SetNamedSecurityInfoW(
-              path,
-              SE_FILE_OBJECT,
-              DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-              NULL,
-              NULL,
-              dacl,
-              NULL)
-        : ERROR_INVALID_SECURITY_DESCR;
+    SECURITY_ATTRIBUTES security = {
+        .nLength = sizeof(security),
+        .lpSecurityDescriptor = descriptor,
+        .bInheritHandle = FALSE,
+    };
+    const BOOL created = CreateDirectoryW(path, &security);
+    int status = OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+    HANDLE directory = INVALID_HANDLE_VALUE;
+    if (!created && GetLastError() != ERROR_ALREADY_EXISTS) goto finished;
+    directory = CreateFileW(
+        path,
+        READ_CONTROL | (created ? 0 : WRITE_DAC),
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+        NULL);
+    if (directory == INVALID_HANDLE_VALUE) goto finished;
+    if (!created) {
+        PSECURITY_DESCRIPTOR existing = NULL;
+        PACL existing_dacl = NULL;
+        if (!owned_handle(directory, ((TOKEN_USER *)user)->User.Sid, TRUE, &existing, &existing_dacl)) {
+            status = OB_SEMANTIC_ENDPOINT_INSECURE;
+            goto finished;
+        }
+        LocalFree(existing);
+        BOOL present = FALSE;
+        BOOL defaulted = FALSE;
+        PACL dacl = NULL;
+        if (!GetSecurityDescriptorDacl(descriptor, &present, &dacl, &defaulted) ||
+            !present || dacl == NULL ||
+            SetSecurityInfo(
+                directory,
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                NULL,
+                NULL,
+                dacl,
+                NULL) != ERROR_SUCCESS) {
+            goto finished;
+        }
+    }
+    status = private_handle(directory, ((TOKEN_USER *)user)->User.Sid, TRUE)
+        ? OB_SEMANTIC_ENDPOINT_OK
+        : OB_SEMANTIC_ENDPOINT_INSECURE;
+finished:
+    if (directory != INVALID_HANDLE_VALUE) CloseHandle(directory);
     free_current_user_descriptor(descriptor);
     HeapFree(GetProcessHeap(), 0, user);
-    if (security_result != ERROR_SUCCESS) return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
-    BYTE *validated_user = NULL;
-    HANDLE directory = INVALID_HANDLE_VALUE;
-    const int status = open_private_directory(runtime_directory, &validated_user, &directory);
-    if (directory != INVALID_HANDLE_VALUE) CloseHandle(directory);
-    if (validated_user != NULL) HeapFree(GetProcessHeap(), 0, validated_user);
     return status;
 }
 

@@ -26,8 +26,8 @@
 			"zhCnSha256": "26d5cd462fe3e5127aea6ee408eaeb8dfc7df659ca009e609489271d8c803f9c"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "82eb3c745e01d1bf437c8987201c177e7f9f8e9f00116b9c16ae36adabfded11",
-			"zhCnSha256": "ed2baa16f80c14119a183dab08b63e73784d3392817445d7fe9c2353d075bfc4"
+			"englishSha256": "cc0c8b677d7f308fc0e3fb3cb0f53ddf5fc8676b52b2497c5582f304f17ebcfa",
+			"zhCnSha256": "f769ff262a4e4244f6361e4092019f56ff3a29d8b2a2b648c94e168864421434"
 		},
 		"apps/desktop/docs/agent-integrations.md": {
 			"englishSha256": "40a3f7ce56c33760346eece74b0815bf8634b9af0967be83ee376a0e827a1a04",
@@ -70,8 +70,8 @@
 			"zhCnSha256": "90da626a0829a69e8c9229402596ccfaf9114ef28b64c31ab32256b1e6caea69"
 		},
 		"apps/desktop/docs/semantic-command-execution.md": {
-			"englishSha256": "e66b71e4ced3190b9233866ab97762905b41f40a08a0d66d14b84566d0428810",
-			"zhCnSha256": "1a5075ba209b28293ada8a58f73a0ab514847acfdfefe5ab2210c0404028bce9"
+			"englishSha256": "c8d8bb90d6fdd442d6a9059bcdac313a422cea200db85fcd90179bccd4845c50",
+			"zhCnSha256": "e750ab83243daed72129e5737c2b1e8a7427bb83120e5b6bb60d7a8d79783260"
 		},
 		"apps/desktop/docs/ssh-environment-connection.md": {
 			"englishSha256": "b63c32f65973ebfea7f87a1493d740624d3534508ce3e48aa3851725e61b0669",

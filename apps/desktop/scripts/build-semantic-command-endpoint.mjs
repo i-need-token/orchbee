@@ -18,10 +18,7 @@ const semanticCommandEndpointAddonPath = path.join(
 
 export async function buildSemanticCommandEndpoint() {
 	const nodeApiHeaders = createRequire(import.meta.url)('node-api-headers');
-	if (
-		typeof nodeApiHeaders?.include_dir !== 'string' ||
-		typeof nodeApiHeaders?.def_paths?.node_api_def !== 'string'
-	) {
+	if (typeof nodeApiHeaders?.include_dir !== 'string') {
 		throw new Error('The pinned Node-API headers are unavailable.');
 	}
 	const { stdout } = await executeFile('zig', ['version'], { encoding: 'utf8' });
@@ -31,24 +28,6 @@ export async function buildSemanticCommandEndpoint() {
 		);
 	}
 	await mkdir(nativeOutputRoot, { mode: 0o700, recursive: true });
-	let windowsImportLibrary;
-	if (process.platform === 'win32') {
-		const machine = windowsImportLibraryMachine(process.arch);
-		windowsImportLibrary = path.join(nativeOutputRoot, 'node-api.lib');
-		await executeFile(
-			'zig',
-			[
-				'dlltool',
-				'-d',
-				nodeApiHeaders.def_paths.node_api_def,
-				'-l',
-				windowsImportLibrary,
-				'-m',
-				machine,
-			],
-			{ encoding: 'utf8' },
-		);
-	}
 	const platformSource =
 		process.platform === 'win32'
 			? 'semantic_command_endpoint_windows.c'
@@ -64,10 +43,15 @@ export async function buildSemanticCommandEndpoint() {
 		'-Wpedantic',
 		'-Werror=incompatible-pointer-types',
 		'-DNAPI_VERSION=8',
+		...(process.platform === 'win32'
+			? ['-target', windowsNodeApiTarget(process.arch), '-DBUILDING_NODE_EXTENSION']
+			: []),
 		`-I${nodeApiHeaders.include_dir}`,
 		path.join(nativeSourceRoot, platformSource),
 		path.join(nativeSourceRoot, 'semantic_command_endpoint_addon.c'),
-		...(windowsImportLibrary === undefined ? [] : [windowsImportLibrary]),
+		...(process.platform === 'win32'
+			? [path.join(nativeSourceRoot, 'node_api_windows_host.c')]
+			: []),
 		'-o',
 		semanticCommandEndpointAddonPath,
 		...(process.platform === 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []),
@@ -76,10 +60,11 @@ export async function buildSemanticCommandEndpoint() {
 	return semanticCommandEndpointAddonPath;
 }
 
-function windowsImportLibraryMachine(architecture) {
-	if (architecture === 'x64') return 'i386:x86-64';
-	if (architecture === 'arm64') return 'arm64';
-	return 'i386';
+export function windowsNodeApiTarget(architecture) {
+	if (architecture === 'x64') return 'x86_64-windows-gnu';
+	if (architecture === 'arm64') return 'aarch64-windows-gnu';
+	if (architecture === 'ia32') return 'x86-windows-gnu';
+	throw new Error(`Unsupported Windows Node-API architecture: ${architecture}.`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

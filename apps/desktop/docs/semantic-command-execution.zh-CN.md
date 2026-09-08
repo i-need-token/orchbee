@@ -100,6 +100,10 @@ environment value、provider error 或 adapter-private correlation data。
     本身不授予 process authority。
 11. Native adapter 既不跟随 POSIX symlink，也不跟随 Windows reparse point，并且只接受 current-user
     private runtime directory、locator、endpoint 与双向认证 peer。
+    Windows 创建时显式指定当前 process 的 `TokenUser` 为 owner，并提供 protected private DACL，
+    不依赖 token 的 default owner。已有 runtime directory 以不跟随 reparse point 的方式打开，
+    先验证 current-user ownership，再通过同一个 handle 收紧 DACL。已有同用户 broad 或 null DACL
+    仍可修复；foreign ownership 或 reparse point 会被拒绝，且不会修改 ownership 或 permission。
 12. 一条 connection 承载一条有界 request 和一条有界 response。未知 framing、method、path、content
     type、trailing byte 与 capacity 都会 fail closed。
 13. Locator publication 发生在 listener 创建后。Shutdown 会先 retire locator 与 listener，再 dispose
@@ -175,6 +179,14 @@ replay、conflict、cancellation、completion-order eviction 与 restart interle
 cancellation 与淘汰后的 execution-identity reuse；它们不证明无界状态。Native test 会在当前平台的 Node
 与 pinned Electron runtime 下运行，而维护中的 macOS 与 Windows CI matrix 是平台行为 authority。不会运行
 任何 manual native-window test。
+
+`verify-semantic-command-endpoint-windows-security.mjs` 将 production Windows adapter 按 warning
+即 error 编译。有限 case matrix 覆盖创建、已有 private/broad/null DACL、foreign ownership 与
+reparse 拒绝。真实 NTFS 操作验证 current-user directory 和 locator 创建、DACL 修复，以及拒绝
+真实 directory junction 且不修改其 target。API boundary fixture 分别覆盖不同于 `TokenUser` 的
+default owner 与 foreign-owner security query，验证创建时显式指定 owner，以及拒绝时没有
+security write。这些 fixture 不改变 token 或 account，也不声明真实 elevated 或 cross-user 执行；
+此类执行仍需要适当的 Windows account fixture。
 
 Agent-wait model 还包含两个 Session、两个 semantic status、三个 health value、两次 Agent mutation
 （revision 0 到 2）与两个 coordinator generation。其 action coverage 包含 begin、missing、ahead、update、removal、timeout、

@@ -111,6 +111,11 @@ path, environment value, provider error, or adapter-private correlation data.
     UI Action availability alone grants no process authority.
 11. The native adapter follows neither a POSIX symlink nor a Windows reparse point and accepts only
     a current-user private runtime directory, locator, endpoint, and mutually authenticated peer.
+    Windows creation supplies the current process `TokenUser` as owner and a protected private
+    DACL; it does not depend on the token's default owner. An existing runtime directory is opened
+    without following reparse points and checked for current-user ownership before its DACL is
+    tightened through that same handle. Existing same-user broad or null DACLs remain repairable;
+    foreign ownership or a reparse point is rejected without changing ownership or permissions.
 12. One connection carries one bounded request and one bounded response. Unknown framing, method,
     path, content type, trailing bytes, and capacity fail closed.
 13. Locator publication follows listener creation. Shutdown retires the locator and listener before
@@ -192,6 +197,15 @@ restart interleavings, including post-commit cancellation and execution-identity
 eviction; they do not prove unbounded state. Native tests run under both Node and the pinned
 Electron runtime on the current platform, while the maintained macOS and Windows CI matrix is the
 authority for platform behavior. No manual native-window test participates.
+
+`verify-semantic-command-endpoint-windows-security.mjs` compiles the production Windows adapter
+with warnings as errors. Its finite case matrix covers creation, existing private/broad/null DACLs,
+foreign ownership, and reparse refusal. Real NTFS operations verify current-user directory and
+locator creation, DACL repair, and rejection of a real directory junction without changing its
+target. API-boundary fixtures separately exercise a default owner distinct from `TokenUser` and a
+foreign-owner security query; they verify explicit creation ownership and refusal without a
+security write. Those fixtures do not change tokens or accounts and do not claim actual elevated
+or cross-user execution. Such execution still requires an appropriate Windows account fixture.
 
 The Agent-wait model adds two Sessions, two semantic statuses, three health values, two Agent
 mutations (revisions 0 through 2), and two coordinator generations. Its action coverage includes begin, missing, ahead,

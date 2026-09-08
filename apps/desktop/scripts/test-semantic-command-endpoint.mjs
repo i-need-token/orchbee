@@ -67,6 +67,24 @@ const electronExecutable = createRequire(import.meta.url)('electron');
 if (typeof electronExecutable !== 'string') {
 	throw new Error('The pinned Electron executable is unavailable.');
 }
+const { stdout: loaderOutput } = await executeFile(
+	process.execPath,
+	[
+		path.join(desktopRoot, 'scripts', 'verify-semantic-command-endpoint-loader.mjs'),
+		addonPath,
+		electronExecutable,
+	],
+	{ encoding: 'utf8' },
+);
+process.stdout.write(loaderOutput);
+if (process.platform === 'win32') {
+	const { stdout: securityOutput } = await executeFile(
+		process.execPath,
+		[path.join(desktopRoot, 'scripts', 'verify-semantic-command-endpoint-windows-security.mjs')],
+		{ encoding: 'utf8' },
+	);
+	process.stdout.write(securityOutput);
+}
 for (const [command, arguments_, environment] of [
 	[process.execPath, [runtimeVerifier, addonPath], process.env],
 	[process.execPath, [localHttpVerifier, addonPath, workerPath], process.env],

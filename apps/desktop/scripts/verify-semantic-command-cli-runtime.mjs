@@ -1,11 +1,16 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { Worker } from 'node:worker_threads';
 
 const executeFile = promisify(execFile);
+const bundledSkill = await readFile(
+	new URL('../../cli/skills/orchbee/SKILL.md', import.meta.url),
+	'utf8',
+);
+const expectedSkill = bundledSkill.endsWith('\n') ? bundledSkill : `${bundledSkill}\n`;
 const WORKER_TRANSITION_TIMEOUT_MILLISECONDS = 15_000;
 const [addonPath, workerPath, cliEntryPath, cliLauncherPath, electronExecutable] =
 	process.argv.slice(2);
@@ -82,6 +87,7 @@ try {
 		const { stderr, stdout } = await executeFile(launch.command, launch.arguments, {
 			encoding: 'utf8',
 			env: launch.environment,
+			windowsVerbatimArguments: launch.windowsVerbatimArguments,
 		});
 		if (stderr !== '') throw new Error(`${launch.name} wrote a diagnostic to stderr.`);
 		if (!stdout.endsWith('\n') || stdout.slice(0, -1).includes('\n')) {
@@ -123,10 +129,13 @@ try {
 		const { stderr, stdout } = await executeFile(launch.command, launch.arguments, {
 			encoding: 'utf8',
 			env: launch.environment,
+			windowsVerbatimArguments: launch.windowsVerbatimArguments,
 		});
 		if (stderr !== '') throw new Error(`${launch.name} wrote a diagnostic to stderr.`);
+		const skillText = stdout.replaceAll('\r\n', '\n');
 		if (
-			!stdout.startsWith('---\nname: orchbee\n') ||
+			stdout !== expectedSkill ||
+			!skillText.startsWith('---\nname: orchbee\n') ||
 			!stdout.includes('"$ORCHBEE_CLI" agent changes') ||
 			!stdout.includes('"$ORCHBEE_CLI" agent wait') ||
 			!stdout.endsWith('\n')
@@ -158,6 +167,8 @@ function launcherLaunch(launcherPath, environment, argument = 'status') {
 	const commandInterpreter = process.env.ComSpec ?? 'C:\\Windows\\System32\\cmd.exe';
 	return {
 		arguments: ['/d', '/s', '/c', `""${launcherPath}" ${argument}"`],
+		// This is already a CMD command string; CRT argv escaping would add literal backslashes.
+		windowsVerbatimArguments: true,
 		command: commandInterpreter,
 		environment,
 		name: `product-injected CLI launcher ${argument}`,
