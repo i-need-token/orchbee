@@ -409,7 +409,13 @@ pub fn build(builder: *std.Build) void {
         .root_module = black_box_test_module,
     });
     black_box_test.root_module.link_libc = true;
+    const black_box_oracle_tests = builder.addTest(.{
+        .name = "terminal-host-black-box-oracle-tests",
+        .root_module = black_box_test_module,
+    });
+    const run_black_box_oracle_tests = builder.addRunArtifact(black_box_oracle_tests);
     const run_black_box_test = builder.addRunArtifact(black_box_test);
+    run_black_box_test.step.dependOn(&run_black_box_oracle_tests.step);
     run_black_box_test.addArtifactArg(executable);
     const black_box_test_step = builder.step(
         "test-black-box",
@@ -451,6 +457,7 @@ pub fn build(builder: *std.Build) void {
     test_step.dependOn(&run_black_box_test.step);
     test_compile_step.dependOn(&executable.step);
     test_compile_step.dependOn(&black_box_test.step);
+    test_compile_step.dependOn(&black_box_oracle_tests.step);
     test_compile_step.dependOn(&benchmark_executable.step);
     const focused_cli_tests = builder.addTest(.{
         .name = "terminal-host-cli-tests",

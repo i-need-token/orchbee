@@ -118,6 +118,13 @@ const TerminalExitedWire = struct {
     identity: IdentityWire,
 };
 
+const TerminalMetadataWire = struct {
+    currentDirectory: ?[]const u8,
+    identity: IdentityWire,
+    revision: []const u8,
+    title: ?[]const u8,
+};
+
 const Session = struct {
     allocator: std.mem.Allocator,
     client: *black_box_transport.Client,
@@ -153,12 +160,12 @@ const Session = struct {
         const request_contract = contract.request orelse return error.NotARequestKind;
         while (true) {
             var incoming = try OwnedEnvelope.read(self.allocator, self.client);
+            errdefer incoming.deinit();
             if (incoming.summary.event) {
                 try self.observeEvent(incoming.summary);
                 incoming.deinit();
                 continue;
             }
-            errdefer incoming.deinit();
             if (!incoming.summary.response or
                 incoming.summary.correlation_id == null or
                 !std.mem.eql(u8, &incoming.summary.correlation_id.?, &correlation_id) or
@@ -212,6 +219,18 @@ const Session = struct {
         {
             return error.UnexpectedEventEpoch;
         }
+        const contract = protocol.messageContract(envelope.kind) orelse return error.UnexpectedHostEvent;
+        const encoding = contract.event_encoding orelse return error.UnexpectedHostEvent;
+        if (!envelope.event or envelope.response or envelope.optional_message or
+            envelope.correlation_id != null or
+            envelope.payload_encoding != @intFromEnum(encoding) or
+            envelope.protocol_major != protocol.current_protocol_major or
+            envelope.protocol_minor != protocol.current_protocol_minor or
+            envelope.protocol_patch != protocol.current_protocol_patch or
+            envelope.payload.len > protocol.Limits.control_json_bytes)
+        {
+            return error.UnexpectedEventEnvelope;
+        }
         switch (envelope.kind) {
             protocol.MessageKind.terminal_started => {
                 const identity = try std.json.parseFromSlice(
@@ -225,6 +244,30 @@ const Session = struct {
                 if (self.started_seen) return error.DuplicateTerminalStarted;
                 self.started_seen = true;
                 try self.trace.observe(.terminal_started);
+            },
+            protocol.MessageKind.terminal_metadata_changed => {
+                const metadata = try std.json.parseFromSlice(
+                    TerminalMetadataWire,
+                    self.allocator,
+                    envelope.payload,
+                    .{ .ignore_unknown_fields = false },
+                );
+                defer metadata.deinit();
+                try self.expectIdentity(metadata.value.identity);
+                const revision = metadata.value.revision;
+                if (revision.len == 0 or revision[0] < '1' or revision[0] > '9')
+                    return error.InvalidMetadataRevision;
+                for (revision) |byte| if (byte < '0' or byte > '9') return error.InvalidMetadataRevision;
+                _ = std.fmt.parseUnsigned(u64, revision, 10) catch return error.InvalidMetadataRevision;
+                for ([_]?[]const u8{ metadata.value.currentDirectory, metadata.value.title }) |text| {
+                    if (text) |value| {
+                        if (value.len > protocol.Limits.control_json_bytes or
+                            !std.unicode.utf8ValidateSlice(value) or std.mem.indexOfScalar(u8, value, 0) != null)
+                            return error.InvalidMetadataText;
+                    }
+                }
+                // Metadata is orthogonal to the lifecycle trace and cannot
+                // satisfy either its Started or its drained-successful-exit oracle.
             },
             protocol.MessageKind.terminal_exited => {
                 const notice = try std.json.parseFromSlice(
@@ -252,7 +295,10 @@ const Session = struct {
                 self.exit_seen = true;
                 try self.trace.observe(.terminal_exited);
             },
-            else => return error.UnexpectedHostEvent,
+            else => {
+                std.debug.print("unexpected black-box Host event kind={d} encoding={d} payload={s}\n", .{ envelope.kind, envelope.payload_encoding, envelope.payload });
+                return error.UnexpectedHostEvent;
+            },
         }
     }
 
@@ -690,4 +736,160 @@ fn waitForHost(io: std.Io, child: *std.process.Child) !std.process.Child.Term {
     watchdog.join();
     if (timed_out.load(.acquire)) return error.HostExitTimeout;
     return result;
+}
+
+const EventOracleFixture = if (!builtin.is_test) void else struct {
+    const epoch = [_]u8{0x22} ** 16;
+    const terminal = [_]u8{0x33} ** 16;
+    const identity_json = "{\"creationId\":\"31313131313131313131313131313131\",\"hostEpoch\":\"22222222222222222222222222222222\",\"terminalId\":\"33333333333333333333333333333333\"}";
+    const metadata_json = "{\"currentDirectory\":null,\"identity\":" ++ identity_json ++ ",\"revision\":\"2\",\"title\":\"cmd.exe\"}";
+    const exited_json = "{\"exit\":{\"kind\":\"exit-code\",\"code\":0},\"finalRevision\":\"2\",\"identity\":" ++ identity_json ++ "}";
+
+    fn session(trace: *Trace) Session {
+        return .{ .allocator = std.testing.allocator, .client = undefined, .host_epoch = epoch, .terminal_id = terminal, .trace = trace };
+    }
+
+    fn envelope(kind: u16, payload: []const u8) !OwnedEnvelope {
+        const allocator = std.testing.allocator;
+        const bytes = try protocol.encodeTransportEnvelope(allocator, kind, .control_json, payload, null, epoch, false, true);
+        errdefer allocator.free(bytes);
+        return .{ .allocator = allocator, .bytes = bytes, .summary = try protocol.validateTransportEnvelope(bytes) };
+    }
+
+    fn rejected(session_value: *Session, summary: protocol.EnvelopeSummary) !void {
+        if (session_value.observeEvent(summary)) |_| return error.InvalidEventAccepted else |_| {}
+        try std.testing.expect(!session_value.started_seen);
+        try std.testing.expect(!session_value.exit_seen);
+        try std.testing.expectEqual(@as(usize, 0), session_value.trace.cursor);
+    }
+};
+
+test "black-box metadata cannot substitute for Started or successful drained exit" {
+    const fixture = EventOracleFixture;
+    var trace: Trace = .{};
+    var session = fixture.session(&trace);
+    var metadata = try fixture.envelope(protocol.MessageKind.terminal_metadata_changed, fixture.metadata_json);
+    defer metadata.deinit();
+    try session.observeEvent(metadata.summary);
+    try std.testing.expect(!session.started_seen);
+    try std.testing.expect(!session.exit_seen);
+    try std.testing.expectEqual(@as(usize, 0), trace.cursor);
+
+    trace.cursor = 12; // The external trace has accepted input and now requires exit.
+    session.started_seen = true;
+    try session.observeEvent(metadata.summary);
+    try std.testing.expect(!session.exit_seen);
+    try std.testing.expectEqual(@as(usize, 12), trace.cursor);
+    var exited = try fixture.envelope(protocol.MessageKind.terminal_exited, fixture.exited_json);
+    defer exited.deinit();
+    try session.observeEvent(exited.summary);
+    try std.testing.expect(session.exit_seen);
+    try std.testing.expectEqual(@as(usize, 13), trace.cursor);
+    try session.observeEvent(metadata.summary); // Metadata may also follow the exit record.
+    try std.testing.expectEqual(@as(usize, 13), trace.cursor);
+    try std.testing.expectError(error.DuplicateTerminalExit, session.observeEvent(exited.summary));
+}
+
+test "black-box metadata rejects malformed fields and identities without advancing lifecycle" {
+    const fixture = EventOracleFixture;
+    const cases = [_][2][]const u8{
+        .{ "\"2\"", "\"0\"" },
+        .{ "\"2\"", "\"02\"" },
+        .{ "\"2\"", "\"+2\"" },
+        .{ "\"2\"", "\"2_0\"" },
+        .{ "\"2\"", "\"18446744073709551616\"" },
+        .{ "\"2\"", "2" },
+        .{ "cmd.exe", "bad\\u0000title" },
+        .{ "cmd.exe", "bad\\ud800" },
+        .{ "31313131313131313131313131313131", "41414141414141414141414141414141" },
+        .{ "22222222222222222222222222222222", "21212121212121212121212121212121" },
+        .{ "33333333333333333333333333333333", "34343434343434343434343434343434" },
+        .{ "\"currentDirectory\":null", "\"currentDirectory\":9" },
+        .{ "\"currentDirectory\":null,", "" },
+        .{ ",\"title\":\"cmd.exe\"", "" },
+        .{ "\"title\":\"cmd.exe\"", "\"title\":\"cmd.exe\",\"extra\":true" },
+        .{ "\"title\":\"cmd.exe\"", "\"title\":\"cmd.exe\",\"title\":null" },
+    };
+    for (cases) |case| {
+        const payload = try std.mem.replaceOwned(u8, std.testing.allocator, fixture.metadata_json, case[0], case[1]);
+        defer std.testing.allocator.free(payload);
+        var event = try fixture.envelope(protocol.MessageKind.terminal_metadata_changed, payload);
+        defer event.deinit();
+        var trace: Trace = .{};
+        var session = fixture.session(&trace);
+        try fixture.rejected(&session, event.summary);
+    }
+}
+
+test "black-box metadata requires exact event envelope and rejects other event kinds" {
+    const fixture = EventOracleFixture;
+    var event = try fixture.envelope(protocol.MessageKind.terminal_metadata_changed, fixture.metadata_json);
+    defer event.deinit();
+    for (0..12) |case| {
+        var summary = event.summary;
+        switch (case) {
+            0 => summary.event = false,
+            1 => summary.response = true,
+            2 => summary.optional_message = true,
+            3 => summary.correlation_id = fixture.terminal,
+            4 => summary.host_epoch = fixture.terminal,
+            5 => summary.host_epoch = null,
+            6 => summary.payload_encoding = @intFromEnum(protocol.PayloadEncoding.raw_bytes),
+            7 => summary.protocol_major += 1,
+            8 => summary.protocol_minor += 1,
+            9 => summary.protocol_patch += 1,
+            10 => summary.kind = protocol.MessageKind.terminal_bell,
+            11 => summary.kind = 65535,
+            else => unreachable,
+        }
+        var trace: Trace = .{};
+        var session = fixture.session(&trace);
+        try fixture.rejected(&session, summary);
+    }
+}
+
+test "black-box exit oracle still rejects failure and missing drained output" {
+    const fixture = EventOracleFixture;
+    for ([_][2][]const u8{
+        .{ "\"code\":0", "\"code\":9" },
+        .{ "\"code\":0", "\"code\":0,\"signal\":9" },
+        .{ "\"finalRevision\":\"2\"", "\"finalRevision\":\"0\"" },
+    }) |case| {
+        const payload = try std.mem.replaceOwned(u8, std.testing.allocator, fixture.exited_json, case[0], case[1]);
+        defer std.testing.allocator.free(payload);
+        var event = try fixture.envelope(protocol.MessageKind.terminal_exited, payload);
+        defer event.deinit();
+        var trace: Trace = .{};
+        var session = fixture.session(&trace);
+        try fixture.rejected(&session, event.summary);
+    }
+}
+
+test "black-box metadata accepts nullable text and canonical u64 maximum within envelope bounds" {
+    const fixture = EventOracleFixture;
+    for ([_][2][]const u8{
+        .{ "\"title\":\"cmd.exe\"", "\"title\":null" },
+        .{ "\"title\":\"cmd.exe\"", "\"title\":\"\"" },
+        .{ "\"currentDirectory\":null", "\"currentDirectory\":\"目录\"" },
+        .{ "\"revision\":\"2\"", "\"revision\":\"18446744073709551615\"" },
+    }) |case| {
+        const payload = try std.mem.replaceOwned(u8, std.testing.allocator, fixture.metadata_json, case[0], case[1]);
+        defer std.testing.allocator.free(payload);
+        var event = try fixture.envelope(protocol.MessageKind.terminal_metadata_changed, payload);
+        defer event.deinit();
+        var trace: Trace = .{};
+        var session = fixture.session(&trace);
+        try session.observeEvent(event.summary);
+        try std.testing.expect(!session.started_seen and !session.exit_seen);
+        try std.testing.expectEqual(@as(usize, 0), trace.cursor);
+    }
+    var event = try fixture.envelope(protocol.MessageKind.terminal_metadata_changed, fixture.metadata_json);
+    defer event.deinit();
+    const oversized = try std.testing.allocator.alloc(u8, protocol.Limits.control_json_bytes + 1);
+    defer std.testing.allocator.free(oversized);
+    @memset(oversized, ' ');
+    event.summary.payload = oversized;
+    var trace: Trace = .{};
+    var session = fixture.session(&trace);
+    try std.testing.expectError(error.UnexpectedEventEnvelope, session.observeEvent(event.summary));
 }

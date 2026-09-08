@@ -225,11 +225,13 @@ cross-language protocol conformance, and the pinned-Ghostty surface-fixture comp
 The generated cross-language selection cases admit only `plain` and require HTML/raw VT requests to
 fail strict decoding; `terminal-parity/HS-07-selection-export` adds the real-PTY/Electron clipboard
 consequence from the owning application system suite.
-`test:black-box` runs only that external trace: it starts the built Host, creates and attaches a
+`test:black-box` runs deterministic event-oracle checks followed by that external trace: it starts the built Host, creates and attaches a
 real terminal through Local IPC, disconnects, reconnects and replays the creation identity,
 reattaches the same attachment identity, drives the child through PTY input, observes drained PTY
 output in the final revision and a successful exit event, disposes the retained terminal, and
-requires the Host process to stop cleanly. `test:protocol` runs protocol conformance alone;
+requires the Host process to stop cleanly. The trace also validates identity-scoped metadata
+events that may arrive between lifecycle records without treating them as exit evidence; unknown
+events and malformed metadata remain failures. `test:protocol` runs protocol conformance alone;
 `test:surface-fixtures` regenerates and byte-compares three Host-owned native fixtures in a
 temporary directory. The primary/alternate OBTF pair comes from one Ghostty terminal and Projection
 across a real alternate-screen transition. A separate Ghostty terminal replays the rich primary
