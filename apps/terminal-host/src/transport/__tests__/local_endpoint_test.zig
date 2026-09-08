@@ -270,10 +270,17 @@ test "malformed local record closes only that connection" {
     std.mem.writeInt(u32, malformed[8..12], std.math.maxInt(u32), .little);
     try malformed_client.writeAll(&malformed);
     var unexpected_response: [1]u8 = undefined;
-    try std.testing.expectError(
-        error.ConnectionClosed,
-        malformed_client.read(&unexpected_response),
-    );
+    if (builtin.os.tag == .windows) {
+        try std.testing.expectError(
+            error.ConnectionClosed,
+            malformed_client.read(&unexpected_response),
+        );
+    } else {
+        try std.testing.expectEqual(
+            @as(usize, 0),
+            try malformed_client.read(&unexpected_response),
+        );
+    }
     malformed_client.close();
     malformed_client_open = false;
     malformed_thread.join();
