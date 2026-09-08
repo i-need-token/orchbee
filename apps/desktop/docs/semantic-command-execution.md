@@ -176,6 +176,14 @@ current-user validation. `@orchbee/semantic-command-protocol/local-http` owns fr
 the CLI owns trusted enumeration and response validation. The endpoint is separate from Terminal
 Host and Browser access and opens no TCP listener.
 
+Windows accept uses one original timeout for connection and identity establishment. The native
+server reads one byte to establish the pipe client's Windows security context, keeps it private
+until exact current-user SID validation and successful `RevertToSelf`, and then returns it exactly
+once before later stream bytes. No request parsing or service effect precedes authentication.
+Accept timeout, peer refusal, disconnect, and the next accept discard any buffered byte; a terminal
+stream failure also clears it. An authenticated read polling timeout remains retryable on the same
+connection under the Worker's existing request deadline and never replays an already returned byte.
+
 ## Correctness evidence
 
 | Claim                                                 | Contract          | Formal or generated evidence                                                                                                                                                         | Deterministic or real refinement                                                                                                                                      | Limits                                                                                                                       |
@@ -206,6 +214,15 @@ target. API-boundary fixtures separately exercise a default owner distinct from 
 foreign-owner security query; they verify explicit creation ownership and refusal without a
 security write. Those fixtures do not change tokens or accounts and do not claim actual elevated
 or cross-user execution. Such execution still requires an appropriate Windows account fixture.
+
+The same verifier runs `tests/windows_accept.c` against real named pipes. Its controlled
+connect-before-first-write cases cover default client flags and the bundled client's identification
+flags, exact binary prefix/tail delivery, delayed fragments after an authenticated read polling
+timeout, peer EOF, disconnect, and successor reuse. Clock fixtures cover remaining accept budget,
+expiration before reading or publishing admission, and the existing infinite-timeout sentinel;
+identity failure fixtures cover missing/mismatched tokens and failed impersonation. The byte is
+unobservable on failed admission, and the accept thread returns without impersonation. These finite
+cuts refine invariants 11-13; they do not add trusted identities or replace real cross-user testing.
 
 The Agent-wait model adds two Sessions, two semantic statuses, three health values, two Agent
 mutations (revisions 0 through 2), and two coordinator generations. Its action coverage includes begin, missing, ahead,

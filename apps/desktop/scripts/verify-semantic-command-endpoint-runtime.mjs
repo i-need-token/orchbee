@@ -78,7 +78,20 @@ try {
 	if (candidate.acceptBefore(server, 2_000) !== true) {
 		throw new Error('Semantic command authenticated client was not accepted.');
 	}
-	const received = Buffer.from(candidate.readBefore(server, 1024, 2_000));
+	const readDeadline = Date.now() + 2_000;
+	const requestChunks = [];
+	let receivedLength = 0;
+	while (receivedLength < request.byteLength) {
+		const remaining = readDeadline - Date.now();
+		if (remaining <= 0) throw new Error('Semantic command request read timed out.');
+		const chunk = candidate.readBefore(server, 1024, remaining);
+		if (chunk === null || chunk.byteLength === 0) {
+			throw new Error('Semantic command request read made no progress.');
+		}
+		requestChunks.push(Buffer.from(chunk));
+		receivedLength += chunk.byteLength;
+	}
+	const received = Buffer.concat(requestChunks);
 	if (!received.equals(request)) throw new Error('Semantic command request bytes differ.');
 	let written = 0;
 	while (written < response.byteLength) {

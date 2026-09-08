@@ -159,6 +159,13 @@ Windows named-pipe creation，以及双向 current-user validation。
 `@orchbee/semantic-command-protocol/local-http` 拥有 framing 与 route；CLI 拥有 trusted enumeration 与
 response validation。该 endpoint 与 Terminal Host、Browser access 分离，且不打开 TCP listener。
 
+Windows accept 使用同一个原始 timeout 完成 connection 与 identity establishment。Native server
+读取一个 byte 以建立 pipe client 的 Windows security context；在精确 current-user SID 验证与
+`RevertToSelf` 成功前，该 byte 保持私有，之后在后续 stream byte 之前精确返回一次。认证前不会
+解析 request 或产生 service effect。Accept timeout、peer refusal、disconnect 与下一次 accept
+会丢弃 buffered byte；terminal stream failure 也会清除它。已认证 read 的 polling timeout 仍可在
+同一 connection 上重试，受 Worker 既有 request deadline 限制，且不会重放已返回的 byte。
+
 ## 正确性证据
 
 | 声明                                             | 契约           | 形式化或生成式证据                                                                                                                                             | 确定性或真实 refinement                                                                                                                                   | 边界                                                                                                                  |
@@ -187,6 +194,14 @@ reparse 拒绝。真实 NTFS 操作验证 current-user directory 和 locator 创
 default owner 与 foreign-owner security query，验证创建时显式指定 owner，以及拒绝时没有
 security write。这些 fixture 不改变 token 或 account，也不声明真实 elevated 或 cross-user 执行；
 此类执行仍需要适当的 Windows account fixture。
+
+同一 verifier 还针对真实 named pipe 运行 `tests/windows_accept.c`。受控 connect-before-first-write
+case 覆盖 default client flag 与 bundled client 的 identification flag、精确 binary prefix/tail
+交付、已认证 read polling timeout 后的延迟 fragment、peer EOF、disconnect 与 successor reuse。
+Clock fixture 覆盖剩余 accept budget、读取或发布 admission 前的 expiration，以及既有 infinite-timeout
+sentinel；identity failure fixture 覆盖 missing/mismatched token 与 impersonation failure。Admission
+失败时 byte 不可观察，accept thread 返回时不残留 impersonation。这些有限 cut 细化不变量 11-13，
+不增加 trusted identity，也不替代真实 cross-user test。
 
 Agent-wait model 还包含两个 Session、两个 semantic status、三个 health value、两次 Agent mutation
 （revision 0 到 2）与两个 coordinator generation。其 action coverage 包含 begin、missing、ahead、update、removal、timeout、

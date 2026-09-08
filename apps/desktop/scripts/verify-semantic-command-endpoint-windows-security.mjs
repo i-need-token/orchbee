@@ -48,6 +48,31 @@ try {
 	);
 	process.stdout.write(stdout);
 	process.stderr.write(stderr);
+	const acceptExecutable = path.join(root, 'accept.exe');
+	await executeFile(
+		'zig',
+		[
+			'cc',
+			'-std=c17',
+			'-O2',
+			'-Wall',
+			'-Wextra',
+			'-Wpedantic',
+			'-Werror',
+			'-municode',
+			path.join(sourceRoot, 'tests', 'windows_accept.c'),
+			'-ladvapi32',
+			'-o',
+			acceptExecutable,
+		],
+		{ encoding: 'utf8' },
+	);
+	const acceptResult = await executeFile(acceptExecutable, [path.join(root, 'accept-runtime')], {
+		encoding: 'utf8',
+		timeout: 20_000,
+	});
+	process.stdout.write(acceptResult.stdout);
+	process.stderr.write(acceptResult.stderr);
 } finally {
 	await rm(root, { recursive: true, force: true });
 }

@@ -22,6 +22,8 @@
 struct ObSemanticCommandServer {
     HANDLE pipe;
     BYTE *token_user;
+    uint8_t authenticated_byte;
+    BOOL has_authenticated_byte;
 };
 
 static int endpoint_id_is_valid(const char *endpoint_id) {
@@ -481,24 +483,42 @@ ObSemanticCommandServer *ob_semantic_endpoint_server_create(
 }
 
 void ob_semantic_endpoint_server_disconnect(ObSemanticCommandServer *server) {
-    if (server != NULL) (void)DisconnectNamedPipe(server->pipe);
+    if (server == NULL) return;
+    server->has_authenticated_byte = FALSE;
+    server->authenticated_byte = 0;
+    (void)DisconnectNamedPipe(server->pipe);
 }
 
 void ob_semantic_endpoint_server_destroy(ObSemanticCommandServer *server) {
     if (server == NULL) return;
-    (void)DisconnectNamedPipe(server->pipe);
+    ob_semantic_endpoint_server_disconnect(server);
     CloseHandle(server->pipe);
     HeapFree(GetProcessHeap(), 0, server->token_user);
     free(server);
+}
+
+static int read_before(
+    HANDLE handle, uint8_t *buffer, uint32_t capacity, uint32_t timeout_ms, uint32_t *read_bytes);
+
+static uint32_t remaining_accept_time(ULONGLONG started, uint32_t timeout_ms) {
+    if (timeout_ms == INFINITE) return INFINITE;
+    const ULONGLONG elapsed = GetTickCount64() - started;
+    return elapsed >= timeout_ms ? 0 : timeout_ms - (uint32_t)elapsed;
 }
 
 int ob_semantic_endpoint_server_accept_before(
     ObSemanticCommandServer *server,
     uint32_t timeout_ms) {
     if (server == NULL) return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
+    const ULONGLONG started = GetTickCount64();
+    server->has_authenticated_byte = FALSE;
+    server->authenticated_byte = 0;
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (overlapped.hEvent == NULL) return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+    if (overlapped.hEvent == NULL) {
+        ob_semantic_endpoint_server_disconnect(server);
+        return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+    }
     const BOOL connected = ConnectNamedPipe(server->pipe, &overlapped);
     int result = OB_SEMANTIC_ENDPOINT_OK;
     if (!connected) {
@@ -507,7 +527,8 @@ int ob_semantic_endpoint_server_accept_before(
             result = OB_SEMANTIC_ENDPOINT_OK;
         } else if (error == ERROR_IO_PENDING) {
             DWORD ignored = 0;
-            result = wait_overlapped(server->pipe, &overlapped, timeout_ms, &ignored);
+            result = wait_overlapped(server->pipe, &overlapped,
+                remaining_accept_time(started, timeout_ms), &ignored);
         } else {
             result = error == ERROR_NO_DATA ? OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED
                                             : OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
@@ -515,10 +536,18 @@ int ob_semantic_endpoint_server_accept_before(
     }
     CloseHandle(overlapped.hEvent);
     if (result != OB_SEMANTIC_ENDPOINT_OK) {
-        if (result == OB_SEMANTIC_ENDPOINT_TIMEOUT ||
-            result == OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED) {
-            (void)DisconnectNamedPipe(server->pipe);
-        }
+        ob_semantic_endpoint_server_disconnect(server);
+        return result;
+    }
+    const uint32_t remaining = remaining_accept_time(started, timeout_ms);
+    uint8_t first_byte = 0;
+    uint32_t read_bytes = 0;
+    // Windows impersonates the security context of the last pipe read. Keep
+    // this byte local until authentication and RevertToSelf both succeed.
+    result = remaining == 0 ? OB_SEMANTIC_ENDPOINT_TIMEOUT
+        : read_before(server->pipe, &first_byte, 1, remaining, &read_bytes);
+    if (result != OB_SEMANTIC_ENDPOINT_OK) {
+        ob_semantic_endpoint_server_disconnect(server);
         return result;
     }
     const BOOL impersonating = ImpersonateNamedPipeClient(server->pipe);
@@ -543,10 +572,16 @@ int ob_semantic_endpoint_server_accept_before(
         ExitProcess(exit_code);
     }
     if (!same_user) {
-        (void)DisconnectNamedPipe(server->pipe);
+        ob_semantic_endpoint_server_disconnect(server);
         return impersonating ? OB_SEMANTIC_ENDPOINT_PEER_IDENTITY_MISMATCH
                              : OB_SEMANTIC_ENDPOINT_PEER_IDENTITY_UNAVAILABLE;
     }
+    if (remaining_accept_time(started, timeout_ms) == 0) {
+        ob_semantic_endpoint_server_disconnect(server);
+        return OB_SEMANTIC_ENDPOINT_TIMEOUT;
+    }
+    server->authenticated_byte = first_byte;
+    server->has_authenticated_byte = TRUE;
     return OB_SEMANTIC_ENDPOINT_OK;
 }
 
@@ -607,7 +642,18 @@ int ob_semantic_endpoint_server_read_before(
     if (server == NULL || buffer == NULL || capacity == 0 || read_bytes == NULL) {
         return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
     }
-    return read_before(server->pipe, buffer, capacity, timeout_ms, read_bytes);
+    if (server->has_authenticated_byte) {
+        buffer[0] = server->authenticated_byte;
+        *read_bytes = 1;
+        server->has_authenticated_byte = FALSE;
+        server->authenticated_byte = 0;
+        return OB_SEMANTIC_ENDPOINT_OK;
+    }
+    const int result = read_before(server->pipe, buffer, capacity, timeout_ms, read_bytes);
+    if (result != OB_SEMANTIC_ENDPOINT_OK && result != OB_SEMANTIC_ENDPOINT_TIMEOUT) {
+        ob_semantic_endpoint_server_disconnect(server);
+    }
+    return result;
 }
 
 int ob_semantic_endpoint_server_write_before(
@@ -619,7 +665,9 @@ int ob_semantic_endpoint_server_write_before(
     if (server == NULL || buffer == NULL || length == 0 || written_bytes == NULL) {
         return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
     }
-    return write_before(server->pipe, buffer, length, timeout_ms, written_bytes);
+    const int result = write_before(server->pipe, buffer, length, timeout_ms, written_bytes);
+    if (result != OB_SEMANTIC_ENDPOINT_OK) ob_semantic_endpoint_server_disconnect(server);
+    return result;
 }
 
 static int validate_locator_handle(HANDLE file, PSID user, uint32_t capacity, DWORD *size) {
