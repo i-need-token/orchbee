@@ -136,5 +136,7 @@ output 时，它绝不会重建或临时删除该 output。Root `pnpm verify` ga
 跨语言 Hello 与 heartbeat，检查 relay credit，验证 canonical symlink resolution、有界 failure/cancel path
 及 result-cancellation crossover，拒绝竞争 attachment，重新连接到同一 Runtime epoch，强制制造带 stale
 endpoint 的 daemon crash，证明一个已经等待的 attachment 能到达替代 Runtime 的新 epoch，并证明 Runtime
-重启会改变 epoch。Release test 只使用临时 key，并覆盖固定 build argument、signing round trip、mutation 与精确 layout。没有测试会连接
+重启会改变 epoch。Endpoint 存在只是初步等待条件：实际 Hello 证明已就绪，返回的 epoch 标识替代 daemon，
+即使文件系统复用了旧 socket inode 也不受影响。每个 daemon 的 Hello 成功后才检查 socket 权限，因此重启检查
+覆盖新发布的 endpoint。Release test 只使用临时 key，并覆盖固定 build argument、signing round trip、mutation 与精确 layout。没有测试会连接
 SSH server 或读取 production signing key。

@@ -79,6 +79,7 @@ try {
 	const firstAttachment = startAttachment('first');
 	const firstAccepted = await hello(firstAttachment, '1'.repeat(32));
 	assert.equal(firstAccepted.type, 'hello-accepted');
+	assert.equal((await stat(endpointPath)).mode & 0o777, 0o600);
 	assert.equal(firstAccepted.payload.runtimeInstanceId, runtimeInstanceId);
 	assert.deepEqual(firstAccepted.payload.capabilities, [...SSH_ENVIRONMENT_REQUIRED_CAPABILITIES]);
 	assert.equal(firstAccepted.payload.platform, nativeRuntimePlatform());
@@ -161,6 +162,7 @@ try {
 		firstAccepted.payload.runtimeEpoch,
 		'an attachment waiting through a stale endpoint must reach the restarted Runtime epoch',
 	);
+	assert.equal((await stat(endpointPath)).mode & 0o777, 0o600);
 	await restartingAttachment.stop();
 	await stopChild(restartedServer);
 
@@ -185,13 +187,6 @@ function spawnRuntime(arguments_, stdio) {
 }
 
 async function startServer() {
-	let previousEndpointIdentity;
-	try {
-		const previousStatus = await stat(endpointPath);
-		previousEndpointIdentity = `${previousStatus.dev}:${previousStatus.ino}`;
-	} catch {
-		previousEndpointIdentity = undefined;
-	}
 	const child = spawnRuntime(
 		[
 			'serve',
@@ -228,14 +223,12 @@ async function startServer() {
 		}
 		try {
 			await access(endpointPath);
-			const endpointStatus = await stat(endpointPath);
-			return `${endpointStatus.dev}:${endpointStatus.ino}` !== previousEndpointIdentity;
+			// A stale path may still exist; the subsequent Hello proves readiness and epoch.
+			return true;
 		} catch {
 			return false;
 		}
 	});
-	const endpointStatus = await stat(endpointPath);
-	assert.equal(endpointStatus.mode & 0o777, 0o600);
 	return child;
 }
 

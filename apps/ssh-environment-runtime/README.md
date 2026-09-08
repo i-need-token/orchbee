@@ -153,7 +153,10 @@ directories, performs both cross-language Hellos and heartbeat, checks relay cre
 canonical symlink resolution, bounded failure/cancel paths, and result-cancellation crossover,
 rejects a competing attachment, reconnects to the same Runtime epoch, forces a daemon crash with a
 stale endpoint, proves an already waiting attachment reaches the replacement Runtime's new epoch,
-and proves that Runtime restart changes the epoch. The release tests use only ephemeral keys and
+and proves that Runtime restart changes the epoch. Endpoint existence is only a preliminary wait:
+the real Hello proves readiness, and the returned epoch identifies the replacement daemon even if
+the filesystem reuses the old socket inode. Socket permissions are checked after each daemon's Hello
+succeeds, so restart checks cover the newly published endpoint. The release tests use only ephemeral keys and
 also cover fixed build arguments,
 signing round trips, mutations, and exact layouts. No test contacts an SSH server or reads a
 production signing key.
