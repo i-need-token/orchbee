@@ -1183,7 +1183,7 @@ test "Windows exit code 259 synchronizes as one TerminalExited with code 259 (TH
         aggregate.core().findTerminal(terminal_id).?.phase(),
     );
 
-    _ = try aggregate.core().disposeTerminal(connection_id, terminal_id);
+    _ = try aggregate.disposeTerminal(connection_id, terminal_id);
     _ = aggregate.disconnect(connection_id);
 }
 test "process observation failure maps to a distinct runtime failure" {
