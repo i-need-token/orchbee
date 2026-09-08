@@ -158,8 +158,22 @@ impl Client {
             deadline,
             "complete expected UI frame",
             |frame| {
-                let text = frame.text();
-                let rows = frame.rows();
+                // This observer stores the terminal's wide-character continuation cells as
+                // blanks. Join displayed symbols, keeping actual spaces in the product copy.
+                let rows = frame
+                    .cells
+                    .iter()
+                    .map(|cells| {
+                        let mut text = String::new();
+                        let mut column = 0;
+                        while let Some(symbol) = cells.get(column) {
+                            text.push_str(symbol);
+                            column += ratatui::text::Line::raw(symbol.as_str()).width().max(1);
+                        }
+                        text.trim_end().to_owned()
+                    })
+                    .collect::<Vec<_>>();
+                let text = rows.join("\n");
                 (required.iter().all(|part| text.contains(part))
                     && forbidden.iter().all(|part| !text.contains(part))
                     && exact_content_rows.iter().all(|expected| {
