@@ -17,6 +17,8 @@ mod membership;
 mod move_tab;
 pub(super) mod rename_draft;
 pub(super) mod rename_text;
+#[cfg(target_os = "linux")]
+pub(super) mod retired_membership;
 mod switch_membership;
 mod tab_close;
 pub(super) mod tab_rename;

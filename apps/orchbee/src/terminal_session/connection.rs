@@ -48,6 +48,8 @@ pub(super) fn run_native(
 }
 
 pub(super) struct NativeWorkerExit {
+    #[cfg(target_os = "linux")]
+    unavailable_poll: Option<super::state::retired_membership::UnavailablePoll>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
     pending_close: Option<PendingCloseResult>,
@@ -55,6 +57,21 @@ pub(super) struct NativeWorkerExit {
 }
 
 impl NativeWorkerExit {
+    #[cfg(target_os = "linux")]
+    fn with_unavailable_poll(
+        mut self,
+        evidence: Option<super::state::retired_membership::UnavailablePoll>,
+    ) -> Self {
+        self.unavailable_poll = evidence;
+        self
+    }
+    #[cfg(target_os = "linux")]
+    pub(super) fn take_unavailable_poll(
+        &mut self,
+    ) -> Option<super::state::retired_membership::UnavailablePoll> {
+        self.unavailable_poll.take()
+    }
+
     const fn new(
         pending_create: Option<PendingCreateCommit>,
         pending_move: Option<PendingMoveCommit>,
@@ -62,6 +79,8 @@ impl NativeWorkerExit {
         pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
     ) -> Self {
         Self {
+            #[cfg(target_os = "linux")]
+            unavailable_poll: None,
             pending_create,
             pending_move,
             pending_close,

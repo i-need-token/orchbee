@@ -30,6 +30,8 @@ use std::sync::Arc;
 mod close_reconciliation;
 mod membership;
 mod move_membership;
+#[cfg(target_os = "linux")]
+mod retired_membership;
 mod tab_close;
 mod tab_rename;
 pub(crate) use tab_close::{
@@ -274,6 +276,12 @@ pub(super) struct NativeUi {
     retirement: Option<NativeDisplayRetirement>,
     #[cfg(target_os = "linux")]
     retired_mailbox_seed: Option<super::mailbox::RetiredMailboxSeed>,
+    #[cfg(target_os = "linux")]
+    retirement_poll_serial: Option<u64>,
+    #[cfg(target_os = "linux")]
+    retired_peer: Option<super::state::retired_membership::RetiredMembershipOrigin>,
+    #[cfg(target_os = "linux")]
+    retired_peer_attempt: Option<retired_membership::RetiredMembershipAttempt>,
 }
 
 #[cfg(test)]
@@ -284,6 +292,8 @@ mod membership_tests;
 mod move_membership_tests;
 #[cfg(test)]
 mod rename_membership_tests;
+#[cfg(all(test, target_os = "linux"))]
+mod retired_membership_tests;
 
 impl NativeUi {
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
@@ -300,6 +310,12 @@ impl NativeUi {
             retirement: None,
             #[cfg(target_os = "linux")]
             retired_mailbox_seed: None,
+            #[cfg(target_os = "linux")]
+            retirement_poll_serial: None,
+            #[cfg(target_os = "linux")]
+            retired_peer: None,
+            #[cfg(target_os = "linux")]
+            retired_peer_attempt: None,
         }
     }
 
@@ -1111,6 +1127,10 @@ impl NativeUi {
         generation: u64,
         outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
     ) -> bool {
+        #[cfg(target_os = "linux")]
+        if self.retired_peer_attempt.is_some() {
+            return self.apply_retired_membership_result(mailbox, wait_key, generation, outcome);
+        }
         let Some(state) = self.state.as_ref() else {
             self.retire(CarrierFailure::Protocol);
             return true;
@@ -1380,6 +1400,10 @@ impl NativeUi {
     }
 
     fn retire(&mut self, failure: CarrierFailure) {
+        #[cfg(target_os = "linux")]
+        if self.retirement_failure.is_none() {
+            self.retirement_poll_serial = self.ordinary_poll_serial;
+        }
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
         }

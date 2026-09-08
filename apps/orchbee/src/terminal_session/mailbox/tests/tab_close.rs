@@ -218,3 +218,82 @@ fn a_deposited_closed_read_survives_missing_worker_return_with_its_revision() {
     );
     assert!(state.uncertain_close_identity().is_none());
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn retired_recovery_seed_never_resets_any_exhausted_allocator() {
+    for exhausted in 0..5 {
+        let old = bootstrapped_mailbox(9, 700);
+        {
+            let mut state = old.lock();
+            match exhausted {
+                0 => state.identity_cursor = u128::MAX,
+                1 => state.refresh_generation = u64::MAX,
+                2 => state.next_command_serial = u64::MAX,
+                3 => state.next_ui_wait_serial = u64::MAX,
+                _ => state.attachment_generation = u64::MAX,
+            }
+        }
+        old.close(CarrierFailure::Closed);
+        let seed = old.retired_seed();
+        let fresh = CommandMailbox::for_status_recovery(seed, geometry(80));
+        let clock = crate::local_client::test_server::adjustable_operation_clock(Arc::new(
+            std::sync::atomic::AtomicU64::new(0),
+        ));
+        let deadline = clock.now() + Duration::from_secs(50);
+        if exhausted == 0 {
+            assert!(fresh.allocate_workbench_request_id().is_err());
+        } else if exhausted == 1 || exhausted == 2 {
+            assert!(
+                fresh
+                    .try_enqueue_refresh(deadline, |_| Ok::<_, ()>(()))
+                    .is_err()
+            );
+        } else if exhausted == 4 {
+            let mut state = fresh.lock();
+            let mut transaction = UiReplyTransaction {
+                state: &mut state,
+                observed_at: clock.now(),
+            };
+            assert!(matches!(
+                transaction
+                    .prepare_desired_install(DesiredInstall::Fresh(key(1, 2).tab_id().clone())),
+                Err(CarrierFailure::IdentityExhausted)
+            ));
+            assert!(transaction.state.desired.key().is_none());
+            transaction
+                .prepare_desired_install(DesiredInstall::Empty)
+                .unwrap()
+                .commit();
+        } else {
+            let generation = fresh
+                .try_enqueue_refresh(deadline, |_| Ok::<_, ()>(()))
+                .unwrap();
+            let _lease = fresh.try_recv().unwrap().unwrap();
+            fresh.mark_refresh_in_flight(generation).unwrap();
+            assert!(
+                fresh
+                    .publish_refresh_result_before(
+                        generation,
+                        WorkbenchSnapshotOutcome::Denied {},
+                        deadline,
+                        &clock
+                    )
+                    .is_err()
+            );
+        }
+        assert_eq!(
+            fresh.cursors().0,
+            if exhausted == 4 { u64::MAX } else { 9 },
+            "no fabricated attachment generation"
+        );
+        let state = fresh.lock();
+        match exhausted {
+            0 => assert_eq!(state.identity_cursor, u128::MAX),
+            1 => assert_eq!(state.refresh_generation, u64::MAX),
+            2 => assert_eq!(state.next_command_serial, u64::MAX),
+            3 => assert_eq!(state.next_ui_wait_serial, u64::MAX),
+            _ => assert_eq!(state.attachment_generation, u64::MAX),
+        }
+    }
+}

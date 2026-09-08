@@ -301,9 +301,17 @@ impl TerminalSession {
         if let Some(shutdown) = self.recovery_shutdown.take() {
             shutdown.close();
         }
+        #[cfg(target_os = "linux")]
+        let mut retired_poll = None;
         let (pending_create, pending_move, close_return, rename_return) = match self.task.take() {
             Some(SessionTask::Native(task)) => match task.join() {
                 Ok(returned) => {
+                    #[cfg(target_os = "linux")]
+                    let mut returned = returned;
+                    #[cfg(target_os = "linux")]
+                    {
+                        retired_poll = returned.take_unavailable_poll();
+                    }
                     let (create, moved, close, renamed) = returned.into_pending_results();
                     (
                         create,
@@ -339,7 +347,16 @@ impl TerminalSession {
         let Some(native) = self.backend.native_mut() else {
             return;
         };
-        let _rename_accepted = native.finalize_rename_worker(rename_return);
+        #[cfg(target_os = "linux")]
+        let clean_return = pending_create.is_none()
+            && pending_move.is_none()
+            && rename_return.is_none()
+            && matches!(close_return, state::CloseWorkerReturn::Returned(None));
+        let rename_accepted = native.finalize_rename_worker(rename_return);
+        #[cfg(target_os = "linux")]
+        native.finish_retired_peer_join(retired_poll, clean_return && rename_accepted);
+        #[cfg(not(target_os = "linux"))]
+        let _rename_accepted = rename_accepted;
         let _accepted = native.finalize_retirement(pending_create, pending_move, close_return);
         native.release_mailbox();
         // Geometry observation can finalize retirement before the shell asks tick for a redraw.

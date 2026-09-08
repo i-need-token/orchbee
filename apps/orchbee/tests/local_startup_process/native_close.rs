@@ -238,6 +238,7 @@ fn view_only_native_close_removes_the_shared_last_tab_without_automatic_create()
     // The actual view-only TUI is the sole Close issuer; the observer sends reads only.
     prompt(&mut peer, ENGLISH);
     let deadline = Instant::now() + CLOSE_TIMEOUT;
+    let retired_checkpoint = controller.checkpoint();
     peer.send(b"y");
     loop {
         controller.collect();
@@ -272,6 +273,14 @@ fn view_only_native_close_removes_the_shared_last_tab_without_automatic_create()
         peer.collect();
         thread::yield_now();
     }
+    controller.wait_frame_text_after(
+        retired_checkpoint,
+        deadline,
+        &["Terminal disconnected · Ctrl+B then q to exit"],
+        &[],
+        &[],
+        &mut [&mut peer],
+    );
     refresh_empty(&mut controller, &mut peer, deadline);
     refresh_empty(&mut peer, &mut controller, deadline);
     let observation_end = Instant::now() + EMPTY_OBSERVATION;

@@ -11,21 +11,35 @@ impl TerminalSession {
         let Some(native) = self.backend.native_mut() else {
             return false;
         };
-        let Some((mailbox, clock)) = native.begin_status_recovery() else {
+        let (mailbox, clock, deadline, membership) = if let Some((mailbox, clock)) =
+            native.begin_status_recovery()
+        {
+            let Some(deadline) = clock.now().checked_add(state::OPERATION_TOTAL) else {
+                native.close(state::CarrierFailure::Deadline);
+                native.finalize_retirement(None, None, state::CloseWorkerReturn::Returned(None));
+                native.release_mailbox();
+                return true;
+            };
+            (mailbox, clock, deadline, false)
+        } else if let Some((mailbox, clock, deadline)) = native.begin_retired_membership_recovery()
+        {
+            (mailbox, clock, deadline, true)
+        } else {
             return false;
-        };
-        let Some(deadline) = clock.now().checked_add(state::OPERATION_TOTAL) else {
-            native.close(state::CarrierFailure::Deadline);
-            native.finalize_retirement(None, None, state::CloseWorkerReturn::Returned(None));
-            native.release_mailbox();
-            return true;
         };
         let shutdown = connection::RecoveryShutdown::new();
         let worker_shutdown = shutdown.clone();
         match thread::Builder::new()
             .name("orchbee-close-status-recovery".into())
             .spawn(move || {
-                connection::run_status_recovery(origin, clock, mailbox, worker_shutdown, deadline)
+                connection::run_status_recovery(
+                    origin,
+                    clock,
+                    mailbox,
+                    worker_shutdown,
+                    deadline,
+                    membership,
+                )
             }) {
             Ok(task) => {
                 self.recovery_shutdown = Some(shutdown);
@@ -33,6 +47,7 @@ impl TerminalSession {
             }
             Err(_) => {
                 shutdown.close();
+                native.finish_retired_peer_join(None, true);
                 native.close(state::CarrierFailure::WorkerExited);
                 native.finalize_retirement(None, None, state::CloseWorkerReturn::Returned(None));
                 native.release_mailbox();

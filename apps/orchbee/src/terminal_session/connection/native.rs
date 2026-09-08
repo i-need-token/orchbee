@@ -69,12 +69,15 @@ pub(super) fn run(
     if let Some(failure) = failure {
         exit.failure = failure;
     }
-    NativeWorkerExit::new(
+    let returned = NativeWorkerExit::new(
         executor.pending_create.take(),
         executor.pending_move.take(),
         executor.pending_close.take(),
         executor.pending_rename.take(),
-    )
+    );
+    #[cfg(target_os = "linux")]
+    let returned = returned.with_unavailable_poll(executor.unavailable_poll.take());
+    returned
 }
 
 struct WorkerExit {
@@ -99,6 +102,10 @@ impl Drop for WorkerExit {
 
 struct NativeExecutor {
     status_only: bool,
+    #[cfg(target_os = "linux")]
+    membership_recovery: bool,
+    #[cfg(target_os = "linux")]
+    unavailable_poll: Option<crate::terminal_session::state::retired_membership::UnavailablePoll>,
     client: LocalClient,
     clock: LocalOperationClock,
     mailbox: Arc<CommandMailbox>,
@@ -192,6 +199,10 @@ impl NativeExecutor {
         Self {
             client,
             status_only: false,
+            #[cfg(target_os = "linux")]
+            membership_recovery: false,
+            #[cfg(target_os = "linux")]
+            unavailable_poll: None,
             clock,
             mailbox,
             attached: None,
@@ -566,6 +577,10 @@ impl NativeExecutor {
     fn run_ready_queue(&mut self) -> Result<()> {
         loop {
             let mut lease = self.mailbox.recv().map_err(closed)?;
+            #[cfg(target_os = "linux")]
+            if self.membership_recovery && !matches!(lease.record(), QueuedCommand::Refresh(_)) {
+                return Err(CarrierFailure::Protocol);
+            }
             if self.status_only
                 && !matches!(lease.record(), QueuedCommand::ReconcileClose(marker) if marker.membership_recovery())
                 && !matches!(lease.record(), QueuedCommand::Close(marker)
@@ -707,12 +722,30 @@ impl NativeExecutor {
         {
             return Ok(());
         }
-        let Some(outcome) =
+        let Some((request_id, outcome)) =
             self.viewer_for_ready_lease(lease, &key, TerminalViewerAction::Poll {}, deadline)?
         else {
             return Ok(());
         };
         let current = self.execution_desired(lease)? == Some(key.clone());
+        #[cfg(target_os = "linux")]
+        if current
+            && matches!(
+                outcome,
+                TerminalViewerOutcome::Unavailable {
+                    reason: ViewerUnavailableReason::TerminalRuntimeUnavailable
+                }
+            )
+        {
+            self.unavailable_poll = Some(
+                crate::terminal_session::state::retired_membership::UnavailablePoll {
+                    request_id,
+                    poll: poll_key.clone(),
+                },
+            );
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _request_id = request_id;
         let record = match outcome {
             TerminalViewerOutcome::Empty {} => None,
             TerminalViewerOutcome::Record(record) => Some(record),
@@ -749,7 +782,9 @@ impl NativeExecutor {
             return Ok(());
         }
         let frame_applied = matches!(feedback, TerminalViewerAction::FrameApplied { .. });
-        let Some(result) = self.viewer_for_ready_lease(lease, &key, feedback, deadline)? else {
+        let Some((_request_id, result)) =
+            self.viewer_for_ready_lease(lease, &key, feedback, deadline)?
+        else {
             self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
             return Ok(());
         };
@@ -1084,14 +1119,33 @@ impl NativeExecutor {
                 &self.clock,
             )
             .map_err(event)?;
-        let reply = self
-            .mailbox
-            .await_ui_reply(&wait)
-            .map_err(closed)?
-            .ok_or(CarrierFailure::Protocol)?;
+        #[cfg(target_os = "linux")]
+        let bounded_recovery = self.membership_recovery;
+        #[cfg(not(target_os = "linux"))]
+        let bounded_recovery = false;
+        let reply = if bounded_recovery {
+            self.mailbox
+                .await_ui_reply_before(&wait, marker.deadline(), &self.clock)
+        } else {
+            self.mailbox
+                .await_ui_reply(&wait)
+                .map_err(EventError::Closed)
+        }
+        .map_err(event)?
+        .ok_or(CarrierFailure::Protocol)?;
         let UiReply::Refresh(settlement) = reply else {
             return Err(CarrierFailure::Protocol);
         };
+        #[cfg(target_os = "linux")]
+        if self.membership_recovery {
+            if matches!(
+                settlement.decision(),
+                RefreshDecision::Continue | RefreshDecision::Cleanup(_)
+            ) {
+                return Err(CarrierFailure::Protocol);
+            }
+            self.membership_recovery = false;
+        }
         match settlement.decision() {
             RefreshDecision::Cleanup(cleanup) => {
                 self.run_membership_cleanup(lease, cleanup.clone())
@@ -1104,7 +1158,13 @@ impl NativeExecutor {
                     SetupOwner::Lease(lease),
                     SetupEntryExpiry::Retire,
                 )
-                .map(|_completion| ()),
+                .and_then(|completion| {
+                    if bounded_recovery && !matches!(completion, SetupCompletion::Ready) {
+                        Err(CarrierFailure::Transport)
+                    } else {
+                        Ok(())
+                    }
+                }),
         }
     }
 
@@ -1494,14 +1554,19 @@ impl NativeExecutor {
         key: &AttachmentKey,
         action: TerminalViewerAction,
         deadline: Instant,
-    ) -> ReadyResult<Option<TerminalViewerOutcome>> {
+    ) -> ReadyResult<
+        Option<(
+            orchbee_client_server_protocol::RequestId,
+            TerminalViewerOutcome,
+        )>,
+    > {
         loop {
             if self.execution_desired(lease)?.as_ref() != Some(key) {
                 return Ok(None);
             }
             let cutoff = self.effective_lease_cutoff(lease, deadline)?;
             self.ensure_ready_before(lease, key, deadline, cutoff)?;
-            let Some(outcome) =
+            let Some((request_id, outcome)) =
                 self.viewer_once_ready(lease, key, action.clone(), deadline, cutoff)?
             else {
                 return Ok(None);
@@ -1512,7 +1577,7 @@ impl NativeExecutor {
                     reason: ViewerUnavailableReason::ServerBusy
                 }
             ) {
-                return Ok(Some(outcome));
+                return Ok(Some((request_id, outcome)));
             }
             if self.execution_desired(lease)?.as_ref() != Some(key) {
                 return Ok(None);
@@ -1537,13 +1602,18 @@ impl NativeExecutor {
         action: TerminalViewerAction,
         deadline: Instant,
         cutoff: Instant,
-    ) -> ReadyResult<Option<TerminalViewerOutcome>> {
+    ) -> ReadyResult<
+        Option<(
+            orchbee_client_server_protocol::RequestId,
+            TerminalViewerOutcome,
+        )>,
+    > {
         let request_id = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
-        match self
-            .client
-            .submit_terminal_viewer_before(TerminalViewerRequest::new(request_id, action), cutoff)
-        {
-            Ok(result) => Ok(Some(result.into_outcome())),
+        match self.client.submit_terminal_viewer_before(
+            TerminalViewerRequest::new(request_id.clone(), action),
+            cutoff,
+        ) {
+            Ok(result) => Ok(Some((request_id, result.into_outcome()))),
             Err(SubmissionError::RequestNotSubmitted(_))
                 if self.execution_desired(lease)?.as_ref() != Some(key) =>
             {

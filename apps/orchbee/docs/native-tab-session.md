@@ -2189,10 +2189,23 @@ setup remain abstraction boundaries requiring the runtime refinement below.
 | `last-near-limit`      | 4,905,728 / 1,056,996 / 31   | `e04240842241f1401a17b686639c2740e2fd9edd2ee05a01cac522698cf3db62` |
 | `last-exhausted`       | 1,333,389 / 287,118 / 26     | `1b85549eb06c352e37318fe6656dfc3b6a0d96011df498e68e3fe51e547f94ac` |
 
-Runtime refinement is pending: correlated Poll handoff and join, real Snapshot-first reconnect,
-conflicting retained facts, still-present/invalid/unavailable candidates, late UI and cancellation,
-common Empty/neighbor installation and allocator exhaustion require actual carrier/state tests.
-The Linux PTY Close witness must observe a new Disconnected frame before explicit Refresh, then
+Runtime refinement uses the existing task owner, reconnect origin and shutdown fence. The private
+state origin and UI attempt refine the model's eligibility and installation actions; the ordinary
+Poll executor returns correlated evidence only through a normal exact join. The existing mailbox
+seed, Snapshot flight, common membership transaction and setup executor retain their ownership.
+
+Deterministic tests in `terminal_session/tests/retired_membership.rs` and
+`terminal_session/ui/retired_membership_tests.rs` cover Snapshot-first Empty and successful neighbor
+setup, parked explicit retry, wrong-ID/transport/other-unavailability rejection, setup-Poll rejection,
+retained conflicts, missing return, stale replies, cancellation during connect and Snapshot, original
+45 s forward / 50 s total boundary checks, and candidate/cursor retention after setup refusal.
+`mailbox/tests/tab_close.rs` checks that all five allocator cursors survive retirement, exhaustion
+cannot wrap, and recovery starts without live work or bootstrap. Run
+`cargo test --locked -p orchbee --bin orchbee retired_` on Linux.
+
+The Linux PTY Close witness observes a new Disconnected frame before one explicit Refresh, then
 both Clients' Empty state, full public Snapshot equality after exact removal, original shell exit
-and a bounded 500 ms fresh-observation check against automatic Create. Existing failing process
-traces remain evidence of the missing entry, not a passing implementation claim.
+and a bounded 500 ms fresh-observation check against automatic Create. Retirement finalization
+closes and joins the task synchronously before the tick returns for drawing. Run
+`cargo test --locked -p orchbee --all-targets --all-features` with the staged local Server/Worker/Host
+cohort. These checks do not establish remote-reference cleanup, restart adoption or general recovery.

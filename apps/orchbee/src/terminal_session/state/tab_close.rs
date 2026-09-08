@@ -336,6 +336,16 @@ pub(in crate::terminal_session) struct CloseState {
 }
 
 impl CloseState {
+    #[cfg(target_os = "linux")]
+    pub(super) fn permits_retired_membership(&self) -> bool {
+        self.records.is_empty()
+            && self.confirmation.is_none()
+            && self.pending.is_none()
+            && self.completed_handoff.is_none()
+            && self.manual_pass.is_empty()
+            && matches!(self.carrier, CloseCarrier::Session)
+    }
+
     fn token(&mut self) -> Option<u64> {
         self.next_display_token = self.next_display_token.checked_add(1)?;
         Some(self.next_display_token)

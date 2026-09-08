@@ -152,6 +152,26 @@ impl PreparedMembershipInstall<'_> {
 }
 
 impl NativeSessionState {
+    #[cfg(target_os = "linux")]
+    pub(super) fn prepare_retired_membership_install_inner(
+        &mut self,
+        prepared: PreparedMembershipCandidate,
+        desired: Option<AttachmentKey>,
+        deadlines: OperationDeadlines,
+        generation: u64,
+    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
+        let mut plan = self.prepare_membership_install_inner(
+            prepared,
+            desired,
+            Some(deadlines),
+            None,
+            None,
+            true,
+        )?;
+        plan.refresh_generation = Some(generation);
+        Ok(plan)
+    }
+
     pub(in crate::terminal_session) fn stage_create_refresh_cleanup(
         &mut self,
         generation: u64,
@@ -277,7 +297,7 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        self.prepare_membership_install_inner(prepared, desired, Some(deadlines), None, None)
+        self.prepare_membership_install_inner(prepared, desired, Some(deadlines), None, None, false)
     }
 
     pub(in crate::terminal_session) fn prepare_membership_candidate(
@@ -332,7 +352,7 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
         deadlines: Option<OperationDeadlines>,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
-        self.prepare_membership_install_inner(prepared, desired, deadlines, None, None)
+        self.prepare_membership_install_inner(prepared, desired, deadlines, None, None, false)
     }
 
     fn prepare_membership_install_inner(
@@ -342,6 +362,7 @@ impl NativeSessionState {
         deadlines: Option<OperationDeadlines>,
         cleaned: Option<&MembershipCleanup>,
         close_marker: Option<&super::CloseReconciliationMarker>,
+        retired_membership: bool,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
         let close_consumption = close_marker
             .map(|marker| {
@@ -394,6 +415,7 @@ impl NativeSessionState {
                 && !current_switch
                 && !current_create
                 && !close_recovery
+                && !retired_membership
                 && !matches!(
                     self.phase,
                     SessionPhase::Empty
@@ -404,7 +426,8 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let preserve = desired == self.desired && !current_create && !close_recovery;
+        let preserve =
+            desired == self.desired && !current_create && !close_recovery && !retired_membership;
         if current_switch && preserve {
             return Err(CarrierFailure::Protocol);
         }
@@ -652,6 +675,7 @@ impl NativeSessionState {
             Some(cleanup.deadlines),
             Some(cleanup),
             cleanup.close_marker(),
+            false,
         )?;
         plan.refresh_generation = refresh_generation;
         if matches!(cleanup.result(), MembershipResultKey::Move(_)) {
@@ -830,7 +854,7 @@ impl NativeSessionState {
             return Err(CarrierFailure::Protocol);
         };
         let deadlines = setup.target.deadlines();
-        self.prepare_membership_install_inner(prepared, desired, Some(deadlines), None, None)
+        self.prepare_membership_install_inner(prepared, desired, Some(deadlines), None, None, false)
     }
 
     /// Admission already holds the mailbox gate. Only an authorized old call retains its candidate.

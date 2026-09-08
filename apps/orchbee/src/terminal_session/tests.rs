@@ -5,6 +5,8 @@ mod close_recovery;
 mod close_retirement;
 mod move_refinements;
 mod rename_interaction;
+#[cfg(target_os = "linux")]
+mod retired_membership;
 mod retirement_redraw;
 use super::*;
 use crate::{

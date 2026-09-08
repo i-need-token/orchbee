@@ -1819,9 +1819,21 @@ cursor 保留，以及不自动重试或 Create。进度仅假设本地 deadline
 | `last-near-limit`      | 4,905,728 / 1,056,996 / 31 | `e04240842241f1401a17b686639c2740e2fd9edd2ee05a01cac522698cf3db62` |
 | `last-exhausted`       | 1,333,389 / 287,118 / 26   | `1b85549eb06c352e37318fe6656dfc3b6a0d96011df498e68e3fe51e547f94ac` |
 
-运行时精化仍待完成：关联 Poll 交接与 join、真实 Snapshot-first 重连、冲突的保留事实、目标
-仍在或无效或不可用候选、晚到 UI 与取消、公共 Empty/邻居安装以及分配器耗尽，都需要真实
-carrier/state 测试。Linux PTY Close witness 必须先观察新的 Disconnected 帧再显式 Refresh，
-随后验证两个 Client 的 Empty 状态、精确移除后的完整公开 Snapshot 相等、原 shell 退出，以及
-有界 500 ms 新观察期间没有自动 Create。现有失败进程轨迹仍是缺失入口的证据，不是实现通过
-的声明。
+运行时精化复用现有 task owner、重连来源和 shutdown fence。私有 state origin 与 UI attempt
+精化模型中的资格与安装动作；普通 Poll executor 仅通过正常精确 join 返回关联证据。
+现有 mailbox seed、Snapshot flight、公共 membership transaction 与 setup executor 保留各自所有权。
+
+`terminal_session/tests/retired_membership.rs` 和
+`terminal_session/ui/retired_membership_tests.rs` 中的确定性测试覆盖 Snapshot-first Empty 与
+邻居 setup 成功、停放后显式重试、错误 ID／transport／其他 unavailable 拒绝、setup Poll 拒绝、
+保留事实冲突、缺失返回、过期回复、connect 与 Snapshot 期间取消、原始 45 s forward／50 s total
+边界检查，以及 setup 拒绝后的候选／cursor 保留。`mailbox/tests/tab_close.rs` 检查五种分配器
+cursor 均跨退休保留、耗尽不能回绕，以及恢复开始时没有 live work 或 bootstrap。在 Linux 运行
+`cargo test --locked -p orchbee --bin orchbee retired_`。
+
+Linux PTY Close witness 先观察新的 Disconnected 帧，再执行一次显式 Refresh，随后验证两个
+Client 的 Empty 状态、精确移除后的完整公开 Snapshot 相等、原 shell 退出，以及有界 500 ms
+新观察期间没有自动 Create。退休 finalization 在 tick 返回并绘制之前同步关闭并 join task。
+准备本地 Server／Worker／Host cohort 后，运行
+`cargo test --locked -p orchbee --all-targets --all-features`。
+这些检查不证明远端引用清理、重启接管或通用恢复。

@@ -82,7 +82,14 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
         deadlines: Option<OperationDeadlines>,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
-        self.prepare_membership_install_inner(prepared, desired, deadlines, None, Some(marker))
+        self.prepare_membership_install_inner(
+            prepared,
+            desired,
+            deadlines,
+            None,
+            Some(marker),
+            false,
+        )
     }
 
     pub(in crate::terminal_session) fn validate_membership_gone(

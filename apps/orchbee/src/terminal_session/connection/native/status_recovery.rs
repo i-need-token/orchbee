@@ -51,6 +51,7 @@ pub(in crate::terminal_session) fn run_status_recovery(
     mailbox: Arc<CommandMailbox>,
     shutdown: RecoveryShutdown,
     deadline: Instant,
+    membership: bool,
 ) -> NativeWorkerExit {
     let mut exit = WorkerExit::new(Arc::clone(&mailbox));
     let client = match origin.reconnect_before(deadline, clock) {
@@ -69,7 +70,8 @@ pub(in crate::terminal_session) fn run_status_recovery(
         return NativeWorkerExit::new(None, None, None, None);
     }
     let mut executor = NativeExecutor::new(client, mailbox);
-    executor.status_only = true;
+    executor.status_only = !membership;
+    executor.membership_recovery = membership;
     if let Err(failure) = executor.run_ready_queue() {
         exit.failure = failure;
     }
@@ -79,4 +81,5 @@ pub(in crate::terminal_session) fn run_status_recovery(
         executor.pending_close.take(),
         executor.pending_rename.take(),
     )
+    .with_unavailable_poll(executor.unavailable_poll.take())
 }
