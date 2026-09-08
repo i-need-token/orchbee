@@ -346,6 +346,12 @@ The change-triggered unified-search model check requires Java 17 or newer. The r
 downloads the pinned TLA+ `1.7.4` tool JAR when absent and verifies its SHA-256 before execution;
 set `ORCHBEE_TLA2TOOLS_JAR` to use an already provisioned matching copy.
 
+Workbench's Vitest configuration schedules no more than four file workers and no more than the
+parallelism available to the Node.js process. It prints the detected parallelism and configured
+worker cap once when loading the test configuration so constrained CI runs remain diagnosable.
+This affects execution scheduling only; test selection, assertions, the default five-second
+timeout, and existing per-test overrides remain unchanged.
+
 ```sh
 pnpm --filter @orchbee/workbench... build
 pnpm --filter @orchbee/workbench typecheck

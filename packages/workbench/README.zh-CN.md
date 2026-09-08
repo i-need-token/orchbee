@@ -311,6 +311,8 @@ Workbench 拥有五十三个稳定的快捷键声明：Action 搜索、下一个
 
 变更触发的统一搜索模型检查要求 Java 17 或更高版本。仓库运行器在工具缺失时下载固定版本的 TLA+ `1.7.4` JAR，并在执行前校验 SHA-256；可设置 `ORCHBEE_TLA2TOOLS_JAR` 以使用已配置且匹配的副本。
 
+Workbench 的 Vitest 配置所调度的文件 worker 不会超过四个，也不会超过 Node.js 进程可用的并行度。加载测试配置时，它会输出一次检测到的并行度与配置的 worker 上限，使受限 CI 运行仍可诊断。此规则只影响执行调度；测试选择、断言、默认五秒超时及现有单项测试的超时覆盖保持不变。
+
 ```sh
 pnpm --filter @orchbee/workbench... build
 pnpm --filter @orchbee/workbench typecheck
