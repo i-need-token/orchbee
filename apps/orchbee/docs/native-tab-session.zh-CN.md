@@ -1756,14 +1756,39 @@ projector。邻居在新连接上使用剩余 setup 预算，不会自动 Start�
 自动创建 terminal。安装前到期保留旧规范状态。安装后失败保留已提交候选和 cursor，并如实
 退役。过期结果不能安装进另一个 flight。
 
-`NativeClientRetiredMembershipRecovery` 拥有拟议的独立有限入口模型；十九个
+`NativeClientRetiredMembershipRecovery` 拥有已检查的独立有限入口模型；十九个
 `NativeClientMembershipRemoval` 配置保留其既有终止 Retired 与 Detached/Gone 含义。
 边界为旧 A 和至多两个邻居 B/C、Empty 与有序候选、两次显式尝试、先前 attachment cursor
-为 1 或已消耗的 2 且最大为 3、有界单调分配与耗尽，以及独立保留或释放的旧远端引用。
+为 1、已消耗的 2 或已耗尽的 3 且最大为 3；独立 request/command/Refresh/UI-wait 分配器
+最大为 5 并覆盖耗尽，以及独立保留或释放的旧远端引用。
 验证是由真实规范 projector 精化的 typed 外部输入。要求检查来源与冲突 guards、单 carrier、
 join 后无旧本地提交、不伪造 cleanup/Close 事实、目标缺失、原子安装、过期结果、固定 deadline、
 cursor 保留，以及不自动重试或 Create。进度仅假设本地 deadline 与 carrier 终止公平性；
 它承诺存活结果或如实停放退役，不承诺远端清理或恢复成功。
+
+使用固定版本 TLA+ tools 1.7.4 和一个 worker 运行
+`node scripts/tla/run-models.mjs --models native-client-retired-membership-recovery --jobs 1`。
+下列十二个配置均完成时序检查，状态队列为空。十二个配置合计以生成后继覆盖全部 42 个要求的动作。
+序号／分配器分区覆盖全部 252 个原始初始状态，不使用对称假设或状态约束。
+此前未分区检查的 180 秒超时不能作为通过结果。
+进度仅适用于已准入的活跃尝试，并依赖本地时钟、到期、关闭和 join 公平性；不承诺初始退役
+完成、用户准入或重试、远端引用释放或恢复成功。Poll 关联、精确 join、typed 验证和 setup
+仍是抽象边界，需要完成下文所述运行时精化。
+
+| 配置                   | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
+| ---------------------- | -------------------------- | ------------------------------------------------------------------ |
+| `singleton-normal`     | 3,483,814 / 753,054 / 35   | `2d899c099f0863e9552669fd18d90117b3acec6247c7df4691bcede7c7a1b9b9` |
+| `singleton-near-limit` | 4,905,728 / 1,056,996 / 31 | `75aad168a14705a3b05e616813d23b46197fe3589547c333d04b98353765ac25` |
+| `singleton-exhausted`  | 1,333,389 / 287,118 / 26   | `b44fb3da620e88734ab0e53f5252edc31211f128747c0523a4bb26750cc6cfd4` |
+| `first-normal`         | 3,483,814 / 753,054 / 35   | `0d0e7dc31d4e82791958d3f524e5a93580f33eb94b34fb9d438037c7ae743748` |
+| `first-near-limit`     | 4,905,728 / 1,056,996 / 31 | `2d2b70e0c3a363da009907c818f5a1c013346b3aeb0495c450764e11eb982816` |
+| `first-exhausted`      | 1,333,389 / 287,118 / 26   | `5fc6b9a602c6d05e17eec2b3e54e584ea70a35764ee936e9ff66253606ea685c` |
+| `middle-normal`        | 3,483,814 / 753,054 / 35   | `4c53573ce23a1c0c89d3d2585ba1e7fa5316786ab42f54bb7c4bd0aa4a4b2d9b` |
+| `middle-near-limit`    | 4,905,728 / 1,056,996 / 31 | `833d8bdc641cfeedb9bf062fd7bec1b46fe93ca608930c50375ddc4ff0f7baff` |
+| `middle-exhausted`     | 1,333,389 / 287,118 / 26   | `b43fc09461924ce9dff66d4b5a8cd0c41a9001c94e4b01b32e50d87f05f36c09` |
+| `last-normal`          | 3,483,814 / 753,054 / 35   | `47e22a7ca5ee7f94561421d7a7169b301279e7e83440183e658a82b48ca25d2b` |
+| `last-near-limit`      | 4,905,728 / 1,056,996 / 31 | `e04240842241f1401a17b686639c2740e2fd9edd2ee05a01cac522698cf3db62` |
+| `last-exhausted`       | 1,333,389 / 287,118 / 26   | `1b85549eb06c352e37318fe6656dfc3b6a0d96011df498e68e3fe51e547f94ac` |
 
 运行时精化仍待完成：关联 Poll 交接与 join、真实 Snapshot-first 重连、冲突的保留事实、目标
 仍在或无效或不可用候选、晚到 UI 与取消、公共 Empty/邻居安装以及分配器耗尽，都需要真实

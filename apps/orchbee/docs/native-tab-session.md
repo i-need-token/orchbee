@@ -2117,16 +2117,42 @@ accepts Refresh and never automatically creates a terminal. Pre-installation exp
 old canonical state. Post-installation failure preserves the committed candidate and cursor while
 retiring truthfully. Stale results cannot install into another flight.
 
-`NativeClientRetiredMembershipRecovery` owns the proposed independent finite entry model; the
+`NativeClientRetiredMembershipRecovery` owns the checked independent finite entry model; the
 nineteen `NativeClientMembershipRemoval` configurations retain their existing terminal Retired and
 Detached/Gone meanings. Bounds are old A and at most two neighbors B/C, Empty and ordered candidates,
-two explicit attempts, prior attachment cursor 1 or burned 2 with maximum 3, bounded monotonic
-allocation/exhaustion, and independently retained/released old remote reference. Validation is a
+two explicit attempts, prior attachment cursor 1, burned 2 or exhausted 3 with maximum 3,
+independent request/command/Refresh/UI-wait allocator maximum 5 with exhaustion, and independently retained/released old remote reference. Validation is a
 typed external input refined by the real canonical projector. Required checks cover origin and
 conflict guards, single carrier, no old-local submission after join, no fabricated cleanup/Close
 fact, target absence, atomic installation, stale results, fixed deadlines, cursor preservation and
 no automatic retry/Create. Progress assumes only local deadline and carrier termination fairness;
 it promises a live result or truthful parked retirement, not remote cleanup or recovery success.
+
+Run `node scripts/tla/run-models.mjs --models native-client-retired-membership-recovery --jobs 1`
+with pinned TLA+ tools 1.7.4 and one worker. All twelve configurations below completed temporal
+checking with empty state queues. Together, their generated successor coverage reaches all 42
+required actions.
+The ordinal/allocator partitions cover all 252 original initial states without symmetry assumptions
+or state constraints. Earlier unpartitioned 180-second timeouts do not establish a passing result.
+Progress applies only to admitted active attempts under local clock, expiry, close and join
+fairness; it does not promise initial retirement completion, user admission or retry, remote
+reference release, or successful recovery. Poll correlation, exact join, typed validation and
+setup remain abstraction boundaries requiring the runtime refinement below.
+
+| Configuration          | Generated / distinct / depth | Model/configuration SHA-256                                        |
+| ---------------------- | ---------------------------- | ------------------------------------------------------------------ |
+| `singleton-normal`     | 3,483,814 / 753,054 / 35     | `2d899c099f0863e9552669fd18d90117b3acec6247c7df4691bcede7c7a1b9b9` |
+| `singleton-near-limit` | 4,905,728 / 1,056,996 / 31   | `75aad168a14705a3b05e616813d23b46197fe3589547c333d04b98353765ac25` |
+| `singleton-exhausted`  | 1,333,389 / 287,118 / 26     | `b44fb3da620e88734ab0e53f5252edc31211f128747c0523a4bb26750cc6cfd4` |
+| `first-normal`         | 3,483,814 / 753,054 / 35     | `0d0e7dc31d4e82791958d3f524e5a93580f33eb94b34fb9d438037c7ae743748` |
+| `first-near-limit`     | 4,905,728 / 1,056,996 / 31   | `2d2b70e0c3a363da009907c818f5a1c013346b3aeb0495c450764e11eb982816` |
+| `first-exhausted`      | 1,333,389 / 287,118 / 26     | `5fc6b9a602c6d05e17eec2b3e54e584ea70a35764ee936e9ff66253606ea685c` |
+| `middle-normal`        | 3,483,814 / 753,054 / 35     | `4c53573ce23a1c0c89d3d2585ba1e7fa5316786ab42f54bb7c4bd0aa4a4b2d9b` |
+| `middle-near-limit`    | 4,905,728 / 1,056,996 / 31   | `833d8bdc641cfeedb9bf062fd7bec1b46fe93ca608930c50375ddc4ff0f7baff` |
+| `middle-exhausted`     | 1,333,389 / 287,118 / 26     | `b43fc09461924ce9dff66d4b5a8cd0c41a9001c94e4b01b32e50d87f05f36c09` |
+| `last-normal`          | 3,483,814 / 753,054 / 35     | `47e22a7ca5ee7f94561421d7a7169b301279e7e83440183e658a82b48ca25d2b` |
+| `last-near-limit`      | 4,905,728 / 1,056,996 / 31   | `e04240842241f1401a17b686639c2740e2fd9edd2ee05a01cac522698cf3db62` |
+| `last-exhausted`       | 1,333,389 / 287,118 / 26     | `1b85549eb06c352e37318fe6656dfc3b6a0d96011df498e68e3fe51e547f94ac` |
 
 Runtime refinement is pending: correlated Poll handoff and join, real Snapshot-first reconnect,
 conflicting retained facts, still-present/invalid/unavailable candidates, late UI and cancellation,
