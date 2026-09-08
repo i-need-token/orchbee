@@ -5,6 +5,7 @@ const monotonic = @import("monotonic.zig");
 const process_common = @import("process_common.zig");
 const process_types = @import("process_types.zig");
 const pty_module = @import("pty.zig");
+const termination_module = @import("process_windows_termination.zig");
 const windows_api = @import("windows_api.zig");
 
 const ExitResult = process_types.ExitResult;
@@ -136,6 +137,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     job_handle: windows.HANDLE,
     process_handle: windows.HANDLE,
     pty: pty_module.Pty,
+    termination: termination_module.Termination = .{},
 
     pub fn spawn(allocator: std.mem.Allocator, launch: Launch) !Process {
         var environment = try process_common.environmentForLaunch(allocator, launch.environment);
@@ -199,6 +201,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
 
         var startup_info: windows_api.STARTUPINFOEXW = std.mem.zeroes(windows_api.STARTUPINFOEXW);
         startup_info.StartupInfo.cb = @sizeOf(windows_api.STARTUPINFOEXW);
+        startup_info.StartupInfo.dwFlags = windows.STARTF_USESTDHANDLES;
         startup_info.lpAttributeList = attribute_list.ptr;
         var process_information: windows.PROCESS.INFORMATION = undefined;
         const flags = windows_api.CREATE_SUSPENDED |
@@ -287,22 +290,12 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         });
     }
 
-    pub fn terminate(self: *const Process) !void {
-        if (!windows_api.TerminateProcess(self.process_handle, 1).toBool()) {
-            const terminate_error = windows.GetLastError();
-            if (windows_api.WaitForSingleObject(self.process_handle, 0) ==
-                windows_api.WAIT_OBJECT_0)
-            {
-                return;
-            }
-            return windows.unexpectedError(terminate_error);
-        }
+    pub fn terminate(self: *Process) !void {
+        try self.termination.terminate(self.process_handle);
     }
 
-    pub fn forceTerminate(self: *const Process) !void {
-        if (!windows_api.ob_windows_terminal_job_terminate(self.job_handle, 1).toBool()) {
-            return windows.unexpectedError(windows.GetLastError());
-        }
+    pub fn forceTerminate(self: *Process) !void {
+        try self.termination.forceTerminate(self.job_handle);
     }
 
     pub fn processTreeContained(self: *const Process) !bool {

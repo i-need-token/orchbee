@@ -539,6 +539,20 @@ Job accounting at a quiet monotonic cadence until the active count reaches zero;
 exit does not signal the Job handle. A signaled handle after force termination cannot bypass that
 accounting predicate or turn its retry into a busy loop.
 
+The Windows Process owner keeps one successful root-termination submission receipt, initially
+absent. A short per-Process mutex serializes termination syscalls and receipt publication; it is
+not held during blocking waits, joins or PTY closure, and it acquires no other lifecycle lock.
+Containment may hold its existing outer mutex while invoking force termination; the lock order is
+containment then termination, never the reverse. Successful graceful
+root termination or successful force termination of the Job publishes the receipt before returning.
+A later graceful request is then an idempotent no-op even while Windows is still completing exit.
+Force requests always still target the Job, including after a graceful receipt, because descendants
+may remain. A failed syscall never creates a receipt. Without one, a failed graceful root termination is
+ignored only when a zero-time observation of the retained process handle proves exit. A failed
+force Job termination always remains an error, even if the root has exited. Exit status 259 is not a
+liveness test. The receipt proves accepted termination submission only: actual child exit, Job
+emptiness, PTY EOF and containment retain their existing independent observations.
+
 An unrecoverable runtime failure fences new client and terminal-generated input, stops further PTY
 ingestion, retains the last revision known to be coherent, records the first linearly published
 failure as its typed primary cause, and starts

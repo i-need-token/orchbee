@@ -94,7 +94,7 @@ pub const PosixTestRuntimeDirectory = if (builtin.os.tag == .windows) void else 
 
 pub const WindowsTestRuntimeDirectory = if (builtin.os.tag != .windows) void else struct {
     allocator: std.mem.Allocator,
-    path_bytes: []u8,
+    path_bytes: [:0]u8,
     temporary: std.testing.TmpDir,
 
     pub fn init(allocator: std.mem.Allocator) !WindowsTestRuntimeDirectory {
@@ -251,9 +251,11 @@ pub const ServeThreadContext = struct {
 };
 
 pub fn serveTestConnection(context: *ServeThreadContext) void {
-    context.server.serveOne(context.service) catch |err| {
+    const served = context.server.serveOneBefore(context.service, 5_000) catch |err| {
         context.failure = err;
+        return;
     };
+    if (!served) context.failure = error.TestAcceptTimeout;
 }
 
 pub fn serveTestUntilIdle(context: *ServeThreadContext) void {

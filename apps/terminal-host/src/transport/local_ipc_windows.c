@@ -19,7 +19,14 @@ struct ObWindowsLocalServer {
     HANDLE mutex;
     HANDLE pipe;
     BYTE *token_user;
+    BYTE prefetched_byte;
+    BOOL has_prefetched_byte;
 };
+
+typedef struct {
+    ULONGLONG started_ms;
+    DWORD timeout_ms;
+} ObWindowsDeadline;
 
 static int ob_connection_status(DWORD error) {
     switch (error) {
@@ -32,6 +39,38 @@ static int ob_connection_status(DWORD error) {
     }
 }
 
+static ObWindowsDeadline ob_deadline_start(DWORD timeout_ms) {
+    ObWindowsDeadline deadline = {
+        .started_ms = GetTickCount64(),
+        .timeout_ms = timeout_ms,
+    };
+    return deadline;
+}
+
+static BOOL ob_deadline_remaining(
+    const ObWindowsDeadline *deadline,
+    DWORD *remaining_ms
+) {
+    if (deadline->timeout_ms == INFINITE) {
+        *remaining_ms = INFINITE;
+        return TRUE;
+    }
+    const ULONGLONG elapsed_ms = GetTickCount64() - deadline->started_ms;
+    if (elapsed_ms >= deadline->timeout_ms) {
+        *remaining_ms = 0;
+        return FALSE;
+    }
+    *remaining_ms = deadline->timeout_ms - (DWORD)elapsed_ms;
+    return TRUE;
+}
+
+static void ob_cancel_overlapped(HANDLE pipe, OVERLAPPED *overlapped) {
+    // ERROR_NOT_FOUND only means that completion won the cancellation race.
+    (void)CancelIoEx(pipe, overlapped);
+    DWORD ignored = 0;
+    (void)GetOverlappedResult(pipe, overlapped, &ignored, TRUE);
+}
+
 static int ob_wait_for_overlapped(
     HANDLE pipe,
     OVERLAPPED *overlapped,
@@ -41,23 +80,52 @@ static int ob_wait_for_overlapped(
     const DWORD wait_result = WaitForSingleObject(overlapped->hEvent, timeout_ms);
     if (wait_result == WAIT_TIMEOUT) {
         // The caller's buffer and OVERLAPPED storage cannot be released until
-        // the kernel has completed cancellation. ERROR_NOT_FOUND only means the
-        // operation won the race and has already completed.
-        (void)CancelIoEx(pipe, overlapped);
-        DWORD ignored = 0;
-        (void)GetOverlappedResult(pipe, overlapped, &ignored, TRUE);
+        // the kernel has completed cancellation.
+        ob_cancel_overlapped(pipe, overlapped);
         return OB_WINDOWS_IPC_WRITE_TIMEOUT;
     }
     if (wait_result != WAIT_OBJECT_0) {
-        (void)CancelIoEx(pipe, overlapped);
-        DWORD ignored = 0;
-        (void)GetOverlappedResult(pipe, overlapped, &ignored, TRUE);
+        ob_cancel_overlapped(pipe, overlapped);
         return OB_WINDOWS_IPC_SYSTEM_ERROR;
     }
     if (!GetOverlappedResult(pipe, overlapped, transferred, FALSE)) {
         return ob_connection_status(GetLastError());
     }
     return OB_WINDOWS_IPC_OK;
+}
+
+static int ob_wait_for_overlapped_before(
+    HANDLE pipe,
+    OVERLAPPED *overlapped,
+    const ObWindowsDeadline *deadline,
+    DWORD *transferred
+) {
+    DWORD remaining_ms = 0;
+    if (!ob_deadline_remaining(deadline, &remaining_ms)) {
+        ob_cancel_overlapped(pipe, overlapped);
+        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
+    }
+    const int status = ob_wait_for_overlapped(
+        pipe,
+        overlapped,
+        remaining_ms,
+        transferred
+    );
+    if (status == OB_WINDOWS_IPC_WRITE_TIMEOUT) {
+        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
+    }
+    if (status != OB_WINDOWS_IPC_OK) return status;
+    if (!ob_deadline_remaining(deadline, &remaining_ms)) {
+        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
+    }
+    return OB_WINDOWS_IPC_OK;
+}
+
+static void ob_windows_local_server_reset_connection(
+    ObWindowsLocalServer *server
+) {
+    server->has_prefetched_byte = FALSE;
+    (void)DisconnectNamedPipe(server->pipe);
 }
 
 static int ob_overlapped_transfer_result(
@@ -304,7 +372,7 @@ ObWindowsLocalServer *ob_windows_local_server_create(
 
 void ob_windows_local_server_destroy(ObWindowsLocalServer *server) {
     if (server == NULL) return;
-    DisconnectNamedPipe(server->pipe);
+    ob_windows_local_server_reset_connection(server);
     CloseHandle(server->pipe);
     ReleaseMutex(server->mutex);
     CloseHandle(server->mutex);
@@ -316,44 +384,101 @@ static int ob_windows_local_server_accept_with_timeout(
     ObWindowsLocalServer *server,
     DWORD timeout_ms
 ) {
+    server->has_prefetched_byte = FALSE;
+    const ObWindowsDeadline deadline = ob_deadline_start(timeout_ms);
+    DWORD remaining_ms = 0;
+    if (!ob_deadline_remaining(&deadline, &remaining_ms)) {
+        ob_windows_local_server_reset_connection(server);
+        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
+    }
+
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (overlapped.hEvent == NULL) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    if (overlapped.hEvent == NULL) {
+        ob_windows_local_server_reset_connection(server);
+        return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    }
     const BOOL connected = ConnectNamedPipe(server->pipe, &overlapped);
     if (!connected) {
         const DWORD connect_error = GetLastError();
         if (connect_error == ERROR_NO_DATA) {
             CloseHandle(overlapped.hEvent);
-            (void)DisconnectNamedPipe(server->pipe);
+            ob_windows_local_server_reset_connection(server);
             return OB_WINDOWS_IPC_CONNECTION_CLOSED;
         }
         if (connect_error == ERROR_IO_PENDING) {
             DWORD ignored = 0;
-            const int status = ob_wait_for_overlapped(
+            const int status = ob_wait_for_overlapped_before(
                 server->pipe,
                 &overlapped,
-                timeout_ms,
+                &deadline,
                 &ignored
             );
             CloseHandle(overlapped.hEvent);
-            if (status == OB_WINDOWS_IPC_WRITE_TIMEOUT) {
-                (void)DisconnectNamedPipe(server->pipe);
-                return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
-            }
             if (status != OB_WINDOWS_IPC_OK) {
-                if (status == OB_WINDOWS_IPC_CONNECTION_CLOSED) {
-                    (void)DisconnectNamedPipe(server->pipe);
-                }
+                ob_windows_local_server_reset_connection(server);
                 return status;
             }
         } else {
             CloseHandle(overlapped.hEvent);
             if (connect_error != ERROR_PIPE_CONNECTED) {
+                ob_windows_local_server_reset_connection(server);
                 return ob_connection_status(connect_error);
             }
         }
     } else {
         CloseHandle(overlapped.hEvent);
+    }
+
+    if (!ob_deadline_remaining(&deadline, &remaining_ms)) {
+        ob_windows_local_server_reset_connection(server);
+        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
+    }
+
+    BYTE first_byte = 0;
+    OVERLAPPED read_overlapped = {0};
+    read_overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (read_overlapped.hEvent == NULL) {
+        ob_windows_local_server_reset_connection(server);
+        return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    }
+    const BOOL read_started = ReadFile(
+        server->pipe,
+        &first_byte,
+        1,
+        NULL,
+        &read_overlapped
+    );
+    const DWORD read_error = read_started ? ERROR_SUCCESS : GetLastError();
+    DWORD read_bytes = 0;
+    int read_status = OB_WINDOWS_IPC_OK;
+    if (read_started) {
+        if (!GetOverlappedResult(
+                server->pipe,
+                &read_overlapped,
+                &read_bytes,
+                FALSE
+            )) {
+            read_status = ob_connection_status(GetLastError());
+        } else if (!ob_deadline_remaining(&deadline, &remaining_ms)) {
+            read_status = OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
+        }
+    } else if (read_error == ERROR_IO_PENDING) {
+        read_status = ob_wait_for_overlapped_before(
+            server->pipe,
+            &read_overlapped,
+            &deadline,
+            &read_bytes
+        );
+    } else {
+        read_status = ob_connection_status(read_error);
+    }
+    CloseHandle(read_overlapped.hEvent);
+    if (read_status != OB_WINDOWS_IPC_OK || read_bytes != 1) {
+        ob_windows_local_server_reset_connection(server);
+        return read_status == OB_WINDOWS_IPC_OK
+                   ? OB_WINDOWS_IPC_CONNECTION_CLOSED
+                   : read_status;
     }
 
     BOOL impersonating = ImpersonateNamedPipeClient(server->pipe);
@@ -381,9 +506,15 @@ static int ob_windows_local_server_accept_with_timeout(
         ExitProcess(exit_code);
     }
     if (!same_user) {
-        DisconnectNamedPipe(server->pipe);
+        ob_windows_local_server_reset_connection(server);
         return OB_WINDOWS_IPC_PEER_IDENTITY_MISMATCH;
     }
+    if (!ob_deadline_remaining(&deadline, &remaining_ms)) {
+        ob_windows_local_server_reset_connection(server);
+        return OB_WINDOWS_IPC_ACCEPT_TIMEOUT;
+    }
+    server->prefetched_byte = first_byte;
+    server->has_prefetched_byte = TRUE;
     return OB_WINDOWS_IPC_OK;
 }
 
@@ -399,8 +530,13 @@ int ob_windows_local_server_accept_before(
 }
 
 int ob_windows_local_server_peek(ObWindowsLocalServer *server, uint32_t *available) {
+    if (server->has_prefetched_byte) {
+        *available = 1;
+        return OB_WINDOWS_IPC_OK;
+    }
     DWORD available_bytes = 0;
     if (!PeekNamedPipe(server->pipe, NULL, 0, NULL, &available_bytes, NULL)) {
+        server->has_prefetched_byte = FALSE;
         return ob_connection_status(GetLastError());
     }
     *available = (uint32_t)available_bytes;
@@ -413,9 +549,18 @@ int ob_windows_local_server_read(
     uint32_t capacity,
     uint32_t *read_bytes
 ) {
+    if (server->has_prefetched_byte && capacity > 0) {
+        buffer[0] = server->prefetched_byte;
+        server->has_prefetched_byte = FALSE;
+        *read_bytes = 1;
+        return OB_WINDOWS_IPC_OK;
+    }
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (overlapped.hEvent == NULL) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    if (overlapped.hEvent == NULL) {
+        server->has_prefetched_byte = FALSE;
+        return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    }
     const BOOL started = ReadFile(server->pipe, buffer, capacity, NULL, &overlapped);
     DWORD transferred = 0;
     const int status = ob_overlapped_transfer_result(
@@ -426,9 +571,16 @@ int ob_windows_local_server_read(
         &transferred
     );
     CloseHandle(overlapped.hEvent);
-    if (status != OB_WINDOWS_IPC_OK) return status;
+    if (status != OB_WINDOWS_IPC_OK) {
+        server->has_prefetched_byte = FALSE;
+        return status;
+    }
     *read_bytes = (uint32_t)transferred;
-    return transferred == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
+    if (transferred == 0) {
+        server->has_prefetched_byte = FALSE;
+        return OB_WINDOWS_IPC_CONNECTION_CLOSED;
+    }
+    return OB_WINDOWS_IPC_OK;
 }
 
 int ob_windows_local_server_write(
@@ -439,7 +591,10 @@ int ob_windows_local_server_write(
 ) {
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (overlapped.hEvent == NULL) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    if (overlapped.hEvent == NULL) {
+        server->has_prefetched_byte = FALSE;
+        return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    }
     const BOOL started = WriteFile(server->pipe, buffer, length, NULL, &overlapped);
     DWORD transferred = 0;
     const int status = ob_overlapped_transfer_result(
@@ -450,9 +605,16 @@ int ob_windows_local_server_write(
         &transferred
     );
     CloseHandle(overlapped.hEvent);
-    if (status != OB_WINDOWS_IPC_OK) return status;
+    if (status != OB_WINDOWS_IPC_OK) {
+        server->has_prefetched_byte = FALSE;
+        return status;
+    }
     *written_bytes = (uint32_t)transferred;
-    return transferred == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
+    if (transferred == 0) {
+        server->has_prefetched_byte = FALSE;
+        return OB_WINDOWS_IPC_CONNECTION_CLOSED;
+    }
+    return OB_WINDOWS_IPC_OK;
 }
 
 int ob_windows_local_server_write_before(
@@ -464,7 +626,10 @@ int ob_windows_local_server_write_before(
 ) {
     OVERLAPPED overlapped = {0};
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (overlapped.hEvent == NULL) return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    if (overlapped.hEvent == NULL) {
+        server->has_prefetched_byte = FALSE;
+        return OB_WINDOWS_IPC_SYSTEM_ERROR;
+    }
     const BOOL started = WriteFile(server->pipe, buffer, length, NULL, &overlapped);
     DWORD transferred = 0;
     const int status = ob_overlapped_transfer_result(
@@ -475,13 +640,20 @@ int ob_windows_local_server_write_before(
         &transferred
     );
     CloseHandle(overlapped.hEvent);
-    if (status != OB_WINDOWS_IPC_OK) return status;
+    if (status != OB_WINDOWS_IPC_OK) {
+        server->has_prefetched_byte = FALSE;
+        return status;
+    }
     *written_bytes = (uint32_t)transferred;
-    return transferred == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
+    if (transferred == 0) {
+        server->has_prefetched_byte = FALSE;
+        return OB_WINDOWS_IPC_CONNECTION_CLOSED;
+    }
+    return OB_WINDOWS_IPC_OK;
 }
 
 void ob_windows_local_server_disconnect(ObWindowsLocalServer *server) {
-    DisconnectNamedPipe(server->pipe);
+    ob_windows_local_server_reset_connection(server);
 }
 
 void *ob_windows_local_test_client_connect(const wchar_t *endpoint_id, int *status) {
@@ -493,6 +665,10 @@ void *ob_windows_local_test_client_connect(const wchar_t *endpoint_id, int *stat
         L"\\\\.\\pipe\\orchbee-terminal-host-%ls",
         endpoint_id
     );
+    if (!WaitNamedPipeW(pipe_name, 5000)) {
+        *status = ob_connection_status(GetLastError());
+        return NULL;
+    }
     HANDLE client = CreateFileW(
         pipe_name,
         GENERIC_READ | GENERIC_WRITE,

@@ -39,6 +39,20 @@ const ServeThreadContext = harness.ServeThreadContext;
 const serveTestConnection = harness.serveTestConnection;
 const serveTestUntilIdle = harness.serveTestUntilIdle;
 
+const ThreadJoinGuard = struct {
+    thread: ?std.Thread,
+
+    fn init(thread: std.Thread) ThreadJoinGuard {
+        return .{ .thread = thread };
+    }
+
+    fn join(self: *ThreadJoinGuard) void {
+        const thread = self.thread orelse return;
+        self.thread = null;
+        thread.join();
+    }
+};
+
 test "private local endpoint owns one lifetime lock and serves a handshake" {
     var runtime = try TestRuntimeDirectory.init(std.testing.allocator);
     defer runtime.deinit();
@@ -65,11 +79,19 @@ test "private local endpoint owns one lifetime lock and serves a handshake" {
         .server = &server,
         .service = &service,
     };
-    const server_thread = try std.Thread.spawn(.{}, serveTestUntilIdle, .{&thread_context});
-
     var client = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
+    var client_open = true;
+    var server_thread = ThreadJoinGuard.init(
+        std.Thread.spawn(.{}, serveTestUntilIdle, .{&thread_context}) catch |err| {
+            client.close();
+            return err;
+        },
+    );
+    defer server_thread.join();
+    defer if (client_open) client.close();
     try expectHandshakeAccepted(&client);
     client.close();
+    client_open = false;
     server_thread.join();
     if (thread_context.failure) |failure| return failure;
     try std.testing.expectEqual(@as(usize, 0), serviceCore(&service).connectionCount());
@@ -96,10 +118,125 @@ test "Windows pipe recovers when a client closes before accept" {
         .server = &server,
         .service = &service,
     };
-    const server_thread = try std.Thread.spawn(.{}, serveTestConnection, .{&context});
+    var server_thread = ThreadJoinGuard.init(
+        try std.Thread.spawn(.{}, serveTestConnection, .{&context}),
+    );
+    defer server_thread.join();
     var replacement = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
+    var replacement_open = true;
+    defer if (replacement_open) replacement.close();
     try expectHandshakeAccepted(&replacement);
     replacement.close();
+    replacement_open = false;
+    server_thread.join();
+    if (context.failure) |failure| return failure;
+}
+test "Windows pipe requires a first byte within the accept deadline" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var runtime = try TestRuntimeDirectory.init(std.testing.allocator);
+    defer runtime.deinit();
+    const endpoint_id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    var server = try LocalServer.init(
+        std.testing.allocator,
+        runtime.path(),
+        endpoint_id,
+    );
+    defer server.deinit();
+    var service = host_service.HostService.init(std.testing.allocator);
+    defer service.deinit();
+
+    var silent = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
+    var silent_open = true;
+    defer if (silent_open) silent.close();
+    try std.testing.expect(!try server.serveOneBefore(&service, 20));
+    try std.testing.expectEqual(@as(usize, 0), serviceCore(&service).connectionCount());
+    silent.close();
+    silent_open = false;
+
+    var context: ServeThreadContext = .{
+        .server = &server,
+        .service = &service,
+    };
+    var server_thread = ThreadJoinGuard.init(
+        try std.Thread.spawn(.{}, serveTestConnection, .{&context}),
+    );
+    defer server_thread.join();
+    var replacement = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
+    var replacement_open = true;
+    defer if (replacement_open) replacement.close();
+    try expectHandshakeAccepted(&replacement);
+    replacement.close();
+    replacement_open = false;
+    server_thread.join();
+    if (context.failure) |failure| return failure;
+}
+test "Windows pipe delivers its authenticated first byte before peer EOF" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var runtime = try TestRuntimeDirectory.init(std.testing.allocator);
+    defer runtime.deinit();
+    const endpoint_id = "ffffffffffffffffffffffffffffffff";
+    var server = try LocalServer.init(
+        std.testing.allocator,
+        runtime.path(),
+        endpoint_id,
+    );
+    defer server.deinit();
+    const server_handle: ?*windows_c.ObWindowsLocalServer = @ptrCast(server.handle);
+
+    var client = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
+    var client_open = true;
+    defer if (client_open) client.close();
+    try client.writeAll("O");
+    try requireWindowsStatus(windows_c.ob_windows_local_server_accept_before(
+        server_handle,
+        1_000,
+    ));
+    client.close();
+    client_open = false;
+
+    var available: u32 = 0;
+    try requireWindowsStatus(windows_c.ob_windows_local_server_peek(
+        server_handle,
+        &available,
+    ));
+    try std.testing.expectEqual(@as(u32, 1), available);
+    try requireWindowsStatus(windows_c.ob_windows_local_server_peek(
+        server_handle,
+        &available,
+    ));
+    try std.testing.expectEqual(@as(u32, 1), available);
+    var byte: [1]u8 = undefined;
+    var read_bytes: u32 = 0;
+    try requireWindowsStatus(windows_c.ob_windows_local_server_read(
+        server_handle,
+        &byte,
+        byte.len,
+        &read_bytes,
+    ));
+    try std.testing.expectEqual(@as(u32, 1), read_bytes);
+    try std.testing.expectEqual(@as(u8, 'O'), byte[0]);
+    try std.testing.expectEqual(
+        windows_c.OB_WINDOWS_IPC_CONNECTION_CLOSED,
+        windows_c.ob_windows_local_server_peek(server_handle, &available),
+    );
+    windows_c.ob_windows_local_server_disconnect(server_handle);
+
+    var service = host_service.HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var context: ServeThreadContext = .{
+        .server = &server,
+        .service = &service,
+    };
+    var server_thread = ThreadJoinGuard.init(
+        try std.Thread.spawn(.{}, serveTestConnection, .{&context}),
+    );
+    defer server_thread.join();
+    var replacement = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
+    var replacement_open = true;
+    defer if (replacement_open) replacement.close();
+    try expectHandshakeAccepted(&replacement);
+    replacement.close();
+    replacement_open = false;
     server_thread.join();
     if (context.failure) |failure| return failure;
 }
@@ -120,14 +257,25 @@ test "malformed local record closes only that connection" {
         .server = &server,
         .service = &service,
     };
-    const malformed_thread = try std.Thread.spawn(.{}, serveTestConnection, .{&malformed_context});
+    var malformed_thread = ThreadJoinGuard.init(
+        try std.Thread.spawn(.{}, serveTestConnection, .{&malformed_context}),
+    );
+    defer malformed_thread.join();
     var malformed_client = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
+    var malformed_client_open = true;
+    defer if (malformed_client_open) malformed_client.close();
     var malformed = [_]u8{0} ** protocol.transport_envelope_header_bytes;
     @memcpy(malformed[0..4], "OBTP");
     std.mem.writeInt(u16, malformed[4..6], protocol.transport_envelope_header_bytes, .little);
     std.mem.writeInt(u32, malformed[8..12], std.math.maxInt(u32), .little);
     try malformed_client.writeAll(&malformed);
+    var unexpected_response: [1]u8 = undefined;
+    try std.testing.expectError(
+        error.ConnectionClosed,
+        malformed_client.read(&unexpected_response),
+    );
     malformed_client.close();
+    malformed_client_open = false;
     malformed_thread.join();
     if (malformed_context.failure) |failure| return failure;
     try std.testing.expectEqual(@as(usize, 0), serviceCore(&service).terminalCount());
@@ -137,10 +285,16 @@ test "malformed local record closes only that connection" {
         .server = &server,
         .service = &service,
     };
-    const valid_thread = try std.Thread.spawn(.{}, serveTestConnection, .{&valid_context});
+    var valid_thread = ThreadJoinGuard.init(
+        try std.Thread.spawn(.{}, serveTestConnection, .{&valid_context}),
+    );
+    defer valid_thread.join();
     var valid_client = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
+    var valid_client_open = true;
+    defer if (valid_client_open) valid_client.close();
     try expectHandshakeAccepted(&valid_client);
     valid_client.close();
+    valid_client_open = false;
     valid_thread.join();
     if (valid_context.failure) |failure| return failure;
 }
