@@ -3,7 +3,7 @@ use crate::local_client::test_server::adjustable_operation_clock;
 use crate::local_client::workbench::WorkbenchTabMoveCommit;
 use crate::terminal_session::mailbox::{CommandLease, EventDeadline, UiWaitKey};
 use crate::terminal_session::state::{
-    MoveDecision, MoveOperation, MoveResult, SwitchDetachContinuation,
+    CleanupContinuation, MoveDecision, MoveOperation, MoveResult,
 };
 use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision, WorkbenchSnapshotOutcome};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -70,7 +70,7 @@ fn place_move(
             operation.clone(),
             MoveResult::Committed {
                 commit: WorkbenchTabMoveCommit {
-                    revision: WorkbenchRevision::new(2),
+                    revision: WorkbenchRevision::new(operation.baseline().revision().value() + 1),
                     terminal_context_id: operation.baseline().terminal_context_id().clone(),
                     tab_id: operation.target().tab_id().clone(),
                 },
@@ -247,7 +247,8 @@ fn actual_unattached_move_installs_a_fresh_successor_or_empty_without_cleanup() 
                 |state, result, facts| {
                     if result.is_ok() {
                         state.finish_switch_membership_admission(
-                            facts.abandoned_causal(),
+                            facts.discarded(),
+                            facts.inherited(),
                             facts.authorized_cleanup(),
                         );
                     }
@@ -255,15 +256,69 @@ fn actual_unattached_move_installs_a_fresh_successor_or_empty_without_cleanup() 
             )
             .unwrap();
         let lease = mailbox.try_recv().unwrap().unwrap();
-        let selected = state.desired().unwrap().clone();
-        assert!(matches!(
-            state.settle_switch_old_detached(&selected, &old, deadlines.forward_cutoff()),
-            Some(SwitchDetachContinuation::SettledWithoutAttachment)
-        ));
+        let QueuedCommand::Switch(marker) = lease.record() else {
+            panic!("Switch lease")
+        };
+        let permit = mailbox
+            .authorize_switch_snapshot(&lease, marker.target(), &clock)
+            .unwrap()
+            .unwrap();
+        mailbox.answer_switch_snapshot(permit).unwrap();
+        let wait = mailbox
+            .publish_event_before(
+                WorkerEvent::SwitchSnapshotResult {
+                    marker: marker.target().selected().key().clone(),
+                    outcome: WorkbenchSnapshotOutcome::Available {
+                        snapshot: super::membership_tests::snapshot(2, 2),
+                    },
+                },
+                EventDeadline::PlacementOnly(deadlines.forward_cutoff()),
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        let Some(UiReply::Switch(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+            panic!("Switch candidate reply")
+        };
+        let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
+            panic!("old viewer cleanup")
+        };
+        let permit = mailbox
+            .authorize_switch_cleanup(&lease, cleanup, &old, &clock)
+            .unwrap()
+            .unwrap();
+        mailbox.answer_switch_cleanup(permit, true).unwrap();
+        let wait = mailbox
+            .publish_event_before(
+                WorkerEvent::MembershipDetached {
+                    cleanup: cleanup.clone(),
+                    detached: old,
+                },
+                EventDeadline::TotalCleanup(deadlines.total()),
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        let Some(UiReply::Switch(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+            panic!("Switch successor reply")
+        };
+        let RefreshDecision::AttachRecovered(target) = settlement.decision() else {
+            panic!("fresh successor")
+        };
+        let selected = target.selected().key().clone();
+        let state = ui.state.as_mut().unwrap();
+        assert_eq!(
+            state.settle_unattached_setup(
+                &selected,
+                target.selected().index(),
+                target.provenance()
+            ),
+            Some(CleanupContinuation::Stable)
+        );
         mailbox.finish_lease(lease).unwrap();
         assert!(state.invariant_holds());
         assert!(state.attached_key().is_none());
-        let mut candidate = super::membership_tests::snapshot(if neighbor { 2 } else { 0 }, 3);
+        let mut candidate = super::membership_tests::snapshot(if neighbor { 2 } else { 0 }, 4);
         if neighbor {
             candidate.terminal_contexts[0].tabs.remove(1);
         }

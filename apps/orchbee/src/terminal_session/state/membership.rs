@@ -608,7 +608,9 @@ impl NativeSessionState {
                     MembershipResultKey::Refresh(generation) => {
                         self.pending_refresh_generation == Some(*generation)
                     }
-                    MembershipResultKey::Close(_) | MembershipResultKey::Switch(_) => false,
+                    MembershipResultKey::Close(_)
+                    | MembershipResultKey::Move(_)
+                    | MembershipResultKey::Switch(_) => false,
                 };
                 exact_origin
                     && pending.cleanup.installs_candidate
