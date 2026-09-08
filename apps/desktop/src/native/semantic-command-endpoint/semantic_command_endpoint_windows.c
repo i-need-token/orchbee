@@ -19,9 +19,16 @@
 #define OB_ENDPOINT_ID_LENGTH 32
 #define OB_PIPE_NAME_CAPACITY 128
 
+typedef enum { ACCEPT_IDLE, ACCEPT_CONNECTING, ACCEPT_IDENTITY, ACCEPT_AUTHENTICATED, ACCEPT_CLOSED } AcceptPhase;
+
 struct ObSemanticCommandServer {
     HANDLE pipe;
     BYTE *token_user;
+    AcceptPhase phase;
+    OVERLAPPED accept_operation;
+    BOOL accept_pending;
+    ULONGLONG connection_started;
+    uint32_t connection_budget;
     uint8_t authenticated_byte;
     BOOL has_authenticated_byte;
 };
@@ -482,11 +489,40 @@ ObSemanticCommandServer *ob_semantic_endpoint_server_create(
     return server;
 }
 
+// All server calls are serialized by the Worker. Completion must be observed even
+// when CancelIoEx loses the race, before operation storage or the pipe is reused.
+static void quiesce_accept(ObSemanticCommandServer *server) {
+    if (server->accept_pending) {
+        (void)CancelIoEx(server->pipe, &server->accept_operation);
+        DWORD ignored = 0;
+        (void)GetOverlappedResult(server->pipe, &server->accept_operation, &ignored, TRUE);
+        server->accept_pending = FALSE;
+    }
+    if (server->accept_operation.hEvent != NULL) CloseHandle(server->accept_operation.hEvent);
+    memset(&server->accept_operation, 0, sizeof(server->accept_operation));
+}
+
 void ob_semantic_endpoint_server_disconnect(ObSemanticCommandServer *server) {
     if (server == NULL) return;
+    quiesce_accept(server);
     server->has_authenticated_byte = FALSE;
     server->authenticated_byte = 0;
-    if (server->pipe != INVALID_HANDLE_VALUE) (void)DisconnectNamedPipe(server->pipe);
+    server->phase = ACCEPT_IDLE;
+    server->connection_started = 0;
+    server->connection_budget = 0;
+    if (server->pipe != INVALID_HANDLE_VALUE &&
+        !DisconnectNamedPipe(server->pipe) && GetLastError() != ERROR_PIPE_NOT_CONNECTED) {
+        // Unknown cleanup failure must never grant the old peer a fresh budget.
+        // The exact pending operation is already quiescent before handle retirement.
+        CloseHandle(server->pipe);
+        server->pipe = INVALID_HANDLE_VALUE;
+    }
+}
+
+static int close_connection(ObSemanticCommandServer *server, int status) {
+    ob_semantic_endpoint_server_disconnect(server);
+    server->phase = ACCEPT_CLOSED;
+    return status;
 }
 
 void ob_semantic_endpoint_server_destroy(ObSemanticCommandServer *server) {
@@ -506,51 +542,89 @@ static uint32_t remaining_time(ULONGLONG started, uint32_t timeout_ms) {
     return elapsed >= timeout_ms ? 0 : timeout_ms - (uint32_t)elapsed;
 }
 
+static uint32_t connection_remaining(const ObSemanticCommandServer *server) {
+    return remaining_time(server->connection_started, server->connection_budget);
+}
+
+static int pipe_error(DWORD error) {
+    return error == ERROR_BROKEN_PIPE || error == ERROR_NO_DATA || error == ERROR_PIPE_NOT_CONNECTED
+        ? OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED : OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+}
+
+static int start_accept_operation(ObSemanticCommandServer *server) {
+    server->accept_operation.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (server->accept_operation.hEvent == NULL) return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+    const BOOL started = server->phase == ACCEPT_CONNECTING
+        ? ConnectNamedPipe(server->pipe, &server->accept_operation)
+        : ReadFile(server->pipe, &server->authenticated_byte, 1, NULL, &server->accept_operation);
+    const DWORD error = started ? ERROR_SUCCESS : GetLastError();
+    if (error == ERROR_IO_PENDING) {
+        server->accept_pending = TRUE;
+        return OB_SEMANTIC_ENDPOINT_OK;
+    }
+    if (error == ERROR_PIPE_CONNECTED && server->phase == ACCEPT_CONNECTING) return OB_SEMANTIC_ENDPOINT_OK;
+    if (!started) return pipe_error(error);
+    DWORD transferred = 0;
+    if (!GetOverlappedResult(server->pipe, &server->accept_operation, &transferred, FALSE)) return pipe_error(GetLastError());
+    return server->phase == ACCEPT_IDENTITY && transferred != 1
+        ? OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED : OB_SEMANTIC_ENDPOINT_OK;
+}
+
+static int poll_accept_operation(ObSemanticCommandServer *server, uint32_t timeout_ms) {
+    if (!server->accept_pending) return OB_SEMANTIC_ENDPOINT_OK;
+    const DWORD waited = WaitForSingleObject(server->accept_operation.hEvent, timeout_ms);
+    // Poll expiry leaves the exact operation and its storage owned by this server.
+    if (waited == WAIT_TIMEOUT) return OB_SEMANTIC_ENDPOINT_TIMEOUT;
+    if (waited != WAIT_OBJECT_0) return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+    DWORD transferred = 0;
+    const BOOL completed = GetOverlappedResult(server->pipe, &server->accept_operation, &transferred, FALSE);
+    const DWORD error = completed ? ERROR_SUCCESS : GetLastError();
+    if (error != ERROR_IO_INCOMPLETE) server->accept_pending = FALSE;
+    if (!completed) return pipe_error(error);
+    return server->phase == ACCEPT_IDENTITY && transferred != 1
+        ? OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED : OB_SEMANTIC_ENDPOINT_OK;
+}
+
 int ob_semantic_endpoint_server_accept_before(
     ObSemanticCommandServer *server,
-    uint32_t timeout_ms) {
-    if (server == NULL) return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
+    uint32_t timeout_ms,
+    uint32_t connection_budget_ms,
+    uint32_t *remaining_request_ms) {
+    if (server == NULL || remaining_request_ms == NULL || connection_budget_ms == 0) return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
     if (server->pipe == INVALID_HANDLE_VALUE) return OB_SEMANTIC_ENDPOINT_UNAVAILABLE;
+    if (server->phase == ACCEPT_CLOSED) return OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED;
+    if (server->phase == ACCEPT_AUTHENTICATED) return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
     const ULONGLONG started = GetTickCount64();
-    server->has_authenticated_byte = FALSE;
-    server->authenticated_byte = 0;
-    OVERLAPPED overlapped = {0};
-    overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (overlapped.hEvent == NULL) {
-        ob_semantic_endpoint_server_disconnect(server);
-        return OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
+    if (server->phase == ACCEPT_IDLE) {
+        server->phase = ACCEPT_CONNECTING;
+        const int result = start_accept_operation(server);
+        if (result != OB_SEMANTIC_ENDPOINT_OK) return close_connection(server, result);
     }
-    const BOOL connected = ConnectNamedPipe(server->pipe, &overlapped);
-    int result = OB_SEMANTIC_ENDPOINT_OK;
-    if (!connected) {
-        const DWORD error = GetLastError();
-        if (error == ERROR_PIPE_CONNECTED) {
-            result = OB_SEMANTIC_ENDPOINT_OK;
-        } else if (error == ERROR_IO_PENDING) {
-            DWORD ignored = 0;
-            result = wait_overlapped(server->pipe, &overlapped,
-                remaining_time(started, timeout_ms), &ignored);
-        } else {
-            result = error == ERROR_NO_DATA ? OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED
-                                            : OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR;
-        }
+    if (server->phase == ACCEPT_CONNECTING) {
+        const int result = poll_accept_operation(server, remaining_time(started, timeout_ms));
+        if (result == OB_SEMANTIC_ENDPOINT_TIMEOUT) return result;
+        if (result != OB_SEMANTIC_ENDPOINT_OK) return close_connection(server, result);
+        quiesce_accept(server);
+        server->connection_started = GetTickCount64();
+        server->connection_budget = connection_budget_ms;
+        server->phase = ACCEPT_IDENTITY;
     }
-    CloseHandle(overlapped.hEvent);
-    if (result != OB_SEMANTIC_ENDPOINT_OK) {
-        ob_semantic_endpoint_server_disconnect(server);
-        return result;
+    uint32_t remaining = connection_remaining(server);
+    if (remaining == 0) return close_connection(server, OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED);
+    const uint32_t poll_remaining = remaining_time(started, timeout_ms);
+    if (poll_remaining == 0) return OB_SEMANTIC_ENDPOINT_TIMEOUT;
+    if (server->accept_operation.hEvent == NULL) {
+        const int result = start_accept_operation(server);
+        if (result != OB_SEMANTIC_ENDPOINT_OK) return close_connection(server, result);
     }
-    const uint32_t remaining = remaining_time(started, timeout_ms);
-    uint8_t first_byte = 0;
-    uint32_t read_bytes = 0;
-    // Windows impersonates the security context of the last pipe read. Keep
-    // this byte local until authentication and RevertToSelf both succeed.
-    result = remaining == 0 ? OB_SEMANTIC_ENDPOINT_TIMEOUT
-        : read_before(server->pipe, &first_byte, 1, remaining, &read_bytes);
-    if (result != OB_SEMANTIC_ENDPOINT_OK) {
-        ob_semantic_endpoint_server_disconnect(server);
-        return result;
-    }
+    remaining = connection_remaining(server);
+    if (remaining == 0) return close_connection(server, OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED);
+    const uint32_t wait_remaining = remaining_time(started, timeout_ms);
+    const int result = poll_accept_operation(server, remaining < wait_remaining ? remaining : wait_remaining);
+    if (connection_remaining(server) == 0) return close_connection(server, OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED);
+    if (result == OB_SEMANTIC_ENDPOINT_TIMEOUT) return result;
+    if (result != OB_SEMANTIC_ENDPOINT_OK) return close_connection(server, result);
+    quiesce_accept(server);
     const BOOL impersonating = ImpersonateNamedPipeClient(server->pipe);
     HANDLE client_token = NULL;
     BYTE *client_user = NULL;
@@ -573,16 +647,14 @@ int ob_semantic_endpoint_server_accept_before(
         ExitProcess(exit_code);
     }
     if (!same_user) {
-        ob_semantic_endpoint_server_disconnect(server);
-        return impersonating ? OB_SEMANTIC_ENDPOINT_PEER_IDENTITY_MISMATCH
-                             : OB_SEMANTIC_ENDPOINT_PEER_IDENTITY_UNAVAILABLE;
+        return close_connection(server, impersonating ? OB_SEMANTIC_ENDPOINT_PEER_IDENTITY_MISMATCH
+                             : OB_SEMANTIC_ENDPOINT_PEER_IDENTITY_UNAVAILABLE);
     }
-    if (remaining_time(started, timeout_ms) == 0) {
-        ob_semantic_endpoint_server_disconnect(server);
-        return OB_SEMANTIC_ENDPOINT_TIMEOUT;
-    }
-    server->authenticated_byte = first_byte;
+    remaining = connection_remaining(server);
+    if (remaining == 0) return close_connection(server, OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED);
+    server->phase = ACCEPT_AUTHENTICATED;
     server->has_authenticated_byte = TRUE;
+    *remaining_request_ms = remaining;
     return OB_SEMANTIC_ENDPOINT_OK;
 }
 
@@ -644,6 +716,9 @@ int ob_semantic_endpoint_server_read_before(
         return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
     }
     if (server->pipe == INVALID_HANDLE_VALUE) return OB_SEMANTIC_ENDPOINT_UNAVAILABLE;
+    if (server->phase != ACCEPT_AUTHENTICATED) return OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED;
+    const uint32_t remaining = connection_remaining(server);
+    if (remaining == 0) return close_connection(server, OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED);
     if (server->has_authenticated_byte) {
         buffer[0] = server->authenticated_byte;
         *read_bytes = 1;
@@ -651,10 +726,14 @@ int ob_semantic_endpoint_server_read_before(
         server->authenticated_byte = 0;
         return OB_SEMANTIC_ENDPOINT_OK;
     }
-    const int result = read_before(server->pipe, buffer, capacity, timeout_ms, read_bytes);
+    uint32_t transferred = 0;
+    const int result = read_before(server->pipe, buffer, capacity,
+        remaining < timeout_ms ? remaining : timeout_ms, &transferred);
+    if (connection_remaining(server) == 0) return close_connection(server, OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED);
     if (result != OB_SEMANTIC_ENDPOINT_OK && result != OB_SEMANTIC_ENDPOINT_TIMEOUT) {
-        ob_semantic_endpoint_server_disconnect(server);
+        return close_connection(server, result);
     }
+    if (result == OB_SEMANTIC_ENDPOINT_OK) *read_bytes = transferred;
     return result;
 }
 
@@ -735,8 +814,8 @@ int ob_semantic_endpoint_server_write_before(
     int result = remaining == 0 ? OB_SEMANTIC_ENDPOINT_TIMEOUT
         : write_before(server->pipe, buffer, length, remaining, &transferred);
     if (result == OB_SEMANTIC_ENDPOINT_OK) result = flush_before(server, started, timeout_ms);
-    if (result != OB_SEMANTIC_ENDPOINT_OK) ob_semantic_endpoint_server_disconnect(server);
-    else *written_bytes = transferred;
+    if (result != OB_SEMANTIC_ENDPOINT_OK) return close_connection(server, result);
+    *written_bytes = transferred;
     return result;
 }
 

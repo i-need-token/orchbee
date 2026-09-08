@@ -159,12 +159,41 @@ Windows named-pipe creation，以及双向 current-user validation。
 `@orchbee/semantic-command-protocol/local-http` 拥有 framing 与 route；CLI 拥有 trusted enumeration 与
 response validation。该 endpoint 与 Terminal Host、Browser access 分离，且不打开 TCP listener。
 
-Windows accept 使用同一个原始 timeout 完成 connection 与 identity establishment。Native server
-读取一个 byte 以建立 pipe client 的 Windows security context；在精确 current-user SID 验证与
-`RevertToSelf` 成功前，该 byte 保持私有，之后在后续 stream byte 之前精确返回一次。认证前不会
-解析 request 或产生 service effect。Accept timeout、peer refusal、disconnect 与下一次 accept
-会丢弃 buffered byte；terminal stream failure 也会清除它。已认证 read 的 polling timeout 仍可在
-同一 connection 上重试，受 Worker 既有 request deadline 限制，且不会重放已返回的 byte。
+Windows client 可能在发现 listening pipe 后或打开 pipe 后暂停。Worker 的一次 poll 必须保留这两种
+操作，避免把健康 coordinator 错误报告为 unavailable。
+`acceptBefore(server, pollMilliseconds, connectionMilliseconds)` 在 poll 尚未完成时返回 `null`，
+认证成功后返回正数的剩余 request budget。Worker 传入既有的 100 ms poll 与 5,000 ms connection
+budget；native 不另设连接时长。该 budget 负责 admission 和 request reading；既有 parent-response
+和 write budget 仍独立。POSIX 在 peer validation 后返回该 request budget。
+
+Windows server 独占一个位于 heap 的 overlapped operation、event、私有首 byte 和 monotonic
+connection deadline；只有串行 Worker call 可修改它们。Idle listening 没有 connection expiry。
+第一次观察到 connection 时冻结传入 budget；后续 poll 和认证不续期。一次 poll budget 同时覆盖
+connect completion 和 preread。
+
+| 状态                                    | 事件与条件                                                    | 转移与可观察结果                                                                                          |
+| --------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Idle                                    | Accept call                                                   | 启动唯一 owned ConnectNamedPipe operation；进入 Listening                                                 |
+| Listening                               | Poll 到期                                                     | 保留同一 pending operation；返回 null                                                                     |
+| Listening                               | 观察到 connection                                             | 冻结 connection deadline；进入 Awaiting identity byte                                                     |
+| Awaiting identity byte                  | Poll 到期且 connection deadline 未到                          | 保留 pending read 和私有 byte；返回 null                                                                  |
+| Awaiting identity byte                  | Byte 完成、精确 SID 匹配、RevertToSelf 成功且 budget 尚有剩余 | 进入 Authenticated；仅返回剩余 budget                                                                     |
+| Awaiting identity byte 或 Authenticated | 原 connection deadline 到期、peer 失败或 identity 被拒绝      | 等待精确 operation 静止、断连并清除 prefix；进入 Closed，返回 terminal error                              |
+| Authenticated                           | 原 deadline 前读取                                            | 在 stream tail 前仅返回一次 prefix；较短的 read poll 可返回 null                                          |
+| Retired                                 | 任意 accept、read 或 write                                    | 返回 unavailable；永不重用 retired pipe                                                                   |
+| Closed                                  | 再次 accept 或 read                                           | 返回 terminal error；不隐式接纳其他 peer                                                                  |
+| 任意 live state                         | 显式 disconnect 或 Worker stop/close                          | 取消精确 pending operation 并观察完成后才能重置或释放 event、buffer、pipe；disconnect 允许新的 Idle owner |
+
+认证读取一个 byte 来建立 Windows client security context。在精确 current-user SID 验证和
+`RevertToSelf` 成功之前，不发布 byte、request parse 或 service effect。Native 在发布认证前、
+返回 held prefix 前和 body I/O 完成后检查原 deadline。它始终是 Windows deadline authority；
+Worker 的 remaining-budget receipt 只限制本地 loop 和 250 ms read poll。Receipt 后的调度不会
+延长 native read authority。Terminal expiry 会断连，不发布 byte 或 service request；既有 HTTP
+408 response 仍仅在可行时发送。即使 `CancelIoEx` 报告 completion 已先发生，取消也必须通过
+`GetOverlappedResult` 观察完成，之后才能重用或释放 operation storage。OS cleanup 不保证硬实时。
+Quiescence 后若 disconnect 出现未知错误，server 会关闭并永久退役该 pipe；旧 peer 无法获得新
+budget。后续 call 在访问 prefix 前拒绝，destroy 不会再次关闭 retired handle。
+该生命周期不会重放 request 或 response。
 
 Windows server write 只有在 client 已消费所写 pipe byte 后才报告成功。
 Write、helper creation 与 flush wait 共用从 write-call 入口计时的 timeout；expiration 不会发布
@@ -207,7 +236,7 @@ security write。这些 fixture 不改变 token 或 account，也不声明真实
 同一 verifier 还针对真实 named pipe 运行 `tests/windows_accept.c`。受控 connect-before-first-write
 case 覆盖 default client flag 与 bundled client 的 identification flag、精确 binary prefix/tail
 交付、已认证 read polling timeout 后的延迟 fragment、peer EOF、disconnect 与 successor reuse。
-Clock fixture 覆盖剩余 accept budget、读取或发布 admission 前的 expiration，以及既有 infinite-timeout
+Clock fixture 覆盖剩余 poll budget、发布 admission 前的 connection expiration，以及既有 infinite-timeout
 sentinel；identity failure fixture 覆盖 missing/mismatched token 与 impersonation failure。Admission
 失败时 byte 不可观察，accept thread 返回时不残留 impersonation。这些有限 cut 细化不变量 11-13，
 不增加 trusted identity，也不替代真实 cross-user test。
@@ -216,6 +245,25 @@ sentinel；identity failure fixture 覆盖 missing/mismatched token 与 imperson
 flush 前后两种 deadline 顺序、peer close、helper creation failure、原始 write budget 耗尽、
 未知 disconnect failure 后的 listener retirement，以及下一次已认证 connection。受控 OS failure
 仅验证错误分类与资源保留，不证明 OS failure 下 cleanup 的活性。
+
+`WindowsSemanticEndpointAccept.tla` model 负责 poll/completion/expiry/cancellation 的顺序声明。
+它探索两个后继 peer、0 到 3 的 tick、两 tick 的 connection budget、一个私有 prefix 和一次 body
+publication。Native Idle/Connecting/Identity/Authenticated/Closed/Retired 与精确 overlapped completion
+映射到模型的 state 和 operation owner；显式 disconnect 映射到 generation change。每个维护 action
+都参与 authentication、publication、byte order、closed ownership、storage reuse invariant，以及
+poll ownership 和 budget 不续期 property 检查。
+Cleanup progress 假设 OS cancellation completion 与 quiescence 公平发生；peer connection 和首 byte
+交付没有 fairness 假设。模型不证明 Win32 identity API、OS failure 下 cleanup liveness、无界时间或
+端到端 service completion。
+
+`tests/windows_persistent_accept.c` 使用真实 named pipe、受控 clock 和精确 completion event
+细化这些 cut：跨 poll 到期的 availability/open、跨多次 preread poll 的首次 write、idle lifetime、
+remaining-budget handoff、prefix/body expiry、closed-state refusal、connect/preread 期间 stop、
+completion 先发生的 cancellation、successor byte isolation，以及旧 peer handle 仍打开时的
+unknown-disconnect retirement。Worker unit test 检查 100/5,000 ms
+参数、receipt 限制的 read、terminal admission cleanup 和 stop。真实 Node/Electron runtime 与 CLI
+verifier 覆盖 C/addon/TypeScript projection 和成功 status exchange。这些确定性 trace 保留两个 native
+failure cut，不依赖没有 gate 的反复运行直至变绿。
 
 Agent-wait model 还包含两个 Session、两个 semantic status、三个 health value、两次 Agent mutation
 （revision 0 到 2）与两个 coordinator generation。其 action coverage 包含 begin、missing、ahead、update、removal、timeout、

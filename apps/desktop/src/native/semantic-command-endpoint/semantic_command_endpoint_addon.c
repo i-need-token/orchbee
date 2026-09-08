@@ -257,21 +257,24 @@ static napi_value close_server(napi_env environment, napi_callback_info informat
 }
 
 static napi_value accept_before(napi_env environment, napi_callback_info information) {
-    napi_value arguments[2];
+    napi_value arguments[3];
     ObSemanticCommandServer *server = NULL;
     uint32_t timeout_ms;
-    if (!read_arguments(environment, information, 2, arguments) ||
+    uint32_t connection_budget_ms;
+    if (!read_arguments(environment, information, 3, arguments) ||
         !read_server(environment, arguments[0], &server) ||
-        !read_uint32(environment, arguments[1], &timeout_ms)) {
+        !read_uint32(environment, arguments[1], &timeout_ms) ||
+        !read_uint32(environment, arguments[2], &connection_budget_ms) || connection_budget_ms == 0) {
         return throw_status(environment, OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT);
     }
-    const int status = ob_semantic_endpoint_server_accept_before(server, timeout_ms);
+    uint32_t remaining_request_ms = 0;
+    const int status = ob_semantic_endpoint_server_accept_before(server, timeout_ms, connection_budget_ms, &remaining_request_ms);
     napi_value result;
     if (status == OB_SEMANTIC_ENDPOINT_TIMEOUT) {
-        return napi_get_boolean(environment, false, &result) == napi_ok ? result : NULL;
+        return napi_get_null(environment, &result) == napi_ok ? result : NULL;
     }
     if (status != OB_SEMANTIC_ENDPOINT_OK) return throw_status(environment, status);
-    return napi_get_boolean(environment, true, &result) == napi_ok ? result : NULL;
+    return napi_create_uint32(environment, remaining_request_ms, &result) == napi_ok ? result : NULL;
 }
 
 static napi_value read_before(napi_env environment, napi_callback_info information) {

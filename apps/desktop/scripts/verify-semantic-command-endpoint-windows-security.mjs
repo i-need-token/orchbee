@@ -97,6 +97,31 @@ try {
 	});
 	process.stdout.write(writeResult.stdout);
 	process.stderr.write(writeResult.stderr);
+	const persistentExecutable = path.join(root, 'persistent-accept.exe');
+	await executeFile(
+		'zig',
+		[
+			'cc',
+			'-std=c17',
+			'-O2',
+			'-Wall',
+			'-Wextra',
+			'-Wpedantic',
+			'-Werror',
+			path.join(sourceRoot, 'tests', 'windows_persistent_accept.c'),
+			'-ladvapi32',
+			'-o',
+			persistentExecutable,
+		],
+		{ encoding: 'utf8' },
+	);
+	const persistentResult = await executeFile(
+		persistentExecutable,
+		[path.join(root, 'persistent-runtime')],
+		{ encoding: 'utf8', timeout: 20_000 },
+	);
+	process.stdout.write(persistentResult.stdout);
+	process.stderr.write(persistentResult.stderr);
 } finally {
 	await rm(root, { recursive: true, force: true });
 }

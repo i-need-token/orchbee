@@ -395,8 +395,11 @@ static int poll_descriptor(int descriptor, short events, uint32_t timeout_ms) {
 
 int ob_semantic_endpoint_server_accept_before(
     ObSemanticCommandServer *server,
-    uint32_t timeout_ms) {
-    if (server == NULL || server->listener_fd < 0 || server->client_fd >= 0) {
+    uint32_t timeout_ms,
+    uint32_t connection_budget_ms,
+    uint32_t *remaining_request_ms) {
+    if (server == NULL || remaining_request_ms == NULL || connection_budget_ms == 0 ||
+        server->listener_fd < 0 || server->client_fd >= 0) {
         return OB_SEMANTIC_ENDPOINT_INVALID_ARGUMENT;
     }
     int result = poll_descriptor(server->listener_fd, POLLIN, timeout_ms);
@@ -418,6 +421,7 @@ int ob_semantic_endpoint_server_accept_before(
         return result;
     }
     server->client_fd = client;
+    *remaining_request_ms = connection_budget_ms;
     return OB_SEMANTIC_ENDPOINT_OK;
 }
 

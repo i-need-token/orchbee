@@ -74,10 +74,13 @@ static DWORD WINAPI write_thread(LPVOID argument) {
 typedef struct { ObSemanticCommandServer *server; int result; } Accept;
 static DWORD WINAPI accept_thread(LPVOID argument) {
     Accept *accept = argument;
-    accept->result = ob_semantic_endpoint_server_accept_before(accept->server, 1000);
+    uint32_t remaining = 0;
+    accept->result = ob_semantic_endpoint_server_accept_before(accept->server, 1000, 5000, &remaining);
     return 0;
 }
 static HANDLE authenticated_client(ObSemanticCommandServer *server, const wchar_t *name, uint8_t marker) {
+    // Mirror the Worker finally boundary before admitting the next connection.
+    ob_semantic_endpoint_server_disconnect(server);
     Accept accept = {.server = server, .result = -1};
     HANDLE accepting = CreateThread(NULL, 0, accept_thread, &accept, 0, NULL);
     if (accepting == NULL || !WaitNamedPipeW(name, 1000)) ExitProcess(95);
@@ -212,7 +215,8 @@ int main(int argc, char **argv) {
     require(write.result == OB_SEMANTIC_ENDPOINT_SYSTEM_ERROR && write.written == 77 &&
         server->pipe == INVALID_HANDLE_VALUE,
         "unknown disconnect failure retires the listener after helper quiescence");
-    require(ob_semantic_endpoint_server_accept_before(server, 100) == OB_SEMANTIC_ENDPOINT_UNAVAILABLE,
+    uint32_t remaining = 0;
+    require(ob_semantic_endpoint_server_accept_before(server, 100, 5000, &remaining) == OB_SEMANTIC_ENDPOINT_UNAVAILABLE,
         "retired listener cannot authenticate or reuse the old pipe");
     ob_semantic_endpoint_server_destroy(server);
     CloseHandle(flush_entered); CloseHandle(release_flush); CloseHandle(disconnected);

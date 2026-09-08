@@ -18,6 +18,7 @@ static DWORD last_wait;
 static unsigned pipe_reads;
 static DWORD client_flags;
 static uint32_t accept_timeout = 1000;
+static uint32_t connection_budget = 1000;
 
 static BOOL observed_read(HANDLE file, LPVOID buffer, DWORD capacity, LPDWORD read, LPOVERLAPPED overlapped) {
     pipe_reads += 1;
@@ -72,7 +73,8 @@ typedef struct {
 } Accept;
 static DWORD WINAPI accept_thread(LPVOID argument) {
     Accept *accept = argument;
-    accept->result = ob_semantic_endpoint_server_accept_before(accept->server, accept->timeout);
+    uint32_t remaining = 0;
+    accept->result = ob_semantic_endpoint_server_accept_before(accept->server, accept->timeout, connection_budget, &remaining);
     HANDLE token = NULL;
     accept->reverted = !OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, TRUE, &token) && GetLastError() == ERROR_NO_TOKEN;
     if (token != NULL) CloseHandle(token);
@@ -170,14 +172,15 @@ int wmain(int argc, wchar_t **argv) {
     }
     disconnect(server, client);
 
-    require(ob_semantic_endpoint_server_accept_before(server, 10) == OB_SEMANTIC_ENDPOINT_TIMEOUT,
-        "absent client times out and cancelled connect leaves listener reusable");
+    uint32_t remaining = 0;
+    require(ob_semantic_endpoint_server_accept_before(server, 10, 1000, &remaining) == OB_SEMANTIC_ENDPOINT_TIMEOUT,
+        "absent client poll preserves pending connect for the next call");
     client = INVALID_HANDLE_VALUE;
     pipe_reads = 0;
     accept_timeout = 100;
     status = accept_with_payload(server, &client, pipe_name, NULL, 0, FALSE);
     require(status == OB_SEMANTIC_ENDPOINT_TIMEOUT && pipe_reads == 1,
-        "connected peer without first byte times out and cancels pending read");
+        "connected peer without first byte returns poll timeout and retains pending read");
     disconnect(server, client);
     client = INVALID_HANDLE_VALUE;
     close_before_write = TRUE;
@@ -210,13 +213,14 @@ int wmain(int argc, wchar_t **argv) {
     require(status == OB_SEMANTIC_ENDPOINT_TIMEOUT && pipe_reads == 0,
         "expired original accept budget starts no preread");
     disconnect(server, client);
+    connection_budget = 100;
     expire_after_read = TRUE;
     clock_after_start = 0;
     clock_reads = 0;
     pipe_reads = 0;
     client = INVALID_HANDLE_VALUE;
     status = accept_with_payload(server, &client, pipe_name, payload, 1, TRUE);
-    require(status == OB_SEMANTIC_ENDPOINT_TIMEOUT,
+    require(status == OB_SEMANTIC_ENDPOINT_CONNECTION_CLOSED,
         "deadline reached after first byte cannot publish authenticated admission");
     uint8_t expired_byte = 77;
     uint32_t expired_count = 0;
@@ -226,6 +230,7 @@ int wmain(int argc, wchar_t **argv) {
     expire_after_read = FALSE;
     scripted_clock = FALSE;
     accept_timeout = 1000;
+    connection_budget = 1000;
 
     for (unsigned failure = 0; failure < 3; failure += 1) {
         client = INVALID_HANDLE_VALUE;
@@ -266,6 +271,7 @@ int wmain(int argc, wchar_t **argv) {
     disconnect(server, client);
     client_flags = SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION;
     accept_timeout = INFINITE;
+    connection_budget = INFINITE;
     client = INVALID_HANDLE_VALUE;
     const uint8_t next = 'N';
     status = accept_with_payload(server, &client, pipe_name, &next, 1, TRUE);

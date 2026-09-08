@@ -61,18 +61,23 @@ try {
 	);
 	port.postMessage({ kind: 'ready' });
 	while (!stopping) {
-		let accepted = false;
+		let remainingRequestMilliseconds: number | null = null;
 		try {
-			accepted = native.acceptBefore(server, ACCEPT_POLL_MILLISECONDS);
+			remainingRequestMilliseconds = native.acceptBefore(
+				server,
+				ACCEPT_POLL_MILLISECONDS,
+				CONNECTION_DEADLINE_MILLISECONDS,
+			);
 		} catch (error) {
 			if (!isRejectedConnectionNativeError(error)) throw error;
+			native.disconnectServer(server);
 		}
-		if (!accepted) {
+		if (remainingRequestMilliseconds === null) {
 			await yieldToWorkerMessages();
 			continue;
 		}
 		try {
-			const request = await readRequest(server);
+			const request = await readRequest(server, remainingRequestMilliseconds);
 			const response =
 				request.kind === 'complete'
 					? await requestParent(request.bytes)
@@ -101,16 +106,19 @@ try {
 	port.close();
 }
 
-async function readRequest(serverHandle: object): Promise<
+async function readRequest(
+	serverHandle: object,
+	remainingMilliseconds: number,
+): Promise<
 	| { readonly bytes: Uint8Array; readonly kind: 'complete' }
 	| {
 			readonly code: 'malformed-request' | 'request-capacity-exceeded' | 'request-timeout';
 			readonly kind: 'rejected';
 	  }
 > {
-	const started = performance.now();
+	const deadline = performance.now() + remainingMilliseconds;
 	let bytes = Buffer.alloc(0);
-	while (performance.now() - started < CONNECTION_DEADLINE_MILLISECONDS) {
+	while (!stopping && performance.now() < deadline) {
 		const inspected = inspectSemanticCommandLocalHttpRequest(bytes);
 		if (inspected.kind === 'complete') return { bytes, kind: 'complete' };
 		if (inspected.kind === 'rejected') {
@@ -128,7 +136,7 @@ async function readRequest(serverHandle: object): Promise<
 		const chunk = native.readBefore(
 			serverHandle,
 			Math.min(16 * 1024, MAX_REQUEST_BYTES - bytes.byteLength),
-			IO_POLL_MILLISECONDS,
+			Math.min(IO_POLL_MILLISECONDS, Math.max(1, Math.floor(deadline - performance.now()))),
 		);
 		if (chunk !== null) bytes = Buffer.concat([bytes, Buffer.from(chunk)]);
 		await yieldToWorkerMessages();

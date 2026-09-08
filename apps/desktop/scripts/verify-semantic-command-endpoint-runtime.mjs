@@ -75,7 +75,7 @@ try {
 		1024,
 		2_000,
 	);
-	if (candidate.acceptBefore(server, 2_000) !== true) {
+	if (!(candidate.acceptBefore(server, 2_000, 5_000) > 0)) {
 		throw new Error('Semantic command authenticated client was not accepted.');
 	}
 	const readDeadline = Date.now() + 2_000;

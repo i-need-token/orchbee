@@ -28,7 +28,9 @@ ObSemanticCommandServer *ob_semantic_endpoint_server_create(
 void ob_semantic_endpoint_server_destroy(ObSemanticCommandServer *server);
 int ob_semantic_endpoint_server_accept_before(
     ObSemanticCommandServer *server,
-    uint32_t timeout_ms);
+    uint32_t timeout_ms,
+    uint32_t connection_budget_ms,
+    uint32_t *remaining_request_ms);
 int ob_semantic_endpoint_server_read_before(
     ObSemanticCommandServer *server,
     uint8_t *buffer,

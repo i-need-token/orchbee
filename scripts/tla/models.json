@@ -1816,6 +1816,35 @@
 			]
 		},
 		{
+			"id": "windows-semantic-endpoint-accept",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/WindowsSemanticEndpointAccept.tla",
+			"config": "apps/desktop/formal/tla/WindowsSemanticEndpointAccept.cfg",
+			"claims": ["apps/desktop/docs/semantic-command-execution.md"],
+			"triggers": [
+				"apps/desktop/src/native/semantic-command-endpoint/**",
+				"apps/desktop/src/main/semantic-command/semantic-command-local-endpoint-worker.ts",
+				"apps/desktop/src/main/semantic-command/semantic-command-endpoint-native-adapter.ts"
+			],
+			"requiredCoverage": [
+				"StartListen",
+				"CompleteOperation",
+				"ObserveConnection",
+				"PollExpires",
+				"Tick",
+				"Authenticate",
+				"PublishPrefix",
+				"StartBodyRead",
+				"PublishBody",
+				"Expire",
+				"RefuseOrStop",
+				"Quiesce",
+				"ExplicitDisconnect",
+				"Retire"
+			]
+		},
+		{
 			"id": "gateway-transport-lifecycle",
 			"owner": "@orchbee/gateway",
 			"workspace": "apps/gateway",

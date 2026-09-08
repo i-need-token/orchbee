@@ -5,7 +5,11 @@ import path from 'node:path';
 export const SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME = 'orchbee-semantic-command-endpoint.node';
 
 interface SemanticCommandEndpointNativeAdapter {
-	acceptBefore(server: object, timeoutMilliseconds: number): boolean;
+	acceptBefore(
+		server: object,
+		pollMilliseconds: number,
+		connectionMilliseconds: number,
+	): number | null;
 	closeServer(server: object): void;
 	createServer(runtimeDirectory: string, endpointId: string): object;
 	disconnectServer(server: object): void;
@@ -36,11 +40,13 @@ export function loadSemanticCommandEndpointNativeAdapter(
 	}
 	for (const name of nativeFunctionNames) requireNativeFunction(candidate, name);
 	return {
-		acceptBefore(server, timeoutMilliseconds) {
-			return requireBoolean(
-				invokeNative(candidate, 'acceptBefore', [server, timeoutMilliseconds]),
-				'acceptBefore',
-			);
+		acceptBefore(server, pollMilliseconds, connectionMilliseconds) {
+			const remaining = invokeNative(candidate, 'acceptBefore', [
+				server,
+				pollMilliseconds,
+				connectionMilliseconds,
+			]);
+			return remaining === null ? null : requirePositiveInteger(remaining, 'acceptBefore');
 		},
 		closeServer(server) {
 			requireUndefined(invokeNative(candidate, 'closeServer', [server]), 'closeServer');
@@ -143,11 +149,6 @@ function requireNativeFunction(
 		throw new Error(`Semantic command endpoint native adapter is missing ${name}.`);
 	}
 	return (...arguments_: readonly unknown[]) => Reflect.apply(callable, candidate, arguments_);
-}
-
-function requireBoolean(value: unknown, name: string): boolean {
-	if (typeof value !== 'boolean') invalidNativeResult(name);
-	return value;
 }
 
 function requireBytes(value: unknown, name: string): Uint8Array {

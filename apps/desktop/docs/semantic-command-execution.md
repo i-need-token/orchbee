@@ -176,13 +176,45 @@ current-user validation. `@orchbee/semantic-command-protocol/local-http` owns fr
 the CLI owns trusted enumeration and response validation. The endpoint is separate from Terminal
 Host and Browser access and opens no TCP listener.
 
-Windows accept uses one original timeout for connection and identity establishment. The native
-server reads one byte to establish the pipe client's Windows security context, keeps it private
-until exact current-user SID validation and successful `RevertToSelf`, and then returns it exactly
-once before later stream bytes. No request parsing or service effect precedes authentication.
-Accept timeout, peer refusal, disconnect, and the next accept discard any buffered byte; a terminal
-stream failure also clears it. An authenticated read polling timeout remains retryable on the same
-connection under the Worker's existing request deadline and never replays an already returned byte.
+Windows clients can pause after discovering the listening pipe or after opening it. A Worker
+poll must preserve both operations so those pauses do not turn a healthy coordinator into an
+unavailable one. `acceptBefore(server, pollMilliseconds, connectionMilliseconds)` returns
+`null` for an unfinished poll or a positive remaining request budget after authentication.
+The Worker supplies its existing 100 ms poll and 5,000 ms connection budget; native code does
+not define another connection duration. This budget governs admission and request reading; existing
+parent-response and write budgets remain separate. POSIX returns that request budget after peer validation.
+
+The Windows server owns one heap-resident overlapped operation, event, private first byte, and
+monotonic connection deadline. Only its serialized Worker calls mutate them. Idle listening has
+no connection expiry. First observed connection freezes the supplied connection budget; later
+polls and authentication do not renew it. One poll budget spans connect completion and preread.
+
+| State                                   | Event and guard                                                          | Transition and observable result                                                                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Idle                                    | Accept call                                                              | Start one owned ConnectNamedPipe operation; enter Listening                                                                                              |
+| Listening                               | Poll expires                                                             | Retain the same pending operation; return null                                                                                                           |
+| Listening                               | Connection observed                                                      | Freeze connection deadline; enter Awaiting identity byte                                                                                                 |
+| Awaiting identity byte                  | Poll expires before connection deadline                                  | Retain the pending read and private byte; return null                                                                                                    |
+| Awaiting identity byte                  | Byte completes, exact SID matches, RevertToSelf succeeds, budget remains | Enter Authenticated; return only remaining budget                                                                                                        |
+| Awaiting identity byte or Authenticated | Original connection deadline expires, peer fails, or identity is refused | Quiesce the exact operation, disconnect, discard prefix; enter Closed and return a terminal error                                                        |
+| Authenticated                           | Read before original deadline                                            | Return prefix exactly once before stream tail; a shorter read poll may return null                                                                       |
+| Retired                                 | Any accept, read or write                                                | Return unavailable; never reuse the retired pipe                                                                                                         |
+| Closed                                  | Further accept or read                                                   | Return a terminal error; do not admit another peer implicitly                                                                                            |
+| Any live state                          | Explicit disconnect or Worker stop/close                                 | Cancel the exact pending operation and observe completion before resetting or freeing its event, buffer, and pipe; disconnect permits a fresh Idle owner |
+
+Authentication reads one byte to establish the Windows client security context. No byte, request
+parse, or service effect is published before exact current-user SID validation and successful
+`RevertToSelf`. Native checks the original deadline before publishing authentication, before
+returning a held prefix, and after completing body I/O. It remains the Windows deadline authority;
+the Worker's remaining-budget receipt only bounds its local loop and 250 ms read polls. Scheduling
+after receipt cannot extend native read authority. Terminal expiry disconnects rather than
+publishing bytes or a service request; the existing HTTP 408 response remains when possible.
+Cancellation always observes `GetOverlappedResult` completion, even if `CancelIoEx` reports that
+completion won the race, before reusing or releasing operation storage. OS cleanup is not a hard
+real-time guarantee. If disconnect fails with an unknown error after quiescence, the server closes
+and permanently retires that pipe; the old peer cannot receive a fresh budget. Later calls reject
+before any prefix access, and destroy never closes the retired handle again. Requests and responses
+are never replayed by this lifecycle.
 
 Windows server writes report success only after the client has consumed the written pipe bytes.
 The write, helper creation, and flush wait share the timeout measured at the write-call entry;
@@ -229,8 +261,8 @@ or cross-user execution. Such execution still requires an appropriate Windows ac
 The same verifier runs `tests/windows_accept.c` against real named pipes. Its controlled
 connect-before-first-write cases cover default client flags and the bundled client's identification
 flags, exact binary prefix/tail delivery, delayed fragments after an authenticated read polling
-timeout, peer EOF, disconnect, and successor reuse. Clock fixtures cover remaining accept budget,
-expiration before reading or publishing admission, and the existing infinite-timeout sentinel;
+timeout, peer EOF, disconnect, and successor reuse. Clock fixtures cover the remaining poll budget,
+connection expiration before publishing admission, and the existing infinite-timeout sentinel;
 identity failure fixtures cover missing/mismatched tokens and failed impersonation. The byte is
 unobservable on failed admission, and the accept thread returns without impersonation. These finite
 cuts refine invariants 11-13; they do not add trusted identities or replace real cross-user testing.
@@ -240,6 +272,26 @@ response reads, both flush-dispatch deadline orderings, peer close, helper creat
 exhaustion of the original write budget, listener retirement after an unknown disconnect failure,
 and the next authenticated connection. Controlled OS failures verify error classification and
 resource retention, not cleanup liveness after an OS failure.
+
+The `WindowsSemanticEndpointAccept.tla` model owns the poll/completion/expiry/cancellation
+ordering claim. It explores two successive peers, ticks 0 through 3, a two-tick connection budget,
+one private prefix and one body publication. Native Idle/Connecting/Identity/Authenticated/Closed
+and Retired plus exact overlapped completion refine its states and operation owner; explicit disconnect refines
+its generation change. Authentication, publication, byte order, closed ownership and storage reuse
+invariants and poll-ownership/nonrenewal properties are checked with every maintained action. Cleanup progress assumes fair OS cancellation
+completion and quiescence; peer connection and first-byte delivery have no fairness assumption.
+The model does not prove Win32 identity APIs, OS cleanup liveness under failure, unbounded time,
+or end-to-end service completion.
+
+`tests/windows_persistent_accept.c` refines those cuts with real named pipes, a controlled clock,
+and exact completion events: availability/open across an expired poll, first write across repeated
+preread polls, idle lifetime, remaining-budget handoff, prefix/body expiry, closed-state refusal,
+stop during connect/preread, cancellation after completion wins, successor byte isolation, and
+unknown-disconnect retirement with a still-open old peer.
+The Worker unit tests check the 100/5,000 ms arguments, receipt-clamped reads, terminal admission
+cleanup, and stop. The real Node/Electron runtime and CLI verifiers cover the C/addon/TypeScript
+projections and successful status exchanges. These deterministic traces preserve the two native
+failure cuts without relying on an ungated repeat-until-green run.
 
 The Agent-wait model adds two Sessions, two semantic statuses, three health values, two Agent
 mutations (revisions 0 through 2), and two coordinator generations. Its action coverage includes begin, missing, ahead,

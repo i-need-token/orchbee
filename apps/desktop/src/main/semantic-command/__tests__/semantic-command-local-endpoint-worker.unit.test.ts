@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => {
 	const listeners: Array<(message: unknown) => void> = [];
@@ -23,7 +23,9 @@ const fixture = vi.hoisted(() => {
 	};
 	const server = {};
 	const native = {
-		acceptBefore: vi.fn<(server: object, timeoutMilliseconds: number) => boolean>(() => false),
+		acceptBefore: vi.fn<
+			(server: object, pollMilliseconds: number, connectionMilliseconds: number) => number | null
+		>(() => null),
 		closeServer: vi.fn<(server: object) => void>(),
 		createServer: vi.fn<(runtimeDirectory: string, endpointId: string) => object>(() => server),
 		disconnectServer: vi.fn<(server: object) => void>(),
@@ -47,7 +49,7 @@ const fixture = vi.hoisted(() => {
 		writeBefore:
 			vi.fn<(server: object, content: Uint8Array, timeoutMilliseconds: number) => number>(),
 	};
-	return { native, port, postMessage, close, server };
+	return { native, port, postMessage, close, server, listeners };
 });
 
 vi.mock('node:worker_threads', () => ({
@@ -70,6 +72,46 @@ vi.mock('../semantic-command-endpoint-native-adapter', () => ({
 }));
 
 describe('semantic command local endpoint worker', () => {
+	beforeEach(() => {
+		vi.resetModules();
+		vi.clearAllMocks();
+		fixture.listeners.length = 0;
+		fixture.native.acceptBefore.mockReset().mockReturnValue(null);
+		fixture.native.readBefore.mockReset().mockReturnValue(null);
+		fixture.native.writeBefore.mockReset().mockImplementation((_server, bytes) => bytes.byteLength);
+	});
+
+	it('passes the original connection budget and clamps reads to the admission receipt', async () => {
+		fixture.native.acceptBefore.mockReturnValueOnce(80);
+		await import('../semantic-command-local-endpoint-worker');
+		expect(fixture.native.acceptBefore).toHaveBeenCalledWith(fixture.server, 100, 5_000);
+		const read = fixture.native.readBefore.mock.calls[0];
+		expect(read).toBeDefined();
+		expect(read?.[2]).toBeGreaterThan(0);
+		expect(read?.[2]).toBeLessThanOrEqual(80);
+		expect(
+			fixture.postMessage.mock.calls.some(
+				([message]) =>
+					typeof message === 'object' &&
+					message !== null &&
+					Reflect.get(message, 'kind') === 'request',
+			),
+		).toBe(false);
+		expect(fixture.native.disconnectServer).toHaveBeenCalledOnce();
+	});
+
+	it('explicitly disconnects a terminal admission failure before allowing another poll', async () => {
+		fixture.native.acceptBefore.mockImplementationOnce(() => {
+			throw Object.assign(new Error('closed'), {
+				code: 'ERR_ORCHBEE_SEMANTIC_ENDPOINT_CONNECTION_CLOSED',
+			});
+		});
+		await import('../semantic-command-local-endpoint-worker');
+		expect(fixture.native.disconnectServer).toHaveBeenCalledOnce();
+		expect(fixture.native.readBefore).not.toHaveBeenCalled();
+		expect(fixture.native.closeServer).toHaveBeenCalledWith(fixture.server);
+	});
+
 	it('publishes only after server creation and retires locator, server, and port on stop', async () => {
 		await import('../semantic-command-local-endpoint-worker');
 
