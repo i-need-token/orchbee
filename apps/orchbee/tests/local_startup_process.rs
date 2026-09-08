@@ -642,8 +642,9 @@ fn committed_failed_startup_requires_recovery_and_does_not_launch_again() {
     let fixture = Fixture::new();
     fixture.site().commit_activation().unwrap();
     for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
+        let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
         let mut client = Client::spawn(&fixture, locale);
-        let error = client.exit_message_before(Instant::now() + Duration::from_secs(3));
+        let error = client.exit_message_before(startup_deadline);
         assert!(error.contains(if locale.starts_with("en") {
             "requires explicit recovery"
         } else {
@@ -679,10 +680,11 @@ fn changed_cohort_fails_before_runtime_creation() {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     fs::write(fixture.cohort.join("orchbee-terminal-host"), b"mixed Host").unwrap();
+    let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
     let mut client = Client::spawn(&fixture, "en_US.UTF-8");
     assert!(
         client
-            .exit_message_before(Instant::now() + Duration::from_secs(3))
+            .exit_message_before(startup_deadline)
             .contains("cohort is missing, changed, or invalid")
     );
     assert!(!fixture.runtime().exists());
@@ -807,6 +809,7 @@ fn lazy_worker_rejects_invalid_launches_then_preserves_its_first_dispatch_and_re
 fn managed_process_loss_never_starts_a_replacement() -> TestResult {
     let _process_witness = process_witness_guard();
     for failed_role in ["orchbee-server", "orchbee-worker", "orchbee-terminal-host"] {
+        eprintln!("managed process loss partition: {failed_role}");
         let fixture = Fixture::new();
         let mut client = Client::spawn(&fixture, "en_US.UTF-8");
         client.ready_before(Instant::now() + STARTUP_OR_CREATE_TIMEOUT);
@@ -827,8 +830,28 @@ fn managed_process_loss_never_starts_a_replacement() -> TestResult {
             );
             thread::yield_now();
         }
+        // A reopening Client may legitimately contend for activation within the original 20 s
+        // startup deadline. Holding this existing lock beyond 5 s exposes a premature observer.
+        let site = fixture.site();
+        let activation = if failed_role == "orchbee-server" {
+            let LockAttempt::Acquired(guard) = site.try_acquire_activation_lock()? else {
+                panic!("fixture activation lock")
+            };
+            Some(guard)
+        } else {
+            None
+        };
+        let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
         let mut reopened = Client::spawn(&fixture, "en_US.UTF-8");
-        let error = reopened.exit_message_before(Instant::now() + Duration::from_secs(5));
+        let error = thread::scope(|scope| {
+            if let Some(guard) = activation {
+                scope.spawn(move || {
+                    thread::sleep(Duration::from_secs(6));
+                    drop(guard);
+                });
+            }
+            reopened.exit_message_before(startup_deadline)
+        });
         if failed_role == "orchbee-server" {
             assert!(error.contains("requires explicit recovery"));
             assert!(fixture.processes("orchbee-server").is_empty());
@@ -904,10 +927,11 @@ fn incompatible_warm_cohort_is_rejected_without_replacing_the_running_site() -> 
         .open(other.cohort.join("orchbee-terminal-host"))?
         .write_all(b"another-build")?;
     other.manifest();
+    let startup_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
     let mut second = Client::spawn_at(&other, "en_US.UTF-8", &fixture.base);
     assert!(
         second
-            .exit_message_before(Instant::now() + Duration::from_secs(5))
+            .exit_message_before(startup_deadline)
             .contains("incompatible with this development cohort")
     );
     assert_process_retained(&fixture, "orchbee-server", &server);
