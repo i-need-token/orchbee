@@ -534,7 +534,10 @@ Windows declares the complementary drain fact only after its kill-on-close Job h
 processes. Closing a pseudoconsole while a descendant remains can signal that descendant and can
 block indefinitely on supported Windows versions, so Job emptiness is part of the Windows
 adapter's safe-drain condition. This changes when the shared lifecycle may leave `finishing`; it
-does not create a second lifecycle or permit an unsafe normal classification.
+does not create a second lifecycle or permit an unsafe normal classification. The adapter observes
+Job accounting at a quiet monotonic cadence until the active count reaches zero; natural process
+exit does not signal the Job handle. A signaled handle after force termination cannot bypass that
+accounting predicate or turn its retry into a busy loop.
 
 An unrecoverable runtime failure fences new client and terminal-generated input, stops further PTY
 ingestion, retains the last revision known to be coherent, records the first linearly published

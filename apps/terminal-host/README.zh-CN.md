@@ -89,7 +89,7 @@ Server admission 之后验证同用户 Host 并完成相同的精确版本 `Hell
 terminal command，也不创建 PTY；Server 仍是 launch-authorization owner，Host 仍是 terminal
 authority。
 
-进程树所有权遵循启动时创建的遏制域：专用的 POSIX 会话或 Windows 关闭时终止作业。仅当该域没有实时成员时清理才完成。在 Windows 上，Host 会等待 Job 的空信号后再关闭 HPCON；Desktop 拥有的强制升级会终止 Job 并唤醒该等待。防止受信任的同一用户子进程故意逃离 POSIX 会话并不是一个隔离承诺。
+进程树所有权遵循启动时创建的遏制域：专用的 POSIX 会话或 Windows 关闭时终止作业。仅当该域没有实时成员时清理才完成。在 Windows 上，Host 按带有等待间隔的单调时间节奏观察 Job 统计，仅在活动进程数归零后关闭 HPCON；Desktop 拥有的强制升级会终止 Job，使该观察能够完成。进程自然退出不会使 Job 句柄变为有信号状态。防止受信任的同一用户子进程故意逃离 POSIX 会话并不是一个隔离承诺。
 
 ## 可执行接口
 

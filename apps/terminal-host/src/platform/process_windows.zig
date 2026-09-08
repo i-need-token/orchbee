@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const monotonic = @import("monotonic.zig");
 const process_common = @import("process_common.zig");
 const process_types = @import("process_types.zig");
 const pty_module = @import("pty.zig");
@@ -354,20 +355,20 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         // descendant is still attached sends that descendant CTRL_CLOSE_EVENT
         // and can block indefinitely on Windows versions before 11 24H2. The
         // Job is the complete descendant authority, so zero active processes is
-        // the first safe point at which to close the pseudoconsole. A Job
-        // handle becomes signaled at exactly that point, so the kernel owns the
-        // wait and a later force-termination request wakes it without polling.
-        if (windows_api.WaitForSingleObject(self.job_handle, windows_api.INFINITE) !=
-            windows_api.WAIT_OBJECT_0)
-        {
-            return error.ProcessObservationFailed;
-        }
-        var active_processes: windows.DWORD = 0;
-        if (!windows_api.ob_windows_terminal_job_active_processes(
-            self.job_handle,
-            &active_processes,
-        ).toBool() or active_processes != 0) {
-            return error.ProcessObservationFailed;
+        // the first safe point at which to close the pseudoconsole. Natural
+        // process exit does not signal the Job handle. Observe accounting with
+        // a quiet interval even after force termination signals that handle,
+        // because accounting can still be converging to zero.
+        while (true) {
+            var active_processes: windows.DWORD = 0;
+            if (!windows_api.ob_windows_terminal_job_active_processes(
+                self.job_handle,
+                &active_processes,
+            ).toBool()) {
+                return error.ProcessObservationFailed;
+            }
+            if (active_processes == 0) break;
+            monotonic.sleep(10 * std.time.ns_per_ms);
         }
         self.pty.closeConsole();
     }
