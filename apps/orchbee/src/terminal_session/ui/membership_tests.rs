@@ -1,7 +1,7 @@
 use super::*;
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::mailbox::{EventDeadline, SwitchMarker};
-use crate::terminal_session::state::{ControllerMode, FrameIdentity, SwitchDetachContinuation};
+use crate::terminal_session::state::{CleanupContinuation, ControllerMode, FrameIdentity};
 use orchbee_workbench_protocol::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -136,7 +136,8 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
             |state, result, facts| {
                 if result.is_ok() {
                     state.finish_switch_membership_admission(
-                        facts.abandoned_causal(),
+                        facts.discarded(),
+                        facts.inherited(),
                         facts.authorized_cleanup(),
                     );
                 }
@@ -144,11 +145,61 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
         )
         .unwrap();
     let lease = mailbox.try_recv().unwrap().unwrap();
-    let selected = state.desired().unwrap().clone();
-    assert!(matches!(
-        state.settle_switch_old_detached(&selected, &old, deadlines.forward_cutoff()),
-        Some(SwitchDetachContinuation::SettledWithoutAttachment)
-    ));
+    let QueuedCommand::Switch(marker) = lease.record() else {
+        panic!("Switch lease")
+    };
+    let permit = mailbox
+        .authorize_switch_snapshot(&lease, marker.target(), &clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SwitchSnapshotResult {
+                marker: marker.target().selected().key().clone(),
+                outcome: WorkbenchSnapshotOutcome::Available {
+                    snapshot: snapshot(2, 1),
+                },
+            },
+            EventDeadline::PlacementOnly(deadlines.forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    let Some(UiReply::Switch(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("Switch candidate reply")
+    };
+    let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
+        panic!("old viewer cleanup")
+    };
+    let permit = mailbox
+        .authorize_switch_cleanup(&lease, cleanup, &old, &clock)
+        .unwrap()
+        .unwrap();
+    mailbox.answer_switch_cleanup(permit, true).unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::MembershipDetached {
+                cleanup: cleanup.clone(),
+                detached: old,
+            },
+            EventDeadline::TotalCleanup(deadlines.total()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    let Some(UiReply::Switch(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("Switch successor reply")
+    };
+    let RefreshDecision::AttachRecovered(target) = settlement.decision() else {
+        panic!("fresh successor")
+    };
+    let selected = target.selected().key().clone();
+    let state = ui.state.as_mut().unwrap();
+    assert_eq!(
+        state.settle_unattached_setup(&selected, target.selected().index(), target.provenance()),
+        Some(CleanupContinuation::Stable)
+    );
     mailbox.finish_lease(lease).unwrap();
     assert!(state.invariant_holds());
 

@@ -526,19 +526,12 @@ fn switch_to_attachable(
             OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?,
         )
         .ok_or("switch target")?;
-    let detached = trace.session.attached_key().cloned();
     if !trace.session.begin_switch(target) {
         return Err("begin switch");
     }
-    if let Some(detached) = detached {
-        match trace
-            .session
-            .settle_switch_old_detached(&key, &detached, Instant::now())
-        {
-            Some(SwitchDetachContinuation::Attach(_)) => {}
-            _ => return Err("detach continuation"),
-        }
-    }
+    let key = prepare_and_install_switch_candidate(&mut trace.session, &key)
+        .map_err(|_| "Switch candidate install")?;
+    trace.generation = key.generation();
     if !trace.session.install_projection(&key)
         || !trace.session.record_setup_configuration(
             &key,
@@ -613,18 +606,16 @@ fn settle_switch_unavailable(
             OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?,
         )
         .ok_or("target")?;
-    let detached = trace.session.attached_key().cloned().ok_or("viewer")?;
-    if !trace.session.begin_switch(target)
-        || !matches!(
-            trace
-                .session
-                .settle_switch_old_detached(&key, &detached, Instant::now()),
-            Some(SwitchDetachContinuation::Attach(_))
-        )
-        || trace
-            .session
-            .settle_unattached_setup(&key, target_index, &provenance)
-            != Some(CleanupContinuation::Stable)
+    if !trace.session.begin_switch(target) {
+        return Err("begin unavailable switch");
+    }
+    let key = prepare_and_install_switch_candidate(&mut trace.session, &key)
+        .map_err(|_| "unavailable Switch candidate install")?;
+    trace.generation = key.generation();
+    if trace
+        .session
+        .settle_unattached_setup(&key, target_index, &provenance)
+        != Some(CleanupContinuation::Stable)
     {
         return Err("unavailable settlement");
     }
@@ -1170,20 +1161,16 @@ fn exercise_controller_busy_read_only(trace: &mut TraceState) -> Result<(), &'st
 
 fn exercise_cleanup(trace: &mut TraceState, class: CleanupClass) -> Result<(), &'static str> {
     let mut session = ready(3);
-    let initial = session.desired().unwrap().clone();
     let old_key = AttachmentKey::new(2, session.tab(1).ok_or("cleanup tab")?.tab_id().clone());
     let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
     let target = session
         .target_for_switch(1, old_key.clone(), deadlines)
         .ok_or("cleanup target")?;
-    if !session.begin_switch(target)
-        || !matches!(
-            session.settle_switch_old_detached(&old_key, &initial, Instant::now()),
-            Some(SwitchDetachContinuation::Attach(_))
-        )
-    {
+    if !session.begin_switch(target) {
         return Err("cleanup handoff");
     }
+    let old_key = prepare_and_install_switch_candidate(&mut session, &old_key)
+        .map_err(|_| "cleanup Switch candidate install")?;
     let continuation = match class {
         CleanupClass::CurrentInstalled => {
             if !session.install_projection(&old_key) {
@@ -1198,8 +1185,10 @@ fn exercise_cleanup(trace: &mut TraceState, class: CleanupClass) -> Result<(), &
             if !session.install_projection(&old_key) {
                 return Err("superseded install");
             }
-            let newer_key =
-                AttachmentKey::new(3, session.tab(2).ok_or("newer tab")?.tab_id().clone());
+            let newer_key = AttachmentKey::new(
+                old_key.generation() + 1,
+                session.tab(2).ok_or("newer tab")?.tab_id().clone(),
+            );
             let newer = session
                 .target_for_switch(2, newer_key.clone(), deadlines)
                 .ok_or("newer target")?;

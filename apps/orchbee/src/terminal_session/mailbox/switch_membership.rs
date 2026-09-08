@@ -1,23 +1,57 @@
 use super::*;
 
-#[derive(Clone, Copy)]
 pub(in crate::terminal_session) struct SwitchAdmissionFacts {
-    abandoned_causal: bool,
+    discarded: Option<AttachmentKey>,
+    inherited: Option<AttachmentKey>,
     authorized_cleanup: bool,
 }
 
 impl SwitchAdmissionFacts {
-    pub(super) const fn new(abandoned_causal: bool, authorized_cleanup: bool) -> Self {
+    pub(super) const fn new(
+        discarded: Option<AttachmentKey>,
+        inherited: Option<AttachmentKey>,
+        authorized_cleanup: bool,
+    ) -> Self {
         Self {
-            abandoned_causal,
+            discarded,
+            inherited,
             authorized_cleanup,
         }
     }
-    pub(in crate::terminal_session) const fn abandoned_causal(self) -> bool {
-        self.abandoned_causal
+    pub(in crate::terminal_session) const fn discarded(&self) -> Option<&AttachmentKey> {
+        self.discarded.as_ref()
     }
-    pub(in crate::terminal_session) const fn authorized_cleanup(self) -> bool {
+    pub(in crate::terminal_session) const fn inherited(&self) -> Option<&AttachmentKey> {
+        self.inherited.as_ref()
+    }
+    pub(in crate::terminal_session) const fn authorized_cleanup(&self) -> bool {
         self.authorized_cleanup
+    }
+}
+
+pub(super) struct SwitchAnchorInvalidation {
+    pub(super) marker: AttachmentKey,
+    pub(super) discarded: AttachmentKey,
+}
+
+impl UiReplyTransaction<'_> {
+    pub(in crate::terminal_session) fn take_switch_anchor_invalidation(
+        &mut self,
+        marker: &AttachmentKey,
+    ) -> Option<AttachmentKey> {
+        if self.state.desired.key() != Some(marker)
+            || self
+                .state
+                .switch_anchor_invalidation
+                .as_ref()
+                .is_none_or(|fact| &fact.marker != marker)
+        {
+            return None;
+        }
+        self.state
+            .switch_anchor_invalidation
+            .take()
+            .map(|fact| fact.discarded)
     }
 }
 
@@ -92,6 +126,56 @@ impl SwitchCleanupPermit {
 }
 
 impl CommandMailbox {
+    pub(super) fn record_switch_discard_locked(
+        state: &mut MailboxState,
+        old: &AttachmentKey,
+    ) -> Result<(), CarrierFailure> {
+        let Some(marker) = state.queue.iter().find_map(|record| match &record.command {
+            QueuedCommand::Switch(marker)
+                if state.desired.key() == Some(marker.target().selected().key()) =>
+            {
+                Some(marker.target().selected().key())
+            }
+            _ => None,
+        }) else {
+            return Ok(());
+        };
+        if old.generation() >= marker.generation() {
+            return Err(CarrierFailure::Protocol);
+        }
+        if let Some(fact) = &state.switch_anchor_invalidation {
+            return if &fact.marker == marker && &fact.discarded == old {
+                Ok(())
+            } else {
+                Err(CarrierFailure::Protocol)
+            };
+        }
+        state.switch_anchor_invalidation = Some(SwitchAnchorInvalidation {
+            marker: marker.clone(),
+            discarded: old.clone(),
+        });
+        Ok(())
+    }
+
+    /// The caller owns an already-taken Feedback settlement, not a queued/no-call Poll.
+    pub(in crate::terminal_session) fn discard_taken_switch_causal(
+        &self,
+        lease: &CommandLease,
+        poll: &PollKey,
+    ) -> Result<(), CarrierFailure> {
+        let mut state = self.lock();
+        if !state
+            .active_lease
+            .is_some_and(|active| active.serial == lease.serial)
+            || lease.poll_key().as_ref() != Some(poll)
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        if state.desired.key() == Some(poll.attachment()) {
+            return Ok(());
+        }
+        Self::record_switch_discard_locked(&mut state, poll.attachment())
+    }
     pub(in crate::terminal_session) fn authorize_switch_expiry(
         &self,
         lease: &CommandLease,

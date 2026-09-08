@@ -131,3 +131,39 @@ fn real_selected_origin_restores_without_inventing_a_viewer() {
     assert_eq!(state.projection_key(), None);
     assert!(state.invariant_holds());
 }
+
+#[test]
+fn switch_intent_cannot_authorize_setup_before_candidate_installation() {
+    let mut state = ready(2);
+    let old = state.desired().unwrap().clone();
+    let marker = admit(&mut state, 1, 2);
+    assert!(!state.install_projection(&marker));
+    assert_eq!(state.attached_key(), Some(&old));
+    assert!(state.prepare_switch_restore(&marker, Some(&old)).is_ok());
+
+    let mut state = super::state(2);
+    state.phase = SessionPhase::SelectedWithoutAttachment(state.active().unwrap().clone());
+    let marker = admit(&mut state, 1, 2);
+    assert!(!state.install_projection(&marker));
+    assert_eq!(state.settle_attached_event(&marker), None);
+    assert_eq!(
+        state.settle_unattached_setup(&marker, 1, &CreateTerminalProvenance::BindingOnly),
+        None
+    );
+    // Even independently supplied setup facts cannot promote an intent into attachment authority.
+    state.attached_key = Some(marker.clone());
+    state.projection_key = Some(marker.clone());
+    assert!(!state.record_setup_configuration(&marker, controlling(), Some(geometry(80))));
+    let SessionPhase::Switching(setup) = &mut state.phase else {
+        panic!("Switch intent retained")
+    };
+    setup.mode = Some(controlling());
+    state.accepted_frame = Some((marker.clone(), FrameIdentity::new(1)));
+    state.last_accepted_geometry = Some((marker.clone(), geometry(80)));
+    assert!(!state.publish_ready(
+        &marker,
+        FrameIdentity::new(1),
+        controlling(),
+        Some(geometry(80))
+    ));
+}

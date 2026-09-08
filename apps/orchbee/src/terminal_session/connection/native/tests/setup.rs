@@ -21,7 +21,7 @@ use crate::{
             CreateOperationKey, CreateProjectionDecision, FrameIdentity, MoveDecision,
             MoveOperation, MoveResult, NativeSessionState, OPERATION_TOTAL, OperationDeadlines,
             PendingCreateCommit, PendingMoveCommit, ReadyDecision, RefreshDecision,
-            SetupEventDisposition, SwitchDetachContinuation,
+            SetupEventDisposition,
         },
     },
 };
@@ -62,6 +62,8 @@ use std::{
 
 pub(super) type TestResult<Value = ()> = std::result::Result<Value, Box<dyn Error + Send + Sync>>;
 pub(super) const IDENTITY_SEED: u128 = 0x100;
+mod switch_membership;
+pub(super) use switch_membership::drive_switch_snapshot;
 const COHORT: &str = "native-scripted-test";
 const WALL_GUARD: Duration = Duration::from_secs(2);
 const VIEWER_ID: &str = "22222222222222222222222222222222";
@@ -487,7 +489,24 @@ pub(super) struct AdmittedSwitch {
     pub(super) deadlines: OperationDeadlines,
 }
 
+/// Canonical installation has consumed the distinct successor; this key licenses setup.
+pub(super) struct InstalledSwitch {
+    pub(super) key: AttachmentKey,
+    pub(super) deadlines: OperationDeadlines,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) enum SwitchDetachContinuation {
+    Attach(AttachTarget),
+    SettledWithoutAttachment,
+    Superseded { desired: AttachmentKey },
+}
+
 pub(super) enum UiEvent {
+    SwitchSnapshot {
+        work: AttachmentKey,
+        decision: RefreshDecision,
+    },
     Bootstrap {
         key: AttachmentKey,
     },
@@ -645,7 +664,8 @@ impl UiDriver {
                 |state, result, facts| {
                     if result.is_ok() {
                         state.finish_switch_membership_admission(
-                            facts.abandoned_causal(),
+                            facts.discarded(),
+                            facts.inherited(),
                             facts.authorized_cleanup(),
                         );
                     }
@@ -656,10 +676,12 @@ impl UiDriver {
         if key.generation() != generation {
             return Err(test_error("Switch generation and desired key diverged"));
         }
-        if let Some(projection) = &mut self.projection
-            && projection.frame().is_some()
+        if self
+            .projection
+            .as_ref()
+            .is_some_and(|projection| projection.frame().is_some())
         {
-            projection.clear_frame();
+            // Admission hides the renderer through state.projection_key; keep exact anchor pixels.
             self.no_frame_redraws += 1;
         }
         Ok(AdmittedSwitch { key, deadlines })
@@ -887,44 +909,6 @@ impl UiDriver {
         self.settle(taken, FrameCut::None, Some((elapsed_millis, next_millis)))
     }
 
-    pub(super) fn settle_unattached_before_and_advance_to(
-        &mut self,
-        taken: TakenEvent,
-        elapsed_millis: &AtomicU64,
-        next_millis: u64,
-    ) -> TestResult<UiEvent> {
-        let (wait_key, event) = taken.into_parts();
-        let WorkerEvent::SetupWithoutAttachment {
-            key,
-            target_index,
-            target_provenance,
-        } = event
-        else {
-            return Err(test_error("settlement cut requires SetupWithoutAttachment"));
-        };
-        let wait_key = wait_key.ok_or_else(|| test_error("SetupWithoutAttachment wait key"))?;
-        let mut continuation = None;
-        let mailbox = Arc::clone(&self.mailbox);
-        let clock = self.clock.clone();
-        let state = self.state_mut();
-        require_applied(
-            mailbox.deposit_ui_reply_before(&wait_key, &clock, |_transaction| {
-                let settled = state
-                    .settle_unattached_setup(&key, target_index, &target_provenance)
-                    .ok_or(CarrierFailure::Protocol)?;
-                continuation = Some(settled.clone());
-                elapsed_millis.store(next_millis, Ordering::SeqCst);
-                Ok(UiReply::SetupWithoutAttachmentApplied(settled))
-            }),
-        )?;
-        self.projection = None;
-        Ok(UiEvent::SetupWithoutAttachment {
-            key,
-            continuation: continuation
-                .ok_or_else(|| test_error("unattached setup continuation was not deposited"))?,
-        })
-    }
-
     pub(super) fn settle_next(&mut self, frame_cut: FrameCut) -> TestResult<UiEvent> {
         let taken = self.take_next()?;
         self.settle(taken, frame_cut, None)
@@ -938,12 +922,35 @@ impl UiDriver {
     ) -> TestResult<UiEvent> {
         let (wait_key, event) = taken.into_parts();
         match event {
-            WorkerEvent::SwitchSnapshotResult { .. }
-            | WorkerEvent::MembershipCleanupSkipped { .. }
-            | WorkerEvent::SwitchForwardExpired { .. } => {
-                Err(test_error("Switch membership consumer is staged"))
-            }
+            WorkerEvent::SwitchSnapshotResult { marker, outcome } => self.settle_switch_snapshot(
+                wait_key.ok_or_else(|| test_error("Switch Snapshot wait"))?,
+                marker,
+                outcome,
+            ),
+            WorkerEvent::SwitchForwardExpired { permit } => self.settle_switch_forward_expired(
+                wait_key.ok_or_else(|| test_error("Switch expiry wait"))?,
+                permit.into_target(),
+            ),
+            WorkerEvent::MembershipCleanupSkipped { cleanup } => self
+                .settle_switch_membership_cleanup(
+                    wait_key.ok_or_else(|| test_error("Switch skipped wait"))?,
+                    cleanup,
+                    false,
+                ),
             WorkerEvent::MembershipDetached { cleanup, detached } => {
+                if matches!(
+                    cleanup.result(),
+                    crate::terminal_session::state::MembershipResultKey::Switch(_)
+                ) {
+                    if cleanup.old() != &detached {
+                        return Err(test_error("Switch detached key mismatch"));
+                    }
+                    return self.settle_switch_membership_cleanup(
+                        wait_key.ok_or_else(|| test_error("Switch cleanup wait"))?,
+                        cleanup,
+                        true,
+                    );
+                }
                 let wait_key = wait_key.ok_or_else(|| test_error("membership wait key"))?;
                 let mailbox = Arc::clone(&self.mailbox);
                 let clock = self.clock.clone();
@@ -1186,32 +1193,6 @@ impl UiDriver {
                 Ok(UiEvent::Ready(decision.ok_or_else(|| {
                     test_error("Ready decision was not deposited")
                 })?))
-            }
-            WorkerEvent::SwitchOldDetached { work, detached } => {
-                let wait_key = wait_key.ok_or_else(|| test_error("SwitchOldDetached wait key"))?;
-                let mut continuation = None;
-                let mailbox = Arc::clone(&self.mailbox);
-                let clock = self.clock.clone();
-                let state = self.state_mut();
-                require_applied(mailbox.deposit_ui_reply_before(
-                    &wait_key,
-                    &clock,
-                    |transaction| {
-                        let settled = state
-                            .settle_switch_old_detached(&work, &detached, transaction.observed_at())
-                            .ok_or(CarrierFailure::Protocol)?;
-                        continuation = Some(settled.clone());
-                        Ok(UiReply::SwitchDetachApplied(settled))
-                    },
-                ))?;
-                self.projection = None;
-                Ok(UiEvent::SwitchOldDetached {
-                    work,
-                    detached,
-                    continuation: continuation.ok_or_else(|| {
-                        test_error("Switch detach continuation was not deposited")
-                    })?,
-                })
             }
             WorkerEvent::SwitchEntryExpired {
                 key,

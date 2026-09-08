@@ -183,6 +183,21 @@ impl NativeSessionState {
         }
     }
 
+    pub(in crate::terminal_session) fn invalidate_switch_anchor_for(
+        &mut self,
+        discarded: &AttachmentKey,
+    ) {
+        if let SessionPhase::Switching(setup) = &mut self.phase
+            && let Some(membership) = &mut setup.membership
+            && membership
+                .anchor
+                .as_ref()
+                .is_some_and(|anchor| anchor.selected().key() == discarded)
+        {
+            membership.invalidate();
+        }
+    }
+
     pub(in crate::terminal_session) fn switch_marker_is_current(
         &self,
         marker: &AttachmentKey,

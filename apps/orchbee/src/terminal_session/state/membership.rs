@@ -679,11 +679,12 @@ impl NativeSessionState {
     /// Admission already holds the mailbox gate. Only an authorized old call retains its candidate.
     pub(in crate::terminal_session) fn finish_switch_membership_admission(
         &mut self,
-        abandoned_causal: bool,
+        discarded: Option<&AttachmentKey>,
+        inherited: Option<&AttachmentKey>,
         authorized_cleanup: bool,
     ) {
-        if abandoned_causal {
-            self.invalidate_switch_anchor();
+        for key in [discarded, inherited].into_iter().flatten() {
+            self.invalidate_switch_anchor_for(key);
         }
         if !authorized_cleanup
             && matches!(

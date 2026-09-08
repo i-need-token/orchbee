@@ -4,7 +4,7 @@ use crate::terminal_session::{
     state::{
         CarrierFailure, ControllerMode, CreateProjectionDecision, CreateTerminalProvenance,
         NavigatorRefreshStatus, PendingRefreshStage, RefreshDecision, SessionNotice,
-        SessionPhaseKind, SwitchDetachContinuation,
+        SessionPhaseKind,
     },
 };
 use orchbee_client_server_protocol::{
@@ -981,12 +981,14 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
             WireKind::Obcs,
             WireKind::Workbench,
             WireKind::Workbench,
+            WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1003,12 +1005,33 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
 
     let restored = harness.ui.admit_switch(0)?;
     assert_eq!(restored.key.tab_id(), initial_key.tab_id());
-    assert_eq!(drive_attach(&mut harness, 0)?, restored.key);
-    drive_controlling_after_attach(&mut harness, &restored.key, geometry)?;
+    let restored_successor = match drive_switch_snapshot(&mut harness)? {
+        UiEvent::SwitchSnapshot {
+            work,
+            decision: RefreshDecision::AttachRecovered(target),
+        } if work == restored.key => {
+            assert_eq!(
+                target.selected().key().generation(),
+                restored.key.generation() + 1
+            );
+            assert_eq!(target.provenance(), &CreateTerminalProvenance::BindingOnly);
+            target.selected().key().clone()
+        }
+        _ => {
+            return Err(test_error(
+                "unattached Switch must recover through Snapshot",
+            ));
+        }
+    };
+    assert_eq!(drive_attach(&mut harness, 0)?, restored_successor);
+    drive_controlling_after_attach(&mut harness, &restored_successor, geometry)?;
 
     harness
         .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(restored.key.clone(), ())))
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(
+            restored_successor.clone(),
+            (),
+        )))
         .map_err(|error| test_error(&format!("failed to enqueue held Poll: {error:?}")))?;
     let ClientMessage::TerminalViewer(held_poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("held Poll must reach the carrier"));
@@ -1032,9 +1055,17 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
             ),
         ))?;
 
+    assert!(matches!(
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            work,
+            decision: RefreshDecision::Cleanup(_),
+        } if work == newest.key
+    ));
+
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error(
-            "stale Switch must detach the installed old viewer",
+            "newest Switch must detach the installed old viewer",
         ));
     };
     assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
@@ -1046,15 +1077,23 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
                 TerminalViewerOutcome::Detached {},
             ),
         ))?;
-    assert!(matches!(
-        harness.ui.settle_next(FrameCut::None)?,
+    let successor = match harness.ui.settle_next(FrameCut::None)? {
         UiEvent::SwitchOldDetached {
             work,
             detached,
-            continuation: SwitchDetachContinuation::Superseded { desired },
-        } if work == stale.key && detached == restored.key && desired == newest.key
-    ));
-    assert_eq!(harness.ui.state().desired().unwrap(), &newest.key);
+            continuation: SwitchDetachContinuation::Attach(target),
+        } if work == newest.key && detached == restored_successor => {
+            assert_eq!(
+                target.selected().key().generation(),
+                newest.key.generation() + 1
+            );
+            assert_eq!(target.deadlines(), newest.deadlines);
+            assert_eq!(target.provenance(), &CreateTerminalProvenance::BindingOnly);
+            target.selected().key().clone()
+        }
+        _ => return Err(test_error("newest Switch cleanup must publish a successor")),
+    };
+    assert_eq!(harness.ui.state().desired().unwrap(), &successor);
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Switching);
 
     // The stale marker's forward cutoff is 45s. Crossing it here proves that the queued newest
@@ -1062,12 +1101,16 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
     // SetupWithoutAttachment, that event would occupy the rendezvous before this exact Attach.
     harness.elapsed_millis.store(46_000, Ordering::SeqCst);
     harness.mailbox.wake_waiters();
-    assert_eq!(drive_attach(&mut harness, 0)?, newest.key);
-    drive_controlling_after_attach(&mut harness, &newest.key, geometry)?;
+    assert_eq!(drive_attach(&mut harness, 0)?, successor);
+    drive_controlling_after_attach(&mut harness, &successor, geometry)?;
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(
         harness.ui.state().active().map(|tab| tab.key()),
-        Some(&newest.key)
+        Some(&successor)
+    );
+    assert_eq!(
+        harness.ui.state().provenance(1),
+        Some(&CreateTerminalProvenance::Pending)
     );
 
     harness.finish()
@@ -1719,6 +1762,7 @@ fn settled_refresh_reply_can_be_superseded_before_worker_resume_and_then_runs_ex
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Workbench,
+            WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1779,6 +1823,14 @@ fn settled_refresh_reply_can_be_superseded_before_worker_resume_and_then_runs_ex
     assert_eq!(harness.ui.state().desired().unwrap(), &superseding.key);
     assert_eq!(harness.ui.state().attached_key(), Some(&old_key));
 
+    assert!(matches!(
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            work,
+            decision: RefreshDecision::Cleanup(_),
+        } if work == superseding.key
+    ));
+
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error(
             "resumed Refresh worker must advance to the exact queued Switch",
@@ -1793,24 +1845,29 @@ fn settled_refresh_reply_can_be_superseded_before_worker_resume_and_then_runs_ex
                 TerminalViewerOutcome::Detached {},
             ),
         ))?;
-    assert!(matches!(
-        harness.ui.settle_next(FrameCut::None)?,
+    let successor = match harness.ui.settle_next(FrameCut::None)? {
         UiEvent::SwitchOldDetached {
             work,
             detached,
-            continuation: SwitchDetachContinuation::Attach(ref target),
-        } if work == superseding.key
-            && detached == old_key
-            && target.selected().key() == &superseding.key
-            && target.provenance() == &CreateTerminalProvenance::BindingOnly
-    ));
+            continuation: SwitchDetachContinuation::Attach(target),
+        } if work == superseding.key && detached == old_key => {
+            assert_eq!(
+                target.selected().key().generation(),
+                superseding.key.generation() + 1
+            );
+            assert_eq!(target.deadlines(), superseding.deadlines);
+            assert_eq!(target.provenance(), &CreateTerminalProvenance::BindingOnly);
+            target.selected().key().clone()
+        }
+        _ => return Err(test_error("Switch cleanup must publish a fresh successor")),
+    };
 
-    assert_eq!(drive_attach(&mut harness, 1)?, superseding.key);
-    let controller = drive_controlling_after_attach(&mut harness, &superseding.key, geometry)?;
+    assert_eq!(drive_attach(&mut harness, 1)?, successor);
+    let controller = drive_controlling_after_attach(&mut harness, &successor, geometry)?;
     assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(
         harness.ui.state().active().map(|selected| selected.key()),
-        Some(&superseding.key)
+        Some(&successor)
     );
     assert_eq!(
         harness.ui.state().controller_mode(),
@@ -2669,7 +2726,7 @@ pub(super) fn drive_controlling_ready_from_snapshot(
     Ok((key, controller))
 }
 
-fn drive_controlling_after_attach(
+pub(super) fn drive_controlling_after_attach(
     harness: &mut Harness,
     key: &crate::terminal_session::state::AttachmentKey,
     geometry: Geometry,

@@ -1160,7 +1160,15 @@ their receipt through typed settlement without clearing the viewer. Ambiguous ca
 authorization evidence through retirement. The sole shared membership record owns the candidate
 and cleanup policy; this receipt adds no candidate, deadline, identity counter, or cleanup owner.
 
-The accepted membership refinement separates an admitted Switch intent from its installed
+A returned old Poll can become stale after marker admission but before publication. The mailbox
+retains that actual discard, and any relinquished already-taken Feedback settlement, as an exact
+marker/source-attachment fact. Successful superseding admission transfers the fact to the matching
+inherited anchor; a refused admission preserves it. Current Snapshot UI settlement consumes it
+before preparing restoration or installation. Only the same source key loses its proof. A pre-call
+skip, Busy without a frame result, or an empty stale callback creates no discard fact. This event
+receipt survives the queued marker becoming active and allocates no request, generation, or budget.
+
+The runtime membership owner separates an admitted Switch intent from its installed
 attachment key. Intent admission consumes one generation. After the existing FIFO and exact
 old-flight drain, one SnapshotRead uses the shared identity cursor and the marker's original
 45-second forward / 50-second total budget. Its exact typed result must be placed before the
@@ -1170,6 +1178,9 @@ and atomically publishes cache, selection, desired/work key, cursor and attachme
 preserves the consumed cursor without a key, viewer, controller or fabricated Ready proof. The
 membership model owns candidate validation and ordinal choice; the Switch model receives that
 validated choice and checks the concrete key transition, cleanup and setup continuation.
+An intent cannot install a projection, accept target setup configuration, publish Ready, or settle
+as an unattached setup. Those paths require the installed candidate. The former direct
+Switch-old-Detached event and its intent-to-Attach continuation have been removed.
 
 A timely definite Unavailable result restores only an owner-held anchor from a genuine stable
 origin. Ready restoration requires the same exact viewer/controller and a still-current full-frame,
@@ -1193,6 +1204,8 @@ truthful ambiguity retirement. Before installation, forward expiry permits only 
 within the original total reserve followed by retirement; with no viewer it retires directly.
 After installation, the existing no-attempt, attempted-setup and cleanup expiry distinctions below
 remain in force. Candidate processing never renews either deadline.
+The current Switch executor always obtains an exact Detach response for its old viewer; it does
+not yet consume the Close owner's Gone proof as a shortcut.
 
 `NativeTabSwitch` bounds two admitted intents independently of the generation cursor. Its four
 configuration variants partition initial controlling/read-only mode and generation bounds four/two.
@@ -1959,6 +1972,17 @@ node scripts/tla/run-models.mjs --models native-client-create-barrier,native-cli
 | `own-close-retryable`      | 925,868 / 285,198 / 27       | `5ae9e77eb7f67c286b842776709681bcb3fcebbdac8d31a62b4e1c2a9302e0ea` |
 
 ### Switch membership installation evidence
+
+Deterministic tests exercise the actual sequential executor and scripted carrier for Snapshot
+before cleanup, surviving/fallback/Empty installation, fresh successor keys and original deadlines.
+Separate production `NativeUi` tests cover same-lock cleanup receipts, supersession and expiry.
+The returned-old-Poll and already-taken-Feedback cuts require an exact discard fact; disabling
+either producer fails its regression. Busy without a frame preserves restoration, while admission
+tests cover discarded event/cell, missing callback, refusal preservation, exact lineage transfer
+and queued-to-active retention. Scripted UI drivers are not evidence for terminal rendering or a
+real PTY process; the finite model results below remain unchanged.
+The actual worker also preserves a timely Unavailable Snapshot until UI settlement after the
+original total deadline; a bounded post-placement reply wait fails that deterministic regression.
 
 Run `node scripts/tla/run-models.mjs --models native-tab-switch --jobs 1` with pinned TLA+ tools
 1.7.4. All four configurations below complete safety and final temporal checking with empty

@@ -7,6 +7,12 @@ impl NativeExecutor {
         lease: &CommandLease,
         cleanup: MembershipCleanup,
     ) -> Result<()> {
+        if matches!(
+            cleanup.result(),
+            crate::terminal_session::state::MembershipResultKey::Switch(_)
+        ) {
+            return self.run_switch_membership_cleanup(lease, cleanup);
+        }
         if self.attached_key() != Some(cleanup.old())
             || self.execution_desired(lease)?.as_ref() != Some(cleanup.old())
         {

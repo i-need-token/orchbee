@@ -23,6 +23,7 @@ mod lifecycle_generated;
 mod membership;
 mod move_tab;
 mod tab_close;
+mod switch_membership;
 
 #[test]
 fn live_empty_mailbox_admits_and_dispatches_refresh_without_rebootstrapping() {
@@ -1672,7 +1673,8 @@ fn deposited_refresh_reply_can_be_superseded_before_worker_reacquires_mailbox() 
                 |session, result, facts| {
                     assert!(result.is_ok());
                     session.finish_switch_membership_admission(
-                        facts.abandoned_causal(),
+                        facts.discarded(),
+                        facts.inherited(),
                         facts.authorized_cleanup(),
                     );
                 },
@@ -1996,7 +1998,6 @@ fn ready_state(tab_count: usize) -> NativeSessionState {
 
 fn retryable_two_tab_state(base: Instant) -> NativeSessionState {
     let mut state = ready_state(2);
-    let detached = state.desired().unwrap().clone();
     let target_key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
     let target = state
         .target_for_switch(
@@ -2005,10 +2006,28 @@ fn retryable_two_tab_state(base: Instant) -> NativeSessionState {
             OperationDeadlines::from_sample(base).unwrap(),
         )
         .unwrap();
-    assert!(state.begin_switch(target));
+    assert!(state.begin_switch(target.clone()));
+    let prepared = state
+        .prepare_membership_candidate(
+            state.cache().clone(),
+            Some(target_key.tab_id()),
+            Some(1),
+            None,
+        )
+        .unwrap();
+    let cleanup = state
+        .stage_switch_membership_cleanup(&target_key, prepared, target.deadlines())
+        .unwrap();
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
+        .unwrap();
+    let target_key = AttachmentKey::new(3, target_key.tab_id().clone());
     assert!(matches!(
-        state.settle_switch_old_detached(&target_key, &detached, Instant::now()),
-        Some(SwitchDetachContinuation::Attach(_))
+        state
+            .prepare_cleaned_membership_install(&cleanup, prepared, Some(target_key.clone()))
+            .unwrap()
+            .commit(),
+        crate::terminal_session::state::MembershipInstallDecision::Attach(_)
     ));
     assert_eq!(
         state.settle_unattached_setup(&target_key, 1, &CreateTerminalProvenance::BindingOnly,),

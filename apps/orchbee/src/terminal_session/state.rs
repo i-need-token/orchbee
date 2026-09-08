@@ -22,9 +22,10 @@ mod tab_close;
 pub(super) mod tab_rename;
 use create_membership::CreateAnchor;
 pub(super) use create_membership::{CreateOriginKind, PreparedCreateSnapshot};
+#[cfg(test)]
+pub(super) use membership::PreparedMembershipInstall;
 pub(super) use membership::{
     MembershipCleanup, MembershipInstallDecision, MembershipResultKey, PreparedMembershipCandidate,
-    PreparedMembershipInstall,
 };
 pub(super) use move_tab::{MoveDecision, MoveOperation, MoveResult, PendingMoveCommit};
 use switch_membership::SwitchMembership;
@@ -610,13 +611,6 @@ pub(super) enum CleanupContinuation {
     Superseded { desired: AttachmentKey },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) enum SwitchDetachContinuation {
-    Attach(AttachTarget),
-    SettledWithoutAttachment,
-    Superseded { desired: AttachmentKey },
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum SelectionPlan {
     Busy,
@@ -939,6 +933,7 @@ impl NativeSessionState {
             }
             SessionPhase::Switching(setup)
                 if setup.target.selected.key == *key
+                    && setup.membership.is_none()
                     && setup.previous.is_none()
                     && self.attached_key.as_ref() == Some(key) =>
             {
@@ -1046,7 +1041,9 @@ impl NativeSessionState {
     ) -> bool {
         let selected = match &self.phase {
             SessionPhase::Starting(setup) if setup.selected.key == *key => setup.selected.clone(),
-            SessionPhase::Switching(setup) if setup.target.selected.key == *key => {
+            SessionPhase::Switching(setup)
+                if setup.target.selected.key == *key && setup.membership.is_none() =>
+            {
                 setup.target.selected.clone()
             }
             _ => return false,
@@ -1086,7 +1083,9 @@ impl NativeSessionState {
         }
         let selected_matches = match &self.phase {
             SessionPhase::Starting(setup) => setup.selected.key == *key,
-            SessionPhase::Switching(setup) => setup.target.selected.key == *key,
+            SessionPhase::Switching(setup) => {
+                setup.target.selected.key == *key && setup.membership.is_none()
+            }
             _ => false,
         };
         if !selected_matches
@@ -1118,7 +1117,8 @@ impl NativeSessionState {
         if self.desired.as_ref() != Some(key)
             || self.attached_key.is_some()
             || !matches!(&self.phase, SessionPhase::Starting(_))
-                && !matches!(&self.phase, SessionPhase::Switching(setup) if setup.previous.is_none())
+                && !matches!(&self.phase, SessionPhase::Switching(setup)
+                    if setup.previous.is_none() && setup.membership.is_none())
         {
             return false;
         }
@@ -1337,64 +1337,6 @@ impl NativeSessionState {
         }
         self.begin_switch_membership(target)
     }
-
-    pub(super) fn record_viewer_detached(&mut self, key: &AttachmentKey) -> bool {
-        let SessionPhase::Switching(setup) = &mut self.phase else {
-            return false;
-        };
-        if setup
-            .previous
-            .as_ref()
-            .is_none_or(|previous| previous.selected.key != *key)
-            || self.attached_key.as_ref() != Some(key)
-        {
-            return false;
-        }
-        setup.previous = None;
-        if let Some(membership) = &mut setup.membership {
-            membership.invalidate();
-        }
-        self.attached_key = None;
-        if self.projection_key.as_ref() == Some(key) {
-            self.projection_key = None;
-        }
-        true
-    }
-
-    pub(super) fn settle_switch_old_detached(
-        &mut self,
-        work: &AttachmentKey,
-        detached: &AttachmentKey,
-        settled_at: Instant,
-    ) -> Option<SwitchDetachContinuation> {
-        if !self.record_viewer_detached(detached) {
-            return None;
-        }
-        if self.desired.as_ref() != Some(work) {
-            return Some(SwitchDetachContinuation::Superseded {
-                desired: self.desired.clone()?,
-            });
-        }
-        let SessionPhase::Switching(setup) = &self.phase else {
-            return None;
-        };
-        if setup.target.selected.key != *work {
-            return None;
-        }
-        if settled_at < setup.target.deadlines.forward_cutoff()
-            && setup.target.provenance.attachable()
-        {
-            return Some(SwitchDetachContinuation::Attach(setup.target.clone()));
-        }
-        let selected = setup.target.selected.clone();
-        self.phase = if setup.target.provenance.attachable() {
-            SessionPhase::RetryableAttachUnavailable(selected)
-        } else {
-            SessionPhase::SelectedWithoutAttachment(selected)
-        };
-        Some(SwitchDetachContinuation::SettledWithoutAttachment)
-    }
-
     pub(super) fn settle_switch_entry_expired(
         &mut self,
         key: &AttachmentKey,
@@ -1413,6 +1355,7 @@ impl NativeSessionState {
             return None;
         };
         if setup.previous.is_some()
+            || setup.membership.is_some()
             || setup.target.selected.key != *key
             || setup.target.selected.index != target_index
             || &setup.target.provenance != target_provenance
@@ -1483,7 +1426,7 @@ impl NativeSessionState {
                 desired: self.desired.clone()?,
             });
         }
-        if setup.previous.is_some() {
+        if setup.previous.is_some() || setup.membership.is_some() {
             return None;
         }
         if setup.target.selected.key != *key
@@ -1532,6 +1475,7 @@ impl NativeSessionState {
             });
         }
         if setup.previous.is_some()
+            || setup.membership.is_some()
             || setup.target.selected.key != *key
             || self.attached_key.is_some()
             || self.cache.tabs().get(target_index)?.tab_id() != key.tab_id()

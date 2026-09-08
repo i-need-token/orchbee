@@ -689,7 +689,8 @@ impl NativeUi {
             |state, result, facts| {
                 if result.is_ok() {
                     state.finish_switch_membership_admission(
-                        facts.abandoned_causal(),
+                        facts.discarded(),
+                        facts.inherited(),
                         facts.authorized_cleanup(),
                     );
                 }
@@ -911,13 +912,6 @@ impl NativeUi {
                         .settle_setup_configuration_event(&key, mode, applied_geometry)
                         .ok_or(CarrierFailure::Protocol)?,
                 ),
-                WorkerEvent::SwitchOldDetached { work, detached } => {
-                    let continuation = state
-                        .settle_switch_old_detached(&work, &detached, transaction.observed_at())
-                        .ok_or(CarrierFailure::Protocol)?;
-                    clear_projection = true;
-                    UiReply::SwitchDetachApplied(continuation)
-                }
                 WorkerEvent::SwitchEntryExpired {
                     key,
                     target_index,

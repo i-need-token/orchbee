@@ -50,17 +50,13 @@ fn ready_with_cache(cache: NativeStandaloneTabs) -> NativeSessionState {
 
 fn retryable_state(base: Instant) -> NativeSessionState {
     let mut state = ready(2);
-    let detached = state.desired().unwrap().clone();
     let deadlines = OperationDeadlines::from_sample(base).unwrap();
     let target_key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
     let target = state
         .target_for_switch(1, target_key.clone(), deadlines)
         .unwrap();
     assert!(state.begin_switch(target));
-    assert!(matches!(
-        state.settle_switch_old_detached(&target_key, &detached, base),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
+    let target_key = install_switch_candidate(&mut state, &target_key);
     assert_eq!(
         state.settle_unattached_setup(&target_key, 1, &CreateTerminalProvenance::BindingOnly),
         Some(CleanupContinuation::Stable)
@@ -70,6 +66,50 @@ fn retryable_state(base: Instant) -> NativeSessionState {
         SessionPhaseKind::RetryableAttachUnavailable
     );
     state
+}
+
+fn install_switch_candidate(
+    state: &mut NativeSessionState,
+    marker: &AttachmentKey,
+) -> AttachmentKey {
+    let fresh = prepare_and_install_switch_candidate(state, marker).unwrap();
+    assert_eq!(state.desired(), Some(&fresh));
+    assert!(state.invariant_holds());
+    fresh
+}
+
+fn prepare_and_install_switch_candidate(
+    state: &mut NativeSessionState,
+    marker: &AttachmentKey,
+) -> Result<AttachmentKey, CarrierFailure> {
+    let deadlines = state
+        .switch_deadlines(marker)
+        .ok_or(CarrierFailure::Protocol)?;
+    let prepared = state.prepare_membership_candidate(
+        state.cache().clone(),
+        Some(marker.tab_id()),
+        state.active().map(SelectedTab::index),
+        None,
+    )?;
+    let fresh = AttachmentKey::new(
+        marker
+            .generation()
+            .checked_add(1)
+            .ok_or(CarrierFailure::IdentityExhausted)?,
+        marker.tab_id().clone(),
+    );
+    if state.attached_key().is_some() {
+        let cleanup = state.stage_switch_membership_cleanup(marker, prepared, deadlines)?;
+        let prepared = state.prepare_cleaned_membership_candidate(&cleanup, cleanup.old())?;
+        state
+            .prepare_cleaned_membership_install(&cleanup, prepared, Some(fresh.clone()))?
+            .commit();
+    } else {
+        state
+            .prepare_switch_membership_install(marker, prepared, Some(fresh.clone()))?
+            .commit();
+    }
+    Ok(fresh)
 }
 
 #[test]
@@ -498,6 +538,7 @@ fn committed_create_then_second_human_create_preserves_provenance_and_fresh_curs
         )
         .unwrap();
     assert!(state.begin_switch(select_old));
+    let select_old_key = install_switch_candidate(&mut state, &select_old_key);
     assert!(state.install_projection(&select_old_key));
     assert!(state.record_setup_configuration(&select_old_key, controlling(), Some(geometry(80))));
     assert!(state.stage_drawn_frame(&select_old_key, FrameIdentity::new(4)));
@@ -509,7 +550,7 @@ fn committed_create_then_second_human_create_preserves_provenance_and_fresh_curs
         Some(geometry(80))
     ));
 
-    let second = create_operation(&state, 4, 31, "3");
+    let second = create_operation(&state, select_old_key.generation() + 1, 31, "3");
     let second_key = second.key().clone();
     assert_ne!(second_key.request_id(), first_key.request_id());
     assert!(second_key.reserved_generation() > first_key.reserved_generation());
@@ -621,15 +662,11 @@ fn append_only_refresh_preserves_a_nonfirst_active_id_and_known_provenance() {
     };
     primary_presentation.label = "presentation sentinel".into();
     let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
-    let detached = state.desired().unwrap().clone();
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     let key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
     let target = state.target_for_switch(1, key.clone(), deadlines).unwrap();
     assert!(state.begin_switch(target));
-    assert!(matches!(
-        state.settle_switch_old_detached(&key, &detached, Instant::now()),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
+    let key = install_switch_candidate(&mut state, &key);
     assert!(state.install_projection(&key));
     assert!(state.record_setup_configuration(&key, controlling(), Some(geometry(80))));
     assert!(state.stage_drawn_frame(&key, FrameIdentity::new(2)));
@@ -852,19 +889,18 @@ fn projection_unavailable_moved_started_refresh_needs_a_fresh_setup_budget() {
 #[test]
 fn cleanup_never_publishes_a_stale_generation_and_selects_by_provenance() {
     let mut state = ready(2);
-    let initial = state.desired().unwrap().clone();
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     let old_key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
     let target = state
         .target_for_switch(1, old_key.clone(), deadlines)
         .unwrap();
     assert!(state.begin_switch(target));
-    assert!(matches!(
-        state.settle_switch_old_detached(&old_key, &initial, Instant::now()),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
+    let old_key = install_switch_candidate(&mut state, &old_key);
     assert!(state.install_projection(&old_key));
-    let newer_key = AttachmentKey::new(3, state.tab(0).unwrap().tab_id().clone());
+    let newer_key = AttachmentKey::new(
+        old_key.generation() + 1,
+        state.tab(0).unwrap().tab_id().clone(),
+    );
     let newer = state
         .target_for_switch(0, newer_key.clone(), deadlines)
         .unwrap();
@@ -878,6 +914,7 @@ fn cleanup_never_publishes_a_stale_generation_and_selects_by_provenance() {
     assert_eq!(state.phase_kind(), SessionPhaseKind::Switching);
     assert_eq!(state.desired().unwrap(), &newer_key);
 
+    let newer_key = install_switch_candidate(&mut state, &newer_key);
     assert_eq!(
         state.settle_unattached_setup(&newer_key, 0, &CreateTerminalProvenance::BindingOnly),
         Some(CleanupContinuation::Stable)
@@ -895,16 +932,12 @@ fn exact_cleanup_settles_a_viewer_attached_on_wire_before_ui_install() {
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
 
     let mut current = ready(2);
-    let initial = current.desired().unwrap().clone();
     let current_key = AttachmentKey::new(2, current.tab(1).unwrap().tab_id().clone());
     let target = current
         .target_for_switch(1, current_key.clone(), deadlines)
         .unwrap();
     assert!(current.begin_switch(target));
-    assert!(matches!(
-        current.settle_switch_old_detached(&current_key, &initial, Instant::now()),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
+    let current_key = install_switch_candidate(&mut current, &current_key);
     assert!(current.attached_key().is_none());
     assert_eq!(
         current.settle_cleanup(&current_key, 1, &CreateTerminalProvenance::BindingOnly),
@@ -917,17 +950,16 @@ fn exact_cleanup_settles_a_viewer_attached_on_wire_before_ui_install() {
     assert!(current.invariant_holds());
 
     let mut superseded = ready(2);
-    let initial = superseded.desired().unwrap().clone();
     let old_key = AttachmentKey::new(2, superseded.tab(1).unwrap().tab_id().clone());
     let old_target = superseded
         .target_for_switch(1, old_key.clone(), deadlines)
         .unwrap();
     assert!(superseded.begin_switch(old_target));
-    assert!(matches!(
-        superseded.settle_switch_old_detached(&old_key, &initial, Instant::now()),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
-    let newer_key = AttachmentKey::new(3, superseded.tab(0).unwrap().tab_id().clone());
+    let old_key = install_switch_candidate(&mut superseded, &old_key);
+    let newer_key = AttachmentKey::new(
+        old_key.generation() + 1,
+        superseded.tab(0).unwrap().tab_id().clone(),
+    );
     let newer_target = superseded
         .target_for_switch(0, newer_key.clone(), deadlines)
         .unwrap();
@@ -944,194 +976,165 @@ fn exact_cleanup_settles_a_viewer_attached_on_wire_before_ui_install() {
 }
 
 #[test]
-fn switch_old_detach_uses_forward_for_attach_and_total_reserve_for_stable_cleanup() {
+fn switch_candidate_cleanup_preserves_deadlines_and_superseded_detach_cannot_install() {
     let base = Instant::now();
     let deadlines = OperationDeadlines::from_sample(base).unwrap();
+    for attachable in [true, false] {
+        let mut state = ready(2);
+        if !attachable {
+            state.provenance[1] = CreateTerminalProvenance::Pending;
+        }
+        let marker = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
+        let target = state
+            .target_for_switch(1, marker.clone(), deadlines)
+            .unwrap();
+        assert!(state.begin_switch(target));
+        let fresh = install_switch_candidate(&mut state, &marker);
+        assert_eq!(fresh.generation(), marker.generation() + 1);
+        if attachable {
+            assert_eq!(state.switch_deadlines(&fresh), Some(deadlines));
+            assert!(state.install_projection(&fresh));
+        } else {
+            assert_eq!(
+                state.phase_kind(),
+                SessionPhaseKind::SelectedWithoutAttachment
+            );
+            assert!(!state.install_projection(&fresh));
+        }
+        assert!(state.invariant_holds());
+    }
 
-    let mut before_forward = ready(2);
-    let detached = before_forward.desired().unwrap().clone();
-    let target_key = AttachmentKey::new(2, before_forward.tab(1).unwrap().tab_id().clone());
-    let target = before_forward
-        .target_for_switch(1, target_key.clone(), deadlines)
-        .unwrap();
-    assert!(before_forward.begin_switch(target));
-    assert!(matches!(
-        before_forward.settle_switch_old_detached(
-            &target_key,
-            &detached,
-            deadlines.forward_cutoff() - Duration::from_nanos(1),
-        ),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
-
-    let mut at_forward = ready(2);
-    let detached = at_forward.desired().unwrap().clone();
-    let target_key = AttachmentKey::new(2, at_forward.tab(1).unwrap().tab_id().clone());
-    let target = at_forward
-        .target_for_switch(1, target_key.clone(), deadlines)
-        .unwrap();
-    assert!(at_forward.begin_switch(target));
-    assert_eq!(
-        at_forward.settle_switch_old_detached(&target_key, &detached, deadlines.forward_cutoff(),),
-        Some(SwitchDetachContinuation::SettledWithoutAttachment)
+    let mut state = ready(2);
+    let old = state.desired().unwrap().clone();
+    let marker = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
+    assert!(
+        state.begin_switch(
+            state
+                .target_for_switch(1, marker.clone(), deadlines)
+                .unwrap()
+        )
     );
-    assert_eq!(
-        at_forward.phase_kind(),
-        SessionPhaseKind::RetryableAttachUnavailable
+    let cleanup = state.stage_switch_expiry_cleanup(&marker).unwrap();
+    assert_eq!(cleanup.deadlines(), deadlines);
+    let newest = AttachmentKey::new(3, state.tab(0).unwrap().tab_id().clone());
+    assert!(
+        state.begin_switch(
+            state
+                .target_for_switch(0, newest.clone(), deadlines)
+                .unwrap()
+        )
     );
-    assert!(at_forward.attached_key().is_none());
-    assert!(at_forward.projection_key().is_none());
-    assert!(at_forward.invariant_holds());
-
-    let mut nonattachable = ready(2);
-    nonattachable.provenance[1] = CreateTerminalProvenance::Pending;
-    let detached = nonattachable.desired().unwrap().clone();
-    let target_key = AttachmentKey::new(2, nonattachable.tab(1).unwrap().tab_id().clone());
-    let target = nonattachable
-        .target_for_switch(1, target_key.clone(), deadlines)
+    state.finish_switch_membership_admission(None, None, true);
+    assert!(
+        state
+            .prepare_cleaned_membership_candidate(&cleanup, &old)
+            .is_err()
+    );
+    state
+        .settle_switch_membership_cleanup(&cleanup, true)
         .unwrap();
-    assert!(nonattachable.begin_switch(target));
-    assert_eq!(
-        nonattachable.settle_switch_old_detached(&target_key, &detached, base),
-        Some(SwitchDetachContinuation::SettledWithoutAttachment)
-    );
-    assert_eq!(
-        nonattachable.phase_kind(),
-        SessionPhaseKind::SelectedWithoutAttachment
-    );
-    assert!(nonattachable.invariant_holds());
-
-    let mut superseded = ready(2);
-    let detached = superseded.desired().unwrap().clone();
-    let old_key = AttachmentKey::new(2, superseded.tab(1).unwrap().tab_id().clone());
-    let old_target = superseded
-        .target_for_switch(1, old_key.clone(), deadlines)
-        .unwrap();
-    assert!(superseded.begin_switch(old_target));
-    let newest_key = AttachmentKey::new(3, superseded.tab(0).unwrap().tab_id().clone());
-    let newest_target = superseded
-        .target_for_switch(0, newest_key.clone(), deadlines)
-        .unwrap();
-    assert!(superseded.begin_switch(newest_target));
-    assert_eq!(
-        superseded.settle_switch_old_detached(&old_key, &detached, deadlines.forward_cutoff(),),
-        Some(SwitchDetachContinuation::Superseded {
-            desired: newest_key.clone(),
-        })
-    );
-    assert_eq!(superseded.desired().unwrap(), &newest_key);
-    assert_eq!(superseded.phase_kind(), SessionPhaseKind::Switching);
-    assert!(superseded.attached_key().is_none());
-    assert!(superseded.invariant_holds());
+    assert_eq!(state.desired(), Some(&newest));
+    assert_eq!(state.attached_key(), None);
+    assert!(!state.install_projection(&newest));
+    assert!(state.invariant_holds());
 }
 
 #[test]
-fn switch_entry_expiry_without_a_viewer_is_distinct_and_provenance_aware() {
+fn switch_entry_expiry_without_a_viewer_requires_an_installed_candidate() {
     let base = Instant::now();
     let deadlines = OperationDeadlines::from_sample(base).unwrap();
-
-    let mut before_forward = retryable_state(base);
-    let target_key = AttachmentKey::new(3, before_forward.tab(0).unwrap().tab_id().clone());
-    let target = before_forward
-        .target_for_switch(0, target_key.clone(), deadlines)
-        .unwrap();
-    assert!(before_forward.begin_switch(target));
+    for at_cut in [false, true] {
+        let mut state = retryable_state(base);
+        let marker = AttachmentKey::new(
+            state.desired().unwrap().generation() + 1,
+            state.tab(0).unwrap().tab_id().clone(),
+        );
+        assert!(
+            state.begin_switch(
+                state
+                    .target_for_switch(0, marker.clone(), deadlines)
+                    .unwrap()
+            )
+        );
+        assert_eq!(
+            state.settle_switch_entry_expired(
+                &marker,
+                0,
+                &CreateTerminalProvenance::BindingOnly,
+                deadlines.forward_cutoff()
+            ),
+            None
+        );
+        let fresh = install_switch_candidate(&mut state, &marker);
+        let at = if at_cut {
+            deadlines.forward_cutoff()
+        } else {
+            deadlines.forward_cutoff() - Duration::from_nanos(1)
+        };
+        assert_eq!(
+            state.settle_switch_entry_expired(
+                &fresh,
+                0,
+                &CreateTerminalProvenance::BindingOnly,
+                at
+            ),
+            at_cut.then_some(CleanupContinuation::Stable)
+        );
+        assert_eq!(
+            state.phase_kind(),
+            if at_cut {
+                SessionPhaseKind::RetryableAttachUnavailable
+            } else {
+                SessionPhaseKind::Switching
+            }
+        );
+        assert!(state.invariant_holds());
+    }
+    let mut state = retryable_state(base);
+    state.provenance[1] = CreateTerminalProvenance::Pending;
+    let marker = AttachmentKey::new(
+        state.desired().unwrap().generation() + 1,
+        state.tab(1).unwrap().tab_id().clone(),
+    );
+    assert!(
+        state.begin_switch(
+            state
+                .target_for_switch(1, marker.clone(), deadlines)
+                .unwrap()
+        )
+    );
+    let fresh = install_switch_candidate(&mut state, &marker);
     assert_eq!(
-        before_forward.settle_switch_entry_expired(
-            &target_key,
-            0,
-            &CreateTerminalProvenance::BindingOnly,
-            deadlines.forward_cutoff() - Duration::from_nanos(1),
+        state.phase_kind(),
+        SessionPhaseKind::SelectedWithoutAttachment
+    );
+    assert_eq!(
+        state.settle_switch_entry_expired(
+            &fresh,
+            1,
+            &CreateTerminalProvenance::Pending,
+            deadlines.forward_cutoff()
         ),
         None
     );
-    assert_eq!(before_forward.phase_kind(), SessionPhaseKind::Switching);
-
-    let mut current = retryable_state(base);
-    let target_key = AttachmentKey::new(3, current.tab(0).unwrap().tab_id().clone());
-    let target = current
-        .target_for_switch(0, target_key.clone(), deadlines)
-        .unwrap();
-    assert!(current.begin_switch(target));
-    assert_eq!(
-        current.settle_switch_entry_expired(
-            &target_key,
-            0,
-            &CreateTerminalProvenance::BindingOnly,
-            deadlines.forward_cutoff(),
-        ),
-        Some(CleanupContinuation::Stable)
-    );
-    assert_eq!(
-        current.phase_kind(),
-        SessionPhaseKind::RetryableAttachUnavailable
-    );
-
-    let mut nonattachable = retryable_state(base);
-    nonattachable.provenance[1] = CreateTerminalProvenance::Pending;
-    let target_key = AttachmentKey::new(3, nonattachable.tab(1).unwrap().tab_id().clone());
-    let target = nonattachable
-        .target_for_switch(1, target_key.clone(), deadlines)
-        .unwrap();
-    assert!(nonattachable.begin_switch(target));
-    assert_eq!(
-        nonattachable.settle_switch_entry_expired(
-            &target_key,
-            1,
-            &CreateTerminalProvenance::Pending,
-            deadlines.forward_cutoff(),
-        ),
-        Some(CleanupContinuation::Stable)
-    );
-    assert_eq!(
-        nonattachable.phase_kind(),
-        SessionPhaseKind::SelectedWithoutAttachment
-    );
-
-    let mut superseded = retryable_state(base);
-    let old_key = AttachmentKey::new(3, superseded.tab(0).unwrap().tab_id().clone());
-    let old_target = superseded
-        .target_for_switch(0, old_key.clone(), deadlines)
-        .unwrap();
-    assert!(superseded.begin_switch(old_target));
-    let newest_key = AttachmentKey::new(4, superseded.tab(1).unwrap().tab_id().clone());
-    let newest_target = superseded
-        .target_for_switch(1, newest_key.clone(), deadlines)
-        .unwrap();
-    assert!(superseded.begin_switch(newest_target));
-    assert_eq!(
-        superseded.settle_switch_entry_expired(
-            &old_key,
-            0,
-            &CreateTerminalProvenance::BindingOnly,
-            deadlines.forward_cutoff(),
-        ),
-        Some(CleanupContinuation::Superseded {
-            desired: newest_key.clone(),
-        })
-    );
-    assert_eq!(superseded.desired().unwrap(), &newest_key);
-    assert_eq!(superseded.phase_kind(), SessionPhaseKind::Switching);
-    assert!(superseded.invariant_holds());
+    assert!(state.invariant_holds());
 }
-
 #[test]
 fn exact_attached_and_feedback_events_acknowledge_supersession_without_new_proof() {
     let base = Instant::now();
     let deadlines = OperationDeadlines::from_sample(base).unwrap();
 
     let mut attached = ready(2);
-    let detached = attached.desired().unwrap().clone();
     let stale_key = AttachmentKey::new(2, attached.tab(1).unwrap().tab_id().clone());
     let stale_target = attached
         .target_for_switch(1, stale_key.clone(), deadlines)
         .unwrap();
     assert!(attached.begin_switch(stale_target));
-    assert!(matches!(
-        attached.settle_switch_old_detached(&stale_key, &detached, base),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
-    let desired = AttachmentKey::new(3, attached.tab(0).unwrap().tab_id().clone());
+    let stale_key = install_switch_candidate(&mut attached, &stale_key);
+    let desired = AttachmentKey::new(
+        stale_key.generation() + 1,
+        attached.tab(0).unwrap().tab_id().clone(),
+    );
     let target = attached
         .target_for_switch(0, desired.clone(), deadlines)
         .unwrap();
@@ -1150,21 +1153,20 @@ fn exact_attached_and_feedback_events_acknowledge_supersession_without_new_proof
     assert!(attached.invariant_holds());
 
     let mut configured = ready(2);
-    let detached = configured.desired().unwrap().clone();
     let stale_key = AttachmentKey::new(2, configured.tab(1).unwrap().tab_id().clone());
     let stale_target = configured
         .target_for_switch(1, stale_key.clone(), deadlines)
         .unwrap();
     assert!(configured.begin_switch(stale_target));
-    assert!(matches!(
-        configured.settle_switch_old_detached(&stale_key, &detached, base),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
+    let stale_key = install_switch_candidate(&mut configured, &stale_key);
     assert_eq!(
         configured.settle_attached_event(&stale_key),
         Some(SetupEventDisposition::Applied)
     );
-    let desired = AttachmentKey::new(3, configured.tab(0).unwrap().tab_id().clone());
+    let desired = AttachmentKey::new(
+        stale_key.generation() + 1,
+        configured.tab(0).unwrap().tab_id().clone(),
+    );
     let target = configured
         .target_for_switch(0, desired.clone(), deadlines)
         .unwrap();
@@ -1183,16 +1185,12 @@ fn exact_attached_and_feedback_events_acknowledge_supersession_without_new_proof
     assert!(configured.invariant_holds());
 
     let mut feedback = ready(2);
-    let detached = feedback.desired().unwrap().clone();
     let stale_key = AttachmentKey::new(2, feedback.tab(1).unwrap().tab_id().clone());
     let stale_target = feedback
         .target_for_switch(1, stale_key.clone(), deadlines)
         .unwrap();
     assert!(feedback.begin_switch(stale_target));
-    assert!(matches!(
-        feedback.settle_switch_old_detached(&stale_key, &detached, base),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
+    let stale_key = install_switch_candidate(&mut feedback, &stale_key);
     assert_eq!(
         feedback.settle_attached_event(&stale_key),
         Some(SetupEventDisposition::Applied)
@@ -1200,7 +1198,10 @@ fn exact_attached_and_feedback_events_acknowledge_supersession_without_new_proof
     assert!(feedback.record_setup_configuration(&stale_key, controlling(), Some(geometry(80)),));
     let frame = FrameIdentity::new(7);
     assert!(feedback.stage_drawn_frame(&stale_key, frame));
-    let desired = AttachmentKey::new(3, feedback.tab(0).unwrap().tab_id().clone());
+    let desired = AttachmentKey::new(
+        stale_key.generation() + 1,
+        feedback.tab(0).unwrap().tab_id().clone(),
+    );
     let target = feedback
         .target_for_switch(0, desired.clone(), deadlines)
         .unwrap();
@@ -1235,14 +1236,10 @@ fn selection_wrap_bounds_and_same_target_retry_are_exact() {
     );
 
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
-    let detached = state.desired().unwrap().clone();
     let key = AttachmentKey::new(2, state.tab(1).unwrap().tab_id().clone());
     let target = state.target_for_switch(1, key.clone(), deadlines).unwrap();
     assert!(state.begin_switch(target));
-    assert!(matches!(
-        state.settle_switch_old_detached(&key, &detached, Instant::now()),
-        Some(SwitchDetachContinuation::Attach(_))
-    ));
+    let key = install_switch_candidate(&mut state, &key);
     assert_eq!(
         state.settle_unattached_setup(&key, 1, &CreateTerminalProvenance::BindingOnly),
         Some(CleanupContinuation::Stable)

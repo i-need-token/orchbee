@@ -20,7 +20,6 @@ use crate::{
             ControllerMode, CreateOperation, CreateProjectionDecision, CreateTerminalProvenance,
             FrameIdentity, OperationDeadlines, PendingCloseResult, PendingCreateCommit,
             PendingMoveCommit, ReadyDecision, RefreshDecision, SetupEventDisposition,
-            SwitchDetachContinuation,
         },
         workbench_projection::project_native_standalone_tabs,
     },
@@ -37,6 +36,7 @@ use std::{num::NonZeroU64, sync::Arc, time::Instant};
 mod membership;
 #[cfg(target_os = "linux")]
 mod status_recovery;
+mod switch_membership;
 mod tab_close;
 #[cfg(target_os = "linux")]
 pub(in crate::terminal_session) use status_recovery::{RecoveryShutdown, run_status_recovery};
@@ -709,9 +709,7 @@ impl NativeExecutor {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
             }
         };
-        if !current {
-            return Ok(());
-        }
+        // Publish even a now-stale Record/Empty result so the mailbox retains its exact discard.
         let cutoff = self.effective_lease_cutoff(lease, deadline)?;
         self.mailbox
             .publish_poll_result_before(poll_key.clone(), record, cutoff, &self.clock)
@@ -727,10 +725,12 @@ impl NativeExecutor {
             return Ok(());
         };
         if self.execution_desired(lease)? != Some(key.clone()) {
+            self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
             return Ok(());
         }
         let frame_applied = matches!(feedback, TerminalViewerAction::FrameApplied { .. });
         let Some(result) = self.viewer_for_ready_lease(lease, &key, feedback, deadline)? else {
+            self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
             return Ok(());
         };
         let current = self.execution_desired(lease)? == Some(key.clone());
@@ -739,6 +739,7 @@ impl NativeExecutor {
             TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. }
                 if !current =>
             {
+                self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
                 return Ok(());
             }
             TerminalViewerOutcome::Rejected { .. }
@@ -749,6 +750,9 @@ impl NativeExecutor {
             | TerminalViewerOutcome::Record(_) => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
             }
+        }
+        if frame_applied && !current {
+            self.mailbox.discard_taken_switch_causal(lease, &poll_key)?;
         }
         if frame_applied && current {
             let cutoff = self.effective_lease_cutoff(lease, deadline)?;
@@ -774,42 +778,7 @@ impl NativeExecutor {
     }
 
     fn run_switch(&mut self, lease: &CommandLease, target: AttachTarget) -> Result<()> {
-        let target_key = target.selected().key().clone();
-        if let Some(detached) = self.attached_key().cloned() {
-            let total = target.deadlines().total();
-            let outcome = self.viewer_for_cleanup(
-                SetupOwner::Lease(lease),
-                TerminalViewerAction::Detach {},
-                total,
-            )?;
-            if !matches!(outcome, TerminalViewerOutcome::Detached {}) {
-                return Err(CarrierFailure::Protocol);
-            }
-            self.attached = None;
-            let reply = self.publish_and_wait(
-                WorkerEvent::SwitchOldDetached {
-                    work: target_key.clone(),
-                    detached,
-                },
-                EventDeadline::TotalCleanup(total),
-                total,
-            )?;
-            match reply {
-                UiReply::SwitchDetachApplied(SwitchDetachContinuation::Attach(next)) => {
-                    return self.continue_switch_without_viewer(lease, next);
-                }
-                UiReply::SwitchDetachApplied(
-                    SwitchDetachContinuation::SettledWithoutAttachment
-                    | SwitchDetachContinuation::Superseded { .. },
-                ) => return Ok(()),
-                _ => return Err(CarrierFailure::Protocol),
-            }
-        }
-
-        if self.execution_desired(lease)? != Some(target_key) {
-            return Ok(());
-        }
-        self.continue_switch_without_viewer(lease, target)
+        self.run_switch_membership(lease, target)
     }
 
     fn continue_switch_without_viewer(

@@ -89,6 +89,9 @@ impl NativeUi {
         let mut failure_after_reply = None;
         let mut installed = false;
         let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
+            if let Some(discarded) = transaction.take_switch_anchor_invalidation(&marker) {
+                state.invalidate_switch_anchor_for(&discarded);
+            }
             let decision = if !state.switch_marker_is_current(&marker) {
                 RefreshDecision::Continue
             } else if let Some(prepared) = prepared {

@@ -5,7 +5,7 @@ use super::{
         CreateOperationKey, CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity,
         MembershipCleanup, MembershipResultKey, MoveDecision, MoveOperation, MoveResult,
         OperationDeadlines, PendingRefreshStage, ReadyDecision, RefreshDecision,
-        SetupEventDisposition, SwitchDetachContinuation,
+        SetupEventDisposition,
     },
     workbench_projection::NativeStandaloneTabs,
 };
@@ -38,10 +38,12 @@ use tab_close::CloseFlight;
 pub(super) use tab_close::RetiredMailboxSeed;
 pub(super) use tab_close::{CloseAdmissionError, CloseMarker};
 mod membership;
-pub(super) use membership::{DesiredInstall, PreparedDesiredInstall};
+pub(super) use membership::DesiredInstall;
+#[cfg(test)]
+pub(super) use membership::PreparedDesiredInstall;
 mod switch_membership;
-use switch_membership::SwitchHandoffRecord;
 pub(super) use switch_membership::{SwitchAdmissionFacts, SwitchExpiryPermit};
+use switch_membership::{SwitchAnchorInvalidation, SwitchHandoffRecord};
 
 trait MailboxClock {
     fn now(&self) -> Instant;
@@ -409,7 +411,6 @@ enum UiReplyKind {
     Membership,
     BootstrapApplied,
     SetupConfigurationSettled,
-    SwitchDetachApplied,
     SwitchEntryExpiredApplied,
     SetupWithoutAttachmentApplied,
     PrecommitRestored,
@@ -468,10 +469,6 @@ pub(super) enum WorkerEvent {
         key: AttachmentKey,
         mode: ControllerMode,
         applied_geometry: Option<Geometry>,
-    },
-    SwitchOldDetached {
-        work: AttachmentKey,
-        detached: AttachmentKey,
     },
     SwitchEntryExpired {
         key: AttachmentKey,
@@ -566,10 +563,6 @@ impl WorkerEvent {
                 UiCorrelation::Attachment(key.clone()),
                 UiReplyKind::SetupConfigurationSettled,
             ),
-            Self::SwitchOldDetached { work, .. } => (
-                UiCorrelation::Attachment(work.clone()),
-                UiReplyKind::SwitchDetachApplied,
-            ),
             Self::SwitchEntryExpired { key, .. } => (
                 UiCorrelation::Attachment(key.clone()),
                 UiReplyKind::SwitchEntryExpiredApplied,
@@ -627,7 +620,6 @@ pub(super) enum UiReply {
     Move(MoveSettlement),
     BootstrapApplied(BootstrapTarget),
     SetupConfigurationSettled(SetupEventDisposition),
-    SwitchDetachApplied(SwitchDetachContinuation),
     SwitchEntryExpiredApplied(CleanupContinuation),
     SetupWithoutAttachmentApplied(CleanupContinuation),
     PrecommitRestored,
@@ -694,7 +686,6 @@ impl UiReply {
             Self::Move(_) => UiReplyKind::Move,
             Self::BootstrapApplied(_) => UiReplyKind::BootstrapApplied,
             Self::SetupConfigurationSettled(_) => UiReplyKind::SetupConfigurationSettled,
-            Self::SwitchDetachApplied(_) => UiReplyKind::SwitchDetachApplied,
             Self::SwitchEntryExpiredApplied(_) => UiReplyKind::SwitchEntryExpiredApplied,
             Self::SetupWithoutAttachmentApplied(_) => UiReplyKind::SetupWithoutAttachmentApplied,
             Self::PrecommitRestored => UiReplyKind::PrecommitRestored,
@@ -828,6 +819,7 @@ struct MoveFlight {
 }
 
 struct MailboxState {
+    switch_anchor_invalidation: Option<SwitchAnchorInvalidation>,
     switch_handoff: Option<SwitchHandoffRecord>,
     queue: VecDeque<QueuedRecord>,
     active_lease: Option<ActiveLease>,
@@ -897,40 +889,34 @@ pub(super) struct CommandMailbox {
     waiting_threads: AtomicUsize,
     #[cfg(test)]
     ui_reply_resume_checkpoint: AtomicUsize,
+    #[cfg(test)]
+    causal_take_resume_checkpoint: AtomicUsize,
+    #[cfg(test)]
+    switch_snapshot_wait_checkpoint: AtomicUsize,
 }
 
 #[cfg(test)]
-pub(super) struct UiReplyResumeCheckpoint<'a> {
-    mailbox: &'a CommandMailbox,
+pub(super) struct WorkerResumeCheckpoint<'a> {
+    checkpoint: &'a AtomicUsize,
 }
 
 #[cfg(test)]
-impl UiReplyResumeCheckpoint<'_> {
+impl WorkerResumeCheckpoint<'_> {
     pub(super) fn await_reached_before(&self, wall_deadline: Instant) -> bool {
         while Instant::now() < wall_deadline {
-            if self
-                .mailbox
-                .ui_reply_resume_checkpoint
-                .load(Ordering::SeqCst)
-                == 2
-            {
+            if self.checkpoint.load(Ordering::SeqCst) == 2 {
                 return true;
             }
             std::thread::yield_now();
         }
-        self.mailbox
-            .ui_reply_resume_checkpoint
-            .load(Ordering::SeqCst)
-            == 2
+        self.checkpoint.load(Ordering::SeqCst) == 2
     }
 }
 
 #[cfg(test)]
-impl Drop for UiReplyResumeCheckpoint<'_> {
+impl Drop for WorkerResumeCheckpoint<'_> {
     fn drop(&mut self) {
-        self.mailbox
-            .ui_reply_resume_checkpoint
-            .store(0, Ordering::SeqCst);
+        self.checkpoint.store(0, Ordering::SeqCst);
     }
 }
 
@@ -938,6 +924,7 @@ impl CommandMailbox {
     pub(super) fn new(identity_seed: u128, initial_geometry: Geometry) -> Self {
         Self {
             state: Mutex::new(MailboxState {
+                switch_anchor_invalidation: None,
                 switch_handoff: None,
                 queue: VecDeque::with_capacity(COMMAND_CAPACITY),
                 active_lease: None,
@@ -965,6 +952,10 @@ impl CommandMailbox {
             waiting_threads: AtomicUsize::new(0),
             #[cfg(test)]
             ui_reply_resume_checkpoint: AtomicUsize::new(0),
+            #[cfg(test)]
+            causal_take_resume_checkpoint: AtomicUsize::new(0),
+            #[cfg(test)]
+            switch_snapshot_wait_checkpoint: AtomicUsize::new(0),
         }
     }
 
@@ -1063,7 +1054,8 @@ impl CommandMailbox {
         ),
     ) -> Result<u64, AdmissionError<BuildError>> {
         let mut state = self.lock();
-        let mut abandoned_causal = false;
+        let mut abandoned_causal = None;
+        let mut inherited_abandon = None;
         let result = (|| {
             Self::ensure_open_for_admission(&state)?;
             Self::ensure_bootstrapped_for_admission(&state)?;
@@ -1089,21 +1081,39 @@ impl CommandMailbox {
                 let closed = self.close_locked(&mut state, CarrierFailure::Protocol);
                 return Err(AdmissionError::Closed(closed));
             }
+            if state
+                .switch_anchor_invalidation
+                .as_ref()
+                .is_some_and(|fact| state.desired.key() != Some(&fact.marker))
+            {
+                return Err(AdmissionError::Closed(
+                    self.close_locked(&mut state, CarrierFailure::Protocol),
+                ));
+            }
             state.attachment_generation = generation;
             state.next_command_serial = serial;
             state.desired = MailboxMembership::Live {
                 desired: Some(marker.target().selected().key().clone()),
             };
-            abandoned_causal = self.abandon_stale_poll_locked(&mut state);
+            abandoned_causal = self
+                .abandon_stale_poll_locked(&mut state)
+                .map_err(|failure| {
+                    AdmissionError::Closed(self.close_locked(&mut state, failure))
+                })?;
             state.queue.push_back(QueuedRecord {
                 serial,
                 command: QueuedCommand::Switch(marker),
             });
+            inherited_abandon = state
+                .switch_anchor_invalidation
+                .take()
+                .map(|fact| fact.discarded);
             self.changed.notify_all();
             Ok(generation)
         })();
         let facts = SwitchAdmissionFacts::new(
             abandoned_causal,
+            inherited_abandon,
             state
                 .switch_handoff
                 .as_ref()
@@ -1571,7 +1581,8 @@ impl CommandMailbox {
         if let Err(failure) = Self::publish_desired_locked(&mut state, key) {
             return Err(self.close_locked(&mut state, failure));
         }
-        self.abandon_stale_poll_locked(&mut state);
+        self.abandon_stale_poll_locked(&mut state)
+            .map_err(|failure| self.close_locked(&mut state, failure))?;
         self.changed.notify_all();
         Ok(())
     }
@@ -1725,6 +1736,9 @@ impl CommandMailbox {
         loop {
             Self::ensure_open(&state).map_err(EventError::Closed)?;
             if state.desired.key() != Some(poll_key.attachment()) {
+                Self::record_switch_discard_locked(&mut state, poll_key.attachment()).map_err(
+                    |failure| EventError::Closed(self.close_locked(&mut state, failure)),
+                )?;
                 return Ok(MutationResult::Stale);
             }
             if matches!(state.event, EventCell::Empty) {
@@ -2003,6 +2017,10 @@ impl CommandMailbox {
                         self.close_locked(&mut state, CarrierFailure::Protocol),
                     ));
                 }
+                self.abandon_stale_poll_locked(&mut state)
+                    .map_err(|failure| {
+                        EventError::Closed(self.close_locked(&mut state, failure))
+                    })?;
             }
             UiReply::Refresh(settlement) | UiReply::Membership(settlement) => {
                 let generation = match &wait_key.correlation {
@@ -2046,7 +2064,6 @@ impl CommandMailbox {
             UiReply::BootstrapApplied(_)
             | UiReply::SwitchExpired(_)
             | UiReply::SetupConfigurationSettled(_)
-            | UiReply::SwitchDetachApplied(_)
             | UiReply::SwitchEntryExpiredApplied(_)
             | UiReply::SetupWithoutAttachmentApplied(_)
             | UiReply::PrecommitRestored
@@ -2326,7 +2343,12 @@ impl CommandMailbox {
         cutoff: Instant,
         clock: &LocalOperationClock,
     ) -> Result<Option<CausalSettlement>, EventError> {
-        self.take_causal_before_using(poll_key, cutoff, clock)
+        let settlement = self.take_causal_before_using(poll_key, cutoff, clock);
+        #[cfg(test)]
+        if matches!(&settlement, Ok(Some(CausalSettlement::Feedback(_)))) {
+            Self::stop_at_resume_checkpoint(&self.causal_take_resume_checkpoint);
+        }
+        settlement
     }
 
     fn take_causal_before_using(
@@ -2341,6 +2363,9 @@ impl CommandMailbox {
             if state.desired.key() != Some(&poll_key.key) {
                 if matches!(&state.causal, CausalCell::Awaiting(current) | CausalCell::Settled(current, _) if current == poll_key)
                 {
+                    Self::record_switch_discard_locked(&mut state, poll_key.attachment()).map_err(
+                        |failure| EventError::Closed(self.close_locked(&mut state, failure)),
+                    )?;
                     state.causal = CausalCell::Empty;
                     self.changed.notify_all();
                 }
@@ -2500,25 +2525,32 @@ impl CommandMailbox {
         Ok(PollKey { serial, key })
     }
 
-    fn abandon_stale_poll_locked(&self, state: &mut MailboxState) -> bool {
-        let stale_event = matches!(
-            &state.event,
-            EventCell::Event(WorkerEvent::PollResult { poll_key, .. })
-                if state.desired.key() != Some(&poll_key.key)
-        );
-        if stale_event {
-            Self::clear_event_locked(state);
-        }
-        let stale = match &state.causal {
-            CausalCell::Awaiting(poll_key) | CausalCell::Settled(poll_key, _) => {
-                state.desired.key() != Some(&poll_key.key)
-            }
-            CausalCell::Empty => false,
+    fn abandon_stale_poll_locked(
+        &self,
+        state: &mut MailboxState,
+    ) -> Result<Option<AttachmentKey>, CarrierFailure> {
+        let event = match &state.event {
+            EventCell::Event(WorkerEvent::PollResult { poll_key, .. }) => Some(poll_key),
+            _ => None,
         };
-        if stale {
+        let causal = match &state.causal {
+            CausalCell::Awaiting(poll_key) | CausalCell::Settled(poll_key, _) => Some(poll_key),
+            CausalCell::Empty => None,
+        };
+        if event.is_some() && event != causal {
+            return Err(CarrierFailure::Protocol);
+        }
+        let discarded = event
+            .or(causal)
+            .filter(|poll| state.desired.key() != Some(poll.attachment()))
+            .map(|poll| poll.attachment().clone());
+        if discarded.is_some() {
+            if event.is_some() {
+                Self::clear_event_locked(state);
+            }
             state.causal = CausalCell::Empty;
         }
-        stale_event || stale
+        Ok(discarded)
     }
 
     #[cfg(test)]
@@ -2836,30 +2868,49 @@ impl CommandMailbox {
     }
 
     #[cfg(test)]
-    pub(super) fn pause_next_ui_reply_resume_for_test(&self) -> UiReplyResumeCheckpoint<'_> {
+    pub(super) fn pause_next_ui_reply_resume_for_test(&self) -> WorkerResumeCheckpoint<'_> {
+        Self::arm_resume_checkpoint(&self.ui_reply_resume_checkpoint)
+    }
+
+    #[cfg(test)]
+    pub(super) fn pause_next_causal_take_resume_for_test(&self) -> WorkerResumeCheckpoint<'_> {
+        Self::arm_resume_checkpoint(&self.causal_take_resume_checkpoint)
+    }
+
+    #[cfg(test)]
+    pub(super) fn pause_next_switch_snapshot_wait_for_test(&self) -> WorkerResumeCheckpoint<'_> {
+        Self::arm_resume_checkpoint(&self.switch_snapshot_wait_checkpoint)
+    }
+
+    #[cfg(test)]
+    pub(super) fn stop_at_switch_snapshot_wait_for_test(&self) {
+        Self::stop_at_resume_checkpoint(&self.switch_snapshot_wait_checkpoint);
+    }
+
+    #[cfg(test)]
+    fn arm_resume_checkpoint(checkpoint: &AtomicUsize) -> WorkerResumeCheckpoint<'_> {
         assert_eq!(
-            self.ui_reply_resume_checkpoint.compare_exchange(
-                0,
-                1,
-                Ordering::SeqCst,
-                Ordering::SeqCst
-            ),
+            checkpoint.compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst),
             Ok(0),
-            "only one UI reply resume checkpoint may be armed"
+            "only one worker resume checkpoint may be armed"
         );
-        UiReplyResumeCheckpoint { mailbox: self }
+        WorkerResumeCheckpoint { checkpoint }
     }
 
     #[cfg(test)]
     fn stop_at_ui_reply_resume_checkpoint(&self) {
-        if self
-            .ui_reply_resume_checkpoint
+        Self::stop_at_resume_checkpoint(&self.ui_reply_resume_checkpoint);
+    }
+
+    #[cfg(test)]
+    fn stop_at_resume_checkpoint(checkpoint: &AtomicUsize) {
+        if checkpoint
             .compare_exchange(1, 2, Ordering::SeqCst, Ordering::SeqCst)
             .is_err()
         {
             return;
         }
-        while self.ui_reply_resume_checkpoint.load(Ordering::SeqCst) == 2 {
+        while checkpoint.load(Ordering::SeqCst) == 2 {
             std::thread::yield_now();
         }
     }
@@ -2875,7 +2926,17 @@ impl CommandMailbox {
     }
 
     #[cfg(test)]
-    fn cells(&self) -> (&'static str, &'static str) {
+    pub(super) fn switch_anchor_invalidation_for_test(
+        &self,
+    ) -> Option<(AttachmentKey, AttachmentKey)> {
+        self.lock()
+            .switch_anchor_invalidation
+            .as_ref()
+            .map(|fact| (fact.marker.clone(), fact.discarded.clone()))
+    }
+
+    #[cfg(test)]
+    pub(super) fn cells(&self) -> (&'static str, &'static str) {
         let state = self.lock();
         let event = match state.event {
             EventCell::Empty => "empty",

@@ -1,15 +1,13 @@
 mod commands;
 mod setup;
+mod switch_membership;
 mod tab_move;
 
 use self::setup::*;
 use super::*;
 use crate::terminal_session::{
     mailbox::{QueuedCommand, Tagged, TakenEvent},
-    state::{
-        CarrierFailure, CleanupContinuation, ControllerMode, ReadyDecision, SessionPhaseKind,
-        SwitchDetachContinuation,
-    },
+    state::{CarrierFailure, CleanupContinuation, ControllerMode, ReadyDecision, SessionPhaseKind},
 };
 use orchbee_client_server_protocol::{
     ClientMessage, ControlRejectedReason, OpenOutcome, ServerMessage, TerminalControlAction,
@@ -411,14 +409,22 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
     if needs_catch_up {
         steps.extend([WireKind::Obcs, WireKind::Obcs, WireKind::Obcs]);
     }
+    steps.insert(7, WireKind::Workbench);
     let mut harness = Harness::start(steps, initial)?;
     let old_key = drive_controlling_startup(&mut harness, initial, 2)?;
     let switch = harness.ui.admit_switch(1)?;
     assert_eq!(switch.key.generation(), old_key.generation() + 1);
     assert_eq!(harness.ui.no_frame_redraws(), 1);
+    assert!(matches!(
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::Cleanup(_),
+            ..
+        }
+    ));
 
     let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
-        return Err(test_error("Switch must first Detach the old viewer"));
+        return Err(test_error("staged Switch must Detach the old viewer"));
     };
     assert_eq!(request.action(), &TerminalViewerAction::Detach {});
     harness
@@ -438,6 +444,8 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
         } if work == switch.key && detached == old_key
     ));
 
+    let installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(installed.generation(), switch.key.generation() + 1);
     let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
         return Err(test_error(
             "old Detach must license the copied target AttachBinding",
@@ -451,7 +459,7 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
         ))?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::Attached { key } if key == switch.key
+        UiEvent::Attached { key } if key == installed
     ));
 
     let ClientMessage::TerminalControl(request) = harness.carrier.take_obcs()? else {
@@ -517,7 +525,7 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
             key,
             mode: ControllerMode::Controlling(actual),
             applied_geometry: Some(geometry),
-        } if key == switch.key && actual == controller && geometry == first_geometry
+        } if key == installed && actual == controller && geometry == first_geometry
     ));
 
     let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
@@ -544,7 +552,7 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
         | GeometryCatchUpCut::FeedbackHandoff => FrameCut::None,
     };
     let first_feedback = match harness.ui.settle_next(frame_cut)? {
-        UiEvent::FrameDrawn { key, feedback } if key == switch.key => feedback,
+        UiEvent::FrameDrawn { key, feedback } if key == installed => feedback,
         _ => {
             return Err(test_error(
                 "Switch full frame must cross the draw checkpoint",
@@ -569,7 +577,7 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
         ))?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::FeedbackAccepted { key } if key == switch.key
+        UiEvent::FeedbackAccepted { key } if key == installed
     ));
 
     if !needs_catch_up {
@@ -618,7 +626,7 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
             key,
             mode: ControllerMode::Controlling(actual),
             applied_geometry: Some(geometry),
-        } if key == switch.key && actual == controller && geometry == changed
+        } if key == installed && actual == controller && geometry == changed
     ));
     assert!(!harness.ui.state().feedback_accepted());
     assert_eq!(harness.ui.no_frame_redraws(), 2);
@@ -638,7 +646,7 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
             ),
         ))?;
     let second_feedback = match harness.ui.settle_next(FrameCut::None)? {
-        UiEvent::FrameDrawn { key, feedback } if key == switch.key => feedback,
+        UiEvent::FrameDrawn { key, feedback } if key == installed => feedback,
         _ => return Err(test_error("catch-up full frame must be drawn")),
     };
     let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
@@ -655,7 +663,7 @@ fn run_geometry_catch_up_cut(cut: GeometryCatchUpCut) -> TestResult {
         ))?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::FeedbackAccepted { key } if key == switch.key
+        UiEvent::FeedbackAccepted { key } if key == installed
     ));
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
@@ -1069,10 +1077,19 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
             steps.push(WireKind::Obcs);
         }
     }
+    steps.push(WireKind::Workbench);
     steps.push(WireKind::Obcs);
+    steps.insert(7, WireKind::Workbench);
     let mut harness = Harness::start(steps, geometry)?;
     let old_key = drive_controlling_startup(&mut harness, geometry, 3)?;
     let first = harness.ui.admit_switch(1)?;
+    assert!(matches!(
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::Cleanup(_),
+            ..
+        }
+    ));
 
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error("first Switch must Detach the old Ready viewer"));
@@ -1118,6 +1135,8 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
         } if work == first.key && detached == old_key
     ));
 
+    let first_installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(first_installed.generation(), first.key.generation() + 1);
     let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
         return Err(test_error("first Switch target must AttachBinding"));
     };
@@ -1129,7 +1148,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
         ))?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::Attached { key } if key == first.key
+        UiEvent::Attached { key } if key == first_installed
     ));
 
     let ClientMessage::TerminalControl(acquire) = harness.carrier.take_obcs()? else {
@@ -1152,7 +1171,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
             key,
             mode: ControllerMode::ReadOnly,
             applied_geometry: None,
-        } if key == first.key
+        } if key == first_installed
     ));
 
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
@@ -1185,7 +1204,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
             let newest = harness.ui.admit_switch(2)?;
             assert!(matches!(
                 harness.ui.settle_taken(delivered, FrameCut::None)?,
-                UiEvent::EmptyPoll { key } if key == first.key
+                UiEvent::EmptyPoll { key } if key == first_installed
             ));
             assert_eq!(harness.ui.drawn_frames(), 1);
             newest
@@ -1201,7 +1220,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
                 ))?;
             assert!(matches!(
                 harness.ui.settle_next(FrameCut::AfterDrawSwitch(2))?,
-                UiEvent::FrameDrawn { key, .. } if key == first.key
+                UiEvent::FrameDrawn { key, .. } if key == first_installed
             ));
             assert_eq!(harness.ui.drawn_frames(), 2);
             AdmittedSwitch {
@@ -1219,7 +1238,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
                     ),
                 ))?;
             let feedback = match harness.ui.settle_next(FrameCut::None)? {
-                UiEvent::FrameDrawn { key, feedback } if key == first.key => feedback,
+                UiEvent::FrameDrawn { key, feedback } if key == first_installed => feedback,
                 _ => return Err(test_error("first target frame must be drawn")),
             };
             let ClientMessage::TerminalViewer(feedback_request) = harness.carrier.take_obcs()?
@@ -1262,7 +1281,7 @@ fn run_switch_supersession_cut(cut: SwitchSupersessionCut) -> TestResult {
             continuation: crate::terminal_session::state::CleanupContinuation::Superseded {
                 desired,
             },
-        } if key == first.key && desired == newest.key
+        } if key == first_installed && desired == newest.key
     ));
     settle_newest_as_attach_unavailable(&mut harness, &newest.key, cut)?;
     harness.finish()
@@ -1273,6 +1292,15 @@ fn settle_newest_as_attach_unavailable(
     newest: &crate::terminal_session::state::AttachmentKey,
     cut: SwitchSupersessionCut,
 ) -> TestResult {
+    assert!(matches!(
+        drive_switch_snapshot(harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
+    ));
+    let installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(installed.generation(), newest.generation() + 1);
     let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
         return Err(test_error("newest Switch must continue with AttachBinding"));
     };
@@ -1292,7 +1320,7 @@ fn settle_newest_as_attach_unavailable(
         UiEvent::SetupWithoutAttachment {
             key,
             continuation: crate::terminal_session::state::CleanupContinuation::Stable,
-        } if &key == newest
+        } if key == installed
     ));
     assert_eq!(
         harness.ui.state().phase_kind(),
@@ -1314,9 +1342,11 @@ fn switch_superseding_a_taken_attached_event_detaches_that_exact_viewer() -> Tes
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
         ],
         geometry,
@@ -1354,6 +1384,15 @@ fn switch_superseding_a_taken_attached_event_detaches_that_exact_viewer() -> Tes
         } if key == first.key && desired == newest.key
     ));
 
+    assert!(matches!(
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
+    ));
+    let newest_installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(newest_installed.generation(), newest.key.generation() + 1);
     let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
         return Err(test_error("cleanup must continue to the newest Switch"));
     };
@@ -1373,7 +1412,7 @@ fn switch_superseding_a_taken_attached_event_detaches_that_exact_viewer() -> Tes
         UiEvent::SetupWithoutAttachment {
             key,
             continuation: CleanupContinuation::Stable,
-        } if key == newest.key
+        } if key == newest_installed
     ));
     harness.finish()
 }
@@ -1412,7 +1451,8 @@ fn run_taken_setup_supersession_cut(cut: TakenSetupSupersessionCut) -> TestResul
     if matches!(cut, TakenSetupSupersessionCut::Feedback) {
         steps.extend([WireKind::Obcs, WireKind::Obcs]);
     }
-    steps.extend([WireKind::Obcs, WireKind::Obcs]);
+    steps.insert(7, WireKind::Workbench);
+    steps.extend([WireKind::Obcs, WireKind::Workbench, WireKind::Obcs]);
     let mut harness = Harness::start(steps, geometry)?;
     drive_controlling_startup(&mut harness, geometry, 3)?;
     let (first, attached) = drive_switch_to_pending_attached(&mut harness, 1)?;
@@ -1514,6 +1554,15 @@ fn run_taken_setup_supersession_cut(cut: TakenSetupSupersessionCut) -> TestResul
         } if key == first.key && desired == newest.key
     ));
 
+    assert!(matches!(
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
+    ));
+    let newest_installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(newest_installed.generation(), newest.key.generation() + 1);
     let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
         return Err(test_error("cleanup must continue to the newest Switch"));
     };
@@ -1533,7 +1582,7 @@ fn run_taken_setup_supersession_cut(cut: TakenSetupSupersessionCut) -> TestResul
         UiEvent::SetupWithoutAttachment {
             key,
             continuation: CleanupContinuation::Stable,
-        } if key == newest.key
+        } if key == newest_installed
     ));
     harness.finish()
 }
@@ -1555,8 +1604,10 @@ fn run_unattempted_switch_entry_expiry() -> TestResult {
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
         ],
         geometry,
     )?;
@@ -1564,25 +1615,46 @@ fn run_unattempted_switch_entry_expiry() -> TestResult {
     let (first, pending) = drive_switch_to_pending_unattached(&mut harness, 1)?;
     let newest = harness.ui.admit_switch(2)?;
 
-    harness.elapsed_millis.store(44_999, Ordering::SeqCst);
+    harness.elapsed_millis.store(44_998, Ordering::SeqCst);
     assert!(matches!(
-        harness.ui.settle_unattached_before_and_advance_to(
-            pending,
-            harness.elapsed_millis.as_ref(),
-            45_000,
-        )?,
+        harness.ui.settle_taken(pending, FrameCut::None)?,
         UiEvent::SetupWithoutAttachment {
             key,
             continuation: CleanupContinuation::Superseded { desired },
         } if key == first.key && desired == newest.key
     ));
-    assert_eq!(harness.elapsed_millis.load(Ordering::SeqCst), 45_000);
+    let mailbox = Arc::clone(&harness.mailbox);
+    let WorkbenchRequest::SnapshotRead(request) = harness.carrier.take_workbench()? else {
+        return Err(test_error("newest Switch Snapshot before its setup expiry"));
+    };
+    let checkpoint = mailbox.pause_next_ui_reply_resume_for_test();
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id,
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: setup::snapshot(3, 1),
+            },
+        }))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
+    ));
+    let installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(installed.generation(), newest.key.generation() + 1);
+    assert!(checkpoint.await_reached_before(std::time::Instant::now() + Duration::from_secs(2)));
+    harness.elapsed_millis.store(45_000, Ordering::SeqCst);
+    drop(checkpoint);
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::SwitchEntryExpired {
             key,
             continuation: CleanupContinuation::Stable,
-        } if key == newest.key
+        } if key == installed
     ));
     assert_eq!(
         harness.ui.state().phase_kind(),
@@ -1602,8 +1674,10 @@ fn run_attempted_busy_switch_expiry() -> TestResult {
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
         ],
         geometry,
@@ -1619,6 +1693,15 @@ fn run_attempted_busy_switch_expiry() -> TestResult {
         } if key == first.key && desired == newest.key
     ));
 
+    assert!(matches!(
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
+    ));
+    let newest_installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(newest_installed.generation(), newest.key.generation() + 1);
     let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
         return Err(test_error("newest Switch must attempt AttachBinding"));
     };
@@ -1649,9 +1732,16 @@ fn run_attempted_busy_switch_expiry() -> TestResult {
 fn drive_switch_to_pending_unattached(
     harness: &mut Harness,
     target_index: usize,
-) -> TestResult<(AdmittedSwitch, TakenEvent)> {
+) -> TestResult<(InstalledSwitch, TakenEvent)> {
     let old = harness.ui.state().desired().unwrap().clone();
     let switch = harness.ui.admit_switch(target_index)?;
+    assert!(matches!(
+        drive_switch_snapshot(harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::Cleanup(_),
+            ..
+        }
+    ));
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error("Switch must Detach the old Ready viewer"));
     };
@@ -1673,6 +1763,11 @@ fn drive_switch_to_pending_unattached(
         } if work == switch.key && detached == old
     ));
 
+    let installed = InstalledSwitch {
+        key: harness.ui.state().desired().unwrap().clone(),
+        deadlines: switch.deadlines,
+    };
+    assert_eq!(installed.key.generation(), switch.key.generation() + 1);
     let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
         return Err(test_error("Switch target must AttachBinding"));
     };
@@ -1687,7 +1782,7 @@ fn drive_switch_to_pending_unattached(
                 },
             ),
         ))?;
-    Ok((switch, harness.ui.take_next()?))
+    Ok((installed, harness.ui.take_next()?))
 }
 
 #[test]
@@ -1702,7 +1797,11 @@ fn superseded_first_attach_prewrite_timeout_skips_the_stale_entry() -> TestResul
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Workbench,
+            WireKind::Workbench,
             WireKind::Obcs,
         ],
         geometry,
@@ -1723,21 +1822,64 @@ fn superseded_first_attach_prewrite_timeout_skips_the_stale_entry() -> TestResul
         return Err(test_error("worker did not finish the settled Switch lease"));
     }
 
-    harness.arm_prewrite_gate()?;
     let stale = harness.ui.admit_switch(1)?;
+    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
+        return Err(test_error("retry candidate must precede its Attach"));
+    };
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+            protocol_version: ProtocolVersion,
+            request_id: read.request_id,
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: setup::snapshot(3, 1),
+            },
+        }))?;
+    harness.arm_prewrite_gate()?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
+    ));
+    let stale_installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(stale_installed.generation(), stale.key.generation() + 1);
     harness.await_prewrite_blocked()?;
+    harness.elapsed_millis.store(10_000, Ordering::SeqCst);
     let newest = harness.ui.admit_switch(2)?;
     assert!(stale.key.generation() < newest.key.generation());
     harness.elapsed_millis.store(45_000, Ordering::SeqCst);
     harness.release_prewrite_gate()?;
 
     assert!(matches!(
-        harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::SwitchEntryExpired {
-            key,
-            continuation: CleanupContinuation::Stable,
-        } if key == newest.key
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
     ));
+    let newest_installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(newest_installed.generation(), newest.key.generation() + 1);
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "newest Switch must retain its own forward budget",
+        ));
+    };
+    assert_eq!(attach.action(), &attach_action(2)?);
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                attach.request_id().clone(),
+                TerminalViewerOutcome::Rejected {
+                    reason: ViewerRejectedReason::TerminalUnavailable,
+                },
+            ),
+        ))?;
+    assert!(
+        matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::SetupWithoutAttachment { key, continuation: CleanupContinuation::Stable } if key == newest_installed)
+    );
     assert_eq!(
         harness.ui.state().phase_kind(),
         SessionPhaseKind::RetryableAttachUnavailable
@@ -1774,7 +1916,7 @@ fn run_ready_zero_write_cut(cut: ReadyZeroWriteCut) -> TestResult {
     if matches!(cut, ReadyZeroWriteCut::Feedback) {
         steps.push(WireKind::Obcs);
     }
-    steps.extend([WireKind::Obcs, WireKind::Obcs]);
+    steps.extend([WireKind::Workbench, WireKind::Obcs, WireKind::Obcs]);
     let mut harness = Harness::start_with_prewrite_gate(steps, geometry)?;
     let old = drive_controlling_startup(&mut harness, geometry, 2)?;
 
@@ -1821,6 +1963,13 @@ fn run_ready_zero_write_cut(cut: ReadyZeroWriteCut) -> TestResult {
     harness.elapsed_millis.store(50_000, Ordering::SeqCst);
     harness.release_prewrite_gate()?;
 
+    assert!(matches!(
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::Cleanup(_),
+            ..
+        }
+    ));
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error(
             "zero-write old request must drain before Switch Detach",
@@ -1844,6 +1993,8 @@ fn run_ready_zero_write_cut(cut: ReadyZeroWriteCut) -> TestResult {
         } if work == switch.key && detached == old
     ));
 
+    let installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(installed.generation(), switch.key.generation() + 1);
     let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
         return Err(test_error(
             "Switch must retain its independent forward budget",
@@ -1865,7 +2016,7 @@ fn run_ready_zero_write_cut(cut: ReadyZeroWriteCut) -> TestResult {
         UiEvent::SetupWithoutAttachment {
             key,
             continuation: CleanupContinuation::Stable,
-        } if key == switch.key
+        } if key == installed
     ));
     harness.finish()
 }
@@ -1882,6 +2033,7 @@ fn switch_forward_and_cleanup_cuts_accept_before_and_expire_at_boundary() -> Tes
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
@@ -1992,9 +2144,11 @@ fn cleanup_reply_deposited_before_total_cut_wins_after_clock_reaches_cut() -> Te
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
             WireKind::Obcs,
             WireKind::Obcs,
+            WireKind::Workbench,
             WireKind::Obcs,
         ],
         geometry,
@@ -2052,6 +2206,15 @@ fn cleanup_reply_deposited_before_total_cut_wins_after_clock_reaches_cut() -> Te
 
     let retry = harness.ui.admit_switch(1)?;
     assert_eq!(retry.key.tab_id(), switch.key.tab_id());
+    assert!(matches!(
+        drive_switch_snapshot(&mut harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::AttachRecovered(_),
+            ..
+        }
+    ));
+    let installed = harness.ui.state().desired().unwrap().clone();
+    assert_eq!(installed.generation(), retry.key.generation() + 1);
     let ClientMessage::TerminalViewer(attach) = harness
         .carrier
         .take_obcs()
@@ -2077,7 +2240,7 @@ fn cleanup_reply_deposited_before_total_cut_wins_after_clock_reaches_cut() -> Te
         UiEvent::SetupWithoutAttachment {
             key,
             continuation: CleanupContinuation::Stable,
-        } if key == retry.key
+        } if key == installed
     ));
     harness.finish()
 }
@@ -2208,6 +2371,11 @@ fn run_ready_drain_cut(cut: ReadyDrainCut) -> TestResult {
     ));
     assert_eq!(harness.mailbox.is_closed(), None);
 
+    // No candidate was installed before the forward cut. The typed expiry event licenses
+    // only exact old-viewer cleanup; its settlement retires this preinstall operation.
+    assert!(
+        matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::SwitchSnapshot { work, decision: RefreshDecision::Cleanup(_) } if work == switch.key)
+    );
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs().map_err(|error| {
         test_error(&format!(
             "ready drain must enter exact Detach reserve: {error}; mailbox={:?}",
@@ -2234,11 +2402,8 @@ fn run_ready_drain_cut(cut: ReadyDrainCut) -> TestResult {
             continuation: SwitchDetachContinuation::SettledWithoutAttachment,
         } if work == switch.key && detached == old
     ));
-    assert_eq!(
-        harness.ui.state().phase_kind(),
-        SessionPhaseKind::RetryableAttachUnavailable
-    );
-    harness.finish()
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Retired);
+    harness.finish_after_worker_failure(CarrierFailure::Deadline)
 }
 
 #[test]
@@ -2308,9 +2473,16 @@ fn ordinary_own_deadline_before_later_switch_retires_without_detach() -> TestRes
 fn drive_switch_to_pending_attached(
     harness: &mut Harness,
     target_index: usize,
-) -> TestResult<(AdmittedSwitch, TakenEvent)> {
+) -> TestResult<(InstalledSwitch, TakenEvent)> {
     let old = harness.ui.state().desired().unwrap().clone();
     let switch = harness.ui.admit_switch(target_index)?;
+    assert!(matches!(
+        drive_switch_snapshot(harness)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::Cleanup(_),
+            ..
+        }
+    ));
     let ClientMessage::TerminalViewer(detach) = harness
         .carrier
         .take_obcs()
@@ -2336,6 +2508,11 @@ fn drive_switch_to_pending_attached(
         } if work == switch.key && detached == old
     ));
 
+    let installed = InstalledSwitch {
+        key: harness.ui.state().desired().unwrap().clone(),
+        deadlines: switch.deadlines,
+    };
+    assert_eq!(installed.key.generation(), switch.key.generation() + 1);
     let ClientMessage::TerminalViewer(attach) = harness
         .carrier
         .take_obcs()
@@ -2350,7 +2527,7 @@ fn drive_switch_to_pending_attached(
             TerminalViewerResult::new(attach.request_id().clone(), attached_outcome()?),
         ))?;
     let attached = harness.ui.take_next()?;
-    Ok((switch, attached))
+    Ok((installed, attached))
 }
 
 #[derive(Clone, Copy, Debug)]

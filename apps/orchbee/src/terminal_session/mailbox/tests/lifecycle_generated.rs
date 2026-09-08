@@ -1,7 +1,8 @@
 use super::super::{
     AdmissionError, COMMAND_CAPACITY, CausalSettlement, CommandLease, CommandMailbox, CreateMarker,
-    CreatePrecommitOutcome, EventDeadline, MailboxClock, MailboxMembership, MutationResult,
-    QueuedCommand, RefreshSettlement, SwitchMarker, Tagged, UiReply, UiWaitKey, WorkerEvent,
+    CreatePrecommitOutcome, DesiredInstall, EventDeadline, MailboxClock, MailboxMembership,
+    MutationResult, QueuedCommand, RefreshSettlement, SwitchMarker, Tagged, UiReply,
+    UiReplyTransaction, UiWaitKey, WorkerEvent,
 };
 use crate::{
     local_client::workbench::{
@@ -1249,6 +1250,7 @@ impl Trace {
                 && current_fence.desired().key() == Some(first.selected().key()),
             "first Switch was not current at its attempted-attachment cut",
         )?;
+        let first = self.install_unattached_switch_candidate(&first)?;
 
         let second = self.admit_switch(second_target)?;
         require(
@@ -1290,6 +1292,7 @@ impl Trace {
             self.mailbox.execution_fence(&second_lease).lease_current(),
             "current Switch fence was stale",
         )?;
+        let second = self.install_unattached_switch_candidate(&second)?;
         self.drive_switch_ready(&second)?;
         observed(
             self.mailbox.finish_lease(second_lease),
@@ -1353,7 +1356,8 @@ impl Trace {
                 |session, result, facts| {
                     if result.is_ok() {
                         session.finish_switch_membership_admission(
-                            facts.abandoned_causal(),
+                            facts.discarded(),
+                            facts.inherited(),
                             facts.authorized_cleanup(),
                         );
                     }
@@ -1362,6 +1366,49 @@ impl Trace {
             "admit Switch",
         )?;
         built.ok_or_else(|| violation_error("Switch builder did not return target"))
+    }
+
+    fn install_unattached_switch_candidate(
+        &mut self,
+        marker: &AttachTarget,
+    ) -> Result<AttachTarget, ReplayFailure> {
+        // This reducer trace models a validated Snapshot at the common installation cut.
+        // The scripted executor suite owns Snapshot invocation and exact reply receipts.
+        let prepared = observed(
+            self.session.prepare_membership_candidate(
+                self.session.cache().clone(),
+                Some(marker.selected().key().tab_id()),
+                Some(marker.selected().index()),
+                None,
+            ),
+            "prepare Switch candidate",
+        )?;
+        let mut locked = self.mailbox.lock();
+        let mut transaction = UiReplyTransaction {
+            state: &mut locked,
+            observed_at: self.base,
+        };
+        let desired = observed(
+            transaction.prepare_desired_install(DesiredInstall::Fresh(
+                marker.selected().key().tab_id().clone(),
+            )),
+            "prepare fresh Switch successor",
+        )?;
+        let plan = observed(
+            self.session.prepare_switch_membership_install(
+                marker.selected().key(),
+                prepared,
+                desired.desired().cloned(),
+            ),
+            "prepare canonical Switch install",
+        )?;
+        let decision = plan.commit();
+        desired.commit();
+        let crate::terminal_session::state::MembershipInstallDecision::Attach(target) = decision
+        else {
+            return violation("Switch candidate must be attachable");
+        };
+        Ok(target)
     }
 
     fn settle_switch_setup(

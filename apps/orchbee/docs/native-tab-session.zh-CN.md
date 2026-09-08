@@ -964,13 +964,21 @@ Create 与 Move 均不可用。`Ctrl+B w` 可以准入下文的显式恢复；�
 viewer。歧义调用在退役期间保留授权证据。唯一共享 membership record 拥有候选和清理政策；
 该 receipt 不增加候选、截止时间、身份计数器或清理 owner。
 
-已接受的成员变更细化区分已准入的 Switch 意图与已安装的挂接键。意图准入消耗一个代次。
+旧 Poll 的返回可能在 marker 准入后、放入前变为 stale。Mailbox 把该真实丢弃，以及已取走却放弃
+的 Feedback 结算，保留为精确 marker／源挂接事实。成功的取代准入把事实传给匹配的继承 anchor；
+准入被拒绝时保留事实。当前 Snapshot 的 UI 结算在准备恢复或安装前消费它。只有相同源 key 的
+证明失效。调用前跳过、没有 frame 结果的 Busy，或空 stale 回调都不制造丢弃事实。该事件 receipt
+在 queued marker 成为 active 后继续保留，不分配请求、代次或预算。
+
+运行时成员 owner 区分已准入的 Switch 意图与已安装的挂接键。意图准入消耗一个代次。
 在既有 FIFO 与精确旧在途请求 drain 后，一次 SnapshotRead 使用共享 identity cursor，以及标记
 原有的 45 秒前向／50 秒总预算。精确类型化结果必须在前向截止点前放入。有效 Available 候选
 保持暂存，等待旧挂接清理。每次非空安装，包括目标仍存活与后备选择，都消耗 checked successor，
 并原子发布 cache、selection、desired/work key、cursor 和挂接许可。Empty 保留已消耗 cursor，
 不拥有 key、viewer、controller，也不伪造 Ready 证明。成员模型拥有候选校验与 ordinal 选择；
 Switch 模型接收该有效选择，检查具体 key 转换、清理与建立续程。
+意图不能安装 projection、接受目标 setup configuration、发布 Ready，或结算为未挂接 setup。
+这些路径必须持有已安装候选。旧的直接 Switch-old-Detached 事件及其意图转 Attach 续程已移除。
 
 及时的明确 Unavailable 结果只能恢复 owner 持有、源自真实稳定状态的 anchor。恢复 Ready 要求
 精确相同的 viewer/controller，以及在标记前如实结算后仍有效的完整帧、draw/feedback 和当前
@@ -989,6 +997,8 @@ known-Closed proof、所有更早工作已结算，且没有 outstanding wire re
 精确响应或如实按歧义退役。安装前若前向预算到期，只允许在原总预留时间内精确清理旧挂接后退役；
 没有 viewer 时直接退役。安装后保留下文既有的未尝试、已尝试建立及清理过期区别。候选处理不会
 延长任何一个截止时间。
+当前 Switch executor 始终为旧 viewer 取得精确 Detach 响应，尚未消费 Close owner 的 Gone
+证明作为快捷路径。
 
 `NativeTabSwitch` 独立于 generation cursor 限定两次准入意图。四个配置变体按初始 controlling／
 read-only 模式，以及四／二代次上界分区。每个配置保留所有准入目标、同目标重试和候选／后备
@@ -1622,6 +1632,15 @@ node scripts/tla/run-models.mjs --models native-client-create-barrier,native-cli
 | `own-close-retryable`      | 925,868 / 285,198 / 27     | `5ae9e77eb7f67c286b842776709681bcb3fcebbdac8d31a62b4e1c2a9302e0ea` |
 
 ### Switch 成员安装证据
+
+确定性测试通过实际顺序 executor 与脚本化 carrier 覆盖先 Snapshot 后清理、目标存活／后备／
+Empty 安装、新 successor key 和原始截止时间。独立的生产 `NativeUi` 测试覆盖同锁 cleanup
+receipt、取代及过期。旧 Poll 返回与已取走 Feedback 两个切点都要求精确丢弃事实；禁用任一
+producer 都会使其回归测试失败。没有 frame 的 Busy 保留恢复资格，准入测试覆盖事件／cell 的
+真实丢弃、缺失回调、拒绝时保留、精确 lineage 传递与 queued-to-active 保留。脚本化 UI driver
+不证明终端渲染或真实 PTY 进程；下方有限模型结果保持不变。
+实际 worker 还会把及时返回的 Unavailable Snapshot 保留到原总截止时间之后的 UI 结算；
+若在放入后使用有截止点的 reply 等待，该确定性回归就会失败。
 
 使用固定的 TLA+ tools 1.7.4 运行
 `node scripts/tla/run-models.mjs --models native-tab-switch --jobs 1`。
