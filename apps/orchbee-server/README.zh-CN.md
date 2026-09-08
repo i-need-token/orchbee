@@ -498,6 +498,9 @@ Server 模型命令每次只运行一个 JVM，避免大型状态图之间争用
 每个 configuration 保留其声明的 TLC worker 数量、边界、属性和 action coverage。
 使用此资源配置时避免并行执行其他大型构建或模型检查；执行 deadline 仍然生效。
 
+执行清单为 `LocalTerminalRelay` 的六个 configuration 分别设定 600 秒超时，并使用两个 TLC worker。
+这是完整状态枚举与最终活性检查的执行预算；完成验证仍须通过全部已配置 property，并满足要求的 action coverage。
+
 ## 本机独立终端打开
 
 尚未发布的 `terminal.open` 为本机单主体原生路径打开一个 Server 拥有的独立终端引用。

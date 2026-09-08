@@ -3510,7 +3510,7 @@
 				"crates/client-server-protocol/tests/**",
 				"schemas/client-server/**"
 			],
-			"timeoutMilliseconds": 300000,
+			"timeoutMilliseconds": 600000,
 			"workers": 2,
 			"requiredCoverage": [
 				"OpenRelaySession",

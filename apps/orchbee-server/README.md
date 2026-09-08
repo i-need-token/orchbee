@@ -555,6 +555,10 @@ The Server model command runs one JVM at a time to avoid contention between its 
 Each configuration retains its declared TLC worker count, bounds, properties and action coverage.
 Run this resource profile without other heavy builds or model checks; execution deadlines still apply.
 
+The execution inventory gives each of the six `LocalTerminalRelay` configurations a 600-second
+timeout with two TLC workers. This is an execution budget for full enumeration and final liveness
+checking; completion still requires all configured properties and required action coverage.
+
 ## Local standalone terminal opening
 
 The unshipped `terminal.open` operation opens one Server-owned standalone terminal reference for
