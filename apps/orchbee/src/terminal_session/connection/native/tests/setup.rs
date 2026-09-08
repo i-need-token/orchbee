@@ -945,6 +945,9 @@ impl UiDriver {
     ) -> TestResult<UiEvent> {
         let (wait_key, event) = taken.into_parts();
         match event {
+            WorkerEvent::RenameResult { .. } => {
+                Err(test_error("Rename requires the actual NativeUi consumer"))
+            }
             WorkerEvent::SwitchSnapshotResult { marker, outcome } => self.settle_switch_snapshot(
                 wait_key.ok_or_else(|| test_error("Switch Snapshot wait"))?,
                 marker,
@@ -1034,6 +1037,9 @@ impl UiDriver {
                 self.projection = None;
                 let decision = decision.ok_or_else(|| test_error("membership decision"))?;
                 match result_key {
+                    crate::terminal_session::state::MembershipResultKey::Rename(_) => Err(
+                        test_error("Rename membership requires the actual NativeUi consumer"),
+                    ),
                     crate::terminal_session::state::MembershipResultKey::Refresh(generation) => {
                         Ok(UiEvent::Refresh {
                             generation,

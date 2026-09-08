@@ -3,7 +3,7 @@ use std::{
     fs::File,
     io::{self, Read},
     os::fd::AsFd,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use nix::{
@@ -16,7 +16,7 @@ use crate::{
     client_view::ClientView,
     localization::Locale,
     terminal_device::{InheritedTerminal, TerminalAdmissionError, WindowDimensions},
-    terminal_input::{DispatchOutcome, UnavailableTerminalInputPort, dispatch_input},
+    terminal_input::{DispatchOutcome, InputDispatcher, UnavailableTerminalInputPort},
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
     termination_signal::{TerminationSignal, TerminationSource},
     tui_backend::{FixedViewportBackend, ResizableBackend},
@@ -73,6 +73,10 @@ impl LoopFailure<io::Error> {
 
 trait InputSource {
     fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>>;
+
+    fn sample_time(&self) -> Instant {
+        Instant::now()
+    }
 }
 
 trait ViewportSource {
@@ -208,10 +212,12 @@ fn run_prepared_surface(
     let input = File::from(inherited.duplicate_input().map_err(TuiFailure::Runtime)?);
     let mut inputs = InheritedInputSource::new(input);
 
-    let run_result = run_event_loop(
+    let run_result = run_event_loop_with_modes(
         &mut terminal,
         locale,
-        &mut inputs,
+        (&mut inputs, &mut |enabled| {
+            modes.set_bracketed_paste(enabled)
+        }),
         terminal_input.as_mut(),
         &termination,
         &inherited,
@@ -232,6 +238,7 @@ fn run_prepared_surface(
     }
 }
 
+#[cfg(test)]
 fn run_event_loop<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
     locale: Locale,
@@ -239,9 +246,34 @@ fn run_event_loop<B: Backend + ResizableBackend>(
     terminal_input: &mut (impl TerminalSurface + ?Sized),
     termination: &impl TerminationSource,
     viewport: &impl ViewportSource,
+    dimensions: WindowDimensions,
+) -> Result<LoopExit, LoopFailure<B::Error>> {
+    run_event_loop_with_modes(
+        terminal,
+        locale,
+        (inputs, &mut |_enabled| Ok(())),
+        terminal_input,
+        termination,
+        viewport,
+        dimensions,
+    )
+}
+
+fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
+    terminal: &mut Terminal<B>,
+    locale: Locale,
+    input_runtime: (
+        &mut impl InputSource,
+        &mut impl FnMut(bool) -> io::Result<()>,
+    ),
+    terminal_input: &mut (impl TerminalSurface + ?Sized),
+    termination: &impl TerminationSource,
+    viewport: &impl ViewportSource,
     mut dimensions: WindowDimensions,
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
+    let (inputs, mode) = input_runtime;
     let mut view = ClientView::new(dimensions.columns);
+    let mut dispatcher = InputDispatcher::default();
     if termination.requested() {
         return Ok(LoopExit::Signal);
     }
@@ -271,12 +303,22 @@ fn run_event_loop<B: Backend + ResizableBackend>(
             &mut dimensions,
         )?;
         redraw |= terminal_input.tick();
+        let now = inputs.sample_time();
+        redraw |= dispatcher.synchronize(&mut view, terminal_input, now, &mut |enabled| {
+            mode(enabled).map_err(LoopFailure::Input)
+        })?;
         if let Some(input) = input {
-            let outcome =
-                dispatch_input(&mut view, &input, terminal_input, |view, terminal_input| {
+            let outcome = dispatcher.dispatch(
+                &mut view,
+                &input,
+                terminal_input,
+                now,
+                |view, terminal_input| {
                     synchronize_viewport(terminal, viewport, view, terminal_input, &mut dimensions)
                         .map(|_changed| ())
-                })?;
+                },
+                &mut |enabled| mode(enabled).map_err(LoopFailure::Input),
+            )?;
             if outcome == DispatchOutcome::Exit {
                 return Ok(LoopExit::User);
             }
@@ -322,6 +364,7 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     let changed = next != *dimensions;
     if changed {
         terminal_input.invalidate_close_display();
+        terminal_input.invalidate_rename_display();
         terminal.backend_mut().set_window_dimensions(next);
         terminal
             .resize(to_area(next))

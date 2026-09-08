@@ -33,6 +33,7 @@ pub(crate) enum PanelDirection {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum BackendAction {
+    RenameTab,
     CloseTab,
     MovePreviousTab,
     MoveNextTab,
@@ -46,6 +47,7 @@ pub(crate) enum BackendAction {
 // This value is shared with the native Session reducer while remaining protocol-free.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
+    RequestRenameTab,
     RequestCloseTab,
     ConfirmClose,
     CancelClose,
@@ -119,6 +121,7 @@ impl ClientTransition {
 impl ClientAction {
     pub(crate) const fn backend_action(self) -> Option<BackendAction> {
         match self {
+            Self::RequestRenameTab => Some(BackendAction::RenameTab),
             Self::RequestCloseTab => Some(BackendAction::CloseTab),
             Self::CreateTab => Some(BackendAction::CreateTab),
             Self::MovePreviousTab => Some(BackendAction::MovePreviousTab),
@@ -281,6 +284,7 @@ impl ClientView {
             ClientKey::Plain('q' | 'd') => (ClientAction::Exit, ShellCommand::Exit),
             ClientKey::Plain('c') => (ClientAction::CreateTab, ShellCommand::None),
             ClientKey::Plain('x') => (ClientAction::RequestCloseTab, ShellCommand::None),
+            ClientKey::Plain(',') => (ClientAction::RequestRenameTab, ShellCommand::None),
             ClientKey::Plain('<') => (ClientAction::MovePreviousTab, ShellCommand::None),
             ClientKey::Plain('>') => (ClientAction::MoveNextTab, ShellCommand::None),
             ClientKey::Plain('n') => (ClientAction::SelectNextTab, ShellCommand::None),

@@ -233,3 +233,74 @@ fn rename_preparation_separates_precommit_from_known_projection_unavailability()
         }
     ));
 }
+
+#[test]
+fn rename_latest_ui_known_receipt_survives_b_admission_and_replaces_before_fallible_install() {
+    let mut state = ready(2);
+    let first = rename_operation(&mut state, "A");
+    assert!(state.begin_rename(first.clone()));
+    let first_known = first.known_commit(WorkbenchRevision::new(2)).unwrap();
+    assert!(state.retain_pending_rename(first_known.clone()));
+    let mut snapshot = snapshot(2, 2, None);
+    snapshot.terminal_contexts[0].tabs[0].label = "A".into();
+    let candidate = project_native_standalone_tabs(&snapshot).unwrap();
+    let candidate = state
+        .prepare_membership_candidate(candidate, Some(first.target().tab_id()), Some(0), None)
+        .unwrap();
+    state
+        .prepare_rename_membership_install(
+            first.request_id(),
+            candidate,
+            Some(first.target().clone()),
+            None,
+        )
+        .unwrap()
+        .commit();
+    let second = rename_operation(&mut state, "B");
+    let second = RenameOperation::from_draft(
+        state.plan_rename_draft(second.draft_token()).unwrap(),
+        workbench_request_id(101),
+        second.deadline(),
+    )
+    .unwrap();
+    assert!(state.begin_rename(second.clone()));
+    let second_known = second.known_commit(WorkbenchRevision::new(3)).unwrap();
+    // Worker-known B does not replace A before semantic UI consumption, and late A preserves B.
+    assert_eq!(state.rename_receipts_for_test().1, Some(&first_known));
+    assert!(state.retain_pending_rename(first_known.clone()));
+    assert_eq!(state.pending_rename(), Some(&second));
+    state
+        .settle_rename_without_membership(&second, RenamePreparation::NotSubmitted)
+        .unwrap();
+    assert_eq!(state.rename_receipts_for_test().1, Some(&first_known));
+    let second = rename_operation(&mut state, "B");
+    let second = RenameOperation::from_draft(
+        state.plan_rename_draft(second.draft_token()).unwrap(),
+        workbench_request_id(102),
+        second.deadline(),
+    )
+    .unwrap();
+    assert!(state.begin_rename(second.clone()));
+    assert!(!state.retain_pending_rename(second_known));
+    let known = second.known_commit(WorkbenchRevision::new(3)).unwrap();
+    assert!(state.retain_pending_rename(known.clone()));
+    assert!(!state.retain_pending_rename(first_known));
+    state
+        .settle_rename_without_membership(
+            &second,
+            RenamePreparation::Committed {
+                known: known.clone(),
+                projection: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(state.rename_receipts_for_test().1, Some(&known));
+    assert_eq!(
+        state.phase_kind(),
+        SessionPhaseKind::RenameProjectionUnavailable
+    );
+    assert_eq!(state.cache().revision(), WorkbenchRevision::new(2));
+    assert!(state.invariant_holds());
+    state.retire(CarrierFailure::Deadline);
+    assert_eq!(state.rename_receipts_for_test().1, Some(&known));
+}

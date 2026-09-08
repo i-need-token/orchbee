@@ -13,6 +13,188 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
+impl super::NativeSessionState {
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn rename_receipts_for_test(
+        &self,
+    ) -> (
+        Option<&RenameOperation>,
+        Option<&PendingRenameCommit>,
+        Option<&RenameOperation>,
+    ) {
+        (
+            self.pending_rename(),
+            self.settled_rename.as_ref(),
+            self.rename_uncertain.as_ref(),
+        )
+    }
+    pub(super) fn rename_invariant_holds(&self) -> bool {
+        if self.rename_recovery.as_ref().is_some_and(|known| {
+            self.pending_mutation.is_some() || self.settled_rename.as_ref() != Some(known)
+        }) {
+            return false;
+        }
+        if matches!(self.phase, super::SessionPhase::Retired(_)) {
+            return true;
+        }
+        let operation = self.pending_rename().or_else(|| {
+            self.rename_recovery
+                .as_ref()
+                .map(PendingRenameCommit::operation)
+        });
+        operation.is_none_or(|operation| {
+            self.cache == *operation.baseline()
+                && self.desired.as_ref() == Some(operation.target())
+                && (matches!(
+                    self.phase,
+                    super::SessionPhase::Ready(_)
+                        | super::SessionPhase::SelectedWithoutAttachment(_)
+                        | super::SessionPhase::RetryableAttachUnavailable(_)
+                ) || matches!(self.phase, super::SessionPhase::ReconcilingMembership(_))
+                    && self.pending_membership.is_some())
+        })
+    }
+    pub(in crate::terminal_session) fn retain_rename_worker(
+        &mut self,
+        evidence: RenameWorkerEvidence,
+    ) -> bool {
+        match evidence {
+            RenameWorkerEvidence::Known(known) => self.retain_pending_rename(known),
+            RenameWorkerEvidence::Unknown(operation) => {
+                if self.pending_rename() != Some(&operation) {
+                    return false;
+                }
+                self.rename_uncertain = Some(operation);
+                true
+            }
+        }
+    }
+    pub(in crate::terminal_session) fn pending_move(&self) -> Option<&super::MoveOperation> {
+        match &self.pending_mutation {
+            Some(super::PendingMutation::Move(operation)) => Some(operation),
+            _ => None,
+        }
+    }
+
+    pub(in crate::terminal_session) fn pending_rename(&self) -> Option<&RenameOperation> {
+        match &self.pending_mutation {
+            Some(super::PendingMutation::Rename(operation)) => Some(operation),
+            _ => None,
+        }
+    }
+
+    pub(in crate::terminal_session) fn mutation_blocks_structure(&self) -> bool {
+        self.pending_mutation.is_some()
+            || self.move_recovery.is_some()
+            || self.rename_recovery.is_some()
+    }
+
+    pub(in crate::terminal_session) fn plan_rename(
+        &self,
+        token: RenameDraftToken,
+        request_id: WorkbenchRequestId,
+        deadline: Instant,
+    ) -> Option<RenameOperation> {
+        if self.mutation_blocks_structure() || self.close_status_only() {
+            return None;
+        }
+        RenameOperation::from_draft(self.plan_rename_draft(token)?, request_id, deadline).ok()
+    }
+
+    pub(in crate::terminal_session) fn begin_rename(&mut self, operation: RenameOperation) -> bool {
+        if self
+            .plan_rename(
+                operation.draft_token(),
+                operation.request_id().clone(),
+                operation.deadline(),
+            )
+            .as_ref()
+            != Some(&operation)
+        {
+            return false;
+        }
+        self.pending_mutation = Some(super::PendingMutation::Rename(operation));
+        self.cancel_rename_draft();
+        self.notice = None;
+        true
+    }
+
+    pub(in crate::terminal_session) fn rename_is_current(
+        &self,
+        operation: &RenameOperation,
+    ) -> bool {
+        self.pending_rename() == Some(operation)
+            && &self.cache == operation.baseline()
+            && self.desired.as_ref() == Some(operation.target())
+    }
+
+    pub(in crate::terminal_session) fn retain_pending_rename(
+        &mut self,
+        known: PendingRenameCommit,
+    ) -> bool {
+        if self.settled_rename.as_ref() == Some(&known) {
+            return true;
+        }
+        if self.pending_rename() != Some(known.operation()) {
+            return false;
+        }
+        self.settled_rename = Some(known);
+        true
+    }
+
+    pub(in crate::terminal_session) fn rename_membership_is_current(
+        &self,
+        request_id: &WorkbenchRequestId,
+    ) -> bool {
+        self.pending_rename().is_some_and(|operation| {
+            operation.request_id() == request_id
+                && self.rename_is_current(operation)
+                && self
+                    .settled_rename
+                    .as_ref()
+                    .is_some_and(|known| known.operation() == operation)
+        })
+    }
+
+    pub(in crate::terminal_session) fn settle_rename_without_membership(
+        &mut self,
+        operation: &RenameOperation,
+        result: RenamePreparation,
+    ) -> Result<(), CarrierFailure> {
+        if !self.rename_is_current(operation) {
+            return Err(CarrierFailure::Protocol);
+        }
+        match result {
+            RenamePreparation::NotSubmitted | RenamePreparation::Precommit(_) => {
+                self.notice = Some(super::SessionNotice::RenameNotRenamed)
+            }
+            RenamePreparation::Unchanged => self.notice = None,
+            RenamePreparation::Committed {
+                known,
+                projection: None,
+            } => {
+                if !self.retain_pending_rename(known.clone()) {
+                    return Err(CarrierFailure::Protocol);
+                }
+                self.rename_recovery = Some(known);
+                self.notice = None;
+            }
+            RenamePreparation::Divergent { known } => {
+                if let Some(known) = known {
+                    self.retain_pending_rename(known);
+                }
+                return Err(CarrierFailure::AuthorityDivergence);
+            }
+            RenamePreparation::Committed {
+                projection: Some(_),
+                ..
+            } => return Err(CarrierFailure::Protocol),
+        }
+        self.pending_mutation = None;
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct RenameOperation {
     request: WorkbenchTabRenameRequest,
@@ -138,6 +320,12 @@ pub(in crate::terminal_session) struct PendingRenameCommit {
     revision: WorkbenchRevision,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::terminal_session) enum RenameWorkerEvidence {
+    Known(PendingRenameCommit),
+    Unknown(RenameOperation),
+}
+
 impl PendingRenameCommit {
     pub(in crate::terminal_session) const fn operation(&self) -> &RenameOperation {
         &self.operation
@@ -146,7 +334,7 @@ impl PendingRenameCommit {
         self.revision
     }
 
-    fn validate_projection(
+    pub(super) fn validate_projection(
         &self,
         candidate: NativeStandaloneTabs,
     ) -> Result<
@@ -156,7 +344,7 @@ impl PendingRenameCommit {
         validate_renamed_tab(
             self.operation.baseline(),
             &RenamedTabExpectation::new(
-                self.revision,
+                self.revision(),
                 self.operation.baseline().terminal_context_id().clone(),
                 self.operation.target().tab_id().clone(),
                 self.operation.label().clone(),
@@ -197,6 +385,7 @@ pub(in crate::terminal_session) struct PreparedRename {
 }
 
 impl PreparedRename {
+    #[cfg(test)]
     pub(in crate::terminal_session) const fn operation(&self) -> &RenameOperation {
         &self.operation
     }

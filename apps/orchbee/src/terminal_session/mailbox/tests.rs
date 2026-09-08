@@ -25,6 +25,7 @@ mod membership;
 mod move_tab;
 mod switch_membership;
 mod tab_close;
+mod tab_rename;
 
 #[test]
 fn live_empty_mailbox_admits_and_dispatches_refresh_without_rebootstrapping() {

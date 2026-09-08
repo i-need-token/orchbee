@@ -4,6 +4,8 @@ use crate::client_view::{BackendAction, Notice};
 
 #[cfg(unix)]
 mod tab_close;
+#[cfg(unix)]
+mod tab_rename;
 
 const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee --help\n  orchbee --version\n\nModes:\n  orchbee            Open the local terminal (Linux development cohort)\n  orchbee --help     Show this help\n  orchbee --version  Show the version\n";
 const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee --help\n  orchbee --version\n\n模式：\n  orchbee            打开本地终端（Linux 开发 cohort）\n  orchbee --help     显示此帮助\n  orchbee --version  显示版本\n";
@@ -13,6 +15,7 @@ const EN_US_USAGE_FAILURE: &str = "Invalid invocation. Run 'orchbee --help'.\n";
 const ZH_CN_USAGE_FAILURE: &str = "调用方式无效。请运行 ‘orchbee --help’。\n";
 
 const EN_US_SHORTCUTS: &[&str] = &[
+    "Ctrl+B ,       Rename current Tab",
     "Ctrl+B x       Close current Tab / retry Close (confirms for all Clients)",
     "Ctrl+B c       Create a Tab (requires Site)",
     "Ctrl+B < / >   Move current Tab left / right (wraps)",
@@ -27,6 +30,7 @@ const EN_US_SHORTCUTS: &[&str] = &[
     "Other keys     Send to the terminal input port",
 ];
 const ZH_CN_SHORTCUTS: &[&str] = &[
+    "Ctrl+B ,       重命名当前 Tab",
     "Ctrl+B x       关闭当前 Tab / 重试关闭（确认后影响所有 Client）",
     "Ctrl+B c       创建 Tab（需要 Site）",
     "Ctrl+B < / >   向左 / 右移动当前 Tab（首尾循环）",
@@ -140,6 +144,12 @@ impl Locale {
 
     pub(crate) const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
         match (self, notice) {
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameTab))) => {
+                "Rename unavailable · no command has been sent"
+            }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::RenameTab))) => {
+                "重命名不可用 · 未发送命令"
+            }
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CloseTab))) => {
                 "Close unavailable · no command has been sent"
             }
@@ -359,6 +369,10 @@ impl Locale {
                 Self::EnUs => "Tab moved · Ctrl+B w to refresh tab order".to_owned(),
                 Self::ZhCn => "标签已移动 · Ctrl+B w 刷新标签顺序".to_owned(),
             },
+            Phase::RenameProjectionUnavailable => match self {
+                Self::EnUs => "Rename committed · Ctrl+B w to refresh".to_owned(),
+                Self::ZhCn => "重命名已提交 · Ctrl+B w 刷新".to_owned(),
+            },
             Phase::SelectedWithoutAttachment => {
                 let Some(position) = position else {
                     return self
@@ -414,6 +428,10 @@ impl Locale {
             NativeSessionNotice::CloseRequestNotApplied => match self {
                 Self::EnUs => "Close request was not applied".to_owned(),
                 Self::ZhCn => "关闭请求未执行".to_owned(),
+            },
+            NativeSessionNotice::RenameNotRenamed => match self {
+                Self::EnUs => "Tab not renamed".to_owned(),
+                Self::ZhCn => "标签页未重命名".to_owned(),
             },
             NativeSessionNotice::MoveNotMoved => match self {
                 Self::EnUs => "Tab was not moved".to_owned(),

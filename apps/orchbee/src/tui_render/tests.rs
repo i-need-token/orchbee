@@ -111,6 +111,7 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     let compact_help = without_cell_padding(&help);
     assert!(compact_help.contains("键盘快捷键"));
     assert!(help.contains("Ctrl+B c"));
+    assert!(help.contains("Ctrl+B ,"));
     assert!(help.contains("Ctrl+B Ctrl+B"));
     assert!(compact_help.contains("终端输入仍会继续传递"));
 }

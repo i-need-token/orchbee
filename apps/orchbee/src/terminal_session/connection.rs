@@ -43,6 +43,7 @@ pub(super) struct NativeWorkerExit {
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
     pending_close: Option<PendingCloseResult>,
+    pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
 }
 
 impl NativeWorkerExit {
@@ -50,11 +51,13 @@ impl NativeWorkerExit {
         pending_create: Option<PendingCreateCommit>,
         pending_move: Option<PendingMoveCommit>,
         pending_close: Option<PendingCloseResult>,
+        pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
     ) -> Self {
         Self {
             pending_create,
             pending_move,
             pending_close,
+            pending_rename,
         }
     }
 
@@ -81,8 +84,14 @@ impl NativeWorkerExit {
         Option<PendingCreateCommit>,
         Option<PendingMoveCommit>,
         Option<PendingCloseResult>,
+        Option<super::state::tab_rename::RenameWorkerEvidence>,
     ) {
-        (self.pending_create, self.pending_move, self.pending_close)
+        (
+            self.pending_create,
+            self.pending_move,
+            self.pending_close,
+            self.pending_rename,
+        )
     }
 }
 

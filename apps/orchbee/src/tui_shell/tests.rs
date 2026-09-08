@@ -21,6 +21,8 @@ use crate::{
 };
 
 use super::{InputSource, LoopExit, LoopFailure, ViewportSource, run_event_loop, to_area};
+mod rename;
+pub(crate) use rename::run_native_rename_resize;
 
 struct QueueInputSource {
     inputs: VecDeque<io::Result<Option<Vec<u8>>>>,

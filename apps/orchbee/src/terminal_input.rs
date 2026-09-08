@@ -1,9 +1,14 @@
 use crate::client_view::{
     ClientAction, ClientKey, ClientView, SessionActionDisposition, ShellCommand,
 };
+use crate::terminal_session::{NativeRenameDraftToken, NativeRenameEdit, NativeRenameInputContext};
 use orchbee_client_server_protocol::Geometry;
 
 const CONTROL_B: u8 = 0x02;
+
+mod dispatcher;
+mod rename;
+pub(crate) use dispatcher::InputDispatcher;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct TerminalInputUnavailable;
@@ -22,6 +27,29 @@ pub(crate) trait TerminalInputPort {
     }
 
     fn invalidate_close_display(&mut self) {}
+
+    fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
+        None
+    }
+
+    fn edit_rename_draft(
+        &mut self,
+        _token: NativeRenameDraftToken,
+        _edit: NativeRenameEdit<'_>,
+    ) -> bool {
+        false
+    }
+
+    fn cancel_rename_draft(&mut self, _token: NativeRenameDraftToken) {}
+
+    fn submit_rename_draft(
+        &mut self,
+        _token: NativeRenameDraftToken,
+    ) -> Option<SessionActionDisposition> {
+        None
+    }
+
+    fn invalidate_rename_display(&mut self) {}
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -39,6 +67,7 @@ pub(crate) enum DispatchOutcome {
     Exit,
 }
 
+#[cfg(test)]
 pub(crate) fn dispatch_input<Port: TerminalInputPort + ?Sized, LayoutError>(
     view: &mut ClientView,
     input: &[u8],

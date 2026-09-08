@@ -186,7 +186,7 @@ impl NativeSessionState {
     }
 
     pub(in crate::terminal_session) fn move_blocks_structure(&self) -> bool {
-        self.pending_move.is_some() || self.move_recovery.is_some()
+        self.pending_move().is_some() || self.move_recovery.is_some()
     }
 
     pub(in crate::terminal_session) fn plan_move(
@@ -195,7 +195,7 @@ impl NativeSessionState {
         direction: WorkbenchTabMoveDirection,
         deadline: Instant,
     ) -> Option<MoveOperation> {
-        if self.move_blocks_structure()
+        if self.mutation_blocks_structure()
             || self.rename_draft_blocks_structure()
             || self.pending_refresh_generation.is_some()
             || !self.invariant_holds()
@@ -236,7 +236,7 @@ impl NativeSessionState {
         if expected != operation {
             return false;
         }
-        self.pending_move = Some(operation);
+        self.pending_mutation = Some(super::PendingMutation::Move(operation));
         self.notice = None;
         true
     }
@@ -378,12 +378,12 @@ impl NativeSessionState {
                 return MoveDecision::Retire;
             }
         }
-        self.pending_move = None;
+        self.pending_mutation = None;
         MoveDecision::Continue
     }
 
     fn move_result_is_current(&self, operation: &MoveOperation) -> bool {
-        self.pending_move.as_ref() == Some(operation)
+        self.pending_move() == Some(operation)
             && self.cache == operation.baseline
             && self.desired.as_ref() == Some(&operation.target)
             && self.invariant_holds()
@@ -420,7 +420,7 @@ impl NativeSessionState {
     }
 
     pub(super) fn move_membership_is_current(&self, request_id: &WorkbenchRequestId) -> bool {
-        self.pending_move.as_ref().is_some_and(|operation| {
+        self.pending_move().is_some_and(|operation| {
             operation.request_id() == request_id
                 && operation.baseline() == &self.cache
                 && self.desired.as_ref() == Some(operation.target())
@@ -442,7 +442,7 @@ impl NativeSessionState {
         if self.settled_move.as_ref() == Some(&pending) {
             return true;
         }
-        if self.pending_move.as_ref() != Some(&pending.operation) {
+        if self.pending_move() != Some(&pending.operation) {
             return false;
         }
         self.settled_move = Some(pending);
@@ -451,7 +451,7 @@ impl NativeSessionState {
 
     pub(super) fn move_invariant_holds(&self) -> bool {
         if let Some(recovery) = &self.move_recovery
-            && (self.pending_move.is_some()
+            && (self.pending_move().is_some()
                 || !recovery.valid()
                 || self.settled_move.as_ref() != Some(recovery))
         {
@@ -469,12 +469,12 @@ impl NativeSessionState {
             )
             && !(matches!(self.phase, SessionPhase::ReconcilingMembership(_))
                 && ((self.move_recovery.is_some() && self.pending_refresh_generation.is_some())
-                    || self.pending_move.is_some())
+                    || self.pending_move().is_some())
                 && self.pending_membership.is_some())
         {
             return false;
         }
-        self.pending_move.as_ref().is_none_or(|operation| {
+        self.pending_move().is_none_or(|operation| {
             Some(&operation.target) == self.desired.as_ref() && operation.baseline == self.cache
         }) && self.move_recovery.as_ref().is_none_or(|pending| {
             Some(&pending.operation.target) == self.desired.as_ref()

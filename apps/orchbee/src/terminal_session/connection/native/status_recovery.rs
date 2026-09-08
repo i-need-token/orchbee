@@ -57,7 +57,7 @@ pub(in crate::terminal_session) fn run_status_recovery(
         Ok(client) => client,
         Err(_) => {
             exit.failure = CarrierFailure::Transport;
-            return NativeWorkerExit::new(None, None, None);
+            return NativeWorkerExit::new(None, None, None, None);
         }
     };
     if client
@@ -66,7 +66,7 @@ pub(in crate::terminal_session) fn run_status_recovery(
         .is_err()
     {
         exit.failure = CarrierFailure::Transport;
-        return NativeWorkerExit::new(None, None, None);
+        return NativeWorkerExit::new(None, None, None, None);
     }
     let mut executor = NativeExecutor::new(client, mailbox);
     executor.status_only = true;
@@ -77,5 +77,6 @@ pub(in crate::terminal_session) fn run_status_recovery(
         executor.pending_create.take(),
         executor.pending_move.take(),
         executor.pending_close.take(),
+        executor.pending_rename.take(),
     )
 }

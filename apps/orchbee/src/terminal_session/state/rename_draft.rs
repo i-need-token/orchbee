@@ -15,6 +15,7 @@ struct RenameDraft {
     token: RenameDraftToken,
     baseline: NativeStandaloneTabs,
     target: AttachmentKey,
+    target_index: usize,
     text: RenameText,
     shown: bool,
     input_fault: bool,
@@ -33,12 +34,20 @@ pub(in crate::terminal_session) struct RenameDraftView<'a> {
     draft: &'a RenameDraft,
 }
 
-impl RenameDraftView<'_> {
+impl<'a> RenameDraftView<'a> {
     pub(in crate::terminal_session) const fn token(&self) -> RenameDraftToken {
         self.draft.token
     }
-    pub(in crate::terminal_session) fn text(&self) -> &str {
+    pub(in crate::terminal_session) fn text(&self) -> &'a str {
         self.draft.text.as_str()
+    }
+    pub(in crate::terminal_session) fn target_label(&self) -> &'a str {
+        self.draft.baseline.tabs()[self.draft.target_index]
+            .tab_label()
+            .as_str()
+    }
+    pub(in crate::terminal_session) fn label_valid(&self) -> bool {
+        self.draft.text.label().is_ok()
     }
     pub(in crate::terminal_session) const fn input_fault(&self) -> bool {
         self.draft.input_fault
@@ -71,7 +80,7 @@ impl RenameDraftIntent {
 impl NativeSessionState {
     fn rename_authority_available(&self) -> bool {
         self.pending_refresh_generation.is_none()
-            && !self.move_blocks_structure()
+            && !self.mutation_blocks_structure()
             && self.pending_membership.is_none()
             && self.close.confirmation().is_none()
             && matches!(
@@ -110,7 +119,8 @@ impl NativeSessionState {
             return None;
         }
         let target = self.desired.clone()?;
-        let tab = self.cache.tabs().get(self.active()?.index())?;
+        let target_index = self.active()?.index();
+        let tab = self.cache.tabs().get(target_index)?;
         if tab.tab_id() != target.tab_id() {
             return None;
         }
@@ -120,6 +130,7 @@ impl NativeSessionState {
             token,
             baseline: self.cache.clone(),
             target,
+            target_index,
             text: RenameText::from_label(tab.tab_label()),
             shown: false,
             input_fault: false,
@@ -201,5 +212,11 @@ impl NativeSessionState {
             target: draft.target.clone(),
             label: draft.text.label().ok()?,
         })
+    }
+}
+
+impl<'a> super::NativeSessionView<'a> {
+    pub(in crate::terminal_session) fn rename_draft(&self) -> Option<RenameDraftView<'a>> {
+        self.state.rename_draft()
     }
 }

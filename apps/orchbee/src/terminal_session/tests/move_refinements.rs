@@ -71,7 +71,7 @@ fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() ->
     Ok(())
 }
 
-fn two_tabs() -> Snapshot {
+pub(super) fn two_tabs() -> Snapshot {
     let WorkbenchSnapshotOutcome::Available { mut snapshot } = available_snapshot(Some(binding()))
     else {
         unreachable!()

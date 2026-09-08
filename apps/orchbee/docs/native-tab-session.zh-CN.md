@@ -593,7 +593,7 @@ Server 所有的 Workbench 快照仍是 Tab 顺序、标签、Panel 与 Presenta
 唯一事实来源。单次原生调用只拥有自身缓存的严格投影、本地活动 Tab ID、挂接代次、导航器状态、
 尺寸观测、终端投影和临时状态。本地选择绝不写入或推进 Workbench 修订号。
 
-以下内容仍不在范围内：终端关闭/移除、原生重命名交互、固定/分组、Split 或子 Presentation
+以下内容仍不在范围内：终端关闭/移除、固定/分组、Split 或子 Presentation
 支持、Workspace 选择、持久化、推送/增量订阅、远程传输、重连、隐藏载体、载体多路复用，以及
 在一个 Client 内组合多个查看器。
 
@@ -1264,7 +1264,7 @@ C0/ESC/CR/LF/DEL/C1、U+2028/U+2029、组合字符与双宽字符、单列裁剪
 Pending 状态。`Ctrl+B w` 可以刷新规范成员关系，但不会重放 Create、挂接该 Tab，或清除其保留
 的 Pending 来源状态。
 
-## 分阶段交付的 Rename 传输适配器
+## Rename 传输适配器
 
 私有 `WorkbenchTabRenameRequest(WorkbenchCommand)` 仅接受 `TabRename`，并保留完整命令，包括请求身份、预期 revision、目标和精确 label。
 `LocalClient::submit_workbench_tab_rename(request, deadline)` 使用既有单次 exchange。
@@ -1285,10 +1285,10 @@ deadline 始终为调用方、单次 exchange 和既有启动 deadline 中最早
 不新增状态、时钟或重试语义。适配器测试通过解码检查完整 typed 请求得到保留，覆盖兼容与不兼容结果、
 revision 边界，以及写入前与交接后的 deadline 失败。抽象模型不证明 label 字节或 revision 算术。
 
-这是分阶段交付的传输基础。其预期消费者是原生 Rename 命令及 mailbox/UI 流程，
-后者仍未实现；此适配器不代表原生 Rename UI 已交付。
+原生 Rename 命令及 mailbox/UI 流程消费此传输基础。适配器本身不拥有编辑器激活、
+成员安装或附件清理。
 
-## 分阶段交付的 Rename 投影证据
+## Rename 投影证据
 
 `workbench_projection::renamed` 根据捕获的规范基线和已知 Rename revision 验证快照。
 精确 context/Tab 必须存在于基线，请求 label 必须不同于其旧 label，提交 revision 必须为
@@ -1301,12 +1301,12 @@ revision 边界，以及写入前与交接后的 deadline 失败。抽象模型�
 
 这只是纯投影证据，不证明终端销毁、附件清理或 UI 安装。针对性测试覆盖精确 label 保留、
 revision 溢出、提交时禁止的变化、后续演进/移除/Empty，以及重叠身份拒绝。
-它不新增状态机或模型声明。原生 Rename 命令、mailbox、编辑器和成员消费流程仍未实现；
-它们在使用此 helper 时必须保留上述区别。
+它不新增状态机或模型声明。原生 Rename 消费者在共享成员安装前使用此证据，
+并保留共同清理 owner 的独立证明要求。
 
-## 分阶段交付的 Rename Unicode 草稿缓冲
+## Rename Unicode 草稿缓冲
 
-`state::rename_text::RenameText` 为后续原生 Rename 草稿保存精确的可编辑 label 文本。
+`state::rename_text::RenameText` 为原生 Rename 草稿保存精确的可编辑 label 文本。
 它复制已验证的规范 label，提供文本借用，在 `MAXIMUM_LABEL_LENGTH` 范围内原子追加完整
 UTF-8 文本，移除末尾一个 Unicode 标量，并可清空为 Empty。超限追加保留完整旧文本；
 追加空文本和清空 Empty 均为无操作。缓冲只使用一个 String，按需统计标量，不维护第二个计数器。
@@ -1318,15 +1318,21 @@ UTF-8 文本，移除末尾一个 Unicode 标量，并可清空为 Empty。超�
 
 测试覆盖精确文本、Empty、511/512/513 标量边界、原子拒绝、标量删除和独立返回的 label。
 此确定性有界 String 变换不引入时钟或状态机模型。它不解析原始输入，不建立草稿身份或绘制资格，
-不分配请求、不准入命令，也不执行 I/O。其必须衔接的下一消费者是原生 RenameDraft；
-该集成和编辑器仍待实现，因此此缓冲不代表功能交付。
+不分配请求、不准入命令，也不执行 I/O。state-owned RenameDraft 与实际输入 dispatcher
+消费此缓冲，命令准入仍由 mailbox transaction 拥有。
 
-## 已接受的 Rename 消费流程，运行时待实现
+## 原生 Rename 消费流程
+
+Rename 提交消费者使用 state 和 mailbox 中具体共享的 Move/Rename pending mutation。
+在既有 mailbox 锁内，它重新规划精确可见草稿，准备 request 和 serial 候选，仅在所有拒绝
+条件通过后安装 operation、marker 和 cursor。typed 结果关联与 flight 阶段在 state/成员
+联合提交前校验。worker 仅使用一次存储的请求；已知提交先于 Snapshot 保留，并跨传输退役
+保持。持久输入 dispatcher 与实际 renderer 消费这些域方法。
 
 私有 Rename operation 拥有一个不可变 typed request、捕获的 draft intent 和原始 deadline。
 结果 preparation 独立检查未变文本/基线 revision 与已变文本/checked 后继语义，再调用严格
 Rename projector。投影校验失败或 Snapshot 不可用时，仍可保留有效已知提交。该 operation
-preparation 为实际 mailbox/executor/UI 消费者 staged；它不分配身份、不提交命令、不安装
+preparation 由实际 mailbox/executor/UI 流程消费；preparation 本身不分配身份、不提交命令、不安装
 成员关系，也不新建 flight 或 cleanup owner。
 
 Rename 的 last-settled 回执遵循 Move 的最新 UI 已消费 known commit，而非 Create 的最新成功
@@ -1342,11 +1348,11 @@ reply 锁前仅采样一次，forward cutoff 为 45 秒、total cutoff 为 50 �
 state 拥有的 Rename 草稿消费 `RenameText`，捕获完整 canonical 基线及精确选择的附件 generation，
 并暴露 opaque 绘制 token。它不分配命令身份或 deadline。精确成功绘制赋予提交资格；缺席 token
 撤销资格。state 在返回提交 intent 前独立复核权威，并在草稿存在时拒绝结构准入。
-显式取消和退役销毁草稿。这些 state 操作在输入、mailbox 和 UI 消费者接入前仍属 staged；
-它们本身不提交 Rename，也不启用键盘入口。
+显式取消和退役销毁草稿。输入、mailbox 和 UI 消费者将这些 state 操作接到键盘入口与
+精确 token 提交，而不允许 decoder 构造请求。
 `state/tests/rename_draft.rs` 检验可见及已撤销 token、精确未变文本 intent、原子文本上限错误、
 显式修正、不完整输入、独立基线/generation 失效、取消、退役及双向 state 准入。
-mailbox 容量、cursor 分配和进行中的 Close 互斥仍是提交消费者的细化义务。
+实际 mailbox 测试覆盖容量、cursor/serial 耗尽、固定 cutoff 拒绝、精确 ACK 与 worker 丢失证据保留。
 
 `Ctrl+B ,` 在存活且稳定的阶段为精确选中的独立 Tab 打开 state-owned 草稿。
 捕获规范基线、Site/context/Tab 和附件 generation，不分配请求或 deadline。
@@ -1364,7 +1370,7 @@ token 的首次成功绘制资格。缺失/失败绘制、隐藏、视口失效�
 32 字节，碎片化 UTF-8 最多保留三个前缀字节。括号粘贴在 label 剩余容量内原子追加，
 并跨读取识别六字节终止符。负载控制字符不提交、不取消、不清错，也不执行前缀动作。
 超限或无效粘贴一直排空到终止符，不接受部分前缀。粘贴模式启用失败拒绝进入。
-后续解析器实现必须跨读取/tick 保持这些状态。
+持久输入解析器跨读取/tick 保持这些状态。
 
 取消/提交保留已识别分帧的排空状态；完整结束后才允许 50ms 静默 guard 恢复普通输入，
 每个丢弃字节重置该 guard。在相等边界，先到期 guard，再处理新采样输入。
@@ -1396,7 +1402,25 @@ Rename 生命周期模型必须先于依赖运行时。其有界抽象覆盖精�
 一个竞争结构 flight、原始 exchange cutoff/typed 放置、带 key 的历史事实、一个迟到回执和
 当前 worker join。输入字节、标量算术、八槽存储、具体 label 和完整成员向量属于可执行细化义务。
 共享清理/设置证明来自外部 owner；公平性仅覆盖可用精确完成的本地消费和既有本地到期，
-不强制产生 Host 清理或 Attach 成功。原生输入/进程细化仍待完成；既有 Move 模型回执不是 Rename 证据。
+不强制产生 Host 清理或 Attach 成功。确定性 parser 测试及实际 NativeUi/socket 测试细化输入、
+operation 和成员接缝。Linux cohort 进程测试
+`native_rename_visible_editor_updates_canonical_label_and_preserves_live_shell` 还驱动实际可见
+编辑器，在提交及显式 Refresh 后观察已重命名的规范 Tab，并验证同一 shell PID、环境标记及
+可用输入输出。该进程见证不独立证明未重新附着，也不证明其他操作系统。
+既有 Move 模型回执不是 Rename 证据。
+
+成功 Rename entry 通过 `ClientView.commit` 关闭已打开的 navigator；拒绝保留原 overlay。
+只有完整本地化编辑器实际绘制后才确认初始 token。同一 renderer receipt 携带相互独立的
+可选 Close 与 Rename token；即使终端列数未变，外层 viewport 变化也在输入前撤销 Rename 资格。
+既有 terminal mode lease 在 entry 前启用 bracketed paste，并在已识别 drain 和 quiet handoff
+期间保持该模式；启用失败不会创建草稿或命令。
+
+`terminal_session/tests/rename_interaction.rs` 通过本地 scripted socket 驱动持久 dispatcher、
+实际 renderer、NativeUi、mailbox 和 executor。它覆盖双语言、未显示时 Enter、sticky 输入错误、
+精确最大标量粘贴、取消 drain、viewport 失效、navigator 关闭、权威 no-op、变更投影、显式恢复、
+畸形已知投影、歧义 exchange 与提交后 Snapshot 丢失。后续目标移除通过共同 Detach 后进入
+Empty 或 successor Attach；明确不可用的 successor 不会成为 Ready。
+这些测试拒绝未请求的 Start、Close 或重复 Rename 请求。
 
 ### Rename 生命周期模型边界与证据
 

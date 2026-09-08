@@ -23,7 +23,17 @@ use crate::terminal_device::InheritedTerminal;
 
 const RESTORATION_ATTEMPTS_PER_MODE: u8 = 2;
 
+struct BracketedPaste(bool);
+
+impl crossterm::Command for BracketedPaste {
+    fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
+        output.write_str(if self.0 { "\x1b[?2004h" } else { "\x1b[?2004l" })
+    }
+}
+
 pub(crate) trait TerminalModes: Send + Sync + 'static {
+    fn disable_bracketed_paste(&self) -> io::Result<()>;
+    fn enable_bracketed_paste(&self) -> io::Result<()>;
     fn disable_raw_mode(&self) -> io::Result<()>;
     fn enable_raw_mode(&self) -> io::Result<()>;
     fn enter_alternate_screen(&self) -> io::Result<()>;
@@ -34,6 +44,7 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RestorationStep {
+    DisableBracketedPaste,
     DisableRaw,
     LeaveAlternate,
     ShowCursor,
@@ -42,6 +53,7 @@ enum RestorationStep {
 impl fmt::Display for RestorationStep {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::DisableBracketedPaste => formatter.write_str("disable bracketed paste"),
             Self::DisableRaw => formatter.write_str("disable raw mode"),
             Self::LeaveAlternate => formatter.write_str("leave alternate screen"),
             Self::ShowCursor => formatter.write_str("show cursor"),
@@ -128,6 +140,7 @@ impl ModeLease {
 
 #[derive(Debug)]
 struct TerminalModeState {
+    bracketed_paste: ModeLease,
     alternate_screen: ModeLease,
     cursor: ModeLease,
     raw_mode: ModeLease,
@@ -136,6 +149,7 @@ struct TerminalModeState {
 impl TerminalModeState {
     const fn new() -> Self {
         Self {
+            bracketed_paste: ModeLease::new(),
             alternate_screen: ModeLease::new(),
             cursor: ModeLease::new(),
             raw_mode: ModeLease::new(),
@@ -144,6 +158,7 @@ impl TerminalModeState {
 }
 
 pub(crate) struct TerminalModeGuard<C: TerminalModes> {
+    bracketed_paste_enabled: bool,
     control: Arc<C>,
     _owner_thread_only: PhantomData<Rc<()>>,
     _panic_registration: Option<PanicRestorationRegistration>,
@@ -173,6 +188,7 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
             None
         };
         let mut guard = Self {
+            bracketed_paste_enabled: false,
             _owner_thread_only: PhantomData,
             _panic_registration: panic_registration,
             control,
@@ -198,7 +214,38 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
     }
 
     pub(crate) fn restore(&mut self) -> Result<(), TerminalRestoreError> {
+        self.bracketed_paste_enabled = false;
         restore_modes(self.control.as_ref(), &self.state)
+    }
+
+    pub(crate) fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()> {
+        if enabled {
+            if self.bracketed_paste_enabled {
+                return Ok(());
+            }
+            if self.state.bracketed_paste.restoration_required() {
+                return Err(io::Error::other(
+                    "bracketed paste still requires restoration",
+                ));
+            }
+            self.state.bracketed_paste.mark_operation_started();
+            self.control.enable_bracketed_paste()?;
+            self.bracketed_paste_enabled = true;
+            return Ok(());
+        }
+        self.bracketed_paste_enabled = false;
+        let mut failures = Vec::new();
+        restore_mode(
+            &self.state.bracketed_paste,
+            RestorationStep::DisableBracketedPaste,
+            || self.control.disable_bracketed_paste(),
+            &mut failures,
+        );
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(io::Error::other(TerminalRestoreError { failures }))
+        }
     }
 
     fn initialization_failure(&mut self, step: &str, error: io::Error) -> io::Error {
@@ -225,7 +272,13 @@ fn restore_modes<C: TerminalModes>(
     control: &C,
     state: &TerminalModeState,
 ) -> Result<(), TerminalRestoreError> {
-    let mut failures = Vec::with_capacity(3);
+    let mut failures = Vec::with_capacity(4);
+    restore_mode(
+        &state.bracketed_paste,
+        RestorationStep::DisableBracketedPaste,
+        || control.disable_bracketed_paste(),
+        &mut failures,
+    );
     restore_mode(
         &state.cursor,
         RestorationStep::ShowCursor,
@@ -298,6 +351,14 @@ impl InheritedTerminalModes {
 }
 
 impl TerminalModes for InheritedTerminalModes {
+    fn disable_bracketed_paste(&self) -> io::Result<()> {
+        self.write_command(BracketedPaste(false))
+    }
+
+    fn enable_bracketed_paste(&self) -> io::Result<()> {
+        self.write_command(BracketedPaste(true))
+    }
+
     fn disable_raw_mode(&self) -> io::Result<()> {
         let original = self
             .original_termios

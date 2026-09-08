@@ -114,13 +114,13 @@ fn settled_move_a_then_queued_b_retirement_recognizes_only_exact_a_commit() {
     let second = operation(&state, 101);
     assert!(state.begin_move(second.clone()));
     assert!(state.retain_pending_move(PendingMoveCommit::new(first.clone(), first_commit.clone())));
-    assert_eq!(state.pending_move.as_ref(), Some(&second));
+    assert_eq!(state.pending_move(), Some(&second));
     let mut wrong = first_commit.clone();
     wrong.tab_id = state.tab(0).unwrap().tab_id().clone();
     assert!(!state.retain_pending_move(PendingMoveCommit::new(first.clone(), wrong)));
     state.retire(CarrierFailure::Closed);
     assert!(state.retain_pending_move(PendingMoveCommit::new(first, first_commit)));
-    assert_eq!(state.pending_move.as_ref(), Some(&second));
+    assert_eq!(state.pending_move(), Some(&second));
     assert!(state.invariant_holds());
 }
 
@@ -465,7 +465,7 @@ fn known_move_retention_precedes_a_failed_membership_install_without_changing_ol
     assert_eq!(state.cache(), &baseline);
     assert_eq!(state.desired(), old.as_ref());
     assert_eq!(state.attached_key(), old.as_ref());
-    assert_eq!(state.pending_move.as_ref(), Some(&operation));
+    assert_eq!(state.pending_move(), Some(&operation));
     state.retire(CarrierFailure::Protocol);
     assert_eq!(
         state.retained_move_for_test().unwrap().operation(),

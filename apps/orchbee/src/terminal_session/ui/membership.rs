@@ -64,6 +64,15 @@ impl NativeUi {
                         ),
                     )));
                 }
+                if let MembershipResultKey::Rename(id) = cleanup.result() {
+                    return Ok(UiReply::Rename(
+                        super::super::mailbox::RenameSettlement::new(
+                            id.clone(),
+                            RefreshDecision::Retire,
+                            state.desired().cloned(),
+                        ),
+                    ));
+                }
                 return Ok(UiReply::Membership(RefreshSettlement::new(
                     RefreshDecision::Retire,
                     state.desired().cloned(),
@@ -118,6 +127,13 @@ impl NativeUi {
                 | MembershipResultKey::Create(_)
                 | MembershipResultKey::Move(_) => UiReply::Membership(settlement),
                 MembershipResultKey::Switch(_) => UiReply::Switch(settlement),
+                MembershipResultKey::Rename(id) => {
+                    UiReply::Rename(super::super::mailbox::RenameSettlement::new(
+                        id.clone(),
+                        settlement.decision().clone(),
+                        settlement.desired().cloned(),
+                    ))
+                }
                 MembershipResultKey::Close(_) => return Err(CarrierFailure::Protocol),
             })
         });

@@ -300,7 +300,7 @@ impl NativeSessionState {
             })
             || matches!(self.close.carrier, CloseCarrier::StatusOnly)
             || self.pending_refresh_generation.is_some()
-            || self.pending_move.is_some()
+            || self.mutation_blocks_structure()
             || !(matches!(
                 self.phase,
                 super::super::SessionPhase::Ready(_)

@@ -48,6 +48,7 @@ impl NativeExecutor {
         self.attached = None;
         let detached = cleanup.old().clone();
         let close_marker = cleanup.close_marker().cloned();
+        let origin = cleanup.result().clone();
         let reply = self.publish_and_wait(
             WorkerEvent::MembershipDetached { cleanup, detached },
             EventDeadline::TotalCleanup(total),
@@ -56,10 +57,15 @@ impl NativeExecutor {
         if let Some(marker) = close_marker {
             return self.finish_close_membership_cleanup(lease, &marker, reply);
         }
-        let UiReply::Membership(settlement) = reply else {
-            return Err(CarrierFailure::Protocol);
+        let decision = match (&origin, &reply) {
+            (
+                crate::terminal_session::state::MembershipResultKey::Rename(id),
+                UiReply::Rename(settlement),
+            ) if settlement.request_id() == id => settlement.decision(),
+            (_, UiReply::Membership(settlement)) => settlement.decision(),
+            _ => return Err(CarrierFailure::Protocol),
         };
-        match settlement.decision() {
+        match decision {
             RefreshDecision::Continue | RefreshDecision::SettledWithoutAttachment => Ok(()),
             RefreshDecision::AttachRecovered(target) => self
                 .setup_target(

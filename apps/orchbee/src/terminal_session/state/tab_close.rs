@@ -684,7 +684,7 @@ impl super::NativeSessionState {
         }
         if self.pending_refresh_generation.is_some()
             || self.rename_draft_blocks_structure()
-            || self.pending_move.is_some()
+            || self.mutation_blocks_structure()
             || self.move_recovery.is_some()
             || !matches!(
                 self.phase,

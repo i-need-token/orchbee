@@ -4,6 +4,7 @@ mod close_interaction;
 mod close_recovery;
 mod close_retirement;
 mod move_refinements;
+mod rename_interaction;
 mod retirement_redraw;
 use super::*;
 use crate::{

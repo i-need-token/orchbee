@@ -29,7 +29,8 @@ pub(crate) use ui::{
     NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
     NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDisplayController,
     NativeDisplayPhase, NativeDisplayProvenance, NativeDisplayRetirement, NativeDrawReceipt,
-    NativeProjectionStatus, NativeRefreshStatus, NativeSessionNotice, NativeSessionView,
+    NativeProjectionStatus, NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView,
+    NativeRenameEdit, NativeRenameInputContext, NativeSessionNotice, NativeSessionView,
     NativeTabView,
 };
 
@@ -268,11 +269,16 @@ impl TerminalSession {
         if let Some(shutdown) = self.recovery_shutdown.take() {
             shutdown.close();
         }
-        let (pending_create, pending_move, close_return) = match self.task.take() {
+        let (pending_create, pending_move, close_return, rename_return) = match self.task.take() {
             Some(SessionTask::Native(task)) => match task.join() {
                 Ok(returned) => {
-                    let (create, moved, close) = returned.into_pending_results();
-                    (create, moved, state::CloseWorkerReturn::Returned(close))
+                    let (create, moved, close, renamed) = returned.into_pending_results();
+                    (
+                        create,
+                        moved,
+                        state::CloseWorkerReturn::Returned(close),
+                        renamed,
+                    )
                 }
                 Err(_) => {
                     let evidence = match &self.backend {
@@ -282,7 +288,11 @@ impl TerminalSession {
                             deposited: None,
                         },
                     };
-                    (None, None, evidence)
+                    let renamed = match &self.backend {
+                        SessionBackend::Native(native) => native.rename_worker_loss(),
+                        SessionBackend::Legacy(_) => None,
+                    };
+                    (None, None, evidence, renamed)
                 }
             },
             Some(task @ SessionTask::Legacy(_)) => {
@@ -294,6 +304,7 @@ impl TerminalSession {
         let SessionBackend::Native(native) = &mut self.backend else {
             return;
         };
+        let _rename_accepted = native.finalize_rename_worker(rename_return);
         let _accepted = native.finalize_retirement(pending_create, pending_move, close_return);
         native.release_mailbox();
         // Geometry observation can finalize retirement before the shell asks tick for a redraw.
@@ -302,6 +313,48 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.rename_input_context(),
+            SessionBackend::Legacy(_) => None,
+        }
+    }
+
+    fn edit_rename_draft(
+        &mut self,
+        token: NativeRenameDraftToken,
+        edit: NativeRenameEdit<'_>,
+    ) -> bool {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.edit_rename_draft(token, edit),
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
+    fn cancel_rename_draft(&mut self, token: NativeRenameDraftToken) {
+        if let SessionBackend::Native(native) = &mut self.backend {
+            native.cancel_rename_draft(token);
+        }
+    }
+
+    fn submit_rename_draft(
+        &mut self,
+        token: NativeRenameDraftToken,
+    ) -> Option<SessionActionDisposition> {
+        let disposition = match &mut self.backend {
+            SessionBackend::Native(native) => Some(native.submit_rename_draft(token)),
+            SessionBackend::Legacy(_) => None,
+        };
+        self.finalize_native_retirement();
+        disposition
+    }
+
+    fn invalidate_rename_display(&mut self) {
+        if let SessionBackend::Native(native) = &mut self.backend {
+            native.invalidate_rename_display();
+        }
+    }
+
     fn capture_confirmation_key(&mut self, key: crate::client_view::ClientKey) -> bool {
         let captured = match &mut self.backend {
             SessionBackend::Native(native) => native.capture_confirmation_key(key),

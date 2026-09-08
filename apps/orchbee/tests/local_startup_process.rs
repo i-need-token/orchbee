@@ -39,6 +39,44 @@ fn process_witness_guard() -> MutexGuard<'static, ()> {
 }
 
 #[test]
+fn native_rename_visible_editor_updates_canonical_label_and_preserves_live_shell() {
+    let _guard = process_witness_guard();
+    let fixture = Fixture::new();
+    let mut client = Client::spawn(&fixture, "en_US.UTF-8");
+    let identities = create_three_shells(&fixture, &mut client);
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02,\x15renamed shell");
+    client.wait_terminal_output_after(
+        checkpoint,
+        Instant::now() + OBSERVATION_TIMEOUT,
+        "Rename Tab",
+    );
+    assert!(client.contains("renamed shell"));
+    assert!(client.contains("Enter"));
+    let checkpoint = client.checkpoint();
+    client.send(b"\r");
+    client.wait_ordered_ready_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &["1", "2", "renamed shell"],
+        3,
+        ReadyMode::Controlling,
+    );
+    // Respect the accepted post-submit quiet handoff before sending new unframed shell input.
+    thread::sleep(Duration::from_millis(75));
+    assert_shell_survives(&fixture, &mut client, &identities[2], "renamed-shell");
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_ordered_navigator_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &["1", "2", "renamed shell"],
+        3,
+    );
+    client.close_before(Instant::now() + EXIT_TIMEOUT);
+}
+
+#[test]
 fn two_tabs_keep_distinct_shells_across_previous_next_and_numbered_switches() {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();

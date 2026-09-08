@@ -13,6 +13,7 @@ pub(in crate::terminal_session) enum MembershipResultKey {
     Close(super::CloseFlightKey),
     Switch(AttachmentKey),
     Move(WorkbenchRequestId),
+    Rename(WorkbenchRequestId),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -101,6 +102,7 @@ pub(in crate::terminal_session) struct PreparedMembershipInstall<'a> {
 enum MembershipMutationCompletion {
     None,
     Move,
+    Rename(WorkbenchRequestId),
 }
 
 impl PreparedMembershipInstall<'_> {
@@ -109,7 +111,7 @@ impl PreparedMembershipInstall<'_> {
             self.state.settled_create = Some(committed);
         }
         if matches!(self.mutation_completion, MembershipMutationCompletion::Move) {
-            self.state.pending_move = None;
+            self.state.pending_mutation = None;
             self.state.move_recovery = None;
         }
         if self.refresh_generation.is_some() {
@@ -118,12 +120,22 @@ impl PreparedMembershipInstall<'_> {
                 self.prepared.candidate.revision(),
             ));
             self.state.move_recovery = None;
+            self.state.rename_recovery = None;
         }
         self.state.cache = self.prepared.candidate;
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired;
         self.state.phase = self.replacement_phase;
         self.state.pending_membership = None;
+        if let MembershipMutationCompletion::Rename(request_id) = self.mutation_completion {
+            debug_assert!(
+                self.state
+                    .pending_rename()
+                    .is_some_and(|operation| operation.request_id() == &request_id)
+            );
+            self.state.pending_mutation = None;
+            self.state.rename_recovery = None;
+        }
         if self.clear_attachment {
             self.state.attached_key = None;
             self.state.projection_key = None;
@@ -510,6 +522,57 @@ impl NativeSessionState {
         Ok(cleanup)
     }
 
+    pub(in crate::terminal_session) fn stage_rename_membership_cleanup(
+        &mut self,
+        request_id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        prepared: PreparedMembershipCandidate,
+        deadlines: OperationDeadlines,
+    ) -> Result<MembershipCleanup, CarrierFailure> {
+        if !self.invariant_holds()
+            || !self.rename_membership_is_current(request_id)
+            || self.pending_membership.is_some()
+            || self.cache != prepared.baseline
+            || self.desired != prepared.baseline_desired
+            || prepared.preserves_selection()
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
+        if selected.key() != &old || !matches!(self.phase, SessionPhase::Ready(_)) {
+            return Err(CarrierFailure::Protocol);
+        }
+        let cleanup = MembershipCleanup {
+            result: MembershipResultKey::Rename(request_id.clone()),
+            old,
+            deadlines,
+            installs_candidate: true,
+            close_marker: None,
+            closed_proof: None,
+        };
+        self.pending_membership = Some(PendingMembership {
+            cleanup: cleanup.clone(),
+            prepared: Some(prepared),
+        });
+        self.phase = SessionPhase::ReconcilingMembership(selected);
+        Ok(cleanup)
+    }
+
+    pub(in crate::terminal_session) fn prepare_rename_membership_install(
+        &mut self,
+        request_id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        prepared: PreparedMembershipCandidate,
+        desired: Option<AttachmentKey>,
+        deadlines: Option<OperationDeadlines>,
+    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
+        if !self.rename_membership_is_current(request_id) {
+            return Err(CarrierFailure::Protocol);
+        }
+        let mut plan = self.prepare_membership_install(prepared, desired, deadlines)?;
+        plan.mutation_completion = MembershipMutationCompletion::Rename(request_id.clone());
+        Ok(plan)
+    }
+
     /// Duplicate only the bounded prepared data outside the reply mutex; the pending owner stays put
     /// until both install plans commit. Dropping either plan therefore preserves the pending receipt.
     pub(in crate::terminal_session) fn prepare_cleaned_membership_candidate(
@@ -541,6 +604,12 @@ impl NativeSessionState {
         desired: Option<AttachmentKey>,
     ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
         let refresh_generation = match &cleanup.result {
+            MembershipResultKey::Rename(request_id) => {
+                if !self.rename_membership_is_current(request_id) {
+                    return Err(CarrierFailure::Protocol);
+                }
+                None
+            }
             MembershipResultKey::Create(operation) => {
                 if self
                     .create_membership_commit()
@@ -588,6 +657,9 @@ impl NativeSessionState {
         if matches!(cleanup.result(), MembershipResultKey::Move(_)) {
             plan.mutation_completion = MembershipMutationCompletion::Move;
         }
+        if let MembershipResultKey::Rename(request_id) = cleanup.result() {
+            plan.mutation_completion = MembershipMutationCompletion::Rename(request_id.clone());
+        }
         Ok(plan)
     }
 
@@ -609,6 +681,7 @@ impl NativeSessionState {
                         self.pending_refresh_generation == Some(*generation)
                     }
                     MembershipResultKey::Close(_)
+                    | MembershipResultKey::Rename(_)
                     | MembershipResultKey::Move(_)
                     | MembershipResultKey::Switch(_) => false,
                 };
@@ -632,6 +705,9 @@ impl NativeSessionState {
                     }
                     MembershipResultKey::Move(request_id) => {
                         self.move_membership_is_current(request_id)
+                    }
+                    MembershipResultKey::Rename(request_id) => {
+                        self.rename_membership_is_current(request_id)
                     }
                     MembershipResultKey::Close(_) => pending
                         .cleanup

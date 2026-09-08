@@ -138,6 +138,7 @@ pub(super) enum SessionPhaseKind {
     AwaitingCommittedProjection,
     ProjectionUnavailable,
     MoveProjectionUnavailable,
+    RenameProjectionUnavailable,
     Switching,
     SelectedWithoutAttachment,
     RetryableAttachUnavailable,
@@ -150,6 +151,7 @@ pub(super) enum SessionNotice {
     NoTabAtPosition(u8),
     CreateNotCreated,
     MoveNotMoved,
+    RenameNotRenamed,
     CloseRequestNotApplied,
 }
 
@@ -619,6 +621,11 @@ pub(super) enum SelectionPlan {
     Switch { index: usize },
 }
 
+enum PendingMutation {
+    Move(MoveOperation),
+    Rename(tab_rename::RenameOperation),
+}
+
 pub(super) struct NativeSessionState {
     cache: NativeStandaloneTabs,
     provenance: Vec<CreateTerminalProvenance>,
@@ -634,9 +641,12 @@ pub(super) struct NativeSessionState {
     notice: Option<SessionNotice>,
     pending_refresh_generation: Option<u64>,
     refresh_status: Option<NavigatorRefreshStatus>,
-    pending_move: Option<MoveOperation>,
+    pending_mutation: Option<PendingMutation>,
     move_recovery: Option<PendingMoveCommit>,
     settled_move: Option<PendingMoveCommit>,
+    settled_rename: Option<tab_rename::PendingRenameCommit>,
+    rename_recovery: Option<tab_rename::PendingRenameCommit>,
+    rename_uncertain: Option<tab_rename::RenameOperation>,
     close: CloseState,
     rename: rename_draft::RenameDraftState,
     pending_membership: Option<membership::PendingMembership>,
@@ -679,9 +689,12 @@ impl NativeSessionState {
             notice: None,
             pending_refresh_generation: None,
             refresh_status: None,
-            pending_move: None,
+            pending_mutation: None,
             move_recovery: None,
             settled_move: None,
+            settled_rename: None,
+            rename_recovery: None,
+            rename_uncertain: None,
             close: CloseState::default(),
             rename: rename_draft::RenameDraftState::default(),
             pending_membership: None,
@@ -691,6 +704,9 @@ impl NativeSessionState {
     }
 
     pub(super) const fn phase_kind(&self) -> SessionPhaseKind {
+        if self.rename_recovery.is_some() && !matches!(&self.phase, SessionPhase::Retired(_)) {
+            return SessionPhaseKind::RenameProjectionUnavailable;
+        }
         if self.move_recovery.is_some() && !matches!(&self.phase, SessionPhase::Retired(_)) {
             return SessionPhaseKind::MoveProjectionUnavailable;
         }
@@ -1203,7 +1219,7 @@ impl NativeSessionState {
 
     pub(super) fn begin_create(&mut self, operation: CreateOperation) -> bool {
         if !self.invariant_holds()
-            || self.move_blocks_structure()
+            || self.mutation_blocks_structure()
             || self.rename_draft_blocks_structure()
         {
             return false;
@@ -1560,6 +1576,10 @@ impl NativeSessionState {
         let active = self.active().cloned();
         let validated = if let Some(pending) = &self.move_recovery {
             pending.validate_projection(candidate)
+        } else if let Some(pending) = &self.rename_recovery {
+            pending
+                .validate_projection(candidate)
+                .map(|projection| projection.candidate)
         } else {
             validate_canonical_refresh(&self.cache, candidate)
         };
@@ -1593,6 +1613,7 @@ impl NativeSessionState {
         match baseline_phase {
             SessionPhaseKind::Ready
             | SessionPhaseKind::MoveProjectionUnavailable
+            | SessionPhaseKind::RenameProjectionUnavailable
             | SessionPhaseKind::SelectedWithoutAttachment
             | SessionPhaseKind::RetryableAttachUnavailable => PreparedRefresh::Append {
                 generation,
@@ -1658,6 +1679,7 @@ impl NativeSessionState {
                     RefreshDecision::Retire
                 } else if self.merge_projection(candidate, None) {
                     self.move_recovery = None;
+                    self.rename_recovery = None;
                     self.refresh_status =
                         Some(NavigatorRefreshStatus::Success(self.cache.revision()));
                     RefreshDecision::Continue
@@ -1812,7 +1834,7 @@ impl NativeSessionState {
     }
 
     pub(super) fn plan_selection(&self, action: ClientAction) -> SelectionPlan {
-        if self.move_blocks_structure() || self.rename_draft_blocks_structure() {
+        if self.mutation_blocks_structure() || self.rename_draft_blocks_structure() {
             return SelectionPlan::Busy;
         }
         if matches!(&self.phase, SessionPhase::Retired(_)) {
@@ -1873,7 +1895,7 @@ impl NativeSessionState {
     }
 
     pub(super) fn phase_allows_refresh(&self) -> bool {
-        self.pending_move.is_none()
+        self.pending_mutation.is_none()
             && !self.rename_draft_blocks_structure()
             && matches!(
                 &self.phase,
@@ -1960,7 +1982,7 @@ impl NativeSessionState {
         if !self.membership_invariant_holds() {
             return false;
         }
-        if !self.move_invariant_holds() {
+        if !self.move_invariant_holds() || !self.rename_invariant_holds() {
             return false;
         }
         if self.provenance.len() != self.cache.tabs().len() {

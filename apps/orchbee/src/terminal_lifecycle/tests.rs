@@ -13,6 +13,8 @@ use super::{RestorationStep, TerminalModeGuard, TerminalModes};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum Operation {
+    DisablePaste,
+    EnablePaste,
     DisableRaw,
     EnableRaw,
     EnterAlternate,
@@ -66,6 +68,14 @@ impl FakeTerminalModes {
 }
 
 impl TerminalModes for FakeTerminalModes {
+    fn disable_bracketed_paste(&self) -> io::Result<()> {
+        self.perform(Operation::DisablePaste)
+    }
+
+    fn enable_bracketed_paste(&self) -> io::Result<()> {
+        self.perform(Operation::EnablePaste)
+    }
+
     fn disable_raw_mode(&self) -> io::Result<()> {
         self.perform(Operation::DisableRaw)
     }
@@ -99,6 +109,14 @@ struct SetupBarrierTerminalModes {
 }
 
 impl TerminalModes for SetupBarrierTerminalModes {
+    fn disable_bracketed_paste(&self) -> io::Result<()> {
+        self.control.disable_bracketed_paste()
+    }
+
+    fn enable_bracketed_paste(&self) -> io::Result<()> {
+        self.control.enable_bracketed_paste()
+    }
+
     fn disable_raw_mode(&self) -> io::Result<()> {
         self.control.disable_raw_mode()
     }
@@ -132,6 +150,86 @@ fn lock_panic_hook_tests() -> io::Result<MutexGuard<'static, ()>> {
         .get_or_init(|| Mutex::new(()))
         .lock()
         .map_err(|_| io::Error::other("panic-hook test lock was poisoned"))
+}
+
+#[test]
+fn paste_mode_repeated_requests_do_not_reacquire_or_restore_a_live_lease() -> io::Result<()> {
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+    guard.set_bracketed_paste(true)?;
+    guard.set_bracketed_paste(true)?;
+    guard.set_bracketed_paste(false)?;
+    guard.set_bracketed_paste(false)?;
+    guard.set_bracketed_paste(true)?;
+    drop(guard);
+    let paste: Vec<_> = control
+        .operations()
+        .into_iter()
+        .filter(|operation| matches!(operation, Operation::EnablePaste | Operation::DisablePaste))
+        .collect();
+    assert_eq!(
+        paste,
+        [
+            Operation::EnablePaste,
+            Operation::DisablePaste,
+            Operation::EnablePaste,
+            Operation::DisablePaste
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn partial_paste_enable_and_failed_restore_cannot_renew_the_cleanup_budget() -> io::Result<()> {
+    let control = FakeTerminalModes::with_failures([
+        (Operation::EnablePaste, 1),
+        (Operation::DisablePaste, usize::MAX),
+    ]);
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+    assert!(guard.set_bracketed_paste(true).is_err());
+    assert!(guard.set_bracketed_paste(true).is_err());
+    assert!(guard.set_bracketed_paste(false).is_err());
+    assert!(guard.set_bracketed_paste(true).is_err());
+    assert!(guard.restore().is_err());
+    drop(guard);
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|operation| **operation == Operation::EnablePaste)
+            .count(),
+        1
+    );
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|operation| **operation == Operation::DisablePaste)
+            .count(),
+        2
+    );
+    Ok(())
+}
+
+#[test]
+fn panic_restores_owned_paste_before_other_terminal_modes() -> io::Result<()> {
+    let _panic_hook_test = lock_panic_hook_tests()?;
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter(control.clone())?;
+    guard.set_bracketed_paste(true)?;
+    assert!(catch_unwind(|| panic!("injected panic while Rename owns paste")).is_err());
+    assert_eq!(
+        &control.operations()[4..],
+        [
+            Operation::DisablePaste,
+            Operation::ShowCursor,
+            Operation::LeaveAlternate,
+            Operation::DisableRaw
+        ]
+    );
+    drop(guard);
+    assert_eq!(control.operations().len(), 8);
+    Ok(())
 }
 
 #[test]

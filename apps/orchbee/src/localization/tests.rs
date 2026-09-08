@@ -59,13 +59,14 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(english.shortcuts.len(), 12);
+    assert_eq!(english.shortcuts.len(), 13);
     assert_eq!(chinese.shortcuts.len(), english.shortcuts.len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
 
     for shortcut in [
         "Ctrl+B c",
+        "Ctrl+B ,",
         "Ctrl+B x",
         "Ctrl+B < / >",
         "Ctrl+B n / p",

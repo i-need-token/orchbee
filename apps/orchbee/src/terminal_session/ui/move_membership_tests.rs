@@ -8,7 +8,7 @@ use crate::terminal_session::state::{
 use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision, WorkbenchSnapshotOutcome};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-fn ready_ui() -> (
+pub(super) fn ready_ui() -> (
     NativeUi,
     Arc<CommandMailbox>,
     LocalOperationClock,

@@ -42,6 +42,7 @@ mod tab_close;
 #[cfg(target_os = "linux")]
 pub(in crate::terminal_session) use status_recovery::{RecoveryShutdown, run_status_recovery};
 mod tab_move;
+mod tab_rename;
 
 type Result<Value> = std::result::Result<Value, CarrierFailure>;
 type ReadyResult<Value> = std::result::Result<Value, ReadyFlowError>;
@@ -72,6 +73,7 @@ pub(super) fn run(
         executor.pending_create.take(),
         executor.pending_move.take(),
         executor.pending_close.take(),
+        executor.pending_rename.take(),
     )
 }
 
@@ -104,6 +106,7 @@ struct NativeExecutor {
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
     pending_close: Option<PendingCloseResult>,
+    pending_rename: Option<crate::terminal_session::state::tab_rename::RenameWorkerEvidence>,
 }
 
 #[derive(Clone)]
@@ -195,6 +198,7 @@ impl NativeExecutor {
             pending_create: None,
             pending_move: None,
             pending_close: None,
+            pending_rename: None,
         }
     }
 
@@ -601,6 +605,9 @@ impl NativeExecutor {
                     QueuedCommand::Refresh(marker) => self.run_refresh(&lease, *marker)?,
                     QueuedCommand::Move(marker) => {
                         self.run_move(&lease, marker.operation().clone())?
+                    }
+                    QueuedCommand::Rename(marker) => {
+                        self.run_rename(&lease, marker.operation().clone())?
                     }
                     QueuedCommand::Close(marker) => {
                         self.run_close(&lease, marker.operation().clone())?

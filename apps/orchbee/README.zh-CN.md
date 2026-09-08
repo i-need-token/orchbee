@@ -63,19 +63,23 @@ Linux 是唯一已有公共启动进程证据的平台；尚不承诺发布性�
 Standalone 原生 Session 呈现 Server 的有序 Tab 和 canonical 标签。每个 Client 独立拥有活动选择、
 navigator 与 viewport；另一 Client 新建的 Tab 在显式刷新后可见。以下操作沿用 `Ctrl+B` 前缀：
 
-| 按键      | 已连接原生行为                                            |
-| --------- | --------------------------------------------------------- |
-| `c`       | 请求一次 Server 拥有的 Tab 创建，再选择已验证的提交成员。 |
-| `n` / `p` | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。        |
-| `1` … `9` | 该位置存在时选择它。                                      |
-| `<` / `>` | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。            |
-| `w`       | 打开 navigator 并刷新共享 Tab，保留活动终端身份。         |
-| `q` / `d` | 关闭此 Client，保留的执行继续运行。                       |
+| 按键      | 已连接原生行为                                                      |
+| --------- | ------------------------------------------------------------------- |
+| `c`       | 请求一次 Server 拥有的 Tab 创建，再选择已验证的提交成员。           |
+| `n` / `p` | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                  |
+| `1` … `9` | 该位置存在时选择它。                                                |
+| `<` / `>` | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                      |
+| `,`       | 编辑所选 Tab 的共享 label；首次完整绘制后 Enter 提交，Escape 取消。 |
+| `w`       | 打开 navigator 并刷新共享 Tab，保留活动终端身份。                   |
+| `q` / `d` | 关闭此 Client，保留的执行继续运行。                                 |
 
 创建会排空此前已接受的工作，并在截止时间或 Client 退役时保留已知提交事实。
 切换先释放旧 viewer，再附着所选 binding；不会停止或重建任一终端。
 移动改变共享顺序，同时保留活动终端及其 viewer/controller。如果 Move 已提交且快照返回明确的 denied/unavailable 结果，
 Client 保留终端交互，并通过 `w` 显式恢复快照后才允许下一次结构操作。
+
+Rename 精确保留最多 512 个 Unicode 标量。Bracketed paste 原子追加，Backspace 删除一个标量，
+Ctrl+U 清空草稿。已知 Rename 提交但投影不可用时，同样通过 `w` 显式恢复，绝不重发命令。
 [原生 Session 契约](docs/native-tab-session.zh-CN.md) 定义准入、尺寸、反馈、失败、恢复与证据边界。
 本 cohort 尚不提供 Tab Close 和 Panel 操作。
 

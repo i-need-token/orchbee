@@ -17,6 +17,7 @@ use crate::{
 };
 
 mod tab_close;
+mod tab_rename;
 mod tabs;
 mod terminal_cells;
 
@@ -135,7 +136,16 @@ pub(crate) fn render_terminal_shell(
             status_draw = Some((token, modal.area));
         }
     }
-    NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
+    let mut rename = None;
+    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && let Some(draft) = native.rename_draft()
+    {
+        let (area, token) = tab_rename::render(frame, locale, &draft);
+        status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
+        prompt = None;
+        rename = token;
+    }
+    NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token)).with_rename(rename)
 }
 
 fn render_unavailable_workbench(
@@ -270,12 +280,16 @@ fn render_native_workbench(
             frame,
             panel_content,
             terminal,
-            client_view.overlay().is_none() && native.close_confirmation().is_none(),
+            client_view.overlay().is_none()
+                && native.close_confirmation().is_none()
+                && native.rename_draft().is_none(),
         );
     } else {
         let panel_status = if matches!(
             native.phase(),
-            NativeDisplayPhase::Ready | NativeDisplayPhase::MoveProjectionUnavailable
+            NativeDisplayPhase::Ready
+                | NativeDisplayPhase::MoveProjectionUnavailable
+                | NativeDisplayPhase::RenameProjectionUnavailable
         ) && native.projection_status()
             != NativeProjectionStatus::FrameAvailable
         {
@@ -414,7 +428,10 @@ fn render_sidebar(
 }
 
 fn render_shortcut_help(frame: &mut Frame<'_>, viewport: Rect, text: ShellText) -> Rect {
-    let area = centered_overlay(viewport, 76, 16);
+    let height = u16::try_from(text.shortcuts.len())
+        .unwrap_or(u16::MAX)
+        .saturating_add(4);
+    let area = centered_overlay(viewport, 76, height);
     frame.render_widget(Clear, area);
     let mut items = text
         .shortcuts

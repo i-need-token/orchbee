@@ -73,7 +73,7 @@ pub(super) fn render(
     }
 }
 
-fn wrapped_text_fits(text: &Text<'_>, area: Rect) -> bool {
+pub(super) fn wrapped_text_fits(text: &Text<'_>, area: Rect) -> bool {
     if area.is_empty() {
         return false;
     }

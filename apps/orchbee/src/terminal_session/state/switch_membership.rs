@@ -129,7 +129,7 @@ impl NativeSessionState {
         };
         if !self.invariant_holds()
             || self.pending_refresh_generation.is_some()
-            || self.move_blocks_structure()
+            || self.mutation_blocks_structure()
             || target.selected.key.generation <= desired.generation
             || self
                 .cache

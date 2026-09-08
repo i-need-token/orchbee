@@ -71,22 +71,27 @@ The standalone native Session renders the Server's ordered Tabs and canonical la
 owns its own active selection, navigator and viewport; another Client's new Tabs become visible on
 explicit refresh. These controls use the existing `Ctrl+B` prefix:
 
-| Key       | Connected native behavior                                                                 |
-| --------- | ----------------------------------------------------------------------------------------- |
-| `c`       | Request one Server-owned Tab creation, then select its validated committed member.        |
-| `n` / `p` | Select the next / previous Tab in the current Client snapshot.                            |
-| `1` … `9` | Select that position when present.                                                        |
-| `<` / `>` | Move the active Tab before / after its neighbor, wrapping at either boundary.             |
-| `w`       | Open the navigator and refresh shared Tabs while preserving the active terminal identity. |
-| `q` / `d` | Close this Client while retained execution continues.                                     |
+| Key       | Connected native behavior                                                                          |
+| --------- | -------------------------------------------------------------------------------------------------- |
+| `c`       | Request one Server-owned Tab creation, then select its validated committed member.                 |
+| `n` / `p` | Select the next / previous Tab in the current Client snapshot.                                     |
+| `1` … `9` | Select that position when present.                                                                 |
+| `<` / `>` | Move the active Tab before / after its neighbor, wrapping at either boundary.                      |
+| `,`       | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels. |
+| `w`       | Open the navigator and refresh shared Tabs while preserving the active terminal identity.          |
+| `q` / `d` | Close this Client while retained execution continues.                                              |
 
 Creation drains earlier accepted work and preserves known commit facts through deadline and Client
 retirement. Switching releases the old viewer before attaching the selected binding; it does not
 stop or recreate either terminal. Moving changes shared order while preserving the active terminal
 and its viewer/controller. If a committed Move receives a definite denied/unavailable snapshot result, the Client
 keeps terminal interaction available and uses `w` for explicit snapshot recovery before another
-structural operation. The [native Session contract](docs/native-tab-session.md) owns admission,
-geometry, feedback, failure, recovery and evidence bounds. Tab Close and Panel operations are not
+structural operation.
+
+Rename preserves exact text up to 512 Unicode scalars. Bracketed paste is atomic; Backspace removes
+one scalar and Ctrl+U clears the draft. A known rename with unavailable projection uses the same
+explicit `w` recovery without resubmitting the command. The [native Session contract](docs/native-tab-session.md)
+owns admission, geometry, feedback, failure, recovery and evidence bounds. Tab Close and Panel operations are not
 supplied by this cohort.
 
 ## Private local Client transport

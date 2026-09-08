@@ -429,7 +429,7 @@ impl NativeSessionState {
         now: Instant,
     ) -> Result<CloseOperation, CloseStateError> {
         if self.pending_refresh_generation.is_some()
-            || self.pending_move.is_some()
+            || self.mutation_blocks_structure()
             || !matches!(
                 self.phase,
                 SessionPhase::Ready(_)

@@ -31,9 +31,13 @@ mod close_reconciliation;
 mod membership;
 mod move_membership;
 mod tab_close;
+mod tab_rename;
 pub(crate) use tab_close::{
     NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
     NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDrawReceipt,
+};
+pub(crate) use tab_rename::{
+    NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit, NativeRenameInputContext,
 };
 mod create_membership;
 mod switch_membership;
@@ -48,6 +52,7 @@ pub(crate) enum NativeDisplayPhase {
     AwaitingCommittedProjection,
     ProjectionUnavailable,
     MoveProjectionUnavailable,
+    RenameProjectionUnavailable,
     Switching,
     SelectedWithoutAttachment,
     RetryableAttachUnavailable,
@@ -76,6 +81,7 @@ pub(crate) enum NativeSessionNotice {
     NoTabAtPosition(u8),
     CreateNotCreated,
     MoveNotMoved,
+    RenameNotRenamed,
     CloseRequestNotApplied,
 }
 
@@ -145,6 +151,9 @@ impl<'a> NativeSessionView<'a> {
             SessionPhaseKind::MoveProjectionUnavailable => {
                 NativeDisplayPhase::MoveProjectionUnavailable
             }
+            SessionPhaseKind::RenameProjectionUnavailable => {
+                NativeDisplayPhase::RenameProjectionUnavailable
+            }
             SessionPhaseKind::Switching => NativeDisplayPhase::Switching,
             SessionPhaseKind::SelectedWithoutAttachment => {
                 NativeDisplayPhase::SelectedWithoutAttachment
@@ -203,6 +212,7 @@ impl<'a> NativeSessionView<'a> {
             }
             SessionNotice::CreateNotCreated => NativeSessionNotice::CreateNotCreated,
             SessionNotice::MoveNotMoved => NativeSessionNotice::MoveNotMoved,
+            SessionNotice::RenameNotRenamed => NativeSessionNotice::RenameNotRenamed,
             SessionNotice::CloseRequestNotApplied => NativeSessionNotice::CloseRequestNotApplied,
         })
     }
@@ -276,6 +286,8 @@ mod create_membership_tests;
 mod membership_tests;
 #[cfg(all(test, unix))]
 mod move_membership_tests;
+#[cfg(test)]
+mod rename_membership_tests;
 
 impl NativeUi {
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
@@ -331,11 +343,15 @@ impl NativeUi {
         }
         match (state.phase_kind(), state.controller_mode()) {
             (
-                SessionPhaseKind::Ready | SessionPhaseKind::MoveProjectionUnavailable,
+                SessionPhaseKind::Ready
+                | SessionPhaseKind::MoveProjectionUnavailable
+                | SessionPhaseKind::RenameProjectionUnavailable,
                 Some(ControllerMode::Controlling(_)),
             ) => TerminalStatus::Controlling,
             (
-                SessionPhaseKind::Ready | SessionPhaseKind::MoveProjectionUnavailable,
+                SessionPhaseKind::Ready
+                | SessionPhaseKind::MoveProjectionUnavailable
+                | SessionPhaseKind::RenameProjectionUnavailable,
                 Some(ControllerMode::ReadOnly),
             ) => TerminalStatus::ReadOnly,
             (SessionPhaseKind::Retired, _) => match self.retirement {
@@ -516,6 +532,7 @@ impl NativeUi {
             .is_some_and(|state| state.latest_geometry() != geometry)
         {
             self.invalidate_close_display();
+            self.invalidate_rename_display();
         }
         if self.retirement_failure.is_some() {
             return;
@@ -626,6 +643,13 @@ impl NativeUi {
             return SessionActionDisposition::KeepNavigator;
         }
         match action {
+            ClientAction::RequestRenameTab => {
+                if self.request_rename_draft().is_some() {
+                    SessionActionDisposition::DismissNavigator
+                } else {
+                    SessionActionDisposition::KeepNavigator
+                }
+            }
             ClientAction::RequestCloseTab => self.request_close_confirmation(),
             ClientAction::ConfirmClose => self.confirm_close(),
             ClientAction::CancelClose => self.cancel_close(),
@@ -922,6 +946,9 @@ impl NativeUi {
             WorkerEvent::MoveResult { operation, outcome } => {
                 return self.apply_move_event(mailbox, wait_key, operation, outcome);
             }
+            WorkerEvent::RenameResult { operation, outcome } => {
+                return self.apply_rename_event(mailbox, wait_key, operation, outcome);
+            }
             WorkerEvent::RefreshSnapshotResult {
                 generation,
                 outcome,
@@ -936,7 +963,8 @@ impl NativeUi {
         let mut install_projection = None;
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
             let reply = match event {
-                WorkerEvent::MoveResult { .. }
+                WorkerEvent::RenameResult { .. }
+                | WorkerEvent::MoveResult { .. }
                 | WorkerEvent::CloseReconciliationSnapshot { .. }
                 | WorkerEvent::MembershipGone { .. }
                 | WorkerEvent::MembershipDetached { .. }

@@ -729,7 +729,7 @@ projection, local active Tab ID, attachment generation, navigator state, geometr
 terminal projection, and transient statuses. Local selection never writes or advances a Workbench
 revision.
 
-Terminal close/removal, native rename interaction, pin/group, Split or child Presentation support, Workspace
+Terminal close/removal, pin/group, Split or child Presentation support, Workspace
 selection, persistence, push/delta subscriptions, remote transport, reconnect, hidden carriers,
 carrier multiplexing, and multi-viewer composition inside one Client remain excluded.
 
@@ -1529,7 +1529,7 @@ SelectedWithoutAttachment with the exact Pending status above. `Ctrl+B w` can re
 membership, but it does not replay Create, attach that Tab, or erase its retained Pending
 provenance.
 
-## Staged Rename transport adapter
+## Rename transport adapter
 
 The private `WorkbenchTabRenameRequest(WorkbenchCommand)` accepts only `TabRename` and preserves
 the complete command, including its request identity, expected revision, target, and exact label.
@@ -1553,10 +1553,10 @@ classes; it adds no state, clock, or retry semantics. Adapter tests exercise com
 preservation through decoding, compatible and incompatible outcomes, revision bounds, and prewrite versus
 post-handoff deadline failures. The abstract model does not prove label bytes or revision arithmetic.
 
-This is a staged transport foundation. Its intended consumer is the native Rename command and
-mailbox/UI flow, which remains unimplemented; this adapter does not deliver native Rename UI.
+The native Rename command and mailbox/UI flow consume this transport foundation. The adapter
+alone does not own editor activation, membership installation or attachment cleanup.
 
-## Staged Rename projection evidence
+## Rename projection evidence
 
 `workbench_projection::renamed` validates a snapshot against a captured canonical baseline and
 known Rename revision. The exact context/Tab must exist in the baseline, the requested label must
@@ -1573,12 +1573,12 @@ remain unchanged. A same-label `Unchanged` result is outside this known-commit v
 This is pure projection evidence, not proof of terminal disposal, attachment cleanup or UI
 installation. Focused tests cover exact label preservation, revision overflow, forbidden changes
 at commit, later evolution/removal/Empty and overlapping identity rejection. It adds no state
-machine or model claim. The native Rename command, mailbox, editor and membership consumer remain
-unimplemented; they must preserve this distinction when consuming the helper.
+machine or model claim. The native Rename consumer uses this evidence before the shared membership
+installer and retains the common cleanup owner's independent proof requirements.
 
-## Staged Rename Unicode draft buffer
+## Rename Unicode draft buffer
 
-`state::rename_text::RenameText` holds exact editable label text for the future native Rename
+`state::rename_text::RenameText` holds exact editable label text for the native Rename
 draft. It copies a validated canonical label, exposes borrowed text, appends complete UTF-8 text
 atomically within `MAXIMUM_LABEL_LENGTH`, removes one final Unicode scalar, and clears to Empty.
 An over-limit append preserves the complete old text; an empty append and clearing Empty are
@@ -1593,16 +1593,23 @@ Backspace contract. A returned label owns its text independently of later buffer
 Tests cover exact text, Empty, the 511/512/513-scalar boundaries, atomic refusal, scalar deletion
 and independent returned labels. This deterministic bounded String transformation introduces no
 clock or state-machine model. It does not parse raw input, establish draft identity or drawing,
-allocate requests, admit commands or perform I/O. Its required next consumer is the native
-RenameDraft; that integration and the editor remain pending, so this buffer is not feature delivery.
+allocate requests, admit commands or perform I/O. The state-owned RenameDraft and actual input
+dispatcher consume this buffer; command admission remains with the mailbox transaction.
 
-## Accepted Rename consumer, runtime pending
+## Native Rename consumer
+
+The Rename submission consumer uses the concrete shared Move/Rename pending mutation in state and
+mailbox. Under the existing mailbox lock, it replans the exact visible draft, prepares request and
+serial candidates, and installs the operation, marker and cursor only after all refusals pass.
+Typed result correlation and flight stage are checked before the joint state/membership commit.
+The worker uses the stored request once; known commit retention precedes Snapshot and survives
+transport retirement. The persistent input dispatcher and actual renderer consume these methods.
 
 The private Rename operation owns one immutable typed request, captured draft intent and original
 deadline. Result preparation independently checks unchanged-label/base-revision and changed-label/
 checked-successor semantics, then calls the strict Rename projector. Valid known commits remain
 available when projection validation fails or Snapshot is unavailable. This operation preparation
-is staged for the actual mailbox/executor/UI consumer; it does not allocate identities, submit a
+is consumed by the mailbox/executor/UI flow; preparation itself does not allocate identities, submit a
 command, install membership or create another flight/cleanup owner.
 
 Rename's last-settled receipt follows Move's latest UI-consumed known commit, not Create's latest
@@ -1624,12 +1631,12 @@ exact selected attachment generation, and exposes an opaque draw token. It alloc
 identity or deadline. Exact successful drawing qualifies submission; a missing token revokes that
 qualification. The state independently revalidates authority before returning a submission intent,
 and refuses structural admission while the draft exists. Explicit cancellation and retirement
-destroy the draft. These state operations remain staged until the input, mailbox and UI consumers
-are connected; they do not themselves submit Rename or enable a keyboard entry.
+destroy the draft. The input, mailbox and UI consumers connect these state operations to the
+keyboard entry and exact-token submission without letting the decoder construct requests.
 `state/tests/rename_draft.rs` exercises visible and revoked tokens, exact unchanged intents,
 atomic text-limit faults, explicit correction, incomplete input, independent baseline/generation
-staleness, cancellation, retirement and reciprocal state admission. Mailbox capacity, cursor
-allocation and in-flight Close exclusion remain obligations of the submission consumer.
+staleness, cancellation, retirement and reciprocal state admission. Actual mailbox tests cover
+capacity, cursor/serial exhaustion, fixed-cutoff refusals, exact ACK and retained worker-loss evidence.
 
 `Ctrl+B ,` opens a state-owned draft for the exact selected standalone Tab in a live stable phase.
 Capture the canonical baseline, Site/context/Tab and attachment generation without allocating a
@@ -1650,7 +1657,7 @@ One existing input reader and terminal-mode owner handle the editor. ESC waits 5
 atomically within remaining label capacity and recognizes its six-byte terminator across reads.
 Payload controls do not submit, cancel, clear faults or execute prefix actions. Overflow or invalid
 paste drains through the terminator without accepting a prefix. Paste-mode activation failure
-refuses entry. The next input-parser implementation must maintain these states across reads/ticks.
+refuses entry. The persistent input parser maintains these states across reads/ticks.
 
 Cancellation/submission retains recognized framed drains. Only after those complete may a 50ms
 quiet guard restore ordinary input; each discarded byte resets that guard. At equality, expire
@@ -1692,8 +1699,28 @@ cutoff/typed placement, keyed historical facts, one stale receipt and current-wo
 bytes, scalar arithmetic, eight-slot storage, concrete labels and full membership vectors remain
 executable refinement obligations. Shared cleanup/setup proof is an external owner obligation;
 fairness covers local consumption of available exact completions and existing local expiry, never
-production of Host cleanup or Attach success. Native input/process refinement remains pending;
-existing Move model receipts are not Rename evidence.
+production of Host cleanup or Attach success. Deterministic parser tests and actual NativeUi/socket
+tests refine the input, operation and membership seams. The Linux cohort process test
+`native_rename_visible_editor_updates_canonical_label_and_preserves_live_shell` additionally drives
+the actual visible editor, observes the renamed canonical tab after submission and explicit Refresh,
+and verifies the same shell PID, environment marker and usable input/output. This process witness
+does not independently prove absence of reattachment or another operating system. Existing Move
+model receipts are not Rename evidence.
+
+Successful Rename entry dismisses an open navigator through `ClientView.commit`; refusal preserves
+that overlay. The initial token is acknowledged only after the complete localized editor is drawn.
+The same renderer receipt carries independent optional Close and Rename tokens, and outer viewport
+changes revoke Rename qualification before input even when terminal columns remain unchanged.
+The existing terminal mode lease enables bracketed paste before entry and retains it through any
+recognized drain and quiet handoff; enable failure creates no draft or command.
+
+`terminal_session/tests/rename_interaction.rs` drives the persistent dispatcher, actual renderer,
+NativeUi, mailbox and executor over a local scripted socket. It covers both locales, unseen Enter,
+sticky input faults, exact maximum scalar paste, cancellation drain, viewport invalidation,
+navigator dismissal, authoritative no-op, changed projection, explicit recovery, malformed known
+projection, ambiguous exchange and lost postcommit Snapshot. Later target removal exercises the
+common Detach before Empty or successor Attach; a definite unavailable successor does not become
+Ready. These tests reject unsolicited Start, Close or repeated Rename requests.
 
 ### Rename lifecycle model boundary and evidence
 
