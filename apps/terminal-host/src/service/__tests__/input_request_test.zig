@@ -683,6 +683,20 @@ test "input-only capability downgrade and replay return an all-false current bin
         attachment.capabilities,
     );
 }
+fn awaitFrameBatch(service: *HostService, connection: *const ConnectionState) !Outgoing {
+    const timer = try platform_boundary.monotonic.Timer.start();
+    while (timer.read() < 10 * std.time.ns_per_s) {
+        var batch = try pollEventsChecked(service, connection);
+        if (batch.records().len != 0) return batch;
+        batch.deinit();
+        // Native output can change generation between capture and commit.
+        // That rejected capture publishes nothing; allow the next scheduled
+        // attempt while retaining the caller's exact frame and sequence checks.
+        platform_boundary.monotonic.sleep(10 * std.time.ns_per_ms);
+    }
+    return error.SemanticWaitTimeout;
+}
+
 test "I/O successful responses use supplied request contracts and publish input once" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
         try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
@@ -905,7 +919,7 @@ test "I/O successful responses use supplied request contracts and publish input 
     _ = try expectContractSuccess(&demanded, demand_contract, [_]u8{0x52} ** 16);
 
     try std.testing.expect(serviceAggregate(&service).setNextProjectionAt(terminal_id, 0));
-    var first_frame_batch = try pollEventsChecked(&service, &connection);
+    var first_frame_batch = try awaitFrameBatch(&service, &connection);
     defer first_frame_batch.deinit();
     const first_frame = try onlyTerminalFrame(&first_frame_batch);
     var need_snapshot_buffer: [160]u8 = undefined;
@@ -931,7 +945,7 @@ test "I/O successful responses use supplied request contracts and publish input 
     );
 
     try std.testing.expect(serviceAggregate(&service).setNextProjectionAt(terminal_id, 0));
-    var second_frame_batch = try pollEventsChecked(&service, &connection);
+    var second_frame_batch = try awaitFrameBatch(&service, &connection);
     defer second_frame_batch.deinit();
     const second_frame = try onlyTerminalFrame(&second_frame_batch);
     try std.testing.expectEqual(protocol.FrameKind.snapshot, second_frame.kind);
