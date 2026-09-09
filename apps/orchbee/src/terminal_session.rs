@@ -28,6 +28,8 @@ mod status_recovery;
 mod ui;
 mod workbench_projection;
 
+pub(crate) use workbench_projection::{NativePanel, NativePanelTree};
+
 pub(crate) use ui::{
     NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
     NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDisplayController,

@@ -731,9 +731,9 @@ continuity; the separate Move integration and process checks below own those bou
 
 ## Scope and owners
 
-This record fixes the native Client consumer of the canonical OBWP `tab.create` and `tab.move`
-contracts and the `Ctrl+B c`, `<`, `>`, `n`, `p`, `1` through `9`, and `w` actions. It preserves the existing one
-sequential admitted Client carrier, one OBCS viewer, one combined input-and-resize controller at
+This record fixes the native Client consumer of the canonical OBWP `tab.create`, `tab.move`, and
+Panel-tree projection contracts, plus the `Ctrl+B c`, `<`, `>`, `n`, `p`, `1` through `9`, `h`, `j`, `k`,
+`l`, and `w` actions. It preserves the existing one sequential admitted Client carrier, one OBCS viewer, one combined input-and-resize controller at
 most, bounded command/event storage, and TUI restoration boundary.
 
 The Server-owned Workbench snapshot remains the only source of Tab order, labels, Panel and
@@ -742,8 +742,7 @@ projection, local active Tab ID, attachment generation, navigator state, geometr
 terminal projection, and transient statuses. Local selection never writes or advances a Workbench
 revision.
 
-Pin/group, Split or child Presentation support,
-persistence, push/delta subscriptions, remote transport, reconnect, hidden carriers,
+Pin/group or child Presentation support, persistence, push/delta subscriptions, remote transport, reconnect, hidden carriers,
 carrier multiplexing, and multi-viewer composition inside one Client remain excluded.
 
 ## Pure strict projection
@@ -767,6 +766,27 @@ struct NativeSimpleTab {
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
     binding: NativeTerminalBinding,
+    panels: Box<[NativePanel]>,
+    tree: NativePanelTree,
+}
+
+struct NativePanel {
+    panel_id: WorkbenchPanelId,
+    presentation_id: TerminalPresentationId,
+    presentation_label: WorkbenchLabel,
+    binding: NativeTerminalBinding,
+}
+
+enum NativePanelTree {
+    Panel { panel_index: usize },
+    Split {
+        first: Box<NativePanelTree>,
+        second: Box<NativePanelTree>,
+        first_slot_id: WorkbenchPanelSlotId,
+        second_slot_id: WorkbenchPanelSlotId,
+        orientation: PanelOrientation,
+        split_id: WorkbenchSplitId,
+    },
 }
 
 struct NativeTerminalBinding {
@@ -792,10 +812,13 @@ The startup projector requires exactly one Terminal Context whose ID equals
 `navigation.standaloneTerminalContextId`. The current-context projector instead validates the
 selected canonical location. Other Project/Workspace navigation metadata is retained; nonactive
 contexts' Tab layouts are not validated here. The active context must have no groups and may contain exactly 0 through 256 ordered
-Tabs. Every Tab must be ungrouped and unpinned, have one Panel root, have no child Presentations,
-and have one bound primary Presentation. One unsupported member rejects the whole projection; the
-projector never filters, reorders, or chooses the first attachable member. It retains both labels
-exactly, including duplicates and whitespace.
+Tabs. Every Tab must be ungrouped and unpinned, have either one Panel root or a recursively binary
+Panel split tree, have no child Presentations, and have one bound primary Presentation at every leaf.
+One unsupported member rejects the whole projection; the projector never filters, reorders, or chooses
+the first attachable member. It retains both labels exactly, including duplicates and whitespace, and
+preserves every Panel, split, slot, orientation, Presentation, and terminal identity in the tree.
+Panel, Presentation, and terminal IDs are unique across all leaves; split and slot IDs are unique in
+the complete active-context projection.
 
 Two additional pure validators own cache replacement:
 
@@ -848,6 +871,23 @@ transport and real UI evidence is recorded below.
 
 The pure projector accepts an empty standalone context for full 0..256 conformance. Cold startup
 and every active-session refresh separately require the state-specific active-member invariant.
+
+## Panel projection and local focus
+
+The accepted `NativePanelTree` is a strict, depth-first representation of the canonical PanelNode.
+Leaf order is the order used by attachment state; the tree retains split orientation and both slot
+identities so a later snapshot cannot silently replace a leaf or reshape a Tab. A split does not
+create a second viewer: the Client keeps all validated leaf bindings in its cache, while the current
+leaf alone owns the attached viewer and terminal frame.
+
+In a connected Native Session, `Ctrl+B h`, `j`, `k`, and `l` are Client-local focus actions. When a
+direction has a neighboring leaf, the Client allocates a fresh attachment generation for the same
+Tab, selects that leaf's exact binding and retained provenance, and runs the existing Switch cleanup
+and Attach lifecycle. It never writes a Workbench revision and never submits `panel.split`. A single
+Panel or an edge with no neighbor is a local no-op. The renderer divides the canonical tree, marks
+the selected leaf, and draws the current live frame only there; inactive leaves retain their labels,
+identity, and geometry but show no second live frame until focused. Simultaneous multi-viewer
+composition remains outside this slice.
 
 ## Startup
 
@@ -1027,7 +1067,8 @@ target.
 For a one-Tab cache, n/p resolve to the same member: Ready is a no-op and
 RetryableAttachUnavailable is an explicit retry only when no Refresh is pending. While Refresh is pending,
 the same-target no-op guard applies in all otherwise selectable phases. A full-queue or out-of-range action does not
-dismiss an already open navigator. Panel keys remain unavailable.
+dismiss an already open navigator. Panel keys move local focus through the active Tab's split tree;
+they are a no-op for a single Panel or when no directional neighbor exists.
 
 ## Create is a draining FIFO barrier
 
@@ -1842,18 +1883,20 @@ The matrix summarizes the current Client evidence. The Move-specific record abov
 checks below extend the original Create/selection/Refresh models; append-only checks alone do not
 establish reorder preservation.
 
-| Claim                                                                                                                       | Lowest evidence                                                                                                     | Additional witness                                                              | Limits                                                                            |
-| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Strict 0..256 projection and identity-preserving refresh                                                                    | exhaustive partition/unit cases and corpus-derived fixtures                                                         | generated create/rename/move histories and exact commit-permutation tests       | Higher revisions may reorder and rename Tabs; immutable member facts survive.     |
-| Selection wrap/bounds/same/retry and atomic refusal                                                                         | pure selection table tests                                                                                          | generated mailbox traces with stable seeds, semantic shrinking, and replay text | Finite generated trace sizes are reported, not universal proof.                   |
-| Create drains old Poll/Feedback before submit and precommit restores                                                        | `NativeClientCreateBarrier.tla` plus fake-carrier traces                                                            | deterministic old-frame/draw/feedback checkpoint trace                          | TLA abstracts bytes, clock, geometry, and rendering.                              |
-| Commit validates/stages a Snapshot candidate before exact old cleanup and atomic selection; only surviving Started attaches | Checked Create model; actual UI dual-plan installation, candidate-first carrier and generated mailbox traces        | fake carrier at each blocking response                                          | Carrier retirement cleanup is not a successful Detach or candidate-install claim. |
-| Rapid switch cleanup/generation/first-frame/geometry gate                                                                   | `NativeTabSwitch.tla` plus deterministic core traces                                                                | real PTY active-token + Ready checkpoints                                       | This model is separate from Create/refresh and abstracts real pixels.             |
-| Refresh single-pending generation fence/identity/active preservation and navigator toggle                                   | `NativeClientRefreshFence.tla` plus deterministic stale-event tests                                                 | two-Client/process refresh witness                                              | No push or inter-read freshness.                                                  |
-| Move preserves the selected terminal and exact known commit                                                                 | `NativeClientMoveBarrier.tla`, mailbox/state, worker and actual NativeUi/outer retirement traces                    | two Linux cohort Move scenarios                                                 | PTY shell continuity does not independently prove absence of viewer reattachment. |
-| Total setup termination                                                                                                     | fake monotonic clock at Empty/NeedSnapshot/Blocked/Busy and cleanup reserve boundaries                              | PTY uses named Ready/unavailable checkpoints, never sleep                       | Does not prove Host eventually responds successfully.                             |
-| Safe exact label rendering                                                                                                  | pure sanitizer/layout/backend byte tests                                                                            | PTY numeric labels and active marker                                            | OS font/pixel fidelity is excluded.                                               |
-| Platform dependency boundary                                                                                                | Windows target `check/test` for help/version/unavailability plus Cargo metadata assertion; Unix build/tests for TUI | Linux real PTY                                                                  | No Windows TUI claim.                                                             |
+| Claim                                                                                                                       | Lowest evidence                                                                                                     | Additional witness                                                              | Limits                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Strict 0..256 projection and identity-preserving refresh                                                                    | exhaustive partition/unit cases and corpus-derived fixtures                                                         | generated create/rename/move histories and exact commit-permutation tests       | Higher revisions may reorder and rename Tabs; immutable member facts survive.      |
+| Canonical split-tree projection preserves leaf/split/slot identity and orientation                                          | `projects_split_tree_and_directional_leaf_neighbors` plus strict structural-ID checks                               | canonical snapshot projection through the real `NativeTabView`                  | Only ungrouped, unpinned Tabs with bound primary leaf Presentations are accepted.  |
+| Local Panel focus keeps the Tab and switches to the exact selected leaf binding                                             | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` plus NativeUi switch admission             | existing Switch cleanup/Attach lifecycle and renderer tree traversal            | One viewer is attached at a time; inactive leaves do not show a second live frame. |
+| Selection wrap/bounds/same/retry and atomic refusal                                                                         | pure selection table tests                                                                                          | generated mailbox traces with stable seeds, semantic shrinking, and replay text | Finite generated trace sizes are reported, not universal proof.                    |
+| Create drains old Poll/Feedback before submit and precommit restores                                                        | `NativeClientCreateBarrier.tla` plus fake-carrier traces                                                            | deterministic old-frame/draw/feedback checkpoint trace                          | TLA abstracts bytes, clock, geometry, and rendering.                               |
+| Commit validates/stages a Snapshot candidate before exact old cleanup and atomic selection; only surviving Started attaches | Checked Create model; actual UI dual-plan installation, candidate-first carrier and generated mailbox traces        | fake carrier at each blocking response                                          | Carrier retirement cleanup is not a successful Detach or candidate-install claim.  |
+| Rapid switch cleanup/generation/first-frame/geometry gate                                                                   | `NativeTabSwitch.tla` plus deterministic core traces                                                                | real PTY active-token + Ready checkpoints                                       | This model is separate from Create/refresh and abstracts real pixels.              |
+| Refresh single-pending generation fence/identity/active preservation and navigator toggle                                   | `NativeClientRefreshFence.tla` plus deterministic stale-event tests                                                 | two-Client/process refresh witness                                              | No push or inter-read freshness.                                                   |
+| Move preserves the selected terminal and exact known commit                                                                 | `NativeClientMoveBarrier.tla`, mailbox/state, worker and actual NativeUi/outer retirement traces                    | two Linux cohort Move scenarios                                                 | PTY shell continuity does not independently prove absence of viewer reattachment.  |
+| Total setup termination                                                                                                     | fake monotonic clock at Empty/NeedSnapshot/Blocked/Busy and cleanup reserve boundaries                              | PTY uses named Ready/unavailable checkpoints, never sleep                       | Does not prove Host eventually responds successfully.                              |
+| Safe exact label rendering                                                                                                  | pure sanitizer/layout/backend byte tests                                                                            | PTY numeric labels and active marker                                            | OS font/pixel fidelity is excluded.                                                |
+| Platform dependency boundary                                                                                                | Windows target `check/test` for help/version/unavailability plus Cargo metadata assertion; Unix build/tests for TUI | Linux real PTY                                                                  | No Windows TUI claim.                                                              |
 
 Stateful generated tests use an in-package deterministic generator rather than a new runtime
 dependency. Stable seed corpus, maximum trace length, action/outcome coverage counters, and a

@@ -1,8 +1,8 @@
 use orchbee_workbench_protocol::{
-    MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, PanelNode, SiteId, Snapshot, Tab,
-    TerminalId, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId, WorkbenchProjectId,
-    WorkbenchRevision, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
-    WorkbenchWorkspaceId, WorkerId,
+    MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, PanelNode, PanelOrientation, SiteId,
+    Snapshot, Tab, TerminalId, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
+    WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId,
+    WorkbenchTabMoveDirection, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
 };
 
 mod closed;
@@ -118,6 +118,8 @@ pub(super) struct NativeSimpleTab {
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
     binding: NativeTerminalBinding,
+    panels: Box<[NativePanel]>,
+    tree: NativePanelTree,
 }
 
 impl NativeSimpleTab {
@@ -146,6 +148,186 @@ impl NativeSimpleTab {
 
     pub(super) fn binding(&self) -> &NativeTerminalBinding {
         &self.binding
+    }
+
+    pub(super) fn panel_count(&self) -> usize {
+        self.panels.len()
+    }
+
+    pub(super) fn panel(&self, index: usize) -> Option<&NativePanel> {
+        self.panels.get(index)
+    }
+
+    pub(super) fn panel_tree(&self) -> &NativePanelTree {
+        &self.tree
+    }
+
+    pub(super) fn panel_focus_target(
+        &self,
+        panel_index: usize,
+        direction: crate::client_view::PanelDirection,
+    ) -> Option<usize> {
+        self.tree.neighbor(panel_index, direction)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct NativePanel {
+    panel_id: WorkbenchPanelId,
+    presentation_id: TerminalPresentationId,
+    presentation_label: WorkbenchLabel,
+    binding: NativeTerminalBinding,
+}
+
+impl NativePanel {
+    #[cfg(test)]
+    pub(super) fn panel_id(&self) -> &WorkbenchPanelId {
+        &self.panel_id
+    }
+
+    #[cfg(test)]
+    pub(super) fn presentation_id(&self) -> &TerminalPresentationId {
+        &self.presentation_id
+    }
+
+    pub(crate) fn presentation_label(&self) -> &WorkbenchLabel {
+        &self.presentation_label
+    }
+
+    pub(super) fn binding(&self) -> &NativeTerminalBinding {
+        &self.binding
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum NativePanelTree {
+    Panel {
+        panel_index: usize,
+    },
+    Split {
+        first: Box<Self>,
+        second: Box<Self>,
+        first_slot_id: WorkbenchPanelSlotId,
+        second_slot_id: WorkbenchPanelSlotId,
+        orientation: PanelOrientation,
+        split_id: WorkbenchSplitId,
+    },
+}
+
+impl NativePanelTree {
+    pub(super) fn neighbor(
+        &self,
+        panel_index: usize,
+        direction: crate::client_view::PanelDirection,
+    ) -> Option<usize> {
+        match self {
+            Self::Panel { panel_index: _ } => None,
+            Self::Split {
+                first,
+                second,
+                orientation,
+                ..
+            } => {
+                let in_first = first.contains(panel_index);
+                let in_second = second.contains(panel_index);
+                if !in_first && !in_second {
+                    return None;
+                }
+                let cross_axis = match orientation {
+                    PanelOrientation::Horizontal => matches!(
+                        direction,
+                        crate::client_view::PanelDirection::Left
+                            | crate::client_view::PanelDirection::Right
+                    ),
+                    PanelOrientation::Vertical => matches!(
+                        direction,
+                        crate::client_view::PanelDirection::Up
+                            | crate::client_view::PanelDirection::Down
+                    ),
+                };
+                if cross_axis {
+                    match (in_first, direction) {
+                        (true, crate::client_view::PanelDirection::Right)
+                        | (true, crate::client_view::PanelDirection::Down) => {
+                            return second.first_leaf();
+                        }
+                        (false, crate::client_view::PanelDirection::Left)
+                        | (false, crate::client_view::PanelDirection::Up) => {
+                            return first.last_leaf();
+                        }
+                        _ => {}
+                    }
+                    match (in_second, direction) {
+                        (true, crate::client_view::PanelDirection::Left)
+                        | (true, crate::client_view::PanelDirection::Up) => {
+                            return first.last_leaf();
+                        }
+                        (false, crate::client_view::PanelDirection::Right)
+                        | (false, crate::client_view::PanelDirection::Down) => {
+                            return second.first_leaf();
+                        }
+                        _ => {}
+                    }
+                }
+                if in_first {
+                    first.neighbor(panel_index, direction)
+                } else {
+                    second.neighbor(panel_index, direction)
+                }
+            }
+        }
+    }
+
+    fn contains(&self, panel_index: usize) -> bool {
+        match self {
+            Self::Panel { panel_index: index } => *index == panel_index,
+            Self::Split { first, second, .. } => {
+                first.contains(panel_index) || second.contains(panel_index)
+            }
+        }
+    }
+
+    fn first_leaf(&self) -> Option<usize> {
+        match self {
+            Self::Panel { panel_index } => Some(*panel_index),
+            Self::Split { first, .. } => first.first_leaf(),
+        }
+    }
+
+    fn last_leaf(&self) -> Option<usize> {
+        match self {
+            Self::Panel { panel_index } => Some(*panel_index),
+            Self::Split { second, .. } => second.last_leaf(),
+        }
+    }
+
+    fn split_ids(&self, output: &mut Vec<WorkbenchSplitId>) {
+        if let Self::Split {
+            first,
+            second,
+            split_id,
+            ..
+        } = self
+        {
+            output.push(split_id.clone());
+            first.split_ids(output);
+            second.split_ids(output);
+        }
+    }
+
+    fn slot_ids(&self, output: &mut Vec<WorkbenchPanelSlotId>) {
+        if let Self::Split {
+            first,
+            second,
+            first_slot_id,
+            second_slot_id,
+            ..
+        } = self
+        {
+            output.extend([first_slot_id.clone(), second_slot_id.clone()]);
+            first.slot_ids(output);
+            second.slot_ids(output);
+        }
     }
 }
 
@@ -459,33 +641,69 @@ fn project_tab(tab: &Tab) -> Result<NativeSimpleTab, NativeProjectionError> {
     if tab.group_id.is_some() || tab.pinned {
         return Err(NativeProjectionError);
     }
-    let PanelNode::Panel {
-        child_presentations,
-        panel_id,
-        primary_presentation,
-    } = &tab.root
-    else {
-        return Err(NativeProjectionError);
-    };
-    if !child_presentations.is_empty() {
-        return Err(NativeProjectionError);
-    }
-    let binding = primary_presentation
-        .binding
-        .as_ref()
-        .ok_or(NativeProjectionError)?;
+    let mut panels = Vec::new();
+    let tree = project_panel_tree(&tab.root, &mut panels)?;
+    let primary = panels.first().ok_or(NativeProjectionError)?;
     Ok(NativeSimpleTab {
         tab_id: tab.tab_id.clone(),
         tab_label: WorkbenchLabel::parse(&tab.label).map_err(|_error| NativeProjectionError)?,
-        panel_id: panel_id.clone(),
-        presentation_id: primary_presentation.presentation_id.clone(),
-        presentation_label: WorkbenchLabel::parse(&primary_presentation.label)
-            .map_err(|_error| NativeProjectionError)?,
-        binding: NativeTerminalBinding {
-            worker_id: binding.worker_id.clone(),
-            terminal_id: binding.terminal_id.clone(),
-        },
+        panel_id: primary.panel_id.clone(),
+        presentation_id: primary.presentation_id.clone(),
+        presentation_label: primary.presentation_label.clone(),
+        binding: primary.binding.clone(),
+        panels: panels.into_boxed_slice(),
+        tree,
     })
+}
+
+fn project_panel_tree(
+    node: &PanelNode,
+    panels: &mut Vec<NativePanel>,
+) -> Result<NativePanelTree, NativeProjectionError> {
+    match node {
+        PanelNode::Panel {
+            child_presentations,
+            panel_id,
+            primary_presentation,
+        } => {
+            if !child_presentations.is_empty() {
+                return Err(NativeProjectionError);
+            }
+            let binding = primary_presentation
+                .binding
+                .as_ref()
+                .ok_or(NativeProjectionError)?;
+            let panel_index = panels.len();
+            panels.push(NativePanel {
+                panel_id: panel_id.clone(),
+                presentation_id: primary_presentation.presentation_id.clone(),
+                presentation_label: WorkbenchLabel::parse(&primary_presentation.label)
+                    .map_err(|_error| NativeProjectionError)?,
+                binding: NativeTerminalBinding {
+                    worker_id: binding.worker_id.clone(),
+                    terminal_id: binding.terminal_id.clone(),
+                },
+            });
+            Ok(NativePanelTree::Panel { panel_index })
+        }
+        PanelNode::Split {
+            children,
+            orientation,
+            split_id,
+        } => {
+            let [first, second] = children.as_ref();
+            let first_tree = project_panel_tree(&first.node, panels)?;
+            let second_tree = project_panel_tree(&second.node, panels)?;
+            Ok(NativePanelTree::Split {
+                first: Box::new(first_tree),
+                second: Box::new(second_tree),
+                first_slot_id: first.slot_id.clone(),
+                second_slot_id: second.slot_id.clone(),
+                orientation: *orientation,
+                split_id: split_id.clone(),
+            })
+        }
+    }
 }
 
 pub(super) fn validate_canonical_candidate(
@@ -545,11 +763,53 @@ pub(super) fn validate_retained_context(
 
 fn unique_structural_ids(tabs: &[NativeSimpleTab]) -> bool {
     tabs.iter().enumerate().all(|(index, tab)| {
-        tabs[..index].iter().all(|prior| {
+        tab.panels.iter().enumerate().all(|(panel_index, panel)| {
+            tab.panels[..panel_index].iter().all(|prior| {
+                prior.panel_id != panel.panel_id
+                    && prior.presentation_id != panel.presentation_id
+                    && prior.binding.terminal_id != panel.binding.terminal_id
+            })
+        }) && {
+            let mut split_ids = Vec::new();
+            tab.tree.split_ids(&mut split_ids);
+            split_ids
+                .iter()
+                .enumerate()
+                .all(|(id_index, id)| split_ids[..id_index].iter().all(|prior| prior != id))
+        } && {
+            let mut slot_ids = Vec::new();
+            tab.tree.slot_ids(&mut slot_ids);
+            slot_ids
+                .iter()
+                .enumerate()
+                .all(|(id_index, id)| slot_ids[..id_index].iter().all(|prior| prior != id))
+        } && tabs[..index].iter().all(|prior| {
             prior.tab_id != tab.tab_id
-                && prior.panel_id != tab.panel_id
-                && prior.presentation_id != tab.presentation_id
-                && prior.binding.terminal_id != tab.binding.terminal_id
+                && prior.panels.iter().all(|prior_panel| {
+                    tab.panels.iter().all(|panel| {
+                        prior_panel.panel_id != panel.panel_id
+                            && prior_panel.presentation_id != panel.presentation_id
+                            && prior_panel.binding.terminal_id != panel.binding.terminal_id
+                    })
+                })
+                && {
+                    let mut prior_split_ids = Vec::new();
+                    let mut split_ids = Vec::new();
+                    prior.tree.split_ids(&mut prior_split_ids);
+                    tab.tree.split_ids(&mut split_ids);
+                    prior_split_ids
+                        .iter()
+                        .all(|prior_id| split_ids.iter().all(|id| prior_id != id))
+                }
+                && {
+                    let mut prior_slot_ids = Vec::new();
+                    let mut slot_ids = Vec::new();
+                    prior.tree.slot_ids(&mut prior_slot_ids);
+                    tab.tree.slot_ids(&mut slot_ids);
+                    prior_slot_ids
+                        .iter()
+                        .all(|prior_id| slot_ids.iter().all(|id| prior_id != id))
+                }
         })
     })
 }
@@ -560,6 +820,8 @@ fn stable_member_except_tab_label(current: &NativeSimpleTab, candidate: &NativeS
         && current.presentation_id == candidate.presentation_id
         && current.presentation_label == candidate.presentation_label
         && current.binding == candidate.binding
+        && current.panels == candidate.panels
+        && current.tree == candidate.tree
 }
 
 #[cfg(test)]

@@ -42,7 +42,6 @@ pub(crate) enum BackendAction {
     MovePreviousTab,
     MoveNextTab,
     CreateTab,
-    MovePanelFocus(PanelDirection),
     SelectNextTab,
     SelectPreviousTab,
     SelectTab(u8),
@@ -147,7 +146,7 @@ impl ClientAction {
             Self::SelectTab(position) => Some(BackendAction::SelectTab(position)),
             Self::SelectPreviousContext => Some(BackendAction::SelectPreviousContext),
             Self::SelectNextContext => Some(BackendAction::SelectNextContext),
-            Self::MovePanelFocus(direction) => Some(BackendAction::MovePanelFocus(direction)),
+            Self::MovePanelFocus(_) => None,
             Self::ToggleBusinessSidebar
             | Self::ConfirmClose
             | Self::CancelClose
@@ -317,22 +316,27 @@ impl ClientView {
                 let number = character as u8 - b'0';
                 (ClientAction::SelectTab(number), ShellCommand::None)
             }
-            ClientKey::Plain('h') => self.unavailable_panel(PanelDirection::Left),
-            ClientKey::Plain('j') => self.unavailable_panel(PanelDirection::Down),
-            ClientKey::Plain('k') => self.unavailable_panel(PanelDirection::Up),
-            ClientKey::Plain('l') => self.unavailable_panel(PanelDirection::Right),
+            ClientKey::Plain('h') => (
+                ClientAction::MovePanelFocus(PanelDirection::Left),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('j') => (
+                ClientAction::MovePanelFocus(PanelDirection::Down),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('k') => (
+                ClientAction::MovePanelFocus(PanelDirection::Up),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('l') => (
+                ClientAction::MovePanelFocus(PanelDirection::Right),
+                ShellCommand::None,
+            ),
             ClientKey::Other | ClientKey::Plain(_) => {
                 self.notice = Some(Notice::UnknownPrefix);
                 (ClientAction::UnknownPrefix, ShellCommand::None)
             }
         }
-    }
-
-    fn unavailable_panel(&mut self, direction: PanelDirection) -> (ClientAction, ShellCommand) {
-        self.notice = Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(
-            direction,
-        )));
-        (ClientAction::MovePanelFocus(direction), ShellCommand::None)
     }
 
     fn toggle_sidebar(&mut self) {

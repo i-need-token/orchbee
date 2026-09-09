@@ -71,20 +71,21 @@ The native Session renders the active context's ordered Tabs and canonical label
 owns its own active selection, navigator and viewport; another Client's new Tabs become visible on
 explicit refresh. These controls use the existing `Ctrl+B` prefix:
 
-| Key       | Connected native behavior                                                                          |
-| --------- | -------------------------------------------------------------------------------------------------- |
-| `c`       | Request one Server-owned Tab creation, then select its validated committed member.                 |
-| `n` / `p` | Select the next / previous Tab in the current Client snapshot.                                     |
-| `1` … `9` | Select that position when present.                                                                 |
-| `[` / `]` | Select the previous / next standalone or Workspace context in Server navigation order.             |
-| `a`       | Create a Workspace in an existing or new Project through separate explicit submissions.            |
-| `e`       | Configure the first directory of the current Empty, unconfigured Workspace.                        |
-| `r` / `R` | Rename the current Workspace / its Project; standalone has neither target.                         |
-| `<` / `>` | Move the active Tab before / after its neighbor, wrapping at either boundary.                      |
-| `,`       | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels. |
-| `x`       | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                  |
-| `w`       | Open the navigator and refresh shared Tabs while preserving the active terminal identity.          |
-| `q` / `d` | Close this Client while retained execution continues.                                              |
+| Key                   | Connected native behavior                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------- |
+| `c`                   | Request one Server-owned Tab creation, then select its validated committed member.                 |
+| `n` / `p`             | Select the next / previous Tab in the current Client snapshot.                                     |
+| `1` … `9`             | Select that position when present.                                                                 |
+| `[` / `]`             | Select the previous / next standalone or Workspace context in Server navigation order.             |
+| `a`                   | Create a Workspace in an existing or new Project through separate explicit submissions.            |
+| `e`                   | Configure the first directory of the current Empty, unconfigured Workspace.                        |
+| `r` / `R`             | Rename the current Workspace / its Project; standalone has neither target.                         |
+| `<` / `>`             | Move the active Tab before / after its neighbor, wrapping at either boundary.                      |
+| `,`                   | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels. |
+| `x`                   | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                  |
+| `w`                   | Open the navigator and refresh shared Tabs while preserving the active terminal identity.          |
+| `h` / `j` / `k` / `l` | Move local focus to the neighboring Panel when the active Tab has a split tree.                    |
+| `q` / `d`             | Close this Client while retained execution continues.                                              |
 
 [Context selection](docs/native-context-selection.md) preserves each retained terminal while
 switching location. The navigator and Workbench title show the current Project/Workspace. Empty
@@ -109,7 +110,8 @@ owns admission, geometry, feedback, failure, recovery and evidence bounds. Close
 lifecycle grant, including for a view-only Client. Closing the last Tab leaves Empty; explicit `c`
 creates a new terminal, while ordinary Client exit preserves it for later bare Open. A peer whose
 terminal was closed uses explicit `w` to recover the current membership. Linux process evidence
-covers this sequence; Panel operations and production restart recovery remain unfinished.
+covers this sequence. Canonical split-panel projection and local panel focus are integrated for
+ungrouped, unpinned Tabs; production restart recovery remains unfinished.
 
 ## Private local Client transport
 
@@ -155,8 +157,11 @@ The native executor retains that identity immediately after Attach, before setup
 superseded. Poll, control, projection feedback and cleanup use that captured identity; bounded busy
 retries preserve it while refreshing only the permitted request identity and control sequence.
 Projection feedback is checked against its owning attachment before submission, never retargeted.
-`LocalClient` stores no implicit current viewer. The native UI still selects one viewer at a time;
-the Server's multiple-viewer routing foundation does not itself provide native Panel splitting.
+`LocalClient` stores no implicit current viewer. The native UI still attaches one viewer at a time;
+split Tabs retain every validated leaf binding and render the active leaf's live frame while local
+`h`/`j`/`k`/`l` focus moves through the canonical tree. Inactive leaves retain layout and identity,
+but not a second live viewer frame. The Server's multiple-viewer routing foundation therefore does
+not yet provide simultaneous multi-viewer composition inside one native Client.
 
 ### Submission correctness record
 
@@ -214,8 +219,8 @@ actions are handled by the native Session described above.
 | Admission   | The staged Unix adapter requires inherited stdin and stdout to be TTYs with the same terminal-device identity, duplicates only those admitted descriptors, and reads cell and pixel dimensions from the duplicated stdout descriptor. It has no `/dev/tty`, global Crossterm size, or process fallback.                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Lifecycle   | One staged guard owns raw mode, the alternate screen, and cursor visibility. It marks cleanup responsibility before an operation may partially succeed, retains each flag until its inverse succeeds, and attempts each failed inverse at most twice before returning one aggregate error. A process-lifetime singleton panic hook dispatches only when the panicking thread is the active guard's owner, so another thread cannot clear a setup lease before its terminal state is saved; guard drop does not remove a later hook. Normal return, initialization/event/draw failure, owner-thread panic, and each of `SIGHUP`/`SIGINT`/`SIGQUIT`/`SIGTERM` have deterministic restoration or signal-observation evidence. |
 | Client View | One invocation owns prefix mode, viewport class, sidebar projection, active overlay, and transient notice. It owns no shared Tab, Panel, Workspace, Site, or Terminal fact and persists nothing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Layout      | At 96 columns or wider, a 30-column Orchbee business sidebar is docked beside the Workbench region. Narrower viewports keep the Workbench full width and expose the sidebar only as a left overlay. The Workbench projection contains a Tab strip and Panel/Terminal region but labels them as unavailable rather than fabricating shared data.                                                                                                                                                                                                                                                                                                                                                                            |
-| Input       | The staged adapter polls and reads at most 4,096 raw bytes at a time from the admitted stdin descriptor. Every completed read is dispatched in order before any subsequent signal, viewport query, or resize decision can terminate that loop iteration. `Ctrl+B` enters visible prefix mode. `b`, `w`, `?`, `q`, and `d` drive only local shell state or exit. Typed Tab and Panel actions remain unavailable. Outside prefix mode, all bytes—including `Ctrl+C`, `Ctrl+D`, escape sequences, UTF-8, and input while an overlay is visible—reach an injectable terminal-input port in order; prefix then `Ctrl+B` forwards one literal byte.                                                                              |
+| Layout      | At 96 columns or wider, a 30-column Orchbee business sidebar is docked beside the Workbench region. Narrower viewports keep the Workbench full width and expose the sidebar only as a left overlay. The connected Workbench projection contains a Tab strip and canonical Panel tree; split leaves retain identity and layout, while the active leaf receives the current terminal frame.                                                                                                                                                                                                                                                                                                                                  |
+| Input       | The staged adapter polls and reads at most 4,096 raw bytes at a time from the admitted stdin descriptor. Every completed read is dispatched in order before any subsequent signal, viewport query, or resize decision can terminate that loop iteration. `Ctrl+B` enters visible prefix mode. `b`, `w`, `?`, `q`, and `d` drive local shell state or exit; connected `c`, Tab selection, and `h`/`j`/`k`/`l` actions are handled by the Native Session. Outside prefix mode, all bytes—including `Ctrl+C`, `Ctrl+D`, escape sequences, UTF-8, and input while an overlay is visible—reach an injectable terminal-input port in order; prefix then `Ctrl+B` forwards one literal byte.                                      |
 | Outcome     | The shell consumes its prepared Session. Bootstrap owns activation; Server owns terminal identity; Host owns terminal lifetime. The shell does not mutate Workbench state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 The deterministic Client View transition model is:

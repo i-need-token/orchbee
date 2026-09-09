@@ -593,8 +593,8 @@ Move 邮箱准入、传输截止时间、精确 Move 提交置换或活动 PTY �
 
 ## 范围与归属
 
-本文档规定原生 Client 如何使用规范 OBWP `tab.create` 和 `tab.move` 契约，以及
-`Ctrl+B c`、`<`、`>`、`n`、`p`、`1` 至 `9` 和 `w` 操作。它保留以下现有约束：一个顺序处理的已准入
+本文档规定原生 Client 如何使用规范 OBWP `tab.create`、`tab.move` 契约及 Panel 树投影，以及
+`Ctrl+B c`、`<`、`>`、`n`、`p`、`1` 至 `9`、`h`、`j`、`k`、`l` 和 `w` 操作。它保留以下现有约束：一个顺序处理的已准入
 Client 载体、一个 OBCS 查看器、至多一个兼管输入和尺寸调整的控制器、有界的命令/事件存储，
 以及 TUI 恢复边界。
 
@@ -602,8 +602,7 @@ Server 所有的 Workbench 快照仍是 Tab 顺序、标签、Panel 与 Presenta
 唯一事实来源。单次原生调用只拥有自身缓存的严格投影、本地活动 Tab ID、挂接代次、导航器状态、
 尺寸观测、终端投影和临时状态。本地选择绝不写入或推进 Workbench 修订号。
 
-以下内容仍不在范围内：固定/分组、Split 或子 Presentation
-支持、持久化、推送/增量订阅、远程传输、重连、隐藏载体、载体多路复用，以及
+以下内容仍不在范围内：固定/分组或子 Presentation 支持、持久化、推送/增量订阅、远程传输、重连、隐藏载体、载体多路复用，以及
 在一个 Client 内组合多个查看器。
 
 ## 纯函数严格投影
@@ -627,6 +626,27 @@ struct NativeSimpleTab {
     presentation_id: TerminalPresentationId,
     presentation_label: WorkbenchLabel,
     binding: NativeTerminalBinding,
+    panels: Box<[NativePanel]>,
+    tree: NativePanelTree,
+}
+
+struct NativePanel {
+    panel_id: WorkbenchPanelId,
+    presentation_id: TerminalPresentationId,
+    presentation_label: WorkbenchLabel,
+    binding: NativeTerminalBinding,
+}
+
+enum NativePanelTree {
+    Panel { panel_index: usize },
+    Split {
+        first: Box<NativePanelTree>,
+        second: Box<NativePanelTree>,
+        first_slot_id: WorkbenchPanelSlotId,
+        second_slot_id: WorkbenchPanelSlotId,
+        orientation: PanelOrientation,
+        split_id: WorkbenchSplitId,
+    },
 }
 
 struct NativeTerminalBinding {
@@ -651,9 +671,11 @@ fn project_native_standalone_tabs(
 启动投影器要求恰好存在一个 ID 等于 `navigation.standaloneTerminalContextId` 的 Terminal Context。
 当前上下文投影器改为验证已选择的 canonical 位置。其他 Project/Workspace 的导航元数据保留，
 非活动上下文的 Tab 布局不在这里验证。活动上下文不得包含分组，并可包含恰好
-0 至 256 个有序 Tab。每个 Tab 都必须未分组且未固定，拥有一个 Panel 根节点，没有子
-Presentation，并拥有一个已绑定的主 Presentation。只要存在一个不支持的成员，就拒绝整个
-投影；投影器绝不筛选、重排或选择第一个可挂接成员。两个标签均原样保留，包括重复值和空白。
+0 至 256 个有序 Tab。每个 Tab 都必须未分组且未固定，拥有一个 Panel 根节点或递归二叉
+Panel 分屏树，没有子 Presentation，并且每个叶子都有一个已绑定的主 Presentation。只要存在一个不支持的成员，就拒绝整个
+投影；投影器绝不筛选、重排或选择第一个可挂接成员。两个标签均原样保留，包括重复值和空白，
+并保留树中的每个 Panel、split、slot、方向、Presentation 和 terminal identity。所有叶子的
+Panel、Presentation 和 terminal ID 必须唯一；split 与 slot ID 必须在整个活动上下文投影中唯一。
 
 另外两个纯验证器负责替换缓存：
 
@@ -696,6 +718,20 @@ fn validate_created_tab(
 
 纯投影器接受空的独立上下文，从而完整覆盖 0..256 一致性。冷启动和每次活动会话刷新各自额外
 要求当前状态对应的活动成员不变量。
+
+## Panel 投影与本地焦点
+
+已接受的 `NativePanelTree` 是规范 PanelNode 的严格深度优先表示。叶子顺序就是挂接状态使用的
+顺序；树保留分屏方向和两侧 slot identity，因此后续快照不能静默替换叶子或改变 Tab 形状。
+分屏不会创建第二个 viewer：Client 在缓存中保留所有经过验证的叶子 binding，但只有当前叶子
+拥有已附着的 viewer 和终端帧。
+
+在已连接 Native Session 中，`Ctrl+B h`、`j`、`k` 和 `l` 是 Client 本地焦点操作。当方向上存在
+相邻叶子时，Client 为同一个 Tab 分配新的挂接代次，选择该叶子的精确 binding 与保留的来源状态，
+并运行既有的 Switch 清理和 Attach 生命周期。它绝不写入 Workbench 修订，也绝不提交 `panel.split`。
+单个 Panel 或边界处没有相邻叶子时，本地空操作。渲染器按规范树划分区域、标记所选叶子，并只在
+该处绘制当前实时帧；非活动叶子保留标签、身份和几何，但在获得焦点前不显示第二个实时帧。
+一个 Client 内的同时多 viewer 组合仍不在本切片范围内。
 
 ## 启动
 
@@ -857,7 +893,7 @@ Tab 数量为零时没有可选目标。
 对只含一个 Tab 的缓存，n/p 都解析到同一成员：Ready 是空操作，
 RetryableAttachUnavailable 仅在没有待结算刷新时才是显式重试。有待结算刷新时，所有其他条件
 允许选择的阶段都先应用同目标空操作守卫。队列已满或越界操作不会关闭已经打开的导航器。
-Panel 按键仍不可用。
+Panel 按键沿活动 Tab 的分屏树移动本地焦点；单个 Panel 或没有方向邻居时为空操作。
 
 ## Create 是排空 FIFO 的屏障
 
@@ -1525,18 +1561,20 @@ Started，还要求精确的请求尺寸。它返回明确的 `DefinitelyNotSubm
 下方矩阵概括当前 Client 证据。上方 Move 专属记录及下方细化检查扩展原有的 Create/选择/Refresh
 模型；仅有 append-only 检查不能建立重排保留声明。
 
-| 声明                                                                                   | 最低层级证据                                                                                      | 补充见证                                              | 限制                                               |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------- |
-| 严格的 0..256 投影与保留身份的刷新                                                     | 穷尽的分区/单元用例和从语料库派生的固定样例                                                       | 生成的 create/rename/move 历史及精确提交置换检查      | 更高修订允许 Tab 重排及改名；不可变成员事实保留。  |
-| 选择的循环/边界/同目标/重试与原子拒绝                                                  | 纯选择表测试                                                                                      | 使用稳定种子、语义缩减和重放文本生成的邮箱轨迹        | 只报告有限的生成轨迹规模，并非普适证明。           |
-| Create 在提交前排空旧 Poll/Feedback，提交前拒绝会恢复                                  | `NativeClientCreateBarrier.tla` 加模拟载体轨迹                                                    | 确定性的旧帧/绘制/反馈检查点轨迹                      | TLA 抽象字节、时钟、尺寸和渲染。                   |
-| 提交后先验证/暂存 Snapshot 候选，再精确清理旧目标并原子选择；只有存活的 Started 才挂接 | Create 模型已检查；实际 UI 双 plan 安装、candidate-first carrier 和 generated mailbox traces      | 每个阻塞响应处的模拟载体                              | 载体退役清理不等同于声称 Detach 成功或候选已安装。 |
-| 快速切换的清理/代次/首帧/尺寸门                                                        | `NativeTabSwitch.tla` 加确定性核心轨迹                                                            | 真实 PTY 活动标记与 Ready 检查点                      | 该模型与 Create/刷新分离，并抽象真实像素。         |
-| 刷新的单一待处理代次栅栏/身份/活动项保留与导航器开关                                   | `NativeClientRefreshFence.tla` 加确定性过时事件测试                                               | 双 Client/进程刷新见证                                | 不声明推送或读取之间的新鲜度。                     |
-| Move 保留所选终端及精确已知提交                                                        | `NativeClientMoveBarrier.tla`、邮箱/状态、worker 及真实 NativeUi/外层退役轨迹                     | 两项 Linux cohort Move 场景                           | PTY shell 连续性本身不证明查看器未重新附着。       |
-| 整个建立流程终止                                                                       | 在 Empty/NeedSnapshot/Blocked/Busy 和清理预留边界使用模拟单调时钟                                 | PTY 使用具名的 Ready/unavailable 检查点，绝不休眠等待 | 不证明 Host 最终会成功响应。                       |
-| 安全且精确的标签渲染                                                                   | 纯净化器/布局/后端字节测试                                                                        | PTY 数字标签与活动标记                                | 不包含操作系统字体/像素保真度。                    |
-| 平台依赖边界                                                                           | Windows 目标上针对帮助/版本/不可用情形的 `check/test` 加 Cargo 元数据断言；Unix 构建/测试覆盖 TUI | Linux 真实 PTY                                        | 不声明 Windows TUI。                               |
+| 声明                                                                                   | 最低层级证据                                                                                      | 补充见证                                              | 限制                                                               |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
+| 严格的 0..256 投影与保留身份的刷新                                                     | 穷尽的分区/单元用例和从语料库派生的固定样例                                                       | 生成的 create/rename/move 历史及精确提交置换检查      | 更高修订允许 Tab 重排及改名；不可变成员事实保留。                  |
+| 规范分屏树投影保留叶子/split/slot 身份与方向                                           | `projects_split_tree_and_directional_leaf_neighbors` 及严格结构 ID 检查                           | 通过真实 `NativeTabView` 的规范快照投影               | 只接受未分组、未固定且每个叶子均有主 Presentation binding 的 Tab。 |
+| 本地 Panel 焦点保留 Tab，并切换到精确的所选叶子 binding                                | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` 及 NativeUi Switch 准入  | 既有 Switch 清理/Attach 生命周期和渲染器树遍历        | 一次只附着一个 viewer；非活动叶子不显示第二个实时帧。              |
+| 选择的循环/边界/同目标/重试与原子拒绝                                                  | 纯选择表测试                                                                                      | 使用稳定种子、语义缩减和重放文本生成的邮箱轨迹        | 只报告有限的生成轨迹规模，并非普适证明。                           |
+| Create 在提交前排空旧 Poll/Feedback，提交前拒绝会恢复                                  | `NativeClientCreateBarrier.tla` 加模拟载体轨迹                                                    | 确定性的旧帧/绘制/反馈检查点轨迹                      | TLA 抽象字节、时钟、尺寸和渲染。                                   |
+| 提交后先验证/暂存 Snapshot 候选，再精确清理旧目标并原子选择；只有存活的 Started 才挂接 | Create 模型已检查；实际 UI 双 plan 安装、candidate-first carrier 和 generated mailbox traces      | 每个阻塞响应处的模拟载体                              | 载体退役清理不等同于声称 Detach 成功或候选已安装。                 |
+| 快速切换的清理/代次/首帧/尺寸门                                                        | `NativeTabSwitch.tla` 加确定性核心轨迹                                                            | 真实 PTY 活动标记与 Ready 检查点                      | 该模型与 Create/刷新分离，并抽象真实像素。                         |
+| 刷新的单一待处理代次栅栏/身份/活动项保留与导航器开关                                   | `NativeClientRefreshFence.tla` 加确定性过时事件测试                                               | 双 Client/进程刷新见证                                | 不声明推送或读取之间的新鲜度。                                     |
+| Move 保留所选终端及精确已知提交                                                        | `NativeClientMoveBarrier.tla`、邮箱/状态、worker 及真实 NativeUi/外层退役轨迹                     | 两项 Linux cohort Move 场景                           | PTY shell 连续性本身不证明查看器未重新附着。                       |
+| 整个建立流程终止                                                                       | 在 Empty/NeedSnapshot/Blocked/Busy 和清理预留边界使用模拟单调时钟                                 | PTY 使用具名的 Ready/unavailable 检查点，绝不休眠等待 | 不证明 Host 最终会成功响应。                                       |
+| 安全且精确的标签渲染                                                                   | 纯净化器/布局/后端字节测试                                                                        | PTY 数字标签与活动标记                                | 不包含操作系统字体/像素保真度。                                    |
+| 平台依赖边界                                                                           | Windows 目标上针对帮助/版本/不可用情形的 `check/test` 加 Cargo 元数据断言；Unix 构建/测试覆盖 TUI | Linux 真实 PTY                                        | 不声明 Windows TUI。                                               |
 
 有状态生成测试使用包内的确定性生成器，而不增加新的运行时依赖。测试会记录稳定种子语料、最大
 轨迹长度、操作/结果覆盖计数器和规范序列化轨迹。发生失败时，测试框架先移除操作片段，再缩小

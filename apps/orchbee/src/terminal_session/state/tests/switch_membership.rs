@@ -1,4 +1,5 @@
 use super::*;
+use crate::client_view::PanelDirection;
 
 fn admit(state: &mut NativeSessionState, index: usize, generation: u64) -> AttachmentKey {
     let key = AttachmentKey::new(generation, state.tab(index).unwrap().tab_id().clone());
@@ -11,6 +12,54 @@ fn admit(state: &mut NativeSessionState, index: usize, generation: u64) -> Attac
         .unwrap();
     assert!(state.begin_switch(target));
     key
+}
+
+#[test]
+fn panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding() {
+    let mut source = super::snapshot(1, 1, None);
+    source.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: super::tab(0).root.clone(),
+                slot_id: WorkbenchPanelSlotId::parse(&super::id(2_001)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&super::id(2_010)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(PresentationBinding {
+                            terminal_id: TerminalId::parse(&super::id(2_012)).unwrap(),
+                            worker_id: WorkerId::parse(&super::id(2_011)).unwrap(),
+                        }),
+                        label: "peer".into(),
+                        presentation_id: TerminalPresentationId::parse(&super::id(2_013)).unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&super::id(2_014)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&super::id(2_020)).unwrap(),
+    };
+    let mut state =
+        super::ready_with_cache(super::project_native_standalone_tabs(&source).unwrap());
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    let target = state
+        .plan_panel_focus(PanelDirection::Right, 2, deadlines)
+        .unwrap();
+    assert_eq!(target.selected().index(), 0);
+    assert_eq!(target.selected().panel_index(), 1);
+    assert_eq!(
+        target.binding().terminal_id(),
+        &TerminalId::parse(&super::id(2_012)).unwrap()
+    );
+    assert!(state.begin_switch(target));
+    let marker = state.desired().unwrap().clone();
+    let fresh = super::install_switch_candidate(&mut state, &marker);
+    assert_eq!(state.desired(), Some(&fresh));
+    assert_eq!(state.active().unwrap().panel_index(), 1);
+    assert!(state.invariant_holds());
 }
 
 #[test]

@@ -106,30 +106,22 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
         (
             ClientKey::Plain('h'),
             ClientAction::MovePanelFocus(PanelDirection::Left),
-            Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(
-                PanelDirection::Left,
-            ))),
+            None,
         ),
         (
             ClientKey::Plain('j'),
             ClientAction::MovePanelFocus(PanelDirection::Down),
-            Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(
-                PanelDirection::Down,
-            ))),
+            None,
         ),
         (
             ClientKey::Plain('k'),
             ClientAction::MovePanelFocus(PanelDirection::Up),
-            Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(
-                PanelDirection::Up,
-            ))),
+            None,
         ),
         (
             ClientKey::Plain('l'),
             ClientAction::MovePanelFocus(PanelDirection::Right),
-            Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(
-                PanelDirection::Right,
-            ))),
+            None,
         ),
     ];
 

@@ -2,10 +2,10 @@ use super::*;
 use crate::client_view::ClientAction;
 use orchbee_client_server_protocol::ControllerId;
 use orchbee_workbench_protocol::{
-    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, Snapshot, Tab,
-    TerminalContext, TerminalId, TerminalPresentationId, WorkbenchPanelId,
-    WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry, WorkbenchTerminalUnavailableReason,
-    WorkerId,
+    Navigation, PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding,
+    ProtocolVersion, Snapshot, Tab, TerminalContext, TerminalId, TerminalPresentationId,
+    WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchSplitId, WorkbenchTerminalFailureReason,
+    WorkbenchTerminalGeometry, WorkbenchTerminalUnavailableReason, WorkerId,
 };
 
 mod context_selection;

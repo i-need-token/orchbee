@@ -63,20 +63,21 @@ Linux 是唯一已有公共启动进程证据的平台；尚不承诺发布性�
 原生 Session 呈现当前上下文的有序 Tab 和 canonical 标签。每个 Client 独立拥有活动选择、
 navigator 与 viewport；另一 Client 新建的 Tab 在显式刷新后可见。以下操作沿用 `Ctrl+B` 前缀：
 
-| 按键      | 已连接原生行为                                                      |
-| --------- | ------------------------------------------------------------------- |
-| `c`       | 请求一次 Server 拥有的 Tab 创建，再选择已验证的提交成员。           |
-| `n` / `p` | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                  |
-| `1` … `9` | 该位置存在时选择它。                                                |
-| `[` / `]` | 按 Server 导航顺序选择上一个 / 下一个独立上下文或 Workspace。       |
-| `a`       | 通过分步显式提交，在已有或新建 Project 中创建 Workspace。           |
-| `e`       | 配置当前尚未配置且为空的 Workspace 的首个目录。                     |
-| `r` / `R` | 重命名当前 Workspace / 其所属 Project；standalone 没有这两种目标。  |
-| `<` / `>` | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                      |
-| `,`       | 编辑所选 Tab 的共享 label；首次完整绘制后 Enter 提交，Escape 取消。 |
-| `x`       | 确认关闭所选 Tab 对所有已连接 Client 的执行，或取消。               |
-| `w`       | 打开 navigator 并刷新共享 Tab，保留活动终端身份。                   |
-| `q` / `d` | 关闭此 Client，保留的执行继续运行。                                 |
+| 按键                  | 已连接原生行为                                                      |
+| --------------------- | ------------------------------------------------------------------- |
+| `c`                   | 请求一次 Server 拥有的 Tab 创建，再选择已验证的提交成员。           |
+| `n` / `p`             | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                  |
+| `1` … `9`             | 该位置存在时选择它。                                                |
+| `[` / `]`             | 按 Server 导航顺序选择上一个 / 下一个独立上下文或 Workspace。       |
+| `a`                   | 通过分步显式提交，在已有或新建 Project 中创建 Workspace。           |
+| `e`                   | 配置当前尚未配置且为空的 Workspace 的首个目录。                     |
+| `r` / `R`             | 重命名当前 Workspace / 其所属 Project；standalone 没有这两种目标。  |
+| `<` / `>`             | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                      |
+| `,`                   | 编辑所选 Tab 的共享 label；首次完整绘制后 Enter 提交，Escape 取消。 |
+| `x`                   | 确认关闭所选 Tab 对所有已连接 Client 的执行，或取消。               |
+| `w`                   | 打开 navigator 并刷新共享 Tab，保留活动终端身份。                   |
+| `h` / `j` / `k` / `l` | 当前 Tab 有分屏树时，将本地焦点移到相邻 Panel。                     |
+| `q` / `d`             | 关闭此 Client，保留的执行继续运行。                                 |
 
 [上下文选择](docs/native-context-selection.zh-CN.md) 在切换位置时保留各终端的执行。
 导航器和 Workbench 标题显示当前 Project/Workspace。可以进入和离开空 Workspace；只有显式 `c`
@@ -96,7 +97,8 @@ Ctrl+U 清空草稿。已知 Rename 提交但投影不可用时，同样通过 `
 [原生 Session 契约](docs/native-tab-session.zh-CN.md) 定义准入、尺寸、反馈、失败、恢复与证据边界。
 Close 要求独立生命周期授权，只读 Client 也适用。关闭最后一个 Tab 后留下 Empty；显式 `c`
 创建新终端，普通 Client 退出则保留该终端供后续裸 Open 使用。终端被关闭的 peer 通过显式 `w`
-恢复当前成员关系。Linux 进程证据覆盖此流程；Panel 操作和生产重启恢复仍未完成。
+恢复当前成员关系。Linux 进程证据覆盖此流程。未分组、未固定 Tab 的规范分屏投影与本地面板焦点
+已经接入；生产重启恢复仍未完成。
 
 ## 私有本机 Client transport
 
@@ -136,7 +138,10 @@ Session 丢失后的 cleanup 可超出单次提交 deadline。
 Poll、控制、projection feedback 和 cleanup 都使用这个已捕获的身份；有界 busy 重试保留它，
 只更新契约允许刷新的 request identity 和 control sequence。提交前验证 projection feedback
 属于其 attachment，绝不重新指定目标。`LocalClient` 不保存隐式的当前 viewer。
-原生 UI 仍一次选择一个 viewer；Server 的多 viewer 路由基础本身不提供原生 Panel 分屏。
+原生 UI 仍一次附着一个 viewer；分屏 Tab 保留每个经过验证的叶子 binding，并在本地通过
+`h`/`j`/`k`/`l` 沿规范树移动焦点，当前叶子显示实时帧。非活动叶子保留布局和身份，但不会
+保留第二个实时 viewer 帧。因此 Server 的多 viewer 路由基础尚未在一个原生 Client 内提供同时
+组合多个 viewer 的能力。
 
 ### 提交正确性记录
 
@@ -192,8 +197,8 @@ Application-private shell adapter 拥有以下终端与呈现边界。裸 Linux 
 | 准入        | 已暂存的 Unix adapter 要求继承的 stdin 与 stdout 都是 TTY，且具有相同 terminal-device identity；它只复制这些已准入 descriptor，并从复制后的 stdout descriptor 读取 cell 与 pixel dimension。它没有 `/dev/tty`、Crossterm global size 或 process fallback。                                                                                                                                                                                                                                                                                                                                                       |
 | 生命周期    | 一个已暂存 guard 拥有 raw mode、alternate screen 与 cursor visibility。它会在 operation 可能部分成功前标记 cleanup responsibility，在 inverse 成功前保留每个 flag，并为每个失败的 inverse 最多尝试两次，随后返回一个 aggregate error。Process-lifetime singleton panic hook 只在发生 panic 的 thread 是 active guard owner 时派发，因此其他 thread 无法在保存 terminal state 前清除 setup lease；guard drop 不会移除后来安装的 hook。正常返回、initialization/event/draw failure、owner-thread panic，以及 `SIGHUP`/`SIGINT`/`SIGQUIT`/`SIGTERM` 中的每一种，都有确定性 restoration 或 signal-observation 证据。 |
 | Client View | 每个 invocation 拥有 prefix mode、viewport class、sidebar projection、active overlay 与 transient notice。它不拥有任何共享 Tab、Panel、Workspace、Site 或 Terminal fact，也不持久化任何内容。                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 布局        | 96 列及以上时，30 列 Orchbee business sidebar 停靠在 Workbench region 左侧。更窄 viewport 让 Workbench 占满宽度，sidebar 只作为左侧 overlay 显示。Workbench projection 包含 Tab strip 与 Panel/Terminal region，但会将其标记为不可用，而不会伪造共享数据。                                                                                                                                                                                                                                                                                                                                                       |
-| 输入        | 已暂存 adapter 每次最多从已准入 stdin descriptor poll 并读取 4,096 个 raw byte。每次完整 read 都会先依序 dispatch，之后才允许后续 signal、viewport query 或 resize decision 结束本轮 loop。`Ctrl+B` 进入可见 prefix mode。`b`、`w`、`?`、`q` 与 `d` 只驱动本地 shell state 或退出。Typed Tab 与 Panel action 保持不可用。在 prefix mode 外，所有 byte——包括 `Ctrl+C`、`Ctrl+D`、escape sequence、UTF-8，以及 overlay 可见时的输入——都会依序到达可注入 terminal-input port；prefix 后的 `Ctrl+B` 会 forwarding 一个 literal byte。                                                                                |
+| 布局        | 96 列及以上时，30 列 Orchbee business sidebar 停靠在 Workbench region 左侧。更窄 viewport 让 Workbench 占满宽度，sidebar 只作为左侧 overlay 显示。已连接的 Workbench projection 包含 Tab strip 和规范 Panel 树；分屏叶子保留身份与布局，当前叶子接收终端帧。                                                                                                                                                                                                                                                                                                                                                     |
+| 输入        | 已暂存 adapter 每次最多从已准入 stdin descriptor poll 并读取 4,096 个 raw byte。每次完整 read 都会先依序 dispatch，之后才允许后续 signal、viewport query 或 resize decision 结束本轮 loop。`Ctrl+B` 进入可见 prefix mode。`b`、`w`、`?`、`q` 与 `d` 驱动本地 shell state 或退出；已连接的 `c`、Tab 选择和 `h`/`j`/`k`/`l` action 由 Native Session 处理。在 prefix mode 外，所有 byte——包括 `Ctrl+C`、`Ctrl+D`、escape sequence、UTF-8，以及 overlay 可见时的输入——都会依序到达可注入 terminal-input port；prefix 后的 `Ctrl+B` 会 forwarding 一个 literal byte。                                                |
 | 结果        | Shell 消费准备好的 Session。Bootstrap 拥有激活，Server 拥有终端身份，Host 拥有终端生命周期。Shell 不改变 Workbench 状态。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 确定性 Client View transition model 如下：
@@ -204,7 +209,7 @@ Application-private shell adapter 拥有以下终端与呈现边界。裸 Linux 
 | Normal + 其他 byte，无论 overlay 是否存在      | 保留本地 view state，并将确切、有序的 byte 提供给 terminal-input port。Unavailable port 会在无副作用的情况下拒绝，已暂存 renderer 会报告 input 未发送。                                                              |
 | Prefix + `b`                                   | 离开 Prefix，并为此 Client View 切换停靠的宽屏 sidebar 或窄屏 sidebar overlay。                                                                                                                                      |
 | Prefix + `w` 或 `?`                            | 离开 Prefix，并在本地打开 Workbench navigator 或 shortcut-help overlay。                                                                                                                                             |
-| Prefix + `c`、`n`、`p`、`1` … `9` 或 `h/j/k/l` | 离开 Prefix，保持共享状态不变，并把映射后的 backend-dependent action 显示为不可用；不提交 command。                                                                                                                  |
+| Prefix + `c`、`n`、`p`、`1` … `9` 或 `h/j/k/l` | 离开 Prefix；已连接 Session 执行对应的 Tab 或本地 Panel 焦点操作，未连接 fallback 保持共享状态不变并显示不可用；不由 shell fallback 提交 command。                                                                   |
 | Prefix + `Ctrl+B`                              | 离开 Prefix，并向 terminal-input port 提供一个 literal `Ctrl+B` event。                                                                                                                                              |
 | Prefix + `q` 或 `d`                            | 离开 Prefix，并关闭此 Client shell。                                                                                                                                                                                 |
 | Prefix + `Esc`                                 | 取消 Prefix，且不改变 overlay。在 Prefix 外，`Esc` 及其后续 byte 都是普通 terminal input。                                                                                                                           |

@@ -112,6 +112,7 @@ pub(crate) enum NativeDisplayRetirement {
     OutcomeUnknown,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct NativeTabView<'a> {
     inner: StateTabView<'a>,
 }
@@ -127,6 +128,22 @@ impl<'a> NativeTabView<'a> {
 
     pub(crate) fn tab_label(&self) -> &'a str {
         self.inner.tab_label()
+    }
+
+    pub(crate) fn panel_count(&self) -> usize {
+        self.inner.panel_count()
+    }
+
+    pub(crate) fn panel_tree(&self) -> &'a super::NativePanelTree {
+        self.inner.panel_tree()
+    }
+
+    pub(crate) fn active_panel(&self) -> Option<usize> {
+        self.inner.active_panel()
+    }
+
+    pub(crate) fn panel(&self, index: usize) -> Option<&'a super::NativePanel> {
+        self.inner.panel(index)
     }
 }
 
@@ -720,14 +737,9 @@ impl NativeUi {
             ClientAction::SelectNextTab
             | ClientAction::SelectPreviousTab
             | ClientAction::SelectTab(_) => self.select_tab(action),
+            ClientAction::MovePanelFocus(direction) => self.move_panel_focus(direction),
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
-            ClientAction::MovePanelFocus(
-                PanelDirection::Left
-                | PanelDirection::Down
-                | PanelDirection::Up
-                | PanelDirection::Right,
-            )
-            | ClientAction::ToggleBusinessSidebar
+            ClientAction::ToggleBusinessSidebar
             | ClientAction::OpenShortcutHelp
             | ClientAction::CloseWorkbenchNavigator
             | ClientAction::ForwardLiteralPrefix
@@ -871,6 +883,39 @@ impl NativeUi {
             }
             // A deadline refusal can return while another thread still holds the mailbox.
             // Preserve local state and do not reacquire that lock to update a notice.
+            Err(_) => SessionActionDisposition::KeepNavigator,
+        }
+    }
+
+    fn move_panel_focus(&mut self, direction: PanelDirection) -> SessionActionDisposition {
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let (Some(mailbox), Some(state)) =
+            (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
+        else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let result = mailbox.try_enqueue_switch_for(
+            state,
+            |state, generation| build_panel_switch(state, generation, direction, deadlines),
+            |state, result, facts| {
+                if result.is_ok() {
+                    state.finish_switch_membership_admission(
+                        facts.discarded(),
+                        facts.inherited(),
+                        facts.authorized_cleanup(),
+                    );
+                }
+                finish_action(state, result);
+            },
+        );
+        match result {
+            Ok(_) => SessionActionDisposition::KeepNavigator,
+            Err(AdmissionError::Closed(closed)) => {
+                self.retire(closed.failure());
+                SessionActionDisposition::KeepNavigator
+            }
             Err(_) => SessionActionDisposition::KeepNavigator,
         }
     }
@@ -1610,6 +1655,24 @@ fn build_switch(
         return Err(ActionBuildError::Protocol);
     }
     Ok(SwitchMarker::new(target))
+}
+
+fn build_panel_switch(
+    state: &mut NativeSessionState,
+    generation: u64,
+    direction: PanelDirection,
+    deadlines: OperationDeadlines,
+) -> Result<SwitchMarker, ActionBuildError> {
+    if !state.invariant_holds() {
+        return Err(ActionBuildError::Protocol);
+    }
+    let target = state
+        .plan_panel_focus(direction, generation, deadlines)
+        .ok_or(ActionBuildError::NoOp)?;
+    state
+        .begin_switch(target.clone())
+        .then_some(SwitchMarker::new(target))
+        .ok_or(ActionBuildError::Busy)
 }
 
 fn finish_action<Value>(

@@ -441,6 +441,7 @@ impl NativeSessionState {
         let preserve = prepared.preserves_selection()
             && desired == self.desired
             && !current_create
+            && !current_switch
             && !close_recovery
             && !retired_membership;
         if current_switch && preserve {
@@ -463,6 +464,14 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
+        let selected_panel_index = if current_switch {
+            match &self.phase {
+                SessionPhase::Switching(setup) => setup.target.selected.panel_index(),
+                _ => return Err(CarrierFailure::Protocol),
+            }
+        } else {
+            0
+        };
         let (replacement_phase, decision) = if preserve {
             let mut phase = self.phase.clone();
             match &mut phase {
@@ -480,14 +489,19 @@ impl NativeSessionState {
             (phase, MembershipInstallDecision::Preserved)
         } else if let Some(key) = &desired {
             let index = prepared.selected_index.ok_or(CarrierFailure::Protocol)?;
-            let selected = SelectedTab::new(key.clone(), index);
+            let selected = SelectedTab::new_panel(key.clone(), index, selected_panel_index);
             let provenance = prepared.provenance[index].clone();
             if provenance.attachable() {
                 let tab = &prepared.candidate.tabs()[index];
+                let binding = tab
+                    .panel(selected.panel_index())
+                    .ok_or(CarrierFailure::Protocol)?
+                    .binding()
+                    .clone();
                 let target = AttachTarget {
                     selected,
                     site_id: prepared.candidate.site_id().clone(),
-                    binding: tab.binding().clone(),
+                    binding,
                     provenance,
                     deadlines: deadlines.ok_or(CarrierFailure::Deadline)?,
                 };

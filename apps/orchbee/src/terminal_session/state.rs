@@ -180,11 +180,20 @@ pub(super) enum PendingRefreshStage {
 pub(super) struct SelectedTab {
     key: AttachmentKey,
     index: usize,
+    panel_index: usize,
 }
 
 impl SelectedTab {
     pub(super) const fn new(key: AttachmentKey, index: usize) -> Self {
-        Self { key, index }
+        Self::new_panel(key, index, 0)
+    }
+
+    pub(super) const fn new_panel(key: AttachmentKey, index: usize, panel_index: usize) -> Self {
+        Self {
+            key,
+            index,
+            panel_index,
+        }
     }
 
     pub(super) const fn key(&self) -> &AttachmentKey {
@@ -193,6 +202,10 @@ impl SelectedTab {
 
     pub(super) const fn index(&self) -> usize {
         self.index
+    }
+
+    pub(super) const fn panel_index(&self) -> usize {
+        self.panel_index
     }
 }
 
@@ -1643,6 +1656,17 @@ impl NativeSessionState {
         else {
             return false;
         };
+        let selected_panel_index = self
+            .active()
+            .map(SelectedTab::panel_index)
+            .unwrap_or_default();
+        if candidate
+            .tabs()
+            .get(desired_index)
+            .is_none_or(|tab| selected_panel_index >= tab.panel_count())
+        {
+            return false;
+        }
         let mut phase = self.phase.clone();
         match &mut phase {
             SessionPhase::Ready(ready) => {
@@ -1676,15 +1700,16 @@ impl NativeSessionState {
         selected: SelectedTab,
         provenance: CreateTerminalProvenance,
         deadlines: OperationDeadlines,
-    ) -> AttachTarget {
+    ) -> Option<AttachTarget> {
         let tab = &self.cache.tabs()[selected.index];
-        AttachTarget {
+        let binding = tab.panel(selected.panel_index())?.binding().clone();
+        Some(AttachTarget {
             selected,
             site_id: self.cache.site_id().clone(),
-            binding: tab.binding().clone(),
+            binding,
             provenance,
             deadlines,
-        }
+        })
     }
 
     pub(super) fn target_for_switch(
@@ -1699,7 +1724,31 @@ impl NativeSessionState {
             return None;
         }
         let provenance = self.provenance.get(index)?.clone();
-        Some(self.attach_target(SelectedTab::new(key, index), provenance, deadlines))
+        self.attach_target(SelectedTab::new(key, index), provenance, deadlines)
+    }
+
+    pub(super) fn plan_panel_focus(
+        &self,
+        direction: crate::client_view::PanelDirection,
+        generation: u64,
+        deadlines: OperationDeadlines,
+    ) -> Option<AttachTarget> {
+        if self.mutation_blocks_structure()
+            || self.rename_draft_blocks_structure()
+            || self.pending_refresh_generation.is_some()
+        {
+            return None;
+        }
+        let active = self.active()?;
+        let tab = self.cache.tabs().get(active.index())?;
+        let panel_index = tab.panel_focus_target(active.panel_index(), direction)?;
+        if panel_index == active.panel_index() || generation <= self.desired()?.generation() {
+            return None;
+        }
+        let key = AttachmentKey::new(generation, tab.tab_id().clone());
+        let selected = SelectedTab::new_panel(key, active.index(), panel_index);
+        let provenance = self.provenance.get(active.index())?.clone();
+        self.attach_target(selected, provenance, deadlines)
     }
 
     pub(super) fn plan_selection(&self, action: ClientAction) -> SelectionPlan {
@@ -1863,11 +1912,9 @@ impl NativeSessionState {
             return false;
         }
         if let Some(active) = self.active()
-            && self
-                .cache
-                .tabs()
-                .get(active.index)
-                .is_none_or(|tab| tab.tab_id() != active.key.tab_id())
+            && self.cache.tabs().get(active.index).is_none_or(|tab| {
+                tab.tab_id() != active.key.tab_id() || active.panel_index() >= tab.panel_count()
+            })
         {
             return false;
         }
@@ -2003,13 +2050,16 @@ impl<'a> NativeSessionView<'a> {
 
     pub(super) fn tab(&self, index: usize) -> Option<NativeTabView<'a>> {
         let tab = self.state.cache.tabs().get(index)?;
+        let active_panel = self
+            .state
+            .active()
+            .filter(|active| active.index() == index)
+            .map(SelectedTab::panel_index);
         Some(NativeTabView {
             tab,
             position: index + 1,
-            active: self
-                .state
-                .active()
-                .is_some_and(|active| active.index == index),
+            active: active_panel.is_some(),
+            active_panel,
         })
     }
 
@@ -2043,10 +2093,12 @@ impl<'a> NativeSessionView<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct NativeTabView<'a> {
     tab: &'a NativeSimpleTab,
     position: usize,
     active: bool,
+    active_panel: Option<usize>,
 }
 
 impl<'a> NativeTabView<'a> {
@@ -2060,6 +2112,22 @@ impl<'a> NativeTabView<'a> {
 
     pub(super) fn tab_label(&self) -> &'a str {
         self.tab.tab_label().as_str()
+    }
+
+    pub(super) fn panel_count(&self) -> usize {
+        self.tab.panel_count()
+    }
+
+    pub(super) fn panel_tree(&self) -> &'a super::NativePanelTree {
+        self.tab.panel_tree()
+    }
+
+    pub(super) fn active_panel(&self) -> Option<usize> {
+        self.active_panel
+    }
+
+    pub(super) fn panel(&self, index: usize) -> Option<&'a super::NativePanel> {
+        self.tab.panel(index)
     }
 
     #[cfg(test)]

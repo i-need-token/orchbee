@@ -252,12 +252,6 @@ impl Locale {
                     BackendAction::SelectPreviousContext | BackendAction::SelectNextContext,
                 )),
             ) => "Workbench 位置导航不可用 · 未发送命令",
-            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(_)))) => {
-                "Panel navigation unavailable · no command was sent"
-            }
-            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(_)))) => {
-                "Panel 导航不可用 · 未发送命令"
-            }
         }
     }
 

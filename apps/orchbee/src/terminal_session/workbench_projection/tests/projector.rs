@@ -1,4 +1,5 @@
 use super::*;
+use crate::client_view::PanelDirection;
 
 #[test]
 fn projects_exact_zero_one_and_256_tab_boundaries_in_order() {
@@ -94,23 +95,6 @@ fn rejects_groups_and_each_unsupported_member_without_filtering() {
     pinned.terminal_contexts[0].tabs[1].pinned = true;
     unsupported.push(pinned);
 
-    let mut split = snapshot(3, 1);
-    split.terminal_contexts[0].tabs[1].root = PanelNode::Split {
-        children: Box::new([
-            PanelSlot {
-                node: panel(30, 31, 32, 33, "left"),
-                slot_id: slot_id(34),
-            },
-            PanelSlot {
-                node: panel(35, 36, 37, 38, "right"),
-                slot_id: slot_id(39),
-            },
-        ]),
-        orientation: PanelOrientation::Horizontal,
-        split_id: split_id(40),
-    };
-    unsupported.push(split);
-
     let mut child = snapshot(3, 1);
     let PanelNode::Panel {
         child_presentations,
@@ -147,6 +131,38 @@ fn rejects_groups_and_each_unsupported_member_without_filtering() {
             "one unsupported member must reject the complete projection"
         );
     }
+}
+
+#[test]
+fn projects_split_tree_and_directional_leaf_neighbors() {
+    let mut split = snapshot(3, 1);
+    split.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: panel(30, 31, 32, 33, "left"),
+                slot_id: slot_id(34),
+            },
+            PanelSlot {
+                node: panel(35, 36, 37, 38, "right"),
+                slot_id: slot_id(39),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: split_id(40),
+    };
+
+    let projection = project_native_standalone_tabs(&split).unwrap();
+    let tab = &projection.tabs()[1];
+    assert_eq!(tab.panel_count(), 2);
+    assert_eq!(tab.panel(0).unwrap().panel_id(), &panel_id(30));
+    assert_eq!(
+        tab.panel(1).unwrap().presentation_id(),
+        &presentation_id(36)
+    );
+    assert_eq!(tab.panel_focus_target(0, PanelDirection::Right), Some(1));
+    assert_eq!(tab.panel_focus_target(0, PanelDirection::Left), None);
+    assert_eq!(tab.panel_focus_target(1, PanelDirection::Left), Some(0));
+    assert_eq!(tab.panel_focus_target(1, PanelDirection::Right), None);
 }
 
 #[test]

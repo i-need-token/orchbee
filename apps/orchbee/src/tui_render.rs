@@ -10,8 +10,8 @@ use crate::{
     client_view::{ClientView, Overlay},
     localization::{Locale, ShellText},
     terminal_session::{
-        NativeDisplayPhase, NativeDrawReceipt, NativeProjectionStatus, NativeRefreshStatus,
-        NativeSessionView, NativeTabView, TerminalSessionView,
+        NativeDisplayPhase, NativeDrawReceipt, NativePanelTree, NativeProjectionStatus,
+        NativeRefreshStatus, NativeSessionView, NativeTabView, TerminalSessionView,
     },
     tui_layout::{ShellAreas, SidebarArea, SidebarLayer, centered_overlay, project_shell_areas},
 };
@@ -300,7 +300,27 @@ fn render_native_workbench(
     } else {
         None
     };
-    if let Some(terminal) = terminal {
+    let active_tab = native
+        .active_position()
+        .and_then(|position| position.checked_sub(1))
+        .and_then(|index| native.tab(index));
+    if let Some(tab) = active_tab.filter(|tab| tab.panel_count() > 1) {
+        render_panel_tree(
+            frame,
+            panel_content,
+            tab,
+            tab.panel_tree(),
+            terminal,
+            client_view.overlay().is_none()
+                && native.close_confirmation().is_none()
+                && native.rename_draft().is_none()
+                && native.setup_draft().is_none(),
+            text,
+            phase_status,
+            locale,
+            native,
+        );
+    } else if let Some(terminal) = terminal {
         terminal_cells::render(
             frame,
             panel_content,
@@ -337,6 +357,118 @@ fn render_native_workbench(
                 .wrap(Wrap { trim: true }),
             panel_content,
         );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_panel_tree(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    tab: NativeTabView<'_>,
+    tree: &NativePanelTree,
+    terminal: Option<&orchbee_terminal_protocol::TerminalTextFrame>,
+    input_enabled: bool,
+    text: ShellText,
+    phase_status: &str,
+    locale: Locale,
+    native: &NativeSessionView<'_>,
+) {
+    match tree {
+        NativePanelTree::Panel { panel_index } => {
+            let active = tab.active_panel() == Some(*panel_index);
+            let panel = tab.panel(*panel_index);
+            let title = panel.map_or_else(
+                || format!(" {} {} ", text.panel_title, panel_index.saturating_add(1)),
+                |panel| {
+                    format!(
+                        " {} {} · {} ",
+                        text.panel_title,
+                        panel_index.saturating_add(1),
+                        panel.presentation_label().as_str()
+                    )
+                },
+            );
+            let border = if active { EMPHASIS } else { BORDER };
+            let block = Block::new()
+                .borders(Borders::ALL)
+                .border_style(Style::new().fg(border))
+                .border_type(BorderType::Rounded)
+                .title(Span::styled(
+                    title,
+                    Style::new()
+                        .fg(if active { EMPHASIS } else { MUTED })
+                        .add_modifier(if active {
+                            Modifier::BOLD
+                        } else {
+                            Modifier::empty()
+                        }),
+                ));
+            let content = block.inner(area);
+            frame.render_widget(block, area);
+            if active {
+                if let Some(terminal) = terminal {
+                    terminal_cells::render(frame, content, terminal, input_enabled);
+                } else {
+                    let status = if matches!(
+                        native.phase(),
+                        NativeDisplayPhase::Ready
+                            | NativeDisplayPhase::MoveProjectionUnavailable
+                            | NativeDisplayPhase::RenameProjectionUnavailable
+                    ) {
+                        locale.terminal_status(TerminalStatus::Blocked)
+                    } else {
+                        phase_status
+                    };
+                    frame.render_widget(
+                        Paragraph::new(status)
+                            .style(Style::new().fg(MUTED))
+                            .wrap(Wrap { trim: true }),
+                        content,
+                    );
+                }
+            }
+        }
+        NativePanelTree::Split {
+            first,
+            second,
+            orientation,
+            ..
+        } => {
+            let [first_area, second_area] = match orientation {
+                orchbee_workbench_protocol::PanelOrientation::Horizontal => {
+                    Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                        .areas(area)
+                }
+                orchbee_workbench_protocol::PanelOrientation::Vertical => {
+                    Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
+                        .areas(area)
+                }
+            };
+            render_panel_tree(
+                frame,
+                first_area,
+                tab,
+                first,
+                terminal,
+                input_enabled,
+                text,
+                phase_status,
+                locale,
+                native,
+            );
+            render_panel_tree(
+                frame,
+                second_area,
+                tab,
+                second,
+                terminal,
+                input_enabled,
+                text,
+                phase_status,
+                locale,
+                native,
+            );
+        }
     }
 }
 
