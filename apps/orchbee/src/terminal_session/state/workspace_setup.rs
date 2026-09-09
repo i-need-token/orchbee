@@ -1,3 +1,6 @@
+mod draft;
+mod labels;
+mod projection;
 use super::{
     AttachmentKey, NativeContextTabs, NativeSessionState, NavigatorRefreshStatus,
     OperationDeadlines, PreparedRefresh, SelectedTab, SessionPhase, validate_canonical_refresh,
@@ -8,44 +11,17 @@ use crate::local_client::workbench::workspace_setup::{
 use crate::terminal_session::workbench_projection::{
     NativeContextLocation, project_native_context_tabs,
 };
+pub(in crate::terminal_session) use draft::NativeSetupIntent;
+use draft::SetupDraft;
+pub(crate) use draft::{
+    NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
+    NativeSetupStage, NativeSetupStatus, NativeSetupToken,
+};
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchDirectoryPath,
     WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct NativeSetupToken(u64);
-impl NativeSetupToken {
-    #[cfg(test)]
-    pub(crate) const fn for_test(value: u64) -> Self {
-        Self(value)
-    }
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeSetupStage {
-    ChooseProject,
-    ProjectLabel,
-    WorkspaceLabel,
-    DirectoryPath,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NativeSetupStatus {
-    NotApplied,
-    ProjectCreated,
-    WorkspaceCreated,
-    DirectoryAccepted,
-    CommittedNeedRefresh,
-    OutcomeUnknown,
-}
-pub(crate) enum NativeSetupEdit<'a> {
-    Append(&'a str),
-    Backspace,
-    Clear,
-    Fault,
-    Completeness(bool),
-    SelectPreviousProject,
-    SelectNextProject,
-}
 #[derive(Default)]
 pub(super) struct SetupState {
     last_token: u64,
@@ -57,92 +33,6 @@ pub(super) struct SetupState {
     uncertain: Option<SetupOperation>,
     status: Option<NativeSetupStatus>,
     deadlines: Option<OperationDeadlines>,
-}
-#[derive(Clone, Debug)]
-struct SetupDraft {
-    token: NativeSetupToken,
-    baseline: NativeContextTabs,
-    stage: NativeSetupStage,
-    selected: usize,
-    project: Option<WorkbenchProjectId>,
-    known_project_created: bool,
-    text: String,
-    shown: bool,
-    complete: bool,
-    faulted: bool,
-}
-pub(crate) struct NativeSetupDraftView<'a> {
-    draft: &'a SetupDraft,
-}
-pub(crate) struct NativeSetupProjectView<'a> {
-    position: usize,
-    selected: bool,
-    label: Option<&'a str>,
-}
-impl<'a> NativeSetupProjectView<'a> {
-    pub(crate) fn position(&self) -> usize {
-        self.position
-    }
-    pub(crate) fn selected(&self) -> bool {
-        self.selected
-    }
-    pub(crate) fn label(&self) -> Option<&'a str> {
-        self.label
-    }
-}
-impl<'a> NativeSetupDraftView<'a> {
-    pub(crate) fn token(&self) -> NativeSetupToken {
-        self.draft.token
-    }
-    pub(crate) fn stage(&self) -> NativeSetupStage {
-        self.draft.stage
-    }
-    pub(crate) fn text(&self) -> &'a str {
-        &self.draft.text
-    }
-    pub(crate) fn faulted(&self) -> bool {
-        self.draft.faulted
-    }
-    pub(crate) fn known_project_created(&self) -> bool {
-        self.draft.known_project_created
-    }
-    pub(crate) fn project_count(&self) -> usize {
-        self.draft.baseline.projects().len() + 1
-    }
-    pub(crate) fn project_at(&self, index: usize) -> Option<NativeSetupProjectView<'a>> {
-        if index >= self.project_count() {
-            return None;
-        }
-        Some(NativeSetupProjectView {
-            position: index + 1,
-            selected: index == self.draft.selected,
-            label: self
-                .draft
-                .baseline
-                .projects()
-                .get(index)
-                .map(|p| p.label.as_str()),
-        })
-    }
-    pub(crate) fn project_label(&self) -> Option<&'a str> {
-        let id = self.draft.project.as_ref()?;
-        self.draft
-            .baseline
-            .projects()
-            .iter()
-            .find(|p| &p.project_id == id)
-            .map(|p| p.label.as_str())
-    }
-    pub(crate) fn workspace_label(&self) -> Option<&'a str> {
-        self.draft
-            .baseline
-            .navigation()
-            .iter()
-            .find(|c| &c.location == self.draft.baseline.location())?
-            .workspace_label
-            .as_ref()
-            .map(WorkbenchLabel::as_str)
-    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct SetupOperation {
@@ -176,214 +66,36 @@ impl SetupOperation {
         &self,
         commit: WorkbenchSetupCommit,
     ) -> Option<SetupKnownCommit> {
-        if self.command.expected_revision.value().checked_add(1) != Some(commit.revision().value())
-        {
-            return None;
-        }
-        let compatible = matches!(
-            (&self.command.action, &commit),
-            (
-                WorkbenchAction::ProjectCreate { .. },
-                WorkbenchSetupCommit::ProjectCreated { .. }
-            ) | (
-                WorkbenchAction::WorkspaceCreate { .. },
-                WorkbenchSetupCommit::WorkspaceCreated { .. }
-            ) | (
-                WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. },
-                WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted { .. }
-            )
-        );
+        let unchanged = if self.location_label_target().is_some() {
+            self.validate_label_receipt(&commit)?
+        } else {
+            let compatible = matches!(
+                (&self.command.action, &commit),
+                (
+                    WorkbenchAction::ProjectCreate { .. },
+                    WorkbenchSetupCommit::ProjectCreated { .. }
+                ) | (
+                    WorkbenchAction::WorkspaceCreate { .. },
+                    WorkbenchSetupCommit::WorkspaceCreated { .. }
+                ) | (
+                    WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. },
+                    WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted { .. }
+                )
+            );
+            if !compatible {
+                return None;
+            }
+            false
+        };
+        let compatible = if unchanged {
+            self.command.expected_revision == commit.revision()
+        } else {
+            self.command.expected_revision.value().checked_add(1) == Some(commit.revision().value())
+        };
         compatible.then(|| SetupKnownCommit {
             operation: self.clone(),
             commit,
         })
-    }
-}
-impl SetupKnownCommit {
-    fn target(&self) -> NativeContextLocation {
-        match (&self.operation.command.action, &self.commit) {
-            (
-                WorkbenchAction::WorkspaceCreate { project_id, .. },
-                WorkbenchSetupCommit::WorkspaceCreated {
-                    workspace_id,
-                    terminal_context_id,
-                    ..
-                },
-            ) => NativeContextLocation::Workspace {
-                project_id: project_id.clone(),
-                workspace_id: workspace_id.clone(),
-                terminal_context_id: terminal_context_id.clone(),
-            },
-            _ => self.operation.baseline.location().clone(),
-        }
-    }
-    fn validate(&self, snapshot: &Snapshot) -> Option<NativeContextTabs> {
-        let baseline = &self.operation.baseline;
-        if snapshot.site_id != *baseline.site_id() || snapshot.revision < self.commit.revision() {
-            return None;
-        }
-        let active =
-            validate_canonical_refresh(baseline, baseline.project_snapshot(snapshot).ok()?).ok()?;
-        let exact = snapshot.revision == self.commit.revision();
-        match (&self.operation.command.action, &self.commit) {
-            (
-                WorkbenchAction::ProjectCreate { label },
-                WorkbenchSetupCommit::ProjectCreated { project_id, .. },
-            ) => {
-                if baseline
-                    .projects()
-                    .iter()
-                    .any(|p| &p.project_id == project_id)
-                {
-                    return None;
-                }
-                let project = snapshot
-                    .navigation
-                    .projects
-                    .iter()
-                    .find(|p| &p.project_id == project_id)?;
-                if exact
-                    && (project.label != label.as_str()
-                        || !project.workspaces.is_empty()
-                        || !project.directories.is_empty())
-                {
-                    return None;
-                }
-            }
-            (
-                WorkbenchAction::WorkspaceCreate { project_id, label },
-                WorkbenchSetupCommit::WorkspaceCreated {
-                    workspace_id,
-                    terminal_context_id,
-                    ..
-                },
-            ) => {
-                if baseline.navigation().iter().any(|c| c.location.terminal_context_id() == terminal_context_id || matches!(&c.location, NativeContextLocation::Workspace {workspace_id: old, ..} if old == workspace_id)) { return None; }
-                let project = snapshot
-                    .navigation
-                    .projects
-                    .iter()
-                    .find(|p| &p.project_id == project_id)?;
-                let workspace = project
-                    .workspaces
-                    .iter()
-                    .find(|w| &w.workspace_id == workspace_id)?;
-                if &workspace.terminal_context_id != terminal_context_id
-                    || exact
-                        && (workspace.label != label.as_str()
-                            || workspace.primary_directory_id.is_some())
-                {
-                    return None;
-                }
-                let context = snapshot
-                    .terminal_contexts
-                    .iter()
-                    .find(|c| &c.terminal_context_id == terminal_context_id)?;
-                if exact && (!context.tabs.is_empty() || !context.groups.is_empty()) {
-                    return None;
-                }
-            }
-            (
-                WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                    project_id,
-                    workspace_id,
-                    path,
-                },
-                WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted {
-                    directory_id,
-                    worker_id,
-                    ..
-                },
-            ) => {
-                if baseline.projects().iter().any(|project| {
-                    project
-                        .directories
-                        .iter()
-                        .any(|directory| &directory.directory_id == directory_id)
-                }) {
-                    return None;
-                }
-                let project = snapshot
-                    .navigation
-                    .projects
-                    .iter()
-                    .find(|p| &p.project_id == project_id)?;
-                let workspace = project
-                    .workspaces
-                    .iter()
-                    .find(|w| &w.workspace_id == workspace_id)?;
-                if workspace.primary_directory_id.as_ref() != Some(directory_id) {
-                    return None;
-                }
-                let directory = project
-                    .directories
-                    .iter()
-                    .find(|d| &d.directory_id == directory_id)?;
-                if &directory.worker_id != worker_id || &directory.path != path {
-                    return None;
-                }
-            }
-            _ => return None,
-        }
-        if exact {
-            if active.tabs() != baseline.tabs() {
-                return None;
-            }
-            let mut projects = snapshot.navigation.projects.clone();
-            match (&self.operation.command.action, &self.commit) {
-                (
-                    WorkbenchAction::ProjectCreate { .. },
-                    WorkbenchSetupCommit::ProjectCreated { project_id, .. },
-                ) => {
-                    let index = projects
-                        .iter()
-                        .position(|project| &project.project_id == project_id)?;
-                    projects.remove(index);
-                }
-                (
-                    WorkbenchAction::WorkspaceCreate { project_id, .. },
-                    WorkbenchSetupCommit::WorkspaceCreated { workspace_id, .. },
-                ) => {
-                    let project = projects
-                        .iter_mut()
-                        .find(|project| &project.project_id == project_id)?;
-                    let index = project
-                        .workspaces
-                        .iter()
-                        .position(|workspace| &workspace.workspace_id == workspace_id)?;
-                    project.workspaces.remove(index);
-                }
-                (
-                    WorkbenchAction::WorkspacePrimaryDirectoryAccept {
-                        project_id,
-                        workspace_id,
-                        ..
-                    },
-                    WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted {
-                        directory_id, ..
-                    },
-                ) => {
-                    let project = projects
-                        .iter_mut()
-                        .find(|project| &project.project_id == project_id)?;
-                    let index = project
-                        .directories
-                        .iter()
-                        .position(|directory| &directory.directory_id == directory_id)?;
-                    project.directories.remove(index);
-                    project
-                        .workspaces
-                        .iter_mut()
-                        .find(|workspace| &workspace.workspace_id == workspace_id)?
-                        .primary_directory_id = None;
-                }
-                _ => return None,
-            }
-            if projects != baseline.projects() {
-                return None;
-            }
-        }
-        project_native_context_tabs(snapshot, &self.target()).ok()
     }
 }
 impl NativeSessionState {
@@ -462,190 +174,6 @@ impl NativeSessionState {
             .directory()
             .map(|directory| directory.path.as_str())
     }
-    pub(in crate::terminal_session) fn open_setup_draft(
-        &mut self,
-        directory: bool,
-    ) -> Option<NativeSetupToken> {
-        if self.setup_blocks_structure()
-            || !self.setup_authority_available()
-            || !self.invariant_holds()
-        {
-            return None;
-        }
-        if directory
-            && (!matches!(self.phase, SessionPhase::Empty)
-                || !self.workspace_directory_unconfigured())
-        {
-            return None;
-        }
-        let project = match self.cache.location() {
-            NativeContextLocation::Workspace { project_id, .. } => Some(project_id.clone()),
-            _ => None,
-        };
-        let selected = project
-            .as_ref()
-            .and_then(|id| {
-                self.cache
-                    .projects()
-                    .iter()
-                    .position(|p| &p.project_id == id)
-            })
-            .unwrap_or(self.cache.projects().len());
-        let token = NativeSetupToken(self.setup.last_token.checked_add(1)?);
-        self.setup.last_token = token.0;
-        self.setup.status = None;
-        self.setup.draft = Some(SetupDraft {
-            token,
-            baseline: self.cache.clone(),
-            stage: if directory {
-                NativeSetupStage::DirectoryPath
-            } else {
-                NativeSetupStage::ChooseProject
-            },
-            selected,
-            project,
-            known_project_created: false,
-            text: String::new(),
-            shown: false,
-            complete: true,
-            faulted: false,
-        });
-        Some(token)
-    }
-    pub(in crate::terminal_session) fn setup_draft(&self) -> Option<NativeSetupDraftView<'_>> {
-        let draft = self.setup.draft.as_ref()?;
-        (self.setup_authority_available() && draft.baseline == self.cache)
-            .then_some(NativeSetupDraftView { draft })
-    }
-    pub(in crate::terminal_session) fn clear_settled_setup_status(&mut self) {
-        if !self.setup_blocks_structure() {
-            self.setup.status = None;
-        }
-    }
-    pub(in crate::terminal_session) fn setup_status(&self) -> Option<NativeSetupStatus> {
-        self.setup.status
-    }
-    pub(in crate::terminal_session) fn acknowledge_setup_draw(
-        &mut self,
-        token: Option<NativeSetupToken>,
-    ) {
-        if let Some(draft) = self.setup.draft.as_mut() {
-            draft.shown = token == Some(draft.token);
-        }
-    }
-    pub(super) fn cancel_setup_on_retirement(&mut self) {
-        self.setup.draft = None;
-    }
-    pub(in crate::terminal_session) fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
-        if self
-            .setup
-            .draft
-            .as_ref()
-            .is_some_and(|draft| draft.token == token)
-        {
-            self.setup.draft = None;
-        }
-    }
-    pub(in crate::terminal_session) fn edit_setup_draft(
-        &mut self,
-        token: NativeSetupToken,
-        edit: NativeSetupEdit<'_>,
-    ) -> bool {
-        if self.setup_draft().is_none() {
-            return false;
-        }
-        let Some(draft) = self.setup.draft.as_mut().filter(|d| d.token == token) else {
-            return false;
-        };
-        match edit {
-            NativeSetupEdit::Completeness(value) => draft.complete = value,
-            NativeSetupEdit::Fault => draft.faulted = true,
-            NativeSetupEdit::SelectPreviousProject | NativeSetupEdit::SelectNextProject
-                if draft.complete && draft.stage == NativeSetupStage::ChooseProject =>
-            {
-                let Some(next_token) = self.setup.last_token.checked_add(1) else {
-                    return false;
-                };
-                let count = draft.baseline.projects().len() + 1;
-                draft.selected = if matches!(edit, NativeSetupEdit::SelectNextProject) {
-                    (draft.selected + 1) % count
-                } else {
-                    (draft.selected + count - 1) % count
-                };
-                draft.project = draft
-                    .baseline
-                    .projects()
-                    .get(draft.selected)
-                    .map(|p| p.project_id.clone());
-                draft.token = NativeSetupToken(next_token);
-                self.setup.last_token = next_token;
-                draft.shown = false;
-            }
-            NativeSetupEdit::Append(value)
-                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
-            {
-                let fits = if draft.stage == NativeSetupStage::DirectoryPath {
-                    draft.text.len().saturating_add(value.len()) <= 4096
-                } else {
-                    draft
-                        .text
-                        .chars()
-                        .count()
-                        .saturating_add(value.chars().count())
-                        <= 512
-                };
-                if fits && !value.contains('\0') {
-                    draft.text.push_str(value);
-                } else {
-                    draft.faulted = true;
-                }
-            }
-            NativeSetupEdit::Backspace if draft.complete => {
-                draft.text.pop();
-                draft.faulted = false;
-            }
-            NativeSetupEdit::Clear if draft.complete => {
-                draft.text.clear();
-                draft.faulted = false;
-            }
-            _ => return false,
-        }
-        true
-    }
-    pub(in crate::terminal_session) fn advance_setup_picker(
-        &mut self,
-        token: NativeSetupToken,
-    ) -> bool {
-        if self.setup_draft().is_none() {
-            return false;
-        }
-        let Some(draft) = self.setup.draft.as_mut().filter(|d| {
-            d.token == token
-                && d.shown
-                && d.complete
-                && !d.faulted
-                && d.stage == NativeSetupStage::ChooseProject
-        }) else {
-            return false;
-        };
-        let Some(next) = self.setup.last_token.checked_add(1) else {
-            return false;
-        };
-        draft.project = draft
-            .baseline
-            .projects()
-            .get(draft.selected)
-            .map(|p| p.project_id.clone());
-        draft.stage = if draft.project.is_some() {
-            NativeSetupStage::WorkspaceLabel
-        } else {
-            NativeSetupStage::ProjectLabel
-        };
-        draft.token = NativeSetupToken(next);
-        self.setup.last_token = next;
-        draft.shown = false;
-        true
-    }
     pub(in crate::terminal_session) fn plan_setup(
         &self,
         token: NativeSetupToken,
@@ -683,6 +211,29 @@ impl NativeSessionState {
                     project_id: project_id.clone(),
                     workspace_id: workspace_id.clone(),
                     path: WorkbenchDirectoryPath::parse(&draft.text).ok()?,
+                }
+            }
+            NativeSetupStage::ProjectRename | NativeSetupStage::WorkspaceRename => {
+                let NativeContextLocation::Workspace {
+                    project_id,
+                    workspace_id,
+                    ..
+                } = draft.baseline.location()
+                else {
+                    return None;
+                };
+                let label = WorkbenchLabel::parse(&draft.text).ok()?;
+                if draft.stage == NativeSetupStage::ProjectRename {
+                    WorkbenchAction::ProjectRename {
+                        project_id: project_id.clone(),
+                        label,
+                    }
+                } else {
+                    WorkbenchAction::WorkspaceRename {
+                        project_id: project_id.clone(),
+                        workspace_id: workspace_id.clone(),
+                        label,
+                    }
                 }
             }
             NativeSetupStage::ChooseProject => return None,
@@ -725,16 +276,22 @@ impl NativeSessionState {
                     return false;
                 }
                 self.setup.pending = None;
+                self.setup.status = Some(known.operation.status(
+                    NativeLocationLabelStatus::CommittedNeedRefresh,
+                    NativeSetupStatus::CommittedNeedRefresh,
+                ));
                 self.setup.known = Some(known);
-                self.setup.status = Some(NativeSetupStatus::CommittedNeedRefresh);
                 true
             }
             SetupWorkerEvidence::Unknown(operation) => {
                 if self.setup.pending.as_ref() != Some(&operation) {
                     return false;
                 }
+                self.setup.status = Some(operation.status(
+                    NativeLocationLabelStatus::OutcomeUnknown,
+                    NativeSetupStatus::OutcomeUnknown,
+                ));
                 self.setup.uncertain = Some(operation);
-                self.setup.status = Some(NativeSetupStatus::OutcomeUnknown);
                 true
             }
         }
@@ -751,7 +308,10 @@ impl NativeSessionState {
         }
         self.setup.not_applied = self.setup.pending.take();
         self.setup.deadlines = None;
-        self.setup.status = Some(NativeSetupStatus::NotApplied);
+        self.setup.status = Some(operation.status(
+            NativeLocationLabelStatus::NotApplied,
+            NativeSetupStatus::NotApplied,
+        ));
         true
     }
     pub(super) fn setup_target_matches(&self, target: &NativeContextLocation) -> bool {
@@ -798,6 +358,15 @@ impl NativeSessionState {
     ) -> Option<Box<PreparedSetupCompletion>> {
         let known = self.setup.known.as_ref()?;
         let status = match &known.commit {
+            WorkbenchSetupCommit::ProjectRenamed { unchanged, .. }
+            | WorkbenchSetupCommit::WorkspaceRenamed { unchanged, .. } => known.operation.status(
+                if *unchanged {
+                    NativeLocationLabelStatus::Unchanged
+                } else {
+                    NativeLocationLabelStatus::Renamed
+                },
+                NativeSetupStatus::NotApplied,
+            ),
             WorkbenchSetupCommit::ProjectCreated { .. } => NativeSetupStatus::ProjectCreated,
             WorkbenchSetupCommit::WorkspaceCreated { .. } => NativeSetupStatus::WorkspaceCreated,
             WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted { .. } => {
@@ -860,18 +429,4 @@ pub(super) struct PreparedSetupCompletion {
     known: SetupKnownCommit,
     status: NativeSetupStatus,
     draft: Option<SetupDraft>,
-}
-impl<'a> super::NativeSessionView<'a> {
-    pub(in crate::terminal_session) fn setup_draft(&self) -> Option<NativeSetupDraftView<'a>> {
-        self.state.setup_draft()
-    }
-    pub(in crate::terminal_session) fn setup_status(&self) -> Option<NativeSetupStatus> {
-        self.state.setup_status()
-    }
-    pub(in crate::terminal_session) fn workspace_directory_path(&self) -> Option<&'a str> {
-        self.state.workspace_directory_path()
-    }
-    pub(in crate::terminal_session) fn workspace_directory_unconfigured(&self) -> bool {
-        self.state.workspace_directory_unconfigured()
-    }
 }

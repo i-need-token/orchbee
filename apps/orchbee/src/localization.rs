@@ -3,6 +3,8 @@ use std::ffi::OsString;
 use crate::client_view::{BackendAction, Notice};
 
 #[cfg(unix)]
+mod location_labels;
+#[cfg(unix)]
 mod tab_close;
 #[cfg(unix)]
 mod tab_rename;
@@ -19,6 +21,8 @@ const ZH_CN_USAGE_FAILURE: &str = "调用方式无效。请运行 ‘orchbee --h
 const EN_US_SHORTCUTS: &[&str] = &[
     "Ctrl+B a       Create a Workspace in an existing or new Project",
     "Ctrl+B e       Configure an empty Workspace's first directory",
+    "Ctrl+B r       Rename current Workspace",
+    "Ctrl+B R       Rename current Workspace's Project",
     "Ctrl+B ,       Rename current Tab",
     "Ctrl+B x       Close current Tab / retry Close (confirms for all Clients)",
     "Ctrl+B c       Create a Tab (requires Site)",
@@ -37,6 +41,8 @@ const EN_US_SHORTCUTS: &[&str] = &[
 const ZH_CN_SHORTCUTS: &[&str] = &[
     "Ctrl+B a       在现有或新建 Project 中创建 Workspace",
     "Ctrl+B e       配置空 Workspace 的首个目录",
+    "Ctrl+B r       重命名当前 Workspace",
+    "Ctrl+B R       重命名当前 Workspace 所属的 Project",
     "Ctrl+B ,       重命名当前 Tab",
     "Ctrl+B x       关闭当前 Tab / 重试关闭（确认后影响所有 Client）",
     "Ctrl+B c       创建 Tab（需要 Site）",
@@ -152,6 +158,18 @@ impl Locale {
 
     pub(crate) const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
         match (self, notice) {
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameWorkspace))) => {
+                "Workspace rename unavailable · no command was sent"
+            }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::RenameWorkspace))) => {
+                "Workspace 重命名不可用 · 未发送命令"
+            }
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::RenameProject))) => {
+                "Project rename unavailable · no command was sent"
+            }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::RenameProject))) => {
+                "Project 重命名不可用 · 未发送命令"
+            }
             (
                 Self::EnUs,
                 Some(Notice::BackendUnavailable(

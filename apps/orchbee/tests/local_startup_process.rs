@@ -6,6 +6,10 @@ mod native_close;
 mod native_cohort;
 #[path = "local_startup_process/native_context.rs"]
 mod native_context;
+#[path = "local_startup_process/native_location_labels.rs"]
+mod native_location_labels;
+#[path = "local_startup_process/native_workspace_fixture.rs"]
+mod native_workspace_fixture;
 #[path = "local_startup_process/native_workspace_setup.rs"]
 mod native_workspace_setup;
 #[path = "local_startup_process/pty_client.rs"]

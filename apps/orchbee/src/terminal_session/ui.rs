@@ -35,8 +35,8 @@ mod retired_membership;
 mod tab_close;
 mod workspace_setup;
 pub(crate) use workspace_setup::{
-    NativeSetupDraftView, NativeSetupEdit, NativeSetupInputContext, NativeSetupStage,
-    NativeSetupStatus, NativeSetupToken,
+    NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
+    NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
 mod tab_rename;
 pub(crate) use tab_close::{
@@ -307,6 +307,8 @@ pub(super) struct NativeUi {
 mod context_selection_tests;
 #[cfg(test)]
 mod create_membership_tests;
+#[cfg(test)]
+mod location_labels_tests;
 #[cfg(all(test, unix))]
 mod membership_tests;
 #[cfg(all(test, unix))]
@@ -682,8 +684,22 @@ impl NativeUi {
             state.clear_settled_setup_status();
         }
         match action {
-            ClientAction::RequestWorkspaceCreate | ClientAction::RequestWorkspaceDirectory => {
-                self.request_setup_draft(matches!(action, ClientAction::RequestWorkspaceDirectory));
+            ClientAction::RequestWorkspaceCreate
+            | ClientAction::RequestWorkspaceDirectory
+            | ClientAction::RequestWorkspaceRename
+            | ClientAction::RequestProjectRename => {
+                use super::state::workspace_setup::NativeSetupIntent;
+                let intent = match action {
+                    ClientAction::RequestWorkspaceCreate => NativeSetupIntent::CreateWorkspace,
+                    ClientAction::RequestWorkspaceDirectory => {
+                        NativeSetupIntent::ConfigureDirectory
+                    }
+                    ClientAction::RequestWorkspaceRename => {
+                        NativeSetupIntent::RenameLocation(NativeLocationLabelTarget::Workspace)
+                    }
+                    _ => NativeSetupIntent::RenameLocation(NativeLocationLabelTarget::Project),
+                };
+                self.request_setup_draft(intent);
                 SessionActionDisposition::KeepNavigator
             }
             ClientAction::RequestRenameTab => {

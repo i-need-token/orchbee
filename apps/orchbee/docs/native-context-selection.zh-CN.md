@@ -16,6 +16,8 @@
 Project/Workspace 创建和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)，
 它复用这里的上下文安装 owner。Panel 布局、远程访问、持久化和生产恢复不在范围内。
 该未发布 cohort 整体启用和回滚。改变 Client 位置不会修改 canonical 导航或销毁保留的执行。
+[位置标签编辑](native-location-labels.zh-CN.md) 修改 canonical Project 或 Workspace 标签，
+并保留这里的有类型位置身份。
 
 ## 状态与转换契约
 

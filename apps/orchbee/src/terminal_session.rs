@@ -32,10 +32,11 @@ pub(crate) use ui::{
     NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
     NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDisplayController,
     NativeDisplayPhase, NativeDisplayProvenance, NativeDisplayRetirement, NativeDrawReceipt,
-    NativeProjectionStatus, NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView,
-    NativeRenameEdit, NativeRenameInputContext, NativeSessionNotice, NativeSessionView,
-    NativeSetupDraftView, NativeSetupEdit, NativeSetupInputContext, NativeSetupStage,
-    NativeSetupStatus, NativeSetupToken, NativeTabView,
+    NativeLocationLabelStatus, NativeLocationLabelTarget, NativeProjectionStatus,
+    NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit,
+    NativeRenameInputContext, NativeSessionNotice, NativeSessionView, NativeSetupDraftView,
+    NativeSetupEdit, NativeSetupInputContext, NativeSetupStage, NativeSetupStatus,
+    NativeSetupToken, NativeTabView,
 };
 
 #[derive(Clone, Debug)]

@@ -46,6 +46,23 @@ impl SetupPort {
 }
 
 impl TerminalInputPort for SetupPort {
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        self.stage = match action {
+            ClientAction::RequestProjectRename => NativeSetupStage::ProjectRename,
+            ClientAction::RequestWorkspaceRename => NativeSetupStage::WorkspaceRename,
+            _ => return None,
+        };
+        self.active = true;
+        self.token += 1;
+        self.shown = false;
+        Some(SessionActionDisposition::KeepNavigator)
+    }
+
+    fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
+        assert_eq!(token, self.token());
+        self.active = false;
+    }
+
     fn forward(
         &mut self,
         bytes: &[u8],
@@ -98,15 +115,116 @@ impl TerminalInputPort for SetupPort {
         assert_eq!(token, self.token());
         if self.shown && self.complete && !self.fault {
             self.submissions.push(self.stage);
+            if matches!(
+                self.stage,
+                NativeSetupStage::ProjectRename | NativeSetupStage::WorkspaceRename
+            ) {
+                self.active = false;
+                return Some(SessionActionDisposition::KeepNavigator);
+            }
             self.next_step(match self.stage {
                 NativeSetupStage::ChooseProject => NativeSetupStage::ProjectLabel,
                 NativeSetupStage::ProjectLabel => NativeSetupStage::WorkspaceLabel,
-                NativeSetupStage::WorkspaceLabel | NativeSetupStage::DirectoryPath => {
-                    NativeSetupStage::DirectoryPath
-                }
+                NativeSetupStage::WorkspaceLabel
+                | NativeSetupStage::DirectoryPath
+                | NativeSetupStage::ProjectRename
+                | NativeSetupStage::WorkspaceRename => NativeSetupStage::DirectoryPath,
             });
         }
         Some(SessionActionDisposition::KeepNavigator)
+    }
+}
+
+#[test]
+fn location_rename_prefill_requires_first_draw_and_submits_exact_unicode_paste_once() {
+    for (stage, key) in [
+        (NativeSetupStage::WorkspaceRename, b'r'),
+        (NativeSetupStage::ProjectRename, b'R'),
+    ] {
+        let now = Instant::now();
+        let mut port = SetupPort::new(stage);
+        port.text = "原名".to_owned();
+        port.active = false;
+        let mut dispatcher = InputDispatcher::default();
+        dispatch(&mut dispatcher, &mut port, &[2, key, b'\r'], now);
+        assert_eq!(port.text, "原名");
+        assert!(port.submissions.is_empty());
+        assert!(port.forwarded.is_empty());
+        port.shown = true;
+        dispatch(
+            &mut dispatcher,
+            &mut port,
+            "\x15\x1b[200~新名😀".as_bytes(),
+            now,
+        );
+        assert!(port.text.is_empty());
+        dispatch(
+            &mut dispatcher,
+            &mut port,
+            b"\x1b[201~\r\x02rignored\r",
+            now,
+        );
+        assert_eq!(port.text, "新名😀");
+        assert_eq!(port.submissions, [stage]);
+        assert!(port.forwarded.is_empty());
+        assert!(!port.active);
+    }
+}
+
+#[test]
+fn location_rename_preserves_prefilled_label_on_submit_and_cancels_without_submission() {
+    for stage in [
+        NativeSetupStage::ProjectRename,
+        NativeSetupStage::WorkspaceRename,
+    ] {
+        let now = Instant::now();
+        let mut port = SetupPort::new(stage);
+        port.text = "原名".to_owned();
+        port.shown = true;
+        let mut dispatcher = InputDispatcher::default();
+        dispatch(&mut dispatcher, &mut port, b"\r", now);
+        assert_eq!(port.text, "原名");
+        assert_eq!(port.submissions, [stage]);
+
+        let mut port = SetupPort::new(stage);
+        port.text = "原名".to_owned();
+        let mut dispatcher = InputDispatcher::default();
+        dispatch(&mut dispatcher, &mut port, b"\x1b", now);
+        dispatch(
+            &mut dispatcher,
+            &mut port,
+            b"\r",
+            now + Duration::from_millis(50),
+        );
+        assert!(port.submissions.is_empty());
+        assert!(!port.active);
+        assert!(port.forwarded.is_empty());
+    }
+}
+
+#[test]
+fn location_rename_paste_retains_the_512_scalar_limit_instead_of_the_directory_byte_limit() {
+    let now = Instant::now();
+    for stage in [
+        NativeSetupStage::ProjectRename,
+        NativeSetupStage::WorkspaceRename,
+    ] {
+        let mut port = SetupPort::new(stage);
+        port.text = "界".repeat(511);
+        let mut dispatcher = InputDispatcher::default();
+        dispatch(
+            &mut dispatcher,
+            &mut port,
+            "\x1b[200~😀\x1b[201~".as_bytes(),
+            now,
+        );
+        let exact = format!("{}😀", "界".repeat(511));
+        assert_eq!(port.text, exact);
+        assert!(!port.fault);
+        dispatch(&mut dispatcher, &mut port, b"\x1b[200~x\x1b[201~", now);
+        assert_eq!(port.text, exact);
+        assert!(port.fault);
+        assert!(port.forwarded.is_empty());
     }
 }
 

@@ -1,14 +1,16 @@
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{
-    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason,
-    WorkbenchDirectoryId, WorkbenchProjectId, WorkbenchRejectionReason, WorkbenchRequest,
-    WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision, WorkbenchTerminalContextId,
-    WorkbenchWireError, WorkbenchWorkspaceId, WorkerId, read_workbench_response,
-    write_workbench_request,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason, WorkbenchDirectoryId,
+    WorkbenchProjectId, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchRevision, WorkbenchTerminalContextId, WorkbenchWireError,
+    WorkbenchWorkspaceId, WorkerId, read_workbench_response, write_workbench_request,
 };
 
 use crate::local_client::{ExchangeAttempt, LocalClient, exchange_once};
+
+mod outcome;
+use outcome::classify_outcome;
 
 impl LocalClient {
     pub(crate) fn submit_workbench_setup(
@@ -125,6 +127,8 @@ impl TryFrom<WorkbenchCommand> for WorkbenchSetupRequest {
         if matches!(
             command.action,
             WorkbenchAction::ProjectCreate { .. }
+                | WorkbenchAction::ProjectRename { .. }
+                | WorkbenchAction::WorkspaceRename { .. }
                 | WorkbenchAction::WorkspaceCreate { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ) {
@@ -254,6 +258,19 @@ impl std::error::Error for WorkbenchSetupOutcomeUnknownReason {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchSetupCommit {
+    // Labels are validated against the original canonical label by the frozen operation owner.
+    // These IDs preserve which request target the wire's shared Renamed/Unchanged result names.
+    ProjectRenamed {
+        revision: WorkbenchRevision,
+        project_id: WorkbenchProjectId,
+        unchanged: bool,
+    },
+    WorkspaceRenamed {
+        revision: WorkbenchRevision,
+        project_id: WorkbenchProjectId,
+        workspace_id: WorkbenchWorkspaceId,
+        unchanged: bool,
+    },
     ProjectCreated {
         revision: WorkbenchRevision,
         project_id: WorkbenchProjectId,
@@ -274,124 +291,10 @@ impl WorkbenchSetupCommit {
     pub(crate) const fn revision(&self) -> WorkbenchRevision {
         match self {
             Self::ProjectCreated { revision, .. }
+            | Self::ProjectRenamed { revision, .. }
+            | Self::WorkspaceRenamed { revision, .. }
             | Self::WorkspaceCreated { revision, .. }
             | Self::WorkspacePrimaryDirectoryAccepted { revision, .. } => *revision,
         }
-    }
-}
-
-fn classify_outcome(
-    action: &WorkbenchAction,
-    expected_revision: WorkbenchRevision,
-    outcome: WorkbenchCommandOutcome,
-) -> Result<WorkbenchSetupSubmission, WorkbenchSetupOutcomeUnknownReason> {
-    let commit = match (action, outcome) {
-        (_, WorkbenchCommandOutcome::Rejected { revision, reason })
-            if compatible_rejection(action, reason) =>
-        {
-            return Ok(WorkbenchSetupSubmission::DefinitePrecommit(
-                WorkbenchSetupPrecommit::Rejected { revision, reason },
-            ));
-        }
-        (_, WorkbenchCommandOutcome::Denied {}) => {
-            return Ok(WorkbenchSetupSubmission::DefinitePrecommit(
-                WorkbenchSetupPrecommit::Denied,
-            ));
-        }
-        (_, WorkbenchCommandOutcome::Unavailable { reason })
-            if compatible_unavailable(action, reason) =>
-        {
-            return Ok(WorkbenchSetupSubmission::DefinitePrecommit(
-                WorkbenchSetupPrecommit::Unavailable { reason },
-            ));
-        }
-        (
-            WorkbenchAction::ProjectCreate { .. },
-            WorkbenchCommandOutcome::ProjectCreated {
-                revision,
-                project_id,
-            },
-        ) => WorkbenchSetupCommit::ProjectCreated {
-            revision,
-            project_id,
-        },
-        (
-            WorkbenchAction::WorkspaceCreate { .. },
-            WorkbenchCommandOutcome::WorkspaceCreated {
-                revision,
-                workspace_id,
-                terminal_context_id,
-            },
-        ) => WorkbenchSetupCommit::WorkspaceCreated {
-            revision,
-            workspace_id,
-            terminal_context_id,
-        },
-        (
-            WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. },
-            WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted {
-                revision,
-                directory_id,
-                worker_id,
-            },
-        ) => WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted {
-            revision,
-            directory_id,
-            worker_id,
-        },
-        _ => return Err(WorkbenchSetupOutcomeUnknownReason::ActionIncompatible),
-    };
-    let successor = expected_revision.value().checked_add(1).ok_or(
-        WorkbenchSetupOutcomeUnknownReason::ExpectedRevisionOverflow {
-            expected: expected_revision,
-        },
-    )?;
-    let expected = WorkbenchRevision::new(successor);
-    let received = commit.revision();
-    if expected != received {
-        return Err(WorkbenchSetupOutcomeUnknownReason::RevisionMismatch { expected, received });
-    }
-    Ok(WorkbenchSetupSubmission::Committed(commit))
-}
-
-fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReason) -> bool {
-    match reason {
-        WorkbenchRejectionReason::SiteMismatch
-        | WorkbenchRejectionReason::RevisionMismatch
-        | WorkbenchRejectionReason::ResourceLimit
-        | WorkbenchRejectionReason::IdentityExhausted
-        | WorkbenchRejectionReason::RevisionExhausted
-        | WorkbenchRejectionReason::RequestIdentityConflict => true,
-        WorkbenchRejectionReason::ProjectUnavailable => matches!(
-            action,
-            WorkbenchAction::WorkspaceCreate { .. }
-                | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
-        ),
-        WorkbenchRejectionReason::WorkspaceUnavailable
-        | WorkbenchRejectionReason::WorkspaceDirectoryConflict => matches!(
-            action,
-            WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
-        ),
-        WorkbenchRejectionReason::WorkspaceDirectoryUnavailable
-        | WorkbenchRejectionReason::TerminalContextUnavailable
-        | WorkbenchRejectionReason::TabUnavailable => false,
-    }
-}
-
-fn compatible_unavailable(
-    action: &WorkbenchAction,
-    reason: WorkbenchCommandUnavailableReason,
-) -> bool {
-    match reason {
-        WorkbenchCommandUnavailableReason::RequestLedgerFull
-        | WorkbenchCommandUnavailableReason::ServiceUnavailable => true,
-        WorkbenchCommandUnavailableReason::NoCompatibleWorker
-        | WorkbenchCommandUnavailableReason::ServerBusy
-        | WorkbenchCommandUnavailableReason::DirectoryUnavailable => matches!(
-            action,
-            WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
-        ),
-        WorkbenchCommandUnavailableReason::TerminalBusy
-        | WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable => false,
     }
 }

@@ -16,7 +16,9 @@ fn project() -> Project {
         directories: Vec::new(),
     }
 }
-fn ready(with_project: bool) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+pub(super) fn ready(
+    with_project: bool,
+) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
     let clock = adjustable_operation_clock(Arc::new(AtomicU64::new(0)));
     let mailbox = Arc::new(CommandMailbox::new(
         10,

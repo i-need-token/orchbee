@@ -1,4 +1,5 @@
 use super::*;
+mod location_labels;
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupCommit, WorkbenchSetupNotSubmitted, WorkbenchSetupOutcomeUnknownReason,
     WorkbenchSetupPrecommit, WorkbenchSetupRequest, WorkbenchSetupSubmission,
@@ -47,22 +48,13 @@ fn setup_outcome(kind: usize, revision: u64) -> WorkbenchCommandOutcome {
 }
 
 #[test]
-fn setup_wrapper_accepts_only_the_three_setup_actions() {
+fn setup_wrapper_accepts_setup_and_location_label_actions() {
     for kind in 0..3 {
         let request = WorkbenchSetupRequest::try_from(setup_command(kind, 7)).unwrap();
         assert_eq!(request.request_id().as_str(), FIRST_REQUEST_ID);
     }
     for action in [
         tab_create_command(FIRST_REQUEST_ID, 7).action,
-        WorkbenchAction::ProjectRename {
-            project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
-            label: workbench_label(),
-        },
-        WorkbenchAction::WorkspaceRename {
-            project_id: WorkbenchProjectId::parse(&id(21)).unwrap(),
-            workspace_id: WorkbenchWorkspaceId::parse(&id(22)).unwrap(),
-            label: workbench_label(),
-        },
         WorkbenchAction::TabRename {
             terminal_context_id: context_id(30),
             tab_id: WorkbenchTabId::parse(&id(31)).unwrap(),

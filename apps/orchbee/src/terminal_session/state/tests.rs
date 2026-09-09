@@ -11,6 +11,7 @@ use orchbee_workbench_protocol::{
 mod context_selection;
 mod create_projection;
 mod generated;
+mod location_labels;
 mod membership;
 mod move_tab;
 mod rename_draft;

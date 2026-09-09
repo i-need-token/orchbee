@@ -4,6 +4,9 @@ use crate::client_view::{BackendAction, Notice};
 
 use super::{Locale, select_locale};
 
+#[cfg(unix)]
+mod location_labels;
+
 #[test]
 fn uses_locale_precedence_and_skips_empty_values() {
     let empty_override = HashMap::from([
@@ -61,7 +64,7 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(english.shortcuts.len(), 16);
+    assert_eq!(english.shortcuts.len(), 18);
     assert_eq!(chinese.shortcuts.len(), english.shortcuts.len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
@@ -69,6 +72,8 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     for shortcut in [
         "Ctrl+B a",
         "Ctrl+B e",
+        "Ctrl+B r",
+        "Ctrl+B R",
         "Ctrl+B c",
         "Ctrl+B ,",
         "Ctrl+B x",

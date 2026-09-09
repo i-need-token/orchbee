@@ -108,6 +108,8 @@ impl InputDispatcher {
                     ClientAction::RequestRenameTab
                         | ClientAction::RequestWorkspaceCreate
                         | ClientAction::RequestWorkspaceDirectory
+                        | ClientAction::RequestWorkspaceRename
+                        | ClientAction::RequestProjectRename
                 )
             );
             if requests_modal {

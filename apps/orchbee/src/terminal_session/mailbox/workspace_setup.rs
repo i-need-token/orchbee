@@ -7,7 +7,9 @@ use super::{
 use crate::local_client::LocalOperationClock;
 use crate::terminal_session::state::{
     NativeSessionState,
-    workspace_setup::{NativeSetupToken, SetupOperation, SetupResult, SetupWorkerEvidence},
+    workspace_setup::{
+        NativeSetupIntent, NativeSetupToken, SetupOperation, SetupResult, SetupWorkerEvidence,
+    },
 };
 use crate::terminal_session::state::{OperationDeadlines, PendingRefreshStage};
 
@@ -32,7 +34,7 @@ impl CommandMailbox {
     pub(in crate::terminal_session) fn open_setup_draft_for(
         &self,
         canonical: &mut NativeSessionState,
-        directory: bool,
+        intent: NativeSetupIntent,
     ) -> Option<NativeSetupToken> {
         let state = self.lock();
         if Self::ensure_open(&state).is_err()
@@ -49,7 +51,7 @@ impl CommandMailbox {
         {
             return None;
         }
-        canonical.open_setup_draft(directory)
+        canonical.open_setup_draft(intent)
     }
     pub(in crate::terminal_session) fn try_enqueue_setup_for(
         &self,

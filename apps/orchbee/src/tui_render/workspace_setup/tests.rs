@@ -11,7 +11,8 @@ fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool,
     let mut complete = false;
     terminal
         .draw(|frame| {
-            complete = render_content(frame, locale, Text::from(lines.clone())).1;
+            complete =
+                render_content(frame, locale.setup_resize_hint(), Text::from(lines.clone())).1;
         })
         .unwrap();
     let text = terminal
@@ -90,5 +91,42 @@ fn directory_actions_only_replace_a_live_empty_panel() {
             directory_guidance(locale, Phase::Empty, false, Some("/workspace"), false),
             Some(locale.setup_directory_ready("/workspace"))
         );
+    }
+}
+
+#[test]
+fn location_rename_complete_draw_and_resize_fallback_keep_the_exact_target() {
+    for project in [true, false] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let lines = vec![
+                Line::from(locale.location_rename_title(project)),
+                Line::from("界".repeat(512)),
+                Line::from(locale.location_rename_hint(project)),
+                Line::from(locale.location_rename_actions(project)),
+            ];
+            let mut narrow = Terminal::new(TestBackend::new(100, 8)).unwrap();
+            let mut complete = true;
+            narrow
+                .draw(|frame| {
+                    complete = render_content(
+                        frame,
+                        locale.location_rename_resize_hint(project),
+                        Text::from(lines.clone()),
+                    )
+                    .1;
+                })
+                .unwrap();
+            assert!(!complete);
+            let text = narrow
+                .backend()
+                .buffer()
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>();
+            assert!(text.contains(if project { "Project" } else { "Workspace" }));
+            assert!(!text.contains("Ctrl+U"));
+            assert!(draw(120, 24, locale, lines).0);
+        }
     }
 }

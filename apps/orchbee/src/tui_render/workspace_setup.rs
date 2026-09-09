@@ -2,8 +2,8 @@ use super::{EMPHASIS, SIDEBAR_BACKGROUND, TEXT, WARNING, tab_close::wrapped_text
 use crate::{
     localization::Locale,
     terminal_session::{
-        NativeDisplayPhase, NativeSetupDraftView, NativeSetupStage, NativeSetupStatus,
-        NativeSetupToken,
+        NativeDisplayPhase, NativeLocationLabelStatus, NativeSetupDraftView, NativeSetupStage,
+        NativeSetupStatus, NativeSetupToken,
     },
     terminal_text::sanitize_terminal_text,
     tui_layout::centered_overlay,
@@ -36,6 +36,11 @@ pub(super) fn render(
     draft: &NativeSetupDraftView<'_>,
     status: Option<NativeSetupStatus>,
 ) -> (Rect, Option<NativeSetupToken>) {
+    let rename = match draft.stage() {
+        NativeSetupStage::ProjectRename => Some(true),
+        NativeSetupStage::WorkspaceRename => Some(false),
+        _ => None,
+    };
     let mut lines = vec![
         Line::from(locale.setup_title(draft.stage())),
         Line::from(""),
@@ -61,8 +66,10 @@ pub(super) fn render(
             )));
             lines.push(Line::from(""));
         }
-        if draft.stage() == NativeSetupStage::DirectoryPath
-            && let Some(workspace) = draft.workspace_label()
+        if matches!(
+            draft.stage(),
+            NativeSetupStage::DirectoryPath | NativeSetupStage::WorkspaceRename
+        ) && let Some(workspace) = draft.workspace_label()
         {
             lines.push(Line::from(format!(
                 "{}: {}",
@@ -75,8 +82,9 @@ pub(super) fn render(
             sanitize_terminal_text(draft.text()).into_owned(),
         ));
         lines.push(Line::from(""));
-        lines.push(Line::from(locale.setup_input_hint(
-            draft.stage() == NativeSetupStage::DirectoryPath,
+        lines.push(Line::from(rename.map_or_else(
+            || locale.setup_input_hint(draft.stage() == NativeSetupStage::DirectoryPath),
+            |project| locale.location_rename_hint(project),
         )));
     }
     lines.push(Line::from(""));
@@ -91,20 +99,32 @@ pub(super) fn render(
     if let Some(
         status @ (NativeSetupStatus::NotApplied
         | NativeSetupStatus::CommittedNeedRefresh
-        | NativeSetupStatus::OutcomeUnknown),
+        | NativeSetupStatus::OutcomeUnknown
+        | NativeSetupStatus::LocationLabel {
+            status:
+                NativeLocationLabelStatus::NotApplied
+                | NativeLocationLabelStatus::CommittedNeedRefresh
+                | NativeLocationLabelStatus::OutcomeUnknown,
+            ..
+        }),
     ) = status
     {
         lines.push(Line::from(locale.setup_status(status)));
         lines.push(Line::from(""));
     }
-    lines.push(Line::from(
-        locale.setup_actions(draft.stage() == NativeSetupStage::ChooseProject),
-    ));
-    let (area, complete) = render_content(frame, locale, Text::from(lines));
+    lines.push(Line::from(rename.map_or_else(
+        || locale.setup_actions(draft.stage() == NativeSetupStage::ChooseProject),
+        |project| locale.location_rename_actions(project),
+    )));
+    let resize_hint = rename.map_or_else(
+        || locale.setup_resize_hint(),
+        |project| locale.location_rename_resize_hint(project),
+    );
+    let (area, complete) = render_content(frame, resize_hint, Text::from(lines));
     (area, complete.then(|| draft.token()))
 }
 
-fn render_content(frame: &mut Frame<'_>, locale: Locale, text: Text<'_>) -> (Rect, bool) {
+fn render_content(frame: &mut Frame<'_>, resize_hint: &str, text: Text<'_>) -> (Rect, bool) {
     let area = centered_overlay(frame.area(), u16::MAX, u16::MAX);
     let block = Block::new()
         .borders(Borders::ALL)
@@ -120,7 +140,7 @@ fn render_content(frame: &mut Frame<'_>, locale: Locale, text: Text<'_>) -> (Rec
         (area, true)
     } else {
         frame.render_widget(
-            Paragraph::new(locale.setup_resize_hint())
+            Paragraph::new(resize_hint)
                 .style(Style::new().fg(WARNING))
                 .wrap(Wrap { trim: false }),
             inner,

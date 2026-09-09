@@ -17,7 +17,7 @@ fn project() -> Project {
         workspaces: Vec::new(),
     }
 }
-fn workspace_snapshot(revision: u64, tabs: usize) -> Snapshot {
+pub(super) fn workspace_snapshot(revision: u64, tabs: usize) -> Snapshot {
     let mut snapshot = snapshot(1, revision, None);
     let mut project = project();
     project.workspaces.push(Workspace {
@@ -34,7 +34,7 @@ fn workspace_snapshot(revision: u64, tabs: usize) -> Snapshot {
     });
     snapshot
 }
-fn workspace_state() -> NativeSessionState {
+pub(super) fn workspace_state() -> NativeSessionState {
     let snapshot = workspace_snapshot(1, 0);
     let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
@@ -86,7 +86,7 @@ fn label_operation(state: &mut NativeSessionState, label: &str, generation: u64)
     state.begin_setup(operation.clone());
     operation
 }
-fn finish(
+pub(super) fn finish(
     state: &mut NativeSessionState,
     snapshot: Snapshot,
     generation: u64,
@@ -128,7 +128,11 @@ fn picker_keeps_empty_projects_defaults_new_on_standalone_and_rejects_old_target
     let mut snapshot = snapshot(1, 1, None);
     snapshot.navigation.projects.push(project());
     let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
-    let original = state.open_setup_draft(false).unwrap();
+    let original = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
+        )
+        .unwrap();
     let draft = state.setup_draft().unwrap();
     assert_eq!(draft.project_count(), 2);
     assert!(draft.project_at(1).unwrap().selected());
@@ -151,7 +155,11 @@ fn picker_keeps_empty_projects_defaults_new_on_standalone_and_rejects_old_target
 fn project_commit_refresh_failure_then_explicit_recovery_advances_fresh_step_and_cancel_keeps_project()
  {
     let mut state = ready(1);
-    let token = state.open_setup_draft(false).unwrap();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
+        )
+        .unwrap();
     state.acknowledge_setup_draw(Some(token));
     assert!(state.advance_setup_picker(token));
     let operation = label_operation(&mut state, "Project", 1);
@@ -202,7 +210,11 @@ fn project_commit_refresh_failure_then_explicit_recovery_advances_fresh_step_and
     assert!(!state.setup_blocks_structure());
     state.clear_settled_setup_status();
     assert_eq!(state.setup_status(), None);
-    let token = state.open_setup_draft(false).unwrap();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
+        )
+        .unwrap();
     state.edit_setup_draft(token, Edit::SelectPreviousProject);
     let token = state.setup_draft().unwrap().token();
     state.acknowledge_setup_draw(Some(token));
@@ -220,7 +232,11 @@ fn workspace_late_snapshot_selects_real_member_after_exact_old_viewer_cleanup() 
     let mut baseline = snapshot(1, 1, None);
     baseline.navigation.projects.push(project());
     let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
-    let token = state.open_setup_draft(false).unwrap();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
+        )
+        .unwrap();
     assert!(state.edit_setup_draft(token, Edit::SelectPreviousProject));
     let token = state.setup_draft().unwrap().token();
     state.acknowledge_setup_draw(Some(token));
@@ -252,7 +268,11 @@ fn workspace_exact_commit_rejects_fabricated_nonempty_membership_and_wrong_owner
         let mut baseline = snapshot(1, 1, None);
         baseline.navigation.projects.push(project());
         let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
-        let token = state.open_setup_draft(false).unwrap();
+        let token = state
+            .open_setup_draft(
+                crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
+            )
+            .unwrap();
         state.edit_setup_draft(token, Edit::SelectPreviousProject);
         let token = state.setup_draft().unwrap().token();
         state.acknowledge_setup_draw(Some(token));
@@ -286,7 +306,11 @@ fn workspace_exact_commit_rejects_fabricated_nonempty_membership_and_wrong_owner
 #[test]
 fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
     let mut state = workspace_state();
-    let token = state.open_setup_draft(true).unwrap();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+        )
+        .unwrap();
     assert!(state.edit_setup_draft(token, Edit::Append(&format!("/{}", "中".repeat(1365)))));
     assert_eq!(state.setup_draft().unwrap().text().len(), 4096);
     assert!(state.edit_setup_draft(token, Edit::Append("x")));
@@ -330,28 +354,42 @@ fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
     assert_eq!(state.phase_kind(), SessionPhaseKind::Empty);
     assert!(state.desired().is_none());
     assert_eq!(state.workspace_directory_path(), Some(path));
-    assert!(state.open_setup_draft(true).is_none());
+    assert!(state.open_setup_draft(crate::terminal_session::state::workspace_setup::NativeSetupIntent::ConfigureDirectory).is_none());
 }
 #[test]
 fn setup_draft_and_known_recovery_exclude_existing_structural_actions() {
     let mut state = ready(2);
-    let token = state.open_setup_draft(false).unwrap();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
+        )
+        .unwrap();
     assert_eq!(
         state.plan_selection(ClientAction::SelectNextTab),
         SelectionPlan::Busy
     );
     assert!(state.open_rename_draft().is_none());
     assert!(!state.phase_allows_refresh());
-    assert!(state.open_setup_draft(true).is_none());
+    assert!(state.open_setup_draft(crate::terminal_session::state::workspace_setup::NativeSetupIntent::ConfigureDirectory).is_none());
     state.cancel_setup_draft(token);
     assert!(!state.setup_blocks_structure());
     assert!(state.open_rename_draft().is_some());
-    assert!(state.open_setup_draft(false).is_none());
+    assert!(
+        state
+            .open_setup_draft(
+                crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace
+            )
+            .is_none()
+    );
 }
 #[test]
 fn known_and_definite_worker_returns_survive_retirement_without_becoming_unknown() {
     let mut state = workspace_state();
-    let token = state.open_setup_draft(true).unwrap();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+        )
+        .unwrap();
     state.acknowledge_setup_draw(Some(token));
     state.edit_setup_draft(token, Edit::Append("/missing"));
     let operation = state
@@ -394,7 +432,11 @@ fn directory_commit_cannot_claim_an_existing_directory_identity_at_a_later_revis
         .prepare_refresh_membership_install(2, prepared, None, None)
         .unwrap()
         .commit();
-    let token = state.open_setup_draft(true).unwrap();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+        )
+        .unwrap();
     state.edit_setup_draft(token, Edit::Append("/literal"));
     state.acknowledge_setup_draw(Some(token));
     let operation = state

@@ -1,5 +1,7 @@
 use super::Locale;
-use crate::terminal_session::{NativeSessionNotice, NativeSetupStage, NativeSetupStatus};
+use crate::terminal_session::{
+    NativeLocationLabelStatus, NativeSessionNotice, NativeSetupStage, NativeSetupStatus,
+};
 
 impl Locale {
     pub(super) fn native_status_with_setup(
@@ -16,6 +18,29 @@ impl Locale {
             notice.map(|notice| self.native_notice(notice))
         };
         match (primary, setup) {
+            (
+                Some(primary),
+                Some(NativeSetupStatus::LocationLabel {
+                    target,
+                    status: NativeLocationLabelStatus::CommittedNeedRefresh,
+                }),
+            ) if retired => {
+                format!(
+                    "{primary} · {}",
+                    self.location_rename_committed_fact(target)
+                )
+            }
+            (
+                Some(primary),
+                Some(NativeSetupStatus::LocationLabel {
+                    target,
+                    status:
+                        status @ (NativeLocationLabelStatus::CommittedNeedRefresh
+                        | NativeLocationLabelStatus::OutcomeUnknown),
+                }),
+            ) => {
+                format!("{primary} · {}", self.location_label_status(target, status))
+            }
             (Some(primary), Some(NativeSetupStatus::CommittedNeedRefresh)) if retired => {
                 format!("{primary} · {}", self.setup_committed_fact())
             }
@@ -61,6 +86,8 @@ impl Locale {
             (Self::ZhCn, NativeSetupStage::WorkspaceLabel) => "创建 Workspace · Workspace 名称",
             (Self::EnUs, NativeSetupStage::DirectoryPath) => "Configure Workspace directory",
             (Self::ZhCn, NativeSetupStage::DirectoryPath) => "配置 Workspace 目录",
+            (_, NativeSetupStage::ProjectRename) => self.location_rename_title(true),
+            (_, NativeSetupStage::WorkspaceRename) => self.location_rename_title(false),
         }
     }
 
@@ -131,6 +158,9 @@ impl Locale {
 
     pub(crate) const fn setup_status(self, status: NativeSetupStatus) -> &'static str {
         match (self, status) {
+            (_, NativeSetupStatus::LocationLabel { target, status }) => {
+                self.location_label_status(target, status)
+            }
             (Self::EnUs, NativeSetupStatus::NotApplied) => {
                 "Workspace setup not applied · check the target and input before trying again"
             }

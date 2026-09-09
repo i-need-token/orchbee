@@ -76,7 +76,9 @@ Tab creation using the accepted directory and exact Worker.
 TUI to existing Workspaces and their Tab operations.
 [Native Workspace setup](../../apps/orchbee/docs/native-workspace-setup.md) adds staged Project and
 Workspace creation and explicit first-directory configuration; terminal launch remains a separate
-explicit action. Desktop migration remains separate work.
+explicit action. [Native location labels](../../apps/orchbee/docs/native-location-labels.md) adds
+Project and Workspace rename controls while preserving retained terminals. Desktop migration
+remains separate work.
 
 This milestone is additive and unshipped. It does not prove production restart recovery, remote
 access, or migration of the existing Desktop. In particular, its accepted `RecoveryRequired`

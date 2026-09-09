@@ -35,6 +35,8 @@ pub(crate) enum PanelDirection {
 pub(crate) enum BackendAction {
     CreateWorkspace,
     ConfigureWorkspaceDirectory,
+    RenameWorkspace,
+    RenameProject,
     RenameTab,
     CloseTab,
     MovePreviousTab,
@@ -53,6 +55,8 @@ pub(crate) enum BackendAction {
 pub(crate) enum ClientAction {
     RequestWorkspaceCreate,
     RequestWorkspaceDirectory,
+    RequestWorkspaceRename,
+    RequestProjectRename,
     RequestRenameTab,
     RequestCloseTab,
     ConfirmClose,
@@ -131,6 +135,8 @@ impl ClientAction {
         match self {
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
             Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
+            Self::RequestWorkspaceRename => Some(BackendAction::RenameWorkspace),
+            Self::RequestProjectRename => Some(BackendAction::RenameProject),
             Self::RequestRenameTab => Some(BackendAction::RenameTab),
             Self::RequestCloseTab => Some(BackendAction::CloseTab),
             Self::CreateTab => Some(BackendAction::CreateTab),
@@ -296,6 +302,8 @@ impl ClientView {
             ClientKey::Plain('q' | 'd') => (ClientAction::Exit, ShellCommand::Exit),
             ClientKey::Plain('a') => (ClientAction::RequestWorkspaceCreate, ShellCommand::None),
             ClientKey::Plain('e') => (ClientAction::RequestWorkspaceDirectory, ShellCommand::None),
+            ClientKey::Plain('r') => (ClientAction::RequestWorkspaceRename, ShellCommand::None),
+            ClientKey::Plain('R') => (ClientAction::RequestProjectRename, ShellCommand::None),
             ClientKey::Plain('c') => (ClientAction::CreateTab, ShellCommand::None),
             ClientKey::Plain('x') => (ClientAction::RequestCloseTab, ShellCommand::None),
             ClientKey::Plain(',') => (ClientAction::RequestRenameTab, ShellCommand::None),

@@ -21,6 +21,8 @@ Project/Workspace creation and first-directory configuration belong to
 Panel layouts, remote access, persistence and production recovery are excluded.
 This unpublished cohort rolls out and rolls back together.
 Changing the Client location does not change canonical navigation or dispose retained execution.
+[Location label editing](native-location-labels.md) changes canonical Project or Workspace labels
+while preserving these typed location identities.
 
 ## State and transition contract
 

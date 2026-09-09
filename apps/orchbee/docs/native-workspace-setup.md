@@ -26,6 +26,8 @@ explicit `c` remains the only launch intent. This unpublished cohort activates a
 together. Rollback or cancellation does not undo committed Project, Workspace or Directory facts.
 Remote access, rebinding, deletion, general Directory CRUD, persistence and release packaging are
 excluded.
+[Location label editing](native-location-labels.md) extends this admission and result-consumption
+owner with the existing Project and Workspace rename commands.
 
 ## State and command contract
 

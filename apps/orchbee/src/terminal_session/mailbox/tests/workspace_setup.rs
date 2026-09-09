@@ -5,7 +5,11 @@ use crate::terminal_session::state::workspace_setup::{
 };
 use orchbee_workbench_protocol::WorkbenchProjectId;
 fn draft(state: &mut NativeSessionState) -> NativeSetupToken {
-    let token = state.open_setup_draft(false).unwrap();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
+        )
+        .unwrap();
     state.acknowledge_setup_draw(Some(token));
     assert!(state.advance_setup_picker(token));
     let token = state.setup_draft().unwrap().token();

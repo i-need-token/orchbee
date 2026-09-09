@@ -64,8 +64,9 @@ Create 及保留 shell 重入的有界 Linux 进程证据；其余 Workbench 操
 的 Workspace Tab 创建。[原生上下文选择](../../apps/orchbee/docs/native-context-selection.zh-CN.md)
 将 Linux TUI 接到已有 Workspace 及其 Tab 操作。
 [原生 Workspace 设置](../../apps/orchbee/docs/native-workspace-setup.zh-CN.md) 增加分步 Project 和
-Workspace 创建及显式首目录配置；终端启动仍为独立显式动作。Desktop
-迁移，仍属独立工作。
+Workspace 创建及显式首目录配置；终端启动仍为独立显式动作。
+[原生位置标签](../../apps/orchbee/docs/native-location-labels.zh-CN.md) 增加 Project 和 Workspace
+重命名控制，并保留终端执行。Desktop 迁移仍属独立工作。
 
 该里程碑是尚未发布的增量实现，不证明生产重启恢复、远程访问或现有 Desktop 迁移已经完成。
 其中，对无法匹配的保留 Host inventory 返回 `RecoveryRequired` 是开发阶段边界，不是生产连续性

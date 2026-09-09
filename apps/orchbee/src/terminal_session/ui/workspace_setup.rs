@@ -1,10 +1,11 @@
 use super::{ActionBuildError, NativeSessionView, NativeUi, finish_action};
 use crate::client_view::SessionActionDisposition;
 pub(crate) use crate::terminal_session::state::workspace_setup::{
-    NativeSetupDraftView, NativeSetupEdit, NativeSetupStage, NativeSetupStatus, NativeSetupToken,
+    NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
+    NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
 use crate::terminal_session::state::workspace_setup::{
-    SetupOperation, SetupResult, SetupWorkerEvidence,
+    NativeSetupIntent, SetupOperation, SetupResult, SetupWorkerEvidence,
 };
 use crate::terminal_session::{
     mailbox::{CommandMailbox, MoveAdmissionError, MutationResult, RefreshSettlement, UiReply},
@@ -80,14 +81,14 @@ impl NativeUi {
     }
     pub(in crate::terminal_session) fn request_setup_draft(
         &mut self,
-        directory: bool,
+        intent: NativeSetupIntent,
     ) -> Option<NativeSetupToken> {
         if self.retirement_failure.is_some() {
             return None;
         }
         self.mailbox
             .as_ref()?
-            .open_setup_draft_for(self.state.as_mut()?, directory)
+            .open_setup_draft_for(self.state.as_mut()?, intent)
     }
     pub(in crate::terminal_session) fn setup_input_context(
         &mut self,

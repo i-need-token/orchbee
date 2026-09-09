@@ -73,6 +73,16 @@ fn marks_only_wide_sidebar_reflow_as_a_layout_change() {
 fn decides_each_completed_prefix_without_mutating_the_view() {
     let fixed_cases = [
         (
+            ClientKey::Plain('r'),
+            ClientAction::RequestWorkspaceRename,
+            None,
+        ),
+        (
+            ClientKey::Plain('R'),
+            ClientAction::RequestProjectRename,
+            None,
+        ),
+        (
             ClientKey::Plain('a'),
             ClientAction::RequestWorkspaceCreate,
             None,

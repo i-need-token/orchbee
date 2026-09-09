@@ -1,5 +1,6 @@
 mod commands;
 mod context_selection;
+mod location_labels;
 mod setup;
 mod switch_membership;
 mod tab_move;

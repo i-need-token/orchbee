@@ -21,6 +21,8 @@ UTF-8 路径，最多 4,096 字节且不能含 NUL；不回退 home、不做 she
 目录接受不启动 shell；显式 `c` 仍是唯一启动意图。该未发布 cohort 整体启用与回滚。回滚或
 取消不撤销已经提交的 Project、Workspace 或 Directory 事实。远程访问、重新绑定、删除、
 通用 Directory CRUD、持久化与发布打包不在范围内。
+[位置标签编辑](native-location-labels.zh-CN.md) 使用既有 Project 和 Workspace 重命名命令，
+扩展这里的准入和结果消费 owner。
 
 ## 状态与命令契约
 

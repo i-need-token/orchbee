@@ -126,20 +126,24 @@
 			"zhCnSha256": "eeb887ade7811807a193b6f7754f081018db2224fa1b817c9eab5f657909acff"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "dbe729944e93a3edf5fdecd81dc1a4a91c7d2dde9dbd7f2750aa9556d1380ffa",
-			"zhCnSha256": "80b4172a217d5745094bca0986af911327ffa01bdb026c59b79afde5ec818b06"
+			"englishSha256": "947e6a449e52c0bf5262d55d4e664755b81087c97b6f5f9be6d9845bcb2e699f",
+			"zhCnSha256": "3f008b93a89bf3382b35faec25a1374785410cda9fc2a3c04a2750c908797be5"
 		},
 		"apps/orchbee/docs/native-context-selection.md": {
-			"englishSha256": "c2d7c7f1343ba51c18e58590e63a77612dc327ff6f2d1dd657b8d3742daa717e",
-			"zhCnSha256": "fe23e753f26bd388584862fbdc69fcfd00120cc72a6f4968537437d3251d97a9"
+			"englishSha256": "e23f7ba364a5132a1ff11c570bab706f31c7dc16ee5bd389f358c4ce1760a472",
+			"zhCnSha256": "1d875bba36233354652582b711beb3106e8a2ada96ea6d7534c05dde9a79b036"
+		},
+		"apps/orchbee/docs/native-location-labels.md": {
+			"englishSha256": "645e685d0bbeed7a48a5f989fe4c95a4346af1d04c08838c4cf90b156ad07a72",
+			"zhCnSha256": "b5a1dececa17f108826426e617944a5a474b240408c77e881cf2b62427027001"
 		},
 		"apps/orchbee/docs/native-tab-session.md": {
 			"englishSha256": "9edbca6f284dba5c33f481b481182657937b1251d5f772bdd2a2f2ce5f7bbf7d",
 			"zhCnSha256": "c4cb05f169fa49b5e4d241d867e9be6386ea115f2959abd6e2a9d032b31b590c"
 		},
 		"apps/orchbee/docs/native-workspace-setup.md": {
-			"englishSha256": "9340a4a7194ed451b854e7a0feacbeb648abab88e58a07c454b68792207ed0ab",
-			"zhCnSha256": "1790e7265ec5c8dee62378425f782a4ce6161a1879ed29dd12b0322f16b71418"
+			"englishSha256": "243d50491add4de34377903e103def4b816bae23daa821830c422cb85061b433",
+			"zhCnSha256": "84e64675cae1228a732db5ab3322aa77a23f740bd7e4e7d081e4889a30970be8"
 		},
 		"apps/server/README.md": {
 			"englishSha256": "332ffbc750feb60fb3f23dc7a536970e929cb56c529b2f253f109f41bc8d7370",
@@ -474,8 +478,8 @@
 			"zhCnSha256": "0d8fdad25efe0661e1e78af7f0240c02725a692d41adef9b5b098b1c5b5578d7"
 		},
 		"proposals/platform/connected-client-capability-service.md": {
-			"englishSha256": "945f0dcfda3eba7225f50a29a5df1f3550c03276062a518c97b1ec22439bbe45",
-			"zhCnSha256": "3ed3afb464dcabe50437fcf91db68ddcabdbbc23aec4d0e1d300930c1144969d"
+			"englishSha256": "198e53dc68859bf02deedcbb3435b989210592090130ebb617b9f1ed48c4b1e6",
+			"zhCnSha256": "9bd0522bc8f6323b69da6c4121a4814cc591a6edbe57ba2cfb45db26c06486ac"
 		},
 		"proposals/platform/native-runtime-topology.md": {
 			"englishSha256": "e09ff1261e8cbbd5b267a118e9d2079f02de24ec34b6039c1982049e0b757036",

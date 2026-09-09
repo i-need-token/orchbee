@@ -17,7 +17,10 @@ impl UiDriver {
         let mailbox = Arc::clone(&self.mailbox);
         let state = self.state_mut();
         let picker = mailbox
-            .open_setup_draft_for(state, false)
+            .open_setup_draft_for(
+                state,
+                crate::terminal_session::state::workspace_setup::NativeSetupIntent::CreateWorkspace,
+            )
             .ok_or_else(|| test_error("setup picker admission"))?;
         state.acknowledge_setup_draw(Some(picker));
         assert!(state.advance_setup_picker(picker));
@@ -211,5 +214,26 @@ impl Harness {
         self.shutdown.close()?;
         self.carrier.finish()?;
         Ok(state)
+    }
+}
+
+impl UiDriver {
+    pub(in crate::terminal_session::connection::native::tests) fn location_label_draft(
+        &mut self,
+        target: crate::terminal_session::state::workspace_setup::NativeLocationLabelTarget,
+        replacement: Option<&str>,
+    ) -> TestResult<NativeSetupToken> {
+        use crate::terminal_session::state::workspace_setup::NativeSetupIntent;
+        let mailbox = Arc::clone(&self.mailbox);
+        let state = self.state_mut();
+        let token = mailbox
+            .open_setup_draft_for(state, NativeSetupIntent::RenameLocation(target))
+            .ok_or_else(|| test_error("location label draft admission"))?;
+        if let Some(label) = replacement {
+            assert!(state.edit_setup_draft(token, NativeSetupEdit::Clear));
+            assert!(state.edit_setup_draft(token, NativeSetupEdit::Append(label)));
+        }
+        state.acknowledge_setup_draw(Some(token));
+        Ok(token)
     }
 }
