@@ -1,6 +1,6 @@
 use orchbee_workbench_protocol::{PanelNode, PresentationBinding, SiteId};
 
-use super::WorkbenchAuthority;
+use super::{WorkbenchAuthority, terminal_membership::visit_panel_presentations};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkbenchBindingExposure {
@@ -37,21 +37,11 @@ impl WorkbenchAuthority {
 }
 
 fn panel_exposes_binding(node: &PanelNode, binding: &PresentationBinding) -> bool {
-    match node {
-        PanelNode::Panel {
-            child_presentations,
-            primary_presentation,
-            ..
-        } => {
-            primary_presentation.binding.as_ref() == Some(binding)
-                || child_presentations
-                    .iter()
-                    .any(|presentation| presentation.binding.as_ref() == Some(binding))
-        }
-        PanelNode::Split { children, .. } => children
-            .iter()
-            .any(|child| panel_exposes_binding(&child.node, binding)),
-    }
+    let mut exposed = false;
+    visit_panel_presentations(node, &mut |_, presentation| {
+        exposed |= presentation.binding.as_ref() == Some(binding);
+    });
+    exposed
 }
 
 #[cfg(test)]

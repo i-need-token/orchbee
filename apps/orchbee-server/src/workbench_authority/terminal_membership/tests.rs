@@ -1,6 +1,9 @@
 use super::*;
 use crate::workbench_projection::WorkbenchProjectionStore;
-use orchbee_workbench_protocol::{SiteId, TerminalId, WorkbenchRevision, WorkerId};
+use orchbee_workbench_protocol::{
+    PanelOrientation, PanelSlot, Presentation, SiteId, TerminalId, TerminalPresentationId,
+    WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchRevision, WorkbenchSplitId, WorkerId,
+};
 
 fn authority() -> WorkbenchAuthority {
     WorkbenchAuthority::new(SiteId::parse(&identity(91)).unwrap()).unwrap()
@@ -334,4 +337,59 @@ fn duplicate_bootstrap_binding_is_rejected_before_strict_membership_is_construct
     let encoded = serialize_document(&document).unwrap();
     assert!(WorkbenchProjectionStore::load(&encoded).is_err());
     assert_eq!(authority.standalone_membership().unwrap(), before);
+}
+
+#[test]
+fn panel_presentation_visitor_is_depth_first_primary_then_children() {
+    let node = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: vec![Presentation {
+                        binding: None,
+                        label: "left-child".to_owned(),
+                        presentation_id: TerminalPresentationId::parse(&identity(104)).unwrap(),
+                    }],
+                    panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(binding()),
+                        label: "left-primary".to_owned(),
+                        presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&identity(101)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&identity(106)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: None,
+                        label: "right-primary".to_owned(),
+                        presentation_id: TerminalPresentationId::parse(&identity(107)).unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&identity(105)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&identity(100)).unwrap(),
+    };
+    let mut seen = Vec::new();
+    visit_panel_presentations(&node, &mut |panel_id, presentation| {
+        seen.push((
+            panel_id.as_str().to_owned(),
+            presentation.presentation_id.as_str().to_owned(),
+            presentation.binding.clone(),
+        ));
+    });
+
+    assert_eq!(
+        seen,
+        vec![
+            (identity(102), identity(103), Some(binding())),
+            (identity(102), identity(104), None),
+            (identity(106), identity(107), None),
+        ]
+    );
 }

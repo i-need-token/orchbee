@@ -6,6 +6,29 @@ use orchbee_workbench_protocol::{
     WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, serialize_document,
 };
 
+pub(super) fn visit_panel_presentations(
+    node: &PanelNode,
+    visitor: &mut impl FnMut(&WorkbenchPanelId, &Presentation),
+) {
+    match node {
+        PanelNode::Panel {
+            child_presentations,
+            panel_id,
+            primary_presentation,
+        } => {
+            visitor(panel_id, primary_presentation);
+            for presentation in child_presentations {
+                visitor(panel_id, presentation);
+            }
+        }
+        PanelNode::Split { children, .. } => {
+            for child in children.iter() {
+                visit_panel_presentations(&child.node, visitor);
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StandaloneIntentError {
     Occupied,
@@ -301,27 +324,7 @@ pub(super) fn terminal_membership(
     } else {
         return Err(WorkbenchTerminalInvariantError);
     };
-    let context = strict_simple_context(snapshot, context_id)?;
-    let mut members = Vec::with_capacity(context.tabs.len());
-    for tab in &context.tabs {
-        let PanelNode::Panel {
-            panel_id,
-            primary_presentation,
-            ..
-        } = &tab.root
-        else {
-            return Err(WorkbenchTerminalInvariantError);
-        };
-        members.push(WorkbenchTerminalTab {
-            tab_id: tab.tab_id.clone(),
-            panel_id: panel_id.clone(),
-            presentation_id: primary_presentation.presentation_id.clone(),
-            binding: primary_presentation
-                .binding
-                .clone()
-                .ok_or(WorkbenchTerminalInvariantError)?,
-        });
-    }
+    let (_context, members) = legacy_single_leaf_context(snapshot, context_id)?;
     Ok(WorkbenchTerminalMembership {
         terminal_context_id: context_id.clone(),
         context_kind,
@@ -333,6 +336,14 @@ pub(super) fn strict_simple_context<'a>(
     snapshot: &'a Snapshot,
     context_id: &WorkbenchTerminalContextId,
 ) -> Result<&'a TerminalContext, WorkbenchTerminalInvariantError> {
+    let (context, _members) = legacy_single_leaf_context(snapshot, context_id)?;
+    Ok(context)
+}
+
+fn legacy_single_leaf_context<'a>(
+    snapshot: &'a Snapshot,
+    context_id: &WorkbenchTerminalContextId,
+) -> Result<(&'a TerminalContext, Vec<WorkbenchTerminalTab>), WorkbenchTerminalInvariantError> {
     let mut matching = snapshot
         .terminal_contexts
         .iter()
@@ -347,19 +358,40 @@ pub(super) fn strict_simple_context<'a>(
         if tab.pinned || tab.group_id.is_some() {
             return Err(WorkbenchTerminalInvariantError);
         }
-        let PanelNode::Panel {
-            primary_presentation,
-            child_presentations,
-            ..
-        } = &tab.root
-        else {
-            return Err(WorkbenchTerminalInvariantError);
-        };
-        if !child_presentations.is_empty() || primary_presentation.binding.is_none() {
-            return Err(WorkbenchTerminalInvariantError);
-        }
     }
-    Ok(context)
+    let members = context
+        .tabs
+        .iter()
+        .map(legacy_single_leaf_member)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((context, members))
+}
+
+fn legacy_single_leaf_member(
+    tab: &Tab,
+) -> Result<WorkbenchTerminalTab, WorkbenchTerminalInvariantError> {
+    let mut count = 0;
+    let mut first = None;
+    visit_panel_presentations(&tab.root, &mut |panel_id, presentation| {
+        count += 1;
+        if first.is_none() {
+            first = Some((
+                panel_id.clone(),
+                presentation.presentation_id.clone(),
+                presentation.binding.clone(),
+            ));
+        }
+    });
+    if count != 1 {
+        return Err(WorkbenchTerminalInvariantError);
+    }
+    let (panel_id, presentation_id, binding) = first.ok_or(WorkbenchTerminalInvariantError)?;
+    Ok(WorkbenchTerminalTab {
+        tab_id: tab.tab_id.clone(),
+        panel_id,
+        presentation_id,
+        binding: binding.ok_or(WorkbenchTerminalInvariantError)?,
+    })
 }
 
 fn membership_failure(failure: super::PlanFailure) -> StandaloneIntentError {
