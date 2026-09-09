@@ -890,7 +890,9 @@ and Attach lifecycle. It never writes a Workbench revision and never submits `pa
 Panel or an edge with no neighbor is a local no-op. The renderer divides the canonical tree, marks
 the selected leaf, and draws the current live frame only there; inactive leaves retain their labels,
 identity, and geometry but show no second live frame until focused. Simultaneous multi-viewer
-composition remains outside this slice.
+composition remains outside this slice. A peer-created single-leaf split is accepted by the ordinary
+refresh path; the session preserves the selected Panel by identity while reindexing the cached tree
+and retained provenance (`peer_panel_split_refresh_preserves_active_panel_identity`).
 
 ## Startup
 

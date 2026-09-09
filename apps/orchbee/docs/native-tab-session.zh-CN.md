@@ -733,7 +733,9 @@ split 包裹一个保留叶子来加入一个由 Server 创建的新叶子；所
 并运行既有的 Switch 清理和 Attach 生命周期。它绝不写入 Workbench 修订，也绝不提交 `panel.split`。
 单个 Panel 或边界处没有相邻叶子时，本地空操作。渲染器按规范树划分区域、标记所选叶子，并只在
 该处绘制当前实时帧；非活动叶子保留标签、身份和几何，但在获得焦点前不显示第二个实时帧。
-一个 Client 内的同时多 viewer 组合仍不在本切片范围内。
+一个 Client 内的同时多 viewer 组合仍不在本切片范围内。对端创建的单叶子 split 会被普通刷新路径
+接受；Session 按身份保留所选 Panel，同时重排缓存树和保留的来源记录
+（`peer_panel_split_refresh_preserves_active_panel_identity`）。
 
 ## 启动
 

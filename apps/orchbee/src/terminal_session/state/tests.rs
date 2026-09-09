@@ -758,7 +758,7 @@ fn append_only_refresh_preserves_a_nonfirst_active_id_and_known_provenance() {
 }
 
 #[test]
-fn projection_merge_preserves_active_panel_identity_when_split_order_changes() {
+fn peer_panel_split_refresh_preserves_active_panel_identity() {
     let mut baseline = snapshot(1, 1, None);
     let original_root = baseline.terminal_contexts[0].tabs[0].root.clone();
     baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {
@@ -796,38 +796,71 @@ fn projection_merge_preserves_active_panel_identity_when_split_order_changes() {
     let mut refreshed = baseline.clone();
     refreshed.revision = WorkbenchRevision::new(2);
     let old_root = refreshed.terminal_contexts[0].tabs[0].root.clone();
+    let PanelNode::Split {
+        children,
+        orientation,
+        split_id,
+    } = old_root
+    else {
+        unreachable!();
+    };
+    let [old_first, old_second] = *children;
     refreshed.terminal_contexts[0].tabs[0].root = PanelNode::Split {
         children: Box::new([
+            old_first,
             PanelSlot {
-                node: PanelNode::Panel {
-                    child_presentations: Vec::new(),
-                    panel_id: WorkbenchPanelId::parse(&id(3_030)).unwrap(),
-                    primary_presentation: Presentation {
-                        binding: Some(PresentationBinding {
-                            terminal_id: TerminalId::parse(&id(3_032)).unwrap(),
-                            worker_id: WorkerId::parse(&id(3_031)).unwrap(),
-                        }),
-                        label: "new".into(),
-                        presentation_id: TerminalPresentationId::parse(&id(3_033)).unwrap(),
-                    },
+                node: PanelNode::Split {
+                    children: Box::new([
+                        PanelSlot {
+                            node: PanelNode::Panel {
+                                child_presentations: Vec::new(),
+                                panel_id: WorkbenchPanelId::parse(&id(3_030)).unwrap(),
+                                primary_presentation: Presentation {
+                                    binding: Some(PresentationBinding {
+                                        terminal_id: TerminalId::parse(&id(3_032)).unwrap(),
+                                        worker_id: WorkerId::parse(&id(3_031)).unwrap(),
+                                    }),
+                                    label: "new".into(),
+                                    presentation_id: TerminalPresentationId::parse(&id(3_033))
+                                        .unwrap(),
+                                },
+                            },
+                            slot_id: WorkbenchPanelSlotId::parse(&id(3_034)).unwrap(),
+                        },
+                        PanelSlot {
+                            node: old_second.node,
+                            slot_id: WorkbenchPanelSlotId::parse(&id(3_035)).unwrap(),
+                        },
+                    ]),
+                    orientation: PanelOrientation::Vertical,
+                    split_id: WorkbenchSplitId::parse(&id(3_040)).unwrap(),
                 },
-                slot_id: WorkbenchPanelSlotId::parse(&id(3_034)).unwrap(),
-            },
-            PanelSlot {
-                node: old_root,
-                slot_id: WorkbenchPanelSlotId::parse(&id(3_035)).unwrap(),
+                slot_id: old_second.slot_id,
             },
         ]),
-        orientation: PanelOrientation::Vertical,
-        split_id: WorkbenchSplitId::parse(&id(3_040)).unwrap(),
+        orientation,
+        split_id,
     };
-    let candidate = project_native_standalone_tabs(&refreshed).unwrap();
-
-    assert!(state.merge_projection(candidate));
+    assert!(state.start_pending_refresh(1));
+    assert_eq!(
+        finish_refresh(
+            &mut state,
+            1,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: refreshed,
+            },
+            None,
+        ),
+        RefreshDecision::Continue
+    );
     assert_eq!(state.active().unwrap().panel_index(), 2);
     assert_eq!(
         state.tab(0).unwrap().panel(2).unwrap().panel_id(),
         &active_panel_id
+    );
+    assert_eq!(
+        state.refresh_status(),
+        Some(NavigatorRefreshStatus::Success(WorkbenchRevision::new(2)))
     );
     assert!(state.invariant_holds());
 }
