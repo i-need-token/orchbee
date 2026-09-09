@@ -517,7 +517,7 @@ mod tests {
     use super::*;
 
     fn id(value: u128) -> String {
-        format!("00000000-0000-0000-0000-{value:012}")
+        format!("{value:032x}")
     }
 
     fn request() -> WorkbenchCommand {
