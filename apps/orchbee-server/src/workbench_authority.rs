@@ -18,7 +18,7 @@ mod terminal_membership;
 mod workspace_directory;
 pub use terminal_membership::{
     PreparedStandaloneIntent, StandaloneIntentError, StandaloneIntentMetadata,
-    WorkbenchStandaloneInvariantError, WorkbenchStandaloneMembership, WorkbenchStandaloneTab,
+    WorkbenchTerminalInvariantError, WorkbenchTerminalMembership, WorkbenchTerminalTab,
 };
 mod terminal_tab_create;
 pub use terminal_tab_create::{

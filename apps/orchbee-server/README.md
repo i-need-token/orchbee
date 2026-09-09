@@ -32,7 +32,7 @@ changing terminal bindings or taking the Worker registry lock. Both can complete
 pending; exact Move replay retains its original order-change result and revision. The native Move
 interaction remains a separate Client integration boundary.
 
-Local `tab.close`, status Read and Resume now use the retained lifecycle authority and one
+Local standalone and Workspace `tab.close`, status Read and Resume use the retained lifecycle authority and one
 process-lifetime maintenance owner. Known Host disposal and exact Worker/Server cleanup precede
 canonical removal; Client exit does not cancel accepted Close. Linux carrier/process checks cover
 eight live Client connections, idle control-slot release and same-connection reuse while an

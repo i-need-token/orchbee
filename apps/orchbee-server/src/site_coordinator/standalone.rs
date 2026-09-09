@@ -11,7 +11,7 @@ use orchbee_client_server_protocol::{
     CreateOutcome, CreateRejectedReason, CreateUnavailableReason, OpenOutcome, RequestId,
     ServerMessage, StartMode, TerminalCreateRequest, TerminalOpenRequest,
 };
-use orchbee_server::{WorkbenchStandaloneMembership, WorkbenchStandaloneTab};
+use orchbee_server::{WorkbenchTerminalMembership, WorkbenchTerminalTab};
 use orchbee_workbench_protocol::PresentationBinding;
 
 #[derive(Debug)]
@@ -40,11 +40,13 @@ impl PreparedStandaloneRetarget<'_> {
 pub(super) fn prepare_standalone_close_settlement<'site>(
     slot: &'site mut StandaloneTerminal,
     terminals: &TerminalCoordinator,
-    before: &WorkbenchStandaloneMembership,
-    after: &WorkbenchStandaloneMembership,
-    removed: &WorkbenchStandaloneTab,
+    before: &WorkbenchTerminalMembership,
+    after: &WorkbenchTerminalMembership,
+    removed: &WorkbenchTerminalTab,
 ) -> Result<PreparedStandaloneRetarget<'site>, PostcommitCoordinationError> {
-    if before.terminal_context_id() != after.terminal_context_id()
+    if !before.is_standalone()
+        || !after.is_standalone()
+        || before.terminal_context_id() != after.terminal_context_id()
         || before
             .members()
             .iter()

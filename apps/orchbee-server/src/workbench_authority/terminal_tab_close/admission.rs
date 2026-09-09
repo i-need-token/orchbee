@@ -9,7 +9,7 @@ use orchbee_workbench_protocol::{
 
 use super::super::{
     CommitPlan, MAXIMUM_LEDGER_BYTES, MAXIMUM_LEDGER_ENTRIES, PlanFailure, RetainedRequest,
-    WorkbenchAuthority, WorkbenchGrant, WorkbenchStandaloneMembership, result, unavailable,
+    WorkbenchAuthority, WorkbenchGrant, WorkbenchTerminalMembership, result, unavailable,
 };
 use super::{
     CloseContinuation, CloseRecord, WorkbenchTabCloseRuntimeTarget, WorkbenchTabCloseTarget,
@@ -23,7 +23,7 @@ pub enum WorkbenchTabCloseBegin<'a> {
 pub struct WorkbenchTabCloseAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
-    membership: WorkbenchStandaloneMembership,
+    membership: WorkbenchTerminalMembership,
     tab_id: WorkbenchTabId,
 }
 
@@ -35,8 +35,8 @@ pub enum WorkbenchTabCloseResolution<'a> {
 pub struct WorkbenchTabClosePrimaryAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
-    membership: WorkbenchStandaloneMembership,
-    member: super::super::WorkbenchStandaloneTab,
+    membership: WorkbenchTerminalMembership,
+    member: super::super::WorkbenchTerminalTab,
 }
 
 pub enum WorkbenchTabClosePreparation<'a> {
@@ -73,7 +73,7 @@ impl From<WorkbenchTabCloseRuntimeUnavailableReason> for WorkbenchCommandUnavail
 
 impl<'a> WorkbenchTabCloseAdmission<'a> {
     #[must_use]
-    pub fn standalone_membership(&self) -> &WorkbenchStandaloneMembership {
+    pub fn terminal_membership(&self) -> &WorkbenchTerminalMembership {
         &self.membership
     }
 
@@ -82,7 +82,7 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
         self.authority.retire(&self.command)
     }
 
-    /// Site first validates its reference-derived composition under the same gate.
+    /// Site first validates standalone reference-derived composition when applicable.
     #[must_use]
     pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
         let Some(member) = self
@@ -139,7 +139,7 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
 
 impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
     #[must_use]
-    pub fn member(&self) -> &super::super::WorkbenchStandaloneTab {
+    pub fn member(&self) -> &super::super::WorkbenchTerminalTab {
         &self.member
     }
 
@@ -299,7 +299,14 @@ impl WorkbenchAuthority {
             Some(WorkbenchRejectionReason::SiteMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
-        } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id {
+        } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id
+            && !snapshot.navigation.projects.iter().any(|project| {
+                project
+                    .workspaces
+                    .iter()
+                    .any(|workspace| workspace.terminal_context_id == terminal_context_id)
+            })
+        {
             Some(WorkbenchRejectionReason::TerminalContextUnavailable)
         } else {
             None
@@ -307,7 +314,7 @@ impl WorkbenchAuthority {
         if let Some(reason) = rejection {
             return WorkbenchTabCloseBegin::Ready(self.retain_rejection(command, reason));
         }
-        let membership = match self.standalone_membership() {
+        let membership = match self.terminal_membership(&terminal_context_id) {
             Ok(membership) => membership,
             Err(_invariant) => return WorkbenchTabCloseBegin::Ready(self.retire(&command)),
         };

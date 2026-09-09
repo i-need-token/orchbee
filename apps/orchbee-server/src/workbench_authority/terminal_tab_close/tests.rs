@@ -27,6 +27,7 @@ use crate::workbench_projection::WorkbenchProjectionStore;
 mod credit;
 mod publication;
 mod resume;
+mod workspace;
 
 pub(super) fn fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
     let mut authority = WorkbenchAuthority::new(SiteId::parse(&identity(100)).unwrap()).unwrap();
@@ -115,7 +116,7 @@ pub(super) fn close_command(
     )
 }
 
-pub(super) fn runtime(member: &WorkbenchStandaloneTab) -> WorkbenchTabCloseRuntimeTarget {
+pub(super) fn runtime(member: &WorkbenchTerminalTab) -> WorkbenchTabCloseRuntimeTarget {
     let terminal = u128::from_str_radix(member.binding().terminal_id.as_str(), 16).unwrap();
     WorkbenchTabCloseRuntimeTarget::new(
         WorkerId::from_bytes(2000_u128.to_be_bytes()).unwrap(),

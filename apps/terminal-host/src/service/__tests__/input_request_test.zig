@@ -376,12 +376,11 @@ test "capability revision updates repair one attachment and reject stale input" 
         .active,
     );
     const runtime = findRuntime(&service, terminal_id).?;
+    // An unpublished terminal reservation blocks both sources. A client-only
+    // barrier would let the initial focus reply drain between queue snapshots.
+    const publication_barrier = try terminal_runtime.testing.reserveInput(runtime, 1, false, .terminal);
+    defer terminal_runtime.testing.cancelInput(runtime, publication_barrier.identifier);
     parseTerminalInput(runtime, "\x1b[=3;1u\x1b[?1004h");
-
-    // Keep every accepted record queued so downgrade and upgrade can prove
-    // they neither discard nor replay already admitted client input.
-    var publication_barrier = try runtime.prepareRawInput("publication barrier");
-    defer publication_barrier.deinit();
     for ([_]struct { core_module.AttachmentId, []const u8, []const u8, u21 }{
         .{ attachment_id, "KeyA", "a", 'a' },
         .{ sibling_attachment_id, "KeyB", "b", 'b' },

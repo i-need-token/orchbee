@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{
     WorkbenchTabCloseStatus, WorkbenchTerminalContextId,
 };
 
-use super::{PlanFailure, RetainedRequest, WorkbenchAuthority, WorkbenchStandaloneTab};
+use super::{PlanFailure, RetainedRequest, WorkbenchAuthority, WorkbenchTerminalTab};
 
 mod admission;
 mod continuation;
@@ -81,7 +81,7 @@ impl WorkbenchTabCloseRuntimeTarget {
         self.fence
     }
 
-    fn matches_member(self, member: &WorkbenchStandaloneTab) -> bool {
+    fn matches_member(self, member: &WorkbenchTerminalTab) -> bool {
         u128::from_str_radix(member.binding().worker_id.as_str(), 16)
             .is_ok_and(|value| value.to_be_bytes() == self.worker_id.as_bytes())
             && u128::from_str_radix(member.binding().terminal_id.as_str(), 16)
@@ -92,7 +92,7 @@ impl WorkbenchTabCloseRuntimeTarget {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkbenchTabCloseTarget {
     terminal_context_id: WorkbenchTerminalContextId,
-    member: WorkbenchStandaloneTab,
+    member: WorkbenchTerminalTab,
     runtime: WorkbenchTabCloseRuntimeTarget,
 }
 
@@ -102,7 +102,7 @@ impl WorkbenchTabCloseTarget {
         &self.terminal_context_id
     }
     #[must_use]
-    pub fn member(&self) -> &WorkbenchStandaloneTab {
+    pub fn member(&self) -> &WorkbenchTerminalTab {
         &self.member
     }
     #[must_use]

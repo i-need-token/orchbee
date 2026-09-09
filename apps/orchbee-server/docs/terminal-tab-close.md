@@ -14,6 +14,53 @@ canonical projection and strict standalone membership.
 
 ## User outcome and lifetime authority
 
+### Workspace lifetime extension
+
+The local Server accepts Close for a simple Terminal Context owned by a canonical Workspace,
+using the same grant, exact binding/runtime identity, acknowledgment, retained Read/Resume,
+continuation budgets and cleanup-before-removal contract as standalone. No wire field or Worker
+operation is added. Workspace native UI remains outside this extension. Directory availability
+does not authorize or block Close; exact live runtime identity still gates a new primary.
+
+`WorkbenchTerminalMembership` and `WorkbenchTerminalTab` describe strict simple members in either
+context. Membership carries an immutable context kind derived from canonical navigation; it is a
+read result, not another authority. Unsupported groups, pinned/grouped Tabs, splits, children or
+missing bindings retain the existing divergence behavior. Standalone composition helpers reject
+Workspace membership themselves, in addition to conditional callers. This preserves their owner
+boundary after generic type names replace standalone-only names in the unpublished library.
+
+Workspace admission and publication never read, retarget or settle the standalone bootstrap slot.
+After known Dispose and exact target cleanup, publication re-extracts current target-context
+membership and removes only the retained Tab/Panel/Presentation/binding tuple. Sibling Create,
+Rename and Move, and changes in other contexts, survive that commit. A pending sibling Create
+settles through its original token and retains its original result revision. Workspace publication
+returns no standalone-change notification. Removing its last Tab leaves the Workspace and its
+Directory reference intact with an empty context; no replacement launch occurs. A subsequent
+explicit Workspace Create follows existing directory checks and allocates fresh identities.
+
+Close primary capacity and revision credits are Site-wide: every non-Closed primary reserves one
+future revision in the shared ledger, and publication consumes exactly that credit with one
+revision increment. Admission, aliases and exact replay do not advance revision or duplicate
+cleanup. Closed tombstones and immutable acknowledgments survive later context changes. Failed
+or unknown disposal cannot publish removal; known disposal with blocked cleanup remains retained
+for the existing explicit Resume path. This extension adds no persistence, remote execution,
+cross-context transfer or recovery of unestablished runtime identity.
+
+`WorkspaceTabClose` owns bounded context isolation, shared credit and current-membership
+publication evidence, including sibling changes, three standalone slot states, last removal and
+explicit recreation. Its two Close targets share one Workspace; one ordinary write in another
+context exercises the shared revision. Simultaneous primary Close credits in different contexts
+remain concrete authority-test evidence. Existing Close models retain detailed Host continuation, Resume and cleanup
+obligations. Authority Workspace tests establish exact identity, replay and concurrent credits;
+Site/carrier Workspace tests establish pending Create completion, all three standalone slot states
+and exact cleanup isolation. The Linux process test
+`real_workspace_close_preserves_standalone_and_can_recreate` observes the target shell PID disappear,
+executes input through the unrelated original controller, checks both Clients' snapshots and
+recreates a fresh Workspace terminal in the retained directory. These are local protocol-client
+witnesses, not native Workspace UI evidence. Full verification and independent review precede
+integration. The unpublished Server/library cohort activates and rolls back
+together; rollback cannot resurrect a terminal already disposed by an accepted Close.
+
 `Ctrl+B x` closes the selected canonical standalone Tab after localized confirmation that its
 terminal execution ends for **all attached Clients**. Cancel changes nothing. An independent
 trusted-local lifecycle grant authorizes this effect; navigation permission or Input controller
@@ -143,7 +190,8 @@ Resumed acknowledges that attempt, while a status read establishes its current p
 
 ## Server continuation and exact Host lifecycle
 
-Each visible Tab has at most one Close owner, bounded by the existing 256-member limit. One
+Each visible Tab has at most one Close owner, with 256 Tabs per context. Site-wide primaries and
+aliases share the 4096-entry and 8 MiB command ledger limits. One
 maintenance owner serves the current single `LocalTerminalService`/Site. Each turn admits at most
 one Worker step, yields on backpressure and holds no registry/Site lock while waiting. Round-robin
 selection is not an OS fairness guarantee. Blocking receipt waits serialize Close steps in that
@@ -324,6 +372,9 @@ association, credit consumption and Closed together without further fallible wor
 does not undo that commit.
 
 ## Reference-current Site completion
+
+The reference retargeting in this section applies only to standalone membership. Workspace
+publication commits its canonical removal without entering this slot-settlement path.
 
 Keep `Empty | Creating(reference) | Settled {reference,outcome}` and retain historical Terminal
 creation results/closed identities without ID reuse. At Create completion retain the precise

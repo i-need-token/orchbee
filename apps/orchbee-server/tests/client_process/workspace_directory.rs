@@ -913,3 +913,6 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     assert_eq!(wait_for_marker(&fixture.marker, 2)?.len(), 2);
     Ok(())
 }
+
+#[path = "workspace_directory/close.rs"]
+mod close;

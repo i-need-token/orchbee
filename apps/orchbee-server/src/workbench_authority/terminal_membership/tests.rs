@@ -212,7 +212,7 @@ fn standalone_query_allows_multiple_canonical_tabs_but_rejects_noncanonical_shap
     authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
     assert_eq!(
         authority.standalone_membership(),
-        Err(WorkbenchStandaloneInvariantError)
+        Err(WorkbenchTerminalInvariantError)
     );
 }
 
@@ -313,7 +313,7 @@ fn strict_membership_rejects_a_non_head_child_presentation_or_unbound_member() {
         authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
         assert_eq!(
             authority.standalone_membership(),
-            Err(WorkbenchStandaloneInvariantError)
+            Err(WorkbenchTerminalInvariantError)
         );
     }
 }

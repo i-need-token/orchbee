@@ -1,6 +1,6 @@
 use super::{
     CommitPlan, PlanFailure, PreparedCommandCommit, WorkbenchAuthority, WorkbenchGrant,
-    WorkbenchStandaloneMembership, result, unavailable,
+    WorkbenchTerminalMembership, result, unavailable,
 };
 use orchbee_workbench_protocol::{
     ContractError, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
@@ -18,7 +18,7 @@ pub struct WorkbenchTabMoveAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
     terminal_context_id: WorkbenchTerminalContextId,
-    membership: Option<WorkbenchStandaloneMembership>,
+    membership: Option<WorkbenchTerminalMembership>,
     tab_id: WorkbenchTabId,
     direction: WorkbenchTabMoveDirection,
 }
@@ -44,7 +44,7 @@ impl PreparedWorkbenchTabMove<'_> {
 
 impl<'a> WorkbenchTabMoveAdmission<'a> {
     #[must_use]
-    pub fn standalone_membership(&self) -> Option<&WorkbenchStandaloneMembership> {
+    pub fn standalone_membership(&self) -> Option<&WorkbenchTerminalMembership> {
         self.membership.as_ref()
     }
 

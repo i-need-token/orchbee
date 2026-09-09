@@ -19,6 +19,51 @@ use orchbee_workbench_protocol::{
     WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkerId as WorkbenchWorkerId,
 };
 
+#[test]
+fn standalone_composition_helpers_reject_workspace_membership_even_with_a_matching_reference() {
+    let mut coordinator = site();
+    let context = configure_workspace(&mut coordinator, "/tmp/workspace");
+    let empty = coordinator
+        .workbench
+        .as_ref()
+        .unwrap()
+        .terminal_membership(&context)
+        .unwrap();
+    assert!(!composition_matches(
+        &empty,
+        &coordinator.standalone,
+        &coordinator.terminals
+    ));
+    let request = context_tab_command(&coordinator, 8800, 3, context.clone(), "workspace");
+    let _pending = dispatch_tab(&mut coordinator, request, 8801);
+    let members = coordinator
+        .workbench
+        .as_ref()
+        .unwrap()
+        .terminal_membership(&context)
+        .unwrap();
+    // Deliberate wrong-owner input: matching authorization must not make a Workspace a bootstrap.
+    coordinator.standalone = StandaloneTerminal::Creating(id(8801));
+    assert!(!composition_matches(
+        &members,
+        &coordinator.standalone,
+        &coordinator.terminals
+    ));
+    assert!(
+        crate::site_coordinator::standalone::prepare_standalone_close_settlement(
+            &mut coordinator.standalone,
+            &coordinator.terminals,
+            &members,
+            &empty,
+            &members.members()[0],
+        )
+        .is_err()
+    );
+    assert!(matches!(&coordinator.standalone,
+        StandaloneTerminal::Creating(reference) if reference == &id(8801)
+    ));
+}
+
 fn context_tab_command(
     coordinator: &SiteCoordinator,
     request: u128,

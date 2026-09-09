@@ -47,7 +47,7 @@ pub struct StagedWorkbenchTabCreateMetadata {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum WorkbenchTabCreateTarget {
-    Standalone(super::WorkbenchStandaloneMembership),
+    Standalone(super::WorkbenchTerminalMembership),
     Workspace {
         worker_id: WorkerId,
         path: WorkbenchDirectoryPath,
@@ -86,7 +86,7 @@ impl StagedWorkbenchTabCreateMetadata {
     }
 
     #[must_use]
-    pub fn standalone_membership(&self) -> Option<&super::WorkbenchStandaloneMembership> {
+    pub fn standalone_membership(&self) -> Option<&super::WorkbenchTerminalMembership> {
         match &self.target {
             WorkbenchTabCreateTarget::Standalone(membership) => Some(membership),
             WorkbenchTabCreateTarget::Workspace { .. } => None,

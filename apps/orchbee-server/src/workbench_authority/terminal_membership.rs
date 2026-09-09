@@ -14,17 +14,17 @@ pub enum StandaloneIntentError {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct WorkbenchStandaloneInvariantError;
+pub struct WorkbenchTerminalInvariantError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WorkbenchStandaloneTab {
+pub struct WorkbenchTerminalTab {
     tab_id: WorkbenchTabId,
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     binding: PresentationBinding,
 }
 
-impl WorkbenchStandaloneTab {
+impl WorkbenchTerminalTab {
     #[must_use]
     pub fn tab_id(&self) -> &WorkbenchTabId {
         &self.tab_id
@@ -47,19 +47,31 @@ impl WorkbenchStandaloneTab {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WorkbenchStandaloneMembership {
+pub struct WorkbenchTerminalMembership {
     terminal_context_id: WorkbenchTerminalContextId,
-    members: Vec<WorkbenchStandaloneTab>,
+    context_kind: ContextKind,
+    members: Vec<WorkbenchTerminalTab>,
 }
 
-impl WorkbenchStandaloneMembership {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ContextKind {
+    Standalone,
+    Workspace,
+}
+
+impl WorkbenchTerminalMembership {
+    #[must_use]
+    pub const fn is_standalone(&self) -> bool {
+        matches!(self.context_kind, ContextKind::Standalone)
+    }
+
     #[must_use]
     pub fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
         &self.terminal_context_id
     }
 
     #[must_use]
-    pub fn members(&self) -> &[WorkbenchStandaloneTab] {
+    pub fn members(&self) -> &[WorkbenchTerminalTab] {
         &self.members
     }
 
@@ -133,9 +145,16 @@ impl PreparedStandaloneIntent<'_> {
 }
 
 impl WorkbenchAuthority {
+    pub fn terminal_membership(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+    ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
+        terminal_membership(self.projection.snapshot(), context_id)
+    }
+
     pub fn standalone_membership(
         &self,
-    ) -> Result<WorkbenchStandaloneMembership, WorkbenchStandaloneInvariantError> {
+    ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
         standalone_membership(self.projection.snapshot())
     }
 
@@ -259,8 +278,29 @@ pub(super) fn append_simple_tab(
 
 pub(super) fn standalone_membership(
     snapshot: &Snapshot,
-) -> Result<WorkbenchStandaloneMembership, WorkbenchStandaloneInvariantError> {
-    let context_id = &snapshot.navigation.standalone_terminal_context_id;
+) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
+    terminal_membership(
+        snapshot,
+        &snapshot.navigation.standalone_terminal_context_id,
+    )
+}
+
+pub(super) fn terminal_membership(
+    snapshot: &Snapshot,
+    context_id: &WorkbenchTerminalContextId,
+) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
+    let context_kind = if context_id == &snapshot.navigation.standalone_terminal_context_id {
+        ContextKind::Standalone
+    } else if snapshot.navigation.projects.iter().any(|project| {
+        project
+            .workspaces
+            .iter()
+            .any(|workspace| &workspace.terminal_context_id == context_id)
+    }) {
+        ContextKind::Workspace
+    } else {
+        return Err(WorkbenchTerminalInvariantError);
+    };
     let context = strict_simple_context(snapshot, context_id)?;
     let mut members = Vec::with_capacity(context.tabs.len());
     for tab in &context.tabs {
@@ -270,20 +310,21 @@ pub(super) fn standalone_membership(
             ..
         } = &tab.root
         else {
-            return Err(WorkbenchStandaloneInvariantError);
+            return Err(WorkbenchTerminalInvariantError);
         };
-        members.push(WorkbenchStandaloneTab {
+        members.push(WorkbenchTerminalTab {
             tab_id: tab.tab_id.clone(),
             panel_id: panel_id.clone(),
             presentation_id: primary_presentation.presentation_id.clone(),
             binding: primary_presentation
                 .binding
                 .clone()
-                .ok_or(WorkbenchStandaloneInvariantError)?,
+                .ok_or(WorkbenchTerminalInvariantError)?,
         });
     }
-    Ok(WorkbenchStandaloneMembership {
+    Ok(WorkbenchTerminalMembership {
         terminal_context_id: context_id.clone(),
+        context_kind,
         members,
     })
 }
@@ -291,20 +332,20 @@ pub(super) fn standalone_membership(
 pub(super) fn strict_simple_context<'a>(
     snapshot: &'a Snapshot,
     context_id: &WorkbenchTerminalContextId,
-) -> Result<&'a TerminalContext, WorkbenchStandaloneInvariantError> {
+) -> Result<&'a TerminalContext, WorkbenchTerminalInvariantError> {
     let mut matching = snapshot
         .terminal_contexts
         .iter()
         .filter(|context| &context.terminal_context_id == context_id);
-    let context = matching.next().ok_or(WorkbenchStandaloneInvariantError)?;
+    let context = matching.next().ok_or(WorkbenchTerminalInvariantError)?;
     if matching.next().is_some() || !context.groups.is_empty() {
-        return Err(WorkbenchStandaloneInvariantError);
+        return Err(WorkbenchTerminalInvariantError);
     }
 
     // The projection already validates the protocol's per-context collection bound.
     for tab in &context.tabs {
         if tab.pinned || tab.group_id.is_some() {
-            return Err(WorkbenchStandaloneInvariantError);
+            return Err(WorkbenchTerminalInvariantError);
         }
         let PanelNode::Panel {
             primary_presentation,
@@ -312,10 +353,10 @@ pub(super) fn strict_simple_context<'a>(
             ..
         } = &tab.root
         else {
-            return Err(WorkbenchStandaloneInvariantError);
+            return Err(WorkbenchTerminalInvariantError);
         };
         if !child_presentations.is_empty() || primary_presentation.binding.is_none() {
-            return Err(WorkbenchStandaloneInvariantError);
+            return Err(WorkbenchTerminalInvariantError);
         }
     }
     Ok(context)

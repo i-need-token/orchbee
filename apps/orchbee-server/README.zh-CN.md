@@ -29,7 +29,7 @@ Worker 目录，再原子添加 Project Directory 并由该空 Workspace 选中�
 Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move 重放保留原排序结果及修订。
 原生 Move 交互仍是独立的 Client 集成边界。
 
-本地 `tab.close`、状态 Read 和 Resume 现已使用保留的生命周期权威及单个进程生命周期
+本地 standalone 与 Workspace 的 `tab.close`、状态 Read 和 Resume 使用保留的生命周期权威及单个进程生命周期
 维护所有者。已知 Host 销毁和精确 Worker/Server 清理先于规范移除；Client 退出不取消
 已接受 Close。Linux 载体/进程检查覆盖八个活动 Client 连接、空闲控制槽释放，以及另一
 shell 存活时的同连接复用。[Close 契约](docs/terminal-tab-close.zh-CN.md) 规定边界、另有证据

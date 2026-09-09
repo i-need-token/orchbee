@@ -6,7 +6,7 @@ use orchbee_workbench_protocol::{
 };
 
 use super::super::{
-    RetainedRequest, WorkbenchAuthority, WorkbenchStandaloneMembership, WorkbenchStandaloneTab,
+    RetainedRequest, WorkbenchAuthority, WorkbenchTerminalMembership, WorkbenchTerminalTab,
 };
 use super::CloseRecord;
 use crate::workbench_projection::{PreparedProjectionAdvance, WorkbenchProjectionStore};
@@ -25,24 +25,24 @@ pub struct PreparedWorkbenchTabClosePublication<'a> {
     record: &'a mut CloseRecord,
     retired: &'a mut bool,
     prepared: PreparedProjectionAdvance,
-    before: WorkbenchStandaloneMembership,
-    after: WorkbenchStandaloneMembership,
-    removed: WorkbenchStandaloneTab,
+    before: WorkbenchTerminalMembership,
+    after: WorkbenchTerminalMembership,
+    removed: WorkbenchTerminalTab,
     revision: WorkbenchRevision,
     status: WorkbenchTabCloseStatus,
 }
 
 impl PreparedWorkbenchTabClosePublication<'_> {
     #[must_use]
-    pub fn before_membership(&self) -> &WorkbenchStandaloneMembership {
+    pub fn before_membership(&self) -> &WorkbenchTerminalMembership {
         &self.before
     }
     #[must_use]
-    pub fn after_membership(&self) -> &WorkbenchStandaloneMembership {
+    pub fn after_membership(&self) -> &WorkbenchTerminalMembership {
         &self.after
     }
     #[must_use]
-    pub fn exact_removed_member(&self) -> &WorkbenchStandaloneTab {
+    pub fn exact_removed_member(&self) -> &WorkbenchTerminalTab {
         &self.removed
     }
     #[must_use]
@@ -101,7 +101,7 @@ impl WorkbenchAuthority {
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
         }
-        let before = match self.standalone_membership() {
+        let before = match self.terminal_membership(&target.terminal_context_id) {
             Ok(membership) => membership,
             Err(_error) => {
                 return self.fail_close_publication(
@@ -150,7 +150,10 @@ impl WorkbenchAuthority {
             .tabs
             .retain(|tab| &tab.tab_id != target.member.tab_id());
         candidate.revision = revision;
-        let after = match super::super::terminal_membership::standalone_membership(&candidate) {
+        let after = match super::super::terminal_membership::terminal_membership(
+            &candidate,
+            &target.terminal_context_id,
+        ) {
             Ok(membership) => membership,
             Err(_error) => {
                 return self.fail_close_publication(

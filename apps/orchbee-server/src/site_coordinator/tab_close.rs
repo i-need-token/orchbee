@@ -38,7 +38,9 @@ impl SiteCoordinator {
             WorkbenchTabCloseBegin::Ready(result) => return Some(result),
             WorkbenchTabCloseBegin::Admitted(admission) => admission,
         };
-        if !composition_matches(admission.standalone_membership(), standalone, terminals) {
+        if admission.terminal_membership().is_standalone()
+            && !composition_matches(admission.terminal_membership(), standalone, terminals)
+        {
             return Some(admission.retire_composition_failure());
         }
         let admission = match admission.resolve_after_composition() {
@@ -220,6 +222,10 @@ impl SiteCoordinator {
         let Ok(prepared) = workbench.prepare_terminal_tab_close_publication(close_id, now) else {
             return Ok(false);
         };
+        if !prepared.before_membership().is_standalone() {
+            let _closed = prepared.commit();
+            return Ok(false);
+        }
         let retarget = super::standalone::prepare_standalone_close_settlement(
             standalone,
             terminals,

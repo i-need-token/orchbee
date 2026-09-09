@@ -11,7 +11,7 @@ use orchbee_client_server_protocol::{
 };
 use orchbee_server::{
     WorkbenchAuthority, WorkbenchGrant, WorkbenchReadOrNavigationRequest,
-    WorkbenchStandaloneMembership,
+    WorkbenchTerminalMembership,
 };
 use orchbee_workbench_protocol::{PresentationBinding, TerminalId, WorkbenchResponse, WorkerId};
 
@@ -167,10 +167,13 @@ impl SiteCoordinator {
 }
 
 fn composition_matches(
-    membership: &WorkbenchStandaloneMembership,
+    membership: &WorkbenchTerminalMembership,
     standalone: &StandaloneTerminal,
     terminals: &TerminalCoordinator,
 ) -> bool {
+    if !membership.is_standalone() {
+        return false;
+    }
     match standalone {
         StandaloneTerminal::Empty => membership.is_empty(),
         StandaloneTerminal::Creating(reference) | StandaloneTerminal::Settled { reference, .. } => {

@@ -82,7 +82,7 @@ child presentations, and every primary presentation has a binding. Layout diverg
 target lookup and no-op and retires the authority without permutation. This preserves the current
 local cohort's shape; it does not define pin/group movement or recovery of imported layouts.
 
-Only standalone admission produces `WorkbenchStandaloneMembership` for Site's existing
+Only standalone Move admission supplies `WorkbenchTerminalMembership` to Site's existing
 reference-derived composition check. Workspace admission neither reads nor modifies the standalone
 slot or its retained authorization. Under the same Site gate, the borrowed admission locates the
 target in the validated context and prepares a complete-Tab permutation. The only canonical changes
@@ -124,7 +124,7 @@ excluded from Move. Close has the separate local Server integration described ab
 integration has separate Linux process evidence; release convergence remains pending.
 No explicit-empty Open result is added.
 
-`WorkbenchStandaloneMembership` is a bounded read-only vector of every strict standalone member
+The `WorkbenchTerminalMembership` returned by `standalone_membership()` is a bounded read-only vector of every strict standalone member
 in canonical order, exposing exact Tab/Panel/Presentation identities and binding. Workbench validates
 the entire context and constructs it; Site never caches it. Empty membership is valid exactly when
 the Site slot is Empty. Nonempty membership requires Creating or Settled with reference R,

@@ -29,6 +29,7 @@ mod admitted_control;
 mod disposed_reuse;
 mod idle_capacity;
 mod target_fences;
+mod workspace;
 
 struct Fixture {
     service: Arc<LocalTerminalService>,

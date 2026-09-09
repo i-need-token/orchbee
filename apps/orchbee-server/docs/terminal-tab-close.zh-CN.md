@@ -11,6 +11,43 @@ Close 到 Empty、手动 Create 及保留 shell 重入的进程用例。这些�
 
 ## 用户结果与生命周期授权
 
+### Workspace 生命周期扩展
+
+本地 Server 接受规范 Workspace 所有的简单 Terminal Context 中的 Close，沿用 standalone 的
+授权、精确绑定/运行时身份、确认、保留 Read/Resume、续行预算以及先清理后移除契约。不增加
+线协议字段或 Worker 操作。原生 Workspace UI 不在此扩展范围内。Directory 可用性既不授权
+也不阻塞 Close；新的主操作仍要求精确的活动运行时身份。
+
+`WorkbenchTerminalMembership` 和 `WorkbenchTerminalTab` 描述两类上下文的严格简单成员。
+成员关系携带从规范导航派生的不可变上下文类型，是读取结果而非另一份权威。不支持的分组、
+固定/分组 Tab、拆分、子项或缺失绑定沿用既有分歧行为。除调用方条件分支外，standalone 组合
+helper 自身也拒绝 Workspace 成员关系，使未发布库使用通用类型名后仍保留所有者边界。
+
+Workspace 准入和发布不读取、重定向或结算 standalone 引导槽位。已知 Dispose 和精确目标清理
+后，发布重新提取当前目标上下文成员关系，仅移除保留的 Tab/Panel/Presentation/绑定元组。
+同级 Create、Rename、Move 及其他上下文变化均保留。待完成的同级 Create 通过原 token 结算并
+保留原结果 revision。Workspace 发布不返回 standalone-change 通知。移除最后一个 Tab 保留
+Workspace 及 Directory 引用，留下空上下文，不自动启动替补。后续显式 Workspace Create
+遵循既有目录校验并分配新身份。
+
+Close 主操作容量和 revision credit 作用于整个 Site：每个非 Closed 主操作在共享 ledger 中
+保留一个未来 revision；发布恰好消耗该 credit 并增加一次 revision。准入、别名和精确重放
+不推进 revision 或重复清理。Closed 墓碑和不可变确认在后续上下文变化后仍保留。失败或未知
+Dispose 不能发布移除；已知 Dispose 但清理阻塞时保留状态，沿用既有显式 Resume 路径。
+不增加持久化、远程执行、跨上下文转移或未确立运行时身份的恢复。
+
+`WorkspaceTabClose` 拥有上下文隔离、共享 credit 和当前成员发布的有界证据，包含同级变化、
+三种 standalone 槽位状态、最后移除及显式重建。两个 Close 目标同属一个 Workspace，另一个
+上下文的一次普通写入检验共享 revision。不同上下文同时持有主 Close credit 仍由具体权威测试
+证明。既有 Close 模型继续承担 Host 续行、Resume
+和清理细节义务。权威 Workspace 测试证明精确身份、重放及并发 credit；Site/载体 Workspace
+测试证明待完成 Create 结算、三种 standalone 槽位状态及精确清理隔离。Linux 进程测试
+`real_workspace_close_preserves_standalone_and_can_recreate` 观察目标 shell PID 消失，通过无关
+原 controller 执行输入，检查两个 Client 快照，并在保留目录中重建新的 Workspace 终端。
+这些是本地协议 Client 用例，不是原生 Workspace UI 证据。完整验证和独立审核先于集成。
+未发布 Server/库 cohort 一起启用和回滚；回滚不能复活已被
+接受 Close 销毁的终端。
+
 `Ctrl+B x` 关闭选中的规范独立 Tab，先以本地化确认明确其终端执行将对**所有已挂接 Client**结束。
 取消不改变任何状态。独立的受信本地生命周期授权允许此效果；仅有导航权限或 Input controller
 所有权并不足够。只读 Viewer 所属 Client 若有生命周期授权，也可 Close。目标是精确保留绑定，
@@ -125,7 +162,8 @@ Workbench 修订：非零 u64 值，在线上编码为
 
 ## Server 继续执行与精确 Host 生命周期
 
-每个可见 Tab 至多一个 Close 所有者，受既有 256 成员上限约束。一个维护所有者服务当前单个
+每个可见 Tab 至多一个 Close 所有者，每个上下文最多 256 个 Tab。整个 Site 的主操作与别名
+共用 4096 条目、8 MiB 的命令 ledger 上限。一个维护所有者服务当前单个
 `LocalTerminalService`/Site。每轮至多准入一个 Worker 步骤，遇背压让出，等待时不持有
 registry/Site 锁。轮转选择不保证 OS 公平性。阻塞的回执等待将该 Site 的 Close 步骤
 串行化；其他 Client 线程仍可写 Site 状态，并共享既有有界 Worker 载体。Client 断连不取消
@@ -275,6 +313,8 @@ Workbench 退役仍允许读取清理状态。成功准备后，成员关系、�
 共同提交，不再执行可能失败的工作。响应丢失不撤销该提交。
 
 ## 跟随当前引用的 Site 完成
+
+本节引用重定向仅适用于 standalone 成员关系。Workspace 发布提交规范移除，不进入此槽位结算路径。
 
 保留 `Empty | Creating(reference) | Settled {reference,outcome}`，保留历史 Terminal
 创建结果/已关闭身份，不复用 ID。Create 完成时，为每个引用保留精确独立结算值，不从当前有损

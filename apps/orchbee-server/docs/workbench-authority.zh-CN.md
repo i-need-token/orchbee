@@ -67,7 +67,7 @@ Authority 测试负责具体账本/编码边界、别名/重放优先级、最�
 presentation 均有绑定。布局分歧先于目标查找和 no-op，使权威退役且不置换。这保留当前本地
 cohort 的形状，不定义固定/分组移动或导入布局恢复。
 
-只有 standalone 准入产生 `WorkbenchStandaloneMembership`，供 Site 执行既有引用派生组合
+只有 standalone Move 准入向 Site 提供 `WorkbenchTerminalMembership`，供其执行既有引用派生组合
 校验。Workspace 准入不读取或修改 standalone 槽位及其保留授权。在同一 Site 门锁下，借用式
 准入在已验证上下文中定位目标，预备完整 Tab 置换。规范变化仅为目标上下文 Tab 顺序和一次
 共享 revision 增量；其他上下文、导航、Directory、绑定、结构身份分配、终端操作和通知均保持
@@ -100,7 +100,8 @@ Worker IPC、查看器或控制器效果。Close/Stop、归档/重启、固定/�
 Web 迁移和推送仍从 Move 排除。Close 已有上方描述的独立本地 Server 集成，原生集成另有
 Linux 进程证据；发布收敛仍待完成。不增加显式空 Open 结果。
 
-`WorkbenchStandaloneMembership` 是包含全部严格独立成员的有界只读向量，保持规范顺序，暴露
+`standalone_membership()` 返回的 `WorkbenchTerminalMembership` 是包含全部严格独立成员的
+有界只读向量，保持规范顺序，暴露
 精确 Tab/Panel/Presentation 身份及绑定。Workbench 验证完整上下文并构造它；Site 从不缓存。
 空成员关系有效当且仅当 Site 槽位为 Empty。非空成员关系要求 Creating 或 Settled 含引用 R、
 `TerminalCoordinator.retained_authorization(R)` 可用、成功精确转换成 `PresentationBinding`，
