@@ -393,3 +393,72 @@ fn panel_presentation_visitor_is_depth_first_primary_then_children() {
         ]
     );
 }
+
+#[test]
+fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them() {
+    let mut authority = authority();
+    authority.commit_standalone_intent(binding()).unwrap();
+    let mut snapshot = authority.projection.snapshot().clone();
+    let tab = &mut snapshot.terminal_contexts[0].tabs[0];
+    tab.root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(binding()),
+                        label: "left".to_owned(),
+                        presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&identity(101)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&identity(105)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(PresentationBinding {
+                            terminal_id: TerminalId::parse(&identity(82)).unwrap(),
+                            worker_id: WorkerId::parse(&identity(72)).unwrap(),
+                        }),
+                        label: "right".to_owned(),
+                        presentation_id: TerminalPresentationId::parse(&identity(106)).unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&identity(104)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&identity(100)).unwrap(),
+    };
+    snapshot.revision = WorkbenchRevision::new(2);
+    let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap();
+    authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
+
+    let (_, members) = tree_membership_context(
+        authority.projection.snapshot(),
+        &authority
+            .projection
+            .snapshot()
+            .navigation
+            .standalone_terminal_context_id,
+    )
+    .unwrap();
+    assert_eq!(members.len(), 2);
+    assert_eq!(members[0].tab_id(), members[1].tab_id());
+    assert_eq!(members[0].presentation_id().as_str(), identity(103));
+    assert_eq!(members[1].presentation_id().as_str(), identity(106));
+    assert!(
+        strict_simple_context(
+            authority.projection.snapshot(),
+            &authority
+                .projection
+                .snapshot()
+                .navigation
+                .standalone_terminal_context_id
+        )
+        .is_err()
+    );
+}

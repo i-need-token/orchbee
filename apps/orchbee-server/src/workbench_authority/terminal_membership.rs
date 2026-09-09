@@ -312,18 +312,7 @@ pub(super) fn terminal_membership(
     snapshot: &Snapshot,
     context_id: &WorkbenchTerminalContextId,
 ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
-    let context_kind = if context_id == &snapshot.navigation.standalone_terminal_context_id {
-        ContextKind::Standalone
-    } else if snapshot.navigation.projects.iter().any(|project| {
-        project
-            .workspaces
-            .iter()
-            .any(|workspace| &workspace.terminal_context_id == context_id)
-    }) {
-        ContextKind::Workspace
-    } else {
-        return Err(WorkbenchTerminalInvariantError);
-    };
+    let context_kind = terminal_context_kind(snapshot, context_id)?;
     let (_context, members) = legacy_single_leaf_context(snapshot, context_id)?;
     Ok(WorkbenchTerminalMembership {
         terminal_context_id: context_id.clone(),
@@ -344,6 +333,25 @@ fn legacy_single_leaf_context<'a>(
     snapshot: &'a Snapshot,
     context_id: &WorkbenchTerminalContextId,
 ) -> Result<(&'a TerminalContext, Vec<WorkbenchTerminalTab>), WorkbenchTerminalInvariantError> {
+    let (context, members) = tree_membership_context(snapshot, context_id)?;
+    if members.len() != context.tabs.len()
+        || context.tabs.iter().any(|tab| {
+            members
+                .iter()
+                .filter(|member| member.tab_id() == &tab.tab_id)
+                .count()
+                != 1
+        })
+    {
+        return Err(WorkbenchTerminalInvariantError);
+    }
+    Ok((context, members))
+}
+
+fn tree_membership_context<'a>(
+    snapshot: &'a Snapshot,
+    context_id: &WorkbenchTerminalContextId,
+) -> Result<(&'a TerminalContext, Vec<WorkbenchTerminalTab>), WorkbenchTerminalInvariantError> {
     let mut matching = snapshot
         .terminal_contexts
         .iter()
@@ -359,39 +367,62 @@ fn legacy_single_leaf_context<'a>(
             return Err(WorkbenchTerminalInvariantError);
         }
     }
-    let members = context
-        .tabs
-        .iter()
-        .map(legacy_single_leaf_member)
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut members = Vec::new();
+    for tab in &context.tabs {
+        collect_tree_members(tab, &tab.root, &mut members)?;
+    }
     Ok((context, members))
 }
 
-fn legacy_single_leaf_member(
-    tab: &Tab,
-) -> Result<WorkbenchTerminalTab, WorkbenchTerminalInvariantError> {
-    let mut count = 0;
-    let mut first = None;
-    visit_panel_presentations(&tab.root, &mut |panel_id, presentation| {
-        count += 1;
-        if first.is_none() {
-            first = Some((
-                panel_id.clone(),
-                presentation.presentation_id.clone(),
-                presentation.binding.clone(),
-            ));
-        }
-    });
-    if count != 1 {
-        return Err(WorkbenchTerminalInvariantError);
+fn terminal_context_kind(
+    snapshot: &Snapshot,
+    context_id: &WorkbenchTerminalContextId,
+) -> Result<ContextKind, WorkbenchTerminalInvariantError> {
+    if context_id == &snapshot.navigation.standalone_terminal_context_id {
+        Ok(ContextKind::Standalone)
+    } else if snapshot.navigation.projects.iter().any(|project| {
+        project
+            .workspaces
+            .iter()
+            .any(|workspace| &workspace.terminal_context_id == context_id)
+    }) {
+        Ok(ContextKind::Workspace)
+    } else {
+        Err(WorkbenchTerminalInvariantError)
     }
-    let (panel_id, presentation_id, binding) = first.ok_or(WorkbenchTerminalInvariantError)?;
-    Ok(WorkbenchTerminalTab {
-        tab_id: tab.tab_id.clone(),
-        panel_id,
-        presentation_id,
-        binding: binding.ok_or(WorkbenchTerminalInvariantError)?,
-    })
+}
+
+fn collect_tree_members(
+    tab: &Tab,
+    node: &PanelNode,
+    members: &mut Vec<WorkbenchTerminalTab>,
+) -> Result<(), WorkbenchTerminalInvariantError> {
+    match node {
+        PanelNode::Panel {
+            child_presentations,
+            panel_id,
+            primary_presentation,
+        } => {
+            if !child_presentations.is_empty() {
+                return Err(WorkbenchTerminalInvariantError);
+            }
+            members.push(WorkbenchTerminalTab {
+                tab_id: tab.tab_id.clone(),
+                panel_id: panel_id.clone(),
+                presentation_id: primary_presentation.presentation_id.clone(),
+                binding: primary_presentation
+                    .binding
+                    .clone()
+                    .ok_or(WorkbenchTerminalInvariantError)?,
+            });
+        }
+        PanelNode::Split { children, .. } => {
+            for child in children.iter() {
+                collect_tree_members(tab, &child.node, members)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn membership_failure(failure: super::PlanFailure) -> StandaloneIntentError {
