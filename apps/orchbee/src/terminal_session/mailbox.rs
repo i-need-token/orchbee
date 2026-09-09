@@ -813,6 +813,12 @@ impl TakenEvent {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum UiReplyAdmission {
+    Current,
+    Stale,
+}
+
 enum EventCell {
     Empty,
     Event(Box<WorkerEvent>),
@@ -2058,92 +2064,73 @@ impl CommandMailbox {
         }))
     }
 
-    pub(super) fn deposit_ui_reply_before<Settle>(
+    fn admit_ui_reply_locked(
         &self,
+        state: &mut MailboxState,
         wait_key: &UiWaitKey,
-        clock: &LocalOperationClock,
-        settle: Settle,
-    ) -> Result<MutationResult, EventError>
-    where
-        Settle: FnOnce(&mut UiReplyTransaction<'_>) -> Result<UiReply, CarrierFailure>,
-    {
-        self.deposit_ui_reply_before_using(wait_key, clock, settle)
-    }
-
-    fn deposit_ui_reply_before_using<Settle>(
-        &self,
-        wait_key: &UiWaitKey,
-        clock: &dyn MailboxClock,
-        settle: Settle,
-    ) -> Result<MutationResult, EventError>
-    where
-        Settle: FnOnce(&mut UiReplyTransaction<'_>) -> Result<UiReply, CarrierFailure>,
-    {
-        let (mut state, observed_at) = self.lock_with_fresh_sample(clock);
-        Self::ensure_open(&state).map_err(EventError::Closed)?;
+    ) -> Result<UiReplyAdmission, EventError> {
         match &state.event {
-            EventCell::AwaitingUi(current) if current == wait_key => {}
+            EventCell::AwaitingUi(current) if current == wait_key => Ok(UiReplyAdmission::Current),
             EventCell::Event(_)
                 if state
                     .event_wait_key
                     .as_ref()
                     .is_some_and(|current| wait_key.serial < current.serial) =>
             {
-                return Ok(MutationResult::Stale);
+                Ok(UiReplyAdmission::Stale)
             }
             EventCell::Event(_) if state.event_wait_key.as_ref() == Some(wait_key) => {
-                return Err(self.close_protocol(&mut state));
+                Err(self.close_protocol(state))
             }
             EventCell::AwaitingUi(current) if wait_key.serial < current.serial => {
-                return Ok(MutationResult::Stale);
+                Ok(UiReplyAdmission::Stale)
             }
             EventCell::Reply(current, _) | EventCell::ForwardExpired(current)
                 if current == wait_key || wait_key.serial < current.serial =>
             {
-                return Ok(MutationResult::Stale);
+                Ok(UiReplyAdmission::Stale)
             }
             EventCell::Event(event)
                 if matches!(&**event, WorkerEvent::PollResult { .. })
                     && wait_key.serial <= state.next_ui_wait_serial =>
             {
-                return Ok(MutationResult::Stale);
+                Ok(UiReplyAdmission::Stale)
             }
             EventCell::Empty if wait_key.serial <= state.next_ui_wait_serial => {
-                return Ok(MutationResult::Stale);
+                Ok(UiReplyAdmission::Stale)
             }
             EventCell::AwaitingUi(_)
             | EventCell::Empty
             | EventCell::Event(_)
             | EventCell::Reply(_, _)
-            | EventCell::ForwardExpired(_) => {
-                return Err(self.close_protocol(&mut state));
-            }
+            | EventCell::ForwardExpired(_) => Err(self.close_protocol(state)),
         }
-        let deadline = Self::forward_event_deadline_locked(
-            &state,
-            state.event_deadline.for_ui(),
-            state.event_anchor_serial,
-        );
-        self.ensure_event_before_locked(&mut state, deadline, observed_at, true)?;
+    }
+
+    fn ensure_reply_current_locked(
+        &self,
+        state: &mut MailboxState,
+        wait_key: &UiWaitKey,
+    ) -> Result<(), EventError> {
         if wait_key.reply_kind == UiReplyKind::BootstrapApplied {
-            return Err(self.close_protocol(&mut state));
+            return Err(self.close_protocol(state));
         }
         // Validate the exact answered receipt before the caller can commit either owner plan.
         if wait_key.reply_kind == UiReplyKind::Switch
-            && !Self::switch_ui_matches_receipt(&state, wait_key)
+            && !Self::switch_ui_matches_receipt(state, wait_key)
         {
-            return Err(self.close_protocol(&mut state));
+            return Err(self.close_protocol(state));
         }
         if wait_key.reply_kind == UiReplyKind::SwitchExpired
             && (state.switch_handoff.is_some()
                 || state.event_anchor_serial != state.active_lease.map(|lease| lease.serial))
         {
-            return Err(self.close_protocol(&mut state));
+            return Err(self.close_protocol(state));
         }
         if matches!(wait_key.correlation, UiCorrelation::CloseReconciliation(..))
             && !state.exact_close_reconciliation(&wait_key.correlation)
         {
-            return Err(self.close_protocol(&mut state));
+            return Err(self.close_protocol(state));
         }
         let move_request = match &wait_key.correlation {
             UiCorrelation::Move(request) => Some((request, None)),
@@ -2166,26 +2153,23 @@ impl CommandMailbox {
                         && old.is_none_or(|old| old == flight.operation.target())
                 })
         {
-            return Err(self.close_protocol(&mut state));
+            return Err(self.close_protocol(state));
         }
         if !state.rename_reply_current(&wait_key.correlation)
             || !state.setup_reply_current(&wait_key.correlation)
         {
-            return Err(self.close_protocol(&mut state));
+            return Err(self.close_protocol(state));
         }
-        let reply = match settle(&mut UiReplyTransaction {
-            state: &mut state,
-            observed_at,
-        }) {
-            Ok(reply) => reply,
-            Err(failure) => {
-                return Err(self.close_failure(&mut state, failure));
-            }
-        };
-        if wait_key.reply_kind != reply.kind() {
-            return Err(self.close_protocol(&mut state));
-        }
-        match &reply {
+        Ok(())
+    }
+
+    fn settle_reply_locked(
+        &self,
+        state: &mut MailboxState,
+        wait_key: &UiWaitKey,
+        reply: &UiReply,
+    ) -> Result<(), EventError> {
+        match reply {
             UiReply::Rename(settlement) => {
                 let exact = match &wait_key.correlation {
                     UiCorrelation::Rename(id)
@@ -2195,7 +2179,7 @@ impl CommandMailbox {
                     _ => false,
                 };
                 if !exact || state.desired.key() != settlement.desired() {
-                    return Err(self.close_protocol(&mut state));
+                    return Err(self.close_protocol(state));
                 }
                 if !matches!(settlement.decision(), RefreshDecision::Cleanup(_)) {
                     state.structural_mutation_pending = None;
@@ -2203,12 +2187,12 @@ impl CommandMailbox {
             }
             UiReply::CloseReconciliation(settlement) => {
                 if !state.settle_close_reconciliation(&wait_key.correlation, settlement) {
-                    return Err(self.close_protocol(&mut state));
+                    return Err(self.close_protocol(state));
                 }
             }
             UiReply::Close(key) => {
                 if !state.settle_close_result(&wait_key.correlation, key) {
-                    return Err(self.close_protocol(&mut state));
+                    return Err(self.close_protocol(state));
                 }
             }
             UiReply::Switch(_) => {
@@ -2222,7 +2206,7 @@ impl CommandMailbox {
                         && flight.stage == PendingRefreshStage::AwaitingUi
                 }));
                 if !valid || state.desired.key() != settlement.desired() {
-                    return Err(self.close_protocol(&mut state));
+                    return Err(self.close_protocol(state));
                 }
                 if !matches!(settlement.decision(), MoveDecision::Cleanup(_)) {
                     state.structural_mutation_pending = None;
@@ -2239,10 +2223,10 @@ impl CommandMailbox {
                     || matches!(settlement.decision(), RefreshDecision::AttachRecovered(target)
                         if Some(target.selected().key()) != settlement.desired())
                 {
-                    return Err(self.close_protocol(&mut state));
+                    return Err(self.close_protocol(state));
                 }
-                self.abandon_stale_poll_locked(&mut state)
-                    .map_err(|failure| self.close_failure(&mut state, failure))?;
+                self.abandon_stale_poll_locked(state)
+                    .map_err(|failure| self.close_failure(state, failure))?;
             }
             UiReply::Refresh(settlement) | UiReply::Membership(settlement) => {
                 let generation = match &wait_key.correlation {
@@ -2252,7 +2236,7 @@ impl CommandMailbox {
                     }
                     UiCorrelation::Membership(MembershipResultKey::Move(_), _) => None,
                     _ => {
-                        return Err(self.close_protocol(&mut state));
+                        return Err(self.close_protocol(state));
                     }
                 };
                 if generation.is_some_and(|generation| {
@@ -2264,15 +2248,15 @@ impl CommandMailbox {
                         }) if current == generation
                     )
                 }) {
-                    return Err(self.close_protocol(&mut state));
+                    return Err(self.close_protocol(state));
                 }
                 if let RefreshDecision::AttachRecovered(target) = settlement.decision()
                     && Some(target.selected().key()) != settlement.desired()
                 {
-                    return Err(self.close_protocol(&mut state));
+                    return Err(self.close_protocol(state));
                 }
                 if state.desired.key() != settlement.desired() {
-                    return Err(self.close_protocol(&mut state));
+                    return Err(self.close_protocol(state));
                 }
                 if !matches!(settlement.decision(), RefreshDecision::Cleanup(_)) {
                     if generation.is_some() {
@@ -2301,6 +2285,55 @@ impl CommandMailbox {
             | UiReply::Ready(_)
             | UiReply::CleanupApplied(_) => {}
         }
+        Ok(())
+    }
+
+    pub(super) fn deposit_ui_reply_before<Settle>(
+        &self,
+        wait_key: &UiWaitKey,
+        clock: &LocalOperationClock,
+        settle: Settle,
+    ) -> Result<MutationResult, EventError>
+    where
+        Settle: FnOnce(&mut UiReplyTransaction<'_>) -> Result<UiReply, CarrierFailure>,
+    {
+        self.deposit_ui_reply_before_using(wait_key, clock, settle)
+    }
+
+    fn deposit_ui_reply_before_using<Settle>(
+        &self,
+        wait_key: &UiWaitKey,
+        clock: &dyn MailboxClock,
+        settle: Settle,
+    ) -> Result<MutationResult, EventError>
+    where
+        Settle: FnOnce(&mut UiReplyTransaction<'_>) -> Result<UiReply, CarrierFailure>,
+    {
+        let (mut state, observed_at) = self.lock_with_fresh_sample(clock);
+        Self::ensure_open(&state).map_err(EventError::Closed)?;
+        if let UiReplyAdmission::Stale = self.admit_ui_reply_locked(&mut state, wait_key)? {
+            return Ok(MutationResult::Stale);
+        }
+        let deadline = Self::forward_event_deadline_locked(
+            &state,
+            state.event_deadline.for_ui(),
+            state.event_anchor_serial,
+        );
+        self.ensure_event_before_locked(&mut state, deadline, observed_at, true)?;
+        self.ensure_reply_current_locked(&mut state, wait_key)?;
+        let reply = match settle(&mut UiReplyTransaction {
+            state: &mut state,
+            observed_at,
+        }) {
+            Ok(reply) => reply,
+            Err(failure) => {
+                return Err(self.close_failure(&mut state, failure));
+            }
+        };
+        if wait_key.reply_kind != reply.kind() {
+            return Err(self.close_protocol(&mut state));
+        }
+        self.settle_reply_locked(&mut state, wait_key, &reply)?;
         state.event = EventCell::Reply(wait_key.clone(), Box::new(reply));
         self.changed.notify_all();
         Ok(MutationResult::Applied)
@@ -2329,43 +2362,8 @@ impl CommandMailbox {
     {
         let (mut state, observed_at) = self.lock_with_fresh_sample(clock);
         Self::ensure_open(&state).map_err(EventError::Closed)?;
-        match &state.event {
-            EventCell::AwaitingUi(current) if current == wait_key => {}
-            EventCell::Event(_)
-                if state
-                    .event_wait_key
-                    .as_ref()
-                    .is_some_and(|current| wait_key.serial < current.serial) =>
-            {
-                return Ok(MutationResult::Stale);
-            }
-            EventCell::Event(_) if state.event_wait_key.as_ref() == Some(wait_key) => {
-                return Err(self.close_protocol(&mut state));
-            }
-            EventCell::AwaitingUi(current) if wait_key.serial < current.serial => {
-                return Ok(MutationResult::Stale);
-            }
-            EventCell::Reply(current, _) | EventCell::ForwardExpired(current)
-                if current == wait_key || wait_key.serial < current.serial =>
-            {
-                return Ok(MutationResult::Stale);
-            }
-            EventCell::Event(event)
-                if matches!(&**event, WorkerEvent::PollResult { .. })
-                    && wait_key.serial <= state.next_ui_wait_serial =>
-            {
-                return Ok(MutationResult::Stale);
-            }
-            EventCell::Empty if wait_key.serial <= state.next_ui_wait_serial => {
-                return Ok(MutationResult::Stale);
-            }
-            EventCell::AwaitingUi(_)
-            | EventCell::Empty
-            | EventCell::Event(_)
-            | EventCell::Reply(_, _)
-            | EventCell::ForwardExpired(_) => {
-                return Err(self.close_protocol(&mut state));
-            }
+        if let UiReplyAdmission::Stale = self.admit_ui_reply_locked(&mut state, wait_key)? {
+            return Ok(MutationResult::Stale);
         }
         if wait_key.reply_kind != UiReplyKind::BootstrapApplied
             || wait_key.correlation != UiCorrelation::Bootstrap
