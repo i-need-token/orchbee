@@ -42,6 +42,8 @@ pub(crate) enum BackendAction {
     SelectNextTab,
     SelectPreviousTab,
     SelectTab(u8),
+    SelectPreviousContext,
+    SelectNextContext,
 }
 
 // This value is shared with the native Session reducer while remaining protocol-free.
@@ -61,6 +63,8 @@ pub(crate) enum ClientAction {
     SelectNextTab,
     SelectPreviousTab,
     SelectTab(u8),
+    SelectPreviousContext,
+    SelectNextContext,
     MovePanelFocus(PanelDirection),
     ForwardLiteralPrefix,
     DismissPrefix,
@@ -129,6 +133,8 @@ impl ClientAction {
             Self::SelectNextTab => Some(BackendAction::SelectNextTab),
             Self::SelectPreviousTab => Some(BackendAction::SelectPreviousTab),
             Self::SelectTab(position) => Some(BackendAction::SelectTab(position)),
+            Self::SelectPreviousContext => Some(BackendAction::SelectPreviousContext),
+            Self::SelectNextContext => Some(BackendAction::SelectNextContext),
             Self::MovePanelFocus(direction) => Some(BackendAction::MovePanelFocus(direction)),
             Self::ToggleBusinessSidebar
             | Self::ConfirmClose
@@ -289,6 +295,8 @@ impl ClientView {
             ClientKey::Plain('>') => (ClientAction::MoveNextTab, ShellCommand::None),
             ClientKey::Plain('n') => (ClientAction::SelectNextTab, ShellCommand::None),
             ClientKey::Plain('p') => (ClientAction::SelectPreviousTab, ShellCommand::None),
+            ClientKey::Plain('[') => (ClientAction::SelectPreviousContext, ShellCommand::None),
+            ClientKey::Plain(']') => (ClientAction::SelectNextContext, ShellCommand::None),
             ClientKey::Plain(character @ '1'..='9') => {
                 let number = character as u8 - b'0';
                 (ClientAction::SelectTab(number), ShellCommand::None)

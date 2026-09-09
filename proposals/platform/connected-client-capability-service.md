@@ -71,8 +71,10 @@ evidence in that guide. The remaining Workbench operations still require their o
 
 The [Workspace directory slice](../../apps/orchbee-server/docs/workspace-terminal-directory.md)
 adds Project-owned Directories, an explicit first association after Worker validation, and Workspace
-Tab creation using the accepted directory and exact Worker. Its consumer boundary is the local
-Server protocol; Workspace navigation and directory selection in TUI/Desktop remain separate work.
+Tab creation using the accepted directory and exact Worker.
+[Native context selection](../../apps/orchbee/docs/native-context-selection.md) connects the Linux
+TUI to existing Workspaces and their Tab operations. Workspace creation and directory selection UI,
+and Desktop migration, remain separate work.
 
 This milestone is additive and unshipped. It does not prove production restart recovery, remote
 access, or migration of the existing Desktop. In particular, its accepted `RecoveryRequired`

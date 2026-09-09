@@ -77,7 +77,7 @@ fn canonical_refresh_rejects_outer_revision_and_membership_divergence() {
     candidates.push(site_mismatch);
 
     let mut context_mismatch = projected(3, 11);
-    context_mismatch.terminal_context_id = context_id(81);
+    context_mismatch.location = NativeContextLocation::Standalone(context_id(81));
     candidates.push(context_mismatch);
 
     candidates.push(projected(3, 9));

@@ -1,5 +1,5 @@
 use super::{
-    NativeProjectionDivergence, NativeStandaloneTabs, WorkbenchLabel, WorkbenchRevision,
+    NativeContextTabs, NativeProjectionDivergence, WorkbenchLabel, WorkbenchRevision,
     WorkbenchTabId, WorkbenchTerminalContextId, validate_canonical_candidate,
 };
 
@@ -30,18 +30,18 @@ impl RenamedTabExpectation {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct ValidatedRenamedProjection {
-    pub(in crate::terminal_session) candidate: NativeStandaloneTabs,
+    pub(in crate::terminal_session) candidate: NativeContextTabs,
     pub(in crate::terminal_session) renamed_index: Option<usize>,
 }
 
 pub(in crate::terminal_session) fn validate_renamed_tab(
-    baseline: &NativeStandaloneTabs,
+    baseline: &NativeContextTabs,
     expected: &RenamedTabExpectation,
-    candidate: NativeStandaloneTabs,
+    candidate: NativeContextTabs,
 ) -> Result<ValidatedRenamedProjection, NativeProjectionDivergence> {
     validate_canonical_candidate(baseline, &candidate)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
-        || expected.terminal_context_id != baseline.terminal_context_id
+        || &expected.terminal_context_id != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
         return Err(NativeProjectionDivergence);

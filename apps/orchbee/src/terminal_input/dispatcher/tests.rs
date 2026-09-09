@@ -11,6 +11,39 @@ enum Call {
 
 struct UnavailablePort(Rc<RefCell<Vec<Call>>>);
 
+#[test]
+fn context_prefix_across_reads_consumes_only_the_navigation_keys() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    for packet in [b"[]\x02".as_slice(), b"]\x02", b"[literal"] {
+        assert_eq!(
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    packet,
+                    &mut port,
+                    Instant::now(),
+                    |_, _| Ok::<(), io::Error>(()),
+                    &mut |_| Ok(()),
+                )
+                .unwrap(),
+            DispatchOutcome::Continue,
+        );
+    }
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Forward(b"[]".to_vec()),
+            Call::Action(ClientAction::SelectNextContext),
+            Call::Action(ClientAction::SelectPreviousContext),
+            Call::Forward(b"literal".to_vec()),
+        ],
+    );
+    assert!(!view.prefix_active());
+}
+
 impl TerminalInputPort for UnavailablePort {
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.0.borrow_mut().push(Call::Forward(bytes.to_vec()));

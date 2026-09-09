@@ -4,10 +4,13 @@
 原生 Move 运行时已有确定性集成及 Linux cohort 进程证据。这仍是未发布的本地开发链路；
 原生 Close 已有下文限定的 Linux 进程证据；打包和生产恢复仍属于独立工作。
 
+[原生上下文选择](native-context-selection.zh-CN.md) 拥有 Workspace 导航和当前上下文投影扩展。
+其中的位置身份、Empty 选择及保留 provenance 规则扩展下文的独立启动与同上下文 Tab 工作流。
+
 ## 已接受的 Close 细化与本地集成
 
 [规范终端 Tab Close](../../orchbee-server/docs/terminal-tab-close.zh-CN.md) 拥有已接受的
-Server/Worker 生命周期、线协议/状态/Resume 及原生移除契约。原生 `Ctrl+B x` 以活动独立 Tab
+Server/Worker 生命周期、线协议/状态/Resume 及原生移除契约。原生 `Ctrl+B x` 以活动上下文的 Tab
 为目标，以两种语言确认执行将对所有已挂接 Client 结束，并要求独立生命周期授权。Closed
 要求已知销毁、目标所有者清理及规范移除。最后移除留下可 Refresh/手动 `c` 的可用 Empty
 Workbench，不替代 shell，也不退出 Client。
@@ -597,8 +600,8 @@ Server 所有的 Workbench 快照仍是 Tab 顺序、标签、Panel 与 Presenta
 唯一事实来源。单次原生调用只拥有自身缓存的严格投影、本地活动 Tab ID、挂接代次、导航器状态、
 尺寸观测、终端投影和临时状态。本地选择绝不写入或推进 Workbench 修订号。
 
-以下内容仍不在范围内：终端关闭/移除、固定/分组、Split 或子 Presentation
-支持、Workspace 选择、持久化、推送/增量订阅、远程传输、重连、隐藏载体、载体多路复用，以及
+以下内容仍不在范围内：固定/分组、Split 或子 Presentation
+支持、持久化、推送/增量订阅、远程传输、重连、隐藏载体、载体多路复用，以及
 在一个 Client 内组合多个查看器。
 
 ## 纯函数严格投影
@@ -607,11 +610,12 @@ Server 所有的 Workbench 快照仍是 Tab 顺序、标签、Panel 与 Presenta
 `select_standalone_binding`：
 
 ```rust
-struct NativeStandaloneTabs {
+struct NativeContextTabs {
     site_id: SiteId,
     revision: WorkbenchRevision,
-    terminal_context_id: WorkbenchTerminalContextId,
     tabs: Vec<NativeSimpleTab>,
+    location: NativeContextLocation,
+    navigation: Arc<[NativeContext]>,
 }
 
 struct NativeSimpleTab {
@@ -639,11 +643,12 @@ struct CreatedTabExpectation {
 
 fn project_native_standalone_tabs(
     snapshot: &Snapshot,
-) -> Result<NativeStandaloneTabs, NativeProjectionError>;
+) -> Result<NativeContextTabs, NativeProjectionError>;
 ```
 
-投影器要求恰好存在一个 ID 等于 `navigation.standaloneTerminalContextId` 的 Terminal Context。
-其他 Project/Workspace 上下文可以共存，但会被忽略。独立上下文不得包含分组，并可包含恰好
+启动投影器要求恰好存在一个 ID 等于 `navigation.standaloneTerminalContextId` 的 Terminal Context。
+当前上下文投影器改为验证已选择的 canonical 位置。其他 Project/Workspace 的导航元数据保留，
+非活动上下文的 Tab 布局不在这里验证。活动上下文不得包含分组，并可包含恰好
 0 至 256 个有序 Tab。每个 Tab 都必须未分组且未固定，拥有一个 Panel 根节点，没有子
 Presentation，并拥有一个已绑定的主 Presentation。只要存在一个不支持的成员，就拒绝整个
 投影；投影器绝不筛选、重排或选择第一个可挂接成员。两个标签均原样保留，包括重复值和空白。
@@ -652,15 +657,15 @@ Presentation，并拥有一个已绑定的主 Presentation。只要存在一个�
 
 ```rust
 fn validate_append_only_refresh(
-    current: &NativeStandaloneTabs,
-    candidate: NativeStandaloneTabs,
-) -> Result<NativeStandaloneTabs, NativeProjectionDivergence>;
+    current: &NativeContextTabs,
+    candidate: NativeContextTabs,
+) -> Result<NativeContextTabs, NativeProjectionDivergence>;
 
 fn validate_created_tab(
-    current: &NativeStandaloneTabs,
+    current: &NativeContextTabs,
     expected: &CreatedTabExpectation,
-    candidate: NativeStandaloneTabs,
-) -> Result<(NativeStandaloneTabs, usize), NativeProjectionDivergence>;
+    candidate: NativeContextTabs,
+) -> Result<(NativeContextTabs, usize), NativeProjectionDivergence>;
 ```
 
 已接受的 Move 细化替换旧 `validate_append_only_refresh` 前缀策略：要求 Site/上下文相同，
@@ -697,7 +702,7 @@ fn validate_created_tab(
 1. 测量完整、真实的终端尺寸；
 2. 提交一次 `terminal.open` ensure/join，并等待其最终 `Opened` 结果；
 3. 在同一载体上提交一次 `SnapshotRead`；
-4. 验证完整的 `NativeStandaloneTabs` 投影，并要求存在 `tabs[0]`；
+4. 验证完整的 `NativeContextTabs` 投影，并要求存在 `tabs[0]`；
 5. 设置 `active_tab_id = tabs[0].tab_id`，分配初始挂接代次，并发送从快照精确取得的
    `AttachBinding`；
 6. 执行 Acquire，按条件执行 Resize，接收新的完整投影并绘制，发送匹配的 `FrameApplied`，
@@ -1357,7 +1362,7 @@ state 拥有的 Rename 草稿消费 `RenameText`，捕获完整 canonical 基线
 显式修正、不完整输入、独立基线/generation 失效、取消、退役及双向 state 准入。
 实际 mailbox 测试覆盖容量、cursor/serial 耗尽、固定 cutoff 拒绝、精确 ACK 与 worker 丢失证据保留。
 
-`Ctrl+B ,` 在存活且稳定的阶段为精确选中的独立 Tab 打开 state-owned 草稿。
+`Ctrl+B ,` 在存活且稳定的阶段为当前上下文中精确选中的 Tab 打开 state-owned 草稿。
 捕获规范基线、Site/context/Tab 和附件 generation，不分配请求或 deadline。
 Empty、结构/恢复 flight 和 Close/Resume 确认期间拒绝进入；草稿与 Close 确认互斥。
 已应用的权威或选择变化使草稿失效；Enter 原子重验捕获元组，绝不把文本改投其他目标。

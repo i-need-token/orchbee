@@ -778,6 +778,27 @@ impl UiDriver {
             .map_err(|error| test_error(&format!("Refresh admission failed: {error:?}")))
     }
 
+    pub(super) fn admit_context_selection(&mut self) -> TestResult<u64> {
+        let clock = self.clock.clone();
+        let deadlines = OperationDeadlines::from_sample(clock.now()).unwrap();
+        let mailbox = Arc::clone(&self.mailbox);
+        mailbox
+            .try_enqueue_context_selection_for(
+                self.state_mut(),
+                deadlines,
+                &clock,
+                |state, generation| {
+                    state
+                        .start_context_selection(generation, true, deadlines)
+                        .then_some(())
+                        .ok_or("context admission")
+                },
+                |_state, _result| {},
+            )
+            .map_err(|error| test_error(&format!("context selection admission failed: {error:?}")))?
+            .ok_or_else(|| test_error("context selection expired at admission"))
+    }
+
     // This seam checks worker transport; canonical Move settlement is covered by the state owner.
     pub(super) fn admit_move_transport(
         &mut self,
@@ -1485,10 +1506,12 @@ impl UiDriver {
                 let wait_key =
                     wait_key.ok_or_else(|| test_error("RefreshSnapshotResult wait key"))?;
                 let prepared = self.state().prepare_refresh(generation, outcome);
-                let recovery_deadlines = prepared
-                    .needs_recovery_deadlines()
-                    .then(|| OperationDeadlines::from_sample(self.clock.now()))
-                    .flatten();
+                let recovery_deadlines = self.state().context_selection_deadlines().or_else(|| {
+                    prepared
+                        .needs_recovery_deadlines()
+                        .then(|| OperationDeadlines::from_sample(self.clock.now()))
+                        .flatten()
+                });
                 let mut decision = None;
                 let mailbox = Arc::clone(&self.mailbox);
                 let clock = self.clock.clone();

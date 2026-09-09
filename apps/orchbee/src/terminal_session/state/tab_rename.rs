@@ -1,11 +1,10 @@
 use super::rename_draft::{RenameDraftIntent, RenameDraftToken};
-use super::{AttachmentKey, CarrierFailure, NativeStandaloneTabs};
+use super::{AttachmentKey, CarrierFailure, NativeContextTabs};
 use crate::local_client::workbench::tab_rename::{
     WorkbenchTabRenamePrecommit, WorkbenchTabRenameRequest,
 };
-use crate::terminal_session::workbench_projection::{
-    project_native_standalone_tabs,
-    renamed::{RenamedTabExpectation, ValidatedRenamedProjection, validate_renamed_tab},
+use crate::terminal_session::workbench_projection::renamed::{
+    RenamedTabExpectation, ValidatedRenamedProjection, validate_renamed_tab,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchRequestId,
@@ -236,7 +235,7 @@ impl RenameOperation {
     pub(in crate::terminal_session) const fn draft_token(&self) -> RenameDraftToken {
         self.intent.token()
     }
-    pub(in crate::terminal_session) const fn baseline(&self) -> &NativeStandaloneTabs {
+    pub(in crate::terminal_session) const fn baseline(&self) -> &NativeContextTabs {
         self.intent.baseline()
     }
     pub(in crate::terminal_session) const fn target(&self) -> &AttachmentKey {
@@ -284,7 +283,9 @@ impl RenameOperation {
                 None => RenamePreparation::Divergent { known: None },
                 Some(known) => match outcome {
                     WorkbenchSnapshotOutcome::Available { snapshot } => {
-                        let projection = project_native_standalone_tabs(&snapshot)
+                        let projection = self
+                            .baseline()
+                            .project_snapshot(&snapshot)
                             .map_err(|_| ())
                             .and_then(|candidate| {
                                 known.validate_projection(candidate).map_err(|_| ())
@@ -336,7 +337,7 @@ impl PendingRenameCommit {
 
     pub(super) fn validate_projection(
         &self,
-        candidate: NativeStandaloneTabs,
+        candidate: NativeContextTabs,
     ) -> Result<
         ValidatedRenamedProjection,
         super::super::workbench_projection::NativeProjectionDivergence,

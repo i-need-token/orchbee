@@ -19,7 +19,7 @@ mod reorder;
 const SITE_VALUE: u128 = 1;
 const STANDALONE_CONTEXT_VALUE: u128 = 2;
 
-fn projected(tab_count: usize, revision: u64) -> NativeStandaloneTabs {
+fn projected(tab_count: usize, revision: u64) -> NativeContextTabs {
     project_native_standalone_tabs(&snapshot(tab_count, revision)).unwrap()
 }
 
@@ -76,7 +76,7 @@ fn created_candidate(
     candidate_tab_count: usize,
     revision: u64,
     requested_label: &str,
-) -> NativeStandaloneTabs {
+) -> NativeContextTabs {
     let mut candidate = snapshot(candidate_tab_count, revision);
     let created = &mut candidate.terminal_contexts[0].tabs[current_tab_count];
     created.label = requested_label.into();
@@ -92,7 +92,7 @@ fn created_candidate(
 }
 
 fn expectation_for(
-    candidate: &NativeStandaloneTabs,
+    candidate: &NativeContextTabs,
     index: usize,
     committed_revision: u64,
     requested_label: &str,
@@ -100,7 +100,7 @@ fn expectation_for(
     let tab = &candidate.tabs[index];
     CreatedTabExpectation::new(
         WorkbenchRevision::new(committed_revision),
-        candidate.terminal_context_id.clone(),
+        candidate.terminal_context_id().clone(),
         tab.tab_id.clone(),
         tab.panel_id.clone(),
         tab.presentation_id.clone(),

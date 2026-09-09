@@ -4,12 +4,11 @@ use super::{
     PreparedMembershipCandidate, SessionNotice, SessionPhase,
 };
 use crate::terminal_session::workbench_projection::{
-    MovedTabExpectation, NativeProjectionDivergence, project_native_standalone_tabs,
-    validate_canonical_refresh, validate_moved_tab,
+    MovedTabExpectation, NativeProjectionDivergence, validate_canonical_refresh, validate_moved_tab,
 };
 use crate::{
     local_client::workbench::{WorkbenchTabMoveCommit, WorkbenchTabMovePrecommit},
-    terminal_session::workbench_projection::NativeStandaloneTabs,
+    terminal_session::workbench_projection::NativeContextTabs,
 };
 use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchTabMoveDirection,
@@ -20,7 +19,7 @@ use std::time::Instant;
 pub(in crate::terminal_session) struct MoveOperation {
     request_id: WorkbenchRequestId,
     target: AttachmentKey,
-    baseline: NativeStandaloneTabs,
+    baseline: NativeContextTabs,
     direction: WorkbenchTabMoveDirection,
     deadline: Instant,
 }
@@ -29,7 +28,7 @@ impl MoveOperation {
     pub(in crate::terminal_session) const fn new(
         request_id: WorkbenchRequestId,
         target: AttachmentKey,
-        baseline: NativeStandaloneTabs,
+        baseline: NativeContextTabs,
         direction: WorkbenchTabMoveDirection,
         deadline: Instant,
     ) -> Self {
@@ -48,7 +47,7 @@ impl MoveOperation {
     pub(in crate::terminal_session) const fn target(&self) -> &AttachmentKey {
         &self.target
     }
-    pub(in crate::terminal_session) const fn baseline(&self) -> &NativeStandaloneTabs {
+    pub(in crate::terminal_session) const fn baseline(&self) -> &NativeContextTabs {
         &self.baseline
     }
     pub(in crate::terminal_session) const fn direction(&self) -> WorkbenchTabMoveDirection {
@@ -106,8 +105,8 @@ impl PendingMoveCommit {
 
     pub(super) fn validate_projection(
         &self,
-        candidate: NativeStandaloneTabs,
-    ) -> Result<NativeStandaloneTabs, NativeProjectionDivergence> {
+        candidate: NativeContextTabs,
+    ) -> Result<NativeContextTabs, NativeProjectionDivergence> {
         validate_moved_tab(
             &self.operation.baseline,
             &MovedTabExpectation::new(
@@ -167,12 +166,12 @@ enum PreparedMoveResult {
     Unchanged,
     Committed {
         pending: PendingMoveCommit,
-        candidate: Option<NativeStandaloneTabs>,
+        candidate: Option<NativeContextTabs>,
     },
-    RefusedProjection(NativeStandaloneTabs),
+    RefusedProjection(NativeContextTabs),
     Membership {
         pending: Option<PendingMoveCommit>,
-        prepared: PreparedMembershipCandidate,
+        prepared: Box<PreparedMembershipCandidate>,
     },
     Divergent {
         pending: Option<PendingMoveCommit>,
@@ -252,7 +251,9 @@ impl NativeSessionState {
                 if revision.value() < operation.baseline.revision().value() {
                     PreparedMoveResult::Divergent { pending: None }
                 } else if let WorkbenchSnapshotOutcome::Available { snapshot } = outcome {
-                    match project_native_standalone_tabs(&snapshot)
+                    match operation
+                        .baseline
+                        .project_snapshot(&snapshot)
                         .map_err(|_| ())
                         .and_then(|candidate| {
                             if candidate.revision().value() < revision.value()
@@ -280,7 +281,9 @@ impl NativeSessionState {
                 if !pending.valid() {
                     PreparedMoveResult::Divergent { pending: None }
                 } else if let WorkbenchSnapshotOutcome::Available { snapshot } = outcome {
-                    match project_native_standalone_tabs(&snapshot)
+                    match operation
+                        .baseline
+                        .project_snapshot(&snapshot)
                         .map_err(|_| ())
                         .and_then(|candidate| {
                             pending.validate_projection(candidate).map_err(|_| ())
@@ -310,7 +313,7 @@ impl NativeSessionState {
         &self,
         operation: &MoveOperation,
         pending: Option<PendingMoveCommit>,
-        candidate: NativeStandaloneTabs,
+        candidate: NativeContextTabs,
     ) -> PreparedMoveResult {
         if candidate.tab_index(operation.target.tab_id()).is_some() {
             return match pending {
@@ -327,7 +330,10 @@ impl NativeSessionState {
             operation.baseline.tab_index(operation.target.tab_id()),
             None,
         ) {
-            Ok(prepared) => PreparedMoveResult::Membership { pending, prepared },
+            Ok(prepared) => PreparedMoveResult::Membership {
+                pending,
+                prepared: Box::new(prepared),
+            },
             Err(_) => PreparedMoveResult::Divergent { pending },
         }
     }
@@ -416,7 +422,7 @@ impl NativeSessionState {
         } else {
             Some(SessionNotice::MoveNotMoved)
         };
-        Ok((prepared.operation, candidate))
+        Ok((prepared.operation, *candidate))
     }
 
     pub(super) fn move_membership_is_current(&self, request_id: &WorkbenchRequestId) -> bool {

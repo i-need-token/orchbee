@@ -1,5 +1,5 @@
 use super::{
-    NativeProjectionDivergence, NativeStandaloneTabs, SiteId, WorkbenchRevision, WorkbenchTabId,
+    NativeContextTabs, NativeProjectionDivergence, SiteId, WorkbenchRevision, WorkbenchTabId,
     WorkbenchTerminalContextId, validate_canonical_candidate,
 };
 
@@ -44,10 +44,10 @@ impl ClosedTabExpectation {
 }
 
 pub(in crate::terminal_session) fn validate_closed_tab(
-    current: &NativeStandaloneTabs,
+    current: &NativeContextTabs,
     expected: &ClosedTabExpectation,
-    candidate: NativeStandaloneTabs,
-) -> Result<NativeStandaloneTabs, NativeProjectionDivergence> {
+    candidate: NativeContextTabs,
+) -> Result<NativeContextTabs, NativeProjectionDivergence> {
     validate_canonical_candidate(current, &candidate)?;
     if candidate.site_id() != expected.site_id()
         || candidate.terminal_context_id() != expected.terminal_context_id()

@@ -1,7 +1,7 @@
 use super::{
     AttachTarget, AttachmentKey, CarrierFailure, ControllerMode, ExistingAttachment, FrameIdentity,
     Geometry, NativeSessionState, PreparedMembershipCandidate, ReadyAttachment, SelectedTab,
-    SessionPhase, SwitchSetup, WorkbenchSnapshotOutcome, project_native_standalone_tabs,
+    SessionPhase, SwitchSetup, WorkbenchSnapshotOutcome,
 };
 
 /// This record exists only between Switch intent admission and candidate installation.
@@ -231,7 +231,9 @@ impl NativeSessionState {
         let WorkbenchSnapshotOutcome::Available { snapshot } = outcome else {
             return Err(CarrierFailure::Protocol);
         };
-        let candidate = project_native_standalone_tabs(&snapshot)
+        let candidate = self
+            .cache
+            .project_snapshot(&snapshot)
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
         self.prepare_membership_candidate(
             candidate,

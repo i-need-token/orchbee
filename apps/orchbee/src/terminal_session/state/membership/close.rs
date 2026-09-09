@@ -1,7 +1,6 @@
 use super::*;
 use crate::terminal_session::{
-    state::CloseReconciliationMarker,
-    workbench_projection::{project_native_standalone_tabs, validate_closed_tab},
+    state::CloseReconciliationMarker, workbench_projection::validate_closed_tab,
 };
 use orchbee_workbench_protocol::WorkbenchSnapshotOutcome;
 
@@ -17,7 +16,9 @@ impl NativeSessionState {
         let WorkbenchSnapshotOutcome::Available { snapshot } = outcome else {
             return Ok(None);
         };
-        let candidate = project_native_standalone_tabs(&snapshot)
+        let candidate = self
+            .cache
+            .project_snapshot(&snapshot)
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
         let candidate = validate_closed_tab(&self.cache, marker.origin().expectation(), candidate)
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;

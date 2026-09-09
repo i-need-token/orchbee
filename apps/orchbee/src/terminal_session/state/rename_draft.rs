@@ -1,5 +1,5 @@
 use super::rename_text::RenameText;
-use super::{AttachmentKey, NativeSessionState, NativeStandaloneTabs, SessionPhase};
+use super::{AttachmentKey, NativeContextTabs, NativeSessionState, SessionPhase};
 use orchbee_workbench_protocol::WorkbenchLabel;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -13,7 +13,7 @@ pub(super) struct RenameDraftState {
 
 struct RenameDraft {
     token: RenameDraftToken,
-    baseline: NativeStandaloneTabs,
+    baseline: NativeContextTabs,
     target: AttachmentKey,
     target_index: usize,
     text: RenameText,
@@ -57,7 +57,7 @@ impl<'a> RenameDraftView<'a> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct RenameDraftIntent {
     token: RenameDraftToken,
-    baseline: NativeStandaloneTabs,
+    baseline: NativeContextTabs,
     target: AttachmentKey,
     label: WorkbenchLabel,
 }
@@ -66,7 +66,7 @@ impl RenameDraftIntent {
     pub(in crate::terminal_session) const fn token(&self) -> RenameDraftToken {
         self.token
     }
-    pub(in crate::terminal_session) const fn baseline(&self) -> &NativeStandaloneTabs {
+    pub(in crate::terminal_session) const fn baseline(&self) -> &NativeContextTabs {
         &self.baseline
     }
     pub(in crate::terminal_session) const fn target(&self) -> &AttachmentKey {

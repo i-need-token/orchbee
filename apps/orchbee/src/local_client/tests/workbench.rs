@@ -83,6 +83,7 @@ fn tab_create_preserves_every_compatible_precommit_on_the_same_carrier() -> Test
         WorkbenchRejectionReason::SiteMismatch,
         WorkbenchRejectionReason::RevisionMismatch,
         WorkbenchRejectionReason::TerminalContextUnavailable,
+        WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
         WorkbenchRejectionReason::ResourceLimit,
         WorkbenchRejectionReason::IdentityExhausted,
         WorkbenchRejectionReason::RevisionExhausted,

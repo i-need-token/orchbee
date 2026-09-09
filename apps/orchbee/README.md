@@ -67,7 +67,7 @@ platform with public startup process evidence; release performance budgets remai
 
 ## Native Tab interactions
 
-The standalone native Session renders the Server's ordered Tabs and canonical labels. Each Client
+The native Session renders the active context's ordered Tabs and canonical labels. Each Client
 owns its own active selection, navigator and viewport; another Client's new Tabs become visible on
 explicit refresh. These controls use the existing `Ctrl+B` prefix:
 
@@ -76,11 +76,17 @@ explicit refresh. These controls use the existing `Ctrl+B` prefix:
 | `c`       | Request one Server-owned Tab creation, then select its validated committed member.                 |
 | `n` / `p` | Select the next / previous Tab in the current Client snapshot.                                     |
 | `1` … `9` | Select that position when present.                                                                 |
+| `[` / `]` | Select the previous / next standalone or Workspace context in Server navigation order.             |
 | `<` / `>` | Move the active Tab before / after its neighbor, wrapping at either boundary.                      |
 | `,`       | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels. |
 | `x`       | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                  |
 | `w`       | Open the navigator and refresh shared Tabs while preserving the active terminal identity.          |
 | `q` / `d` | Close this Client while retained execution continues.                                              |
+
+[Context selection](docs/native-context-selection.md) preserves each retained terminal while
+switching location. The navigator and Workbench title show the current Project/Workspace. Empty
+Workspaces can be entered and left; only explicit `c` creates a terminal, using the Workspace's
+accepted directory. Workspace creation and directory configuration UI remain separate work.
 
 Creation drains earlier accepted work and preserves known commit facts through deadline and Client
 retirement. Switching releases the old viewer before attaching the selected binding; it does not
@@ -185,7 +191,7 @@ Application-private shell adapters own the following terminal and presentation b
 Bare Linux startup uses the prepared Session; unconnected `run` and explicit `run_connected`
 remain test and composition seams.
 
-The input and transition tables below describe the unconnected fallback. Connected standalone Tab
+The input and transition tables below describe the unconnected fallback. Connected context and Tab
 actions are handled by the native Session described above.
 
 | Concern     | Current contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |

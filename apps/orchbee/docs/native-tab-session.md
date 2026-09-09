@@ -5,11 +5,15 @@ Native Move runtime has deterministic integration and Linux cohort process evide
 an unpublished local development path. Native Close has the bounded Linux process evidence below;
 packaging and production recovery remain separate work.
 
+[Native context selection](native-context-selection.md) owns Workspace navigation and the
+current-context projection extension. Its location identity, Empty selection and retained
+provenance rules extend the standalone startup and same-context Tab workflows below.
+
 ## Accepted Close refinement and local integration
 
 [Canonical terminal Tab Close](../../orchbee-server/docs/terminal-tab-close.md) owns the accepted
 Server/Worker lifecycle, wire/status/Resume and native removal contract. Native `Ctrl+B x` targets
-the active standalone Tab and confirms in both locales that execution ends for all attached Clients;
+the selected Tab in the active context and confirms in both locales that execution ends for all attached Clients;
 an independent lifecycle grant is required. Closed requires known disposal, target-owner cleanup
 and canonical removal. The last removal leaves a usable Empty Workbench with Refresh/manual `c`,
 without a replacement shell or Client exit.
@@ -736,8 +740,8 @@ projection, local active Tab ID, attachment generation, navigator state, geometr
 terminal projection, and transient statuses. Local selection never writes or advances a Workbench
 revision.
 
-Terminal close/removal, pin/group, Split or child Presentation support, Workspace
-selection, persistence, push/delta subscriptions, remote transport, reconnect, hidden carriers,
+Pin/group, Split or child Presentation support,
+persistence, push/delta subscriptions, remote transport, reconnect, hidden carriers,
 carrier multiplexing, and multi-viewer composition inside one Client remain excluded.
 
 ## Pure strict projection
@@ -746,11 +750,12 @@ Replace `select_standalone_binding` with this Unix-only pure projection in
 `terminal_session/workbench_projection.rs`:
 
 ```rust
-struct NativeStandaloneTabs {
+struct NativeContextTabs {
     site_id: SiteId,
     revision: WorkbenchRevision,
-    terminal_context_id: WorkbenchTerminalContextId,
     tabs: Vec<NativeSimpleTab>,
+    location: NativeContextLocation,
+    navigation: Arc<[NativeContext]>,
 }
 
 struct NativeSimpleTab {
@@ -778,12 +783,13 @@ struct CreatedTabExpectation {
 
 fn project_native_standalone_tabs(
     snapshot: &Snapshot,
-) -> Result<NativeStandaloneTabs, NativeProjectionError>;
+) -> Result<NativeContextTabs, NativeProjectionError>;
 ```
 
-The projector requires exactly one Terminal Context whose ID equals
-`navigation.standaloneTerminalContextId`. Other Project/Workspace contexts may coexist and are
-ignored. The standalone context must have no groups and may contain exactly 0 through 256 ordered
+The startup projector requires exactly one Terminal Context whose ID equals
+`navigation.standaloneTerminalContextId`. The current-context projector instead validates the
+selected canonical location. Other Project/Workspace navigation metadata is retained; nonactive
+contexts' Tab layouts are not validated here. The active context must have no groups and may contain exactly 0 through 256 ordered
 Tabs. Every Tab must be ungrouped and unpinned, have one Panel root, have no child Presentations,
 and have one bound primary Presentation. One unsupported member rejects the whole projection; the
 projector never filters, reorders, or chooses the first attachable member. It retains both labels
@@ -793,15 +799,15 @@ Two additional pure validators own cache replacement:
 
 ```rust
 fn validate_append_only_refresh(
-    current: &NativeStandaloneTabs,
-    candidate: NativeStandaloneTabs,
-) -> Result<NativeStandaloneTabs, NativeProjectionDivergence>;
+    current: &NativeContextTabs,
+    candidate: NativeContextTabs,
+) -> Result<NativeContextTabs, NativeProjectionDivergence>;
 
 fn validate_created_tab(
-    current: &NativeStandaloneTabs,
+    current: &NativeContextTabs,
     expected: &CreatedTabExpectation,
-    candidate: NativeStandaloneTabs,
-) -> Result<(NativeStandaloneTabs, usize), NativeProjectionDivergence>;
+    candidate: NativeContextTabs,
+) -> Result<(NativeContextTabs, usize), NativeProjectionDivergence>;
 ```
 
 The accepted Move refinement replaces the legacy `validate_append_only_refresh` prefix policy:
@@ -848,7 +854,7 @@ Cold startup remains exactly:
 1. measure complete real terminal geometry;
 2. submit one `terminal.open` ensure/join and wait for its final `Opened` result;
 3. submit one `SnapshotRead` on the same carrier;
-4. validate the full `NativeStandaloneTabs` projection and require `tabs[0]`;
+4. validate the full `NativeContextTabs` projection and require `tabs[0]`;
 5. set `active_tab_id = tabs[0].tab_id`, allocate the initial attachment generation, and send the
    exact snapshot-derived `AttachBinding`;
 6. Acquire, conditionally Resize, receive a fresh full projection, draw it, send matching
@@ -1644,7 +1650,7 @@ atomic text-limit faults, explicit correction, incomplete input, independent bas
 staleness, cancellation, retirement and reciprocal state admission. Actual mailbox tests cover
 capacity, cursor/serial exhaustion, fixed-cutoff refusals, exact ACK and retained worker-loss evidence.
 
-`Ctrl+B ,` opens a state-owned draft for the exact selected standalone Tab in a live stable phase.
+`Ctrl+B ,` opens a state-owned draft for the exact selected Tab in the active context in a live stable phase.
 Capture the canonical baseline, Site/context/Tab and attachment generation without allocating a
 request or deadline. Empty, structural/recovery flights and Close/Resume confirmation refuse entry.
 The draft and Close confirmation are mutually exclusive. Applied authority or selection changes

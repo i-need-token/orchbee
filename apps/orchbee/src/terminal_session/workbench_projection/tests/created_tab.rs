@@ -102,7 +102,7 @@ fn created_tab_rejects_revision_context_prefix_and_immediate_position_divergence
     failures.push((expected.clone(), site_mismatch));
 
     let mut context_mismatch = candidate.clone();
-    context_mismatch.terminal_context_id = context_id(401);
+    context_mismatch.location = NativeContextLocation::Standalone(context_id(401));
     failures.push((expected.clone(), context_mismatch));
 
     let mut expected_context_mismatch = expected.clone();

@@ -515,6 +515,7 @@ fn tab_create_rejection_is_compatible(reason: WorkbenchRejectionReason) -> bool 
         WorkbenchRejectionReason::SiteMismatch
             | WorkbenchRejectionReason::RevisionMismatch
             | WorkbenchRejectionReason::TerminalContextUnavailable
+            | WorkbenchRejectionReason::WorkspaceDirectoryUnavailable
             | WorkbenchRejectionReason::ResourceLimit
             | WorkbenchRejectionReason::IdentityExhausted
             | WorkbenchRejectionReason::RevisionExhausted

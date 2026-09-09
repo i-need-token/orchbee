@@ -336,7 +336,6 @@ pub(in crate::terminal_session) struct CloseState {
 }
 
 impl CloseState {
-    #[cfg(target_os = "linux")]
     pub(super) fn permits_retired_membership(&self) -> bool {
         self.records.is_empty()
             && self.confirmation.is_none()

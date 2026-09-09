@@ -1095,7 +1095,10 @@ impl NativeExecutor {
         {
             return Err(CarrierFailure::Protocol);
         }
-        self.ensure_before(marker.deadline())?;
+        let snapshot_deadline = marker
+            .context_deadlines()
+            .map_or(marker.deadline(), OperationDeadlines::forward_cutoff);
+        self.ensure_before(snapshot_deadline)?;
         let request_id = self
             .mailbox
             .allocate_workbench_request_id()
@@ -1107,7 +1110,7 @@ impl NativeExecutor {
                     protocol_version: ProtocolVersion,
                     request_id,
                 },
-                marker.deadline(),
+                snapshot_deadline,
             )
             .map_err(snapshot)?;
         let wait = self
@@ -1115,7 +1118,7 @@ impl NativeExecutor {
             .publish_refresh_result_before(
                 marker.generation(),
                 result.outcome,
-                marker.deadline(),
+                snapshot_deadline,
                 &self.clock,
             )
             .map_err(event)?;
@@ -1123,7 +1126,7 @@ impl NativeExecutor {
         let bounded_recovery = self.membership_recovery;
         #[cfg(not(target_os = "linux"))]
         let bounded_recovery = false;
-        let reply = if bounded_recovery {
+        let reply = if bounded_recovery || marker.context_deadlines().is_some() {
             self.mailbox
                 .await_ui_reply_before(&wait, marker.deadline(), &self.clock)
         } else {

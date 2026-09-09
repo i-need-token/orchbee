@@ -1,6 +1,6 @@
 use super::workbench_projection::{
-    CreatedTabExpectation, NativeSimpleTab, NativeStandaloneTabs, NativeTerminalBinding,
-    project_native_standalone_tabs, validate_canonical_refresh, validate_created_tab,
+    CreatedTabExpectation, NativeContextTabs, NativeSimpleTab, NativeTerminalBinding,
+    validate_canonical_refresh, validate_created_tab,
 };
 use crate::client_view::ClientAction;
 use crate::local_client::workbench::WorkbenchTabCreateCommit;
@@ -12,6 +12,10 @@ use orchbee_workbench_protocol::{
 };
 use std::time::{Duration, Instant};
 
+#[cfg(test)]
+use super::workbench_projection::project_native_standalone_tabs;
+mod context_selection;
+pub(crate) use context_selection::NativeContextView;
 mod create_membership;
 mod membership;
 mod move_tab;
@@ -562,7 +566,7 @@ pub(super) enum PreparedRefresh {
         baseline_revision: WorkbenchRevision,
         baseline_phase: SessionPhaseKind,
         active: SelectedTab,
-        candidate: NativeStandaloneTabs,
+        candidate: NativeContextTabs,
     },
     Divergent {
         generation: u64,
@@ -611,7 +615,9 @@ enum PendingMutation {
 }
 
 pub(super) struct NativeSessionState {
-    cache: NativeStandaloneTabs,
+    cache: NativeContextTabs,
+    context_selection: Option<context_selection::ContextSelection>,
+    retained_contexts: Vec<context_selection::RetainedContext>,
     provenance: Vec<CreateTerminalProvenance>,
     phase: SessionPhase,
     desired: Option<AttachmentKey>,
@@ -639,7 +645,7 @@ pub(super) struct NativeSessionState {
 
 impl NativeSessionState {
     pub(super) fn starting(
-        cache: NativeStandaloneTabs,
+        cache: NativeContextTabs,
         generation: u64,
         geometry: Geometry,
     ) -> Option<(Self, BootstrapTarget)> {
@@ -655,6 +661,8 @@ impl NativeSessionState {
             binding: first.binding().clone(),
         };
         let state = Self {
+            context_selection: None,
+            retained_contexts: Vec::new(),
             provenance: vec![CreateTerminalProvenance::BindingOnly; cache.tabs().len()],
             cache,
             phase: SessionPhase::Starting(StartingSetup {
@@ -717,7 +725,7 @@ impl NativeSessionState {
         }
     }
 
-    pub(super) const fn cache(&self) -> &NativeStandaloneTabs {
+    pub(super) const fn cache(&self) -> &NativeContextTabs {
         &self.cache
     }
 
@@ -1474,7 +1482,10 @@ impl NativeSessionState {
                 baseline_revision,
             };
         };
-        let Ok(candidate) = project_native_standalone_tabs(&snapshot) else {
+        if self.context_selection.is_some() {
+            return self.prepare_context_selection(generation, &snapshot);
+        }
+        let Ok(candidate) = self.cache.project_snapshot(&snapshot) else {
             return PreparedRefresh::Divergent { generation };
         };
         if let SessionPhase::ProjectionUnavailableBeforeCleanup(committed) = &self.phase {
@@ -1610,11 +1621,12 @@ impl NativeSessionState {
         };
         if !matches!(decision, RefreshDecision::Retire) {
             self.pending_refresh_generation = None;
+            self.context_selection = None;
         }
         decision
     }
 
-    fn merge_projection(&mut self, candidate: NativeStandaloneTabs) -> bool {
+    fn merge_projection(&mut self, candidate: NativeContextTabs) -> bool {
         if !self.invariant_holds() {
             return false;
         }
@@ -1820,6 +1832,7 @@ impl NativeSessionState {
         self.staged_frame = None;
         self.accepted_frame = None;
         self.pending_refresh_generation = None;
+        self.context_selection = None;
         self.pending_membership = None;
         self.refresh_status = None;
     }
@@ -1829,7 +1842,7 @@ impl NativeSessionState {
     }
 
     pub(super) fn invariant_holds(&self) -> bool {
-        if !self.membership_invariant_holds() {
+        if !self.membership_invariant_holds() || !self.context_invariant_holds() {
             return false;
         }
         if !self.move_invariant_holds() || !self.rename_invariant_holds() {

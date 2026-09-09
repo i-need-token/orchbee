@@ -1,7 +1,7 @@
 use super::{
     CarrierFailure, CommittedTabCreate, CreateOperationKey, CreateProjectionDecision,
-    NativeSessionState, NativeStandaloneTabs, ReadyAttachment, SessionPhase,
-    WorkbenchSnapshotOutcome, project_native_standalone_tabs, validate_created_tab,
+    NativeContextTabs, NativeSessionState, ReadyAttachment, SessionPhase, WorkbenchSnapshotOutcome,
+    validate_created_tab,
 };
 use crate::terminal_session::workbench_projection::ValidatedCreatedProjection;
 
@@ -9,11 +9,11 @@ use crate::terminal_session::workbench_projection::ValidatedCreatedProjection;
 pub(in crate::terminal_session) enum PreparedCreateSnapshot {
     Invalid,
     Unavailable {
-        baseline: NativeStandaloneTabs,
+        baseline: NativeContextTabs,
         committed: CommittedTabCreate,
     },
     Available {
-        baseline: NativeStandaloneTabs,
+        baseline: NativeContextTabs,
         committed: CommittedTabCreate,
         projection: ValidatedCreatedProjection,
     },
@@ -38,7 +38,7 @@ impl NativeSessionState {
 
     pub(in crate::terminal_session) fn prepare_create_membership_candidate(
         &self,
-        baseline: &NativeStandaloneTabs,
+        baseline: &NativeContextTabs,
         committed: &CommittedTabCreate,
         projection: ValidatedCreatedProjection,
     ) -> Result<super::PreparedMembershipCandidate, CarrierFailure> {
@@ -80,7 +80,7 @@ impl NativeSessionState {
                 committed,
             };
         };
-        let Ok(candidate) = project_native_standalone_tabs(&snapshot) else {
+        let Ok(candidate) = self.cache.project_snapshot(&snapshot) else {
             return PreparedCreateSnapshot::Invalid;
         };
         let Ok(projection) = validate_created_tab(&baseline, &committed.expectation, candidate)

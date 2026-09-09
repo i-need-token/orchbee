@@ -7,7 +7,7 @@ use super::{
         MoveDecision, MoveOperation, MoveResult, OperationDeadlines, PendingRefreshStage,
         ReadyDecision, RefreshDecision, SetupEventDisposition,
     },
-    workbench_projection::NativeStandaloneTabs,
+    workbench_projection::NativeContextTabs,
 };
 use crate::{
     local_client::{
@@ -137,6 +137,7 @@ impl CreateMarker {
 pub(super) struct RefreshMarker {
     generation: u64,
     deadline: Instant,
+    context_deadlines: Option<OperationDeadlines>,
 }
 
 impl RefreshMarker {
@@ -144,7 +145,12 @@ impl RefreshMarker {
         Self {
             generation,
             deadline,
+            context_deadlines: None,
         }
+    }
+
+    pub(super) const fn context_deadlines(self) -> Option<OperationDeadlines> {
+        self.context_deadlines
     }
 
     pub(super) const fn generation(self) -> u64 {
@@ -495,7 +501,7 @@ pub(super) enum WorkerEvent {
         outcome: MoveResult,
     },
     Bootstrap {
-        cache: NativeStandaloneTabs,
+        cache: NativeContextTabs,
     },
     SetupConfigured {
         key: AttachmentKey,
@@ -889,7 +895,7 @@ struct MoveFlight {
 }
 
 enum StructuralMutationFlight {
-    Move(MoveFlight),
+    Move(Box<MoveFlight>),
     Rename(Box<RenameFlight>),
 }
 
@@ -1309,7 +1315,54 @@ impl CommandMailbox {
         prepare: impl FnOnce(&mut Canonical, u64) -> Result<(), BuildError>,
         finish: impl FnOnce(&mut Canonical, &Result<u64, AdmissionError<BuildError>>),
     ) -> Result<u64, AdmissionError<BuildError>> {
-        let mut state = self.lock();
+        self.try_enqueue_refresh_intent_for(self.lock(), canonical, deadline, None, prepare, finish)
+    }
+
+    pub(super) fn try_enqueue_context_selection_for<Canonical, BuildError>(
+        &self,
+        canonical: &mut Canonical,
+        deadlines: OperationDeadlines,
+        clock: &LocalOperationClock,
+        prepare: impl FnOnce(&mut Canonical, u64) -> Result<(), BuildError>,
+        finish: impl FnOnce(&mut Canonical, &Result<u64, AdmissionError<BuildError>>),
+    ) -> Result<Option<u64>, AdmissionError<BuildError>> {
+        self.try_enqueue_context_selection_using(canonical, deadlines, clock, prepare, finish)
+    }
+
+    fn try_enqueue_context_selection_using<Canonical, BuildError>(
+        &self,
+        canonical: &mut Canonical,
+        deadlines: OperationDeadlines,
+        clock: &dyn MailboxClock,
+        prepare: impl FnOnce(&mut Canonical, u64) -> Result<(), BuildError>,
+        finish: impl FnOnce(&mut Canonical, &Result<u64, AdmissionError<BuildError>>),
+    ) -> Result<Option<u64>, AdmissionError<BuildError>> {
+        let Some((state, _)) = self.lock_before(deadlines.forward_cutoff(), clock) else {
+            return Ok(None);
+        };
+        if clock.now() >= deadlines.forward_cutoff() {
+            return Ok(None);
+        }
+        self.try_enqueue_refresh_intent_for(
+            state,
+            canonical,
+            deadlines.total(),
+            Some(deadlines),
+            prepare,
+            finish,
+        )
+        .map(Some)
+    }
+
+    fn try_enqueue_refresh_intent_for<Canonical, BuildError>(
+        &self,
+        mut state: MutexGuard<'_, MailboxState>,
+        canonical: &mut Canonical,
+        deadline: Instant,
+        context_deadlines: Option<OperationDeadlines>,
+        prepare: impl FnOnce(&mut Canonical, u64) -> Result<(), BuildError>,
+        finish: impl FnOnce(&mut Canonical, &Result<u64, AdmissionError<BuildError>>),
+    ) -> Result<u64, AdmissionError<BuildError>> {
         let result = (|| {
             Self::ensure_open_for_admission(&state)?;
             Self::ensure_bootstrapped_for_admission(&state)?;
@@ -1338,9 +1391,11 @@ impl CommandMailbox {
                 generation,
                 stage: PendingRefreshStage::Queued,
             });
+            let mut marker = RefreshMarker::new(generation, deadline);
+            marker.context_deadlines = context_deadlines;
             state.queue.push_back(QueuedRecord {
                 serial,
-                command: QueuedCommand::Refresh(RefreshMarker::new(generation, deadline)),
+                command: QueuedCommand::Refresh(marker),
             });
             self.changed.notify_all();
             Ok(generation)
@@ -1403,14 +1458,15 @@ impl CommandMailbox {
         {
             return Err(MoveAdmissionError::InvalidTarget);
         }
-        commit(canonical, &operation).map_err(MoveAdmissionError::Build)?;
-        state.identity_cursor = cursor;
-        state.next_command_serial = serial;
-        state.structural_mutation_pending = Some(StructuralMutationFlight::Move(MoveFlight {
+        let flight = Box::new(MoveFlight {
             serial,
             operation: operation.clone(),
             stage: PendingRefreshStage::Queued,
-        }));
+        });
+        commit(canonical, &operation).map_err(MoveAdmissionError::Build)?;
+        state.identity_cursor = cursor;
+        state.next_command_serial = serial;
+        state.structural_mutation_pending = Some(StructuralMutationFlight::Move(flight));
         state.queue.push_back(QueuedRecord {
             serial,
             command: QueuedCommand::Move(MoveMarker::new(operation.clone())),

@@ -22,7 +22,7 @@ fn explicit_three_tab_move_table_and_revision_overflow_pin_the_commit_contract()
     for (source, direction, order) in cases {
         let expected = MovedTabExpectation::new(
             WorkbenchRevision::new(11),
-            baseline.terminal_context_id.clone(),
+            baseline.terminal_context_id().clone(),
             baseline.tabs[source].tab_id.clone(),
             direction,
         );
@@ -40,7 +40,7 @@ fn explicit_three_tab_move_table_and_revision_overflow_pin_the_commit_contract()
     let baseline = projected(3, u64::MAX);
     let expected = MovedTabExpectation::new(
         WorkbenchRevision::new(u64::MAX),
-        baseline.terminal_context_id.clone(),
+        baseline.terminal_context_id().clone(),
         baseline.tabs[0].tab_id.clone(),
         Last,
     );
@@ -75,7 +75,7 @@ fn moved_projection_requires_exact_commit_permutation_and_allows_later_history()
                 };
                 let expected = MovedTabExpectation::new(
                     WorkbenchRevision::new(11),
-                    current.terminal_context_id.clone(),
+                    current.terminal_context_id().clone(),
                     current.tabs[from].tab_id.clone(),
                     direction,
                 );
@@ -110,7 +110,7 @@ fn moved_projection_rejects_wrong_commit_tuple_revision_and_retained_member_chan
     let current = projected(3, 10);
     let expected = MovedTabExpectation::new(
         WorkbenchRevision::new(11),
-        current.terminal_context_id.clone(),
+        current.terminal_context_id().clone(),
         current.tabs[0].tab_id.clone(),
         WorkbenchTabMoveDirection::Last,
     );
@@ -146,9 +146,9 @@ fn moved_projection_rejects_wrong_commit_tuple_revision_and_retained_member_chan
 }
 
 fn validate_moved_candidate(
-    baseline: &NativeStandaloneTabs,
+    baseline: &NativeContextTabs,
     expected: &MovedTabExpectation,
-    candidate: NativeStandaloneTabs,
-) -> Result<NativeStandaloneTabs, NativeProjectionDivergence> {
+    candidate: NativeContextTabs,
+) -> Result<NativeContextTabs, NativeProjectionDivergence> {
     validate_moved_tab(baseline, expected, candidate).map(|validated| validated.candidate)
 }

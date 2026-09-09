@@ -83,7 +83,7 @@ fn known_rename_requires_existing_target_changed_label_and_exact_successor() {
         ),
         RenamedTabExpectation::new(
             WorkbenchRevision::new(11),
-            baseline.terminal_context_id.clone(),
+            baseline.terminal_context_id().clone(),
             tab_id(999),
             label("changed"),
         ),
@@ -146,7 +146,7 @@ fn later_history_still_enforces_canonical_identity_and_membership_bounds() {
     wrong.site_id = site_id(999);
     failures.push(wrong);
     let mut wrong = projected(3, 12);
-    wrong.terminal_context_id = context_id(999);
+    wrong.location = NativeContextLocation::Standalone(context_id(999));
     failures.push(wrong);
     let mut wrong = projected(3, 12);
     wrong.tabs[1].tab_id = tab_id(999);
@@ -176,14 +176,14 @@ fn later_history_still_enforces_canonical_identity_and_membership_bounds() {
 }
 
 fn expectation(
-    baseline: &NativeStandaloneTabs,
+    baseline: &NativeContextTabs,
     target: usize,
     revision: u64,
     requested_label: &str,
 ) -> RenamedTabExpectation {
     RenamedTabExpectation::new(
         WorkbenchRevision::new(revision),
-        baseline.terminal_context_id.clone(),
+        baseline.terminal_context_id().clone(),
         baseline.tabs[target].tab_id.clone(),
         label(requested_label),
     )

@@ -191,6 +191,28 @@ impl Client {
     }
 
     #[track_caller]
+    pub(super) fn wait_close_prompt_after(
+        &mut self,
+        checkpoint: usize,
+        deadline: Instant,
+        active_header: &str,
+        content_rows: &[&str],
+        pumped_peers: &mut [&mut Client],
+    ) {
+        self.observe_after_pumping(
+            checkpoint,
+            deadline,
+            "complete Close prompt with exact target inside its borders",
+            pumped_peers,
+            |frame| {
+                (frame.text().contains(active_header)
+                    && frame.has_bordered_modal_content(content_rows))
+                .then_some(())
+            },
+        );
+    }
+
+    #[track_caller]
     pub(super) fn wait_ready_after(
         &mut self,
         checkpoint: usize,
@@ -818,6 +840,56 @@ impl Screen {
 }
 
 impl CompletedFrame {
+    fn has_bordered_modal_content(&self, expected: &[&str]) -> bool {
+        if expected.is_empty() {
+            return false;
+        }
+        for (top, row) in self.cells.iter().enumerate() {
+            for (left, cell) in row.iter().enumerate() {
+                if cell != "┌" {
+                    continue;
+                }
+                let Some(right) = (left + 1..row.len()).find(|index| row[*index] == "┐") else {
+                    continue;
+                };
+                if !row[left + 1..right].iter().all(|cell| cell == "─") {
+                    continue;
+                }
+                let Some(bottom) = (top + 1..self.cells.len()).find(|index| {
+                    let row = &self.cells[*index];
+                    row.get(left).is_some_and(|cell| cell == "└")
+                        && row.get(right).is_some_and(|cell| cell == "┘")
+                        && row[left + 1..right].iter().all(|cell| cell == "─")
+                }) else {
+                    continue;
+                };
+                let interior = &self.cells[top + 1..bottom];
+                if interior.len() < expected.len()
+                    || !interior.iter().all(|row| {
+                        row.get(left).is_some_and(|cell| cell == "│")
+                            && row.get(right).is_some_and(|cell| cell == "│")
+                    })
+                {
+                    continue;
+                }
+                // Compare only the modal's interior; adjacent terminal cells are unrelated.
+                if interior.iter().zip(expected).all(|(row, expected)| {
+                    let cells = &row[left + 1..right];
+                    let mut text = String::new();
+                    let mut column = 0;
+                    while let Some(symbol) = cells.get(column) {
+                        text.push_str(symbol);
+                        column += ratatui::text::Line::raw(symbol.as_str()).width().max(1);
+                    }
+                    text.trim() == *expected
+                }) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     fn has_ordered_tabs(&self, labels: &[&str], active_position: usize) -> bool {
         let expected = labels
             .iter()
@@ -885,6 +957,49 @@ fn utf8_length(first: u8) -> usize {
 mod tests {
     use super::*;
     use nix::fcntl::{FcntlArg, FdFlag, OFlag, fcntl};
+
+    #[test]
+    fn close_prompt_observer_isolates_the_modal_target_from_adjacent_shell_text() {
+        let expected = ["Close terminal Tab?", "", "1", "", "warning", "", "actions"];
+        for (target, right_border, accepted) in
+            [("1", "│", true), ("2", "│", false), ("1", " ", false)]
+        {
+            let mut screen = Screen::new(COLUMNS, ROWS);
+            let top = format!("  ┌{}┐", "─".repeat(70));
+            screen
+                .feed_all(format!("\x1b[2;1H{top}").as_bytes())
+                .unwrap();
+            for (index, content) in [
+                "Close terminal Tab?",
+                "",
+                target,
+                "",
+                "warning",
+                "",
+                "actions",
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let row = format!("  │{content:70}{right_border}a│ 1");
+                screen
+                    .feed_all(format!("\x1b[{};1H{row}", index + 3).as_bytes())
+                    .unwrap();
+            }
+            let bottom = format!("  └{}┘", "─".repeat(70));
+            screen
+                .feed_all(format!("\x1b[10;1H{bottom}\x1b[0m\x1b[0m").as_bytes())
+                .unwrap();
+            assert_eq!(
+                screen
+                    .latest_frame()
+                    .unwrap()
+                    .has_bordered_modal_content(&expected),
+                accepted,
+                "target {target:?}, right border {right_border:?}"
+            );
+        }
+    }
 
     #[test]
     fn ordered_tab_observer_rejects_stale_order_missing_members_and_extra_selection() {

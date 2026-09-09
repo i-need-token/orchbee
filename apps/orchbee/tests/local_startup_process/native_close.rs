@@ -181,6 +181,7 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
     let mut required = vec![
         "No terminal tabs · Ctrl+B c to create a Tab",
         "Workbench navigator",
+        "[*1] Standalone terminal",
     ];
     if let Some(success) = &success {
         required.push(success);
@@ -189,7 +190,7 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
         checkpoint,
         deadline,
         &required,
-        &["[*1", "[ 1"],
+        &["[*1 1]", "[ 1 1]", "[*1] 1", "[ 1] 1"],
         &[],
         &mut [peer],
     );
@@ -200,7 +201,13 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
         checkpoint,
         deadline,
         &["No terminal tabs · Ctrl+B c to create a Tab"],
-        &["Workbench navigator", "[*1", "[ 1"],
+        &[
+            "Workbench navigator",
+            "[*1 1]",
+            "[ 1 1]",
+            "[*1] 1",
+            "[ 1] 1",
+        ],
         &[],
         &mut [peer],
     );

@@ -1,5 +1,7 @@
 use std::{collections::HashMap, ffi::OsString};
 
+use crate::client_view::{BackendAction, Notice};
+
 use super::{Locale, select_locale};
 
 #[test]
@@ -59,7 +61,7 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(english.shortcuts.len(), 13);
+    assert_eq!(english.shortcuts.len(), 14);
     assert_eq!(chinese.shortcuts.len(), english.shortcuts.len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
@@ -70,6 +72,7 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
         "Ctrl+B x",
         "Ctrl+B < / >",
         "Ctrl+B n / p",
+        "Ctrl+B [ / ]",
         "Ctrl+B 1 … 9",
         "Ctrl+B w",
     ] {
@@ -95,6 +98,39 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
         chinese
             .shortcuts
             .contains(&"Ctrl+B w       切换 Workbench 导航器")
+    );
+    assert!(english.shortcuts.contains(
+        &"Ctrl+B [ / ]   Select previous / next Workbench location (wraps; requires Site)"
+    ));
+    assert!(
+        chinese
+            .shortcuts
+            .contains(&"Ctrl+B [ / ]   选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）")
+    );
+}
+
+#[test]
+fn localizes_context_navigation_backend_failures_in_both_locales() {
+    let next = Some(Notice::BackendUnavailable(BackendAction::SelectNextContext));
+    let previous = Some(Notice::BackendUnavailable(
+        BackendAction::SelectPreviousContext,
+    ));
+
+    assert_eq!(
+        Locale::EnUs.shell_notice(next),
+        "Workbench location navigation unavailable · no command was sent"
+    );
+    assert_eq!(
+        Locale::EnUs.shell_notice(previous),
+        "Workbench location navigation unavailable · no command was sent"
+    );
+    assert_eq!(
+        Locale::ZhCn.shell_notice(next),
+        "Workbench 位置导航不可用 · 未发送命令"
+    );
+    assert_eq!(
+        Locale::ZhCn.shell_notice(previous),
+        "Workbench 位置导航不可用 · 未发送命令"
     );
 }
 

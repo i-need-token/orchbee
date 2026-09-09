@@ -9,7 +9,6 @@ use crate::{
             CarrierFailure, MembershipInstallDecision,
             retired_membership::{RetiredMembershipOrigin, UnavailablePoll},
         },
-        workbench_projection::project_native_standalone_tabs,
     },
 };
 use orchbee_workbench_protocol::WorkbenchSnapshotOutcome;
@@ -99,16 +98,22 @@ impl NativeUi {
         let origin = attempt.origin.clone();
         let deadlines = attempt.deadlines;
         let prepared = match outcome {
-            WorkbenchSnapshotOutcome::Available { snapshot } => {
-                project_native_standalone_tabs(&snapshot)
-                    .map_err(|_| CarrierFailure::AuthorityDivergence)
-                    .and_then(|candidate| {
-                        self.state
-                            .as_ref()
-                            .ok_or(CarrierFailure::Protocol)?
-                            .prepare_retired_membership_candidate(&origin, candidate)
-                    })
-            }
+            WorkbenchSnapshotOutcome::Available { snapshot } => self
+                .state
+                .as_ref()
+                .ok_or(CarrierFailure::Protocol)
+                .and_then(|state| {
+                    state
+                        .cache()
+                        .project_snapshot(&snapshot)
+                        .map_err(|_| CarrierFailure::AuthorityDivergence)
+                })
+                .and_then(|candidate| {
+                    self.state
+                        .as_ref()
+                        .ok_or(CarrierFailure::Protocol)?
+                        .prepare_retired_membership_candidate(&origin, candidate)
+                }),
             _ => Err(CarrierFailure::AuthorityDivergence),
         };
         let Some(state) = self.state.as_mut() else {

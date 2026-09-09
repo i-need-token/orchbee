@@ -61,7 +61,9 @@ Create 及保留 shell 重入的有界 Linux 进程证据；其余 Workbench 操
 
 [Workspace 目录切片](../../apps/orchbee-server/docs/workspace-terminal-directory.zh-CN.md)
 增加 Project 拥有的 Directory、经 Worker 校验后的显式首次关联，以及使用已接受目录和确切 Worker
-的 Workspace Tab 创建。其消费边界是本地 Server 协议；TUI/Desktop 的 Workspace 导航和目录选择仍属独立工作。
+的 Workspace Tab 创建。[原生上下文选择](../../apps/orchbee/docs/native-context-selection.zh-CN.md)
+将 Linux TUI 接到已有 Workspace 及其 Tab 操作。Workspace 创建和目录选择 UI，以及 Desktop
+迁移，仍属独立工作。
 
 该里程碑是尚未发布的增量实现，不证明生产重启恢复、远程访问或现有 Desktop 迁移已经完成。
 其中，对无法匹配的保留 Host inventory 返回 `RecoveryRequired` 是开发阶段边界，不是生产连续性

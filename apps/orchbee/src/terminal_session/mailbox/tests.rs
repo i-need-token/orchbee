@@ -19,6 +19,7 @@ use std::sync::{
 };
 
 mod close_reconciliation;
+mod context_selection;
 mod generated;
 mod lifecycle_generated;
 mod membership;
@@ -2116,11 +2117,11 @@ fn key(generation: u64, tab: u128) -> AttachmentKey {
     AttachmentKey::new(generation, WorkbenchTabId::parse(&id(tab)).unwrap())
 }
 
-fn projected_one_tab() -> NativeStandaloneTabs {
+fn projected_one_tab() -> NativeContextTabs {
     projected_tabs(1)
 }
 
-fn projected_tabs(tab_count: usize) -> NativeStandaloneTabs {
+fn projected_tabs(tab_count: usize) -> NativeContextTabs {
     project_native_standalone_tabs(&Snapshot {
         navigation: Navigation {
             projects: Vec::new(),

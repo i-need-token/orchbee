@@ -133,6 +133,20 @@ pub(crate) struct NativeSessionView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    pub(crate) fn context_count(&self) -> usize {
+        self.state
+            .as_ref()
+            .map_or(0, StateSessionView::context_count)
+    }
+
+    pub(crate) fn active_context_position(&self) -> Option<usize> {
+        self.state.as_ref()?.active_context_position()
+    }
+
+    pub(crate) fn context_at(&self, index: usize) -> Option<super::state::NativeContextView<'a>> {
+        self.state.as_ref()?.context_at(index)
+    }
+
     pub(crate) const fn phase(&self) -> NativeDisplayPhase {
         let Some(state) = self.state.as_ref() else {
             return NativeDisplayPhase::Starting;
@@ -284,6 +298,8 @@ pub(super) struct NativeUi {
     retired_peer_attempt: Option<retired_membership::RetiredMembershipAttempt>,
 }
 
+#[cfg(all(test, unix))]
+mod context_selection_tests;
 #[cfg(test)]
 mod create_membership_tests;
 #[cfg(all(test, unix))]
@@ -668,6 +684,8 @@ impl NativeUi {
             ClientAction::CreateTab => self.create_tab(),
             ClientAction::MovePreviousTab => self.move_tab(WorkbenchTabMoveDirection::Previous),
             ClientAction::MoveNextTab => self.move_tab(WorkbenchTabMoveDirection::Next),
+            ClientAction::SelectPreviousContext => self.select_context(false),
+            ClientAction::SelectNextContext => self.select_context(true),
             ClientAction::SelectNextTab
             | ClientAction::SelectPreviousTab
             | ClientAction::SelectTab(_) => self.select_tab(action),
@@ -758,6 +776,34 @@ impl NativeUi {
                 SessionActionDisposition::KeepNavigator
             }
         }
+    }
+
+    fn select_context(&mut self, next: bool) -> SessionActionDisposition {
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            self.retire(CarrierFailure::Deadline);
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let (Some(mailbox), Some(state)) =
+            (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
+        else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let result = mailbox.try_enqueue_context_selection_for(
+            state,
+            deadlines,
+            &self.clock,
+            |state, generation| {
+                state
+                    .start_context_selection(generation, next, deadlines)
+                    .then_some(())
+                    .ok_or(ActionBuildError::Busy)
+            },
+            finish_action,
+        );
+        if let Err(error) = result {
+            self.retire_for_admission(&error);
+        }
+        SessionActionDisposition::KeepNavigator
     }
 
     fn move_tab(&mut self, direction: WorkbenchTabMoveDirection) -> SessionActionDisposition {
@@ -1138,10 +1184,12 @@ impl NativeUi {
         // Projection and append-only validation are bounded but intentionally run outside the
         // mailbox mutex. Only the prepared value is committed in the exact reply transaction.
         let prepared = state.prepare_refresh(generation, outcome);
-        let recovery_deadlines = prepared
-            .needs_recovery_deadlines()
-            .then(|| OperationDeadlines::from_sample(self.clock.now()))
-            .flatten();
+        let recovery_deadlines = state.context_selection_deadlines().or_else(|| {
+            prepared
+                .needs_recovery_deadlines()
+                .then(|| OperationDeadlines::from_sample(self.clock.now()))
+                .flatten()
+        });
         if let super::state::PreparedRefresh::CreateMembership {
             generation,
             operation,

@@ -86,7 +86,7 @@ fn later_move_projection_keeps_commit_when_target_has_been_removed() {
     let current = projected(3, 10);
     let expected = MovedTabExpectation::new(
         WorkbenchRevision::new(11),
-        current.terminal_context_id.clone(),
+        current.terminal_context_id().clone(),
         current.tabs[1].tab_id.clone(),
         WorkbenchTabMoveDirection::Last,
     );

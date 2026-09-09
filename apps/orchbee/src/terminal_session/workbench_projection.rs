@@ -1,7 +1,8 @@
 use orchbee_workbench_protocol::{
-    MAXIMUM_TABS_PER_CONTEXT, PanelNode, SiteId, Snapshot, Tab, TerminalId, TerminalPresentationId,
-    WorkbenchLabel, WorkbenchPanelId, WorkbenchRevision, WorkbenchTabId, WorkbenchTabMoveDirection,
-    WorkbenchTerminalContextId, WorkerId,
+    MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, PanelNode, SiteId, Snapshot, Tab,
+    TerminalId, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId, WorkbenchProjectId,
+    WorkbenchRevision, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceId, WorkerId,
 };
 
 mod closed;
@@ -9,14 +10,58 @@ pub(super) mod renamed;
 pub(super) use closed::{ClosedTabExpectation, validate_closed_tab};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct NativeStandaloneTabs {
+pub(super) struct NativeContextTabs {
     site_id: SiteId,
     revision: WorkbenchRevision,
-    terminal_context_id: WorkbenchTerminalContextId,
     tabs: Vec<NativeSimpleTab>,
+    location: NativeContextLocation,
+    navigation: std::sync::Arc<[NativeContext]>,
 }
 
-impl NativeStandaloneTabs {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) enum NativeContextLocation {
+    Standalone(WorkbenchTerminalContextId),
+    Workspace {
+        project_id: WorkbenchProjectId,
+        workspace_id: WorkbenchWorkspaceId,
+        terminal_context_id: WorkbenchTerminalContextId,
+    },
+}
+
+impl NativeContextLocation {
+    pub(super) fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
+        match self {
+            Self::Standalone(id) => id,
+            Self::Workspace {
+                terminal_context_id,
+                ..
+            } => terminal_context_id,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct NativeContext {
+    pub(super) location: NativeContextLocation,
+    pub(super) project_label: Option<WorkbenchLabel>,
+    pub(super) workspace_label: Option<WorkbenchLabel>,
+}
+
+impl NativeContextTabs {
+    pub(super) fn location(&self) -> &NativeContextLocation {
+        &self.location
+    }
+
+    pub(super) fn navigation(&self) -> &[NativeContext] {
+        &self.navigation
+    }
+
+    pub(super) fn project_snapshot(
+        &self,
+        snapshot: &Snapshot,
+    ) -> Result<Self, NativeProjectionError> {
+        project_native_context_tabs(snapshot, &self.location)
+    }
     pub(super) fn site_id(&self) -> &SiteId {
         &self.site_id
     }
@@ -26,7 +71,7 @@ impl NativeStandaloneTabs {
     }
 
     pub(super) fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
-        &self.terminal_context_id
+        self.location.terminal_context_id()
     }
 
     pub(super) fn tabs(&self) -> &[NativeSimpleTab] {
@@ -185,22 +230,71 @@ pub(super) struct NativeProjectionDivergence;
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct ValidatedCreatedProjection {
-    pub(super) candidate: NativeStandaloneTabs,
+    pub(super) candidate: NativeContextTabs,
     pub(super) created_index: Option<usize>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct ValidatedMovedProjection {
-    pub(super) candidate: NativeStandaloneTabs,
+    pub(super) candidate: NativeContextTabs,
     pub(super) moved_index: Option<usize>,
 }
 
 pub(super) fn project_native_standalone_tabs(
     snapshot: &Snapshot,
-) -> Result<NativeStandaloneTabs, NativeProjectionError> {
-    let mut contexts = snapshot.terminal_contexts.iter().filter(|context| {
-        context.terminal_context_id == snapshot.navigation.standalone_terminal_context_id
-    });
+) -> Result<NativeContextTabs, NativeProjectionError> {
+    project_native_context_tabs(
+        snapshot,
+        &NativeContextLocation::Standalone(
+            snapshot.navigation.standalone_terminal_context_id.clone(),
+        ),
+    )
+}
+
+pub(super) fn project_native_context_tabs(
+    snapshot: &Snapshot,
+    location: &NativeContextLocation,
+) -> Result<NativeContextTabs, NativeProjectionError> {
+    let mut navigation = vec![NativeContext {
+        location: NativeContextLocation::Standalone(
+            snapshot.navigation.standalone_terminal_context_id.clone(),
+        ),
+        project_label: None,
+        workspace_label: None,
+    }];
+    for project in &snapshot.navigation.projects {
+        for workspace in &project.workspaces {
+            if navigation.len() == MAXIMUM_TERMINAL_CONTEXTS {
+                return Err(NativeProjectionError);
+            }
+            navigation.push(NativeContext {
+                location: NativeContextLocation::Workspace {
+                    project_id: project.project_id.clone(),
+                    workspace_id: workspace.workspace_id.clone(),
+                    terminal_context_id: workspace.terminal_context_id.clone(),
+                },
+                project_label: Some(
+                    WorkbenchLabel::parse(&project.label).map_err(|_| NativeProjectionError)?,
+                ),
+                workspace_label: Some(
+                    WorkbenchLabel::parse(&workspace.label).map_err(|_| NativeProjectionError)?,
+                ),
+            });
+        }
+    }
+    if !navigation.iter().any(|entry| &entry.location == location)
+        || navigation.iter().enumerate().any(|(index, entry)| {
+            navigation[..index].iter().any(|prior| {
+                prior.location.terminal_context_id() == entry.location.terminal_context_id()
+            })
+        })
+    {
+        return Err(NativeProjectionError);
+    }
+    let mut contexts = snapshot
+        .terminal_contexts
+        .iter()
+        .filter(|context| &context.terminal_context_id == location.terminal_context_id());
     let context = contexts.next().ok_or(NativeProjectionError)?;
     if contexts.next().is_some()
         || !context.groups.is_empty()
@@ -217,32 +311,33 @@ pub(super) fn project_native_standalone_tabs(
     if !unique_structural_ids(&tabs) {
         return Err(NativeProjectionError);
     }
-    Ok(NativeStandaloneTabs {
+    Ok(NativeContextTabs {
         site_id: snapshot.site_id.clone(),
         revision: snapshot.revision,
-        terminal_context_id: context.terminal_context_id.clone(),
         tabs,
+        location: location.clone(),
+        navigation: navigation.into(),
     })
 }
 
 pub(super) fn validate_canonical_refresh(
-    current: &NativeStandaloneTabs,
-    candidate: NativeStandaloneTabs,
-) -> Result<NativeStandaloneTabs, NativeProjectionDivergence> {
+    current: &NativeContextTabs,
+    candidate: NativeContextTabs,
+) -> Result<NativeContextTabs, NativeProjectionDivergence> {
     validate_canonical_candidate(current, &candidate)?;
     Ok(candidate)
 }
 
 pub(super) fn validate_created_tab(
-    current: &NativeStandaloneTabs,
+    current: &NativeContextTabs,
     expected: &CreatedTabExpectation,
-    candidate: NativeStandaloneTabs,
+    candidate: NativeContextTabs,
 ) -> Result<ValidatedCreatedProjection, NativeProjectionDivergence> {
     validate_canonical_candidate(current, &candidate)?;
     if current.revision.value().checked_add(1) != Some(expected.committed_revision.value())
         || current.tab_index(&expected.tab_id).is_some()
         || candidate.revision < expected.committed_revision
-        || candidate.terminal_context_id != expected.terminal_context_id
+        || candidate.terminal_context_id() != &expected.terminal_context_id
         || (candidate.revision == expected.committed_revision
             && (candidate.tabs.len() != current.tabs.len() + 1
                 || current
@@ -284,13 +379,13 @@ pub(super) fn validate_created_tab(
 }
 
 pub(super) fn validate_moved_tab(
-    baseline: &NativeStandaloneTabs,
+    baseline: &NativeContextTabs,
     expected: &MovedTabExpectation,
-    candidate: NativeStandaloneTabs,
+    candidate: NativeContextTabs,
 ) -> Result<ValidatedMovedProjection, NativeProjectionDivergence> {
     validate_canonical_candidate(baseline, &candidate)?;
     if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
-        || expected.terminal_context_id != baseline.terminal_context_id
+        || &expected.terminal_context_id != baseline.terminal_context_id()
         || candidate.revision < expected.committed_revision
     {
         return Err(NativeProjectionDivergence);
@@ -355,24 +450,45 @@ fn project_tab(tab: &Tab) -> Result<NativeSimpleTab, NativeProjectionError> {
     })
 }
 
-fn validate_canonical_candidate(
-    current: &NativeStandaloneTabs,
-    candidate: &NativeStandaloneTabs,
+pub(super) fn validate_canonical_candidate(
+    current: &NativeContextTabs,
+    candidate: &NativeContextTabs,
 ) -> Result<(), NativeProjectionDivergence> {
-    if candidate.site_id != current.site_id
-        || candidate.terminal_context_id != current.terminal_context_id
-        || candidate.revision < current.revision
+    validate_retained_context(
+        &current.site_id,
+        &current.location,
+        current.revision,
+        &current.tabs,
+        candidate,
+    )?;
+    if candidate.revision == current.revision && candidate.navigation != current.navigation {
+        return Err(NativeProjectionDivergence);
+    }
+    Ok(())
+}
+
+/// Historical membership retains no navigation labels; the active snapshot validates navigation.
+pub(super) fn validate_retained_context(
+    site_id: &SiteId,
+    location: &NativeContextLocation,
+    revision: WorkbenchRevision,
+    tabs: &[NativeSimpleTab],
+    candidate: &NativeContextTabs,
+) -> Result<(), NativeProjectionDivergence> {
+    if &candidate.site_id != site_id
+        || &candidate.location != location
+        || candidate.revision < revision
     {
         return Err(NativeProjectionDivergence);
     }
-    if candidate.revision == current.revision {
-        return (candidate == current)
+    if candidate.revision == revision {
+        return (candidate.tabs.as_slice() == tabs)
             .then_some(())
             .ok_or(NativeProjectionDivergence);
     }
     if candidate.tabs.len() > MAXIMUM_TABS_PER_CONTEXT
         || !unique_structural_ids(&candidate.tabs)
-        || current.tabs.iter().any(|current| {
+        || tabs.iter().any(|current| {
             candidate.tabs.iter().any(|candidate| {
                 (current.tab_id == candidate.tab_id
                     || current.panel_id == candidate.panel_id

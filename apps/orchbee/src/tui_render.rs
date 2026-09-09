@@ -18,6 +18,7 @@ use crate::{
 
 use crate::terminal_session::TerminalStatus;
 
+mod contexts;
 mod tab_close;
 mod tab_rename;
 mod tabs;
@@ -246,12 +247,17 @@ fn render_native_workbench(
 ) {
     let tabs_area = areas.tabs;
     let panel_area = areas.panel;
+    let location = native_location_label(native, text.standalone);
+    let workbench_title = location.as_deref().map_or_else(
+        || text.workbench_title.to_owned(),
+        |location| format!("{} · {location}", text.workbench_title),
+    );
     let tabs_block = Block::new()
         .borders(Borders::ALL)
         .border_style(Style::new().fg(BORDER))
         .border_type(BorderType::Rounded)
         .title(Span::styled(
-            format!(" {} ", text.workbench_title),
+            format!(" {workbench_title} "),
             Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD),
         ));
     let tabs_content = tabs_block.inner(tabs_area);
@@ -319,6 +325,25 @@ fn native_tab<'a>(native: &NativeSessionView<'a>, index: usize) -> Option<tabs::
         active: tab.active(),
         label: tab.tab_label(),
     })
+}
+
+fn native_location_label(
+    native: &NativeSessionView<'_>,
+    standalone_label: &'static str,
+) -> Option<String> {
+    native
+        .active_context_position()
+        .and_then(|position| position.checked_sub(1))
+        .and_then(|index| native.context_at(index))
+        .map(|context| {
+            contexts::location_label(contexts::ContextDisplay {
+                position: context.position(),
+                active: context.active(),
+                project_label: context.project_label(),
+                workspace_label: context.workspace_label(),
+                standalone_label,
+            })
+        })
 }
 
 fn render_status(
@@ -487,7 +512,7 @@ fn render_native_workbench_navigator(
     locale: Locale,
     native: &NativeSessionView<'_>,
 ) -> Rect {
-    let area = centered_overlay(viewport, 68, 9);
+    let area = centered_overlay(viewport, 88, 12);
     frame.render_widget(Clear, area);
     let block = overlay_block(text.navigator_title);
     let content = block.inner(area);
@@ -501,9 +526,29 @@ fn render_native_workbench_navigator(
     } else {
         (content, None)
     };
+    let [contexts_area, tabs_area] =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Min(0)]).areas(rows);
+    let context_at = |index: usize| {
+        native
+            .context_at(index)
+            .map(|context| contexts::ContextDisplay {
+                position: context.position(),
+                active: context.active(),
+                project_label: context.project_label(),
+                workspace_label: context.workspace_label(),
+                standalone_label: text.standalone,
+            })
+    };
+    contexts::render_navigator(
+        frame,
+        contexts_area,
+        native.context_count(),
+        native.active_context_position(),
+        context_at,
+    );
     tabs::render_navigator(
         frame,
-        rows,
+        tabs_area,
         native.tab_count(),
         native.active_position(),
         |index| native_tab(native, index),

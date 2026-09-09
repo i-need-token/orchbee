@@ -1,5 +1,5 @@
 use super::{
-    AttachmentKey, CarrierFailure, NativeSessionState, NativeStandaloneTabs, OperationDeadlines,
+    AttachmentKey, CarrierFailure, NativeContextTabs, NativeSessionState, OperationDeadlines,
     PreparedMembershipCandidate, SessionPhase,
 };
 use crate::terminal_session::mailbox::PollKey;
@@ -16,7 +16,7 @@ pub(in crate::terminal_session) struct UnavailablePoll {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct RetiredMembershipOrigin {
     evidence: UnavailablePoll,
-    baseline: NativeStandaloneTabs,
+    baseline: NativeContextTabs,
     ordinal: usize,
 }
 
@@ -90,7 +90,7 @@ impl NativeSessionState {
     pub(in crate::terminal_session) fn prepare_retired_membership_candidate(
         &self,
         origin: &RetiredMembershipOrigin,
-        candidate: NativeStandaloneTabs,
+        candidate: NativeContextTabs,
     ) -> Result<PreparedMembershipCandidate, CarrierFailure> {
         if !self.retired_membership_origin_matches(origin)
             || candidate

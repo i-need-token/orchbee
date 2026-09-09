@@ -1,7 +1,6 @@
 use super::{
-    AttachTarget, AttachmentKey, CarrierFailure, CreateTerminalProvenance, NativeSessionState,
-    NativeStandaloneTabs, OperationDeadlines, SelectedTab, SessionPhase, SwitchSetup,
-    WorkbenchTabId, validate_canonical_refresh,
+    AttachTarget, AttachmentKey, CarrierFailure, CreateTerminalProvenance, NativeContextTabs,
+    NativeSessionState, OperationDeadlines, SelectedTab, SessionPhase, SwitchSetup, WorkbenchTabId,
 };
 mod close;
 use orchbee_workbench_protocol::WorkbenchRequestId;
@@ -59,16 +58,18 @@ pub(super) struct PendingMembership {
 /// Prepared outside the reply mutex; this owns all candidate allocations and its exact baseline.
 #[derive(Debug)]
 pub(in crate::terminal_session) struct PreparedMembershipCandidate {
-    baseline: NativeStandaloneTabs,
+    baseline: NativeContextTabs,
     baseline_desired: Option<AttachmentKey>,
-    candidate: NativeStandaloneTabs,
+    candidate: NativeContextTabs,
     provenance: Vec<CreateTerminalProvenance>,
     selected_index: Option<usize>,
+    retained_contexts: Option<Vec<super::context_selection::RetainedContext>>,
 }
 
 impl PreparedMembershipCandidate {
     pub(in crate::terminal_session) fn preserves_selection(&self) -> bool {
-        self.selected_tab_id() == self.baseline_desired.as_ref().map(AttachmentKey::tab_id)
+        self.candidate.location() == self.baseline.location()
+            && self.selected_tab_id() == self.baseline_desired.as_ref().map(AttachmentKey::tab_id)
     }
 
     pub(in crate::terminal_session) fn selected_tab_id(&self) -> Option<&WorkbenchTabId> {
@@ -121,6 +122,12 @@ impl PreparedMembershipInstall<'_> {
             ));
             self.state.move_recovery = None;
             self.state.rename_recovery = None;
+        }
+        if let Some(retained) = self.prepared.retained_contexts {
+            self.state.retained_contexts = retained;
+        }
+        if self.refresh_generation.is_some() {
+            self.state.context_selection = None;
         }
         self.state.cache = self.prepared.candidate;
         self.state.provenance = self.prepared.provenance;
@@ -302,7 +309,7 @@ impl NativeSessionState {
 
     pub(in crate::terminal_session) fn prepare_membership_candidate(
         &self,
-        candidate: NativeStandaloneTabs,
+        candidate: NativeContextTabs,
         preferred_tab: Option<&WorkbenchTabId>,
         historical_ordinal: Option<usize>,
         creator: Option<(&WorkbenchTabId, CreateTerminalProvenance)>,
@@ -310,8 +317,7 @@ impl NativeSessionState {
         if !self.invariant_holds() {
             return Err(CarrierFailure::Protocol);
         }
-        let candidate = validate_canonical_refresh(&self.cache, candidate)
-            .map_err(|_| CarrierFailure::AuthorityDivergence)?;
+        let baseline = self.validate_candidate_provenance(&candidate)?;
         let selected_index = preferred_tab
             .and_then(|tab| candidate.tab_index(tab))
             .or_else(|| {
@@ -330,14 +336,15 @@ impl NativeSessionState {
                 {
                     return provenance.clone();
                 }
-                self.cache
-                    .tab_index(tab.tab_id())
-                    .map_or(CreateTerminalProvenance::BindingOnly, |index| {
-                        self.provenance[index].clone()
-                    })
+                baseline
+                    .as_ref()
+                    .and_then(|history| history.for_tab(tab.tab_id()))
+                    .cloned()
+                    .unwrap_or(CreateTerminalProvenance::BindingOnly)
             })
             .collect();
         Ok(PreparedMembershipCandidate {
+            retained_contexts: self.prepare_retained_contexts(&candidate),
             baseline: self.cache.clone(),
             baseline_desired: self.desired.clone(),
             candidate,
@@ -426,8 +433,11 @@ impl NativeSessionState {
         {
             return Err(CarrierFailure::Protocol);
         }
-        let preserve =
-            desired == self.desired && !current_create && !close_recovery && !retired_membership;
+        let preserve = prepared.preserves_selection()
+            && desired == self.desired
+            && !current_create
+            && !close_recovery
+            && !retired_membership;
         if current_switch && preserve {
             return Err(CarrierFailure::Protocol);
         }
@@ -617,6 +627,7 @@ impl NativeSessionState {
             candidate: prepared.candidate.clone(),
             provenance: prepared.provenance.clone(),
             selected_index: prepared.selected_index,
+            retained_contexts: prepared.retained_contexts.clone(),
         })
     }
 

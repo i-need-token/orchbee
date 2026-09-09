@@ -108,11 +108,7 @@ fn generated_label_evolution_traces_match_the_independent_refinement() {
     assert!(rejected > 0);
 }
 
-fn apply(
-    action: Action,
-    current: &NativeStandaloneTabs,
-    random: &mut Random,
-) -> NativeStandaloneTabs {
+fn apply(action: Action, current: &NativeContextTabs, random: &mut Random) -> NativeContextTabs {
     if matches!(action, Action::ExactSameRevision) {
         return current.clone();
     }
@@ -144,7 +140,8 @@ fn apply(
         }
         Action::ChangeSite => candidate.site_id = site_id(100_000 + u128::from(random.next())),
         Action::ChangeContext => {
-            candidate.terminal_context_id = context_id(200_000 + u128::from(random.next()));
+            candidate.location =
+                NativeContextLocation::Standalone(context_id(200_000 + u128::from(random.next())));
         }
         Action::RemoveExisting => candidate.tabs.truncate(current.tabs.len() - 1),
         Action::ReorderExisting => candidate.tabs.rotate_left(1),
@@ -178,7 +175,7 @@ fn apply(
     candidate
 }
 
-fn successor(current: &NativeStandaloneTabs, appended: usize) -> NativeStandaloneTabs {
+fn successor(current: &NativeContextTabs, appended: usize) -> NativeContextTabs {
     let revision = current.revision.value() + 1;
     let mut candidate = current.clone();
     candidate.revision = WorkbenchRevision::new(revision);
@@ -192,7 +189,7 @@ fn successor(current: &NativeStandaloneTabs, appended: usize) -> NativeStandalon
     candidate
 }
 
-fn rename(candidate: &mut NativeStandaloneTabs, index: usize, value: u64) {
+fn rename(candidate: &mut NativeContextTabs, index: usize, value: u64) {
     candidate.tabs[index].tab_label = generated_label(value);
 }
 
@@ -200,9 +197,9 @@ fn generated_label(value: u64) -> WorkbenchLabel {
     label(&format!("  rename-{value}-雪  "))
 }
 
-fn reference_accepts(current: &NativeStandaloneTabs, candidate: &NativeStandaloneTabs) -> bool {
+fn reference_accepts(current: &NativeContextTabs, candidate: &NativeContextTabs) -> bool {
     if candidate.site_id != current.site_id
-        || candidate.terminal_context_id != current.terminal_context_id
+        || candidate.terminal_context_id() != current.terminal_context_id()
         || candidate.revision < current.revision
     {
         return false;
@@ -222,7 +219,7 @@ fn reference_accepts(current: &NativeStandaloneTabs, candidate: &NativeStandalon
 }
 
 fn identity_map(
-    tabs: &NativeStandaloneTabs,
+    tabs: &NativeContextTabs,
 ) -> std::collections::BTreeMap<(u8, &str), &NativeSimpleTab> {
     tabs.tabs
         .iter()

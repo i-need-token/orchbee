@@ -78,6 +78,12 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
         (ClientKey::Plain('n'), ClientAction::SelectNextTab, None),
         (ClientKey::Plain('p'), ClientAction::SelectPreviousTab, None),
         (
+            ClientKey::Plain('['),
+            ClientAction::SelectPreviousContext,
+            None,
+        ),
+        (ClientKey::Plain(']'), ClientAction::SelectNextContext, None),
+        (
             ClientKey::Plain('h'),
             ClientAction::MovePanelFocus(PanelDirection::Left),
             Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(

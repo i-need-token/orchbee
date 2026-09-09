@@ -20,6 +20,7 @@ const EN_US_SHORTCUTS: &[&str] = &[
     "Ctrl+B c       Create a Tab (requires Site)",
     "Ctrl+B < / >   Move current Tab left / right (wraps)",
     "Ctrl+B n / p   Select next / previous Tab (requires Site)",
+    "Ctrl+B [ / ]   Select previous / next Workbench location (wraps; requires Site)",
     "Ctrl+B 1 … 9   Select ordered Tab (requires Site)",
     "Ctrl+B h/j/k/l Move between Panels (requires Site)",
     "Ctrl+B b       Toggle business sidebar",
@@ -35,6 +36,7 @@ const ZH_CN_SHORTCUTS: &[&str] = &[
     "Ctrl+B c       创建 Tab（需要 Site）",
     "Ctrl+B < / >   向左 / 右移动当前 Tab（首尾循环）",
     "Ctrl+B n / p   选择下一个 / 上一个 Tab（需要 Site）",
+    "Ctrl+B [ / ]   选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）",
     "Ctrl+B 1 … 9   选择对应顺序的 Tab（需要 Site）",
     "Ctrl+B h/j/k/l 在 Panel 之间移动（需要 Site）",
     "Ctrl+B b       切换业务侧边栏",
@@ -202,6 +204,18 @@ impl Locale {
                     | BackendAction::SelectTab(_),
                 )),
             ) => "Tab 导航不可用 · 未发送命令",
+            (
+                Self::EnUs,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::SelectPreviousContext | BackendAction::SelectNextContext,
+                )),
+            ) => "Workbench location navigation unavailable · no command was sent",
+            (
+                Self::ZhCn,
+                Some(Notice::BackendUnavailable(
+                    BackendAction::SelectPreviousContext | BackendAction::SelectNextContext,
+                )),
+            ) => "Workbench 位置导航不可用 · 未发送命令",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::MovePanelFocus(_)))) => {
                 "Panel navigation unavailable · no command was sent"
             }

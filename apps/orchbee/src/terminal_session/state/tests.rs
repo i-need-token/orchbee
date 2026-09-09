@@ -8,6 +8,7 @@ use orchbee_workbench_protocol::{
     WorkerId,
 };
 
+mod context_selection;
 mod create_projection;
 mod generated;
 mod membership;
@@ -31,7 +32,7 @@ fn ready(tab_count: usize) -> NativeSessionState {
     ready_with_cache(projected(tab_count, 1))
 }
 
-fn ready_with_cache(cache: NativeStandaloneTabs) -> NativeSessionState {
+fn ready_with_cache(cache: NativeContextTabs) -> NativeSessionState {
     let mut state = NativeSessionState::starting(cache, 1, geometry(80))
         .unwrap()
         .0;
@@ -1434,7 +1435,7 @@ fn controlling() -> ControllerMode {
     ControllerMode::Controlling(ControllerId::parse(&id(700)).unwrap())
 }
 
-fn projected(tab_count: usize, revision: u64) -> NativeStandaloneTabs {
+fn projected(tab_count: usize, revision: u64) -> NativeContextTabs {
     project_native_standalone_tabs(&snapshot(tab_count, revision, None)).unwrap()
 }
 
