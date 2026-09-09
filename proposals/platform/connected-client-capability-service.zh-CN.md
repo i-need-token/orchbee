@@ -71,8 +71,9 @@ Workspace 创建及显式首目录配置；终端启动仍为独立显式动作�
 [显式 Session Viewer 路由基础](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record) 支持
 多个 viewer 共享一个有序 Client Session，精确选择附件，并各自保留帧与 controller 状态。
 其所有者维护实现与可执行正确性论证。Server 侧 Panel 分割和聚合多终端 Tab Close 已有已接受的
-权威、模型及 Linux 进程证据。原生 Client panel layout/focus、远程路由和持久化恢复仍属后续切片；
-仅完成路由基础并不代表这些功能完成。
+权威、模型及 Linux 进程证据。Linux 原生 Client panel layout/focus 现已通过严格 projection 和本地
+attachment 切换消费这棵共享树；远程路由、持久化恢复及完整多 viewer 组合仍属后续切片。仅完成
+路由基础并不代表这些功能完成。
 
 该里程碑是尚未发布的开发路径。未发布协议的变更要求精确匹配的 Client/Server/Worker cohort，
 不承诺兼容旧开发二进制。它不证明生产重启恢复、远程访问或现有 Desktop 迁移已经完成。

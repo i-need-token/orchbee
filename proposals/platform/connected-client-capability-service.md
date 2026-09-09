@@ -84,8 +84,10 @@ The [explicit Session Viewer routing foundation](../../apps/orchbee-server/READM
 several viewers share one ordered Client Session, with exact attachment selection and independent
 frame and controller state. Its owner maintains the implementation and executable correctness case.
 Server-side Panel splitting and aggregate multi-terminal Tab Close now have accepted authority,
-model and Linux process evidence. Native Client panel layout/focus, remote routing and persisted
-recovery remain subsequent slices; the routing foundation alone does not complete them.
+model and Linux process evidence. Native Linux Client panel layout/focus now consumes that shared
+tree with strict projection and local attachment switching; remote routing, persisted recovery and
+full multi-viewer composition remain subsequent slices. The routing foundation alone does not
+complete them.
 
 This milestone is an unshipped development path. Its unpublished protocol changes require an exact
 Client/Server/Worker cohort; they do not promise compatibility with older development binaries.

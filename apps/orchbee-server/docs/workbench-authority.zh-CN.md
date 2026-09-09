@@ -66,7 +66,7 @@ identity 和 presentation identity。Server 与 Site 将所有 leaf binding 作�
 保留仍存在的当前引用；没有剩余成员时发布 Empty。权威单测、Linux process witness
 `real_workbench_panel_split_and_aggregate_close_releases_both_terminals` 以及有界
 `WorkbenchPanelSplit` TLA+ 模型覆盖这一细化。Client-local panel layout 和 focus 仍是下一项原生
-TUI 集成边界。
+TUI 已通过严格 projection 和本地焦点消费这棵树；TUI 仍不会从快捷键提交 `panel.split`。
 
 ## 已接受的规范 Tab 移动模型
 

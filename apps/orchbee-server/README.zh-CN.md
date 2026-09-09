@@ -33,7 +33,8 @@ Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move �
 方向和两个 slot identity。Server 保留确切的树成员关系；现在的聚合 Close 路径会先销毁已捕获 Tab
 中的每个 leaf，再发布一次移除。Linux process witness 创建两个真实 terminal、观察 Split projection、关闭 Tab，
 并在 Worker 断开后验证 Host 没有剩余 terminal 或已经退出。原生 panel layout 与 Client-local focus
-仍是独立的 TUI 集成边界。
+现已由 Linux 原生 Client 投影该规范分屏树，并在经过验证的叶子之间移动本地焦点；Client 仍一次只
+附着一个 viewer，TUI 快捷键也不会提交 `panel.split`。
 
 本地 standalone 与 Workspace 的 `tab.close`、状态 Read 和 Resume 使用保留的生命周期权威及单个进程生命周期
 维护所有者。已知 Host 销毁和精确 Worker/Server 清理先于规范移除；Client 退出不取消

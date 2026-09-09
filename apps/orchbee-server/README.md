@@ -37,7 +37,9 @@ orientation and both slot identities before dispatching the second immediate ter
 Server retains exact tree membership, and aggregate Close now disposes every leaf in a captured Tab
 before publishing one removal. The Linux process witness creates two real terminals, observes the
 Split projection, closes the Tab and verifies that the Host has no remaining terminal or exits after
-the Worker disconnects. Native panel layout and Client-local focus remain a separate TUI integration boundary.
+the Worker disconnects. The Linux native Client now projects that canonical split tree and moves
+local focus across its validated leaves; it still attaches one viewer at a time and does not submit
+`panel.split` from a TUI shortcut.
 
 Local standalone and Workspace `tab.close`, status Read and Resume use the retained lifecycle authority and one
 process-lifetime maintenance owner. Known Host disposal and exact Worker/Server cleanup precede

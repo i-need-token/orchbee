@@ -83,7 +83,8 @@ tree and preserves the current reference when one remains, or publishes Empty wh
 The authority unit test, the Linux process witness
 `real_workbench_panel_split_and_aggregate_close_releases_both_terminals`, and the bounded
 `WorkbenchPanelSplit` TLA+ model cover this refinement. Client-local panel layout and focus remain
-the next native TUI integration boundary.
+the native TUI now consumes this tree through strict projection and local focus; the TUI still does
+not submit `panel.split` from a shortcut.
 
 ## Accepted canonical Tab move model
 
