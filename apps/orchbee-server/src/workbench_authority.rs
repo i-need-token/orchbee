@@ -27,6 +27,13 @@ pub use terminal_tab_create::{
     WorkbenchSettlementTokenMismatch, WorkbenchTabCreateAdmission, WorkbenchTabCreateBegin,
     WorkbenchTabCreatePreparation, WorkbenchTabCreateRuntimeUnavailableReason,
 };
+mod terminal_panel_split;
+pub use terminal_panel_split::{
+    CommittedWorkbenchPanelSplitMetadata, PendingWorkbenchPanelSplit, PreparedWorkbenchPanelSplit,
+    PreparedWorkbenchPanelSplitSettlement, StagedWorkbenchPanelSplitMetadata,
+    WorkbenchPanelSplitAdmission, WorkbenchPanelSplitBegin, WorkbenchPanelSplitPreparation,
+    WorkbenchPanelSplitSettlementTokenMismatch,
+};
 mod terminal_binding_selection;
 pub use terminal_binding_selection::WorkbenchBindingExposure;
 mod terminal_tab_move;
@@ -146,6 +153,7 @@ struct SettledRequest {
 enum RetainedRequest {
     Settled(Box<SettledRequest>),
     PendingTabCreate(Box<terminal_tab_create::PendingTabCreateEntry>),
+    PendingPanelSplit(Box<terminal_panel_split::PendingPanelSplitEntry>),
     TabClose(Box<terminal_tab_close::CloseRecord>),
 }
 
@@ -154,6 +162,7 @@ impl RetainedRequest {
         match self {
             Self::Settled(entry) => &entry.command,
             Self::PendingTabCreate(entry) => &entry.command,
+            Self::PendingPanelSplit(entry) => &entry.command,
             Self::TabClose(entry) => &entry.command,
         }
     }
@@ -162,6 +171,7 @@ impl RetainedRequest {
         match self {
             Self::Settled(entry) => &entry.result,
             Self::PendingTabCreate(entry) => &entry.pending_result,
+            Self::PendingPanelSplit(entry) => &entry.pending_result,
             Self::TabClose(entry) => &entry.result,
         }
     }
@@ -625,6 +635,7 @@ impl PureWorkbenchAction {
                 label: label.clone(),
             },
             WorkbenchAction::TabCreate { .. }
+            | WorkbenchAction::PanelSplit { .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
             | WorkbenchAction::TabMove { .. }
             | WorkbenchAction::TabClose { .. } => return None,

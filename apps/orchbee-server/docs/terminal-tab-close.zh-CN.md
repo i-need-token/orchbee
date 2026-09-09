@@ -2,7 +2,8 @@
 
 状态：已接受的高影响本地 Close 契约，已包含严格 schema 和 Rust/TypeScript binding。
 Server/Worker 执行、保留维护、精确会话清理及规范发布已集成，并有确定性载体及 Linux
-协议客户端进程证据。原生 Close 控制及成员安装已集成；
+协议客户端进程证据。原生 Close 控制及成员安装已集成；Server 侧 PanelSplit 与聚合 Close
+已有权威单测、有界模型和 Linux 真实终端 witness；
 [原生 Session 契约](../../orchbee/docs/native-tab-session.zh-CN.md) 记录 Linux TUI
 Close 到 Empty、手动 Create 及保留 shell 重入的进程用例。这些有界检查不证明发布就绪或生产
 重启恢复。这份归 Server 所有的参考文档为 Server、Worker、协议及原生 Client 维护者规定生命周期
@@ -18,10 +19,11 @@ Close 到 Empty、手动 Create 及保留 shell 重入的进程用例。这些�
 线协议字段或 Worker 操作。原生 Workspace UI 不在此扩展范围内。Directory 可用性既不授权
 也不阻塞 Close；新的主操作仍要求精确的活动运行时身份。
 
-`WorkbenchTerminalMembership` 和 `WorkbenchTerminalTab` 描述两类上下文的严格简单成员。
-成员关系携带从规范导航派生的不可变上下文类型，是读取结果而非另一份权威。不支持的分组、
-固定/分组 Tab、拆分、子项或缺失绑定沿用既有分歧行为。除调用方条件分支外，standalone 组合
-helper 自身也拒绝 Workspace 成员关系，使未发布库使用通用类型名后仍保留所有者边界。
+`WorkbenchTerminalMembership` 和 `WorkbenchTerminalTab` 为既有操作描述严格单 leaf 成员，
+为已接受的 PanelSplit/聚合 Close 路径描述两类上下文中的确切树成员。成员关系携带从规范导航派生的
+不可变上下文类型，是读取结果而非另一份权威。不支持的分组、固定/分组 Tab、子项或缺失绑定沿用既有
+分歧行为。除调用方条件分支外，standalone 组合 helper 自身也拒绝 Workspace 成员关系，使未发布库
+使用通用类型名后仍保留所有者边界。
 
 Workspace 准入和发布不读取、重定向或结算 standalone 引导槽位。已知 Dispose 和精确目标清理
 后，发布重新提取当前目标上下文成员关系，仅移除保留的 Tab/Panel/Presentation/绑定元组。
@@ -302,9 +304,9 @@ Host 效果前，预留主命令及最大编码 command/ack/status/tombstone 费
 所有写入计算已预留条目/字节。读取不消耗，最终完成无需后续账本插入。序列化字节预留不证明
 分配、panic 或崩溃原子性。
 
-先保留 KnownDisposed 并完成精确本地清理。在 Site 门锁内验证当前严格成员关系及精确目标
-元组，再从**当前** snapshot 准备：仅移除其 Tab/Panel/Presentation，保留其他成员、顺序及
-标签。释放门锁要求重新验证/准备。旧准入 snapshot 不替换后续写入，不跨宽限冻结整个 Site，
+先保留 KnownDisposed 并完成精确本地清理。在 Site 门锁内验证当前适用的成员关系及精确目标
+元组，再从**当前** snapshot 准备：聚合 Close 将整棵捕获树的每个 leaf 作为一次 Tab 发布移除，
+保留其他 Tab、顺序及标签。释放门锁要求重新验证/准备。旧准入 snapshot 不替换后续写入，不跨宽限冻结整个 Site，
 额度也不预先指定最终修订。
 
 检查实际编码投影限制及 delta/full-snapshot 回退；不假定已预分配未来完整缓冲区。准备失败
@@ -322,7 +324,8 @@ Workbench 退役仍允许读取清理状态。成功准备后，成员关系、�
 
 若活动引用在移除后存活，保留它。否则选择**当前移除后顺序**首个成员：无成员 → Empty；
 Creating B → Creating(B.reference)；已结算 B → Settled(B.reference, retained B outcome)。
-Closing B 在自身移除前仍是可见候选引用。严格组合要求恰好一个成员匹配从引用导出的绑定。
+Closing B 在自身移除前仍是可见候选引用。树形组合要求每个剩余 leaf 都匹配保留 binding；
+当前引用仍只为 standalone 重定向选择一个 anchor。
 
 B 的原 Create seal、请求、元数据、绑定、历史 `is_first` 及重放结果保持不可变。在共同门锁
 内验证其精确 Workbench token 及 Terminal 关联，并结算两者记录；**仅当 Site 当前 Creating
@@ -396,10 +399,10 @@ Close 事实由原生状态消费者负责。运行时集成仍需要原生模�
 
 ### Server 有限证据及细化
 
-从仓库根目录运行这两个已注册检查：
+从仓库根目录运行这三个已注册检查：
 
 ```sh
-node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference --jobs 1
+node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split --jobs 1
 ```
 
 [`WorkbenchTabCloseCoordination`](../formal/tla/WorkbenchTabCloseCoordination.tla) 在既有注册表中

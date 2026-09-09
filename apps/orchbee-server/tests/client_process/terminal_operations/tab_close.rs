@@ -4,11 +4,12 @@ use orchbee_client_server_protocol::{
     TerminalControlRequest, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
 };
 use orchbee_workbench_protocol::{
-    PanelNode, ProtocolVersion, Snapshot, SnapshotReadIntent, Tab, WorkbenchAction,
-    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchLabel,
-    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchSnapshotOutcome,
-    WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus,
-    WorkbenchTerminalGeometry, read_workbench_response, write_workbench_request,
+    PanelNode, PresentationBinding, ProtocolVersion, Snapshot, SnapshotReadIntent, Tab,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchTabCloseRead,
+    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus, WorkbenchTerminalGeometry,
+    read_workbench_response, write_workbench_request,
 };
 use std::num::NonZeroU64;
 
@@ -266,7 +267,7 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
             .args(["--endpoint-id", endpoint_id]),
         false,
     )?;
-    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    let deadline = Instant::now() + Duration::from_secs(40);
     while !endpoint.exists() {
         if let Some(status) = host.0.try_wait()? {
             return Err(format!("Host exited: {status}").into());
@@ -357,5 +358,219 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
         close_tab(&mut clients[0], &current, &tab, 3001 + index * 10)?;
     }
     assert!(tabs(&snapshot(&mut clients[0], 4000)?)?.is_empty());
+    Ok(())
+}
+
+#[test]
+fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> TestResult {
+    macro_rules! stage {
+        ($name:literal, $operation:expr) => {
+            $operation.map_err(|error| std::io::Error::other(format!("{}: {error}", $name)))?
+        };
+    }
+    let server = stage!("server start", RunningServer::start());
+    let mut real = stage!("real runtime start", RealTerminalRuntime::start(&server));
+    let (mut client, _) = stage!(
+        "workbench client connect",
+        connect_bounded_client(server.client_endpoint())
+    );
+    let initial = stage!("initial snapshot", snapshot(&mut client, 1));
+    let context_id = initial.navigation.standalone_terminal_context_id.clone();
+    let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
+    let created = stage!(
+        "tab.create",
+        command(
+            &mut client,
+            &initial,
+            2,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: context_id.clone(),
+                label: WorkbenchLabel::parse("real split source")?,
+                geometry,
+            },
+        )
+    );
+    let (tab_id, panel_id) = match created.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            panel_id,
+            terminal_outcome,
+            ..
+        } => {
+            assert!(matches!(
+                terminal_outcome,
+                orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. }
+            ));
+            (tab_id, panel_id)
+        }
+        outcome => return Err(format!("real tab.create did not start: {outcome:?}").into()),
+    };
+    let after_create = stage!("snapshot after tab.create", snapshot(&mut client, 3));
+    tabs(&after_create)?
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .ok_or("real source Tab missing")?;
+    let split = stage!(
+        "panel.split",
+        command(
+            &mut client,
+            &after_create,
+            4,
+            WorkbenchAction::PanelSplit {
+                terminal_context_id: context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: WorkbenchLabel::parse("real split peer")?,
+                geometry,
+            },
+        )
+    );
+    let new_panel_id = match split.outcome {
+        WorkbenchCommandOutcome::PanelSplitCreated {
+            new_panel_id,
+            terminal_outcome,
+            ..
+        } => {
+            assert!(matches!(
+                terminal_outcome,
+                orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. }
+            ));
+            new_panel_id
+        }
+        outcome => return Err(format!("real panel.split did not start: {outcome:?}").into()),
+    };
+    let after_split = stage!("snapshot after panel.split", snapshot(&mut client, 5));
+    let split_tab = tabs(&after_split)?
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .ok_or("real split Tab missing")?;
+    let PanelNode::Split { children, .. } = &split_tab.root else {
+        return Err("real panel.split did not project a split root".into());
+    };
+    let bindings: Vec<PresentationBinding> = children
+        .iter()
+        .map(|slot| {
+            let PanelNode::Panel {
+                primary_presentation,
+                ..
+            } = &slot.node
+            else {
+                return Err("real panel.split produced a nested split unexpectedly".into());
+            };
+            primary_presentation
+                .binding
+                .clone()
+                .ok_or_else(|| "real panel.split leaf is not bound".into())
+        })
+        .collect::<TestResult<Vec<_>>>()?;
+    assert_eq!(bindings.len(), 2);
+    assert_ne!(bindings[0].terminal_id, bindings[1].terminal_id);
+    assert_eq!(bindings[0].worker_id, bindings[1].worker_id);
+    assert!(children.iter().any(|slot| {
+        matches!(
+            &slot.node,
+            PanelNode::Panel { panel_id: candidate, .. } if *candidate == panel_id
+        )
+    }));
+    assert!(children.iter().any(|slot| {
+        matches!(
+            &slot.node,
+            PanelNode::Panel { panel_id: candidate, .. } if *candidate == new_panel_id
+        )
+    }));
+
+    let closed = stage!(
+        "tab.close",
+        command(
+            &mut client,
+            &after_split,
+            6,
+            WorkbenchAction::TabClose {
+                terminal_context_id: context_id.clone(),
+                tab_id: tab_id.clone(),
+            },
+        )
+    );
+    let close_request_id = match closed.outcome {
+        WorkbenchCommandOutcome::TabCloseAccepted {
+            close_request_id, ..
+        } => close_request_id,
+        outcome => {
+            return Err(format!("real aggregate close was not accepted: {outcome:?}").into());
+        }
+    };
+    let deadline = Instant::now() + Duration::from_secs(40);
+    let mut request_value = 7;
+    loop {
+        let request_id = workbench_id(request_value)?;
+        stage!(
+            "tab-close.read write",
+            write_workbench_request(
+                &mut client,
+                &WorkbenchRequest::TabCloseRead(WorkbenchTabCloseRead {
+                    protocol_version: ProtocolVersion,
+                    request_id: request_id.clone(),
+                    site_id: after_split.site_id.clone(),
+                    terminal_context_id: context_id.clone(),
+                    tab_id: tab_id.clone(),
+                }),
+            )
+        );
+        let response = stage!(
+            "tab-close.read response",
+            read_workbench_response(&mut client)
+        );
+        let WorkbenchResponse::TabCloseRead(result) = response else {
+            return Err("real aggregate close returned the wrong response".into());
+        };
+        assert_eq!(result.request_id, request_id);
+        let WorkbenchTabCloseReadOutcome::Available {
+            close_request_id: observed_request_id,
+            status,
+            ..
+        } = result.outcome
+        else {
+            return Err("real aggregate close became unavailable".into());
+        };
+        assert_eq!(observed_request_id, close_request_id);
+        match &status {
+            WorkbenchTabCloseStatus::Closed { .. } => break,
+            WorkbenchTabCloseStatus::OutcomeUnknown { .. }
+            | WorkbenchTabCloseStatus::CleanupBlocked { .. } => {
+                return Err(format!("real aggregate close failed: {status:?}").into());
+            }
+            _ => {}
+        }
+        if Instant::now() >= deadline {
+            return Err(format!("real aggregate close did not settle: {status:?}").into());
+        }
+        request_value += 1;
+        thread::sleep(Duration::from_millis(10));
+    }
+    let after_close = stage!(
+        "snapshot after aggregate close",
+        snapshot(&mut client, request_value + 1)
+    );
+    assert!(tabs(&after_close)?.is_empty());
+    drop(real.worker.take());
+    if real.endpoint.exists() {
+        assert_eq!(
+            stage!("Host inventory", running_inventory(real.endpoint.as_path())),
+            0
+        );
+    } else {
+        let deadline = Instant::now() + PROCESS_TIMEOUT;
+        loop {
+            if real._host.0.try_wait()?.is_some() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "Host endpoint disappeared while the Host process remained alive"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
     Ok(())
 }

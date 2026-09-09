@@ -130,6 +130,7 @@ export {
 	WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES,
 	WorkbenchActionSchema,
 	WorkbenchTabMoveDirectionSchema,
+	WorkbenchPanelSplitDirectionSchema,
 	WorkbenchCommandSchema,
 	WorkbenchCommandUnavailableReasonSchema,
 	WorkbenchRequestSchema,
@@ -150,6 +151,7 @@ export {
 export type {
 	WorkbenchAction,
 	WorkbenchTabMoveDirection,
+	WorkbenchPanelSplitDirection,
 	WorkbenchCommand,
 	WorkbenchCommandUnavailableReason,
 	WorkbenchRequest,

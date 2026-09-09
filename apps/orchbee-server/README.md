@@ -32,6 +32,13 @@ changing terminal bindings or taking the Worker registry lock. Both can complete
 pending; exact Move replay retains its original order-change result and revision. The native Move
 interaction remains a separate Client integration boundary.
 
+`panel.split` is the first tree mutation: it jointly commits the source leaf, a new leaf, split
+orientation and both slot identities before dispatching the second immediate terminal launch. The
+Server retains exact tree membership, and aggregate Close now disposes every leaf in a captured Tab
+before publishing one removal. The Linux process witness creates two real terminals, observes the
+Split projection, closes the Tab and verifies that the Host has no remaining terminal or exits after
+the Worker disconnects. Native panel layout and Client-local focus remain a separate TUI integration boundary.
+
 Local standalone and Workspace `tab.close`, status Read and Resume use the retained lifecycle authority and one
 process-lifetime maintenance owner. Known Host disposal and exact Worker/Server cleanup precede
 canonical removal; Client exit does not cancel accepted Close. Linux carrier/process checks cover
@@ -450,8 +457,8 @@ therefore preserved without adding the predecessor set to the model state.
 This accepted local implementation slice extends one admitted ClientSession and its existing ordered
 carrier to multiple explicitly addressed viewers. The implementation uses the bounded registry
 described above; the executable correctness case below defines its required checks and proof limits.
-This foundation does not deliver
-Native Panel splitting, focus, multi-terminal Tab Close, remote routing, or persisted recovery.
+This foundation now composes with native Panel splitting and aggregate multi-terminal Tab Close;
+Client-local focus/layout, remote routing, and persisted recovery remain separate work.
 The [OBCS contract](../../schemas/client-server/README.md) owns the wire representation.
 
 | Field          | Accepted contract                                                                                                                                                                                                                                                                                                                                   |

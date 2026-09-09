@@ -25,6 +25,7 @@ use crate::{
 
 mod close_maintenance;
 mod controller_session;
+mod panel_split;
 mod projection;
 mod standalone;
 mod tab_close;

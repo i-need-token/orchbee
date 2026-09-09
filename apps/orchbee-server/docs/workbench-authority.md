@@ -32,8 +32,8 @@ is not exact cleanup authority: cleanup additionally compares the retained Worke
 complete Host identity and binding fence. Original launch/Start replay keeps its existing precedence.
 
 Close admission checks lifecycle authority, exact retained replay/conflict, retirement, ledger
-entry capacity, Site/base/context and strict membership. Site validates composition before target
-resolution. A visible existing primary is joined before any fresh runtime lookup, including an
+entry capacity, Site/base/context and the applicable strict or tree membership. Site validates
+composition before target resolution. A visible existing primary is joined before any fresh runtime lookup, including an
 Unknown or disposed primary whose Worker is now unavailable. A new primary requires exact runtime
 association and all reservations before joint acceptance. Close replay remains readable after
 retirement; ordinary commands keep their existing retirement-first preflight. Status reads and
@@ -50,9 +50,10 @@ charge, covering maximum decimal generation/revision and every bounded classific
 retain that charge. These byte limits do not establish allocation, panic or crash atomicity.
 
 After known Dispose and exact local cleanup, a borrowed publication plan validates the complete
-retained target against current strict membership and prepares the current projection, encoded
-delta/full-snapshot fallback and final Closed revision/status. It exposes `before_membership`,
-`after_membership` and `exact_removed_member` to Site's disjoint slot-only retarget preparation.
+retained target against current applicable membership and prepares the current projection, encoded
+delta/full-snapshot fallback and final Closed revision/status. For an aggregate tree Close it
+captures the ordered `exact_removed_members` and exposes the before/after membership to Site's
+disjoint slot-only retarget preparation.
 Both plans commit under the same Site gate with no further fallible work. Dropping preparation
 leaves membership and credit unchanged; failure retains disposed classification and permits only
 the remaining cleanup/publication. The continuation preserves outstanding receipts across expiry,
@@ -66,6 +67,23 @@ claimed. `cargo test -p orchbee-server --lib --locked` runs these authority/cont
 `cargo clippy -p orchbee-server --lib --locked -- -D warnings` checks the library implementation.
 These focused checks do not replace the root gate or the owning cross-process evidence. The existing
 finite Close models remain bounded abstractions of those runtime claims.
+
+## Accepted Panel Split and aggregate Tab Close refinement
+
+`panel.split` is the first accepted tree mutation. Workbench validates the exact context, Tab and
+leaf Panel, bounds the resulting tree, and commits the source leaf, new leaf, split orientation,
+two slot identities and presentation identity before dispatching the second terminal launch. The
+Server and Site retain all leaf bindings as one exact tree membership; a missing or unknown leaf
+outcome quarantines the pending operation and cannot publish a partial tree.
+
+Aggregate Close captures the complete ordered leaf membership of the Tab. It disposes and cleans up
+each leaf under its retained lifecycle authority, then publishes one Tab removal only after every
+leaf has a known proof. Standalone retargeting compares the exact removed set against the remaining
+tree and preserves the current reference when one remains, or publishes Empty when none remains.
+The authority unit test, the Linux process witness
+`real_workbench_panel_split_and_aggregate_close_releases_both_terminals`, and the bounded
+`WorkbenchPanelSplit` TLA+ model cover this refinement. Client-local panel layout and focus remain
+the next native TUI integration boundary.
 
 ## Accepted canonical Tab move model
 

@@ -56,7 +56,10 @@ impl WorkbenchService {
                 self.policy.manage_navigation && self.policy.associate_directory
             }
             WorkbenchRequest::Command(command)
-                if matches!(&command.action, WorkbenchAction::TabCreate { .. }) =>
+                if matches!(
+                    &command.action,
+                    WorkbenchAction::TabCreate { .. } | WorkbenchAction::PanelSplit { .. }
+                ) =>
             {
                 self.policy.manage_navigation && self.policy.create_terminal
             }
@@ -136,6 +139,14 @@ impl WorkbenchService {
                 if matches!(&command.action, WorkbenchAction::TabCreate { .. }) =>
             {
                 match self.terminals.execute_terminal_tab_create(command) {
+                    Ok(result) => WorkbenchExecution::Response(WorkbenchResponse::Command(result)),
+                    Err(_postcommit) => WorkbenchExecution::CloseOutcomeUnknown,
+                }
+            }
+            Err(WorkbenchRequest::Command(command))
+                if matches!(&command.action, WorkbenchAction::PanelSplit { .. }) =>
+            {
+                match self.terminals.execute_terminal_panel_split(command) {
                     Ok(result) => WorkbenchExecution::Response(WorkbenchResponse::Command(result)),
                     Err(_postcommit) => WorkbenchExecution::CloseOutcomeUnknown,
                 }

@@ -16,11 +16,13 @@ import {
 	WorkbenchDirectoryPathSchema,
 	WorkbenchLabelSchema,
 	WorkbenchPanelIdSchema,
+	WorkbenchPanelSlotIdSchema,
 	WorkbenchProjectIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WorkbenchSnapshotReadIntentSchema,
 	WorkbenchSnapshotSchema,
+	WorkbenchSplitIdSchema,
 	WorkbenchTabIdSchema,
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchWorkspaceIdSchema,
@@ -66,6 +68,7 @@ export const WorkbenchTerminalGeometrySchema = z
 	.readonly();
 
 export const WorkbenchTabMoveDirectionSchema = z.enum(['previous', 'next', 'first', 'last']);
+export const WorkbenchPanelSplitDirectionSchema = z.enum(['above', 'below', 'left', 'right']);
 
 export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	z
@@ -124,6 +127,17 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('panel.split'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			direction: WorkbenchPanelSplitDirectionSchema,
+			label: WorkbenchLabelSchema,
+			geometry: WorkbenchTerminalGeometrySchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('tab.move'),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,
@@ -168,6 +182,7 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'workspace-directory-conflict',
 	'terminal-context-unavailable',
 	'tab-unavailable',
+	'panel-unavailable',
 	'resource-limit',
 	'identity-exhausted',
 	'revision-exhausted',
@@ -276,6 +291,35 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('panel-split-pending'),
+			revision: WorkbenchRevisionSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			newPanelId: WorkbenchPanelIdSchema,
+			splitId: WorkbenchSplitIdSchema,
+			firstSlotId: WorkbenchPanelSlotIdSchema,
+			secondSlotId: WorkbenchPanelSlotIdSchema,
+			presentationId: TerminalPresentationIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel-split-created'),
+			revision: WorkbenchRevisionSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			newPanelId: WorkbenchPanelIdSchema,
+			splitId: WorkbenchSplitIdSchema,
+			firstSlotId: WorkbenchPanelSlotIdSchema,
+			secondSlotId: WorkbenchPanelSlotIdSchema,
+			presentationId: TerminalPresentationIdSchema,
+			terminalOutcome: WorkbenchTerminalOutcomeSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('rejected'),
 			revision: WorkbenchRevisionSchema,
 			reason: WorkbenchRejectionReasonSchema,
@@ -340,6 +384,7 @@ export const WorkbenchResponseSchema = z
 export type WorkbenchTerminalGeometry = z.infer<typeof WorkbenchTerminalGeometrySchema>;
 export type WorkbenchAction = z.infer<typeof WorkbenchActionSchema>;
 export type WorkbenchTabMoveDirection = z.infer<typeof WorkbenchTabMoveDirectionSchema>;
+export type WorkbenchPanelSplitDirection = z.infer<typeof WorkbenchPanelSplitDirectionSchema>;
 export type WorkbenchCommand = z.infer<typeof WorkbenchCommandSchema>;
 export type WorkbenchRequest = z.infer<typeof WorkbenchRequestSchema>;
 export type WorkbenchCommandOutcome = z.infer<typeof WorkbenchCommandOutcomeSchema>;

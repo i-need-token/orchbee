@@ -16,8 +16,9 @@ use crate::{
     directory::WorkbenchDirectoryPath,
     identity::{
         ProtocolVersion, SiteId, TerminalPresentationId, WorkbenchDirectoryId, WorkbenchPanelId,
-        WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabId,
-        WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
+        WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision,
+        WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
+        WorkerId,
     },
     model::{Snapshot, SnapshotReadIntent, WorkbenchProtocolDocument},
     validation::{
@@ -268,6 +269,15 @@ pub enum WorkbenchAction {
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
     },
+    #[serde(rename = "panel.split")]
+    PanelSplit {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        direction: WorkbenchPanelSplitDirection,
+        label: WorkbenchLabel,
+        geometry: WorkbenchTerminalGeometry,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -277,6 +287,15 @@ pub enum WorkbenchTabMoveDirection {
     Next,
     First,
     Last,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkbenchPanelSplitDirection {
+    Above,
+    Below,
+    Left,
+    Right,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -313,6 +332,7 @@ pub enum WorkbenchRejectionReason {
     WorkspaceDirectoryConflict,
     TerminalContextUnavailable,
     TabUnavailable,
+    PanelUnavailable,
     ResourceLimit,
     IdentityExhausted,
     RevisionExhausted,
@@ -416,6 +436,29 @@ pub enum WorkbenchCommandOutcome {
         terminal_context_id: WorkbenchTerminalContextId,
         tab_id: WorkbenchTabId,
         panel_id: WorkbenchPanelId,
+        presentation_id: TerminalPresentationId,
+        terminal_outcome: WorkbenchTerminalOutcome,
+    },
+    PanelSplitPending {
+        revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        new_panel_id: WorkbenchPanelId,
+        split_id: WorkbenchSplitId,
+        first_slot_id: WorkbenchPanelSlotId,
+        second_slot_id: WorkbenchPanelSlotId,
+        presentation_id: TerminalPresentationId,
+    },
+    PanelSplitCreated {
+        revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        new_panel_id: WorkbenchPanelId,
+        split_id: WorkbenchSplitId,
+        first_slot_id: WorkbenchPanelSlotId,
+        second_slot_id: WorkbenchPanelSlotId,
         presentation_id: TerminalPresentationId,
         terminal_outcome: WorkbenchTerminalOutcome,
     },

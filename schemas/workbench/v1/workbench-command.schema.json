@@ -156,6 +156,42 @@
 					"type": "object",
 					"properties": {
 						"kind": {
+							"const": "panel.split"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"direction": {
+							"enum": ["above", "below", "left", "right"]
+						},
+						"label": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+						},
+						"geometry": {
+							"$ref": "#/$defs/terminalGeometry"
+						}
+					},
+					"required": [
+						"kind",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"direction",
+						"label",
+						"geometry"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
 							"const": "tab.move"
 						},
 						"terminalContextId": {
@@ -227,6 +263,7 @@
 				"workspace-directory-conflict",
 				"terminal-context-unavailable",
 				"tab-unavailable",
+				"panel-unavailable",
 				"resource-limit",
 				"identity-exhausted",
 				"revision-exhausted",
@@ -463,6 +500,106 @@
 						"terminalContextId",
 						"tabId",
 						"panelId",
+						"presentationId",
+						"terminalOutcome"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel-split-pending"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"newPanelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"splitId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/splitId"
+						},
+						"firstSlotId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId"
+						},
+						"secondSlotId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId"
+						},
+						"presentationId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
+						}
+					},
+					"required": [
+						"kind",
+						"revision",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"newPanelId",
+						"splitId",
+						"firstSlotId",
+						"secondSlotId",
+						"presentationId"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel-split-created"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"newPanelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"splitId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/splitId"
+						},
+						"firstSlotId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId"
+						},
+						"secondSlotId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelSlotId"
+						},
+						"presentationId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/presentationId"
+						},
+						"terminalOutcome": {
+							"$ref": "#/$defs/terminalOutcome"
+						}
+					},
+					"required": [
+						"kind",
+						"revision",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"newPanelId",
+						"splitId",
+						"firstSlotId",
+						"secondSlotId",
 						"presentationId",
 						"terminalOutcome"
 					],

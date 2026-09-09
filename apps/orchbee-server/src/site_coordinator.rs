@@ -22,6 +22,8 @@ mod tab_create;
 #[cfg(test)]
 pub(crate) use tab_create::PendingTerminalTabCreate;
 pub(crate) use tab_create::{PostcommitCoordinationError, PreparedTerminalTabCreate};
+mod panel_split;
+pub(crate) use panel_split::PreparedTerminalPanelSplit;
 mod terminal_selection;
 mod workspace_directory;
 pub(crate) use terminal_selection::{BindingViewerPreparationError, PreparedBindingViewer};
@@ -189,6 +191,26 @@ fn composition_matches(
                 .filter(|member| member.binding() == &binding)
                 .count()
                 == 1
+        }
+    }
+}
+
+fn tree_composition_matches(
+    membership: &WorkbenchTerminalMembership,
+    standalone: &StandaloneTerminal,
+    terminals: &TerminalCoordinator,
+) -> bool {
+    if !membership.is_standalone() {
+        return false;
+    }
+    match standalone {
+        StandaloneTerminal::Empty => membership.is_empty(),
+        StandaloneTerminal::Creating(_) | StandaloneTerminal::Settled { .. } => {
+            !membership.is_empty()
+                && membership
+                    .members()
+                    .iter()
+                    .all(|member| terminals.has_retained_binding(member.binding()))
         }
     }
 }

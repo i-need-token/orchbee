@@ -15,6 +15,7 @@ use orchbee_client_server_protocol::{
     TerminalCreateRequest, TerminalCreateResult, TerminalStartRequest, TerminalStartResult,
     WorkerConstraint,
 };
+use orchbee_workbench_protocol::PresentationBinding;
 
 mod outcomes;
 
@@ -256,6 +257,19 @@ impl TerminalCoordinator {
         self.bindings
             .get(reference)
             .map(|binding| binding.authorization)
+    }
+
+    pub(crate) fn has_retained_binding(&self, expected: &PresentationBinding) -> bool {
+        self.bindings.values().any(|binding| {
+            format!(
+                "{:032x}",
+                u128::from_be_bytes(binding.authorization.terminal_id().as_bytes())
+            ) == expected.terminal_id.as_str()
+                && format!(
+                    "{:032x}",
+                    u128::from_be_bytes(binding.authorization.worker_id().as_bytes())
+                ) == expected.worker_id.as_str()
+        })
     }
 
     pub(crate) fn retained_create_for_binding(

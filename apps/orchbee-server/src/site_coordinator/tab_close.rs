@@ -16,7 +16,7 @@ use orchbee_workbench_protocol::{
     WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
 };
 
-use super::{PostcommitCoordinationError, SiteCoordinator, composition_matches};
+use super::{PostcommitCoordinationError, SiteCoordinator, tree_composition_matches};
 use crate::terminal_coordinator::WorkerPlacement;
 
 impl SiteCoordinator {
@@ -40,7 +40,7 @@ impl SiteCoordinator {
             WorkbenchTabCloseBegin::Admitted(admission) => admission,
         };
         if admission.terminal_membership().is_standalone()
-            && !composition_matches(admission.terminal_membership(), standalone, terminals)
+            && !tree_composition_matches(admission.terminal_membership(), standalone, terminals)
         {
             return Some(admission.retire_composition_failure());
         }
@@ -254,12 +254,12 @@ impl SiteCoordinator {
             let _closed = prepared.commit();
             return Ok(false);
         }
-        let retarget = super::standalone::prepare_standalone_close_settlement(
+        let retarget = super::standalone::prepare_standalone_close_settlement_members(
             standalone,
             terminals,
             prepared.before_membership(),
             prepared.after_membership(),
-            prepared.exact_removed_member(),
+            prepared.exact_removed_members(),
         );
         let Ok(retarget) = retarget else {
             prepared.retire_composition_failure();

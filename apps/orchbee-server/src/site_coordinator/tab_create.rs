@@ -290,7 +290,7 @@ impl SiteCoordinator {
     }
 }
 
-fn pending_cwd_matches(
+pub(super) fn pending_cwd_matches(
     message: &CapabilityNodeMessage,
     expected: Option<&WorkingDirectory>,
 ) -> bool {
@@ -300,7 +300,7 @@ fn pending_cwd_matches(
     command.cwd().map(|cwd| cwd.as_str()) == expected.map(WorkingDirectory::as_str)
 }
 
-fn placement_matches_worker(
+pub(super) fn placement_matches_worker(
     placement: WorkerPlacement,
     expected: &orchbee_client_server_protocol::WorkerId,
 ) -> bool {
@@ -311,11 +311,13 @@ fn placement_matches_worker(
         )
 }
 
-fn pending_authorization(pending: &PendingOperation) -> Option<TerminalOperationAuthorization> {
+pub(super) fn pending_authorization(
+    pending: &PendingOperation,
+) -> Option<TerminalOperationAuthorization> {
     pending_authorization_from_message(pending.command())
 }
 
-fn pending_authorization_from_message(
+pub(super) fn pending_authorization_from_message(
     message: &CapabilityNodeMessage,
 ) -> Option<TerminalOperationAuthorization> {
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(command) = message else {
@@ -324,7 +326,9 @@ fn pending_authorization_from_message(
     Some(command.authorization())
 }
 
-fn terminal_preflight_reason(result: &ServerMessage) -> WorkbenchTabCreateRuntimeUnavailableReason {
+pub(super) fn terminal_preflight_reason(
+    result: &ServerMessage,
+) -> WorkbenchTabCreateRuntimeUnavailableReason {
     if matches!(
         result,
         ServerMessage::TerminalCreateResult(result)
@@ -338,7 +342,7 @@ fn terminal_preflight_reason(result: &ServerMessage) -> WorkbenchTabCreateRuntim
     }
 }
 
-fn terminal_outcome(
+pub(super) fn terminal_outcome(
     reference: &RequestId,
     expected_geometry: WorkbenchTerminalGeometry,
     result: &ServerMessage,
@@ -381,7 +385,7 @@ fn terminal_outcome(
     })
 }
 
-fn client_geometry(geometry: WorkbenchTerminalGeometry) -> Option<Geometry> {
+pub(super) fn client_geometry(geometry: WorkbenchTerminalGeometry) -> Option<Geometry> {
     Geometry::new(
         geometry.columns(),
         geometry.rows(),
@@ -408,7 +412,7 @@ fn unavailable(
     unavailable_by_id(command.request_id.clone(), reason)
 }
 
-fn unavailable_by_id(
+pub(super) fn unavailable_by_id(
     request_id: orchbee_workbench_protocol::WorkbenchRequestId,
     reason: WorkbenchCommandUnavailableReason,
 ) -> WorkbenchCommandResult {

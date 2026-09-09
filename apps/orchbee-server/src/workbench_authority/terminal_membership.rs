@@ -198,6 +198,16 @@ impl WorkbenchAuthority {
         standalone_membership(self.projection.snapshot())
     }
 
+    pub fn tree_standalone_membership(
+        &self,
+    ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
+        let snapshot = self.projection.snapshot();
+        tree_terminal_membership(
+            snapshot,
+            &snapshot.navigation.standalone_terminal_context_id,
+        )
+    }
+
     pub fn retire_standalone_composition(&mut self) {
         self.retired = true;
     }

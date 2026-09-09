@@ -29,6 +29,12 @@ Worker 目录，再原子添加 Project Directory 并由该空 Workspace 选中�
 Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move 重放保留原排序结果及修订。
 原生 Move 交互仍是独立的 Client 集成边界。
 
+`panel.split` 是第一项树形变换：它在派发第二个 immediate terminal launch 前，共同提交源 leaf、新 leaf、split
+方向和两个 slot identity。Server 保留确切的树成员关系；现在的聚合 Close 路径会先销毁已捕获 Tab
+中的每个 leaf，再发布一次移除。Linux process witness 创建两个真实 terminal、观察 Split projection、关闭 Tab，
+并在 Worker 断开后验证 Host 没有剩余 terminal 或已经退出。原生 panel layout 与 Client-local focus
+仍是独立的 TUI 集成边界。
+
 本地 standalone 与 Workspace 的 `tab.close`、状态 Read 和 Resume 使用保留的生命周期权威及单个进程生命周期
 维护所有者。已知 Host 销毁和精确 Worker/Server 清理先于规范移除；Client 退出不取消
 已接受 Close。Linux 载体/进程检查覆盖八个活动 Client 连接、空闲控制槽释放，以及另一
@@ -400,8 +406,7 @@ current Session；detach、disconnect 与 cleanup 只移除被寻址的 Session�
 
 本机已接受的实现切片将一个已准入 ClientSession 及其既有有序载体扩展为多个显式寻址的
 viewer。实现使用上文所述有界 registry；下方可执行正确性论证定义其必需检查与证明边界。
-本基础切片不交付
-Native Panel 分屏、焦点、多终端 Tab Close、远程路由或持久恢复。
+本基础切片现在已与原生 Panel 分屏和聚合多终端 Tab Close 组合；Client-local focus/layout、远程路由和持久恢复仍属独立工作。
 [OBCS 契约](../../schemas/client-server/README.zh-CN.md) 拥有 wire 表示。
 
 | 字段         | 已接受契约                                                                                                                                                                                                                                                             |

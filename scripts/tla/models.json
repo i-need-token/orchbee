@@ -4287,6 +4287,48 @@
 			]
 		},
 		{
+			"id": "workbench-panel-split",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/WorkbenchPanelSplit.tla",
+			"config": "apps/orchbee-server/formal/tla/WorkbenchPanelSplit.cfg",
+			"claims": [
+				"apps/orchbee-server/docs/workbench-authority.md",
+				"apps/orchbee-server/docs/terminal-tab-close.md"
+			],
+			"triggers": [
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_split.rs",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_split/**",
+				"apps/orchbee-server/src/workbench_authority/terminal_membership.rs",
+				"apps/orchbee-server/src/site_coordinator/panel_split.rs",
+				"apps/orchbee-server/src/site_coordinator/tab_close.rs",
+				"apps/orchbee-server/src/site_coordinator/standalone.rs",
+				"apps/orchbee-server/tests/client_process/terminal_operations/tab_close.rs",
+				"apps/orchbee-server/docs/workbench-authority.md",
+				"apps/orchbee-server/docs/workbench-authority.zh-CN.md",
+				"apps/orchbee-server/docs/terminal-tab-close.md",
+				"apps/orchbee-server/docs/terminal-tab-close.zh-CN.md"
+			],
+			"timeoutMilliseconds": 180000,
+			"workers": 1,
+			"requiredCoverage": [
+				"AdmitSplit",
+				"CompleteSplitStarted",
+				"CompleteSplitUnknown",
+				"AdmitClose",
+				"SubmitDispose",
+				"CompleteDispose",
+				"CompleteCloseUnknown",
+				"Cleanup",
+				"Publish",
+				"Retire",
+				"ObserveSplitPending",
+				"ObserveSplitUnknown",
+				"ObserveTwoLeafSplit",
+				"ObserveAggregateClose"
+			]
+		},
+		{
 			"id": "workbench-tab-close-aggregate",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",

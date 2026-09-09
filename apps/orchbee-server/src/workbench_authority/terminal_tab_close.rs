@@ -485,14 +485,18 @@ impl WorkbenchAuthority {
     fn close_record(&self, request_id: &WorkbenchRequestId) -> Option<&CloseRecord> {
         match self.ledger.get(request_id)? {
             RetainedRequest::TabClose(record) => Some(record),
-            RetainedRequest::Settled(_) | RetainedRequest::PendingTabCreate(_) => None,
+            RetainedRequest::Settled(_)
+            | RetainedRequest::PendingTabCreate(_)
+            | RetainedRequest::PendingPanelSplit(_) => None,
         }
     }
 
     fn close_record_mut(&mut self, request_id: &WorkbenchRequestId) -> Option<&mut CloseRecord> {
         match self.ledger.get_mut(request_id)? {
             RetainedRequest::TabClose(record) => Some(record),
-            RetainedRequest::Settled(_) | RetainedRequest::PendingTabCreate(_) => None,
+            RetainedRequest::Settled(_)
+            | RetainedRequest::PendingTabCreate(_)
+            | RetainedRequest::PendingPanelSplit(_) => None,
         }
     }
 

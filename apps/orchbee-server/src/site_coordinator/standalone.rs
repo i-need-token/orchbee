@@ -1,6 +1,6 @@
 use super::{
     PostcommitCoordinationError, SiteCoordinator, StandaloneTerminal, composition_matches,
-    open_create_outcome, open_outcome, presentation_binding, unavailable,
+    open_create_outcome, open_outcome, presentation_binding, tree_composition_matches, unavailable,
 };
 use crate::terminal_coordinator::{PendingOperation, TerminalCoordinator, WorkerPlacement};
 use orchbee_capability_node_protocol::{
@@ -37,6 +37,7 @@ impl PreparedStandaloneRetarget<'_> {
     }
 }
 
+#[cfg(test)]
 pub(super) fn prepare_standalone_close_settlement<'site>(
     slot: &'site mut StandaloneTerminal,
     terminals: &TerminalCoordinator,
@@ -44,21 +45,44 @@ pub(super) fn prepare_standalone_close_settlement<'site>(
     after: &WorkbenchTerminalMembership,
     removed: &WorkbenchTerminalTab,
 ) -> Result<PreparedStandaloneRetarget<'site>, PostcommitCoordinationError> {
+    prepare_standalone_close_settlement_members(
+        slot,
+        terminals,
+        before,
+        after,
+        std::slice::from_ref(removed),
+    )
+}
+
+pub(super) fn prepare_standalone_close_settlement_members<'site>(
+    slot: &'site mut StandaloneTerminal,
+    terminals: &TerminalCoordinator,
+    before: &WorkbenchTerminalMembership,
+    after: &WorkbenchTerminalMembership,
+    removed: &[WorkbenchTerminalTab],
+) -> Result<PreparedStandaloneRetarget<'site>, PostcommitCoordinationError> {
     if !before.is_standalone()
         || !after.is_standalone()
         || before.terminal_context_id() != after.terminal_context_id()
-        || before
-            .members()
-            .iter()
-            .filter(|member| *member == removed)
-            .count()
-            != 1
+        || removed.is_empty()
+        || removed.iter().any(|removed_member| {
+            before
+                .members()
+                .iter()
+                .filter(|member| *member == removed_member)
+                .count()
+                != 1
+        })
         || !before
             .members()
             .iter()
-            .filter(|member| *member != removed)
-            .eq(after.members())
-        || !composition_matches(before, slot, terminals)
+            .filter(|member| {
+                !removed
+                    .iter()
+                    .any(|removed_member| removed_member == *member)
+            })
+            .eq(after.members().iter())
+        || !tree_composition_matches(before, slot, terminals)
     {
         return Err(PostcommitCoordinationError);
     }

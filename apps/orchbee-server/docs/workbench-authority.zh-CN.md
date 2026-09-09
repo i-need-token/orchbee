@@ -26,7 +26,7 @@ credit、保留控制、当前快照删除、空闲预留释放以及八个活�
 重放保留既有优先级。
 
 Close 接纳依次检查生命周期权限、精确保留重放/冲突、退役、账本条目容量、Site/base/context
-和严格成员关系。Site 在目标解析前验证组合。可见的既有主操作在任何新运行时查询前被加入，
+和适用的严格或树形成员关系。Site 在目标解析前验证组合。可见的既有主操作在任何新运行时查询前被加入，
 包括 Worker 现已不可用的 Unknown 或已 Dispose 主操作。新主操作需要精确运行时关联，并在联合
 接受前完成全部预留。Close 重放在退役后仍可读取；普通命令保留既有退役优先预检。状态读取和
 Resume 使用保留的主操作，包括已关闭 tombstone，不插入普通账本。内联 Resume cell 只有在
@@ -40,9 +40,9 @@ credit。主记录存储预留命令/确认、状态/tombstone 以及 Resume 请
 最大十进制 generation/revision 和每种有界分类。Tombstone 保留该计费。这些字节限制不证明
 分配、panic 或崩溃原子性。
 
-已知 Dispose 和精确本地清理后，借用式发布计划根据当前严格成员关系验证完整保留目标，并准备
-当前投影、编码 delta/完整快照回退及最终 Closed revision/状态。它向 Site 的分离 slot 专属
-重定向准备暴露 `before_membership`、`after_membership` 和 `exact_removed_member`。两个计划
+已知 Dispose 和精确本地清理后，借用式发布计划根据当前适用的成员关系验证完整保留目标，并准备
+当前投影、编码 delta/完整快照回退及最终 Closed revision/状态。对于聚合树形 Close，它捕获有序的
+`exact_removed_members`，并向 Site 的分离 slot 专属重定向准备暴露移除前后的成员关系。两个计划
 在同一 Site gate 下提交，不再执行可失败工作。丢弃准备保持成员关系和 credit 不变；失败保留
 已 Dispose 分类，只允许剩余清理/发布。续接内核跨过期保留未结算回执，显式 Resume 保留信号、
 grace 和查询事实。
@@ -53,6 +53,20 @@ Authority 测试负责具体账本/编码边界、别名/重放优先级、最�
 仍只是这些运行时主张的有界抽象。`cargo test -p orchbee-server --lib --locked` 运行这些
 权威/续接测试；`cargo clippy -p orchbee-server --lib --locked -- -D warnings` 检查库实现。
 这些聚焦检查不替代根门禁或所属跨进程证据。
+
+## 已接受的 Panel 分割与聚合 Tab Close 细化
+
+`panel.split` 是第一项已接受的树形变换。Workbench 验证确切的上下文、Tab 和 leaf Panel，限制
+变换后的树大小，并在派发第二个 terminal launch 前提交源 leaf、新 leaf、split 方向、两个 slot
+identity 和 presentation identity。Server 与 Site 将所有 leaf binding 作为一份确切的树成员关系保留；
+任何缺失或 Unknown 的 leaf 结果都会隔离待处理操作，不能发布部分树。
+
+聚合 Close 捕获 Tab 的完整有序 leaf 成员关系。它在保留的生命周期权威下处置并清理每个 leaf，
+只有全部 leaf 都有已知 proof 后才发布一次 Tab 移除。Standalone 重定向会以剩余树校验确切移除集合，
+保留仍存在的当前引用；没有剩余成员时发布 Empty。权威单测、Linux process witness
+`real_workbench_panel_split_and_aggregate_close_releases_both_terminals` 以及有界
+`WorkbenchPanelSplit` TLA+ 模型覆盖这一细化。Client-local panel layout 和 focus 仍是下一项原生
+TUI 集成边界。
 
 ## 已接受的规范 Tab 移动模型
 

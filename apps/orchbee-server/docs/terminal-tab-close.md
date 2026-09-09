@@ -3,7 +3,8 @@
 Status: accepted consequential local Close contract with strict schema and Rust/TypeScript bindings.
 Server/Worker execution, retained maintenance, exact session cleanup and canonical publication are
 integrated, with deterministic carrier and Linux protocol-client process evidence. Native Close
-control and membership installation are integrated; the
+control and membership installation are integrated; Server-side PanelSplit and aggregate Close now
+have authority tests, a bounded model and a Linux real-terminal witness; the
 [native Session contract](../../orchbee/docs/native-tab-session.md) records the Linux TUI
 Close-to-Empty, manual Create and retained-shell reentry witness. These bounded checks do not
 establish release readiness or production restart recovery. This Server-owned reference
@@ -22,12 +23,13 @@ continuation budgets and cleanup-before-removal contract as standalone. No wire 
 operation is added. Workspace native UI remains outside this extension. Directory availability
 does not authorize or block Close; exact live runtime identity still gates a new primary.
 
-`WorkbenchTerminalMembership` and `WorkbenchTerminalTab` describe strict simple members in either
+`WorkbenchTerminalMembership` and `WorkbenchTerminalTab` describe strict single-leaf members for
+legacy operations and exact tree members for the accepted PanelSplit/aggregate Close path in either
 context. Membership carries an immutable context kind derived from canonical navigation; it is a
-read result, not another authority. Unsupported groups, pinned/grouped Tabs, splits, children or
-missing bindings retain the existing divergence behavior. Standalone composition helpers reject
-Workspace membership themselves, in addition to conditional callers. This preserves their owner
-boundary after generic type names replace standalone-only names in the unpublished library.
+read result, not another authority. Unsupported groups, pinned/grouped Tabs, children or missing
+bindings retain the existing divergence behavior. Standalone composition helpers reject Workspace
+membership themselves, in addition to conditional callers. This preserves their owner boundary
+after generic type names replace standalone-only names in the unpublished library.
 
 Workspace admission and publication never read, retarget or settle the standalone bootstrap slot.
 After known Dispose and exact target cleanup, publication re-extracts current target-context
@@ -359,9 +361,9 @@ all writers account for reserved entries/bytes. Reads spend none; finalization n
 insertion. Serialized-byte reservation does not prove allocation, panic or crash atomicity.
 
 Retain KnownDisposed and complete exact local cleanup first. Under the Site gate, validate current
-strict membership and the exact target tuple, then prepare from the **current** snapshot: remove
-only its Tab/Panel/Presentation, preserving other members, order and labels. Releasing the gate
-requires revalidation/repreparation. No old admission snapshot replaces later writes, no Site-wide
+applicable membership and the exact target tuple, then prepare from the **current** snapshot: an
+aggregate Close removes every captured tree leaf as one Tab publication, preserving other Tabs,
+order and labels. Releasing the gate requires revalidation/repreparation. No old admission snapshot replaces later writes, no Site-wide
 freeze spans grace, and the credit does not preassign the final revision.
 
 Check actual encoded projection limits and delta/full-snapshot fallback; no future full buffer is
@@ -385,7 +387,8 @@ native canonical Creates use immediate Start.
 If the live reference survives removal, preserve it. Otherwise choose the first member in the
 **current post-removal order**: no member → Empty; Creating B → Creating(B.reference); settled B →
 Settled(B.reference, retained B outcome). A Closing B remains a visible eligible reference until its
-own removal. Strict composition requires exactly one member matching the reference-derived binding.
+own removal. Tree composition requires every remaining leaf to match a retained binding, while the
+current reference still selects one anchor for standalone retargeting.
 
 B's original Create seal, request, metadata, binding, historical `is_first` and replay result remain
 immutable. Under the joint gate, validate its exact Workbench token and Terminal association and
@@ -473,10 +476,10 @@ cleanup, Server continuation or recovery carrier is supplied by this adapter cut
 
 ### Server finite evidence and refinement
 
-Run the two registered checks from the repository root:
+Run the three registered checks from the repository root:
 
 ```sh
-node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference --jobs 1
+node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split --jobs 1
 ```
 
 [`WorkbenchTabCloseCoordination`](../formal/tla/WorkbenchTabCloseCoordination.tla) has two
