@@ -673,7 +673,7 @@ impl NativeSessionState {
         let target = BootstrapTarget {
             selected: selected.clone(),
             site_id: cache.site_id().clone(),
-            binding: first.binding().clone(),
+            binding: first.panel(0)?.binding().clone(),
         };
         let state = Self {
             context_selection: None,

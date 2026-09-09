@@ -146,6 +146,7 @@ impl NativeSimpleTab {
         &self.presentation_label
     }
 
+    #[cfg(test)]
     pub(super) fn binding(&self) -> &NativeTerminalBinding {
         &self.binding
     }
