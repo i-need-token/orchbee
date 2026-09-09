@@ -9,9 +9,9 @@ Site 成为 Empty；原生 Empty 仍可用，后续裸 Open 可引导新身份�
 
 Server 库实现了下述保留权威和续接内核。Site、精确 controller/Worker 清理及进程生命周期
 维护所有者将其与本地 Close/Read/Resume 入口组合。确定性及 Linux 协议客户端进程测试覆盖
-credit、保留控制、当前快照删除、空闲预留释放以及八个活动 Client 连接。原生确认、
-成员关系/Empty 运行时和已安装 cohort 收敛仍是 Close 记录中的独立义务；这些 Server 检查
-不证明它们。
+credit、保留控制、当前快照删除、空闲预留释放以及八个活动 Client 连接。Close 记录另有
+原生确认及成员关系/Empty 运行时的 Linux TUI 进程证据；仅凭这些 Server 检查不能证明它们。
+已安装 cohort 的收敛仍未完成。
 
 ## Close 权威运行时细化
 
@@ -66,8 +66,8 @@ Workbench 拥有顺序、修订、严格成员关系和请求/结果保留。Sit
 `Empty | Creating(reference) | Settled { reference, outcome }`；TerminalCoordinator 拥有保留
 授权和执行。Move 不增加存储的锚身份/绑定、每 Tab 的 Site 映射、Open 字段、结构身份、终端计划、
 Worker IPC、查看器或控制器效果。Close/Stop、归档/重启、固定/分组、拆分、持久化、远程操作、
-Web 迁移和推送仍从 Move 排除。Close 已有上方描述的独立本地 Server 集成，原生及发布
-收敛仍待完成。不增加显式空 Open 结果。
+Web 迁移和推送仍从 Move 排除。Close 已有上方描述的独立本地 Server 集成，原生集成另有
+Linux 进程证据；发布收敛仍待完成。不增加显式空 Open 结果。
 
 `WorkbenchStandaloneMembership` 是包含全部严格独立成员的有界只读向量，保持规范顺序，暴露
 精确 Tab/Panel/Presentation 身份及绑定。Workbench 验证完整上下文并构造它；Site 从不缓存。

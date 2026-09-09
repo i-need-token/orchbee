@@ -2,9 +2,9 @@
 
 状态：这是原生 Client Tab 会话已接受的实现与正确性契约。
 原生 Move 运行时已有确定性集成及 Linux cohort 进程证据。这仍是未发布的本地开发链路；
-Close、打包和生产恢复属于独立工作。
+原生 Close 已有下文限定的 Linux 进程证据；打包和生产恢复仍属于独立工作。
 
-## 已接受的 Close 细化，实现待完成
+## 已接受的 Close 细化与本地集成
 
 [规范终端 Tab Close](../../orchbee-server/docs/terminal-tab-close.zh-CN.md) 拥有已接受的
 Server/Worker 生命周期、线协议/状态/Resume 及原生移除契约。原生 `Ctrl+B x` 以活动独立 Tab
@@ -14,9 +14,9 @@ Workbench，不替代 shell，也不退出 Client。
 
 该记录规定活动/非活动移除、按旧序号选择存活成员、Empty Create 来源、已知 Close 保留，以及
 精确/更晚 CreateSnapshot、Switch、Move 和 Refresh 结算。更晚 snapshot 可移除 ID，但须保留
-存活不可变身份；精确 Create/Move 提交修订仍有更严格期望。这些是下方已实现 Create/Move
-cohort 的已接受**待实现细化**；当前替换规则拒绝移除，模型/进程证据不证明 Close。原生移除/
-屏障模型必须先于依赖实现，精确 UI 消费、清理及 worker 退出事实仍为必需。
+存活不可变身份；精确 Create/Move 提交修订仍有更严格期望。共同成员实现和已登记的移除/屏障
+模型细化这些规则。早期不含移除的模型切片仍是条件性证据；精确 UI 消费、清理及 worker
+退出事实仍为必需。
 
 ## Close 控制与恢复契约
 
@@ -24,7 +24,7 @@ cohort 的已接受**待实现细化**；当前替换规则拒绝移除，模型
 Linux 原生输入、确认绘制、Close/Read/Resume 执行及显式仅状态恢复已集成。Closed 成员安装现由
 共同精确清理消费者完成，且仅在 exchange 与 reconciliation 引用均释放后修剪记录。协议适配器
 校验线协议关联；原生所有者校验精确操作身份、不回退的尝试代数、已保留的释放/Closed 事实以及
-UI flight 身份。这些检查不证明完整的多 Client Close 到 Empty 进程结果。
+UI flight 身份。下文的 Linux 多 Client Close 到 Empty 进程用例补充了这些检查。
 
 已提交变更尚无确定结果时，因截止或显式停用等原因退休，必须保留本地提交不确定性及用于
 状态恢复的精确身份。仅排队但未提交的取消，或确定的类型化 precommit 结果，不虚构提交
@@ -237,8 +237,8 @@ TLC 1.7.4、每配置一个 worker、`--jobs 1` 和未改变的 180 秒限制。
 node scripts/tla/run-models.mjs --models native-client-close-control,native-client-close-handoff --jobs 1
 ```
 
-这是有限模型证据。上述原生 Close 运行时和组合进程细化仍待完成；更早超时或诊断运行不能
-替代本次登记运行。
+此有限模型本身不证明运行时或组合进程行为；这些声明依赖上文及下文独立的可执行证据。
+更早超时或诊断运行不能替代本次登记运行。
 
 ## 规范成员实现边界
 
@@ -299,8 +299,8 @@ Detached 响应能产生共同清理 event。UI 复核待处理结果和旧 key�
 实际 UI 测试覆盖精确与错误 generation 清理，以及 44.999s、45s、49.999s 和 50s 的消费。
 从 forward cutoff 起，已知清理只允许退役，不能安装候选或发起新 Attach。Scripted carrier
 证据执行 Snapshot、精确 Detach、Empty 结算或后继 Attach 直至真实 Ready；意外 viewer 响应
-绝不安装。从 Empty 手动 Create 及其余 Create/Move/Switch/Close 来源消费者仍是独立增量
-工作。本 Refresh 片不构造或消费 Close Gone proof，也不改变 Switch supersession。
+绝不安装。从 Empty 手动 Create 及其他 Create/Move/Switch/Close 来源消费者另有下文描述的
+来源特定细化。本 Refresh 片不构造或消费 Close Gone proof，也不改变 Switch supersession。
 
 Create 现在携带不可变的 `CreateOriginKind::{Ready, Empty}` 和真实的
 `CreateAnchor::{Ready(ReadyAttachment), Empty}`。Empty 准入预留下一个 mailbox generation，
@@ -433,7 +433,7 @@ FIFO/setup 行为的无移除条件切片；旧保留性质不证明移除。Tab
 不证明外部完成成功。
 
 这些工件先于依赖的原生运行时改动。其有界检查不证明运行时细化、字节/JSON 验证、真实 PTY
-行为、重启接管、远程传输或完整 Close 交付；上方可执行运行时及进程证据仍必须完成。
+行为、重启接管、远程传输或完整 Close 交付；这些声明仍须由上方独立的可执行运行时及进程证据建立。
 
 ## 已接受的 Move 集成与身份规则
 
@@ -1833,7 +1833,11 @@ cursor 均跨退休保留、耗尽不能回绕，以及恢复开始时没有 liv
 
 Linux PTY Close witness 先观察新的 Disconnected 帧，再执行一次显式 Refresh，随后验证两个
 Client 的 Empty 状态、精确移除后的完整公开 Snapshot 相等、原 shell 退出，以及有界 500 ms
-新观察期间没有自动 Create。退休 finalization 在 tick 返回并绘制之前同步关闭并 join task。
+新观察期间没有自动 Create。同一用例随后由原只读 Client 手动按 `c`，验证同一 Site/context
+内的新 Tab/Panel/Presentation/Terminal 身份和真实新 shell，并将 peer 刷新到只读模式。
+普通退出保留新 shell 及原 Server/Worker/Host 进程。后续裸 Open 返回相同的规范 Snapshot、
+shell PID 和 shell 局部标记。这不改变 Site 仍为 Empty 时裸 Open 可独立引导创建的已接受行为。
+退休 finalization 在 tick 返回并绘制之前同步关闭并 join task。
 准备本地 Server／Worker／Host cohort 后，运行
 `cargo test --locked -p orchbee --all-targets --all-features`。
 这些检查不证明远端引用清理、重启接管或通用恢复。

@@ -56,7 +56,8 @@ Host 到达真实的保留 shell；第二次调用加入同一 Site；输出、�
 
 已接通的本地开发链路还支持原生 Client 之间的共享 Tab 创建、独立选择和显式刷新。
 当前交互及进程证据边界由[原生 Tab 指南](../../apps/orchbee/README.zh-CN.md#原生-tab-交互)维护。
-Canonical Move 也已接通并具有 Linux cohort 进程证据；Close 与其余 Workbench 操作仍须通过各自的交付切片完成。
+Canonical Move 也已接通并具有 Linux cohort 进程证据。该指南还记录原生 Close 到 Empty、手动
+Create 及保留 shell 重入的有界 Linux 进程证据；其余 Workbench 操作仍须通过各自的交付切片完成。
 
 该里程碑是尚未发布的增量实现，不证明生产重启恢复、远程访问或现有 Desktop 迁移已经完成。
 其中，对无法匹配的保留 Host inventory 返回 `RecoveryRequired` 是开发阶段边界，不是生产连续性

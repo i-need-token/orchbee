@@ -174,21 +174,40 @@ fn localized_cancel_and_ordinary_exit_keep_the_exact_native_shell() -> TestResul
     Ok(())
 }
 
-fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant) {
+fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revision: Option<u64>) {
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    let success = revision.map(|revision| format!("Tabs refreshed · revision {revision}"));
+    let mut required = vec![
+        "No terminal tabs · Ctrl+B c to create a Tab",
+        "Workbench navigator",
+    ];
+    if let Some(success) = &success {
+        required.push(success);
+    }
+    client.wait_frame_text_after(
+        checkpoint,
+        deadline,
+        &required,
+        &["[*1", "[ 1"],
+        &[],
+        &mut [peer],
+    );
+    // `w` toggles the navigator: leave it visibly closed so the next `w` requests a refresh.
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
     client.wait_frame_text_after(
         checkpoint,
         deadline,
         &["No terminal tabs · Ctrl+B c to create a Tab"],
-        &["[*1", "[ 1"],
+        &["Workbench navigator", "[*1", "[ 1"],
         &[],
         &mut [peer],
     );
 }
 
 #[test]
-fn view_only_native_close_removes_the_shared_last_tab_without_automatic_create() -> TestResult {
+fn view_only_close_reaches_empty_then_manual_create_survives_bare_reopen() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
     let mut controller = Client::spawn(&fixture, ENGLISH.locale);
@@ -230,6 +249,12 @@ fn view_only_native_close_removes_the_shared_last_tab_without_automatic_create()
         .ok_or("missing standalone context")?;
     assert_eq!(baseline.terminal_contexts[context].tabs.len(), 1);
     let target = baseline.terminal_contexts[context].tabs[0].tab_id.clone();
+    let mut retained_processes = Vec::new();
+    for name in ["orchbee-server", "orchbee-worker", "orchbee-terminal-host"] {
+        let mut handles = fixture.process_handles(name)?;
+        assert_eq!(handles.len(), 1, "one original {name}");
+        retained_processes.push((name, handles.pop().ok_or("missing process handle")?));
+    }
     let mut expected = baseline.clone();
     expected.terminal_contexts[context]
         .tabs
@@ -281,23 +306,139 @@ fn view_only_native_close_removes_the_shared_last_tab_without_automatic_create()
         &[],
         &mut [&mut peer],
     );
-    refresh_empty(&mut controller, &mut peer, deadline);
-    refresh_empty(&mut peer, &mut controller, deadline);
+    refresh_empty(&mut controller, &mut peer, deadline, None);
+    refresh_empty(&mut peer, &mut controller, deadline, None);
     let observation_end = Instant::now() + EMPTY_OBSERVATION;
     loop {
         // Each cycle requires a new complete UI frame and fresh public Snapshot.
-        refresh_empty(&mut controller, &mut peer, deadline);
-        refresh_empty(&mut peer, &mut controller, deadline);
+        // A cached Empty frame can precede Refresh settlement; observe its exact successful revision.
+        refresh_empty(
+            &mut controller,
+            &mut peer,
+            deadline,
+            Some(expected.revision.value()),
+        );
+        refresh_empty(
+            &mut peer,
+            &mut controller,
+            deadline,
+            Some(expected.revision.value()),
+        );
         assert_eq!(observer.snapshot(deadline)?, expected);
         if Instant::now() >= observation_end {
             break;
         }
     }
+    // Exercise explicit Create from the former view-only Client's connected Empty session.
+    let checkpoint = peer.checkpoint();
+    peer.send(b"\x02c");
+    peer.wait_ready_after(
+        checkpoint,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::Controlling,
+    );
+    let created = observer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?;
+    assert!(created.revision > expected.revision);
+    assert_eq!(created.terminal_contexts[context].tabs.len(), 1);
+    let new_tab = &created.terminal_contexts[context].tabs[0];
+    let old_tab = &baseline.terminal_contexts[context].tabs[0];
+    assert_ne!(new_tab.tab_id, old_tab.tab_id);
+    let (
+        orchbee_workbench_protocol::PanelNode::Panel {
+            panel_id: old_panel,
+            primary_presentation: old_presentation,
+            ..
+        },
+        orchbee_workbench_protocol::PanelNode::Panel {
+            panel_id: new_panel,
+            primary_presentation: new_presentation,
+            ..
+        },
+    ) = (&old_tab.root, &new_tab.root)
+    else {
+        return Err("standalone Create must retain the simple Panel shape".into());
+    };
+    assert_ne!(new_panel, old_panel);
+    assert_ne!(
+        new_presentation.presentation_id,
+        old_presentation.presentation_id
+    );
+    let old_binding = old_presentation
+        .binding
+        .as_ref()
+        .ok_or("old binding absent")?;
+    let new_binding = new_presentation
+        .binding
+        .as_ref()
+        .ok_or("new binding absent")?;
+    assert_eq!(new_binding.worker_id, old_binding.worker_id);
+    assert_ne!(new_binding.terminal_id, old_binding.terminal_id);
+    expected.revision = created.revision;
+    expected.terminal_contexts[context].tabs = vec![new_tab.clone()];
+    assert_eq!(
+        created, expected,
+        "Create changes only the empty context's membership"
+    );
+
+    peer.send(shell_identity_command(&fixture, "after-close", "new-shell", true).as_bytes());
+    let new_identity = wait_file(
+        &fixture.base.join("new-shell"),
+        &mut [&mut peer, &mut controller],
+        Instant::now() + OBSERVATION_TIMEOUT,
+    );
+    let new_pid = require_shell_identity(&new_identity, "after-close");
+    let new_shell = pidfd_open(
+        Pid::from_raw(i32::try_from(new_pid)?).ok_or("invalid new shell PID")?,
+        PidfdFlags::empty(),
+    )?;
+    let checkpoint = controller.checkpoint();
+    controller.send(b"\x02w");
+    controller.wait_ready_after(
+        checkpoint,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::ViewOnly,
+    );
     controller.close_before(Instant::now() + EXIT_TIMEOUT);
     peer.close_before(Instant::now() + EXIT_TIMEOUT);
+    let mut new_descriptor = [PollFd::new(new_shell.as_fd(), PollFlags::POLLIN)];
+    assert_eq!(poll(&mut new_descriptor, PollTimeout::ZERO)?, 0);
     assert_eq!(
         observer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?,
         expected
     );
+    for (name, process) in &retained_processes {
+        assert!(!process.exited()?, "Client exit must preserve {name}");
+    }
+    let mut reopened = Client::spawn(&fixture, ENGLISH.locale);
+    ready(
+        &mut reopened,
+        0,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        ENGLISH,
+    );
+    reopened
+        .send(shell_identity_command(&fixture, "after-close", "reopened-shell", false).as_bytes());
+    assert_eq!(
+        wait_file(
+            &fixture.base.join("reopened-shell"),
+            &mut [&mut reopened],
+            Instant::now() + OBSERVATION_TIMEOUT,
+        ),
+        new_identity,
+        "bare Open must retain both the new shell PID and its variable"
+    );
+    assert_eq!(
+        observer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?,
+        expected
+    );
+    for (name, process) in &retained_processes {
+        assert!(!process.exited()?, "bare Open must preserve {name}");
+        assert_eq!(fixture.processes(name), vec![process.pid()]);
+    }
+    reopened.close_before(Instant::now() + EXIT_TIMEOUT);
     Ok(())
 }

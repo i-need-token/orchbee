@@ -2,9 +2,10 @@
 
 Status: accepted implementation and correctness contract for the native Client Tab Session.
 Native Move runtime has deterministic integration and Linux cohort process evidence. This remains
-an unpublished local development path; Close, packaging and production recovery are separate work.
+an unpublished local development path. Native Close has the bounded Linux process evidence below;
+packaging and production recovery remain separate work.
 
-## Accepted Close refinement, implementation pending
+## Accepted Close refinement and local integration
 
 [Canonical terminal Tab Close](../../orchbee-server/docs/terminal-tab-close.md) owns the accepted
 Server/Worker lifecycle, wire/status/Resume and native removal contract. Native `Ctrl+B x` targets
@@ -16,10 +17,9 @@ without a replacement shell or Client exit.
 The record specifies active/inactive removal, old-ordinal survivor selection, Empty Create origin,
 known Close retention and exact/later CreateSnapshot, Switch, Move and Refresh settlement. A later
 snapshot may remove IDs while preserving surviving immutable identities; an exact Create/Move
-commit revision retains its stricter expectation. These are accepted **pending refinements** to the
-implemented Create/Move cohort below, whose current replacement rules reject removal and whose
-model/process evidence does not establish Close. Native removal/barrier models must precede the
-dependent implementation; exact UI consumption, cleanup and worker-exit facts remain mandatory.
+commit revision retains its stricter expectation. The common membership implementation and
+registered removal/barrier models refine these rules. Earlier no-removal model slices remain
+conditional evidence; exact UI consumption, cleanup and worker-exit facts remain mandatory.
 
 ## Close control and recovery contract
 
@@ -29,7 +29,7 @@ recovery are integrated. Closed membership installation now uses the common exac
 and record pruning occurs only after both the exchange and reconciliation references are released.
 The protocol adapter validates wire correlation; the native owner validates exact operation identity,
 nonregressing attempt generation, retained disposal/Closed facts and UI flight identity. These checks
-do not establish the complete multi-Client Close-to-Empty process result.
+are complemented by the Linux multi-Client Close-to-Empty process witness described below.
 
 Retirement at an unresolved submitted mutation, including cutoff or explicit retirement, preserves
 local submission uncertainty and the exact identity for status recovery. A queued-only cancellation
@@ -287,8 +287,9 @@ and the unchanged 180-second limit. The module-plus-effective-config SHA-256 val
 node scripts/tla/run-models.mjs --models native-client-close-control,native-client-close-handoff --jobs 1
 ```
 
-This is finite model evidence. The native Close runtime and composed process refinements above
-remain pending; earlier timeout or diagnostic runs are not substitutes for this registered run.
+This finite model alone does not establish runtime or composed process behavior; those claims
+depend on the separate executable evidence above and below. Earlier timeout or diagnostic runs
+are not substitutes for this registered run.
 
 ## Canonical membership implementation boundary
 
@@ -360,8 +361,8 @@ Actual UI tests cover exact versus wrong-generation cleanup and consumption at 4
 49.999s and 50s. From the forward cutoff onward, known cleanup permits retirement only, without
 candidate installation or a new Attach. Scripted carrier evidence executes Snapshot, exact Detach,
 Empty settlement or successor Attach through real Ready; an unexpected viewer response never
-installs. Manual Create from Empty and the remaining Create/Move/Switch/Close origin consumers
-remain separate incremental work. This Refresh slice does not construct or consume a Close Gone
+installs. Manual Create from Empty and the other Create/Move/Switch/Close origin consumers
+have separate origin-specific refinements described below. This Refresh slice does not construct or consume a Close Gone
 proof and does not change Switch supersession.
 
 Create now carries an immutable `CreateOriginKind::{Ready, Empty}` and a real
@@ -2205,7 +2206,12 @@ cannot wrap, and recovery starts without live work or bootstrap. Run
 
 The Linux PTY Close witness observes a new Disconnected frame before one explicit Refresh, then
 both Clients' Empty state, full public Snapshot equality after exact removal, original shell exit
-and a bounded 500 ms fresh-observation check against automatic Create. Retirement finalization
+and a bounded 500 ms fresh-observation check against automatic Create. The same witness then
+issues manual `c` from the former view-only Client, verifies fresh Tab/Panel/Presentation/Terminal
+identities in the same Site/context and a real new shell, and refreshes the peer into view-only mode.
+Ordinary exit preserves the new shell and original Server/Worker/Host processes. Later bare Open
+returns the same canonical Snapshot, shell PID and shell-local marker. This does not change the
+separate accepted ability of bare Open to bootstrap when the Site is still Empty. Retirement finalization
 closes and joins the task synchronously before the tick returns for drawing. Run
 `cargo test --locked -p orchbee --all-targets --all-features` with the staged local Server/Worker/Host
 cohort. These checks do not establish remote-reference cleanup, restart adoption or general recovery.

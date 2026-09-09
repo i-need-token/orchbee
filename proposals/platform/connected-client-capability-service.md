@@ -66,7 +66,8 @@ handshakes, and staged UI modules are supporting evidence, not completion of thi
 The integrated local development path also supports shared Tab creation, canonical Move, independent
 selection, and explicit refresh across native Clients. Current interaction and process-evidence
 boundaries belong to the [native Tab guide](../../apps/orchbee/README.md#native-tab-interactions).
-Close and the remaining Workbench operations still require their own delivery slices.
+Native Close-to-Empty, manual Create and retained-shell reentry also have bounded Linux process
+evidence in that guide. The remaining Workbench operations still require their own delivery slices.
 
 This milestone is additive and unshipped. It does not prove production restart recovery, remote
 access, or migration of the existing Desktop. In particular, its accepted `RecoveryRequired`

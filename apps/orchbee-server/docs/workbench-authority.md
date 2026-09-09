@@ -13,8 +13,9 @@ The Server library implements the retained authority and continuation core below
 controller/Worker cleanup and the process-lifetime maintenance owner compose it with the local
 Close/Read/Resume endpoints. Deterministic and Linux protocol-client process tests cover credits,
 retained controls, current-snapshot removal, idle reservation release and eight live Client
-connections. Native confirmation, membership/Empty runtime and installed-cohort convergence remain
-separate obligations in the Close record; these Server checks do not establish them.
+connections. Native confirmation and membership/Empty runtime have separate Linux TUI process
+evidence in the Close record; these Server checks alone do not establish them. Installed-cohort
+convergence remains unfinished.
 
 ## Close authority runtime refinement
 
@@ -83,7 +84,8 @@ authorization and execution. Move adds no stored anchor identity/binding, per-Ta
 field, structural identity, terminal plan, Worker IPC, viewer or controller effect. Close/Stop,
 archive/restart, pin/group, splits, persistence, remote operations, Web migration and push remain
 excluded from Move. Close has the separate local Server integration described above; its native
-and release convergence remain pending. No explicit-empty Open result is added.
+integration has separate Linux process evidence; release convergence remains pending.
+No explicit-empty Open result is added.
 
 `WorkbenchStandaloneMembership` is a bounded read-only vector of every strict standalone member
 in canonical order, exposing exact Tab/Panel/Presentation identities and binding. Workbench validates

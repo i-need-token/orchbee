@@ -3,8 +3,10 @@
 Status: accepted consequential local Close contract with strict schema and Rust/TypeScript bindings.
 Server/Worker execution, retained maintenance, exact session cleanup and canonical publication are
 integrated, with deterministic carrier and Linux protocol-client process evidence. Native Close
-control and membership/runtime convergence remain pending; the protocol-client witness does not
-establish the TUI interaction or release readiness. This Server-owned reference
+control and membership installation are integrated; the
+[native Session contract](../../orchbee/docs/native-tab-session.md) records the Linux TUI
+Close-to-Empty, manual Create and retained-shell reentry witness. These bounded checks do not
+establish release readiness or production restart recovery. This Server-owned reference
 governs the lifetime workflow, cross-owner settlement and refinement obligations for Server, Worker,
 protocol and native Client maintainers. Update it with those implementations and their evidence.
 [Workbench authority](workbench-authority.md) continues to govern the current

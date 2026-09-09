@@ -78,6 +78,7 @@ explicit refresh. These controls use the existing `Ctrl+B` prefix:
 | `1` … `9` | Select that position when present.                                                                 |
 | `<` / `>` | Move the active Tab before / after its neighbor, wrapping at either boundary.                      |
 | `,`       | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels. |
+| `x`       | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                  |
 | `w`       | Open the navigator and refresh shared Tabs while preserving the active terminal identity.          |
 | `q` / `d` | Close this Client while retained execution continues.                                              |
 
@@ -91,8 +92,11 @@ structural operation.
 Rename preserves exact text up to 512 Unicode scalars. Bracketed paste is atomic; Backspace removes
 one scalar and Ctrl+U clears the draft. A known rename with unavailable projection uses the same
 explicit `w` recovery without resubmitting the command. The [native Session contract](docs/native-tab-session.md)
-owns admission, geometry, feedback, failure, recovery and evidence bounds. Tab Close and Panel operations are not
-supplied by this cohort.
+owns admission, geometry, feedback, failure, recovery and evidence bounds. Close requires a separate
+lifecycle grant, including for a view-only Client. Closing the last Tab leaves Empty; explicit `c`
+creates a new terminal, while ordinary Client exit preserves it for later bare Open. A peer whose
+terminal was closed uses explicit `w` to recover the current membership. Linux process evidence
+covers this sequence; Panel operations and production restart recovery remain unfinished.
 
 ## Private local Client transport
 

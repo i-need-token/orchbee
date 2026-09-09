@@ -70,6 +70,7 @@ navigator 与 viewport；另一 Client 新建的 Tab 在显式刷新后可见。
 | `1` … `9` | 该位置存在时选择它。                                                |
 | `<` / `>` | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                      |
 | `,`       | 编辑所选 Tab 的共享 label；首次完整绘制后 Enter 提交，Escape 取消。 |
+| `x`       | 确认关闭所选 Tab 对所有已连接 Client 的执行，或取消。               |
 | `w`       | 打开 navigator 并刷新共享 Tab，保留活动终端身份。                   |
 | `q` / `d` | 关闭此 Client，保留的执行继续运行。                                 |
 
@@ -81,7 +82,9 @@ Client 保留终端交互，并通过 `w` 显式恢复快照后才允许下一�
 Rename 精确保留最多 512 个 Unicode 标量。Bracketed paste 原子追加，Backspace 删除一个标量，
 Ctrl+U 清空草稿。已知 Rename 提交但投影不可用时，同样通过 `w` 显式恢复，绝不重发命令。
 [原生 Session 契约](docs/native-tab-session.zh-CN.md) 定义准入、尺寸、反馈、失败、恢复与证据边界。
-本 cohort 尚不提供 Tab Close 和 Panel 操作。
+Close 要求独立生命周期授权，只读 Client 也适用。关闭最后一个 Tab 后留下 Empty；显式 `c`
+创建新终端，普通 Client 退出则保留该终端供后续裸 Open 使用。终端被关闭的 peer 通过显式 `w`
+恢复当前成员关系。Linux 进程证据覆盖此流程；Panel 操作和生产重启恢复仍未完成。
 
 ## 私有本机 Client transport
 

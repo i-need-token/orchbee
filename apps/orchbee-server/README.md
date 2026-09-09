@@ -34,7 +34,7 @@ process-lifetime maintenance owner. Known Host disposal and exact Worker/Server 
 canonical removal; Client exit does not cancel accepted Close. Linux carrier/process checks cover
 eight live Client connections, idle control-slot release and same-connection reuse while an
 unrelated shell survives. The [Close contract](docs/terminal-tab-close.md) owns the bounds and
-remaining native TUI, recovery and release obligations.
+separately evidenced native TUI integration and remaining production recovery and release obligations.
 
 Invalid, oversized, semantically inconsistent, or wrong-kind inputs fail through the protocol
 boundary. Requests are bounded to 16 KiB before decoding; the snapshot bound remains 1 MiB.

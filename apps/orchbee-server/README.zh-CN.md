@@ -29,8 +29,8 @@ Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move �
 本地 `tab.close`、状态 Read 和 Resume 现已使用保留的生命周期权威及单个进程生命周期
 维护所有者。已知 Host 销毁和精确 Worker/Server 清理先于规范移除；Client 退出不取消
 已接受 Close。Linux 载体/进程检查覆盖八个活动 Client 连接、空闲控制槽释放，以及另一
-shell 存活时的同连接复用。[Close 契约](docs/terminal-tab-close.zh-CN.md) 规定边界及仍待
-完成的原生 TUI、恢复和发布义务。
+shell 存活时的同连接复用。[Close 契约](docs/terminal-tab-close.zh-CN.md) 规定边界、另有证据
+支持的原生 TUI 集成，以及仍待完成的生产恢复和发布义务。
 
 无效、过大、语义不一致或错误 kind 的输入在协议边界失败。请求在解码前受 16 KiB 上限约束，
 snapshot 上限仍为 1 MiB。OBWP 拥有请求/结果 envelope。Application library 保持未发布，仅供

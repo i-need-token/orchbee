@@ -2,8 +2,10 @@
 
 状态：已接受的高影响本地 Close 契约，已包含严格 schema 和 Rust/TypeScript binding。
 Server/Worker 执行、保留维护、精确会话清理及规范发布已集成，并有确定性载体及 Linux
-协议客户端进程证据。原生 Close 控制与成员关系/运行时收敛仍待完成；协议客户端见证不证明
-TUI 交互或发布就绪。本 Server 所有参考文档为 Server、Worker、协议及原生 Client 维护者规定生命周期
+协议客户端进程证据。原生 Close 控制及成员安装已集成；
+[原生 Session 契约](../../orchbee/docs/native-tab-session.zh-CN.md) 记录 Linux TUI
+Close 到 Empty、手动 Create 及保留 shell 重入的进程用例。这些有界检查不证明发布就绪或生产
+重启恢复。本 Server 所有参考文档为 Server、Worker、协议及原生 Client 维护者规定生命周期
 工作流、跨所有者结算及细化义务。它随这些实现及证据维护。
 [Workbench 权威](workbench-authority.zh-CN.md) 继续规定当前规范投影及严格独立成员关系。
 
