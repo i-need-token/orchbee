@@ -211,9 +211,9 @@ binary 在同一 activation cohort 中一起更新；OBWP 保持 version 1。旧
 action/result。回退时一起恢复整组 source/runtime cohort；不提供混合版本 rollout、公开兼容承诺、
 持久迁移或 replay recovery。
 
-## 已接受的独立 Tab 移动契约
+## 已接受的 Tab 移动契约
 
-本地未发布 Move 扩展已在 schema、语料、两个 binding 及 Server 中实现；原生 Client 交互已集成，
+本地未发布 Move 扩展已在 schema、语料、两个 binding 及 Server 中实现；原生 standalone Client 交互已集成，
 其有界 Linux cohort 证据见[原生 Session 契约](../../apps/orchbee/docs/native-tab-session.zh-CN.md)。它使用现有 OBWP v1
 命令 envelope 和 navigation-mutation 授权。action 为
 `tab.move { terminalContextId, tabId, direction }`，direction 严格为
@@ -222,8 +222,9 @@ first/last 将完整 Tab 移到该边界。单成员或目标已在请求边界�
 `Unchanged { revision }`。实际置换产生 `TabMoved { revision, terminalContextId, tabId }`
 （线上 outcome 为 `tab-moved`），恰好推进一个修订。不允许新产品/终端身份或终端/查看器效果。
 
-现有 `TabUnavailable` / `tab-unavailable` 仅在精确独立上下文、完整支持布局和 Site 组合通过后
-表示目标缺失。schema 有效但原生不支持的布局属于内部权威分歧，不是产品拒绝。完整已验证命令
+现有 `TabUnavailable` / `tab-unavailable` 仅在精确 standalone 或 Workspace 上下文及完整支持布局
+通过后表示目标缺失；仅 standalone 要求 Site 组合。Workspace Move 不要求 Directory 或在线 Worker。
+schema 有效但原生不支持的布局属于内部权威分歧，不是产品拒绝。完整已验证命令
 相等性，包括 Site、预期修订、上下文、Tab 和方向，是重放指纹。保留的精确重放返回固定原结果/
 修订；同 ID 内容改变则冲突。
 [Server 优先级及提交](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md#已接受的规范-tab-移动模型)

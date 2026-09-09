@@ -4304,6 +4304,46 @@
 			]
 		},
 		{
+			"id": "workspace-tab-move",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/WorkspaceTabMove.tla",
+			"config": "apps/orchbee-server/formal/tla/WorkspaceTabMove.cfg",
+			"claims": ["apps/orchbee-server/docs/workbench-authority.md"],
+			"triggers": [
+				"apps/orchbee-server/src/workbench_authority/terminal_tab_move*",
+				"apps/orchbee-server/src/workbench_authority/terminal_tab_move/**",
+				"apps/orchbee-server/src/workbench_authority/terminal_membership.rs",
+				"apps/orchbee-server/src/site_coordinator.rs",
+				"apps/orchbee-server/src/site_coordinator/tests/**",
+				"apps/orchbee-server/tests/client_process/workspace_directory.rs",
+				"apps/orchbee-server/docs/workbench-authority.md",
+				"apps/orchbee-server/docs/workbench-authority.zh-CN.md"
+			],
+			"timeoutMilliseconds": 120000,
+			"workers": 1,
+			"requiredCoverage": [
+				"NewMove",
+				"Replay",
+				"HistoricalReplay",
+				"CrossContextConflict",
+				"ObservePrevious",
+				"ObserveNext",
+				"ObserveFirst",
+				"ObserveLast",
+				"ObserveNoop",
+				"ObserveStale",
+				"ObserveBothContextsCommitted",
+				"ObserveHistoricalMoveReplay",
+				"ObserveWorkspaceMoveWithEmptySlot",
+				"ObserveWorkspaceMoveWithCreatingSlot",
+				"ObserveWorkspaceMoveWithSettledSlot",
+				"ObserveEmptySlot",
+				"ObserveCreatingSlot",
+				"ObserveSettledSlot"
+			]
+		},
+		{
 			"id": "workspace-terminal-create",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",

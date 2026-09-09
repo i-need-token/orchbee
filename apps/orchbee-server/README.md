@@ -27,7 +27,7 @@ binding through OBCS. The [authority model](docs/workbench-authority.md) defines
 semantic replay, allocation, retirement and evidence. Reads clone the committed snapshot under the
 same gate as writes; response I/O occurs after the gate is released.
 
-`tab.rename` changes the shared Tab label. `tab.move` permutes complete standalone Tabs without
+`tab.rename` changes the shared Tab label. `tab.move` permutes complete simple Tabs within a standalone or Workspace context without
 changing terminal bindings or taking the Worker registry lock. Both can complete while a launch is
 pending; exact Move replay retains its original order-change result and revision. The native Move
 interaction remains a separate Client integration boundary.

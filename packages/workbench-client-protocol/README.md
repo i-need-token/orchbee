@@ -19,8 +19,8 @@ client-session consumer uses this new contract yet.
 
 The separate command binding validates `workbench.command` and correlated command/snapshot results.
 It includes Project and Workspace changes, `workspace.primary-directory.accept`, canonical
-`tab.rename`, standalone `tab.move`, and
-standalone `tab.create` with its committed terminal result variants. Move carries exactly
+`tab.rename`, `tab.move` within standalone or Workspace contexts, and
+`tab.create` in standalone or configured Workspace contexts with its committed terminal result variants. Move carries exactly
 `terminalContextId`, `tabId`, and `direction: previous | next | first | last`; `tab-moved` carries
 exactly `revision`, `terminalContextId`, and `tabId`.
 The Server owns ordering/no-op semantics; consuming adapters own request/result correlation and

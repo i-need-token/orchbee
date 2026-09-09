@@ -5,7 +5,8 @@ use super::{
 use orchbee_workbench_protocol::{
     ContractError, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchProtocolDocument,
-    WorkbenchRejectionReason, WorkbenchTabId, WorkbenchTabMoveDirection, serialize_document,
+    WorkbenchRejectionReason, WorkbenchTabId, WorkbenchTabMoveDirection,
+    WorkbenchTerminalContextId, serialize_document,
 };
 
 pub enum WorkbenchTabMoveBegin<'a> {
@@ -16,7 +17,8 @@ pub enum WorkbenchTabMoveBegin<'a> {
 pub struct WorkbenchTabMoveAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
-    membership: WorkbenchStandaloneMembership,
+    terminal_context_id: WorkbenchTerminalContextId,
+    membership: Option<WorkbenchStandaloneMembership>,
     tab_id: WorkbenchTabId,
     direction: WorkbenchTabMoveDirection,
 }
@@ -42,8 +44,8 @@ impl PreparedWorkbenchTabMove<'_> {
 
 impl<'a> WorkbenchTabMoveAdmission<'a> {
     #[must_use]
-    pub fn standalone_membership(&self) -> &WorkbenchStandaloneMembership {
-        &self.membership
+    pub fn standalone_membership(&self) -> Option<&WorkbenchStandaloneMembership> {
+        self.membership.as_ref()
     }
 
     #[must_use]
@@ -51,7 +53,7 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
         self.authority.retire(&self.command)
     }
 
-    /// Site validates its retained bootstrap composition before resolving the target or no-op.
+    /// Site validates standalone bootstrap composition before resolving its target or no-op.
     #[must_use]
     pub fn finish(self) -> WorkbenchTabMovePreparation<'a> {
         let plan = match self.plan() {
@@ -74,19 +76,27 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
     }
 
     fn plan(&self) -> Result<CommitPlan, PlanFailure> {
-        let members = self.membership.members();
-        let source = members
+        let context = self
+            .authority
+            .projection
+            .snapshot()
+            .terminal_contexts
             .iter()
-            .position(|member| member.tab_id() == &self.tab_id)
+            .find(|context| context.terminal_context_id == self.terminal_context_id)
+            .ok_or(PlanFailure::Internal)?;
+        let source = context
+            .tabs
+            .iter()
+            .position(|tab| tab.tab_id == self.tab_id)
             .ok_or(PlanFailure::Rejected(
                 WorkbenchRejectionReason::TabUnavailable,
             ))?;
         // Exact target lookup establishes a nonempty vector, bounded by the validated projection.
         let destination = match self.direction {
             WorkbenchTabMoveDirection::Previous => source.saturating_sub(1),
-            WorkbenchTabMoveDirection::Next => (source + 1).min(members.len() - 1),
+            WorkbenchTabMoveDirection::Next => (source + 1).min(context.tabs.len() - 1),
             WorkbenchTabMoveDirection::First => 0,
-            WorkbenchTabMoveDirection::Last => members.len() - 1,
+            WorkbenchTabMoveDirection::Last => context.tabs.len() - 1,
         };
         if source == destination {
             return Ok(self.authority.unchanged());
@@ -96,7 +106,7 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
         let context = candidate
             .terminal_contexts
             .iter_mut()
-            .find(|context| &context.terminal_context_id == self.membership.terminal_context_id())
+            .find(|context| context.terminal_context_id == self.terminal_context_id)
             .ok_or(PlanFailure::Internal)?;
         let moved = context
             .tabs
@@ -126,7 +136,7 @@ impl<'a> WorkbenchTabMoveAdmission<'a> {
             last_identity: None,
             outcome: WorkbenchCommandOutcome::TabMoved {
                 revision,
-                terminal_context_id: self.membership.terminal_context_id().clone(),
+                terminal_context_id: self.terminal_context_id.clone(),
                 tab_id: self.tab_id.clone(),
             },
         })
@@ -167,7 +177,14 @@ impl WorkbenchAuthority {
             Some(WorkbenchRejectionReason::SiteMismatch)
         } else if command.expected_revision != snapshot.revision {
             Some(WorkbenchRejectionReason::RevisionMismatch)
-        } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id {
+        } else if terminal_context_id != snapshot.navigation.standalone_terminal_context_id
+            && !snapshot.navigation.projects.iter().any(|project| {
+                project
+                    .workspaces
+                    .iter()
+                    .any(|workspace| workspace.terminal_context_id == terminal_context_id)
+            })
+        {
             Some(WorkbenchRejectionReason::TerminalContextUnavailable)
         } else {
             None
@@ -175,13 +192,24 @@ impl WorkbenchAuthority {
         if let Some(reason) = rejection {
             return WorkbenchTabMoveBegin::Ready(self.retain_rejection(command, reason));
         }
-        let membership = match self.standalone_membership() {
-            Ok(membership) => membership,
-            Err(_invariant) => return WorkbenchTabMoveBegin::Ready(self.retire(&command)),
-        };
+        let membership =
+            if terminal_context_id == snapshot.navigation.standalone_terminal_context_id {
+                match self.standalone_membership() {
+                    Ok(membership) => Some(membership),
+                    Err(_invariant) => return WorkbenchTabMoveBegin::Ready(self.retire(&command)),
+                }
+            } else {
+                if super::terminal_membership::strict_simple_context(snapshot, &terminal_context_id)
+                    .is_err()
+                {
+                    return WorkbenchTabMoveBegin::Ready(self.retire(&command));
+                }
+                None
+            };
         WorkbenchTabMoveBegin::Admitted(Box::new(WorkbenchTabMoveAdmission {
             authority: self,
             command,
+            terminal_context_id,
             membership,
             tab_id,
             direction,

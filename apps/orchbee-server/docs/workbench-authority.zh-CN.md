@@ -56,12 +56,43 @@ Authority 测试负责具体账本/编码边界、别名/重放优先级、最�
 
 ## 已接受的规范 Tab 移动模型
 
+### Workspace 上下文扩展
+
+本地 Move owner 也接受规范 Workspace 引用的 Terminal Context，沿用下方四种方向、精确请求
+指纹、共享 revision、no-op 和保留结果规则。上下文准入接受 standalone 或已有 Workspace 的
+上下文；未知上下文返回 `TerminalContextUnavailable`，属于其他上下文的 Tab 返回
+`TabUnavailable`。Move 不要求主 Directory、文件系统探测或在线 Worker。
+
+两类上下文均要求既有简单布局：无分组、固定/分组 Tab、拆分或子 presentation，每个主
+presentation 均有绑定。布局分歧先于目标查找和 no-op，使权威退役且不置换。这保留当前本地
+cohort 的形状，不定义固定/分组移动或导入布局恢复。
+
+只有 standalone 准入产生 `WorkbenchStandaloneMembership`，供 Site 执行既有引用派生组合
+校验。Workspace 准入不读取或修改 standalone 槽位及其保留授权。在同一 Site 门锁下，借用式
+准入在已验证上下文中定位目标，预备完整 Tab 置换。规范变化仅为目标上下文 Tab 顺序和一次
+共享 revision 增量；其他上下文、导航、Directory、绑定、结构身份分配、终端操作和通知均保持
+不变。丢弃预备无效果。其他上下文推进共享 revision 后，重放仍保留原结果；同请求 ID 改变
+上下文产生冲突。
+
+`WorkspaceTabMove` 建模两个上下文、各三个不可变完整 Tab、有界共享请求 ledger 和 revision，
+以及独立的 Empty/Creating/Settled standalone 槽位。安全性声明包括完整 Tab 保持、其他上下文
+隔离、每次实际移动一次 revision、历史重放固定及跨上下文请求冲突。上下文内 Tab 索引以
+`(owner, index)` 抽象全局唯一身份；错误上下文目标拒绝仍由 Rust 测试验证。必需覆盖见证三种
+standalone 槽位状态各自实际发生 Workspace 移动。既有
+`WorkbenchNavigationCommit` 保留容量/退役证据；具体布局、授权、分配和字节边界由 Rust 测试
+覆盖。Site 测试 `workspace_pending_create_move_completion_preserves_origin_and_standalone_states`
+证明 pending Workspace Create 后 Move 和精确完成；进程测试
+`real_server_worker_workspace_directory_association_and_tab_lifecycle` 证明 Worker 丢失及目录删除后的
+共享快照顺序与重放。这些不声明原生 Workspace UI、Workspace Close、跨上下文转移、持久化
+或远程交付。
+
 本地、未发布的 `tab.move` 线协议及 Server 操作已实现，并包含严格成员关系/Site 组合。
-原生身份投影器及 Move 在途操作已集成，其确定性及 Linux cohort 进程证据见
+原生 standalone 身份投影器及 Move 在途操作已集成，其确定性及 Linux cohort 进程证据见
 [原生 Session 契约](../../orchbee/docs/native-tab-session.zh-CN.md)。协议、Server 和 Client 一同激活及回退：旧位置式 Site 检查
 不能与重排状态并存。回退恢复最后已验证的内存批次，不删除或终止保留进程。
 
 问题是共享规范 Tab 顺序：已准入 Client 移动完整独立 Tab，已有 Client 保留活动 Tab 身份及终端。
+上方 Workspace 扩展使用同一置换；下方引用派生的 Site 组合仅适用于 standalone。
 Workbench 拥有顺序、修订、严格成员关系和请求/结果保留。Site 仅保留
 `Empty | Creating(reference) | Settled { reference, outcome }`；TerminalCoordinator 拥有保留
 授权和执行。Move 不增加存储的锚身份/绑定、每 Tab 的 Site 映射、Open 字段、结构身份、终端计划、
@@ -90,9 +121,9 @@ Linux 进程证据；发布收敛仍待完成。不增加显式空 Open 结果�
 4. 请求账本条目容量；
 5. 精确 Site，否则 `SiteMismatch`；
 6. 预期修订，否则 `RevisionMismatch`；
-7. 精确独立上下文，否则 `TerminalContextUnavailable`；
-8. 完整严格独立布局；
-9. 从引用导出的唯一绑定 Site 组合；
+7. 精确 standalone 或 Workspace 上下文，否则 `TerminalContextUnavailable`；
+8. 完整严格目标上下文布局；
+9. 仅 standalone 要求从引用导出的唯一绑定 Site 组合；
 10. 精确目标 Tab，否则 `TabUnavailable`；
 11. 语义无变化，产生现有 `Unchanged { revision }`；
 12. 实际置换时的修订耗尽；

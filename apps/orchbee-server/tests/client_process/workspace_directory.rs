@@ -8,8 +8,9 @@ use orchbee_client_server_protocol::{
 use orchbee_workbench_protocol::{
     Directory, PanelNode, PresentationBinding, ProtocolVersion, Snapshot, SnapshotReadIntent, Tab,
     TerminalContext, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequest,
-    WorkbenchRequestId, WorkbenchResponse, WorkbenchSnapshotOutcome, read_workbench_response,
+    WorkbenchCommandResult, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRejectionReason,
+    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
+    WorkbenchSnapshotOutcome, WorkbenchTabMoveDirection, read_workbench_response,
     write_workbench_request,
 };
 use std::{
@@ -793,6 +794,122 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
     let final_after_worker_loss = read_snapshot(&mut second, 17)?;
     assert_eq!(final_after_worker_loss_first, after_worker_loss_association);
     assert_eq!(final_after_worker_loss, after_worker_loss_association);
+    assert_eq!(wait_for_marker(&fixture.marker, 2)?.len(), 2);
+
+    let before_move_first = final_after_worker_loss_first;
+    let before_move_second = final_after_worker_loss;
+    assert_eq!(before_move_first, before_move_second);
+    let workspace_before_move = workspace_context(&before_move_first)?;
+    assert_eq!(workspace_before_move.tabs.len(), 2);
+    let first_tab_before_move = workspace_before_move
+        .tabs
+        .first()
+        .ok_or_else(|| io::Error::other("first Workspace Tab was not projected"))?;
+    let second_tab_before_move = workspace_before_move
+        .tabs
+        .get(1)
+        .ok_or_else(|| io::Error::other("second Workspace Tab was not projected"))?;
+    let first_tab_id = first_tab_before_move.tab_id.clone();
+    let second_tab_id = second_tab_before_move.tab_id.clone();
+    let first_binding_before_move = first_tab_binding(first_tab_before_move)?.clone();
+    let second_binding_before_move = first_tab_binding(second_tab_before_move)?.clone();
+    let workspace_context_id = workspace_before_move.terminal_context_id.clone();
+    let move_request = command(
+        workbench_id(19)?,
+        &before_move_first,
+        WorkbenchAction::TabMove {
+            terminal_context_id: workspace_context_id.clone(),
+            tab_id: first_tab_id.clone(),
+            direction: WorkbenchTabMoveDirection::Last,
+        },
+    );
+    let move_result = exchange_command(&mut first, &move_request)?;
+    let WorkbenchCommandOutcome::TabMoved {
+        revision: move_revision,
+        terminal_context_id: moved_context_id,
+        tab_id: moved_tab_id,
+    } = &move_result.outcome
+    else {
+        return Err(format!(
+            "Workspace Tab move did not succeed: {:?}",
+            move_result.outcome
+        )
+        .into());
+    };
+    assert_eq!(
+        *move_revision,
+        WorkbenchRevision::new(before_move_first.revision.value() + 1)
+    );
+    assert_eq!(moved_context_id, &workspace_context_id);
+    assert_eq!(moved_tab_id, &first_tab_id);
+
+    let mut expected_after_move = before_move_first.clone();
+    expected_after_move.revision = *move_revision;
+    let workspace_index = expected_after_move
+        .terminal_contexts
+        .iter()
+        .position(|context| context.terminal_context_id == workspace_context_id)
+        .ok_or_else(|| io::Error::other("Workspace context disappeared after move"))?;
+    expected_after_move.terminal_contexts[workspace_index].tabs = vec![
+        before_move_first.terminal_contexts[workspace_index].tabs[1].clone(),
+        before_move_first.terminal_contexts[workspace_index].tabs[0].clone(),
+    ];
+    assert_eq!(read_snapshot(&mut first, 23)?, expected_after_move);
+    let after_move_second = read_snapshot(&mut second, 24)?;
+    assert_eq!(after_move_second, expected_after_move);
+    let moved_workspace = workspace_context(&after_move_second)?;
+    assert_eq!(moved_workspace.tabs[0].tab_id, second_tab_id);
+    assert_eq!(moved_workspace.tabs[1].tab_id, first_tab_id);
+    assert_eq!(
+        first_tab_binding(&moved_workspace.tabs[0])?,
+        &second_binding_before_move
+    );
+    assert_eq!(
+        first_tab_binding(&moved_workspace.tabs[1])?,
+        &first_binding_before_move
+    );
+    assert_eq!(wait_for_marker(&fixture.marker, 2)?.len(), 2);
+
+    let replay = exchange_command(&mut second, &move_request)?;
+    assert_eq!(replay, move_result);
+    assert_eq!(read_snapshot(&mut first, 25)?, expected_after_move);
+    assert_eq!(read_snapshot(&mut second, 26)?, expected_after_move);
+
+    let WorkbenchRequest::Command(move_command) = &move_request else {
+        unreachable!("Workspace Tab move request must be a command")
+    };
+    let WorkbenchAction::TabMove {
+        tab_id: move_tab_id,
+        direction: move_direction,
+        ..
+    } = &move_command.action
+    else {
+        unreachable!("Workspace Tab move request must move a Tab")
+    };
+    let conflict_request = WorkbenchRequest::Command(WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: move_command.request_id.clone(),
+        site_id: move_command.site_id.clone(),
+        expected_revision: move_command.expected_revision,
+        action: WorkbenchAction::TabMove {
+            terminal_context_id: expected_after_move
+                .navigation
+                .standalone_terminal_context_id
+                .clone(),
+            tab_id: move_tab_id.clone(),
+            direction: *move_direction,
+        },
+    });
+    let conflict = exchange_command(&mut first, &conflict_request)?;
+    assert!(matches!(
+        conflict.outcome,
+        WorkbenchCommandOutcome::Rejected {
+            revision,
+            reason: WorkbenchRejectionReason::RequestIdentityConflict,
+        } if revision == expected_after_move.revision
+    ));
+    assert_eq!(read_snapshot(&mut first, 27)?, expected_after_move);
+    assert_eq!(read_snapshot(&mut second, 28)?, expected_after_move);
     assert_eq!(wait_for_marker(&fixture.marker, 2)?.len(), 2);
     Ok(())
 }

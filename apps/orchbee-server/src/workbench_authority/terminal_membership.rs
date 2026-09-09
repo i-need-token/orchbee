@@ -261,6 +261,37 @@ pub(super) fn standalone_membership(
     snapshot: &Snapshot,
 ) -> Result<WorkbenchStandaloneMembership, WorkbenchStandaloneInvariantError> {
     let context_id = &snapshot.navigation.standalone_terminal_context_id;
+    let context = strict_simple_context(snapshot, context_id)?;
+    let mut members = Vec::with_capacity(context.tabs.len());
+    for tab in &context.tabs {
+        let PanelNode::Panel {
+            panel_id,
+            primary_presentation,
+            ..
+        } = &tab.root
+        else {
+            return Err(WorkbenchStandaloneInvariantError);
+        };
+        members.push(WorkbenchStandaloneTab {
+            tab_id: tab.tab_id.clone(),
+            panel_id: panel_id.clone(),
+            presentation_id: primary_presentation.presentation_id.clone(),
+            binding: primary_presentation
+                .binding
+                .clone()
+                .ok_or(WorkbenchStandaloneInvariantError)?,
+        });
+    }
+    Ok(WorkbenchStandaloneMembership {
+        terminal_context_id: context_id.clone(),
+        members,
+    })
+}
+
+pub(super) fn strict_simple_context<'a>(
+    snapshot: &'a Snapshot,
+    context_id: &WorkbenchTerminalContextId,
+) -> Result<&'a TerminalContext, WorkbenchStandaloneInvariantError> {
     let mut matching = snapshot
         .terminal_contexts
         .iter()
@@ -271,38 +302,23 @@ pub(super) fn standalone_membership(
     }
 
     // The projection already validates the protocol's per-context collection bound.
-    let mut members = Vec::with_capacity(context.tabs.len());
     for tab in &context.tabs {
         if tab.pinned || tab.group_id.is_some() {
             return Err(WorkbenchStandaloneInvariantError);
         }
         let PanelNode::Panel {
-            panel_id,
             primary_presentation,
             child_presentations,
+            ..
         } = &tab.root
         else {
             return Err(WorkbenchStandaloneInvariantError);
         };
-        if !child_presentations.is_empty() {
+        if !child_presentations.is_empty() || primary_presentation.binding.is_none() {
             return Err(WorkbenchStandaloneInvariantError);
         }
-        let binding = primary_presentation
-            .binding
-            .clone()
-            .ok_or(WorkbenchStandaloneInvariantError)?;
-        members.push(WorkbenchStandaloneTab {
-            tab_id: tab.tab_id.clone(),
-            panel_id: panel_id.clone(),
-            presentation_id: primary_presentation.presentation_id.clone(),
-            binding,
-        });
     }
-
-    Ok(WorkbenchStandaloneMembership {
-        terminal_context_id: context_id.clone(),
-        members,
-    })
+    Ok(context)
 }
 
 fn membership_failure(failure: super::PlanFailure) -> StandaloneIntentError {

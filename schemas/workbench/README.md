@@ -230,10 +230,10 @@ runtime binaries move together in one activation cohort; OBWP stays version 1. O
 reject the additive action/results. Rollback restores the whole source/runtime cohort together;
 there is no mixed-version rollout, public compatibility promise, durable migration or replay recovery.
 
-## Accepted standalone Tab move contract
+## Accepted Tab move contract
 
 The local unpublished Move extension is implemented in the schema, corpus, both bindings and Server.
-Native Client interaction is integrated with bounded Linux cohort evidence in the
+Native standalone Client interaction is integrated with bounded Linux cohort evidence in the
 [native Session contract](../../apps/orchbee/docs/native-tab-session.md).
 It uses the existing OBWP v1 command envelope and navigation-mutation grant.
 The action is `tab.move { terminalContextId, tabId, direction }`, where direction is exactly
@@ -244,7 +244,8 @@ boundary yields existing `Unchanged { revision }`. An actual permutation yields
 revision advance. No new product/terminal identity or terminal/viewer effect is permitted.
 
 Existing `TabUnavailable` / `tab-unavailable` identifies an absent target only after the exact
-standalone context, complete supported layout and Site composition pass. Unsupported schema-valid
+standalone or Workspace context and complete supported layout pass, with Site composition required
+only for standalone. Workspace Move requires neither a Directory nor a live Worker. Unsupported schema-valid
 native layout is internal divergence, not a product rejection. Full validated command equality,
 including Site, expected revision, context, Tab and direction, is the replay fingerprint.
 Retained exact replay returns the fixed original result/revision; same-ID changed content conflicts.

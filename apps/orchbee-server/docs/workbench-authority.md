@@ -69,15 +69,52 @@ finite Close models remain bounded abstractions of those runtime claims.
 
 ## Accepted canonical Tab move model
 
+### Workspace context extension
+
+The local Move owner also accepts a Terminal Context referenced by a canonical Workspace.
+It applies the same four directions, exact request fingerprint, shared revision, no-op and retained
+result rules below. Context admission accepts the standalone context or an existing Workspace's
+context; an unknown context is `TerminalContextUnavailable`. A Tab belonging to another context
+is `TabUnavailable`. Move does not require a primary Directory, filesystem probe or live Worker.
+
+Both context kinds require the existing simple layout: no groups, pinned/grouped Tabs, splits or
+child presentations, and every primary presentation has a binding. Layout divergence precedes
+target lookup and no-op and retires the authority without permutation. This preserves the current
+local cohort's shape; it does not define pin/group movement or recovery of imported layouts.
+
+Only standalone admission produces `WorkbenchStandaloneMembership` for Site's existing
+reference-derived composition check. Workspace admission neither reads nor modifies the standalone
+slot or its retained authorization. Under the same Site gate, the borrowed admission locates the
+target in the validated context and prepares a complete-Tab permutation. The only canonical changes
+are that context's Tab order and one shared revision increment; all other contexts, navigation,
+Directories, bindings, structural identity allocation, terminal operations and notifications remain
+unchanged. Dropping preparation has no effect. Replay retains the original result even after a
+different context advances the shared revision; changing context under the same request ID conflicts.
+
+`WorkspaceTabMove` models two contexts with three immutable complete Tabs each, a bounded shared
+request ledger and revision, and independent Empty/Creating/Settled standalone slots. Its safety
+claims are whole-Tab preservation, isolation of the other context, one revision per actual move,
+fixed historical replay and cross-context request conflict. Its context-local Tab index abstracts
+a globally unique identity as `(owner, index)`; wrong-context target rejection remains a Rust test.
+Required coverage witnesses a Workspace move in each of the three standalone slot states.
+Existing `WorkbenchNavigationCommit`
+retains capacity/retirement evidence; concrete layout, authorization, allocation and byte bounds
+remain Rust tests. The Site test `workspace_pending_create_move_completion_preserves_origin_and_standalone_states`
+establishes pending Workspace Create followed by Move and exact completion; the process test
+`real_server_worker_workspace_directory_association_and_tab_lifecycle` establishes shared snapshot
+order and replay after Worker loss and directory deletion. These do not claim
+native Workspace UI, Workspace Close, cross-context transfer, persistence or remote delivery.
+
 The local, unpublished `tab.move` wire and Server operation are implemented with strict
-membership/Site composition. The native identity projector and Move flight are integrated, with
+membership/Site composition. The native standalone identity projector and Move flight are integrated, with
 deterministic and Linux cohort process evidence in the
 [native Session contract](../../orchbee/docs/native-tab-session.md). Protocol, Server and Client activate and roll back
 together: the old positional Site check cannot coexist with reordered state. Rollback restores the
 last verified in-memory cohort without deleting or terminating retained processes.
 
 The problem is shared canonical Tab order: an admitted Client moves a complete standalone Tab while
-existing Clients retain their active Tab identity and terminal. Workbench owns order, revision,
+existing Clients retain their active Tab identity and terminal. The Workspace extension above uses
+the same permutation; the reference-derived Site composition below is standalone-only. Workbench owns order, revision,
 strict membership and request/result retention. Site retains only
 `Empty | Creating(reference) | Settled { reference, outcome }`; TerminalCoordinator owns retained
 authorization and execution. Move adds no stored anchor identity/binding, per-Tab Site map, Open
@@ -114,9 +151,9 @@ For a syntactically valid Move, the exact precedence is:
 4. request-ledger entry capacity;
 5. exact Site, otherwise `SiteMismatch`;
 6. expected revision, otherwise `RevisionMismatch`;
-7. exact standalone context, otherwise `TerminalContextUnavailable`;
-8. complete strict standalone layout;
-9. reference-derived unique-binding Site composition;
+7. exact standalone or Workspace context, otherwise `TerminalContextUnavailable`;
+8. complete strict target-context layout;
+9. reference-derived unique-binding Site composition for standalone only;
 10. exact target Tab, otherwise `TabUnavailable`;
 11. semantic no-op, yielding existing `Unchanged { revision }`;
 12. revision exhaustion for an actual permutation;

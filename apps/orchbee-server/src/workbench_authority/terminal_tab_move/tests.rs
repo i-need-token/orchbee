@@ -1,5 +1,6 @@
 use super::*;
 mod stateful;
+mod workspace;
 use crate::workbench_authority::terminal_membership::{append_simple_tab, parse_tab_ids};
 use crate::workbench_authority::{
     MAXIMUM_LEDGER_BYTES, MAXIMUM_LEDGER_ENTRIES, WorkbenchReadOrNavigationRequest, identity,

@@ -17,7 +17,7 @@ POSIX path 与必填且可为空的 primary Directory reference，但排除 Envi
 所有 Client-local view fact。当前 client-session consumer 尚未使用这份新 contract。
 
 独立 command binding 校验 `workbench.command` 及相关联的 command/snapshot result。它包括 Project
-与 Workspace 变更、`workspace.primary-directory.accept`、canonical `tab.rename`、standalone `tab.move`，以及 standalone `tab.create`
+与 Workspace 变更、`workspace.primary-directory.accept`、canonical `tab.rename`、standalone 或 Workspace 上下文内的 `tab.move`，以及 standalone 或已配置 Workspace 上下文内的 `tab.create`
 及其已提交的 terminal result variant。Move 仅携带 `terminalContextId`、`tabId` 和
 `direction: previous | next | first | last`；`tab-moved` 仅携带 `revision`、`terminalContextId`
 和 `tabId`。

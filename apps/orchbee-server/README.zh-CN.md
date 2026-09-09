@@ -25,7 +25,7 @@ Worker 目录，再原子添加 Project Directory 并由该空 Workspace 选中�
 冲突、语义重放、分配、停用和证据。读取在与写入相同的 gate 内克隆已提交 snapshot，响应 I/O
 位于释放 gate 之后。
 
-`tab.rename` 修改共享 Tab 标签。`tab.move` 置换完整独立 Tab，不改变终端 binding，也不获取
+`tab.rename` 修改共享 Tab 标签。`tab.move` 在 standalone 或 Workspace 上下文内置换完整简单 Tab，不改变终端 binding，也不获取
 Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move 重放保留原排序结果及修订。
 原生 Move 交互仍是独立的 Client 集成边界。
 

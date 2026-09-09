@@ -112,7 +112,10 @@ impl SiteCoordinator {
             WorkbenchTabMoveBegin::Ready(result) => return Some(result),
             WorkbenchTabMoveBegin::Admitted(admission) => admission,
         };
-        if !composition_matches(admission.standalone_membership(), standalone, terminals) {
+        if admission
+            .standalone_membership()
+            .is_some_and(|membership| !composition_matches(membership, standalone, terminals))
+        {
             return Some(admission.retire_composition_failure());
         }
         Some(match admission.finish() {
