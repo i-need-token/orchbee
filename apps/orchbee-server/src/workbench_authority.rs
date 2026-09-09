@@ -68,6 +68,7 @@ pub struct WorkbenchGrant {
 
 pub struct WorkbenchReadOrNavigationRequest(ReadOrNavigationRequest);
 
+#[allow(clippy::large_enum_variant)]
 enum ReadOrNavigationRequest {
     SnapshotRead(orchbee_workbench_protocol::SnapshotReadIntent),
     Command {

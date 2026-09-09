@@ -40,7 +40,6 @@ impl<'a> WorkbenchTabCloseResumeAdmission<'a> {
         &self.record.target
     }
 
-    #[must_use]
     pub fn targets(&self) -> impl Iterator<Item = &WorkbenchTabCloseTarget> {
         self.record.targets()
     }

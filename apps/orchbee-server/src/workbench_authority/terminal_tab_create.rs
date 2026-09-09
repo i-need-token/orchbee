@@ -176,11 +176,13 @@ impl CommittedWorkbenchTabCreateMetadata {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchTabCreateBegin<'a> {
     Ready(WorkbenchCommandResult),
     Admitted(Box<WorkbenchTabCreateAdmission<'a>>),
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchTabCreatePreparation<'a> {
     Ready(WorkbenchCommandResult),
     Prepared(Box<PreparedWorkbenchTabCreate<'a>>),

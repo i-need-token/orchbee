@@ -15,6 +15,7 @@ use super::{
     CloseContinuation, CloseRecord, WorkbenchTabCloseRuntimeTarget, WorkbenchTabCloseTarget,
 };
 
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchTabCloseBegin<'a> {
     Ready(WorkbenchCommandResult),
     Admitted(Box<WorkbenchTabCloseAdmission<'a>>),
@@ -27,6 +28,7 @@ pub struct WorkbenchTabCloseAdmission<'a> {
     tab_id: WorkbenchTabId,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchTabCloseResolution<'a> {
     Ready(WorkbenchCommandResult),
     Primary(Box<WorkbenchTabClosePrimaryAdmission<'a>>),
@@ -39,6 +41,7 @@ pub struct WorkbenchTabClosePrimaryAdmission<'a> {
     members: Vec<super::super::WorkbenchTerminalTab>,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchTabClosePreparation<'a> {
     Ready(WorkbenchCommandResult),
     Prepared(Box<PreparedWorkbenchTabClose<'a>>),

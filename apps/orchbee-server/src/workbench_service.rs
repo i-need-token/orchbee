@@ -18,6 +18,9 @@ pub(crate) struct WorkbenchPolicy {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+// The response path is the hot, allocation-free branch; boxing it would add a heap allocation to
+// every ordinary Workbench request merely to shrink the exceptional status-only variant.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum WorkbenchExecution {
     Response(WorkbenchResponse),
     CloseOutcomeUnknown,

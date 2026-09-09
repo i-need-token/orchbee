@@ -98,7 +98,6 @@ impl WorkbenchTerminalMembership {
         &self.members
     }
 
-    #[must_use]
     pub fn members_for_tab(
         &self,
         tab_id: &WorkbenchTabId,

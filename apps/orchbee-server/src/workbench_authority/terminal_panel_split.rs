@@ -211,11 +211,13 @@ impl CommittedWorkbenchPanelSplitMetadata {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchPanelSplitBegin<'a> {
     Ready(WorkbenchCommandResult),
     Admitted(Box<WorkbenchPanelSplitAdmission<'a>>),
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchPanelSplitPreparation<'a> {
     Ready(WorkbenchCommandResult),
     Prepared(Box<PreparedWorkbenchPanelSplit<'a>>),
@@ -276,18 +278,18 @@ impl<'a> WorkbenchPanelSplitAdmission<'a> {
         else {
             return WorkbenchPanelSplitPreparation::Ready(retire(authority, &command));
         };
-        if !replace_panel(
-            &mut tab.root,
-            &staged.panel_id,
-            staged.direction,
-            &staged.new_panel_id,
-            &staged.split_id,
-            &staged.first_slot_id,
-            &staged.second_slot_id,
-            &staged.presentation_id,
-            &label,
-            binding.clone(),
-        ) {
+        let replacement = PanelSplitReplacement {
+            target_panel_id: &staged.panel_id,
+            direction: staged.direction,
+            new_panel_id: &staged.new_panel_id,
+            split_id: &staged.split_id,
+            first_slot_id: &staged.first_slot_id,
+            second_slot_id: &staged.second_slot_id,
+            presentation_id: &staged.presentation_id,
+            label: &label,
+            binding: binding.clone(),
+        };
+        if !replace_panel(&mut tab.root, &replacement) {
             return WorkbenchPanelSplitPreparation::Ready(retire(authority, &command));
         }
         candidate.revision = staged.revision;
@@ -851,36 +853,37 @@ fn contains_leaf_panel(node: &PanelNode, panel_id: &WorkbenchPanelId) -> bool {
     }
 }
 
-fn replace_panel(
-    node: &mut PanelNode,
-    target_panel_id: &WorkbenchPanelId,
+struct PanelSplitReplacement<'a> {
+    target_panel_id: &'a WorkbenchPanelId,
     direction: WorkbenchPanelSplitDirection,
-    new_panel_id: &WorkbenchPanelId,
-    split_id: &WorkbenchSplitId,
-    first_slot_id: &WorkbenchPanelSlotId,
-    second_slot_id: &WorkbenchPanelSlotId,
-    presentation_id: &orchbee_workbench_protocol::TerminalPresentationId,
-    label: &str,
+    new_panel_id: &'a WorkbenchPanelId,
+    split_id: &'a WorkbenchSplitId,
+    first_slot_id: &'a WorkbenchPanelSlotId,
+    second_slot_id: &'a WorkbenchPanelSlotId,
+    presentation_id: &'a orchbee_workbench_protocol::TerminalPresentationId,
+    label: &'a str,
     binding: PresentationBinding,
-) -> bool {
+}
+
+fn replace_panel(node: &mut PanelNode, replacement: &PanelSplitReplacement<'_>) -> bool {
     match node {
         PanelNode::Panel {
             child_presentations,
             panel_id,
             ..
-        } if panel_id == target_panel_id && child_presentations.is_empty() => {
+        } if panel_id == replacement.target_panel_id && child_presentations.is_empty() => {
             let original = node.clone();
             let new_panel = PanelNode::Panel {
                 child_presentations: Vec::new(),
-                panel_id: new_panel_id.clone(),
+                panel_id: replacement.new_panel_id.clone(),
                 primary_presentation: Presentation {
-                    binding: Some(binding),
-                    label: label.to_owned(),
-                    presentation_id: presentation_id.clone(),
+                    binding: Some(replacement.binding.clone()),
+                    label: replacement.label.to_owned(),
+                    presentation_id: replacement.presentation_id.clone(),
                 },
             };
             let new_first = matches!(
-                direction,
+                replacement.direction,
                 WorkbenchPanelSplitDirection::Above | WorkbenchPanelSplitDirection::Left
             );
             let (first_node, second_node) = if new_first {
@@ -893,38 +896,27 @@ fn replace_panel(
                     children: Box::new([
                         PanelSlot {
                             node: first_node,
-                            slot_id: first_slot_id.clone(),
+                            slot_id: replacement.first_slot_id.clone(),
                         },
                         PanelSlot {
                             node: second_node,
-                            slot_id: second_slot_id.clone(),
+                            slot_id: replacement.second_slot_id.clone(),
                         },
                     ]),
-                    orientation: match direction {
+                    orientation: match replacement.direction {
                         WorkbenchPanelSplitDirection::Above
                         | WorkbenchPanelSplitDirection::Below => PanelOrientation::Vertical,
                         WorkbenchPanelSplitDirection::Left
                         | WorkbenchPanelSplitDirection::Right => PanelOrientation::Horizontal,
                     },
-                    split_id: split_id.clone(),
+                    split_id: replacement.split_id.clone(),
                 };
             true
         }
         PanelNode::Panel { .. } => false,
         PanelNode::Split { children, .. } => {
             for child in children.iter_mut() {
-                if replace_panel(
-                    &mut child.node,
-                    target_panel_id,
-                    direction,
-                    new_panel_id,
-                    split_id,
-                    first_slot_id,
-                    second_slot_id,
-                    presentation_id,
-                    label,
-                    binding.clone(),
-                ) {
+                if replace_panel(&mut child.node, replacement) {
                     return true;
                 }
             }

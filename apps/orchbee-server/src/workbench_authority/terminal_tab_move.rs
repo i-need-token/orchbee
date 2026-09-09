@@ -9,6 +9,7 @@ use orchbee_workbench_protocol::{
     WorkbenchTerminalContextId, serialize_document,
 };
 
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchTabMoveBegin<'a> {
     Ready(WorkbenchCommandResult),
     Admitted(Box<WorkbenchTabMoveAdmission<'a>>),
@@ -23,6 +24,7 @@ pub struct WorkbenchTabMoveAdmission<'a> {
     direction: WorkbenchTabMoveDirection,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum WorkbenchTabMovePreparation<'a> {
     Ready(WorkbenchCommandResult),
     Prepared(Box<PreparedWorkbenchTabMove<'a>>),
