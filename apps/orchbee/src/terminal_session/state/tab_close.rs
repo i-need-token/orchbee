@@ -711,6 +711,9 @@ impl super::NativeSessionState {
             .tabs()
             .get(selected.index())
             .ok_or(CloseStateError::UnknownTarget)?;
+        let panel = tab
+            .panel(selected.panel_index())
+            .ok_or(CloseStateError::UnknownTarget)?;
         let target = CloseTarget::new(
             self.cache.site_id().clone(),
             self.cache.terminal_context_id().clone(),
@@ -719,7 +722,7 @@ impl super::NativeSessionState {
         let selection = CloseSelection::new(
             target,
             tab.tab_label().clone(),
-            tab.binding().clone(),
+            panel.binding().clone(),
             self.attached_key.clone(),
             self.cache.revision(),
         );

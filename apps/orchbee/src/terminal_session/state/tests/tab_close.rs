@@ -1,4 +1,5 @@
 use super::{projected, ready, workbench_request_id};
+use crate::client_view::PanelDirection;
 use crate::local_client::workbench::WorkbenchTabCloseAccepted;
 use crate::terminal_session::state::{
     AttachmentKey, CloseConfirmationKind, CloseIntent, CloseOperation, CloseResult, CloseSelection,
@@ -6,9 +7,11 @@ use crate::terminal_session::state::{
     PendingCloseResult,
 };
 use orchbee_workbench_protocol::{
-    WorkbenchRevision, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
+    PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding, TerminalId,
+    TerminalPresentationId, WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchRevision,
+    WorkbenchSplitId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
     WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus, WorkbenchTabCloseUnknownPhase,
-    WorkbenchTabCloseUnknownReason,
+    WorkbenchTabCloseUnknownReason, WorkerId,
 };
 use std::time::{Duration, Instant};
 mod reconciliation;
@@ -327,6 +330,85 @@ fn readonly_attachment_can_request_close_without_controller_authority() {
         Some(&super::ControllerMode::ReadOnly)
     );
     assert_eq!(state.desired(), Some(&key));
+}
+
+#[test]
+fn split_close_uses_the_attached_leaf_binding_for_confirmation_and_submission() {
+    let mut source = super::snapshot(1, 1, None);
+    let original = source.terminal_contexts[0].tabs[0].root.clone();
+    let peer_binding = PresentationBinding {
+        terminal_id: TerminalId::parse(&super::id(2_012)).unwrap(),
+        worker_id: WorkerId::parse(&super::id(2_011)).unwrap(),
+    };
+    source.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: original,
+                slot_id: WorkbenchPanelSlotId::parse(&super::id(2_001)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&super::id(2_010)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(peer_binding.clone()),
+                        label: "peer".into(),
+                        presentation_id: TerminalPresentationId::parse(&super::id(2_013)).unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&super::id(2_014)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&super::id(2_020)).unwrap(),
+    };
+    let mut state =
+        super::ready_with_cache(super::project_native_standalone_tabs(&source).unwrap());
+    let deadlines = super::OperationDeadlines::from_sample(Instant::now()).unwrap();
+    let target = state
+        .plan_panel_focus(PanelDirection::Right, 2, deadlines)
+        .unwrap();
+    assert!(state.begin_switch(target));
+    let marker = state.desired().unwrap().clone();
+    let fresh = super::install_switch_candidate(&mut state, &marker);
+    assert!(state.install_projection(&fresh));
+    assert!(state.record_setup_configuration(
+        &fresh,
+        super::controlling(),
+        Some(super::geometry(80))
+    ));
+    assert!(state.stage_drawn_frame(&fresh, super::FrameIdentity::new(2)));
+    assert!(state.mark_feedback_accepted(&fresh, super::FrameIdentity::new(2)));
+    assert!(state.publish_ready(
+        &fresh,
+        super::FrameIdentity::new(2),
+        super::controlling(),
+        Some(super::geometry(80)),
+    ));
+    assert_eq!(state.active().unwrap().panel_index(), 1);
+
+    state.open_close_confirmation().unwrap();
+    let token = state.view().close_confirmation().unwrap().token();
+    state.acknowledge_close_draw(Some(token), None);
+    let operation = state
+        .plan_close_confirmation(
+            super::workbench_request_id(2_100),
+            Instant::now() + Duration::from_secs(50),
+        )
+        .unwrap();
+
+    assert_eq!(
+        operation.selection().binding().terminal_id(),
+        &peer_binding.terminal_id
+    );
+    assert_eq!(
+        operation.selection().binding().worker_id(),
+        &peer_binding.worker_id
+    );
+    assert_ne!(
+        operation.selection().binding(),
+        state.tab(0).unwrap().binding()
+    );
 }
 
 #[test]

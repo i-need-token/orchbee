@@ -389,11 +389,14 @@ impl NativeSessionState {
                 .tabs()
                 .get(selected.index())
                 .ok_or(CloseStateError::StaleConfirmation)?;
+            let panel = tab
+                .panel(selected.panel_index())
+                .ok_or(CloseStateError::StaleConfirmation)?;
             if self.cache.site_id() != selection.target().site_id()
                 || self.cache.terminal_context_id() != selection.target().terminal_context_id()
                 || self.cache.revision() != selection.base_revision()
                 || tab.tab_id() != selection.target().tab_id()
-                || tab.binding() != selection.binding()
+                || panel.binding() != selection.binding()
                 || self.attached_key.as_ref() != selection.attachment()
             {
                 return Err(CloseStateError::StaleConfirmation);

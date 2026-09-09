@@ -56,6 +56,8 @@ impl NativeSessionState {
             .tabs()
             .get(selected.index)
             .ok_or(CarrierFailure::Protocol)?
+            .panel(selected.panel_index())
+            .ok_or(CarrierFailure::Protocol)?
             .binding();
         let proof = self
             .definitive_closed_attachment(marker.origin(), &old, binding)
