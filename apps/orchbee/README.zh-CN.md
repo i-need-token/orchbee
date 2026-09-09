@@ -15,13 +15,15 @@
 
 ```text
 orchbee
+orchbee tui
 orchbee --help
 orchbee --version
 ```
 
-Linux 裸调用先准入继承的同一输入/输出 TTY 和有效 cell/pixel geometry，再运行下面的本地启动流程。
-其他平台仍返回本地化不可用结果。`--help` 与 `--version` 不初始化 TUI 或服务。
-其他、额外或非 Unicode 参数都是 usage failure；不提供缩写、业务命令或远程选择。
+Linux 裸调用和显式 `tui` 调用先准入继承的同一输入/输出 TTY 和有效 cell/pixel geometry，再运行下面的
+本地启动流程。两者使用同一 Client 路径；`tui` 不选择另一种模式。其他平台仍返回本地化不可用结果。
+`--help` 与 `--version` 不初始化 TUI 或服务。其他、额外或非 Unicode 参数都是 usage failure；不提供
+缩写、业务命令或远程选择。
 
 Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关的 `orchbee <version>`。
 正常关闭 TUI、help、version 的开发退出状态为 `0`；启动/运行失败为 `1`；usage failure 为 `2`。

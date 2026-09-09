@@ -17,15 +17,16 @@ The exact development surface is:
 
 ```text
 orchbee
+orchbee tui
 orchbee --help
 orchbee --version
 ```
 
-Bare Linux invocation first admits the same inherited input/output TTY and valid cell/pixel
-geometry, then runs the local startup workflow below. Other platforms return localized
-unavailability. `--help` and `--version` initialize neither TUI nor service. Every other,
-additional, or non-Unicode argument is a usage failure; there are no abbreviations, business
-commands, or remote selection.
+Bare and explicit `tui` Linux invocation first admit the same inherited input/output TTY and valid
+cell/pixel geometry, then run the local startup workflow below. They are the same Client route;
+`tui` does not select a different mode. Other platforms return localized unavailability. `--help`
+and `--version` initialize neither TUI nor service. Every other, additional, or non-Unicode argument
+is a usage failure; there are no abbreviations, business commands, or remote selection.
 
 Help writes stdout, failures write stderr, and version writes one locale-neutral
 `orchbee <version>` line. Development status is `0` for normal TUI close/help/version,

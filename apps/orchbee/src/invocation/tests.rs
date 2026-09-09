@@ -3,9 +3,10 @@ use std::ffi::OsString;
 use super::{Invocation, UsageFailure, parse_invocation};
 
 #[test]
-fn admits_only_the_three_accepted_argument_vectors() {
+fn admits_bare_and_explicit_tui_with_help_and_version() {
     let cases = [
         (Vec::<OsString>::new(), Ok(Invocation::Tui)),
+        (vec![OsString::from("tui")], Ok(Invocation::Tui)),
         (vec![OsString::from("--help")], Ok(Invocation::Help)),
         (vec![OsString::from("--version")], Ok(Invocation::Version)),
         (vec![OsString::from("-h")], Err(UsageFailure)),

@@ -25,6 +25,9 @@ pub(crate) fn parse_invocation(
     if argument == "--version" {
         return Ok(Invocation::Version);
     }
+    if argument == "tui" {
+        return Ok(Invocation::Tui);
+    }
     Err(UsageFailure)
 }
 

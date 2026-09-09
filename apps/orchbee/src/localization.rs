@@ -11,8 +11,8 @@ mod tab_rename;
 #[cfg(unix)]
 mod workspace_setup;
 
-const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee --help\n  orchbee --version\n\nModes:\n  orchbee            Open the local terminal (Linux development cohort)\n  orchbee --help     Show this help\n  orchbee --version  Show the version\n";
-const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee --help\n  orchbee --version\n\n模式：\n  orchbee            打开本地终端（Linux 开发 cohort）\n  orchbee --help     显示此帮助\n  orchbee --version  显示版本\n";
+const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee --help\n  orchbee --version\n\nModes:\n  orchbee            Open the local terminal (Linux development cohort)\n  orchbee tui        Open the same local terminal explicitly\n  orchbee --help     Show this help\n  orchbee --version  Show the version\n";
+const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee --help\n  orchbee --version\n\n模式：\n  orchbee            打开本地终端（Linux 开发 cohort）\n  orchbee tui        显式打开同一本地终端\n  orchbee --help     显示此帮助\n  orchbee --version  显示版本\n";
 const EN_US_TUI_UNAVAILABLE: &str = "The Orchbee TUI is unavailable in this development slice.\n";
 const ZH_CN_TUI_UNAVAILABLE: &str = "Orchbee TUI 在本开发切片中尚不可用。\n";
 const EN_US_USAGE_FAILURE: &str = "Invalid invocation. Run 'orchbee --help'.\n";
