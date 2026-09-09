@@ -40,11 +40,18 @@ Accepted == s.close.phase # "absent"
 Closed == s.close.phase = "closed"
 Credits == IF s.close.credit THEN 1 ELSE 0
 FlightTarget == s.flight
+UnknownPresent == \E t \in Targets: s.close.targets[t].phase = "unknown"
 AllDisposed == \A t \in Targets:
   s.close.targets[t].disposed
 AllCleaned == \A t \in Targets:
   s.close.targets[t].cleanup
-AllPublishable == AllDisposed /\ AllCleaned /\ ~s.retired
+AllPublishable ==
+  /\ AllDisposed
+  /\ AllCleaned
+  /\ ~UnknownPresent
+  /\ s.flight = None
+  /\ \A t \in Targets: ~s.close.targets[t].pending
+  /\ ~s.retired
 CanWrite == ~s.retired /\ s.revision + Credits + 1 <= MaxRevision
 CanCharge == s.entries < 4
 RemoveTab(tabs) == SelectSeq(tabs, LAMBDA member: member # A /\ member # B)
@@ -109,6 +116,7 @@ OrdinaryMove ==
 
 SubmitStep(t) ==
   /\ s.close.phase = "accepted"
+  /\ ~UnknownPresent
   /\ t \in Targets
   /\ s.close.targets[t].phase = "closing"
   /\ s.close.targets[t].active
@@ -123,12 +131,14 @@ SubmitStep(t) ==
 
 ExpireAttempt(t) ==
   /\ t \in Targets
+  /\ ~UnknownPresent
   /\ s.close.targets[t].active
   /\ ~s.close.targets[t].expired
   /\ s' = [s EXCEPT !.close.targets[t].expired = TRUE]
 
 ParkBudget(t) ==
   /\ t \in Targets
+  /\ ~UnknownPresent
   /\ s.close.targets[t].active
   /\ s.close.targets[t].expired
   /\ s.flight # t
@@ -137,6 +147,7 @@ ParkBudget(t) ==
           THEN "disposed" ELSE "blocked"]
 
 CompleteBlocked(t) ==
+  /\ ~UnknownPresent
   /\ s.flight = t
   /\ s.flightGeneration = s.close.generation
   /\ s.close.targets[t].pending
@@ -145,6 +156,7 @@ CompleteBlocked(t) ==
           !.active = FALSE, !.pending = FALSE]]
 
 CompleteUnknown(t) ==
+  /\ ~UnknownPresent
   /\ s.flight = t
   /\ s.flightGeneration = s.close.generation
   /\ s.close.targets[t].pending
@@ -153,6 +165,7 @@ CompleteUnknown(t) ==
           !.active = FALSE, !.pending = FALSE]]
 
 CompleteDisposed(t) ==
+  /\ ~UnknownPresent
   /\ s.flight = t
   /\ s.flightGeneration = s.close.generation
   /\ s.close.targets[t].pending
@@ -167,6 +180,7 @@ WrongTargetSettlement ==
 
 Resume(t) ==
   /\ s.close.phase = "accepted"
+  /\ ~UnknownPresent
   /\ t \in Targets
   /\ s.flight = None
   /\ s.close.targets[t].phase \in {"blocked", "disposed"}
@@ -364,5 +378,14 @@ ResumeConsumesGeneration == [][
   /\ s'.close.generation > s.close.generation
   => /\ s'.close.generation = s.close.generation + 1
      /\ s.flight = None]_vars
+
+UnknownQuarantine == [][
+  /\ UnknownPresent
+  => /\ \A t \in Targets:
+        s.close.targets[t].phase = "closing"
+          => /\ s'.close.targets[t].phase = "closing"
+             /\ s'.close.targets[t].pending = s.close.targets[t].pending
+             /\ s'.close.targets[t].steps = s.close.targets[t].steps
+     /\ s'.close.phase # "closed"]_vars
 
 =============================================================================

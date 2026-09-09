@@ -188,6 +188,10 @@ impl CloseContinuation {
         self.pending.is_some()
     }
 
+    pub(super) fn is_unknown(&self) -> bool {
+        matches!(self.progress, Progress::Unknown { .. })
+    }
+
     pub(super) fn is_resumable(&self) -> bool {
         !self.has_outstanding()
             && matches!(

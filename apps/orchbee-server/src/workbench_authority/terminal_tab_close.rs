@@ -285,8 +285,16 @@ impl CloseRecord {
         })
     }
 
+    fn has_unknown(&self) -> bool {
+        (0..self.target_count()).any(|index| {
+            self.continuation(index)
+                .is_some_and(CloseContinuation::is_unknown)
+        })
+    }
+
     fn is_resumable(&self) -> bool {
-        !self.has_outstanding()
+        !self.has_unknown()
+            && !self.has_outstanding()
             && (0..self.target_count()).any(|index| {
                 self.continuation(index)
                     .is_some_and(CloseContinuation::is_resumable)
@@ -297,6 +305,9 @@ impl CloseRecord {
         &self,
         now: Instant,
     ) -> Result<Vec<(usize, PreparedCloseContinuationResume)>, CloseContinuationResumeError> {
+        if self.has_unknown() {
+            return Err(CloseContinuationResumeError::NotResumable);
+        }
         let mut prepared = Vec::new();
         for index in 0..self.target_count() {
             let Some(continuation) = self.continuation(index) else {
@@ -335,7 +346,35 @@ impl CloseRecord {
                 next: CloseContinuationNext::Closed,
             };
         }
+        if self.has_outstanding() {
+            return WorkbenchTabCloseStepTarget {
+                target: None,
+                next: CloseContinuationNext::Outstanding,
+            };
+        }
         let count = self.target_count();
+        if self.has_unknown() {
+            for offset in 0..count {
+                let index = (self.scheduler_cursor + offset) % count;
+                let Some(next) = self
+                    .continuation_mut(index)
+                    .map(|continuation| continuation.next(now))
+                else {
+                    continue;
+                };
+                if next == CloseContinuationNext::TargetCleanup {
+                    self.scheduler_cursor = (index + 1) % count;
+                    return WorkbenchTabCloseStepTarget {
+                        target: self.target(index).cloned(),
+                        next,
+                    };
+                }
+            }
+            return WorkbenchTabCloseStepTarget {
+                target: None,
+                next: CloseContinuationNext::Parked,
+            };
+        }
         let mut wait_until = None;
         let mut outstanding = false;
         for offset in 0..count {
