@@ -47,7 +47,7 @@
 
 `TerminalProfile` 携带显式 `defaultCursorShape`（`block`、`underline` 或 `bar`）和 `defaultCursorBlinking` 值。当解码较旧的持久配置文件形状时，这两个字段都具有兼容性默认值（`block` 和 `false`）；当前的编码器实现了它们。这些是启动默认值，而不是不可变的光标状态：终端转义序列可能会覆盖两者，直到 RIS 或应用程序重置恢复配置文件值。
 
-`TerminalTheme` 是一个完整的运行时颜色值，包含 `colorScheme`、无符号 24 位 `defaultForegroundRgb` 和 `defaultBackgroundRgb`、可空无符号 24 位 `defaultCursorRgb` 以及恰好 256 个无符号 24 位`palette` 条目。 `TerminalThemeState` 添加了规范的十进制文本 uint64 `revision` 和可为空的 `operationId`。修订版 `0` 是启动基线，是唯一具有空操作标识的合法状态；每一个积极的修改都带有其做出的身份。运行时主题不包括光标形状/闪烁、覆盖、应用程序令牌、内容修订或生成。
+`TerminalTheme` 是一个完整的运行时颜色值，包含 `colorScheme`、无符号 24 位 `defaultForegroundRgb` 和 `defaultBackgroundRgb`、可空无符号 24 位 `defaultCursorRgb` 以及恰好 256 个无符号 24 位`palette` 条目。 `TerminalThemeState` 添加了规范的十进制文本 uint64 `revision` 和可为空的 `operationId`。修订版 `0` 是启动基线，是唯一具有空操作标识的合法状态；每个正数（positive）revision 都携带提交它的 identity。运行时主题不包括光标形状/闪烁、覆盖、应用程序令牌、内容修订或生成。
 
 消息注册表还拥有每种类型是否可以是请求、响应、事件或声明的组合；每个合法角色中的有效负载编码；以及每个请求的成功响应类型。 TypeScript 连接代码派生这些事实，而不是接受它们作为调用站点参数。本机生产镜像注册表并在记录传递之前拒绝错误的角色或编码。生成的一致性语料库会比较每个镜像字段，而不仅仅是数字类型集。
 
@@ -86,7 +86,7 @@ JSON 内的规范无符号 64 位整数使用十进制文本，除了值 `0` 之
 | `DetachTerminal`                  | 目标 `AttachmentId`                                                                                                                                                          |
 | `UpdateAttachmentInputCapability` | 附件与终端标识、完整当前能力、当前正数能力修订，以及调整大小租约事实                                                                                                         |
 | `ClaimResizeLease`                | 附件与终端标识、完整且未改变的能力与能力修订，以及已提交的调整大小租约事实                                                                                                   |
-| 原始或语义输入                    | 附件身份、准确的功能修订以及致力于有序入口的编码终端字节计数                                                                                                                 |
+| 原始或语义输入                    | 附件身份、准确的 capability revision（能力修订）以及提交（commit）到有序入口的编码终端字节数                                                                                 |
 | `ResizeTerminal`                  | 附件身份、接受的规范单元/像素几何形状以及由此产生的修订                                                                                                                      |
 | `ClearTerminal` / `ResetTerminal` | 附件和终端身份、精确操作以及最终的修订/生成                                                                                                                                  |
 | 投影需求                          | 附件身份加接受`active`或`paused`需求                                                                                                                                         |
@@ -97,11 +97,11 @@ JSON 内的规范无符号 64 位整数使用十进制文本，除了值 `0` 之
 
 `RuntimeFailure.stage` 是主终端故障的判别式； `kind`是其所需的更粗的类别，不是一个独立的字段。其合法配对为`admit-terminal-reply/terminal-reply`、`apply-resize/resize`、`dispatch-termination/process-control`、`observe-process/process-observation`、`read-output/pty-read`、`synchronize-worker/worker-integrity`和`write-input/pty-write`。其他每一对都是畸形的。 `ProcessObservation.kind = unavailable` 始终携带 `observe-process/process-observation` 对。 `FailureContainment.kind = blocked` 相反携带一对上下文清理：`contain-process/process-control`、`release-output/pty-read` 或 `release-process-identity/process-observation`。清理对的格式错误为主要故障，并且主要对在任一上下文位置上格式错误。
 
-`ListTerminals` 接受 `{ cursor, maximumTerminals }`。 `cursor` 是首页的 `null` 或包含来自先前响应的规范十进制 `inventoryGeneration` 和 `offset` 值。 `maximumTerminals` 是 `1-128`。响应重复 `inventoryGeneration`，最多返回请求的摘要数量，并提供下一代范围的游标或 `null`。创建和部署高级会员生成；生命周期、几何、修订和退出更改不会。一代不匹配会返回 `stale-inventory-cursor`，因此一次遍历永远不会合并两个成员资格。每个页面都保持在 64 KiB 控制范围内，并且协议没有设置终端总数限制。
+`ListTerminals` 接受 `{ cursor, maximumTerminals }`。 `cursor` 是首页的 `null` 或包含来自先前响应的规范十进制 `inventoryGeneration` 和 `offset` 值。 `maximumTerminals` 是 `1-128`。响应重复 `inventoryGeneration`，最多返回请求的摘要数量，并提供下一代范围的游标或 `null`。Create 与 Dispose 会推进 membership（成员资格）generation；生命周期、几何、revision 与退出变化不会。一代不匹配会返回 `stale-inventory-cursor`，因此一次遍历永远不会合并两个成员资格。每个页面都保持在 64 KiB 控制范围内，并且协议没有设置终端总数限制。
 
-`awaiting-start` 库存摘要包含空 `columns` 和 `rows`、无退出、故障、遏制或过程观察以及 `terminateRequested: false`。启动阶段带有正网格几何形状。启动后精确的 `StartTerminal` 重放将返回 `transition: already-started` 的原始标识和几何图形；不同的几何形状是不可重试的 `start-conflict` 类型。生成失败是一种类型化的可重试失败，既不发布成功的启动响应，也不发布 `TerminalStarted` 事件；这些效果的生命周期所有权仍然属于 Terminal Host。
+`awaiting-start` 库存摘要包含空 `columns` 和 `rows`、无退出、故障、遏制或过程观察以及 `terminateRequested: false`。启动阶段带有正网格几何形状。启动后精确的 `StartTerminal` 重放将返回 `transition: already-started` 的原始标识和几何图形；不同的几何形状是不可重试的 `start-conflict` 类型。spawn（拉起）失败是一种类型化的可重试失败，既不发布成功的启动响应，也不发布 `TerminalStarted` 事件；这些效果的生命周期所有权仍然属于 Terminal Host。
 
-`TerminateTerminal` 和 `ForceTerminateTerminal` 是不同的请求类型。线材允许Desktop直接发力；主机拥有的生命周期决定当前阶段是否接受请求并保证强制包含优雅的意图。这两个请求都不会处理保留的身份。 Desktop 拥有升级计时，并在请求处置之前等待 `TerminalExited` 或 `TerminalFailed`。丢失的身份和无效的当前状态请求将被报告为类型化失败，而不会被编解码器重新解释。
+`TerminateTerminal` 和 `ForceTerminateTerminal` 是不同的请求类型。wire（线路协议）允许 Desktop 直接发送 force；Host 拥有的生命周期决定当前阶段是否接受该请求，并保证 force 涵盖 graceful 意图。两种请求都不处置（dispose）保留的 identity。 Desktop 拥有升级计时，并在请求处置之前等待 `TerminalExited` 或 `TerminalFailed`。丢失的身份和无效的当前状态请求将被报告为类型化失败，而不会被编解码器重新解释。
 
 成功的 `TerminateTerminal`、`ForceTerminateTerminal` 和 `DisposeTerminal` 响应保留
 请求 kind（`12`、`18` 和 `13`），且仅携带由 `TerminalAcknowledgedSchema` 校验的
@@ -134,17 +134,17 @@ boundary 不会授权或描述无效 runtime geometry：Terminal Host 只接受�
 
 `ApplyTerminalTheme` 是终端范围的，不需要附件。它携带 `terminalId`、`operationId`、`expectedThemeRevision` 和一个完整的 `terminal` 主题。主机在生命周期和比较和设置之前检查精确的当前操作重放：相同的操作 ID 和主题返回 `already-applied` 而没有突变，而具有不同主题数据的相同 ID 返回不可重试的 `theme-operation-conflict`。预期修订版本不是当前版本的不同操作会返回 `stale`，而不会发生突变。接受的操作应用完整的延迟或启动运行时状态，然后推进独立主题修订一次；其结果转换为 `applied`。
 
-每个`TerminalThemeResult`都会回显请求操作和终端身份，并包含完整的权威`current`状态。对于`applied`和`already-applied`，`current.operationId`等于回显请求操作；对于 `stale`，则有所不同。运行时应用程序替换了主机拥有的动态颜色默认值并清除了先前的 OSC 颜色覆盖；稍后的终端 OSC 操作可能会覆盖这些默认值，而它们的重置表单、RIS 和应用程序重置将返回到最新的运行时主题。丢失的结果是未知的结果：客户端在变基之前首先通过库存进行协调，并且永远不会从客户端本地覆盖推断权限。
+每个`TerminalThemeResult`都会回显请求操作和终端身份，并包含完整的权威`current`状态。对于`applied`和`already-applied`，`current.operationId`等于回显请求操作；对于 `stale`，则有所不同。运行时应用（该主题）会替换 Host 拥有的动态颜色默认值并清除先前的 OSC 颜色覆盖；后续终端 OSC action 可能覆盖这些默认值，而它们的重置形式（reset forms）、RIS 与应用重置会回到最新运行时主题。丢失的结果是未知的结果：客户端在变基之前首先通过库存进行协调，并且永远不会从客户端本地覆盖推断权限。
 
 `ClearTerminal`和`ResetTerminal`各自仅携带有输入能力的`AttachmentId`；它们是语义主机请求，而不是终端输入有效负载。 Clear 会擦除并返回活动的 Ghostty 屏幕，而无需重置模式。 Reset执行Ghostty的完全重置并返回主屏幕。 `TerminalControlAccepted` 返回附件、解析的终端、精确操作以及生成/修订结果。丢失的响应是未知结果，并且不授权重播。
 
 每个附件均以能力修订版 `1` 开头。`AttachmentCapabilities` 在完整的当前能力值旁报告该正数规范 uint64 修订，其中可以包含仅输入附件降级后的全 false 值。`UpdateAttachmentInputCapability` 类型 `24` 携带附件、正数修订和下一个输入位。Host 仅应用更改输入位的精确 `current + 1` 修订；精确的当前修订和值是幂等重放。同修订不同值或下一修订不变值是 `capability-revision-conflict`；旧修订或缺口是 `stale-capability-revision`。读取和调整大小能力在此协议版本中仍是不可变的已准入值。
 
-`WriteInput` 是一个原始字节有效负载，恰好包含 16 个非零 `AttachmentId` 字节、一个正的小端 uint64 功能修订版，然后是一个协商的 `inputBytes` 终端字节。硬终端字节最大值为 1 MiB，因此最大原始有效负载为 1 MiB 加 24 个字节。附件及具体修改解决当前输入权限； `TerminalId` 从未出现在此有效负载中。 `InputAccepted` 呼应修订版，意味着完整的终端字节后缀已提交到有序有界主机队列一次。它是仅队列准入的，并且不保证字节已到达终端写入器，因此根据主机的有界回复优先级策略，终端生成的回复可以在接受的客户端字节之前传送。在该响应之前断开的连接会使结果未知并且永远不会授权重播。
+`WriteInput` 是一个原始字节有效负载，恰好包含 16 个非零 `AttachmentId` 字节、一个正的小端 uint64 capability revision（能力修订），然后是一个协商的 `inputBytes` 终端字节。硬终端字节最大值为 1 MiB，因此最大原始有效负载为 1 MiB 加 24 个字节。附件及具体修改解决当前输入权限； `TerminalId` 从未出现在此有效负载中。 `InputAccepted` 呼应修订版，意味着完整的终端字节后缀已提交到有序有界主机队列一次。它是仅队列准入的，并且不保证字节已到达终端写入器，因此根据主机的有界回复优先级策略，终端生成的回复可以在接受的客户端字节之前传送。在该响应之前断开的连接会使结果未知并且永远不会授权重播。
 
 TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语义二进制编解码器。本地消费者通过一个语义输入解码器路由相同的注册类型，因此双方都不需要维护业务层类型到格式表。
 
-`KeyInput`、`TextInput`、`MouseInput`、`FocusInput` 和 `PasteInput` 是有界打包有效负载，以相同的 24 字节权限标头为前缀：附件标识后跟其正小端 uint64 功能修订版。它们携带浏览器规范化的语义意图，而不是 DOM 对象或预选的转义序列。 `KeyInput` 字节 `24` 携带按键操作，而字节 `25` 在位 `0` 中携带组合，在位 `1` 中携带每个事件 Option-as-Alt 意图。客户端在发布之前解决任何左/右 macOS 偏好； Terminal Host 将意图应用于权威 Ghostty 编码器模式，而不是接受客户端选择的转义序列。 `PasteInput` 使用 32 字节标头：字节 `24` 在位 `0` 中携带经过审核的括号粘贴期望，字节 `25-27` 保留零，字节 `28-31` 携带小端文本字节长度。未知的标志位或非零保留字节将被拒绝。按下或释放鼠标始终会识别其按钮。没有按下按钮的鼠标运动带有空按钮；按下按钮的运动标识 `pressedButtons` 中存在的一个活动按钮，其位集描述了完整的当前按下按钮状态。滚轮报告仍然是按钮按下情况，不需要描述按住的按钮。主机调度在编码之前保留入口顺序和快照权威 Ghostty 编码器模式，因此输出合并或飞行中的帧不会使键、鼠标或焦点编码过时。对于粘贴，主机将权威的括号粘贴模式与审查的期望进行比较，同时保持用于编码的相同终端锁定。不匹配在队列准入之前返回不可重试的 `input-mode-changed`；客户端必须获取当前的预计状态并请求新的用户决定，而不是重播不明确的粘贴。协商的 `inputBytes` 限制适用于编码的终端字节输出，而不是打包的语义负载； `acceptedBytes` 报告当当前终端模式故意不发出任何内容时，输出长度可能为零。主机必须在队列准入之前预检零输出并粘贴边界，然后仅将编码字节计入有序入口预算。
+`KeyInput`、`TextInput`、`MouseInput`、`FocusInput` 和 `PasteInput` 是有界打包有效负载，以相同的 24 字节权限标头为前缀：附件标识后跟其正小端 uint64 capability revision（能力修订）。它们携带浏览器规范化的语义意图，而不是 DOM 对象或预选的转义序列。 `KeyInput` 字节 `24` 携带按键操作，而字节 `25` 在位 `0` 中携带组合，在位 `1` 中携带每个事件 Option-as-Alt 意图。客户端在发布之前解决任何左/右 macOS 偏好； Terminal Host 将意图应用于权威 Ghostty 编码器模式，而不是接受客户端选择的转义序列。 `PasteInput` 使用 32 字节标头：字节 `24` 在位 `0` 中携带经过审核的括号粘贴期望，字节 `25-27` 保留零，字节 `28-31` 携带小端文本字节长度。未知的标志位或非零保留字节将被拒绝。按下或释放鼠标始终会识别其按钮。没有按下按钮的鼠标运动带有空按钮；按下按钮的运动标识 `pressedButtons` 中存在的一个活动按钮，其位集描述了完整的当前按下按钮状态。滚轮报告仍然是按钮按下情况，不需要描述按住的按钮。主机调度在编码之前保留入口顺序和快照权威 Ghostty 编码器模式，因此输出合并或飞行中的帧不会使键、鼠标或焦点编码过时。对于粘贴，主机将权威的括号粘贴模式与审查的期望进行比较，同时保持用于编码的相同终端锁定。不匹配在队列准入之前返回不可重试的 `input-mode-changed`；客户端必须获取当前的预计状态并请求新的用户决定，而不是重播不明确的粘贴。协商的 `inputBytes` 限制适用于编码的终端字节输出，而不是打包的语义负载； `acceptedBytes` 报告当当前终端模式故意不发出任何内容时，输出长度可能为零。主机必须在队列准入之前预检零输出并粘贴边界，然后仅将编码字节计入有序入口预算。
 
 ## 消息注册表
 
@@ -164,7 +164,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 
 `TerminalBell` 是包含 `attachmentId` 和正规范终端响铃 `sequence` 的仅事件控制记录。主机以终端的当前序列为新的可读取附件设置基线，因此在连接或重新连接时不会重播较早的铃声。当提交其确切的传出记录时，每个后续序列都会针对每个实时可读附件发出一次。该事件没有客户端确认，仅携带语义意图；声音、视觉闪烁、通知和可访问性策略仍然是应用程序效果而不是线路行为。
 
-`TerminalClipboardWriteRequest` 是仅事件控制记录，包含 `attachmentId`、正终端拥有的规范 `sequence` 以及最多 16 个 KiB 纯文本 UTF-8。 NUL、未配对的代理、零序列和过大的文本格式错误。它代表分配给一个可读取附件的一个主机承认的 OSC 52 剪贴板写入；它不代表剪贴板读取或授予效果。 Terminal Host 拥有有界挂起状态、单接收者交付、传出批量回滚以及切换后删除。接收应用程序拥有显式的每个请求提交策略和平台剪贴板效果。该文件不会被确认或重播到另一个附件，并且它不包含客户端的信任期限、选择类型选择、丰富的格式或剪贴板内容。
+`TerminalClipboardWriteRequest` 是仅事件控制记录，包含 `attachmentId`、正终端拥有的规范 `sequence` 以及最多 16 个 KiB 纯文本 UTF-8。 NUL、未配对的代理、零序列和过大的文本格式错误。它代表分配给一个可读取附件的一个主机承认的 OSC 52 剪贴板写入；它不代表剪贴板读取或授予效果。 Terminal Host 拥有有界挂起状态、单接收者交付、传出批量回滚以及移交（handoff）后移除。接收应用程序拥有显式的每个请求提交策略和平台剪贴板效果。该文件不会被确认或重播到另一个附件，并且它不包含客户端的信任期限、选择类型选择、丰富的格式或剪贴板内容。
 
 `TerminalApplicationSignal` 是仅事件控制记录，包含一个精确 terminal identity、一个由 terminal 拥有的正数 `sequence`，以及最多 4 KiB UTF-8 `payload`。Terminal Host 从准确 private APC prefix `orchbee.agent.v3;` 准入 decoded payload；record 的 literal channel `orchbee.agent.v1` 只是历史 Host-to-Desktop discriminator，不由 child 发出。该 record 既不认证发出信号的进程，也不授予 Agent、lifecycle、attention、outcome、notification 或 provider 权威。Terminal Host 会按 terminal sequence 的 FIFO 顺序保留最多 64 个已准入 hint，并且只有在 queue head 对应的 outgoing record 精确提交后才移除它。产品 adapter 必须先校验更窄的 payload schema，才能解释该值。
 
@@ -181,12 +181,12 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 | `6`    |    2 | 旗帜                                                  |
 | `8`    |    4 | 总记录字节数                                          |
 | `12`   |    4 | 有效负载字节，正好是总数减去标头                      |
-| `16`   |    2 | 协议专业                                              |
-| `18`   |    2 | 次要协议                                              |
+| `16`   |    2 | 协议主版本                                            |
+| `18`   |    2 | 次版本                                                |
 | `20`   |    2 | 留言种类                                              |
 | `22`   |    1 | 编码：控制JSON `1`，原始字节`2`，终端帧`3`，行窗口`4` |
 | `23`   |    1 | 保留零                                                |
-| `24`   |   16 | 相关恒等式；全零表示不存在                            |
+| `24`   |   16 | correlation identity；全零表示不存在                  |
 | `40`   |   16 | 主机纪元；仅在带有纪元的语义操作之前允许全零          |
 | `56`   |    2 | 协议补丁                                              |
 | `58`   |    6 | 保留零                                                |
@@ -211,28 +211,28 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 | `16`   |   16 | Host 纪元                                                              |
 | `32`   |   16 | 附件身份                                                               |
 | `48`   |    8 | 附件本地帧序列                                                         |
-| `56`   |    8 | 基础修订；全为无基数                                                   |
+| `56`   |    8 | base revision；全 1 表示无 base                                        |
 | `64`   |    8 | 捕获的规范终端修订版                                                   |
 | `72`   |    8 | 投影生成                                                               |
 | `80`   |    8 | 保留的回滚缓冲区行数                                                   |
-| `88`   |    2 | 专栏                                                                   |
+| `88`   |    2 | 列                                                                     |
 | `90`   |    2 | 行数                                                                   |
-| `92`   |    2 | 光标栏                                                                 |
+| `92`   |    2 | 光标列                                                                 |
 | `94`   |    2 | 光标行                                                                 |
 | `96`   |    1 | 光标形状：块`1`、条形`2`、下划线`3`                                    |
 | `97`   |    1 | 光标标志：可见位`0`、闪烁位`1`、宽尾位`2`                              |
 | `98`   |    1 | 活动屏幕：主 `1` 或备用 `2`                                            |
 | `99`   |    1 | 保留零                                                                 |
 | `100`  |    4 | 应用程序键盘/光标、粘贴、焦点、鼠标、modifyOtherKeys 和 Kitty 交互标志 |
-| `104`  |   12 | 解决了默认前景、背景和光标RGB；游标默认使用其声明的哨兵                |
-| `116`  |    8 | 标题和当前目录字符串索引；所有的意思是缺席                             |
+| `104`  |   12 | 已解析的默认前景、背景与光标 RGB；游标默认使用其声明的哨兵             |
+| `116`  |    8 | 标题和当前目录字符串索引；全 1 表示缺席                                |
 | `124`  |    4 | 字符串计数                                                             |
-| `128`  |    2 | 款式数量                                                               |
+| `128`  |    2 | 样式（style）数量                                                      |
 | `130`  |    2 | 行记录计数                                                             |
-| `132`  |    2 | 分机数                                                                 |
+| `132`  |    2 | 扩展（extension）数量                                                  |
 | `134`  |    2 | 保留零                                                                 |
 | `136`  |    4 | 单元格像素宽度和高度为两个 `u16` 值                                    |
-| `140`  |    4 | 编码细胞总数                                                           |
+| `140`  |    4 | 编码单元格总数                                                         |
 | `144`  |    1 | 格式补丁 `3`                                                           |
 | `145`  |    8 | 已提交的 Host 终端主题修订                                             |
 | `153`  |    7 | 保留零                                                                 |
@@ -240,7 +240,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 变量部分严格按照以下顺序排列：
 
 1. 每个字符串都是 `u32 byteLength` 后跟严格的 UTF-8 字节。
-2. 每个 20 字节样式包含前景、背景和下划线颜色代码 (`u32`)、超链接字符串索引 `u32`、显式样式标志 `u16`、下划线类型 `u8` 和保留零 `u8`。 RGB 占据低24位；声明为默认值，并且没有哨兵是特定于字段的。
+2. 每个 20 字节样式包含前景、背景和下划线颜色代码 (`u32`)、超链接字符串索引 `u32`、显式样式标志 `u16`、下划线类型 `u8` 和保留零 `u8`。 RGB 占低 24 位；声明的 default 与 none 哨兵是字段特定的。
 3. 每个八字节行标题包含行索引 `u16`、换行标志 `u8`、OSC 133 提示类 `u8`、单元格计数 `u16` 和保留零`u16`。确切地说，`columns` 八字节单元如下：字素字符串索引 `u32`、样式索引 `u16`、压缩宽度/OSC 133 语义/保护标志 `u8` 和保留零`u8`。
 4. 每个扩展都有种类 `u16`、标志 `u16`、字节长度 `u32` 和字节。标志位`15`表示需要；未知的所需扩展被拒绝。未知的可选扩展仍然受到限制并作为不透明数据返回。
 
@@ -306,7 +306,7 @@ OBPB 格式 `0.0.2` 是打包的主机到渲染数据平面。 `decodeTerminalPr
 |     14 |    2 | 网格列                                    |
 |     16 |    2 | 网格行                                    |
 |     18 |    2 | 包含行数                                  |
-|     20 |    4 | 包含细胞计数                              |
+|     20 |    4 | 包含单元格计数                            |
 |     24 |   16 | Host 纪元                                 |
 |     40 |   16 | 附件 ID                                   |
 |     56 |    8 | 序列                                      |
@@ -314,7 +314,7 @@ OBPB 格式 `0.0.2` 是打包的主机到渲染数据平面。 `decodeTerminalPr
 |     72 |    8 | 修订版                                    |
 |     80 |    8 | 一代                                      |
 |     88 |    8 | 回滚缓冲区行原点                          |
-|     96 |    2 | 光标栏                                    |
+|     96 |    2 | 光标列                                    |
 |     98 |    2 | 光标行                                    |
 |    100 |    2 | 单元格像素宽度                            |
 |    102 |    2 | 单元像素高度                              |
@@ -339,7 +339,7 @@ OBPB 格式 `0.0.2` 是打包的主机到渲染数据平面。 `decodeTerminalPr
 
 目录槽和元素类型是固定的：
 
-| 插槽 | 专栏             |  元素 |
+| 插槽 | 列               |  元素 |
 | ---: | ---------------- | ----: |
 |    0 | 包含行索引       | `u16` |
 |    1 | 行标志           |  `u8` |
@@ -386,7 +386,7 @@ Host 解析一次来源并返回连续 `RowsSnapshot`。每个附件的每个 pu
 | `7`    |    1 | 可选标志；所需位 `7` 当前为零                |
 | `8`    |    4 | 行窗口总字节数                               |
 | `12`   |    2 | 标头长度，恰好为 `112`                       |
-| `14`   |    2 | 专栏                                         |
+| `14`   |    2 | 列                                           |
 | `16`   |   16 | Host 纪元                                    |
 | `32`   |   16 | 附件身份                                     |
 | `48`   |    8 | 正附件本地请求序列                           |
@@ -434,15 +434,15 @@ Host 使用这些事实和固定的 Ghostty 选择行为来拥有单词、行、
 | 每个终端待处理的有序输入           |              4 MiB |
 | 每个终端的回滚配置                 |    1,000,000,000 B |
 | PTY 读取批次                       |            256 KiB |
-| 包装框架                           |             36 MiB |
+| 打包帧                             |             36 MiB |
 | 所有帧扩展/一条 OBKG 记录          |             33 MiB |
 | 解码Kitty资源                      |             32 MiB |
-| 小猫图片/展示位置                  |         256 / 1024 |
+| Kitty 图像/placements              |         256 / 1024 |
 | 传输记录                           |      44 MiB + 64 B |
 | 行窗口记录                         |             44 MiB |
 | 客户端边界处的搜索查询             |             16 KiB |
 | 选择预览                           |              4 KiB |
-| 选择导出/一大块                    |     16 MiB / 1 MiB |
+| 选择导出/一个 chunk（分块）        |     16 MiB / 1 MiB |
 | `SelectionExportChunk` raw payload |       1 MiB + 32 B |
 | 单个 UTF-8 字符串                  |             16 KiB |
 | 字符串/样式/行记录                 | 4096 / 1024 / 4096 |

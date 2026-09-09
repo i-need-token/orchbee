@@ -9,7 +9,7 @@
 
 `@orchbee/terminal` 拥有源中立渲染器合约，该合约消耗派生的完整演示配置。主机框架元数据对于终端调色板、光标、VT 状态、终端颜色方案回复和 OSC 行为仍然具有权威。 Workbench 通过渲染器覆盖、光标呈现和应用程序设计令牌表面来协调一个完整的主机主题修订。 Web/桌面组合将旧的源中立 `defaultColorOverride` 保留为 `null`。
 
-此功能可以分析粘贴到临时迁移报告中的 Ghostty 配置。它不会应用或保留该报告、读取 Ghostty 文件、改变主机配置文件、公开完整的调色板编辑器、使 Electron 窗口透明或跨客户端同步首选项。它还投射只读远程开发诊断。该投影既不拥有 SSH 进程，也不推断当前终端是否是远程的。
+此功能可分析粘贴的 Ghostty 配置并生成一份临时迁移报告。它不会应用或保留该报告、读取 Ghostty 文件、改变主机配置文件、公开完整的调色板编辑器、使 Electron 窗口透明或跨客户端同步首选项。它还投射只读远程开发诊断。该投影既不拥有 SSH 进程，也不推断当前终端是否是远程的。
 
 ## 应用语言偏好
 
@@ -128,7 +128,7 @@ macOS 上的桌面渲染器还拥有 `orchbee:web:macos-terminal-input:v1`。严
 
 稳定的内置配置文件使用本地化显示标签，而不是持久化产品文案。用户自定义名称会作为精确用户数据保留；重名不会合并身份。编辑器可以复制所选命令来创建新配置文件、重命名、更改命令与参数、保存草稿、设为默认项，或在确认后删除非默认配置文件。默认配置文件和最后一个配置文件都不能删除。Reset 需要确认，并且只有在 Main 持久提交后才会把完整目录替换为内置默认值。操作待处理时会禁用相互竞争的变更，并显示有界的本地化失败；无效草稿绝不会发送变更。提交失败会保留用户草稿，以便修正或重试，而无需重新输入。
 
-创建、编辑、默认选择、删除和重置使用显式控件。它们不会改变正在运行的终端。新配置的终端仅捕获默认配置文件一次，并且其持久绑定在重试和恢复期间保留具体的启动。配置文件解析仅更改可执行文件和参数；环境、机密、演示文稿、CWD、项目或工作区数据、一次性配置文件选择、远程连接和 shell 启动文件突变仍不在此功能范围内。不可用的自定义可执行文件在终端生命周期中会明显失败，而无需系统 shell 回退。完整的Main模型在[`../../desktop/docs/terminal-launch-profiles.md`](../../desktop/docs/terminal-launch-profiles.md)中具有权威性。
+创建、编辑、默认选择、删除和重置使用显式控件。它们不会改变正在运行的终端。新配置的终端仅捕获默认配置文件一次，并且其持久绑定在重试和恢复期间保留具体的启动。配置文件解析仅更改可执行文件和参数；环境、机密、演示文稿、CWD、项目或工作区数据、一次性配置文件选择、远程连接和 shell 启动文件突变仍不在此功能范围内。不可用的自定义可执行文件在终端生命周期中会明显失败，而无需系统 shell 回退。完整的Main模型在[`../../desktop/docs/terminal-launch-profiles.md`](../../desktop/docs/terminal-launch-profiles.zh-CN.md)中具有权威性。
 
 ## Desktop 终端默认值
 
@@ -208,15 +208,15 @@ ChatGPT 当前 Web/Desktop“设置”的构图是主要视觉参考：一条安
 
 设置搜索是全局发现界面，而不是页内过滤器。其确定性目录包含每个可用类别以及每个当前设置或管理入口，具有稳定的标识符、所属类别、本地化标签、可选部分、描述和搜索关键字。能力门控类别和设置仅在其组合能力存在时才进入目录。目录永远不会读取首选项值，并且搜索永远不会更改控制器、存储、主机、终端附件、迁移报告或远程环境。
 
-查询被修剪、Unicode 规范化、拆分为非空术语，并在有效区域设置中不区分大小写进行比较。类别结果与其类别标签相符。设置结果要求每个术语与设置标签、部分、描述或显式关键字匹配。直接标签匹配排在分区、描述和关键词匹配之前，原始信息架构顺序打破其余同分关系。空查询保留类别导航栏。非空查询会用一个全局结果列表替换该栏，同时当前内容页面保持完整且不变。零匹配在导航栏中呈现局部空状态，而不是清空内容页面。搜索结果仍然是一个带标签的列表框；零匹配投影包含一个禁用、未选择的选项，并带有礼貌的实时公告，保留组合框关系而不创建可操作结果。
+查询被修剪、Unicode 规范化、拆分为非空术语，并在有效区域设置中不区分大小写进行比较。类别结果与其类别标签相符。设置结果要求每个术语与设置标签、部分、描述或显式关键字匹配。直接标签匹配排在分区、描述和关键词匹配之前，原始信息架构顺序打破其余同分关系。空查询保留类别导航栏。非空查询会用一个全局结果列表替换该栏，同时当前内容页面保持完整且不变。零匹配在导航栏中呈现本地化空状态（localized empty state），而不是清空内容页面。搜索结果仍然是一个带标签的列表框；零匹配投影包含一个禁用、未选择的选项，并带有礼貌的实时公告，保留组合框关系而不创建可操作结果。
 
 拥有的交互状态是以下之一：
 
-| 状态       | 查询 | 结果选择                       | 轨道投影     |
+| 状态       | 查询 | 结果选择                       | 导航栏投影   |
 | ---------- | ---- | ------------------------------ | ------------ |
 | 浏览       | 空   | 无                             | 分组类别     |
-| 搜索结果   | 非空 | 一个有界索引，最初是第一个结果 | 全球搜索结果 |
-| 搜索无结果 | 非空 | 无                             | 局部空状态   |
+| 搜索结果   | 非空 | 一个有界索引，最初是第一个结果 | 全局搜索结果 |
+| 搜索无结果 | 非空 | 无                             | 本地化空状态（localized empty state） |
 
 转换是确定性的：
 
@@ -224,16 +224,16 @@ ChatGPT 当前 Web/Desktop“设置”的构图是主要视觉参考：一条安
 | ------------------ | -------------- | ---------------------------------------------------------------------------- |
 | 编辑查询           | 任意           | 重新计算全局投影并选择其第一个结果（如果存在）。                             |
 | 向下箭头或向上箭头 | 搜索结果       | 将有界选择移动一；当前的内容页面和每个偏好保持稳定。                         |
-| 输入               | 搜索结果       | 激活选定的结果。                                                             |
+| Enter               | 有搜索结果     | 激活选定的结果。                                                             |
 | 指针激活           | 可见的结果     | 激活该结果。                                                                 |
 | 激活类别结果       | 任意           | 选择类别，清除查询，恢复导航，显示内容并聚焦其标题。                         |
 | 激活设置结果       | 其类别仍然可用 | 选择类别，清除查询，恢复导航，显示内容，并显示且聚焦稳定的设置行或管理目标。 |
 | Escape             | 查询非空       | 清除搜索、恢复导航、保持设置打开并保留当前类别。                             |
-| 逃亡               | 查询为空       | 遵循设置覆盖关闭和焦点恢复合同。                                             |
+| Escape             | 查询为空       | 遵循 Settings overlay 的关闭与焦点恢复契约。                               |
 
 在结果间移动时，搜索输入会保留键盘焦点。激活结果后，焦点移动到目标标题、设置行或管理目标；它不会直接更改值，也不会调用目标操作。通过普通导航栏更改类别不会清除任何用户数据，并从该类别顶部开始。
 
-采用的参考投影是在2026年8月17日在macOS上的光标3.14.7中观察到的。采用的范围是全局类别和设置发现、查询期间的轨道替换、打字时稳定右侧内容、显式空结果、箭头导航、Enter激活、Escape清除、激活后查询清除、类别恢复和目标显示。明确排除光标品牌、副本、目录内容、模糊搜索实现、结果限制、像素几何、动画计时和排名关系。
+所采用的参考投影于 2026-08-17 在 macOS 上的 Cursor 3.14.7 中观察到。采用的范围是全局类别和设置发现、查询期间的导航栏替换、打字时稳定右侧内容、显式空结果、箭头导航、Enter激活、Escape清除、激活后查询清除、类别恢复和目标显示。明确排除光标品牌、副本、目录内容、模糊搜索实现、结果限制、像素几何、动画计时和排名关系。
 
 ## Desktop Agent 集成
 
@@ -319,8 +319,7 @@ Desktop 从可信的应用资源路径为新的 POSIX 终端提供 `ORCHBEE_SHEL
 profile 选择完成后，受支持的本地启动形式会使用一次性 Zsh、Bash 或 Fish loader；loader 会先恢复
 Shell 的正常启动路径，再 source 共享集成。不受支持的形式保持不变，并仍可使用手动回退。脚本发出
 标准 OSC 133 命令边界和 OSC 7 当前目录状态，但不传输命令文本。环境变量不能替换该资源路径；自动
-加载也绝不改变运行中或恢复的终端、Windows 终端、远程连接或用户启动文件。Terminal Host 只投影
-最新的正序列、持续时间、完成时间戳和标准化退出代码。
+加载也绝不改变运行中或恢复的终端、Windows 终端、远程连接或用户启动文件。
 
 对于显式安装的 Agent observation adapter，shell integration 还会启用上文所述、符合条件的 SSH reverse-socket path。Local 或 reverse-forwarded v3 socket 返回准确 acceptance ACK 后，remote adapter 会把有界 private-APC correlation hint 直接写到解析出的 direct、tmux、Zellij 或 nested-mux outer TTY。Terminal Host 只投影有界 application signal。OSC 9、OSC 777、OSC 99、OSC 1337、BEL 与 provider notification hook 不用作 Agent-observation correlation channel。
 
@@ -378,4 +377,4 @@ Agent 状态通知使用单独的精确 semantic-event subscription，而不是 
 - Agent-integration protocol、Main adapter/controller/broker、renderer client、composition、storage、设置与 reminder 测试覆盖 canonical ordering、只读启动、一个 pending mutation、准确 entry conflict 与 disable、reconciliation、malformed message、显式用户操作、per-Agent dismissal、session offer limit、远端排除、本地化以及不自动 mutation。TLA+ model 检查 serialization、precommit preservation、reconciliation、reload 与 disposal safety。
 - SSH-connection discovery、runtime、broker、renderer client、controller、Settings、localization、search、bootstrap 与 composition test 覆盖 bounded recursive Include、concrete-host filtering、missing 与 partial configuration、exact suggestion suppression、resolver-before-record ordering、无 activation 的 idempotent Add、shared status、显式 connect 与 disconnect、prompt secrecy、refresh supersession 与 capability absence。Controlled loopback SSH evidence 继续负责真实 OpenSSH、AskPass 与 Runtime behavior。
 - 迁移分析器测试涵盖可接受的语法、精确目标边界、标量取代、字体重置和后备列表、不透明单元格交互、畸形行、资源限制以及每个分配一个查找的排序，而不依赖于 React 或存储。
-- 浏览器、网关和桌面组合测试证明共享源、仅限本地配置文件功能和设置条目；桌面 Electron 见证人证明现有的投影终端在打开和关闭“设置”时保持连接状态。当前的macOS系统见证人额外启动了一个具有隔离密钥和配置的临时环回`sshd`，然后证明普通的SSH PTY接收到`TERM=xterm-256color`，解析其terminfo条目，并且不接收`COLORTERM` 或 `TERM_PROGRAM` 无显式转发。一个单独的 macOS Electron 见证人获取已发送的 Zsh 资源，观察一个真实的语义完成和本地化提醒，并证明预计的附件身份未更改。
+- 浏览器、网关和桌面组合测试证明共享源、仅限本地配置文件功能和设置条目；桌面 Electron 见证人证明现有的投影终端在打开和关闭“设置”时保持连接状态。当前的macOS系统见证人额外启动了一个具有隔离密钥和配置的临时环回`sshd`，然后证明普通的SSH PTY接收到`TERM=xterm-256color`，解析其terminfo条目，并且在没有显式转发时不接收`COLORTERM` 或 `TERM_PROGRAM`。独立的 macOS Electron 见证执行随附发布的 Zsh 资源的 source，观察一个真实的语义完成和本地化提醒，并证明预计的附件身份未更改。

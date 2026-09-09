@@ -33,7 +33,7 @@ UI flight 身份。下文的 Linux 多 Client Close 到 Empty 进程用例补充
 
 已提交变更尚无确定结果时，因截止或显式停用等原因退休，必须保留本地提交不确定性及用于
 状态恢复的精确身份。仅排队但未提交的取消，或确定的类型化 precommit 结果，不虚构提交
-不确定性。每次 join 的 worker 都必须有精确当前 carrier 的返回证据；全新恢复 carrier
+不确定性。每次 join 的 worker 都必须有该精确 carrier 的返回证据；全新恢复 carrier
 不能借用旧 worker 已完成的返回事实。停用保留已观察到的当前 worker 返回事实。
 
 原生停用完成后，会使已显示会话失效一次，即使是在下一次 UI tick 之前，通过未变化的几何
@@ -151,7 +151,7 @@ Available 状态能够消解该不确定性。外来目标或状态回复保留�
 进程终止或其他操作系统上的恢复。
 
 首次建立 Available Closed 且完成语义结算的精确 Read 拥有不可变 Close 对账来源：原 flight
-key、规范操作、尝试代、Closed 修订以及捕获的 binding/附件关联。后续 Closed 观察不能替换
+key、规范操作、尝试、Closed 修订以及捕获的 binding/附件关联。后续 Closed 观察不能替换
 该来源。独立 Snapshot marker 将其与新请求 ID 和独立固定 50 秒传输/放置截止时间配对。
 通用成员结果验证两个身份。Snapshot 失败保留未消费来源；原始缺失或不可用结果均不证明清理。
 
@@ -1028,7 +1028,7 @@ geometry 证明。已接受 Resize 清帧、最新 geometry 未匹配、无法�
 或 viewer 清理／替换，都会使该证明失效。Anchor 随这些事实更新；准入时 clone 不能回滚它们。
 已记录的 selected-without-attachment 或 retryable 来源，只能在仍没有 viewer/controller 时恢复。
 尚未完成的 Switch 不能创造 stable anchor；特别是第一个标记尚未 Ready 的 viewer 清理后，第二个
-标记可能没有可恢复 anchor。当前 Unavailable 没有有效 anchor 时退役，不发送修复 Poll 或建立操作。
+标记没有任何 anchor。当前 Unavailable 没有有效 anchor 时退役，不发送修复 Poll 或建立操作。
 已被取代的结果仅结算其旧 flight。精确恢复可以把 desired 返回旧的已分配 key，但 allocation cursor
 绝不回退，意图代次仍被消耗。及时放入 Unavailable 后其 transport 预算结束，因此精确 UI 结算可以
 稍后发生；它不启动前向工作，也没有人为添加的放入后截止时间。

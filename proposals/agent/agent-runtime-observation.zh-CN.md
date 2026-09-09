@@ -1,4 +1,4 @@
-# Agent Runtime 观测与待处理事项
+# Agent Runtime Observation 与 Attention
 
 | 字段       | 内容                                                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -15,7 +15,7 @@
 | 字段         | 建议授权                                                                                                                                                                                                                                                                                                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 分级         | 该能力拥有异步状态、顺序、层级、取消与多客户端投影，因此属于 Modeled；它引入跨 workspace 契约、消费不可信进程事件且可产生操作系统通知，因此同时属于 Consequential                                                                                                                                                                                                       |
-| 问题         | 用户可以让 terminal-backed Agent 持续运行，但 Orchbee 无法可靠区分工作、空闲、提问、批准请求、完成、失败或观测丢失。非活动终端 surface 可能被卸载，因此 renderer-local 观测不能提供完整的后台待处理事项或完成反馈。                                                                                                                                                     |
+| 问题         | 用户可以让 terminal-backed Agent 持续运行，但 Orchbee 无法可靠区分工作、空闲、提问、批准请求、完成、失败或观测丢失。非活动终端 surface 可能被卸载，因此 renderer-local 观测不能提供完整的后台 Attention 或完成反馈。                                                                                                                                                     |
 | 第一阶段结果 | 通过显式安装且 capability-bounded 的 adapter 观测 terminal-bound Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code session，包括本地 Orchbee Tab 通过 SSH 连接远端 tmux 或 Zellij client；在 renderer 生命周期之外维护一个 canonical observed-session 模型；并把可信状态投影到每个精确 attachment、Tab 与符合条件的通知。 |
 | 非目标       | 启动 Agent、拥有 prompt 或提交、编排工作、把终端文本解析为语义权威、在界面内回答问题或批准、修改 PTY 或 Agent 进程权威、持久 transcript 或 prompt 历史、所有 SSH attachment 断开后的实时交付、移动端推送，或跨设备 exactly-once 通知交付                                                                                                                                |
 | 兼容性       | Agent 观测缺失、禁用、不支持、过期或失败时，现有 terminal、shell integration、命令完成提醒、OSC title、progress、close activity 与 terminal lifecycle 均保持不变。                                                                                                                                                                                                      |
@@ -24,7 +24,7 @@
 
 当前 terminal progress、close activity 与命令完成都是有界的呈现事实，而不是 Agent lifecycle
 权威。它们只能继续作为低保真 fallback 证据使用。当前全 Tab 监控限制由
-[shell-integration 契约](../../apps/web/docs/terminal-settings.zh-CN.md#shell-集成与完成提醒)维护。
+[shell-integration 契约](../../apps/web/docs/terminal-settings.zh-CN.md#shell-集成与完成提醒)记录。
 
 ## 已接受架构
 
@@ -64,7 +64,7 @@ Provider native API / managed hooks
 | Client view         | 拥有 presentation-scoped visibility、focus、attachment generation 与事件 acknowledgement，不解决 shared Agent request                                                                                                             |
 | 平台通知 adapter    | 尝试一个已经授权、本地化且有界的通知 effect，并报告 delivery API outcome，不改变 Agent 状态                                                                                                                                       |
 
-第一个已接受的实现切片只在 deterministic model 拥有真实 application consumer 时创建了
+第一个已接受的实现切片只是伴随其真实 application consumer 一起创建了
 `@orchbee/agent`。其已交付 Desktop-co-located runtime 与 application-owned Unix socket 在下文已接受
 native migration 替换各 consumer 前继续作为当前权威。目标为第一个真实 Rust producer 与 consumer
 使用 language-neutral schema；wire data 永远不能拥有 transition legality 或 product policy。
@@ -701,7 +701,7 @@ Consequential 与 Modeled 切片：
    coordinator retirement。Rollback 会移除 read operation 与 journal，同时保留 canonical Agent
    observation 和既有 point-in-time read。
 
-## 已接受的安全传输、卸载惰性安装、上下文 onboarding 与 limited presence 授权
+## 已接受的安全传输、惰性（inert）安装、上下文 onboarding 与 limited presence 授权
 
 2026-08-31，同一 active requester 以 Orchbee 产品与架构 decision owner 身份明确接受了这一
 Consequential 与 Modeled 替换切片。本节取代本提案中此前选择 OSC 777、application bundle 符号链接、
@@ -748,7 +748,7 @@ Transport state machine 是 `discover -> connect -> send-rich -> accepted -> emi
 ingress boundary，并不证明 APC 已到达、presentation 已 join、semantic transition 已应用或
 notification 已显示。
 
-### 稳定、卸载惰性的安装与迁移
+### 稳定、惰性（inert）的安装与迁移
 
 1. 安装仍是按 provider、按 execution host 的显式用户操作。新用户不会收到自动 local 或 remote
    configuration change。Orchbee 永不复制到或编辑 remote host；经过审阅的远端指引仍只能手动执行。

@@ -38,9 +38,9 @@ Git common directory 的规范路径去重 repository。发现不会执行 fetch
 
 ## 接纳 transition 与工作流
 
-Workbench 持有可序列化的 `project-worktree-adopted` transition。它要求一个可用源 Directory、一个
-有效且可用的 `source: discovered`、`worktree` Directory、repository 一致性以及唯一的 Directory
-身份和路径。它以原子方式追加 Directory 与一个 Workspace、展开 Project、激活 Workspace，并发出
+Workbench 持有可序列化的 `project-worktree-adopted` transition。它要求一个可用的源 Directory、一个
+有效可用且标记为 `source: discovered` 的 `worktree` Directory、repository 一致性，以及唯一的 Directory
+身份与路径。它以原子方式追加 Directory 与一个 Workspace、展开 Project、激活 Workspace，并发出
 一个以该 Worktree 为根目录的 terminal context 创建命令。
 
 Desktop Main 按以下顺序执行接纳：

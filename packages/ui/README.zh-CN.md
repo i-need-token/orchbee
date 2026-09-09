@@ -32,7 +32,7 @@ export function Example() {
 
 Portaled 浮动内容在模态框之外保留生成的默认层级。模态框消费者通过受支持的 `positionerClassName` Override 传入映射到 `--ob-ref-layer-modal` 的 CSS Module Class，使 Portal 位于所属 Dialog 之上，而无需为 Popup 设置一次性 `z-index`。
 
-默认对话框和警报对话框表面使用共享的 `480px` 宽度，受视口和没有外部轮廓的阴影约束。他们的操作页脚共享内容表面并依赖于间距而不是分隔线或着色的页脚带。
+默认 Dialog 与 Alert Dialog 表面使用共享的 `480px` 宽度（受视口约束），并使用没有外部轮廓的阴影。他们的操作页脚共享内容表面并依赖于间距而不是分隔线或着色的页脚带。
 
 ## 产品图标
 
@@ -40,7 +40,7 @@ Portaled 浮动内容在模态框之外保留生成的默认层级。模态框�
 
 产品允许列表包含 `sidebar-left`、`add`、`arrow-left`、`close`、`ellipsis`、`more-vertical`、`pin`、`search`、`settings` 与 `terminal`，分别由对应 Codicons 字形支持。生成的 shadcn 源在生成代码兼容边界内保留其上游 Lucide 依赖。参见仓库[前端样式标准](../../docs/frontend/styling.md)与[第三方声明](../../THIRD_PARTY_NOTICES.md)。
 
-可调整大小的组件外观为需要通过组命令 API 约束实时布局的产品适配器导出 `ResizablePanelGroupHandle`。
+可调整大小的组件外观为需要通过 group 命令式（imperative）API 约束实时布局的产品适配器导出 `ResizablePanelGroupHandle`。
 
 ## 刷新组件
 

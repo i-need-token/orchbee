@@ -118,7 +118,7 @@ Create/Start results expose no internal Terminal, Worker, operation, lease, fenc
 ## Session viewer control and binary records
 
 `terminal.viewer` contains `protocolVersion`, a fresh `requestId`, and one closed `action`. Each
-admitted Client Session owns at most one read-only viewer. `attach` supplies only
+admitted Client Session can own multiple read-only viewers on its existing ordered carrier. `attach` supplies only
 `terminalCreateRequestId`; Server resolves an accepted terminal in the same authority and subject,
 pins its existing Worker generation and Host epoch, and issues a fresh attachment identity.
 `attach-binding` instead supplies exactly `siteId`, `workerId`, and logical `terminalId` obtained
@@ -129,7 +129,7 @@ The binding triple selects an existing terminal and grants no authorization. Ser
 current active Site and exact Worker/Terminal pair to remain exposed by a canonical Workbench
 presentation before resolving the exact retained terminal and its pinned Worker generation. Selection performs no Open,
 Create, Start, launch, membership, rebind, navigation, input, resize, or controller effect. Target
-validation has this precedence after the one-viewer Session guard:
+validation has this precedence after the Server-owned Session capacity guard:
 
 1. poisoned registry or Site ownership returns `server-busy`;
 2. missing or retired Workbench returns `workbench-unavailable`;
@@ -143,18 +143,33 @@ validation has this precedence after the one-viewer Session guard:
 Workbench exposure and retained-target resolution linearize together. Later Workbench retirement
 does not cancel the pinned operation. Attachment success linearizes at the existing post-IPC
 current-Worker check; Worker loss after that check can race response delivery and is fenced by the
-next operation. `poll` and `detach` have no additional fields. No request can supply or transfer an
-attachment identity. Session loss detaches transient viewing state and never terminates the retained
+next operation. `poll`, `frame-applied`, `need-snapshot`, and `detach` require an in-action
+`attachmentId`, using the nonzero 32-character lowercase hexadecimal identity format. It selects
+only a Server-issued viewer owned by the submitting Session; it cannot create or transfer ownership.
+`attach` and `attach-binding` forbid this field. Session loss detaches transient viewing state and never terminates the retained
 terminal. The action changes only OBCS JSON; the existing OBCN relay, OBSR framing, and byte limits
 remain unchanged.
 
-`frame-applied` carries `sequence`, `generation`, and `revision`; `need-snapshot` carries `sequence`
-and `reason`. These counters are canonical decimal strings in the unsigned 64-bit range, with no
+`frame-applied` also carries `sequence`, `generation`, and `revision`; `need-snapshot` also carries
+`sequence` and `reason`. These counters are canonical decimal strings in the unsigned 64-bit range, with no
 leading zero or sign; sequence and generation are positive. Reasons are `activity-stale`,
 `base-mismatch`, `decoder-rejected`, `dimensions-mismatch`, `generation-mismatch`, `identity-mismatch`,
-`sequence-gap`, and `store-reset`. Only exact feedback for that Session's single outstanding frame
-may reach its Worker attachment. Poll while awaiting feedback returns `empty` without another frame.
+`sequence-gap`, and `store-reset`. Only exact feedback for the selected viewer's outstanding frame
+may reach its Worker attachment. Different viewers may have equal counters; the selector and that
+viewer's frame scope determine validity. Poll while that viewer awaits feedback returns `empty`
+without another frame and does not block a sibling viewer.
 A new attachment requires a new baseline; viewer attachment grants neither input nor resize authority.
+
+An unknown or unowned selector returns `terminal-unavailable` for Poll or feedback and effect-free
+`detached` for Detach. Control returns `viewer-unavailable`. A same-Session attachment to the same
+resolved live runtime target returns `already-attached`; different targets can coexist. The owning
+[Server guide](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record)
+defines capacity precedence, disposal, generation fencing, and cleanup. The codec validates syntax,
+not runtime ownership.
+
+This required selector changes the unpublished OBCS v1 request shape. Build, deploy, and roll back
+the exact Client/Server/Worker development cohort together; mixed cohorts and an implicit-current
+viewer fallback are unsupported. OBCN and OBSR wire formats do not change.
 
 JSON viewer outcomes are `attached` with `attachmentId` and `hostEpoch` (nonzero 32-character
 lowercase hex), fieldless `empty`, `feedback-accepted`, or `detached`, `rejected` with reason
@@ -180,12 +195,13 @@ control messages, while binding tests cover binary boundaries and opaque byte pr
 ## Session controller
 
 `terminal.control` contains `protocolVersion`, a fresh `requestId`, and one closed `action`.
-`acquire` has no additional field and requires an attached viewer. Server explicitly grants one
+Every control action requires in-action `attachmentId`. `acquire` has no other field and requires
+that exact attached viewer in the submitting Session. Server explicitly grants one
 combined input-and-resize controller per terminal, without takeover or automatic promotion. The
 `acquired` result carries a fresh `controllerId`, using the nonzero 32-character lowercase hex
 identity format. The grant is bound to that Session, viewer, Worker generation, and Host terminal.
 
-`input` contains `controllerId`, `sequence`, and `bytes`; `resize` contains `controllerId`,
+`input` additionally contains `controllerId`, `sequence`, and `bytes`; `resize` additionally contains `controllerId`,
 `sequence`, and complete `geometry`. Input bytes are 1 through 4,096 raw bytes encoded as an even,
 lowercase hexadecimal string, with no prefix; they are not UTF-8 text, Base64, or executable metadata.
 Both actions share a strictly increasing positive u64 sequence encoded as a canonical decimal

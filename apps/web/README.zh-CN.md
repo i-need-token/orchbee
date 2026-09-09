@@ -31,15 +31,15 @@ snapshot 恢复，而不是 replay delta 或旧 notification event。
 
 Browser Preview 使用内存 composition。Desktop 为共享 client-session 与 projection port 提供 `MessagePort` adapter，再在通用 application 旁注入仅 Electron 的 application-lifetime、Browser-access、native Project Folder acquisition、managed Project Worktree、设备本地 terminal-launch-profile、terminal-default-settings、Main-owned clipboard-read、remote-terminal-creation 和 SSH Project enrollment capability。其 capability-scoped 本地 projection transport 声明 `local-host`，允许 OBPB format-`0.0.1` render buffer 在结构校验后成为直接 typed view。Gateway adapter 每页使用一个 Cookie 准入的 control WebSocket，每个可见 terminal attachment 使用一个 binary WebSocket，并声明 `external`，保留完整的逐 cell protocol scan。两个 adapter 都组合相同的 `createWorkbenchClientRuntime`，不会实现另一套 Workbench renderer。共享 projected-terminal surface 在每个 inline edge 保留一个透明像素，同时保持 block edge 齐平；每次 container resize 后都把完整 cell 放入该边界，并在完整 Panel viewport 上镜像有效 terminal default background，避免 canvas 暴露不匹配的 application surface。Host mode 使用 Host-projected default；client display override 使用选定的 default color 与 alpha。Background opacity 只作用于该 default background 与 renderer clear，绝不作用于 whole-root CSS opacity 或 terminal text。支持的直接 Kitty graphics 使用同一个严格解码 live frame 和 clipped、pointer-transparent sibling canvas；history presentation 与空 graphics snapshot 会移除 overlay，而不重放 stale image。获准 terminal bell 会在完整 surface 上显示短暂、pointer-transparent 的 information wash，而不是类似 focus 的 edge；reduced-motion presentation 保持同一有界时长但不播放 animation。重复接受的 sequence 会重新开始有界视觉提示，而不改变 layout 或 focus；sound 与 notification policy 彼此独立。Connection notice 明显覆盖 surface，但不消费 terminal-grid space，也不把最后一行移出 viewport。Committed 或 duplicate frame 只清除 transient connection failure；已发布 terminal exit 或 runtime failure 优先于后续 transport loss，并保留 final-frame presentation state。Generic Workbench client payload 来自 `@orchbee/workbench-client-protocol`；人类 Browser 鉴权与 Cookie 契约来自 `@orchbee/remote-client-protocol`；Gateway page handshake、attachment 鉴权与 framing 来自 `@orchbee/gateway-protocol`；Electron bootstrap、application-lifetime、Browser-access、Project Folder acquisition、Project Worktree、terminal-launch-profile、terminal-default-settings、clipboard-read、remote-terminal-creation 与 SSH Project enrollment command 来自 `@orchbee/desktop-client-protocol`。
 
-对于主机支持的视觉终端，共享表面在加载当前配置的字体并测量正安装视口之前不会打开投影。它通过相同的 Electron 或网关投影命令发送生成的精确列、行、物理单元格大小、填充感知网格和文档 DPR，然后固定第一个渲染器的演示配置。调整大小的观察或动画帧会唤醒不可测量的表面；释放中止等待。没有计时器启动子进程，也不存在 80x24 视觉后备。
+对于主机支持的视觉终端，共享表面在加载当前配置的字体并测量出尺寸为正（positive）的已挂载视口之前，不会打开投影。它通过相同的 Electron 或网关投影命令发送生成的精确列、行、物理单元格大小、填充感知网格和文档 DPR，然后固定第一个渲染器的演示配置。调整大小的观察或动画帧会唤醒不可测量的表面；释放中止等待。没有计时器启动子进程，也不存在 80x24 视觉后备。
 
-Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关联，直到 Main 确认清理。如果异步 Main open 完成与该 release 交错，适配器只关闭迟到的 attachment 端口，并让共享投影控制保持可用；无关的 pending 与未来投影继续正常工作。无效 schema、标识、端口数量或重复 open 仍会在共享控制边界无法恢复。
+Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关联，直到 Main 确认清理。如果异步 Main open 完成与该 release 交错，适配器只关闭迟到的 attachment 端口，并让共享投影控制保持可用；无关的 pending 与未来投影继续正常工作。无效 schema、标识、端口数量或重复 open 仍会在共享控制边界按失败关闭（fail closed）处理。
 
 已经绘制的 surface 进入 Workbench 托管的 `closing`、`close-failed` 或 `closed` 生命周期时，会保留为冻结的不可交互帧，而不是 dispose 其 DOM。进入该生命周期会释放 projection request、attachment、transport、输入与 resize ownership，并且不会打开或重试另一项 attachment。只有在存活 Tab 跨过显示屏障后 Workbench 移除该 surface，或正常清除最后一个 Tab 时，才会 dispose 这个冻结 renderer。
 
 自然退出后，只有在 Workbench 的 managed 自然退出 removal 等待处置期间，最终帧仍可读取；投影附件会拒绝后续 PTY 输入、调整大小、clear 与 reset 控制，并且处置完成后不会把已退出 Presentation 保留为 Tab。已停止的 Presentation 仍是独立 Workbench 状态。其 Start New Session 控件通过共享组合返回 Workbench 转换结果；获准结果会经常规持久工作流替换 Presentation，拒绝或抛出异常的启动则保留当前已停止 Presentation，并显示局部失败反馈。
 
-意外的附件丢失会冻结最后完成的画布和可访问的行，同时释放其传输和交互所有权。共享表面会在 250、500 和 1,000 毫秒后重试新的附件，并且仅在候选者绘制其第一帧后才替换冻结的投影。耗尽预算后，诚实的最后一帧可见，并暴露了一个本地化的手动重试操作；每次尝试都拥有并释放一个投影请求。类型为 `renderer-backpressure`、`host-transport-backpressure` 或 `host-connection-unavailable` 故障在保留其原始操作和相关诊断后解决相同的附件本地传输不可用信号； Surface 永远不会重试被拒绝的命令或继续使用因果不完整的附件。传输丢失还会显式地与字体和 GPU 启动竞争：它在启动之前中止该候选者可能会拖延恢复，并且升级会在第一帧等待之前和之后检查候选者当前的传输可用性。
+意外的附件丢失会冻结最后完成的画布和可访问的行，同时释放其传输和交互所有权。共享表面会在 250、500 和 1,000 毫秒后重试新的附件，并且仅在候选者绘制其第一帧后才替换冻结的投影。耗尽预算后，诚实的最后一帧可见，并暴露了一个本地化的手动重试操作；每次尝试都拥有并释放一个投影请求。类型为 `renderer-backpressure`、`host-transport-backpressure` 或 `host-connection-unavailable` 故障在保留其原始操作和相关诊断后解决相同的附件本地传输不可用信号； Surface 永远不会重试被拒绝的命令或继续使用因果不完整的附件。传输丢失还会显式地与字体/GPU 启动竞争：它会在这类启动可能拖延恢复之前中止该候选者，而候选晋级（promotion）会在其第一帧等待之前和之后分别检查该候选者当前的传输可用性。
 
 每个投影表面都会把一个瞬态广播输入 sink 绑定到其精确 Workbench Presentation。只有恢复控制器拥有活动传输，且投影终端公开匹配的附件能力修订时，该 sink 才报告就绪。能力变化、保留、传输丢失、候选替换、冻结与处置都会在后续输入能够复用该 sink 前通知 Workbench。一次获准发送只会把快照修订作为 compare-and-send 守卫，委托一次投影终端的附件本地注入路径；缺少此能力的旧版或测试渲染器及修订变化都会失败关闭。适配器不协调目标，也不重试、回滚或重放多终端投递。
 
@@ -62,9 +62,9 @@ Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关�
 | 键条与焦点   | 规范的 `projected-terminal.mobile-input-bar` 只在粗粒度无 hover 媒体条件下出现，包含显示/隐藏键盘、Escape、Tab、Control、Alt 和四个方向控件。其按键控件保留 textarea 焦点并使用精确的活动附件修订；键盘切换反映真实 textarea 焦点，绝不声称操作系统已显示键盘。输入不可用或只读时，产生输入的控件禁用。                |
 | 视口投影     | composition 会在终端测量前，把每个有限正值 `VisualViewport` resize 或 scroll 样本应用到应用根；API 不可用或无效时使用布局视口。根尊重安全区域 inset，既有终端 `ResizeObserver` 仍是投影网格 resize 的唯一写入者。键盘关闭会恢复最新完整可视视口，且不持久化几何。                                                      |
 | 不变量与失败 | 触摸滚动绝不准备修饰键；控件绝不向已替换附件发布；移动状态不会进入共享 Workbench document、浏览器存储或 Terminal Host。缺失浏览器焦点或视口能力会降级为不变布局和类型化不可用输入，而不是合成成功。桌面指针与硬件键盘行为保持不变。                                                                                    |
-| 验证与限制   | 确定性状态测试覆盖每个修饰键转换和替换。渲染器与 React 测试覆盖原生捕获顺序、修订固定、本地化和焦点保留。仍需受控有界面移动视口轨迹来验证媒体条件可见性、触摸轻触/滚动、视口收缩/恢复、网格 resize 和两种 locale；真实 iOS 与 Android 键盘弹出仍属手动发布证据。                                                       |
+| 验证与限制   | 确定性状态测试覆盖每个修饰键转换和替换。渲染器与 React 测试覆盖原生捕获顺序、修订固定、本地化和焦点保留。仍需受控有头（headed）移动视口轨迹来验证媒体条件可见性、触摸轻触/滚动、视口收缩/恢复、网格 resize 和两种 locale；真实 iOS 与 Android 键盘弹出仍属手动发布证据。                                                       |
 
-每个附件只发布自己的焦点声明和投影需求。Terminal Host 会聚合共享终端的合格声明；只要仍有另一项合格声明，失去焦点或可见性的附件就无法发出终端范围的 `FocusOut`，而重新激活需要新的声明。每次打开或显式再次打开紧凑的查找界面时，只要当前存在活动 Host 选择，就会用其有界预览替换空查询或预填查询；没有活动选择时则保留当前查询。搜索所拥有的活动范围仍以 Host 选择为权威，而不会形成第二套应用程序选择模型。每次这样的调用都会聚焦并全选完整查询；从任一查找控件按 Escape 会关闭界面并恢复终端焦点。匹配选项位于查询输入框内，普通搜索进度使用紧凑的本地化计数，左右方向键在匹配选项间移动，指针改变匹配选项后则把焦点还给查询输入框。只有可操作的失败、超时或保留历史通知才会展开工具栏并显示完整的本地化反馈。
+每个附件只发布自己的焦点声明和投影需求。Terminal Host 会聚合共享终端的合格声明；只要仍有另一项合格声明，失去焦点或可见性的附件就无法发出终端范围的 `FocusOut`，而重新激活需要新的声明。每次打开或显式再次打开紧凑的查找界面时，只要当前存在活动 Host 选择，就会用当前活动 Host 选择的有界预览替换空查询或保留（retained）的查询；没有活动选择时则保留当前查询。搜索所拥有的活动范围仍以 Host 选择为权威，而不会形成第二套应用程序选择模型。每次这样的调用都会聚焦并全选完整查询；从任一查找控件按 Escape 会关闭界面并恢复终端焦点。匹配选项位于查询输入框内，普通搜索进度使用紧凑的本地化计数，左右方向键在匹配选项间移动，指针改变匹配选项后则把焦点还给查询输入框。只有可操作的失败、超时或保留历史通知才会展开工具栏并显示完整的本地化反馈。
 
 `Ctrl+Shift+G` 会在应用拥有的模态查看器中打开上一条带 Shell 标记的命令输出。一个 replace-latest Action 通过有界通用缓冲区 lane 准备精确 generation/revision 的纯文本 document；过时、淘汰、备用屏幕、不可用或超限读取绝不发布局部输出。已准备 document 在打开期间保持不可变，字面量不区分大小写搜索、Enter/Shift+Enter 导航、原生文本选择与独立的 `terminal.output.copy` Action 都在本地运行。查看器会约束焦点循环并在关闭时恢复终端焦点，且有意不启动外部 pager 或重新渲染 ANSI 样式。参见 [Kitty 对齐契约](../../packages/terminal/docs/kitty-command-output-viewer-alignment.zh-CN.md) 与 `projected-terminal.text-viewer` experience component。
 
@@ -76,11 +76,11 @@ Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关�
 
 每个投影表面将工作台拥有的最小终端操作目录注册到视口的应用程序运行时和范围中：复制、粘贴、全选、查找、查找下一个、查找上一个、显示上一条命令输出、复制命令输出、显示回滚历史、复制回滚历史、滚动到底部、清除和重置。可用性是同步的，并且在执行准备的调用时保持权威。上下文菜单和自定义快捷键 Paste 仅通过注入的客户端能力读取文本。空闲的平台默认粘贴组合键会保留原生 DOM 投递，使终端适配器可以应用纯文本优先和仅图片 `Control+V` 策略，并且不读取图片字节。当手动选择 Copy 或另一个 Paste Action 仍在进行时，默认组合键会使用 Action 路径；Paste 会等待该精确 Copy 操作结算后再读取当前剪贴板，然后重用相同的终端粘贴清理和审阅路径。每次执行都会以键入的 Action 结果进行结算；需要可感知反馈的已完成、未更改、阻止和失败结果使用共享的本地化终端状态界面。这些直接终端操作不添加确认步骤。不可用或未绑定的 Apple Command 快捷方式仍保持为原生状态，而不是被抑制。
 
-稳定的 Canvas 2D 见证者 `terminal-parity/IN-07-pre-input`、`terminal-parity/IN-09-action-scope`、`terminal-parity/IN-11-context` 和 `terminal-parity/IN-12-actions` 与其真实包含的 Workbench 运行时组成了生产投影表面。它们断言无按键应用鼠标移动在继续上报的同时保留当前历史位置与 Host 选择，并覆盖已声明/未声明和可用/不可用快捷方式处理、应用程序鼠标所有权、精确固定上下文和陈旧链接拒绝、完整的最小目录、同步可用性、键入结果、无新确认以及 `en-US` 和 `zh-CN` 反馈。它们的剪贴板和外部打开效果被捕获；它们不要求操作系统菜单、剪贴板或 URL 处理程序。
+稳定的有头（headed）Canvas 2D 见证 `terminal-parity/IN-07-pre-input`、`terminal-parity/IN-09-action-scope`、`terminal-parity/IN-11-context` 和 `terminal-parity/IN-12-actions` 与其真实包含的 Workbench 运行时组成了生产投影表面。它们断言无按键应用鼠标移动在继续上报的同时保留当前历史位置与 Host 选择，并覆盖已声明/未声明和可用/不可用快捷方式处理、应用程序鼠标所有权、精确固定上下文和陈旧链接拒绝、完整的最小目录、同步可用性、键入结果、无新确认以及 `en-US` 和 `zh-CN` 反馈。它们的剪贴板和外部打开效果被捕获；它们不要求操作系统菜单、剪贴板或 URL 处理程序。
 
-只有在环境所有者向 Terminal Host 提交准确的下一能力修订后，投影附件流才能实时替换输入权限。共享渲染器会立即将现有文本区域设为只读，使输入法组合、本机结算、粘贴审查以及按住的按键、鼠标和焦点状态失效，并根据实时终端重新计算终端操作的可用性。查找、历史记录、选择、复制、保留输出和已批准链接仍然可用。之后的升级只接受携带新修订号的未来输入；它不会重放降级前的 DOM 状态或排队工作。Electron 与 Gateway 使用同一个渲染器契约，任何渲染器命令都不能请求提升自身权限。
+只有在环境所有者向 Terminal Host 提交准确的下一能力修订后，投影附件流才能实时替换输入权限。共享渲染器会立即将现有文本区域设为只读，使输入法组合、本机结算、粘贴审查以及按住的按键、鼠标和焦点状态失效，并根据实时终端重新计算终端操作的可用性。查找、历史记录、选择、复制、保留输出和已批准链接仍然可用。之后的升级只接受携带新修订号的未来输入；它不会重放降级前的 DOM 状态或排队工作。Electron 与 Gateway 使用同一个渲染器契约，任何 renderer 命令都不能请求自身的能力升级（capability upgrade）。
 
-稳定的有界面 Canvas 2D `terminal-parity/IN-10-read-only` 见证控制精确的附件能力修订，并观察即时本地修复、保留的搜索/选择/历史/复制、零陈旧输入命令，以及升级后只接受全新输入。Terminal Host 的所有者本地测试会证明权威拒绝与修复顺序；该 Browser 夹具不会授予渲染器改变能力的权限，也不声称原生权限行为。
+稳定的有头（headed）Canvas 2D `terminal-parity/IN-10-read-only` 见证控制精确的附件能力修订，并观察即时本地修复、保留的搜索/选择/历史/复制、零陈旧输入命令，以及升级后只接受全新输入。Terminal Host 的所有者本地测试会证明权威拒绝与修复顺序；该 Browser 夹具不会授予渲染器改变能力的权限，也不声称原生权限行为。
 
 Desktop file drop 是同一 surface 的可选 capability，而不是 Browser filesystem API。Desktop
 adapter 只能把 user-supplied disk `File` object 解析为 backing path；一个 object 可以代表 file
@@ -96,7 +96,7 @@ stale preparation 与 unavailable active attachment 均不发布任何内容。B
 不获得 backing-path capability；在 active shell dialect 具备同样有界的 escaping contract 前，
 Windows 仍不受支持。
 
-稳定的 headed `terminal-parity/IN-08-drop` witness 在当前 POSIX Desktop platform 使用真实 Electron
+稳定的有头（headed）`terminal-parity/IN-08-drop` 见证 在当前 POSIX Desktop platform 使用真实 Electron
 `File` 与 backing-path bridge。它的 protected `dragover` fixture 会公开 `Files` marker，但不提供
 可读 `FileList`；最终 `drop` 再提供 disk-backed object。它观察直接插入既有 shell line 中间、没有
 Paste Review、不自动执行，以及只有单独显式 Enter 后才执行。Owner-local test 覆盖 FileList
@@ -110,7 +110,7 @@ file-content read、upload 或 filesystem-link activation。
 
 ## 导航
 
-所有三种组合都使用一种TanStack路由器和浏览器的路径契约相同。 项目、工作区和活动选项卡标识显示在地址中。 结构不完整的路线（例如 `/projects` 或 `/projects/$projectId/workspaces/$workspaceId`）将自己替换为第一个订购的可用后代； 显式陈旧标识符保留地址并显示本地不可用状态。 应用程序内导航会推送历史记录，而规范化和协调会取代它，因此“后退”和“前进”会重现显示的 Client View，而无需发布共享文档更改。 请参阅[`docs/navigation-routing.md`](docs/navigation-routing.md)。
+所有三种组合都使用同一个 TanStack Browser Router 与同一路径契约。项目、工作区和活动选项卡标识显示在地址中。结构不完整的路线（例如 `/projects` 或 `/projects/$projectId/workspaces/$workspaceId`）会将自己替换为第一个依序可用（ordered available）的后代；显式陈旧标识符保留地址并显示本地化的不可用状态。应用内导航会推送历史记录，而规范化和协调会取代它，因此“后退”和“前进”会重现显示的 Client View，而无需发布共享文档更改。请参阅 [`docs/navigation-routing.md`](docs/navigation-routing.md)。
 
 ## 设置
 
@@ -132,7 +132,7 @@ Credential 只会进入瞬时 Desktop AskPass flow，永不进入 Settings state
 
 通用 Settings Action 会打开应用拥有的全窗口 overlay，而不是导航到其他路由。Workbench 子树变为 inert，但其 React tree 与每个 projected terminal attachment 保持 mounted。客户端本地 application theme、terminal font、有效默认 terminal color 和 default-background opacity 立即应用，并作为当前 Browser origin 的一项严格版本记录持久化。在 macOS Desktop 上，单独的严格本地记录选择左右 Option 键是否充当 terminal Alt；默认为关闭，接受的更改会更新每个 mounted projected terminal，而不替换 attachment。六十七个常用 Workbench 与聚焦终端快捷键（包括应用范围字号增大/减小/重置、在精确显示终端的当前目录创建终端标签页、四个方向 Panel-focus command、上一个/下一个 Panel 循环聚焦、十个精确按位置 Panel 聚焦命令、可视 Panel 聚焦与交换、四个方向 Panel-movement command、按比例均分 Panel、键盘 Panel 调整大小模式、活动标签页在其固定或未固定分区内的循环移动、可见终端 Hints、显示上一条命令输出与显示回滚历史）使用单独的严格本地 override 记录；接受的更改会更新 mounted Workbench 与每个 projected terminal，而不替换 attachment 或 connection。标准默认值保留未加 Shift 的 terminal control sequence，runtime Action availability 在消费任何按键前仍具有权威性。Application theme 与 terminal display theme 保持分离，terminal override 绝不修改 Host metadata、palette、cursor、VT 或 OSC state。本地 Desktop 还注入语义 shell-profile control。其显式 editor 可以创建、重命名、选择 system 或 custom executable、保留 literal argument order、选择 default、删除和确认 reset；每项接受的更改只影响 Main-owned catalog 提交后创建的 terminal。Gateway 与 Browser composition 不接收 profile capability。Desktop 会为新建且受支持的本地 Zsh、非登录 Bash 和 Fish 终端自动加载 Shell Integration，且不编辑启动文件；Settings 会解释该边界，把精确的内置 source 命令作为手动回退，并拥有单独的默认关闭设备本地 completion-reminder policy，通知绝不包含 command text。仅粘贴的 Ghostty migration dry-run 会报告无损 current target、manual-review case、ignored key 与 invalid line，但不读取文件、应用值或持久化 source text。Remote development category 是另一项只读 projection：它解释 `xterm-256color` baseline，公开一个固定 shell diagnostic，区分 observed environment 与 terminfo outcome，并声明 Orchbee 不会静默转发额外 environment variable 或修改 remote host。打开、搜索或切换到该 category 不启动 process、不写 terminal input，也不持久化 remote data。Desktop 还注入语义 Browser-access entry，用于创建或重置个人访问令牌、只展示一次新签发令牌，并在重置前停止活动 Browser 访问，而不把 Electron port 或 controller 暴露给通用 Settings module。参见 [`docs/terminal-settings.md`](docs/terminal-settings.md) 与 [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md)。
 
-精确的 `terminal-parity/SU-09-theme` 见证会在一次原子发布前持有已准备 Host 结果及带修订标记的帧，随后观察终端默认值、调色板、光标、覆盖层、像素与应用表面共同发布同一匹配修订。它使用受控运行时呈现 Canvas 夹具，不对持久设置迁移、原生 OS 主题事件或渲染器拥有的终端调色板作出声明。
+精确的有头（headed）`terminal-parity/SU-09-theme` 见证会在一次发布（release）前持有已准备的 Host 结果及带 revision 标记的帧，随后观察终端默认值、调色板、光标、覆盖层、像素与应用表面共同发布同一匹配修订。它使用受控运行时呈现 Canvas 夹具，不对持久设置迁移、原生 OS 主题事件或渲染器拥有的终端调色板作出声明。
 
 ## 本地开发预览
 
@@ -172,26 +172,26 @@ OSC 52 写入从不共享选择复制快速路径。共享渲染器自动处理�
 
 具备该 Desktop-local capability 时，fine pointer 悬停在检测到的 PNG、JPEG、GIF、WebP、AVIF 或 BMP 路径上会启动 300 ms dwell，且不会探测无关路径。随后产生的请求仍绑定 attachment、target、generation、revision、link epoch、row 与 column。target replacement、pointer leave 或 press、wheel input、geometry 或 revision 变化、attachment retirement 与 disposal 都会取消待处理 presentation；迟到 completion 无法覆盖最新 hover。表面只会在源 cell 旁渲染一个 pointer-transparent 的有界卡片，并保持终端 focus 与 selection 不变。缺失、不支持、无效或不可读的图片会静默失败。Browser 与 Gateway 永远不会请求或接收本地图片 bytes。
 
-头部Canvas 2D见证`terminal-parity/FS-05-file-links`和`terminal-parity/FS-06-url-policy`组成了生产投影表面、工作台动作和浏览器效果。他们证明，`http`、`https` 和 `mailto` 单独暴露悬停、上下文和直接激活，而自动 FTP 文本、不支持的显式元数据、显式文件元数据、检测到的路径和直接文件效果请求保持不活动状态。受控装置使用合成的生成固定主机行窗口和捕获的浏览器开启器；它不执行操作系统 URL 处理程序或声明文件系统存在。
+有头（headed）Canvas 2D 见证`terminal-parity/FS-05-file-links`和`terminal-parity/FS-06-url-policy`组成了生产投影表面、工作台动作和浏览器效果。他们证明，`http`、`https` 和 `mailto` 单独暴露悬停、上下文和直接激活，而自动 FTP 文本、不支持的显式元数据、显式文件元数据、检测到的路径和直接文件效果请求保持不活动状态。受控装置使用合成的生成固定主机行窗口和捕获的浏览器开启器；它不执行操作系统 URL 处理程序或声明文件系统存在。
 
-有界面 Canvas 2D 见证 `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 会在同一真实投影表面上启用可选 local capability，并使用假的 Desktop effect。它们证明 relative-path resolution、modifier opening、300 ms image intent、replacement cancellation、拒绝迟到 completion，以及生产锚定卡片最终的 PNG source 与 pointer-transparent interaction。捕获的 opener 与合成 bytes 不会启动操作系统应用、自动操作 Finder、声明原生图片解码，也不会授予 Browser/Gateway 文件系统访问。
+有头（headed）Canvas 2D 见证 `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 会在同一真实投影表面上启用可选 local capability，并使用假的 Desktop effect。它们证明 relative-path resolution、modifier opening、300 ms image intent、replacement cancellation、拒绝迟到 completion，以及生产锚定卡片最终的 PNG source 与 pointer-transparent interaction。捕获的 opener 与合成 bytes 不会启动操作系统应用、自动操作 Finder、声明原生图片解码，也不会授予 Browser/Gateway 文件系统访问。
 
-头部 Canvas 2D 见证 `terminal-parity/FS-07-keyboard-hints` 使用同一个生产界面与有界行夹具。
+有头（headed）Canvas 2D 见证 `terminal-parity/FS-07-keyboard-hints` 使用同一个生产界面与有界行夹具。
 `Mod+Shift+O` 为可见 URL、路径、文件位置与 hash 目标添加标签；标签按键绝不会到达终端输入，
 选择 hash 会插入其精确文本，选择 URL 会到达捕获的 Browser opener，而 Escape 会移除 overlay
 且不产生效果。该见证不声明屏幕外发现、文件系统/编辑器激活、Kitty 自定义或操作系统 URL 投递。
 
-头部 Canvas 2D 见证 `terminal-parity/FS-08-command-output-viewer` 使用生产界面与合成 OSC 133
+有头（headed）Canvas 2D 见证 `terminal-parity/FS-08-command-output-viewer` 使用生产界面与合成 OSC 133
 提示符行。`Ctrl+Shift+G` 打开精确保留的命令输出；搜索与可见匹配导航留在不可变 document 内，
 复制会把同一内容恰好一次送到捕获的纯文本 writer，而 Escape 会恢复终端输入焦点。该见证不声明
 外部 pager 执行、ANSI 保留、完整 scrollback 或操作系统剪贴板变更。
 
-头部 Canvas 2D 见证 `terminal-parity/FS-09-scrollback-viewer` 使用生产界面与有界合成保留历史
+有头（headed）Canvas 2D 见证 `terminal-parity/FS-09-scrollback-viewer` 使用生产界面与有界合成保留历史
 快照。`Ctrl+Shift+H` 会从捕获的可见顶部打开全部主屏幕保留文本；搜索、匹配导航、按来源复制、
 Escape 焦点恢复与不变的 attachment identity 都使用生产查看器和 Action。该见证不声明超出 Host
 保留范围的历史、ANSI 保留、外部 pager 或操作系统剪贴板变更。
 
-头部 Canvas 2D 见证人 `terminal-parity/LC-05-lan-capability` 组成了生产投影表面、工作台复制操作、主机选择内容路径和浏览器效果。在环回测试源上，它观察到真正的 Chromium 安全上下文和瞬态用户激活信号：没有激活会在没有主机请求的情况下禁用复制，而受信任的单击会接受一个主机请求和一个捕获的纯文本编写器调用。然后证明被拒绝的写入器不会收到重试，并且动态丢失和受控的不安全功能会禁用操作，既不调用主机导出也不调用写入器，并保留本地化反馈。该夹具捕获而不是改变操作系统剪贴板，并控制能力损失和不安全上下文探测；它不声明浏览器 permission-UI 行为或 LAN 传输安全。
+有头（headed）Canvas 2D 见证 `terminal-parity/LC-05-lan-capability` 组成了生产投影表面、工作台复制操作、主机选择内容路径和浏览器效果。在环回测试源上，它观察到真正的 Chromium 安全上下文和瞬态用户激活信号：没有激活会在没有主机请求的情况下禁用复制，而受信任的单击会接受一个主机请求和一个捕获的纯文本编写器调用。然后证明被拒绝的写入器不会收到重试，并且动态丢失和受控的不安全功能会禁用操作，既不调用主机导出也不调用写入器，并保留本地化反馈。该夹具捕获而不是改变操作系统剪贴板，并控制能力损失和不安全上下文探测；它不声明浏览器 permission-UI 行为或 LAN 传输安全。
 
 浏览器拥有的请求和表示标识符使用 `crypto.getRandomValues`，该标识符在明确接受的 HTTP LAN-preview 源上仍然可用。运行时代码不依赖于仅安全上下文 `crypto.randomUUID` API。
 

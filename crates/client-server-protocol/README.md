@@ -43,6 +43,11 @@ but neither imports Workbench types nor decides whether a tuple is currently exp
 that semantic resolution. `ViewerUnavailableReason::WorkbenchUnavailable` is available only in a
 viewer result.
 
+Poll, FrameApplied, NeedSnapshot, and Detach require a typed `attachment_id: ViewerId`; Attach and
+AttachBinding cannot carry it. `TerminalViewerAction::attachment_id()` returns the existing-viewer
+selector, or `None` for the two attachment actions. Server validates ownership within the submitting
+Session; the binding only validates identity syntax.
+
 `ViewerId` and `HostEpoch` represent Server-issued attachment scope. Feedback counters use canonical
 u64 decimal strings; the JSON corpus tests every action, outcome, reason, closed field set, and
 identity boundary. Record results retain the schema-owner's OBSR binary framing and
@@ -56,6 +61,9 @@ partial reads, following-frame alignment, direction, and invalid header/length/i
 
 `TerminalControlRequest`, `TerminalControlAction`, `TerminalControlResult`, and `TerminalControlOutcome`
 carry explicit Acquire and grant-scoped Input/Resize. `ControllerId` is a Server-issued identity;
+all three actions require `attachment_id: ViewerId`, exposed by
+`TerminalControlAction::attachment_id()`. This is a required unpublished OBCS v1 shape change;
+Client/Server/Worker must use an exact development cohort with no implicit-viewer fallback.
 `ControlInput` validates 1 through `MAXIMUM_CONTROL_INPUT_BYTES` (4,096) bytes and serializes canonical
 lowercase hex. Shared number adapters validate positive decimal u64 sequences. These controls use
 the existing 32 KiB OBCS JSON framing; they introduce no binary input carrier or Host dependency.

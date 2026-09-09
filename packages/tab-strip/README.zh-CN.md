@@ -1,6 +1,6 @@
 # @orchbee/tab-strip
 
-完整的可重复使用 React 标签条功能。该包将公共组件、其域模型、布局规则、可访问性投影、拖动交互以及在一个包条目后面递归拥有的私有组件树组合在一起。它是一个 Rslib 库，而不是一个独立的站点。
+完整的可重复使用 React 标签栏功能。该包将公共组件、其域模型、布局规则、可访问性投影、拖动交互以及在一个包条目后面递归拥有的私有组件树组合在一起。它是一个 Rslib 库，而不是一个独立的站点。
 
 ## 适用范围
 
@@ -21,7 +21,7 @@ import '@orchbee/tab-strip/styles.css';
 
 产品 Host 可以提供完整 `TabStripMessages` 契约，以本地化可见控件、菜单、无障碍名称与 live-region 公告。内置英文消息仍是封装测试和非产品夹具的参考后备；Orchbee 产品表面由 `@orchbee/i18n` 提供契约。
 
-产品成分通过其安装的 `ActionRuntime` 和母体 `ActionScope`。选项卡条注册一个子范围，其操作拥有选择、创建、关闭、分组、固定、首选项和提交的移动语义。按钮、键盘交互和上下文菜单调用相同的操作。独立的装置可能会省略运行时；然后，该组件拥有并处置一个对应用程序命令界面不可见的隔离后备运行时。
+产品组合把已挂载的 `ActionRuntime` 与父级 `ActionScope` 传入；Tab strip 注册一个子 scope，其操作拥有选择、创建、关闭、分组、固定、首选项和提交的移动语义。按钮、键盘交互和上下文菜单调用相同的操作。独立 fixture 可以省略 runtime；此时该组件拥有并释放一个隔离的后备 runtime，该 runtime 对应用命令表面不可见。
 
 键盘焦点在可见 Tab 与分组头之间使用一个手动激活的 roving 复合控件。与方向一致的方向键会回绕且不改变选择，Home 和 End 到达边界，Enter 和 Space 激活聚焦项，Shift+F10 或 Menu 打开该精确项的上下文菜单。新建 Tab 控件在顺序焦点中位于复合控件之后。结构变化会尽量保留同一可见焦点标识，通过折叠分组头投影其中隐藏的活动 Tab，否则协调到附近仍存活的项目。Host 可以递增 `focusRequest`，使焦点进入复合控件当前的 roving 项；重复值为空操作。
 
@@ -29,19 +29,19 @@ import '@orchbee/tab-strip/styles.css';
 
 Host 可以提供一个按 Tab identity 索引的 `identityIcons` map。每个值都是独立于瞬态 status 的稳定装饰性 React icon；它优先于 status fallback icon、`faviconUrl` 与默认 favicon，但不会改变 accessible Tab name。独立的 `statusAdornments` map 可以提供 host-owned fallback icon、本地化 accessible label，以及一种 semantic visual kind（`active`、`attention`、`success`、`error`、`degraded` 或 `idle`）。Tab Strip 会独立组合 status indicator、accessible label 与 identity icon，而不会修改 `TabData`、复用 loading/crash/attention field，或了解 host 的业务领域。Host 仍负责 identity selection、aggregation、localization、status lifetime 与含义。
 
-本地合成通过`TabModel`同步关闭已知Tab IDs。相反，终端拥有的组合提供 `onCloseTabs`。它还可以提供 `getCloseTabsConfirmation`，这使得所有者可以从受验证的选项卡集影响的完整资源中获得保护，同时选项卡条在同一 `tabs.tab.close` 操作内保持确认。 Action 委托其经过验证的 ID 集和执行上下文，而不改变 `TabModel`；只有在终端关闭编排成功后，所有者才会标记提交点并删除选项卡。因此，取消的确认、挂起的关闭或部分失败的关闭无法使选项卡条尽早删除拓扑。
+本地组合通过`TabModel`同步关闭已知Tab IDs。相反，终端拥有的组合提供 `onCloseTabs`。它还可以提供 `getCloseTabsConfirmation`，这使得所有者可以从受验证的选项卡集影响的完整资源中获得保护，同时标签栏在同一 `tabs.tab.close` 操作内保持确认。 Action 委托其经过验证的 ID 集和执行上下文，而不改变 `TabModel`；只有在终端关闭编排成功后，所有者才会标记提交点并删除选项卡。因此，取消的确认、挂起的关闭或部分失败的关闭无法使标签栏尽早删除拓扑。
 
 以 URL 为权威来源的组合可以提供 `onSelectTab`。`tabs.tab.select` Action 在任何本地 `TabModel` 写入之前委托其经过验证的 `TabSelectionInput` 和执行上下文；公开的 `tabSelectionInput` 验证器允许组合 Action 准备同一个边界，而无需导入私有源代码。所有者提交导航，然后在观察到该路由时应用选择。省略回调会保留包拥有的本地选择转换。此端口不会将路由、历史记录或 URL 解析移动到 Tab Strip 中。
 
 指针移动和拖动几何体保持本地手势状态。拖动期间显示的模型更改是可逆预览；接受本地放置会回滚预览并调用 `tabs.layout.apply-arrangement` 以通过 Action 生命周期提交最终安排。
 
-水平主机可以为必须共享选项卡条表面的控件提供 `horizontalLeadingActions`。选项卡轨道仅消耗剩余宽度，因此托管控件永远不会与第一个选项卡重叠或需要单独绘制的同级区域。横向布局为标签条、项目与拖动边界统一采用 `36px`；`28px` 的新建标签控件以及 `20px` 的分组芯片和分隔线均在该行内垂直居中。纵向几何保持独立。
+水平主机可以为必须共享标签栏表面的控件提供 `horizontalLeadingActions`。选项卡轨道仅消耗剩余宽度，因此托管控件永远不会与第一个选项卡重叠或需要单独绘制的同级区域。横向布局为标签栏、项目与拖动边界统一采用 `36px`；`28px` 的新建标签控件以及 `20px` 的分组芯片和分隔线均在该行内垂直居中。纵向几何保持独立。
 
 “新建标签页”和“关闭”使用共享的 `ProductIcon` 字形及紧凑型系统控件状态。源自 Chromium 的布局和交互几何不会决定它们的产品图标尺寸、语义颜色或悬停形状。
 
 支持两种方向的主机都会传递受控的 `orientation` 值和 `onOrientationChange`。右键单击空白条空间，然后显示打开或关闭垂直选项卡的本地化操作；选项卡、组和新选项卡控件保留自己的上下文菜单。
 
-包 API 故意没有 React 或浏览器供应商子路径。桌面组合从包根导入跨窗口合约：`CrossWindowTabDragRuntime` 拥有模型切换、取消恢复、附加模型活性和目标布局排序； `DomTabDragRegistry` 适应主机提供的实时边界、z 顺序、活性和兼容性决策。 `TabStrip` 接受 `createCrossWindowDragRuntime` 工厂，而本机窗口创建、移动、捕获、移动循环和源窗口处理仍然是主机职责。浏览器应用程序不会综合这些操作系统功能。上游来源归属和许可义务记录在 [`NOTICE.reference`](NOTICE.reference) 中。
+包 API 故意没有 React 或浏览器供应商子路径。桌面组合从包根导入跨窗口合约：`CrossWindowTabDragRuntime` 拥有模型切换、取消恢复、附加模型活性和目标布局排序； `DomTabDragRegistry` 适应主机提供的实时边界、z 顺序、活性和兼容性决策。 `TabStrip` 接受 `createCrossWindowDragRuntime` 工厂，而原生窗口创建、移动、捕获、移动循环与源窗口处置（disposal）仍属宿主职责。浏览器应用不会合成（synthesize）这些操作系统能力。上游来源归属和许可义务记录在 [`NOTICE.reference`](NOTICE.reference) 中。
 
 ## 来源所有权
 

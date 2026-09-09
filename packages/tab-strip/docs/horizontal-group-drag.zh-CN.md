@@ -2,7 +2,7 @@
 
 ## 适用范围
 
-该合约拥有一种行为：在一个选项卡条内拖动水平选项卡组标题。它涵盖激活、临时支持模型更改、整个组重新排序、选择、取消、拖动视觉、稳定以及相邻组之间的边界。
+该合约拥有一种行为：在一个选项卡条内拖动水平选项卡组标题。它涵盖激活、临时支持模型更改、整个组重新排序、选择、取消、拖动视觉、落定以及相邻组之间的边界。
 
 行为基线是提交 `e4f73f6` 时的只读上游实现以及迁移到此包中的测试和正式工件。该合约记录了包保留的行为；它没有对以后的浏览器版本做出一般性的平价声明。
 
@@ -21,14 +21,14 @@
 
 | 事实                                                                           | 上游来源证据                                                                                      |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| 组标题拖动会记录组内活动选项卡的索引，或者当活动选项卡位于组外时索引为零。     | `dragging/tab_drag_controller.cc`，`GroupHeaderDragData`的施工                                    |
+| 组标题拖动会记录组内活动选项卡的索引，或者当活动选项卡位于组外时索引为零。     | `dragging/tab_drag_controller.cc`，`GroupHeaderDragData` 的构造                                    |
 | Attach 选择每个拖动的选项卡并使记录的组选项卡保持活动状态。                    | `dragging/tab_drag_controller.cc`、`AttachImpl` 和 `ResetSelection`                               |
 | 对于 `kCollapseTabGroupDuringDrag`，最初扩展的组在支持模型中暂时折叠。         | `common/tab_drag_handler.cc`, `StartedDragging`                                                   |
-| 一群人已经倒塌了，拖着仍然倒塌。                                               | `dragging/tab_drag_controller_interactive_uitest.cc`，`DragCollapsedGroupHeaderRemainsCollapsed`  |
-| 标题拖动将组作为一个块移动到 `MoveGroupTo`。                                   | `dragging/dragging_tabs_session.cc`，附加移动路径                                                 |
-| 一个团体不能停在另一个团体内；它会保持原状，直到拖动的方块穿过相邻组的远边界。 | `DragGroupHeaderRightAvoidsOtherGroups` 和 `DragGroupHeaderLeftAvoidsOtherGroups`                 |
+| 拖拽前已折叠的组保持折叠。                                               | `dragging/tab_drag_controller_interactive_uitest.cc`，`DragCollapsedGroupHeaderRemainsCollapsed`  |
+| 头部（header）拖拽通过 `MoveGroupTo` 将组作为一个整块移动。                                   | `dragging/dragging_tabs_session.cc`，附加移动路径                                                 |
+| 一个组不能停在另一个组内部；在拖拽块越过相邻组的远边界之前保持不动。 | `DragGroupHeaderRightAvoidsOtherGroups` 和 `DragGroupHeaderLeftAvoidsOtherGroups`                 |
 | 停止组标题拖动会恢复仅因拖动而折叠的展开组。                                   | `common/tab_drag_handler.cc`, `StoppedDragging`                                                   |
-| 停止组标题拖动会减少对组中记录的活动选项卡的选择。                             | `common/tab_drag_handler.cc`，`StoppedDragging`； `dragging/tab_drag_controller.cc`，最终选择复位 |
+| 停止组标题拖动会将选择缩减为组中记录的活动选项卡。                             | `common/tab_drag_handler.cc`，`StoppedDragging`； `dragging/tab_drag_controller.cc`，最终选择复位 |
 
 迁移后的 Presentation 还保留这些已记录观察：
 
@@ -44,23 +44,23 @@
 | 领域             | 含义                                                           |
 | ---------------- | -------------------------------------------------------------- |
 | `tabs`           | 带有固定和组成员身份事实的有序选项卡身份                       |
-| `groups`         | 已知群体及其用户可见的折叠意图                                 |
+| `groups`         | 已知组及其用户可见的折叠意图                                 |
 | `activeTabId`    | 只有一个活动选项卡，或者仅当条带为空时没有选项卡               |
 | `selectedTabIds` | 选定的身份                                                     |
 | `drag`           | `idle`、`armed`、`dragging` 或 `settling` 加上该阶段所需的数据 |
 
-导出可见的活性表面。活动的未分组选项卡或扩展组的成员将投影到该选项卡。折叠组的活动成员会投影到其组标题，而该成员的 `activeTabId` 仍然具有权威性。标题使用与普通活动选项卡相同的活动选项卡外壳；有色组芯片包含在该外壳内。
+可见的活动表面是派生（derived）出来的。活动的未分组选项卡或扩展组的成员将投影到该选项卡。折叠组的活动成员会投影到其组标题，而该成员的 `activeTabId` 仍然具有权威性。标题使用与普通活动选项卡相同的活动选项卡外壳；有色组色块（chip）包含在该外壳内。
 
-武装或活跃团体拖动记录：
+armed（已预备）或活动的组拖拽记录：
 
-- 团体身份和有序成员身份；
+- 组身份和有序的成员身份；
 - 组中活动的选项卡，或当活动选项卡位于组外时的第一个成员；
 - 取消所需的完整预拖动权威状态；
 - 拖拽前该组是否已折叠；
 - 支撑模型是否仅因拖动而折叠；
 - 拖动的视觉对象是 `expanded-group` 还是 `collapsed-header`；
 - 最新有效的移除前目标索引；和
-- 逻辑上的定居目的地。
+- 逻辑上的落定目的地。
 
 指针坐标、DOM 节点、计时器和动画对象不是语义状态。适配器将它们转换为目标观察、逻辑时钟事件和渲染命令。
 
@@ -68,22 +68,22 @@ TLA+ 边界包含六个 Tab identity：一个 pinned Tab、被拖动 Research �
 
 ## 事件
 
-| 活动                         | 所需数据             | 含义                                                                         |
+| 事件                         | 所需数据             | 含义                                                                         |
 | ---------------------------- | -------------------- | ---------------------------------------------------------------------------- |
-| `ArmGroup`                   | 集团身份             | 记录可能的标题拖动而不更改权威状态                                           |
+| `ArmGroup`                   | 组身份             | 记录可能的标题拖动而不更改权威状态                                           |
 | `ActivateDrag`               | 无                   | 越过激活阈值并进入拖动循环                                                   |
 | `MoveTo`                     | 有效的移除前目标索引 | 预览并应用整个组重新排序                                                     |
 | `Commit`                     | 无                   | 保持最终顺序并恢复拖动后折叠和选择语义                                       |
 | `Cancel`                     | 无                   | 恢复完整拖拽前的权威状态                                                     |
 | `Settle`                     | 无                   | 在最终逻辑帧后结束释放动画                                                   |
-| `ToggleGroup`                | 集团身份             | 折叠或展开群组而不更改活跃成员的身份；折叠将其可见表面从子选项卡更改为组标题 |
+| `ToggleGroup`                | 组身份             | 折叠或展开组而不更改活跃成员的身份；折叠将其可见表面从子选项卡更改为组标题 |
 | `InvalidateSourceMembership` | 捕获的成员           | 表示 arm 之后、activation 之前一次有界的 owner-state 变化                    |
 | `RejectStaleActivation`      | 无                   | 当捕获成员不再组成源组时退役 armed gesture，且不产生权威命令                 |
 | `RejectMissingGroup`         | 组 identity          | 接收并拒绝未知组，不改变权威状态，也不发出命令                               |
-| `RejectOutOfPhaseEvent`      | Event                | 接收并拒绝阶段错误的 event，不改变状态，也不发出命令                         |
+| `RejectOutOfPhaseEvent`      | Event                | 接收并拒绝错相（out-of-phase）的 event，不改变状态，也不发出命令                         |
 | `RejectRepeatedEvent`        | Event                | 把重复 event 作为精确 no-op 接收                                             |
 
-重复或异相事件是明确的无操作。引用缺失组、缺失成员或无效目标的事件不得部分改变状态。
+重复或错相（out-of-phase）的事件是明确的无操作。引用缺失组、缺失成员或无效目标的事件不得部分改变状态。
 
 ## 不变量
 
@@ -99,7 +99,7 @@ TLA+ 边界包含六个 Tab identity：一个 pinned Tab、被拖动 Research �
 | `StableActiveSurfaceExists`                  | 在临时 `dragging` 之外，活动标识具有可见选项卡或折叠的组标题表面           |
 | `CollapsedActiveUsesGroupHeader`             | 如果折叠组包含活动选项卡，则其标题是活动表面，而子标识仍然具有权威性       |
 | `SelectionExists`                            | 每个选定的身份都存在于 `tabs` 中                                           |
-| `DragSourceExists`                           | 每个武装、拖拽或定居团体和成员仍然存在                                     |
+| `DragSourceExists`                           | 每个 armed（已预备）、正在拖拽或正在落定（settling）的组和成员仍然存在                                     |
 | `GroupMovePermutation`                       | 移动组可保留完整有序的选项卡标识集直至排列                                 |
 | `GroupMoveAtomic`                            | 组头移动保留成员身份并将整个组作为一个块移动                               |
 | `GroupTargetBoundary`                        | 已提交的组边界永远不会分裂另一个组                                         |
@@ -109,22 +109,22 @@ TLA+ 边界包含六个 Tab identity：一个 pinned Tab、被拖动 Research �
 | `CompletionSelectsRecordedActive`            | 提交仅使记录的组成员处于选中状态并处于活动状态；折叠的结果通过标题将其投影 |
 | `CancelRestoresAuthoritativeState`           | 取消恢复顺序、成员关系、折叠、活动、选择和 selection anchor                |
 | `NoInvalidDropFeedback`                      | 可观察的投影没有暴露 `MoveTo` 会拒绝的掉落位置                             |
-| `SettledVisualsDoNotOverlap`                 | 结算时，不同的收集槽没有未声明的占用边界重叠                               |
-| `RejectedInputPreservesAuthorityAndCommands` | 缺失、过时、重复、阶段错误和无效目标输入都不产生权威命令或 mutation        |
+| `SettledVisualsDoNotOverlap`                 | 落定时，不同的收集槽没有未声明的占用边界重叠                               |
+| `RejectedInputPreservesAuthorityAndCommands` | 缺失、过时、重复、错相（out-of-phase）和无效目标输入都不产生权威命令或 mutation        |
 | `StaleActivationRetiresWithoutMutation`      | 源成员关系不匹配时退役 armed gesture，并保留较新的权威状态                 |
 
 `NoInvalidDropFeedback` 与 `SettledVisualsDoNotOverlap` 需要确定性几何轨迹。其余声明属于语义转换，无需浏览器即可检查。
 
 ## 转换契约
 
-| 阶段                  | 活动           | 守卫                       | 下一阶段   | 语义结果                                               |
+| 阶段                  | 事件           | 守卫                       | 下一阶段   | 语义结果                                               |
 | --------------------- | -------------- | -------------------------- | ---------- | ------------------------------------------------------ |
-| `idle`                | `ArmGroup`     | 群组已存在且有成员         | `armed`    | 捕获拖动前的状态并记录活动成员                         |
-| `armed`               | `ActivateDrag` | 被捕获的成员仍然组成该团体 | `dragging` | 选择拖动的成员，激活记录的成员，并可选择仅折叠支持模型 |
+| `idle`                | `ArmGroup`     | 组已存在且有成员         | `armed`    | 捕获拖动前的状态并记录活动成员                         |
+| `armed`               | `ActivateDrag` | 被捕获的成员仍然组成该组 | `dragging` | 选择拖动的成员，激活记录的成员，并可选择仅折叠支持模型 |
 | `dragging`            | `MoveTo`       | 目标是拖动块之外的集合边界 | `dragging` | 以原子方式移动整个组块                                 |
 | `dragging`            | `Commit`       | 结构不变量成立             | `settling` | 恢复折叠的意图并保留记录的活跃成员                     |
 | `armed` 或 `dragging` | `Cancel`       | 总是                       | `idle`     | 恢复捕获的权威状态                                     |
-| `settling`            | `Settle`       | 逻辑结算持续时间已完成     | `idle`     | 删除拖动的投影而不改变权威状态                         |
+| `settling`            | `Settle`       | 逻辑落定持续时间已完成     | `idle`     | 删除拖动的投影而不改变权威状态                         |
 | `idle`                | `ToggleGroup`  | 组已存在                   | `idle`     | 切换折叠，同时保留活动身份并仅重新映射其可见表面       |
 
 `ActivateDrag` 可能会暂时更改支持组的折叠值，以从布局中删除原始集合。这是一种投射机制，而不是用户折叠意图的改变，因此这两个事实都保持明确的状态。
@@ -135,14 +135,14 @@ TLA+ 边界包含六个 Tab identity：一个 pinned Tab、被拖动 Research �
 
 | 检查站                | 需要观察                                                             |
 | --------------------- | -------------------------------------------------------------------- |
-| `armed`               | 无权威命令或崩盘变更；没有拖动叠加层                                 |
-| `activated-expanded`  | 存在完整的组覆盖；背衬槽被移除或压实；相邻时隙具有有效的非重叠目的地 |
-| `activated-collapsed` | 存在一个紧凑的标题覆盖；团体仍处于崩溃状态；已记录会员处于活动状态   |
-| `invalid-target`      | 订单和最后有效目标保持不变；无效点处没有出现提交指示符               |
+| `armed`               | 没有权威的顺序或折叠变化；没有拖拽覆盖层                                 |
+| `activated-expanded`  | 存在完整的组覆盖层；背衬槽被移除或压实；相邻时隙具有有效的非重叠目的地 |
+| `activated-collapsed` | 存在一个紧凑的头部覆盖层；组保持折叠；记录的成员处于活动状态   |
+| `invalid-target`      | 顺序与最后有效目标保持不变；无效点处没有出现提交指示符               |
 | `valid-target`        | 整组顺序和移位槽目的地符合相同的集合边界                             |
 | `cancelled`           | 恢复拖前权威快照和普通渲染                                           |
-| `committed`           | 最终订单有效；崩溃的意图被恢复；记录的成员仍然活跃                   |
-| `settled`             | 不存在拖动叠加，并且占用的槽边界不包含未声明的重叠                   |
+| `committed`           | 最终顺序有效；恢复折叠意图；记录的成员保持活动                   |
+| `settled`             | 不存在拖拽覆盖层，并且占用的槽边界不包含未声明的重叠                   |
 
 ## 证据图
 
@@ -153,13 +153,13 @@ TLA+ 边界包含六个 Tab identity：一个 pinned Tab、被拖动 Research �
 | 折叠和选择生命周期 | 必填         | 不适用：状态策略   | 必填     | 展开和折叠的痕迹   | 拖动处理程序/控制器源 |
 | 取消               | 必填         | 可选的恢复引理     | 必填     | 转义和指针取消痕迹 | 控制器恢复路径        |
 | 视觉拖拽和位移     | 仅抽象所有权 | 不适用：几何适配器 | 几何属性 | 必填               | 源布局加上观察记录    |
-| 沉淀且不重叠       | 摘要发布阶段 | 不适用：几何适配器 | 几何属性 | 必填               | 观察记录              |
+| 落定（settle）且不重叠       | 抽象发布阶段 | 不适用：几何适配器 | 几何属性 | 必填               | 观察记录              |
 
 语义状态拥有 `selectionAnchorId`，因此 cancellation 会在 TLA+ 与 refinement test 中恢复它。DOM focus 属于 adapter state，不属于 `CancelRestoresAuthoritativeState`；确定性浏览器套件负责 focus projection，包括折叠组 header 获得焦点的 checkpoint。Escape cancellation trace 检查恢复后的语义和绘制状态，但不声明模型未表示的 DOM-focus identity。
 
 ## 实施桥梁
 
-`src/tab-strip/dragging/horizontal-group-drag-machine.ts` 拥有群拖阶段、选择策略、临时支持崩溃、全群移动、取消恢复、视觉类。 React 集成可以测量几何形状并执行命令，但不得独立选择这些语义。
+`src/tab-strip/dragging/horizontal-group-drag-machine.ts` 拥有组拖拽阶段、选择策略、支持模型的临时折叠、整组移动、取消恢复和视觉类别。 React 集成可以测量几何形状并执行命令，但不得独立选择这些语义。
 
 `src/tab-strip/dragging/horizontal-group-drag-model-adapter.ts` 将转换命令应用于 `TabModel` 并断言其规范快照在每个事件后细化纯状态。活动标识和可见呈现仍然是独立的事实：折叠活动组不会将激活转移到该组之外。
 

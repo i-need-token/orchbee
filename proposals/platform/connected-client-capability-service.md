@@ -80,7 +80,16 @@ explicit action. [Native location labels](../../apps/orchbee/docs/native-locatio
 Project and Workspace rename controls while preserving retained terminals. Desktop migration
 remains separate work.
 
-This milestone is additive and unshipped. It does not prove production restart recovery, remote
+The [explicit Session Viewer routing foundation](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record) adds
+several viewers share one ordered Client Session, with exact attachment selection and independent
+frame and controller state. Its owner maintains the implementation and executable correctness case.
+Native Panel splitting,
+focus, and multi-terminal Tab Close remain subsequent slices; this routing foundation alone does
+not complete them.
+
+This milestone is an unshipped development path. Its unpublished protocol changes require an exact
+Client/Server/Worker cohort; they do not promise compatibility with older development binaries.
+It does not prove production restart recovery, remote
 access, or migration of the existing Desktop. In particular, its accepted `RecoveryRequired`
 behavior for unmatched retained Host inventory is a development boundary, not the production
 continuity experience. Public cutover still requires the recovery, migration, packaging, and

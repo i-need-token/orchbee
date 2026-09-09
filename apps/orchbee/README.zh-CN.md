@@ -131,6 +131,13 @@ correlation，并保留 opaque OBSR byte 供已连接的 projection consumer 使
 让 transport 退役。Caller 拥有新的 request identity、绑定 grant 的递增 sequence 和后续显式获取。
 Session 丢失后的 cleanup 可超出单次提交 deadline。
 
+所有操作既有 viewer 的 action 和所有 controller action 都携带 Server 签发的精确 `attachmentId`。
+原生 executor 在 Attach 成功后立即保留该身份，早于任何可能失败或被取代的 setup。
+Poll、控制、projection feedback 和 cleanup 都使用这个已捕获的身份；有界 busy 重试保留它，
+只更新契约允许刷新的 request identity 和 control sequence。提交前验证 projection feedback
+属于其 attachment，绝不重新指定目标。`LocalClient` 不保存隐式的当前 viewer。
+原生 UI 仍一次选择一个 viewer；Server 的多 viewer 路由基础本身不提供原生 Panel 分屏。
+
 ### 提交正确性记录
 
 | 字段   | 契约                                                                                                                                                                                                                                                                                                                                    |
@@ -175,8 +182,8 @@ Session 丢失后的 cleanup 可超出单次提交 deadline。
 
 ## TUI shell 底座
 
-Linux 启动流程将同一已准入 TTY 和准备好的 Session 交给这些 application-private module。
-未连接的 `run` 与显式 `run_connected` adapter 保留为内部测试接缝：
+Application-private shell adapter 拥有以下终端与呈现边界。裸 Linux 启动使用准备好的 Session；
+未连接的 `run` 与显式 `run_connected` 仍是测试与组合接缝。
 
 下面的输入与转换表描述未连接时的 fallback。已连接的上下文和 Tab 操作由上文的原生 Session 处理。
 
@@ -217,7 +224,7 @@ one-shot CLI 不包含这些 dependency，且不宣称 Windows TUI runtime 或 s
 
 已接受的本地终端里程碑让私有 TUI 成为 `LocalClient` 的实际消费者：`run_connected` 接收已准入
 Client 和显式创建或附着意图。它不选择 endpoint、激活服务、改变公开语法或发布共享 Workbench
-事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；Linux 裸入口在完成有界 Site 激活后，通过同一准备接缝进入 shell。
+事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；裸 Linux 启动在完成有界 Site 激活后，进入同一个已准备好的 shell。
 
 下面的记录保留显式私有 Create/Attach adapter 及其回归测试。Standalone 启动使用原生 Tab Session，
 不使用该 adapter 的单终端队列。
@@ -235,7 +242,7 @@ Client 和显式创建或附着意图。它不选择 endpoint、激活服务、�
 | 所有权 | `terminal_session` 拥有连接 task 和输入准入；`terminal_projection` 拥有 Client 文本状态和反馈；Terminal Protocol binding 拥有有界 OBTF 文本解码；shell 拥有 mode 与 draw 顺序。                                                                                                                                                                                                                                                                                                                           |
 | 验证   | Canonical OBTF fixture、畸形／边界分区、确定性的 snapshot/delta 和队列／退役轨迹、render buffer 断言，以及真实进程／PTY 见证。既有 LocalClientSubmission 和 LocalTerminalRelay 映射 transport 退役及 projection/control 顺序；其有限边界不是性能保证。                                                                                                                                                                                                                                                    |
 | 限制   | 投影文本 cell 和基本 style/cursor；排除 graphics、hyperlink 激活、history、selection、terminal interaction-mode negotiation、cursor shape 对齐和完整 Workbench 行为。不支持的 cell width 使用替代字形。缺失或无效的继承 cell/pixel geometry 会在 Create 或初始 attach 前拒绝，或经恢复边界结束活动 TUI；绝不编造 pixel size。Optional extension 内容保持 opaque，文本 decoder 不保留它们。投影按共享文本分配计数，在提交前拒绝超过 36 MiB 的保留文本。显示 cell 中的控制字符绝不成为终端 escape command。 |
-| 审查   | 检查覆盖内存放大、至多一次副作用、draw 失败反馈和 join 取消。原 authority model 已通过；启动链路另有独立审查与 Linux 进程证据。                                                                                                                                                                                                                                                                                                                                                                           |
+| 审查   | 检查覆盖内存放大、至多一次副作用、draw 失败反馈和 join 取消。原 authority-model 超时问题已解决；启动链路另有独立审查与 Linux 进程证据。                                                                                                                                                                                                                                                                                                                                                                           |
 
 `terminal_text` 拥有禁止显示的 Unicode 标量规则：Unicode 控制字符及 U+2028/U+2029。
 终端单元格渲染将该规则与既有宽度检查一起使用，后端最终的 `Print` 还会独立地把禁止标量替换为
@@ -316,8 +323,8 @@ lazy-activation workflow 的 maintained design evidence。此抽象模型独立�
 | Pending Client       | 观察到 typed result 或 total deadline                            | 连接或返回 `incompatible`、`partial-cohort`、`launcher-failure` 或 `timeout`；释放 caller 拥有的 activation guard |
 | Connected Client     | Client exits                                                     | 只结束 Client Session；保留 Site、cohort、readiness、launch 与 service-lifetime state                             |
 
-该抽象模型不直接证明 POSIX 实现。共享运行时的 `LocalSiteStartup` 记录及 Linux 真实进程测试
-负责具体标记、锁、cohort、延迟 Host 启动和首帧截止时间的细化。
+该模型抽象了运行时细化；`LocalSiteStartup` 提供具体的启动安全论证。在声称该模型映射到实现
+之前，未来接线必须补充确定性进程测试。
 
 | Claim                                                                                         | TLA+ evidence                                                                                                                                                                                                                                | Bound                                                                                                                           |
 | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |

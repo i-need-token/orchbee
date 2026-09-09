@@ -460,10 +460,13 @@ experimental Create/Attach path.
 | Invariants   | Resolve only a binding exposed by the active current Site; pin the retained exact Worker generation; never substitute a terminal or Worker; refuse before allocating attachment identities when target validation fails.                                      |
 | Ownership    | WorkbenchAuthority checks canonical membership; TerminalCoordinator resolves retained execution; SiteCoordinator composes those checks under the existing registry-then-Site lock order. ViewerSession owns attachment IPC and cleanup after releasing locks. |
 | Model        | Resolve a typed target, prepare an attachment, dispatch through the pinned handle, and commit the Session attachment at the existing current-Worker check.                                                                                                    |
-| Dependencies | Additive unpublished OBCS v1 values, unchanged OBCN/OBSR relay, existing OBWP snapshot read, and the native Client's existing absolute submission deadline.                                                                                                   |
-| Limits       | Same-user local admission, one selected viewer per Session and no takeover. No remote authorization, persistence, restart adoption, multi-tab selection UI or continuous Worker availability is claimed.                                                      |
+| Dependencies | Unpublished OBCS v1 values, unchanged OBCN/OBSR relay, existing OBWP snapshot read, and the native Client's existing absolute submission deadline.                                                                                                            |
+| Limits       | Same-user local target resolution and no takeover. The Selection model does not prove multiple viewer routes, remote authorization, persistence, restart adoption, selection UI or continuous Worker availability.                                            |
 
-An existing viewer returns `already-attached`. Poisoned registry or Site ownership returns
+The [Session routing owner](../README.md#accepted-session-viewer-routing-modeling-record) first
+reaps exact known-Disposed entries and enforces its capacity bound. With capacity available, a
+duplicate resolved live target in the same Session returns `already-attached` before Worker IPC;
+different targets can coexist. Within target resolution, poisoned registry or Site ownership returns
 `server-busy`. Missing or retired Workbench returns `workbench-unavailable`; a wrong Site or a
 tuple absent from its currently exposed Presentation bindings returns `terminal-unavailable`.
 A missing current Worker or mismatched Worker identity is `terminal-runtime-unavailable`.

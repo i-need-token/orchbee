@@ -12,11 +12,11 @@ Workbench 在应用程序拥有的 `ActionRuntime` 中注册其产品操作。�
 
 当显示中的终端上下文没有 Tab 时，Workbench 会渲染空白内容区域，不显示居中的创建控件。Tab Strip 的新建 Tab 控件、快捷键、菜单和 Action 仍然可用。Workbench 绝不会把空上下文视为终端创建意图，因此关闭最后一个 Tab 不会重新创建 Tab；应用启动策略仍归组合应用所有。
 
-shell 由 `@orchbee/ui` 组成原语，但不拥有 PTY 进程、文件系统或 Git 效果、设置目标、身份验证、路由或代理编排生命周期。 Workbench 拥有统一的搜索状态和表示，而语义所有者仍然负责可搜索的读取模型和操作注册。机器可读范围合约位于 [`project.json`](project.json) 中。
+shell 用 `@orchbee/ui` 组合（compose）原语，而不拥有 PTY 进程、文件系统或 Git 效果、设置目标、身份验证、路由或代理编排生命周期。 Workbench 拥有统一的搜索状态和表示，而语义所有者仍然负责可搜索的读取模型和操作注册。机器可读范围合约位于 [`project.json`](project.json) 中。
 
 Workbench 组合显式区分为 `preview` 或 `managed`。两者都会接收应用拥有的终端 Presentation 标识分配器与稳定的初始 Presentation ID。托管组合还接收操作/移除 ID 分配器和窄化的命令调度器；Workbench 绝不分配 Host 终端 ID，也不以 Host 终端标识执行拓扑或生命周期变更。终端表面接缝只向下述响铃效果协调器公开不透明的 Host 终端标识。动态 Presentation ID 不透明，且删除 Presentation 后不得复用。
 
-托管应用可以用恢复的 Presentation 初始化独立上下文。每个种子保留应用拥有的 PresentationId 与启动 CWD，并投影成一个 Tab；Workbench 仍不会推断或持久化 Project、Workspace、Group、Split、进程或 Host 标识。运行时按 PresentationId 在所有终端上下文中路由每个 provision、exit 与 close 结果；目标缺失、重复或过时时会拒绝，且不改变其他 Presentation。
+托管应用可以用恢复的 Presentation 初始化独立上下文。每个被植入（seed）的 Presentation 保留应用拥有的 PresentationId 与启动 CWD，并投影成一个 Tab；Workbench 仍不会推断或持久化 Project、Workspace、Group、Split、进程或 Host 标识。运行时按 PresentationId 在所有终端上下文中路由每个 provision、exit 与 close 结果；目标缺失、重复或过时时会拒绝，且不改变其他 Presentation。
 
 应用程序可以注入 `terminalSurface` 组件。Workbench 仅为显示中 Tab 的可见 Panel 布局内的终端 Presentation 挂载它，并传入 Presentation 模型、视口的应用所有 Action runtime/scope、窄化的语义上下文注册接缝、响铃效果准入函数和 `autoFocus` 投影，而绝不传入 Host 能力。非活动 Tab、其他 Workspace、后台 Project 和非活动子终端不会挂载该表面。Workbench 只对活动 Tab 所记忆的聚焦 Panel 中正在显示的终端设置 `autoFocus`。当该投影变为 true、true 目标被挂载，或其恢复后的 renderer 进入 ready 时，注入表面会让真实终端输入取得焦点。因此，新 Tab 会聚焦第一个 Panel 的终端；返回某个 Tab 会聚焦该 Tab 记忆的 Panel 终端；拆分会聚焦新 Panel 的终端。关闭聚焦 Panel 时选择最近聚焦且仍然存活的 Panel；只有历史中没有存活候选时，才依次回退到前一个和后一个视觉叶节点。关闭非聚焦 Panel 会保留并恢复原聚焦终端。右键菜单会保留打开前的焦点元素，并在关闭时恢复，除非所选结构命令把焦点转移给另一终端。这让 Desktop 可把 attachment 与 renderer 生命周期绑定到真实视口需求，同时保留 Workbench 对逻辑拓扑和产品焦点的所有权。
 
@@ -89,7 +89,7 @@ Workbench 在 [`docs/experience`](docs/experience) 中维护已审核的交互�
 
 `WorkbenchProjectWorkspaceRuntime` 拥有独立终端上下文，并为每个 Workspace 分别拥有一套 Tab 模型和 Panel 工作区。Project 与 Workspace 操作使用稳定的 Action ID。Project 创建控件会打开公共的 Folder 获取菜单。应用可以注入窄化的 `projectFolderAcquisition` 能力，以选择一个已有 Folder。Desktop 通过原生选择器提供该能力，并返回一个经 Host 规范化和验证的路径；Browser 与 Gateway 不提供该能力，继续使用手动路径输入适配，但不声称路径确实存在。选择路径后，会原子创建 Project、首个 Folder、Primary Workspace 和 Workspace 终端投影。Project 管理通过 `Add Folder` 复用同一能力；当 Desktop 还提供 SSH attachment 时，该行会给出明确的 local 与 SSH 选项，每个已发布 Environment Folder 都带有本地化且可见的 SSH 标识。权威 remote transition 只追加一个 unavailable Folder，允许来自 Project 唯一 Environment 的多个 path，并且不改变 Project name、primary Directory、Workspace、active location 或 terminal context。Workbench 在提交迟到的 local 结果前会重新检查最新 Project 标识和完全重复的路径。取消与有界失败不会改变 Project；一个已挂载 Workbench 内也至多只有一项选择处于活动状态。`New Folder…` 仍然可见但不可用，因为当前没有组合执行文件系统变更。创建 Workspace 会在其主要 Project Folder 中启动一个 Shell 投影，并且只在当前 canonical 投影仍包含目标时为发起客户端激活该精确 Workspace；普通 Folder 选项会同步提交并激活，应用拥有的 Worktree 结果则会在发布较晚时等待。后续投影可以移除此前成员或变为空集合，绝不会根据历史发布授权激活。预览复制会把 Tab 组、Panel 布局、名称、启动配置选择和记录的启动 CWD 复制到全新身份，同时重置由进程派生的 Tab、Group 与 Presentation 状态。托管组合不开放 Project 或 Workspace 复制，因为它无法静默克隆真实进程。终端投影会把启动 CWD 与 Host 报告的当前 CWD 分开。目录刷新会保留稳定身份、顺序和主要引用。删除 Workspace 只处置其 Orchbee 终端上下文；移除 Project 只处置 Orchbee 元数据与上下文，绝不声称会删除文件夹或 Git 工作树。
 
-该包接受主机规范化的目录描述符和浏览器输入的路径，并且不执行文件系统、Git、PTY 或持久性效果本身。 Desktop拥有当前本机existing-Folder选择和验证适配器；文件系统突变、正在进行的目录观察和 Git 效果仍然是应用程序拥有的未来工作。
+该包接受主机规范化的目录描述符和浏览器输入的路径，并且不执行文件系统、Git、PTY 或持久性效果本身。 Desktop拥有当前本机existing-Folder选择和验证适配器；文件系统变更、正在进行的目录观察和 Git 效果仍然是应用程序拥有的未来工作。
 
 ## 统一搜索
 
@@ -106,10 +106,10 @@ Workbench 在 [`docs/experience`](docs/experience) 中维护已审核的交互�
 ### 搜索建模记录
 
 - **问题和输入：** 一个人需要在不知道菜单位置或快捷方式的情况下发现和调用产品功能。可信输入是经过审查的开放过滤器、已安装的操作范围、本地化的操作描述符以及指针或键盘事件。查询文本是本地用户输入。缺少的操作输入仍然是未绑定的运行时令牌并且永远不会被猜测。
-- **数据和所有权：** `WorkbenchSearchState` 是打开会话、筛选器、查询修订、查询、突出显示和嵌套父快照的唯一所有者。语义所有者对于操作的可用性和效果仍然具有权威性。预计结果携带稳定的提供者、组、结果、操作和范围标识以及运行时拥有的准备好的或未绑定的调用。
+- **数据和所有权：** `WorkbenchSearchState` 是打开会话、筛选器、查询修订、查询、突出显示和嵌套父快照的唯一所有者。语义所有者对于操作的可用性和效果仍然具有权威性。投影结果（Projected results）携带稳定的提供者、组、结果、操作和范围标识以及运行时拥有的准备好的或未绑定的调用。
 - **输出：** 打开操作会渲染并聚焦一个模态会话；筛选器与查询变化产生确定性的局部投影；选择已禁用项时只宣告原因，不执行调用；未绑定但受支持的结果会进入嵌套选择器；最终启用的选择至多触发一次 Action 执行。Escape 与外部 dismiss 均不构成任何 Action。
 - **过渡：** 打开重置为请求的预设。查询更改会增加修订版本。过滤器更改保留查询文本。结果更改保留仍然可见的突出显示，否则选择第一个启用的结果，回退到第一个可检查行。 Nested Back 可恢复完整的父筛选器、查询、修订和突出显示快照。关闭仅保留下一个单调会话标识。
-- **不变量：** 渲染的突出显示始终命名一个当前可见行；隐藏的动作永远不会渲染；禁用或不受支持的未绑定行永远不会执行；准备好的输入仅通过原始运行时令牌绑定；一个接受的行最多达到一个 `executePrepared(...)` 调用；并且关闭或嵌套取消不会执行域突变。
+- **不变量：** 渲染的突出显示始终命名一个当前可见行；隐藏的动作永远不会渲染；禁用或不受支持的未绑定行永远不会执行；准备好的输入仅通过原始运行时令牌绑定；一个接受的行最多达到一个 `executePrepared(...)` 调用；并且关闭或嵌套取消不会执行域变更。
 - **依赖项和排除：** React 拥有已安装的对话框生命周期和焦点适配器； `@orchbee/actions` 拥有注册、发现、准备、可用性、确认和执行； `@orchbee/i18n` 拥有产品副本；并设计代币自己的几何形状和外观。网络、存储、遥测、进程状态、代理数据和异步提供者协调都被排除在外，直到它们的语义所有者公开所需的合约。
 - **验证：** 纯测试涵盖打开/关闭、查询和过滤器转换、突出显示移动、嵌套恢复、匹配层、确定性分组、设置重复数据删除和参数过滤。运行时投影测试涵盖准备好的和未绑定的结果。组件测试涵盖组合框焦点、操作过滤、嵌套方向输入、操作执行和关闭。 Storybook 提供开放的 All 和 Chinese Action 状态；浏览器验证使用快捷键、四个过滤器、键盘和指针选择、嵌套输入、取消以及两个选项卡条方向。
 
@@ -210,7 +210,7 @@ managed 终端经过标识校验的自然退出是一项无需确认的终端级
 - **决策与兼容性：** Apple 默认使用 `Option+Command+Enter`，标准平台默认使用 `Ctrl+Alt+Enter`；现有普通新建 Tab 仍使用 `Command+T` 与 `Ctrl+Shift+T`。Browser 快捷键 override 从 `v16` 迁移到 `v17`；有效旧自定义会迁移，除非与新增组合键冲突。回滚时 `v16` 记录保持原样，旧版本有意无法读取只在 `v17` 中完成的编辑。
 - **参考与证据：** 行为采用 Kitty revision `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的 `kitty/boss.py::new_tab_with_cwd`，包括选择被调用或活动 window 并从其工作目录启动。Orchbee 使用可信 OSC 7 元数据和启动 CWD 回退，而不是 Kitty 的进程 CWD 请求；session membership、命令参数、remote control 及 Kitty 示例中的 `kitty_mod+t` 映射不在范围内。纯解析器测试覆盖显示中子终端优先级、回退、缺失数据、精确重新校验及同一终端的新元数据；runtime、Action、菜单、快捷键、本地化、设置和 `v16` 迁移测试覆盖所有投影。headed Desktop trace `FS-15` 验证 OSC 7 投递、菜单与 Action 搜索发现、快捷键消费、真实 PTY `pwd`、源终端连续性、焦点及设置。捕获和创建是一次同步重新校验操作，没有独立排序的完成结果，因此不选择 TLA+。
 
-### Tab 演示交接建模记录
+### Tab 呈现（presentation）交接建模记录
 
 - **问题与非目标：** 切换已有内容的 Tab 或 Workspace，或者通过 split、关闭、移动、交换、最大化、恢复或选择 displayed child 离散替换同一 Tab 的 Panel 布局时，新容器可能包裹仍表示旧几何的 canvas。交接会持续保留一份有意义的画面，直到目标几何真正完成绘制，同时不让非活动 Tab 的 React 树、attachment、canvas 或 renderer 常驻。连续窗口或分隔线缩放、动画或淡入淡出、操作系统 compositor 保证、持久输出存储、第二套 VT 权威、同步读取 WebGPU 像素，以及保证从未呈现过的目标预先拥有当前像素，均不在范围内。
 - **输入与数据：** 可信输入是活动 presentation scope 与 `TabModel` 标识、确定性的布局 revision、参与视觉呈现的 displayed-terminal 标识、单调递增的交接 epoch，以及携带精确 epoch、目标 Tab 标识和 presentation 标识的 display-ready 或 activation-ready 报告。布局 revision 包含 presentation scope、Tab、Panel 与 split 标识、拓扑与子项顺序、split 方向、最大化 Panel、child-terminal 成员关系和 displayed-terminal 选择；它排除焦点、终端 metadata 与 lifecycle 字段、普通正权重及拖动预览。最大化 workspace 只要求该精确 Panel 的 displayed terminal；正常 workspace 会递归排除零权重分支。`TerminalTabPresentationHandoffState` 拥有一个已稳定显示的 revision、一个带退出 revision 的 preparation，或一个仅含目标的 activation barrier。React 集成按布局 revision 至多保留一个只读退出 workspace 快照，包括规范 Tab 已移除或同 Tab 被替换之后。旧 epoch、错误目标 Tab 或重复标识报告都是空操作。
@@ -282,13 +282,13 @@ export function ProductInterface({
 }
 ```
 
-为每个已安装的应用程序组合创建一个 `ActionRuntime` 和一个 `WorkbenchProjectWorkspaceRuntime`，并使用该组合处置应用程序拥有的资源。使用系统 CWD 和本地化的第一个终端标题初始化项目/工作区运行时。其内存中终端创建操作保留所请求的选项卡组和可选的插入索引。可选的主机回调（例如设置和应用范围终端字号变更）仍然返回结构化的 `ActionResult`，可以异步返回它，在提交之前观察 `context.signal`，并在权威突变之前立即调用 `context.markCommitted()`。
+为每个已安装的应用程序组合创建一个 `ActionRuntime` 和一个 `WorkbenchProjectWorkspaceRuntime`，并使用该组合处置应用程序拥有的资源。使用系统 CWD 和本地化的第一个终端标题初始化项目/工作区运行时。其内存中终端创建操作保留所请求的选项卡组和可选的插入索引。可选的主机回调（例如设置和应用范围终端字号变更）仍然返回结构化的 `ActionResult`，可以异步返回它，在提交之前观察 `context.signal`，并在权威变更之前立即调用 `context.markCommitted()`。
 
 提供存储端口后，Workbench 会恢复 `orchbee:workbench:left-panel-width:v1`、`orchbee:workbench:left-panel-visibility:v1` 与 `orchbee:workbench:tab-strip-orientation:v1`。它使用功能拥有的严格 Zod Schema 解析完整 JSON 记录；只在用户调整大小完成后保存宽度，只在对应语义切换 Action 后保存可见性或 Tab 条方向。存储缺失、畸形、不可用或超出范围时，会回退到可见的 `250px` 侧栏及水平 Tab 条，不阻塞渲染。仓库范围的所有权与键契约见 [`docs/frontend/browser-storage.md`](../../docs/frontend/browser-storage.md)。
 
 Workbench 拥有内存中的 Tab 与 Panel 上下文投影；组合应用对 PTY 及终端进程生命周期效果保持权威。托管组合调度类型化 Presentation 命令，并通过 `applyTerminalPresentationEvent(...)` 回送其类型化结果。Tab 关闭采用委托方式：Workbench 标记其中每个 Presentation 正在关闭，在结果待定期间保留拓扑，并仅在每项精确关闭完成后从 `TabModel` 移除 Tab。Desktop Host 可通过 `createCrossWindowDragRuntime` 把 Tab 条指针生命周期连接到 Host 拥有的实时窗口发现、兼容性检查、原生窗口移动、捕获及 move-loop 行为。Workbench 与浏览器应用不具备这些 OS 能力。
 
-Workbench 公开了跨 Workbench、Terminal Host 和预计客户端的运行时主题修订协调契约。 Workbench拥有更替和发表资格；该合同将主机拥有的终端默认值/调色板/光标和客户端拥有的像素、覆盖层、光标和应用程序表面保留在一个匹配的完整版本上。其模型、重试规则、有界证据和主机/客户端细化均保存在 [`docs/terminal-theme-revision.md`](docs/terminal-theme-revision.md) 中。实现了主机比较和设置、完全恢复状态、投影终端帧暂存、渲染器预检和应用程序范围同步发布屏障。仅当每个安装的参与者都可以提交精确的主机标记帧和完整的客户端快照后，修订才变得可见。
+Workbench 公开了跨 Workbench、Terminal Host 与投影客户端（projected client）的运行时主题修订协调契约。 Workbench 拥有取代（supersession）与发布（publication）资格；该契约将主机拥有的终端默认值/调色板/光标和客户端拥有的像素、覆盖层、光标和应用程序表面保留在一个匹配的完整版本上。其模型、重试规则、有界证据和主机/客户端细化均保存在 [`docs/terminal-theme-revision.md`](docs/terminal-theme-revision.md) 中。实现了主机比较和设置、完全恢复状态、投影终端帧暂存、渲染器预检和应用程序范围同步发布屏障。仅当每个安装的参与者都可以提交精确的主机标记帧和完整的客户端快照后，修订才变得可见。
 
 ### 共享文档与 Client View 边界
 

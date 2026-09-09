@@ -36,10 +36,10 @@ Workspace primary Directory 接受只携带 Project、Workspace 与确切 path �
 分阶段的 Close binding 增加 `tab.close`、不可变 `tab-close-accepted`、无副作用的
 `workbench.tab-close.read` 与显式 `workbench.tab-close.resume` 及其严格结果。
 `WorkbenchTabCloseAttemptGenerationSchema` 验证独立于修订的非零规范十进制 u64 值域。
-封闭状态/阶段/原因联合将已知销毁、清理停驻、未知效果及最终移除保留为不同事实。
+封闭状态/阶段/原因联合将已知销毁、受阻（blocked）的清理、未知效果及最终移除保留为不同事实。
 Resume 失败目标回显仅重复已提交身份，Denied 亦如此；不确认既有操作。
 [Close 线协议契约](../../schemas/workbench/README.zh-CN.md#已接受的-tab-close-线协议契约)
-拥有形状及共享预期语料。这些已解码值解析器不激活生命周期效果，也不证明 Server/Worker/原生
+拥有形状及共享 oracle（裁决基准）。这些已解码值解析器不激活生命周期效果，也不证明 Server/Worker/原生
 集成；该批次必须一起推进。
 
 每个`terminal-projection-open-requested`命令携带一个完整的正值`TerminalGeometry`。它是调用者测量的视觉表面的安装几何形状，而不是可选的调整大小提示或后备。因此，请求身份包括表示身份和几何结构：可以重放精确的副本，而不同几何结构的重用会与控制流量发生冲突。传输合同不提供超时或 80x24 默认值。
@@ -48,7 +48,7 @@ Resume 失败目标回显仅重复已提交身份，Denied 亦如此；不确认
 
 同一流还携带完整的附件作用域调整大小租约所有权变化。渲染器在动态启用或禁用 Host 调整大小请求前，会校验附件与终端标识；所有权变化时，不会改写不可变的附件 bootstrap。
 
-实时输入权限使用独立的 `attachment-input-capability-changed` 事件，其中包含 Host 已提交的完整附件能力状态与正数修订。传输层不能请求或合成该变更。客户端校验附件与终端标识，并且只应用精确重放，或精确下一修订且输入值已变化的事件；过时交付为空操作，冲突或修订缺口则无法恢复。降级会同步禁用 PTY Action，而历史、搜索、选择与复制仍保持本地输出交互。升级不携带排队输入，只授予带新修订标记的未来输入。
+实时输入权限使用独立的 `attachment-input-capability-changed` 事件，其中包含 Host 已提交的完整附件能力状态与正数修订。传输层不能请求或合成该变更。客户端校验附件与终端标识，并且只应用精确重放，或精确下一修订且输入值已变化的事件；过时交付是惰性（inert）空操作；冲突或 revision 缺口按失败关闭（fail closed）处理。降级会同步禁用 PTY Action，而历史、搜索、选择与复制仍保持本地输出交互。升级不携带排队输入，只授予带新修订标记的未来输入。
 
 功能故障在 Electron 和 Gateway 传输中保留其语义操作和可重试性。 Host 响应还保留其确切的相关性 ID，而客户端拥有的复制和链接效果保留其请求序列。这些值确定后果和诊断；他们从不授权自动重放输入或其他用户效果。
 

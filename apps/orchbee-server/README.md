@@ -303,15 +303,19 @@ The accepted local-terminal milestone now connects the Server's Client Sessions 
 existing read-only viewer loop. The staged native LocalClient adapter consumes the viewer protocol. A process witness proves
 two independently admitted Clients receiving real Host projections through Server and Worker. The controller refinement below adds input/resize; bare Linux startup now consumes this relay.
 
-One admitted Session owns at most one transient viewer. Attach references an accepted terminal
-Create in the same local subject; Server resolves its retained Host identity and exact current
-Worker/generation, allocates fresh request, attachment, and cleanup identities, and pins that Worker
-handle. Clients never supply authoritative Worker, Host, or attachment identities. Each poll moves
-one complete opaque Host record; Server validates its envelope, route, and exact feedback scope,
-without decoding terminal presentation. Frame delivery and feedback cannot cross Session slots.
-Attach commits before Client publication. Disconnect, failed publication, or explicit detach release
-the viewer and any owned controller; they never terminate or retarget the retained terminal. Unknown exchanges are not
-replayed. Reattachment receives a new attachment identity and requires a snapshot.
+One admitted Session owns at most eight transient viewers on its existing ordered carrier. Attach
+references an accepted terminal Create in the same local subject; AttachBinding supplies an exact
+canonical binding selector. Server resolves the retained Host identity and current Worker/generation,
+allocates fresh request, attachment and cleanup identities, and pins that Worker handle. Clients
+cannot allocate authoritative runtime identities; every subsequent viewer/control action must echo
+one Server-issued attachment ID owned by the issuing Session. Each poll moves one complete opaque
+Host record; Server validates its envelope, selected attachment and exact feedback scope without
+decoding terminal presentation. Every viewer owns its own projection flight. Equal counters on two
+flights do not authenticate content: the explicit selector determines feedback ownership.
+Attach commits before Client publication. Explicit detach releases only the selected viewer and its
+controller; Session disconnect or failed publication cleans all its viewers. These operations never
+terminate or retarget retained terminals. Unknown exchanges are not replayed. Reattachment receives
+a fresh attachment identity and requires a snapshot.
 
 No coordinator or registry lock spans Worker or Client I/O. Drop cleanup uses blocking admission to
 the existing one-entry Worker request queue, without waiting for a Client response or adding an
@@ -323,13 +327,13 @@ writes retain their two-second limit. The one queued plus one in-flight bound re
 lease. Client record reads are idle until their first byte, then use a total two-second deadline;
 Client writes also have a total two-second deadline and retire only that Session on expiry.
 
-The existing `LocalTerminalRelay` remains the authority for attachment scope, one frame flight,
-exact feedback, queue isolation, and detach lifetime. This slice maps those transitions to OBCS
-viewer controls, OBSR opaque records, the existing OBCN/OBNR carrier, and Session-owned cleanup.
-Evidence includes strict protocol fixtures, deterministic stale-scope/feedback tests, carrier
-cleanup/backpressure tests, and real two-Client/Server/Worker/Host process traces. These establish
-the private read-only path, not TUI rendering, controller authority, release performance budgets,
-or independent review evidence.
+`LocalTerminalRelay` is the earlier one-viewer-per-Session abstraction for attachment scope, one
+frame flight, exact feedback, queue isolation and detach lifetime. Its protocol, deterministic
+feedback, carrier cleanup/backpressure and two-Client process evidence establish that bounded
+read-only relay refinement. They do not independently prove the current multi-viewer Session
+registry. `SessionViewerRouting` and the required generated/service/process evidence below own that
+extension; its final validation remains pending. Neither model proves TUI rendering or release
+performance budgets.
 
 An exact viewer/control ServerBusy response establishes known-unchanged terminal, viewer and
 controller effects. Carrier queue rejection precedes dispatch; an Attach Worker capacity rejection
@@ -344,7 +348,7 @@ The accepted milestone extends the Session viewer with explicit acquisition of o
 and resize controller per retained Host terminal. Server reserves the grant before Worker I/O;
 other Sessions cannot acquire while that grant is pending, active, or being cleaned up. A fresh
 Server-issued controller identity scopes a strictly increasing sequence shared by input and resize.
-Client-supplied identities must equal that Session's grant. Rejected non-controllers and stale
+Client-supplied identities must equal the selected viewer's grant in the issuing Session. Rejected non-controllers and stale
 sequences never dispatch; valid submitted sequences are consumed even if delivery fails. Unknown
 effects are reported without replay, and authority loss never retargets a retained terminal.
 
@@ -355,7 +359,7 @@ increasing sequences. Only the Host's exact capability revision authorizes raw i
 1 through 4,096 bytes; acceptance means admission to Host's bounded input queue, not shell execution.
 Resize acknowledges the exact complete geometry. No new Host wire contract or VT owner is added.
 
-Detach and Session loss release the control attachment before the viewer. The Server reservation
+Host cleanup releases the control attachment before the viewer. Explicit OBCN Detach performs that order inside Worker; the later Server lease Drop sends an idempotent Release to settle its registry. Session Drop submits OBCN Release before Detach. The Server reservation
 remains occupied until generation-pinned cleanup completes or that Worker becomes unavailable;
 cleanup admission uses the existing bounded request queue, with no lock held across I/O. A stale
 cleanup cannot clear a new grant. Failed or contradictory Host exchanges end the Worker connection;
@@ -440,6 +444,82 @@ transfer it or change the retained terminal; Host loss alone can change the term
 attach adds only the addressed current Session; detach, disconnect, and cleanup remove only the
 addressed Session; disconnect of an unattached Session preserves the set. Every unrelated viewer is
 therefore preserved without adding the predecessor set to the model state.
+
+## Accepted Session Viewer routing modeling record
+
+This accepted local implementation slice extends one admitted ClientSession and its existing ordered
+carrier to multiple explicitly addressed viewers. The implementation uses the bounded registry
+described above; the executable correctness case below defines its required checks and proof limits.
+This foundation does not deliver
+Native Panel splitting, focus, multi-terminal Tab Close, remote routing, or persisted recovery.
+The [OBCS contract](../../schemas/client-server/README.md) owns the wire representation.
+
+| Field          | Accepted contract                                                                                                                                                                                                                                                                                                                                   |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem        | Display/control consumers need independent viewer routes on one Session without transferring authority or creating a connection per viewer.                                                                                                                                                                                                         |
+| Inputs         | Strict OBCS actions, issuing Session, Server-issued `attachmentId`, exact retained target, Worker generation, lifecycle proof and controlled completion. Missing/malformed/forbidden selector fields are codec errors; valid unowned IDs receive semantic results.                                                                                  |
+| Data and owner | `LocalTerminalSession` solely owns its bounded viewer collection; each entry owns pinned target/Worker handle, projection flight, controller lease and exact cleanup. Site retains terminal identity/lifecycle; the controller registry retains target-exclusive grant ownership.                                                                   |
+| Outputs        | Correlated existing viewer/control outcomes and exact Worker requests; no implicit Create, Start, Dispose, rebind or Workbench mutation. Unknown exchanges never authorize replay, fallback or retargeting.                                                                                                                                         |
+| Admission      | Reap only exact known-Disposed entries; release proof locks before removal/Drop cleanup. At eight admitted/live entries return `server-busy` before target resolution or duplicate checks. Otherwise resolve the authorized full runtime target; a duplicate live target in the same Session returns `already-attached`. Different targets coexist. |
+| Routing        | Every non-Attach viewer action and every Control action requires `attachmentId`. Attach/AttachBinding forbid it. Resolve only within the issuing Session, then validate that viewer's controller and sequence or frame flight; never search another entry.                                                                                          |
+| Absence        | Unowned Poll/feedback returns `terminal-unavailable`; unowned Control returns `viewer-unavailable`; unowned Detach returns effect-free `detached`. This proves only Session ownership absence, not terminal disposal or another Session's cleanup.                                                                                                  |
+| Settlement     | Prepare identities/storage before final install gates; pin and revalidate the current Worker and unfenced target around IPC. Definite rejected Attach owns no cleanup; ambiguous candidate ownership preserves exact cleanup. No gate spans IPC or Drop.                                                                                            |
+| Lifetime       | Detach releases only its controller before retiring its viewer. Session loss cleans every owned entry through existing bounded cleanup. Local removal alone does not prove downstream cleanup; pending cleanup continues to exclude competing grants.                                                                                               |
+
+Explicit OBCN Detach is a Worker compound operation: it releases the Host controller before Host viewer detach; the later Server lease Drop settles registry ownership through idempotent Release. Session Drop instead submits Release before Detach. OBCN message order is not itself Host effect order.
+
+The per-Session admission bound and Worker's existing shared eight-viewer bound are independent.
+A locally available slot can still receive Worker capacity refusal after dispatch, with no acquired
+ownership: Worker capacity refusal follows one OBCN Attach but sends no Host Attach. A full Session rejects before OBCN dispatch, including duplicate Attach. Reserve the candidate
+within Session admission capacity; do not silently admit a ninth live viewer. Keep current queues,
+frame limits and deadlines. Native remains a single-viewer consumer during this migration and must
+retain the returned ID before setup control, polling, feedback or exact old-viewer cleanup.
+
+A controller's input/resize sequence is strictly increasing with gaps allowed, independent of other
+grants. A new grant cannot revive an old ID. Feedback belongs to its explicit selector: selecting B
+with counters matching B's current flight is valid B feedback even if A has equal counters. Counters
+are not content authentication. Incoming binary records still require exact attachment and Host
+identity validation. Target-local structured requests preserve unrelated viewers; this isolation
+premise excludes Session/carrier retirement, shared Worker/generation loss, and disposal of the same
+exact target across Sessions. No implicit controller promotion or takeover is added.
+
+The unpublished OBCS v1 source contract changes required action fields without changing frame
+versions. Schema, corpus, Rust binding and all Client producers advance with the exact development
+Client/Server/Worker/Host cohort and roll back together. Old omitted selectors fail strict decoding;
+there is no compatibility guessing or mixed-cohort promise. This is a breaking action-shape change,
+not the preceding additive Open/AttachBinding extension.
+
+Required executable checks and their limits:
+
+- `SessionViewerRouting` models Session ownership, separate Session/Worker capacity, candidate and
+  installed cleanup, exact disposal, per-viewer flights, per-grant sequences and shared failure.
+  Existing Authority is a one-retained-terminal abstraction; Relay has one projection/flight per
+  Session and a consecutive-sequence subdomain; Selection covers target resolution/Worker pinning.
+  Those models do not independently establish multiple viewers or multi-entry disposal cleanup.
+- `viewer_session/tests/stateful.rs` executes real `LocalTerminalSession` and service code with a
+  controlled fake Worker against an independent `(session, viewer, target)` oracle. The merge corpus
+  uses seeds 1 through 64 and at most 128 actions each, explicit scheduling and versioned parsed
+  replay. Shrinking deletes actions/chunks and simplifies semantic values while preserving the same
+  failure fingerprint and valid dependencies; infrastructure failures cannot replace the discovery.
+  Minimized failures become replay regressions. Serialize/parse stability and deterministic replay
+  are checked; the oracle must not reuse production transition helpers or merely execute a copied model.
+- Generated coverage must reach every declared boundary at least once: duplicate aliases; full
+  Session duplicate; separate local/Worker capacity refusal; wrong scope/grant; independent equal
+  sequences and gaps; stale replacement grant; equal frame counters with valid selected feedback;
+  mismatched flight; Detach/repeated Detach; exact disposal with live sibling; multi-entry Session
+  drop; Worker generation change; rejected candidate cleanup. At least eight distinct seeds must
+  reach two live viewers followed by two interleaved target-local actions. Missing coverage fails;
+  fixed examples are reported separately and cannot substitute for generated interleavings.
+- Deterministic service/carrier tests inspect exact Worker request identities and absence of extra
+  effects, including Native setup and old-viewer cleanup. A real process witness holds two terminals,
+  viewers and grants on one admitted stream, interleaves input/frames/feedback and distinct geometry,
+  detaches one while the other works, and proves Session cleanup preserves both terminals. A second
+  Session checks borrowed IDs and controller contention. Two separate one-viewer connections do not
+  establish the primary claim. Cleanup progress assumes completion or dependency retirement.
+
+The ordinary Server unit suite includes the stateful test and its coverage/replay checks. Protocol,
+model, service/carrier and real process evidence all gate integration; one method cannot replace
+another. Final verification and bilingual contract convergence remain required before completion.
 
 ## Local terminal coordinator modeling record
 

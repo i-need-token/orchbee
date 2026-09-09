@@ -18,7 +18,7 @@
 当前产品 runtime 尚未形成这一目标形态。下文通过当前 owner 汇总已完成的增量底座、已检查的
 Client-side 本机 Site activation model、本机 Server-Worker、Client Session 与 Worker-Host
 connection spine、已集成的 Server OBCS 终端授权、terminal-control contract、已集成的 Worker
-authorization/default-launch/Host execution loop、application-private local Client transport 与暂存的 local-Site rendezvous，
+authorization/default-launch/Host execution loop、application-private local Client transport 与共享的 local-Site runtime，
 以及已检查的 terminal Client authority model。Linux 本地开发纵向链路已接通；其他 runtime
 implementation、migration、cutover 与 deletion 继续受下文边界与保留决策约束。
 

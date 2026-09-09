@@ -150,6 +150,14 @@ Server-reported unknown control outcome is returned without retry; mismatched ou
 transport. The caller owns fresh request identities, increasing grant-scoped sequences, and any
 explicit later acquisition. Cleanup after Session loss may outlive a submission deadline.
 
+All existing-viewer actions and all controller actions carry the exact Server-issued `attachmentId`.
+The native executor retains that identity immediately after Attach, before setup can fail or be
+superseded. Poll, control, projection feedback and cleanup use that captured identity; bounded busy
+retries preserve it while refreshing only the permitted request identity and control sequence.
+Projection feedback is checked against its owning attachment before submission, never retargeted.
+`LocalClient` stores no implicit current viewer. The native UI still selects one viewer at a time;
+the Server's multiple-viewer routing foundation does not itself provide native Panel splitting.
+
 ### Submission correctness record
 
 | Field        | Contract                                                                                                                                                                                                                                                                                                                                                                  |

@@ -39,7 +39,7 @@ Client 从 TTY 准入到首个有效 Host 帧应用到投影，共用一个 20 �
 
 `activation.started` 是不可变的空普通文件，只有一个链接，属于有效用户，权限为 0600。
 Client 是唯一写入者，以目录描述符相对的 O_EXCL、CLOEXEC 和 NOFOLLOW 创建。
-它提交的是启动尝试，并非 PID 或成功报告。激活锁覆盖该提交、进程启动和 OBLC 就绪。
+它提交的是启动尝试，并非 PID 或成功报告。激活 guard 覆盖该提交、进程启动和 OBLC 就绪。
 只有 Server 持有生命周期锁，绑定 Worker 监听器，启动恰好一个同 cohort Worker，
 并在 Worker 注册后才发布 Client 监听器。Client 监听器先绑定私有临时名称、设置权限，
 再以原子且不覆盖目标的 rename 发布；Client 不会观察到权限设置前的状态。
@@ -78,8 +78,8 @@ Host 消费已验证的相邻可执行文件，不实现清单读取。
 
 | 声明                                            | 所有者 / 细化映射                                    | 证据                                          |
 | ----------------------------------------------- | ---------------------------------------------------- | --------------------------------------------- |
-| LS01 每个运行时生命周期至多一次启动尝试         | Client 在激活锁下独占创建标记                        | LocalSiteStartup 模型；竞争及失败标记进程轨迹 |
-| LS02 无隐式恢复或 Client 所有的终止             | 持久标记、Server 生命周期锁、Client 连接释放         | 模型丢失/超时；断连再打开真实进程轨迹         |
+| LS01 每个运行时生命周期至多一次启动尝试         | Client 在激活 guard 下独占创建标记                        | LocalSiteStartup 模型；竞争及失败标记进程轨迹 |
+| LS02 无隐式恢复或 Client 所有的终止             | 持久标记、Server 生命周期 guard、Client 连接释放         | 模型丢失/超时；断连再打开真实进程轨迹         |
 | LS03 授权 Launch 前没有 Host；保留同一 dispatch | Worker 授权内核和延迟启动适配器                      | 模型授权；Worker 无效/有效 Launch 进程测试    |
 | LS04 副作用前角色一致且 rendezvous 私有         | NativeCohort 和 ModeCheckedLocalSiteRendezvous       | 清单损坏、权限、符号链接及已有锁测试          |
 | LS05 一个预算内收到有效首帧才算启动就绪         | Client 截止时间、TerminalSession 投影、同一 TTY 交接 | 准入/提交截止测试及裸 TTY 进程测试            |

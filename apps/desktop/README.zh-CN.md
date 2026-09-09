@@ -49,7 +49,7 @@ Main 在允许客户端之前加载并验证共享文档一次。可用的文档
 
 Coordinator 与 transport 无关，支持独立 page session，并且没有产品数量上限。Electron 使用直接 `MessagePort` adapter。显式 Browser 访问把 `apps/server` 与 `apps/gateway` 启动为按需 Utility Process；Desktop 拥有两者的 lifecycle，并为每个已鉴权页面分配恰好一对 client-session/projection port。Server 负责 renderer 交付、个人访问令牌校验与签名 session Cookie 签发；Gateway 负责签名 Cookie 与 exact-Origin 准入、framing，以及 loopback 或显式选择 trusted LAN 上的 transport backpressure。Gateway 绝不接收 application-lifetime port 或 Host connection。`apps/web` 负责与 platform 无关的 Workbench client runtime，以及普通 Browser、Gateway Browser client 与 Electron 使用的唯一 renderer application。开发 Electron 通过 loopback Web origin 上的 User-Agent discovery。Packaged Desktop 在 Electron ready 前注册标准 secure `orchbee:` scheme，从 `orchbee://app` 提供 Web build，并对 Browser Router document request 回退到 `index.html`。Desktop 负责 renderer resource 交付，而不是另一套 renderer source tree。参见 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) 与 [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md)。
 
-Desktop 严格要求唯一的当前 Host 协议 `0.0.23`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即本仓库所选当前 Electron 主版本中的最新次版本。
+Desktop 严格要求唯一的当前 Host 协议 `0.0.23`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即紧邻本仓库所选当前 Electron 主版本的前一主版本中的最终发布。
 
 `HostConnection` 在每个代理调用者上拥有一个连接全局出站窗口：最多 64 个未应答请求记录和 4 个 MiB 编码请求字节。它会保留该许可，直到相关响应或连接失败为止。已返回 `false` 的完整窗口或节点可写在切换之前拒绝工作，并可重试 `host-transport-backpressure`；在 `drain` 之前没有请求写入恢复。如果移交的请求达到其截止日期，Desktop 将终止连接，并使用不可重试的 `host-request-outcome-unknown` 拒绝所有待处理和未来的请求，因此在出现不明确的结果后，永远不会重播输入。
 
@@ -59,7 +59,7 @@ Desktop 严格要求唯一的当前 Host 协议 `0.0.23`；预发布版本既不
 
 在 POSIX 上构造 `HostConnection` 之前，Desktop 的进程内本机端点适配器会验证运行时目录和实际套接字、建立连接，并根据内核对端凭据验证服务器的有效 UID。只有经过验证的同 UID 连接才能抑制 Host 启动，并且每次重试或稍后 Desktop 重连都会重复检查。适配器把已验证描述符直接移交给 Node 套接字且不启动帮助进程，因此 `serve` 是唯一的 Terminal Host 产品进程。其所有权、失败、证据和回滚合同见 [`docs/posix-host-endpoint.md`](docs/posix-host-endpoint.zh-CN.md)。
 
-Desktop 将一个 Terminal Host 端点扩展到其产品 `userData` 身份，该身份将 OS 用户、产品配置文件和发布通道数据根分开。短 POSIX 运行时路径是操作系统受信任的每用户运行时位置（Linux 上的 `/run/user/<effective-uid>` 和 Electron 上 macOS 上的 Electron 的每用户临时位置）的稳定产品范围子代，从来都不是确定性的共享 `/tmp` 的子级。 Windows 命名管道标识源自相同的产品范围。显式端点和运行时覆盖仅适用于受控开发和测试； POSIX 覆盖仍然通过本机无跟随所有者、私有模式和 ACL 准备和验证。每次成功握手后，Desktop 都会通过 `SetTerminalDefaults` 发送当前终端默认值，因此重新连接到已运行的单例与新启动 CLI 具有相同的结果。新终端使用与工作台画布对齐的浅色配置；保留的终端保留与其现有主机会话一起存储的配置。Presentation 与输入首选项仍只属于渲染器；Main 拥有的回滚缓冲区默认值是当前唯一会改变 Host 终端默认值的产品设置。
+Desktop 将一个 Terminal Host 端点扩展到其产品 `userData` 身份，该身份将 OS 用户、产品配置文件和发布通道数据根分开。短 POSIX 运行时路径是操作系统受信任的每用户运行时位置（Linux 上的 `/run/user/<effective-uid>` 与 macOS 上 Electron 的每用户临时位置）的稳定产品范围子代，从来都不是确定性的共享 `/tmp` 的子级。 Windows 命名管道标识源自相同的产品范围。显式端点和运行时覆盖仅适用于受控开发和测试； POSIX 覆盖仍然通过本机无跟随所有者、私有模式和 ACL 准备和验证。每次成功握手后，Desktop 都会通过 `SetTerminalDefaults` 发送当前终端默认值，因此重新连接到已运行的单例与新启动 CLI 具有相同的结果。新终端使用与 Workbench canvas 对齐的轻量（light）profile；保留的终端保留与其现有主机会话一起存储的配置。Presentation 与输入首选项仍只属于渲染器；Main 拥有的回滚缓冲区默认值是当前唯一会改变 Host 终端默认值的产品设置。
 
 Desktop Main 还拥有单个本地 Electron 窗口生命周期。它恢复严格的设备本地正常边界和最大化记录，将保存的几何图形重新投影到当前显示工作区域，并通过应用程序菜单及其加速器使用的 Main 拥有的语义操作公开最大化/恢复和全屏。全屏保持短暂状态，窗口状态永远不会进入共享工作台文档或终端恢复。请参阅[`docs/window-lifecycle.md`](docs/window-lifecycle.md)。
 
@@ -257,7 +257,7 @@ Desktop 隐藏本机标题栏，同时保留操作系统的窗口控件。在 ma
 
 Desktop 在受信任的主要组合边界处读取一次终端计算机的主机名，将其验证为运行时配置，并将其包含在每个 Electron 或网关客户端会话引导程序中。共享 Web 渲染器将该主机名与提交的主机标题/CWD 元数据相结合，并应用 Workbench 拥有的 Warp 范围策略。渲染器输入、浏览器位置和传输对等名称无法替换此主机名。自然标题和当前 CWD 保留每页瞬时观察结果；只有后备和显式自定义选项卡标题才会进入共享文档协调器。
 
-每个成功请求都会获得新的 AttachmentId、完整能力 bootstrap、正数能力修订和私有 `MessagePort`。Desktop 通过 Workbench bootstrap 转发该修订；每条投影的原始或语义输入命令也会把它带回 Host。对于运行中的 Presentation，每个可写附件都获得 read/input/resize 能力；串行化 open 只有在不存在活动 owner 时才请求初始 resize lease。接纳的 `focused: true`、key press/repeat、已提交 text 或 paste、application mouse press 或 terminal-selection start 会把该可写 projection 记录为最新 desired owner；attachment、background state、viewport resize、pointer motion、release/repair input 与 `focused: false` 不会。只有在运行中 terminal 上仍具有 input 与 resize 能力的 attachment 才能产生租约 activity 或发起 claim；input 降级会使其排队的 ownership intent 失效。Desktop 合并并发 intent，一次串行一个显式 Host `ClaimResizeLease`，且不会延迟 input。已提交 transfer 先以旧 owner 的 revoke 到达 Main，再以新 owner 的 grant 到达；晋升的 renderer 立即测量当前 surface 并提交该 geometry。Owner detach 时，Host 晋升 successful claim 最新的剩余 resize-capable attachment，从未 claim 的候选以最早 admission 打破平局；若 Desktop 记录了更新的剩余 activity，则会再次 claim。open、输入能力变更、provision 与 exit 操作按 Presentation 顺序串行化。只有 Main 拥有的投影租约方能请求实时输入变更；Broker 会向 Host 提交精确的下一修订，校验返回的完整附件标识、不可变 read/resize 状态、resize 租约、新输入值与修订，然后才向下游发布状态。重复的目标状态为空操作。渲染器命令不能提升自身能力；无效或不可发布的 Host 结果会废弃附件，而非授予客户端权限。Main 只有在待处理能力工作和分离都完成后才返回对应释放确认。Renderer 本地 release 可能在 Main 观察到该 release 前，与已经发布的异步 open 交错；携带一个 transferred port 且精确关联的迟到 open 只会关闭该 port，并保持共享控制与无关请求可用，而无效标识、port 数量或重复 open 仍会退役共享控制。Host 请求传输仍可用时，清理失败会保留同一请求以便稍后精确重试，且不能使另一个投影请求失效。一旦确认连接终止，Host 连接 teardown 就构成该连接附件的清理证据：Desktop 不再发送 Host 清理请求，并结算连接作用域内的本地租约/分离所有者，而不改变保留的终端。已退出或失败的终端以只读方式附加保留最终修订及类型化结果。多个可见 Split Panel 与页面客户端可以分别持有独立附件，不设全局附件阈值。
+每个成功请求都会获得新的 AttachmentId、完整能力 bootstrap、正数能力修订和私有 `MessagePort`。Desktop 通过 Workbench bootstrap 转发该修订；每条投影的原始或语义输入命令也会把它带回 Host。对于运行中的 Presentation，每个可写附件都获得 read/input/resize 能力；串行化 open 只有在不存在活动 owner 时才请求初始 resize lease。接纳的 `focused: true`、key press/repeat、已提交 text 或 paste、application mouse press 或 terminal-selection start 会把该可写 projection 记录为最新 desired owner；attachment、background state、viewport resize、pointer motion、release/repair input 与 `focused: false` 不会。只有在运行中 terminal 上仍具有 input 与 resize 能力的 attachment 才能产生租约 activity 或发起 claim；input 降级会使其排队的 ownership intent 失效。Desktop 合并并发 intent，一次串行一个显式 Host `ClaimResizeLease`，且不会延迟 input。已提交 transfer 先以旧 owner 的 revoke 到达 Main，再以新 owner 的 grant 到达；晋升的 renderer 立即测量当前 surface 并提交该 geometry。Owner detach 时，Host 晋升 successful claim 最新的剩余 resize-capable attachment，从未 claim 的候选以最早 admission 打破平局；若 Desktop 记录了更新的剩余 activity，则会再次 claim。open、输入能力变更、release 与 retirement 操作按 Presentation 串行化。只有 Main 拥有的投影租约方能请求实时输入变更；Broker 会向 Host 提交精确的下一修订，校验返回的完整附件标识、不可变 read/resize 状态、resize 租约、新输入值与修订，然后才向下游发布状态。重复的目标状态为空操作。渲染器命令不能提升自身能力；无效或不可发布的 Host 结果会废弃附件，而非授予客户端权限。Main 只有在待处理能力工作和分离都完成后才返回对应释放确认。Renderer 本地 release 可能在 Main 观察到该 release 前，与已经发布的异步 open 交错；携带一个 transferred port 且精确关联的迟到 open 只会关闭该 port，并保持共享控制与无关请求可用，而无效标识、port 数量或重复 open 仍会退役共享控制。Host 请求传输仍可用时，清理失败会保留同一请求以便稍后精确重试，且不能使另一个投影请求失效。一旦确认连接终止，Host 连接 teardown 就构成该连接附件的清理证据：Desktop 不再发送 Host 清理请求，并结算连接作用域内的本地租约/分离所有者，而不改变保留的终端。已退出或失败的终端以只读方式附加保留最终修订及类型化结果。多个可见 Split Panel 与页面客户端可以分别持有独立附件，不设全局附件阈值。
 
 每个 `ProjectedTerminalBroker` 还为其附件拥有一个有界调整大小命令序列化器。串行器处于空闲状态或只有一个主机调整大小请求处于活动状态；当处于活动状态时，每个较新的经过验证的渲染器测量都会替换单个待处理的测量，而不是启动竞争的 PTY 调整大小。活动请求的成功或类型化失败使串行器返回空闲状态，并在附件保持活动状态时立即接受最新的待处理测量。活动失败仍然通过现有的类型化渲染器失败路径发布，并且永远不会静默重播；只有在开始后到达的测量才能驱动下一个请求。处置或附件清理会删除挂起的测量，其他渲染器命令保留其现有并发性，并且挂起的调整大小在调度之前不占用主机请求窗口槽。因此，容器测量的突发使用恒定内存，一次最多提交一个调整大小，并使最新的挂起几何图形成为下一个主机请求，而不允许中间请求超越它。
 
@@ -418,13 +418,13 @@ check；本 README 不声明当前 runtime 会拒绝每一个 equal-revision con
 
 重点跟踪范围包括：
 
-- 严格的客户端会话和投影边界验证、格式错误的消息退出、精确的提案关联以及页面附件处理；
+- 严格的客户端会话和投影边界验证、格式错误的消息退出、精确的提案关联以及页面附件处置；
 - 原子引导、FIFO 完整文档提案、第一作者获胜、使用 Client View 保存进行过时回滚、无效文件保存和一个有序发布流；
 - 首次提交和每命令预写排序、Main 拥有的仅恢复恢复、失败存储效应抑制以及效应后托管容器清理；
 - 新配置、多绑定存储保存、恢复、退出恢复到处置、孤儿和冲突处理、持久关闭和表示注册表重建；
 - 不相关的终端并发、精确关闭定位、保留原生窗口的自然退出 Tab 移除、Tab 关闭结果排序和过时结果拒绝；
 - 两个恢复的 Workbench Tab，其中两个生命周期记录一致，但只有活动可见 Tab 具有 attachment，随后执行 Tab 切换时的精确 release/open 行为；单独的受控 trace 会驱动 80 次快速第一/第二 Tab 快捷键、通过新 attachment 证明后续输入、关闭活动第二 Tab，并逐帧采样 presentation，断言请求局部的控制存活且顶层从不为空；
-- 确切的 `terminal-parity/SU-16-startup-geometry` 真实 Electron/主机证据：受控 POSIX shell 在将控制权交给 `/bin/sh` 之前记录其 PTY 大小，并且第一个子几何体与独立派生的安装网格和唯一的第一个客户端框架匹配，无需中间`80x24` 框架；所有者本地跟踪涵盖无子延迟创建、附加前启动排序、重复/冲突启动、失败启动和待处理处理。系统见证仅是 POSIX，不会声明 Windows ConPTY 启动或以后的大小调整；
+- 确切的 `terminal-parity/SU-16-startup-geometry` 真实 Electron/主机证据：受控 POSIX shell 在将控制权交给 `/bin/sh` 之前记录其 PTY 大小，并且第一个子几何体与独立派生的挂载网格和唯一的第一个客户端框架匹配，无需中间`80x24` 框架；所有者本地跟踪涵盖无子延迟创建、附加前启动排序、重复/冲突启动、失败启动和待处理处理。系统见证仅是 POSIX，不会声明 Windows ConPTY 启动或以后的大小调整；
 - 精确的 `terminal-parity/SU-18-font-size-shortcuts` 真实 Electron/Host 证据：平台 `Mod` 增大、减小和重置组合键会按产品两点步长更新两个已挂载 Panel 终端、恢复默认值，并保留两个 attachment 身份。该见证只覆盖当前运行器平台，不声明已排除的小键盘或 Shift 加号别名；
 - 明确的块/非闪烁配置文件默认值、闪烁条 DECSCUSR 覆盖和 RIS 恢复的精确 `terminal-parity/SU-13-cursor-defaults` real-PTY 投影证据。主机运行时测试还涵盖应用程序重置和非默认配置文件；系统见证人观察规范的投影元数据，而不是将平台屏幕截图视为光标权限；
 - 并发查看者只有一个调整大小所有者、last-meaningful-activity handoff、recency fallback、动态渲染器所有权以及序列化发布/开放排序；
@@ -531,7 +531,7 @@ Rsbuild 配置可以在没有工作区构建产物或已安装 Electron 可执�
 | ------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | Web 渲染器或源构建的前端包            | 通过Web开发服务器重新加载渲染器文档                                                           | Canonical Workbench 文档、桌面绑定、主机终端          |
 | Electron Main、预加载或源构建的依赖项 | 刷新渲染器文档，重新启动Electron，并重新连接到同一主机                                        | Canonical Workbench 文档和主机终端                    |
-| Terminal Host Zig 源码                | 将每个正在运行的演示文稿作为新的持久配置进行暂存，停止旧会话，更换主机，然后重新启动 Electron | 项目、工作区、选项卡、面板、拆分、标题和启动 CWD 拓扑 |
+| Terminal Host Zig 源码                | 将每个正在运行的 Presentation（呈现）作为新的持久 provision 进行暂存，停止旧会话，更换主机，然后重新启动 Electron | 项目、工作区、选项卡、面板、拆分、标题和启动 CWD 拓扑 |
 
 Electron 或 Host 编译失败不会影响最后运行的进程。只有新二进制文件完成，且旧渲染器已持久暂存新的终端 provision 后，才开始替换 Host；暂存路径不可用时会中止替换。重启后的 Presentation 会获得新的 Workbench Presentation、Desktop 绑定、Host、创建、终端和附件标识；其进程、shell 状态、瞬态元数据、选择与回滚缓冲会被刻意丢弃。该策略仅用于开发：打包更新后的重启仍会保留 Host 中的保留终端。
 

@@ -2,7 +2,7 @@
 
 ## 范围与已交付边界
 
-Desktop Main 现在拥有一个显式请求的 SSH Environment 的进程内 Slice 2.2 连接基础：target
+Desktop Main 拥有一个显式请求的 SSH Environment 的进程内 Slice 2.2 连接基础：target
 resolution、一个受监督的 OpenSSH child、瞬时 AskPass、来自 signed SSH Environment release 的 verified
 Runtime projection、无下载远程 bootstrap、精确 Hello 与 heartbeat、generation-fenced retry，以及
 attachment retirement。原生
@@ -25,7 +25,7 @@ Slice 3.2D 现在从精确 Environment 的 current relay 观察 metadata、runti
 listener 返回前 durable journal exit，并且只有通过 Environment-scoped binding 与 canonical target 校验后
 才发布。Slice 3.2E 与 D194 提供一个仅限 Electron 的产品入口，用于创建和关闭 default top-level remote
 Terminal Tab。它使用专用 renderer capability，由 Main 派生并重新校验全部 remote authority，并等待
-canonical client-session publication。当前没有 Gateway 或 CLI creation surface、Runtime network feed、
+canonical client-session publication。没有 Gateway 或 CLI creation surface、Runtime network feed、
 自动 SSH 连接、directory browser、file access、Git 或 Agent authority。测试只使用本地临时目录、临时
 signing key 与受控进程；不会连接真实 SSH server。
 
@@ -229,7 +229,7 @@ v1 contract 只对已经交付的 Runtime behavior 保持有效，不能满足�
 
 | 决策 | 已接受契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D147 | Slice 3.3A 授权 POSIX Electron Desktop 的 `Connect via SSH…` enrollment 与 recovery 入口，产品文案本地化为“通过 SSH 连接…”。一次显式请求会建立或复用 SSH Environment、连接它、验证一个 remote Project root，并准入 canonical Project 与 Workspace。macOS Desktop 与 Linux Desktop 可以连接已经准入的 macOS arm64 和 glibc Linux x86_64 remote platform；Windows Desktop、Gateway、Browser Preview、CLI、Skill 与 Agent enrollment 仍不在范围内。                                                                                                                                                      |
+| D147 | Slice 3.3A 授权 POSIX Electron Desktop 的 `Connect via SSH…` enrollment 与 recovery 入口。一次显式请求会建立或复用 SSH Environment、连接它、验证一个 remote Project root，并准入 canonical Project 与 Workspace。macOS Desktop 与 Linux Desktop 可以连接已经准入的 macOS arm64 和 glibc Linux x86_64 remote platform；Windows Desktop、Gateway、Browser Preview、CLI、Skill 与 Agent enrollment 仍不在范围内。                                                                                                                                                      |
 | D148 | 现有 Workbench Project-create 与 Project-navigation experience 新增 SSH entry、remote status，以及 Connect、Retry 与 Disconnect control。多步骤 credential 与 progress ceremony 是 `@orchbee/web` 中由 Desktop 拥有的新 business dialog；它不会把共享 resource form 变成 workflow，也不会分叉 Workbench Project model。                                                                                                                                                                                                                                                                               |
 | D149 | Renderer enrollment input 只包含有界 Environment display name、SSH destination 或 alias、可选绝对 SSH configuration path，以及一个绝对 POSIX Project path。Main 验证边界、运行现有固定 `ssh -G` resolver，并分配 opaque identity。Renderer input 永不包含 Environment identity、Runtime identity、resolved hostname、SSH argument vector、shell fragment、credential 或 host key。精确既有 target 复用其不可变 identity 与 authoritative name。                                                                                                                                                       |
 | D150 | Electron bootstrap 新增一个 purpose-specific `ssh-project-enrollment` `MessagePort`，作为第十一个精确 role。有界 request、generation、prompt-handle、progress、status、cancellation 与 result record 通过该 port。Main 对一个 Environment 最多授予一个 interaction lease；只有发起它的 request 可以回答精确 current prompt。Port loss 会撤销 lease，prompt 永不转交，提交的 secret 只是瞬时 AskPass response，不进入 React persistence、diagnostic、telemetry、disk 或 canonical document。                                                                                                           |
@@ -384,6 +384,12 @@ Desktop connection owner 对每个 durable Environment 只准入一次显式 act
 installed-cohort negotiation、handshake 与 heartbeat。它不拥有任一 daemon 生命周期。Runtime 精确按顺序
 公布 `project-root-v2` 与 `terminal-host-v1`；前者由 Runtime 解释，后者在不解析 Terminal Host record 的
 前提下 opaque relay。
+
+Projection request 只携带 `TerminalPresentationId` 与 viewport geometry。Desktop Main 通过 Terminal Context、
+Workspace、primary Directory 与 placement 解析 Presentation containment。Local placement 只会到达 local
+runtime；Environment placement 只会到达为该精确 Environment 缓存且已经 prepared 的 runtime。Main 在 runtime
+open 后重复解析，并在 target 缺失或变化时 dispose provisional lease。Projection 永远不会 prepare 或 reconnect
+SSH，Environment 路径还会禁用 local binding 与 terminal-archive fallback。
 
 ## Target resolution 与 OpenSSH transport
 
@@ -659,12 +665,6 @@ replacement attachment 会观察到同一个 epoch。如果 daemon 已死，boot
 registry target 与 Runtime instance identity 复制到一个 supervisor；重复 connect 会复用它。Disconnect 只在
 retirement 完成后移除该 supervisor，application shutdown 会先 fence 新 activation，再停止所有剩余
 supervisor。Registry load、create 与 application startup 永远不会调用 connect。
-
-Projection request 只携带 `TerminalPresentationId` 与 viewport geometry。Desktop Main 通过 Terminal Context、
-Workspace、primary Directory 与 placement 解析 Presentation containment。Local placement 只会到达 local
-runtime；Environment placement 只会到达为该精确 Environment 缓存且已经 prepared 的 runtime。Main 在 runtime
-open 后重复解析，并在 target 缺失或变化时 dispose provisional lease。Projection 永远不会 prepare 或 reconnect
-SSH，Environment 路径还会禁用 local binding 与 terminal-archive fallback。
 
 ## 建模与验证
 

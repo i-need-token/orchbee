@@ -78,14 +78,14 @@
 
 `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`、`ghostty-alternate-surface-v0.0.3.bin` 和 `ghostty-render-row-window-v0.0.3.bin` 共同组成一套由 Host 拥有的原生表面证据。`apps/terminal-host` 从一个固定版本的原生 Ghostty VT 和一个 Host Projection 生成 OBTF 夹具对：馈送主流、捕获快照、在同一终端进入备用屏幕，再捕获第二个快照。另一个原生终端会重放主流，追加 DECSCA 受保护哨兵和恢复未受保护后的哨兵，并通过生产 `row_encoding.encode` 到 `projection_buffer.encodeRenderSnapshot` 路径生成 render-detail OBRW。三个夹具均不由 TypeScript 编码器构造。
 
-Terminal Host 验证会重新生成并逐字节比较全部三个夹具。投影渲染器测试会解码主 OBTF 字节作为 Canvas 和 WebGPU 证据，再通过打包存储提交两个 OBTF 快照以获得转换证据。OBRW 消费者独立固定完整的六行乘八单元判定：行索引、标志、提示类、字素与超链接字符串及其原始字节范围、全部三个颜色列、每个样式标志和下划线类型、宽度拓扑、语义内容、受保护标志和提交元数据。它要求严格解码与可信结构视图匹配同一矩阵，通过 `replaceProjectionBufferSnapshot` 提交可信帧，并按相同语义列检查每一存储行。线协议有效的内存变异覆盖前景/背景交换、受支持样式变化、受支持语义变化、清除受保护单元、规范移除超链接、协调行换行和有效宽度拓扑替换。
+Terminal Host 验证会重新生成并逐字节比较全部三个夹具。投影渲染器测试会解码主 OBTF 字节作为 Canvas 和 WebGPU 证据，再通过打包存储提交两个 OBTF 快照以获得转换证据。OBRW 消费者独立固定完整的六行乘八单元格判定：行索引、标志、提示类、字素与超链接字符串及其原始字节范围、全部三个颜色列、每个样式标志和下划线类型、宽度拓扑、语义内容、受保护标志和提交元数据。它要求严格解码与可信结构视图匹配同一矩阵，通过 `replaceProjectionBufferSnapshot` 提交可信帧，并按相同语义列检查每一存储行。线协议有效的内存变更覆盖前景/背景交换、受支持样式变化、受支持语义变化、清除受保护单元格、规范移除超链接、协调行换行和有效宽度拓扑替换。
 
 该语料库启用 Ghostty 字素簇模式 `2027`，然后在一个 OSC 8 链接内包含窄文本、CJK、组合序列和 modifier-plus-ZWJ 表情符号。它将最终链接的宽字素放在右边缘，以便 Ghostty 发出包裹的间隔头，然后是下一行的宽头和间隔尾。然后，在出现明确的硬换行和最后一个未链接的单元格之前，链接将关闭。另外两个硬行设置非黑色动态默认值并使用显式的前景色/背景色、反色、微弱、不可见、闪烁、上划线、删除线、所有五种下划线类型、独立的下划线颜色、粗体和斜体。因此，共享断言涵盖了这些边界：
 
-- Ghostty 拥有字素分割和末端宽度。
-- 主投影将每个完整的字素保留为一根字符串，并保留窄的、宽的、间隔尾部和包裹的间隔头拓扑。
+- Ghostty 拥有字素分割与终端（列）宽度。
+- 主机投影将每个完整的字素保留为一根字符串，并保留窄的、宽的、间隔尾部和包裹的间隔头拓扑。
 - TypeScript 解码器和打包存储保留准确的字节和宽度代码。
-- Canvas 对每个非间隔字素绘制一次；它从不将间隔单元绘制为独立的字形。
+- Canvas 对每个非间隔字素绘制一次；它从不将间隔单元格绘制为独立的字形。
 - 搜索会连接软包装行，但不会跨越后面的硬边界，除非明确要求跨越行。
 - 链路检测在软包上保留一个 OSC 8 范围，并在硬线之前停止它。
 - 可访问性文本和单元格偏移映射保留每个物理行，同时相同的行标志继续区分软边界和硬边界。
@@ -96,24 +96,24 @@ Terminal Host 验证会重新生成并逐字节比较全部三个夹具。投影
 
 ## 打包式投影
 
-一个包装单元呈现 Ghostty 样式元组 `(foreground, background, underline color, style flags, underline kind)`。 RGB 零是有效的显式颜色； `default` 和 `none` 仍然是不同的标记编码，并且绝不能从 RGB 值推断出来。客户端不保留 SGR 状态机。
+一个打包单元格呈现 Ghostty 样式元组 `(foreground, background, underline color, style flags, underline kind)`。 RGB 零是有效的显式颜色； `default` 和 `none` 仍然是不同的标记编码，并且绝不能从 RGB 值推断出来。客户端不保留 SGR 状态机。
 
 Canvas 和 WebGPU 拥有等效的呈现规则：
 
 - 仅`TerminalColorEncoding.default`通过客户端有效的默认前台或后台进行解析；显式 RGB（包括黑色）、主机投影调色板 RGB 和 `none` 保留其主机投影行为；
 - 在选择或搜索覆盖之前反向交换已解析的前景和背景；
 - 不可见和隐藏的闪烁阶段抑制文本和装饰，同时保留单元格背景；
-- fade 将半 alpha 应用于文本和装饰，而不是背景；
+- faint（弱化）把半 alpha 应用于文本与装饰，而不是背景；
 - 单下划线、双下划线、卷曲下划线、点划线和虚线下划线保留其独特的几何形状，并且明确的下划线颜色仅覆盖该下划线的有效前景；
 - 删除线和上划线使用有效前景和相同的微弱 Alpha；
 - 粗体和斜体影响两个后端的字形光栅化；和
 - 字形遥测计数提交或绘制的字形，而不是隐藏的字素。
 
-改变表面透明度是一种成分策略的改变。即使打包存储没有脏行，它也会请求渲染并强制一次完整的 Canvas 重新绘制，因此在删除默认背景填充时会保留显式背景。 `src/__tests__/ghostty-surface-parity.unit.test.ts` 拥有这些规则的本机到两个后端的回归。
+更改 surface 透明度属于合成（composition）策略变更。即使打包存储没有脏行，它也会请求渲染并强制一次完整的 Canvas 重新绘制，因此在删除默认背景填充时会保留显式背景。 `src/__tests__/ghostty-surface-parity.unit.test.ts` 拥有这些规则的本机到两个后端的回归。
 
 ## 打包呈现颜色
 
-启动配置文件种子 Ghostty 的默认前景、背景、光标颜色和 256 色调色板。 OSC 4、10、11 和 12 突变相同的 Ghostty 状态。主机投影将调色板单元格颜色解析为 RGB 并在每个帧中发布当前默认的前景、背景和可选的光标颜色。打包的客户端永远不会重建调色板或替换 `ITheme` 中的那些终端颜色。
+启动 profile 以 Ghostty 的默认前景、背景、光标颜色与 256 色调色板作为初值（seeds）；OSC 4、10、11 与 12 修改同一份 Ghostty 状态。主机投影将调色板单元格颜色解析为 RGB 并在每个帧中发布当前默认的前景、背景和可选的光标颜色。打包的客户端永远不会重建调色板或替换 `ITheme` 中的那些终端颜色。
 
 可选客户端 `defaultColorOverride` 是较窄的显示投影，而不是第二个终端颜色权限：它仅影响打包的 `TerminalColorEncoding.default` 前景/背景令牌。它不会改变或替换主机元数据、调色板投影的 RGB、VT 状态、OSC 查询回复或主机光标颜色。渲染器在应用反向之前解析每个原始的前景/背景角色；默认下划线颜色使用有效前景，而显式下划线颜色保持显式。共享的 Orchbee Web/桌面组合不使用此兼容性投影：它保持 `defaultColorOverride` 为空，并通过完整的主机运行时主题事务应用浅色、深色或自定义颜色。
 
@@ -126,15 +126,15 @@ Canvas 和 WebGPU 拥有等效的呈现规则：
 - `allowTransparency` 仅控制渲染器清除。 `backgroundOpacity` 仍然是构成终端根的完整源中立配置值，其 alpha 既不影响字形也不影响显式单元格背景；和
 - Workbench 终端根采用每个提交的有效默认背景，而 Electron 仅使用启动配置文件背景作为其预文档窗口表面。
 
-本机语料库设置 OSC 4、10、11 和 12 值，并证明生成的元数据、解析的调色板单元、光标绘制、Canvas 输出和 WebGPU 上传。主机运行时还通过固定的 Ghostty 流发送匹配的 OSC 查询并验证确切的回复；其单独的 real-PTY 跟踪可验证终端回复路由和计费，而不依赖于固定长度的颜色回复读取。渲染器单元测试证明，传统的终端颜色主题字段不能成为第二个打包调色板，并且应用程序覆盖颜色仍然是可配置的。
+本机语料库设置 OSC 4、10、11 和 12 值，并证明生成的元数据、解析的调色板单元格、光标绘制、Canvas 输出和 WebGPU 上传。主机运行时还通过固定的 Ghostty 流发送匹配的 OSC 查询并验证确切的回复；其单独的 real-PTY 跟踪可验证终端回复路由和计费，而不依赖于固定长度的颜色回复读取。渲染器单元测试证明，传统的终端颜色主题字段不能成为第二个打包调色板，并且应用程序覆盖颜色仍然是可配置的。
 
-每个 OBTF/OBPB 投影还包含通过其行和元数据捕获的主机主题修订。 `ProjectedTerminal` 在主机请求之前准备覆盖和光标资源，将传入帧暂存在私有打包存储中，并且仅当该存储命名确切的提交修订时才允许发布。应用程序屏障同步预检每个已安装的终端，提交其暂存存储和覆盖状态，然后在同一 JavaScript 任务中更改应用程序设计令牌主题。渲染器准备失败不会发送主机突变；被取代、隐藏、暂停或不匹配的阶段不能公开混合版本。投影终端单元跟踪涵盖精确提交、恢复最新和渲染器失败保存，而桌面 `terminal-parity/SU-09-theme` 观察在一次完整发布之前保存主机结果和修订标记帧的真实运行时演示装置。
+每个 OBTF/OBPB 投影还包含通过其行和元数据捕获的主机主题修订。 `ProjectedTerminal` 在主机请求之前准备覆盖和光标资源，将传入帧暂存在私有打包存储中，并且仅当该存储命名确切的提交修订时才允许发布。应用程序屏障同步预检每个已安装的终端，提交其暂存存储和覆盖状态，然后在同一 JavaScript 任务中更改应用程序设计令牌主题。渲染器准备失败不发送任何 Host 变更（mutation）；被取代、隐藏、暂停或不匹配的阶段不能公开混合版本。投影终端单元跟踪涵盖精确提交、恢复最新和渲染器失败保存，而桌面 `terminal-parity/SU-09-theme` 观察在一次完整发布之前保存主机结果和修订标记帧的真实运行时呈现夹具。
 
 ## 打包链接和语义边界
 
 Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机样式/字符串表，而 OSC 133 提供每个单元格的 `prompt`、`input` 或 `output` 语义内容和每行的提示类别。 OBTF 和 OBRW 直接保留这些字段；浏览器不解析任何转义序列。
 
-本机语料库在软包装上携带一个 OSC 8 链接，然后在其最后一行中的调色板颜色单元格周围跨越 OSC 133 提示、输入和输出边界。 TypeScript 解码器和打包存储断言验证原始目标、行提示类和所有三个单元语义。单独的投影终端跟踪读取生成/修订固定的主机行窗口，解析确切指针单元格处的显式链接，在修改器辅助单击时重新验证该单元格，并发出一个键入的 URL 请求。然后，工作台组合跟踪通过其允许的外部链接操作和环境拥有的效果路由该请求。
+本机语料库在软包装上携带一个 OSC 8 链接，然后在其最后一行中的调色板颜色单元格周围跨越 OSC 133 提示、输入和输出边界。 TypeScript 解码器和打包存储断言验证原始目标、行提示类和所有三个单元格语义。单独的投影终端跟踪读取生成/修订固定的主机行窗口，解析确切指针单元格处的显式链接，在修改器辅助单击时重新验证该单元格，并发出一个键入的 URL 请求。然后，工作台组合跟踪通过其允许的外部链接操作和环境拥有的效果路由该请求。
 
 显式 OSC 8 范围仍优先于检测到的 URL 或路径文本。来源中立的应用策略把激活限制在 `http`、`https` 与 `mailto`；Host metadata 从不授予文件系统或通用 scheme 权限。独立且默认关闭的 Desktop-local attachment capability 可以在同一 generation/revision-pinned 重校验后准入 typed file target。
 
@@ -150,26 +150,26 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 
 主机运行时回归通过其读取器提交接缝独立地提供相同的转换。它证明了 DECSET 1049 推进了一代，并使下一个投影成为包含新元数据的完整快照。 TypeScript 回归按顺序应用两个本机帧，并证明保留的主要元数据对象保持不变，而实时存储在一次提交中切换所有目标字段和行。
 
-## 压缩光标投影
+## 打包光标投影
 
 `PackedRendererMetadata.cursor` 保留规范的主机光标坐标。渲染器派生一个呈现范围而不更改该坐标，因此输入、可访问性和主机状态不会获取第二个光标所有者。
 
-| 输入                                      | 演示专栏   | 演示宽度                       |
+| 输入                                      | 呈现列     | 呈现宽度                       |
 | ----------------------------------------- | ---------- | ------------------------------ |
-| 光标单元格较窄且 `wideTail` 为 false      | 光标栏     | 一个细胞                       |
-| 光标单元格为宽单元头，`wideTail` 为 false | 光标栏     | 两个细胞                       |
-| `wideTail` 为真且光标列大于零             | 光标列减一 | 两个细胞                       |
+| 光标单元格较窄且 `wideTail` 为 false      | 光标列     | 一个单元格                       |
+| 光标单元格为宽单元头，`wideTail` 为 false | 光标列     | 两个单元格                       |
+| `wideTail` 为真且光标列大于零             | 光标列减一 | 两个单元格                       |
 | 零列处的 `wideTail` 无效                  | 零列       | 宽度源自光标单元格，绝不是负列 |
 
 投影范围具有以下不变量：
 
-- Canvas 2D 和 WebGPU 对块、空心块、条形和下划线光标使用相同的表示列和宽度。
-- 一根柱子保持在前沿；块状、空心块状和下划线几何形状跨越整个宽字符。
-- 文本整形将整个表示范围视为光标边界，因此连字不能穿过宽光标的任何一个单元格。
+- Canvas 2D 和 WebGPU 对块、空心块、条形和下划线光标使用相同的呈现列和宽度。
+- 条形光标保持在领先边缘（leading edge）；block、hollow-block 与下划线几何跨越整个宽字符。
+- 文本整形将整个呈现范围视为光标边界，因此连字不能穿过宽光标的任何一个单元格。
 - 光标文本反转读取并剪切宽单元头字素；它从不尝试将间隔尾部呈现为独立字形。
 - IME 锚定、输入编码、可访问性和主机确认的规范光标坐标保持不变。
 
-参考是固定的 Ghostty 提交处的 `src/terminal/render.zig` 和 `src/renderer/generic.zig`。 `src/rendering/__tests__/renderer.unit.test.ts` 拥有确定性 Canvas 和 WebGPU 回归。这种纯演示投影没有长期状态、异步转换或 TLA+ 属性；仅当两个后端都执行真正的宽头/间隔尾排时，`PR-03` 才是完整的。
+参考是固定的 Ghostty 提交处的 `src/terminal/render.zig` 和 `src/renderer/generic.zig`。 `src/rendering/__tests__/renderer.unit.test.ts` 拥有确定性 Canvas 和 WebGPU 回归。这种纯呈现（presentation）投影没有长期状态、异步转换或 TLA+ 属性；仅当两个后端都执行真正的宽头/间隔尾排时，`PR-03` 才是完整的。
 
 ## 渲染器清单
 
@@ -207,7 +207,7 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 - `src/font/SharedGridSet.zig` — 上游内部：`SharedGridSet`。
 - `src/font/discovery.zig` — 浏览器产品：`descriptor hash`； `descriptor hash family names`; `fontconfig`； `fontconfig codepoint`； `coretext`; `coretext codepoint`； `coretext sorting`； `windows`。
 - `src/font/face.zig` — 上游内部：`<unnamed@96>`。
-- `src/font/face.zig` — 浏览器产品：`Variation.Id: wght should be 2003265652`； `Variation.Id: slnt should be 1936486004`；数字常规/粗体和斜体样式使用 CSS 字体选择，因此浏览器拥有可变字体轴标识符。任意轴保留在完整的八字段表示事务之外。
+- `src/font/face.zig` — 浏览器产品：`Variation.Id: wght should be 2003265652`； `Variation.Id: slnt should be 1936486004`；数字常规/粗体和斜体样式使用 CSS 字体选择，因此浏览器拥有可变字体轴标识符。任意轴保留在完整的八字段呈现事务之外。
 - `src/font/face/coretext.zig` — 浏览器产品：`<unnamed@971>`； `name`； `emoji`; `in-memory`; `variable`； `variable set variation`; `svg font table`； `glyphIndex colored vs text`。
 - `src/font/face/freetype.zig` — 浏览器产品：`face name`； `<unnamed@1112>`; `color emoji`； `mono to bgra`； `svg font table`； `bitmap glyph`； `bitmap glyph BDF`; `bitmap glyph PCF`； `bitmap glyph OTB`。
 - `src/font/glyf_rasterize.zig` — 浏览器产品：`<unnamed@459>`； `glyf_rasterize: empty outline returns empty bitmap`； `glyf_rasterize: square fills bitmap center`； `glyf_rasterize: quadratic contour renders`； `glyf_rasterize: consecutive off-curve points render`; `glyf_rasterize: units per em controls baseline scale`; `glyf_rasterize: degenerate outline returns full empty bitmap`; `glyf_rasterize: contour can start off curve with final on curve point`； `glyf_rasterize: contour can start with implied midpoint`； `glyf_rasterize: multiple contours render independently`；浏览器字体光栅化取代了 Ghostty 的原生轮廓光栅化器。
@@ -229,7 +229,7 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 - `src/font/shaper/coretext.zig` — 覆盖 (`E-SHAPE`)：`run iterator`； `run iterator: empty cells with background set`; `shape left-replaced lig in last run`; `shape left-replaced lig in early run`; `shape with empty cells in between`;完整的行边界样式运行保留空单元格，并在选择、光标、预编辑、隐藏、约束符号、彩色字形和精灵边界处停止。
 - `src/font/shaper/coretext.zig` — 浏览器产品：`shape Devanagari string`； `shape Tai Tham vowels (position differs from advance)`; `shape Tai Tham letters (position.y differs from advance)`; `shape Javanese ligatures`; `shape Chakma vowel sign with ligature (vowel sign renders first)`; `shape Bengali ligatures with out of order vowels`;画布塑造完整的 forced-LTR 运行，而不是复制 CoreText 字形位置。
 - `src/font/shaper/coretext.zig` — 覆盖 (`E-FONT`)：`shape box glyphs`； `shape high plane sprite font codepoint`;完整固定的 Unicode sprite-face 解析器绕过浏览器字体回退。
-- `src/font/shaper/feature.zig` — 应用层：`Feature.fromString`； `FeatureList.fromString`;接受的演示事务公开一种字体连字策略，而不是任意 OpenType 特征字符串。
+- `src/font/shaper/feature.zig` — 应用层：`Feature.fromString`； `FeatureList.fromString`;该已接受的呈现事务公开一项字体连字策略，而不是任意 OpenType 特征字符串。
 - `src/font/shaper/harfbuzz.zig` — 覆盖 (`E-SHAPE`)：`shape inconsolata ligs`； `shape monaspace ligs`; `shape emoji width`; `shape emoji width long`； `shape Combining characters`； `shape selection boundary`; `shape cursor boundary`； `shape cursor boundary and colored emoji`； `shape cell attribute change`。
 - `src/font/shaper/harfbuzz.zig` — 浏览器产品：`shape`； `shape variation selector VS15`; `shape variation selector VS16`。
 - `src/font/shaper/harfbuzz.zig` — 覆盖 (`E-SHAPE`)：`run iterator`； `run iterator: empty cells with background set`; `shape arabic forced LTR`; `shape with empty cells in between`;完整的行边界样式运行是从左到右显式光栅化的。
@@ -247,7 +247,7 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 - Shadertoy 和自定义着色器翻译未公开。
 - 任意字体变化和 OpenType 功能配置均未公开。
 - 主机投影格式中不存在字形图形。
-- 一般复杂脚本字形放置委托给浏览器文本光栅化； Orchbee 拥有完整的行边界样式运行、终端边界、空单元保留和 forced-LTR 方向。
+- 一般复杂脚本字形放置委托给浏览器文本光栅化； Orchbee 拥有完整的行边界样式运行、终端边界、空单元格保留和 forced-LTR 方向。
 - 固定的 Ghostty 范围的 Unicode 精灵覆盖范围已完成。为四个上游度量组合生成精确的填充参考像素和悬垂偏移；其他物理几何形状选择最近的参考并对其重新采样，而选定的程序形状继续直接缩放。
 
 Kitty 协议解析、VT 行为与终端查询响应不在此 renderer 审核范围内；上述有界 Host-to-client 图形投影与合成在范围内。未映射的本机行为不能作为 Terminal Host 行为的证据。

@@ -24,7 +24,7 @@ durable intent，而不会发布虚假的 terminal outcome。
 
 ## 存储状态和修订策略
 
-商店只返回一种状态：
+该存储（store）只返回一种状态：
 
 | 状态          | 含义                                             |
 | ------------- | ------------------------------------------------ |
@@ -54,7 +54,7 @@ TLA+ model 的 claim。
 7. 确认发生在 rename 前的失败是 `unavailable/write-failed`。rename 后的失败是
    `unavailable/write-indeterminate`；调用者在重试前 restart 或再次 load。
 
-修订版是规范的十进制文本，并通过 `BigInt` 推进；他们没有 JavaScript 号码上限。仅提交更改的共享指纹。 Client-本地导航、公开、焦点、活动子项和 Split-权重转换不会更改该指纹，因此不会推进修订。
+修订版是规范的十进制文本，并通过 `BigInt` 推进；他们没有 JavaScript number 上限。仅提交更改的共享指纹。 Client-本地导航、公开、焦点、活动子项和 Split-权重转换不会更改该指纹，因此不会推进修订。
 
 ## 文件效果
 
@@ -64,7 +64,7 @@ TLA+ model 的 claim。
 
 ## 能力边界
 
-实时渲染器文档通过沙盒预加载接收一个列入白名单的 `workbench-document-control` `MessagePort`。命令仅包含有界请求标识以及加载或提交意图、​​预期修订以及完整的经过验证的共享文档。结果仅包含相关的键入结果。文件路径、节点错误、绑定记录、Host 身份、通用 IPC 和文件系统操作永远不会跨越边界。
+实时渲染器文档通过沙盒预加载接收一个列入白名单的 `workbench-document-control` `MessagePort`。命令仅包含有界请求标识以及加载或提交意图、​​预期修订以及完整的经过验证的共享文档。结果仅包含相关联的类型化（typed）outcome。文件路径、节点错误、绑定记录、Host 身份、通用 IPC 和文件系统操作永远不会跨越边界。
 
 Main 拒绝格式错误的命令、传输的端口、错误的请求形状和处理后的消息。 Preload 只接受 Electron 文档的一个经过验证的引导程序，并通过 `window.postMessage` 传输恰好一个端口；它不公开 `ipcRenderer` 对象或通用发送。渲染器响应通过请求 ID 进行关联，重复的 IDs 不可用，并且忽略处理后的延迟事件。
 
@@ -77,7 +77,7 @@ coordinator 会拒绝并 retire 该 Client。该 proposal-origin check 独立于
 
 渲染器在构建其托管的 Workbench 运行时之前加载共享文档。可用文档使用确定性的默认 Client View 完成水合，并且不发出任何进程命令。存储缺失时会创建正常的初始运行时，并在发布初始 provision 命令前提交修订版 `0`。存储不可用时，渲染器代会以失败关闭：不渲染、不创建替代共享结构，也不调度终端效果。
 
-渲染器协调器仅观察共享文档投影更改并投影完整文档。它会在一项提交待处理时合并更改。 Client View 转换使用单独的观察者，无法调度写入；指纹比较仍然是协调器的防御措施。配置、恢复、关闭和应用程序停止命令在包含其相应意图的共享文档屏障后面等待。只有成功的精确下一个提交才会释放准备好的命令。冲突、拒绝或不可用的存储会导致渲染器生成永久失败；没有不同的文档被覆盖。
+渲染器协调器仅观察共享文档投影更改并投影完整文档。它会在一项提交待处理时合并更改。 Client View 转换使用单独的观察者，无法调度写入；指纹比较仍然是协调器的防御措施。provision、restore、close 与 application-stop 命令在包含其对应 intent 的共享文档屏障后等待。只有成功的精确下一个提交才会释放准备好的命令。冲突、拒绝或不可用的存储会导致渲染器生成永久失败；没有不同的文档被覆盖。
 
 协调器启动后，可用的 `retain` Presentation 会启动仅恢复协调。Main 只接受恢复那些已经由其账本保留，或在同一 Main 生命周期内建立的绑定。恢复绝不会分配新终端。渲染器处置会抑制待处理响应与新调度。仍在 session queue 中等待的 document proposal 会在其 renderer generation 被 dispose 后、抵达 storage 前被 suppress；Main 已经接受的 proposal 或 terminal effect 仍可完成。Main 会按 durable terminal operation identity 保留 settled result，因此新的 renderer generation 可以应用该 result，而不会再次执行相同 effect。尚未 settled 的 durable intent 仍可继续 reconcile。
 
@@ -101,7 +101,7 @@ Desktop 不会将 `WorkbenchClientView` 写入此文件或浏览器键值存储�
 
 | 声明                                                 | 证据                                                                             | 限制                                                                |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| 仅下一个 CAS 更改存储的修订版本                      | `DesktopWorkbenchDocumentStore.tla` 和确定性核心测试                             | TLC 通过 `2` 检查两个提交者和修订缺失                               |
+| 仅下一个 CAS 更改存储的修订版本                      | `DesktopWorkbenchDocumentStore.tla` 和确定性核心测试                             | TLC 检查两个提交者，以及缺失到 `2` 为止的修订                               |
 | 已 dispose 的 queued work 在 storage 前被 suppress   | `DesktopWorkbenchDocumentStore.tla` 与 session queue regression                  | 两个 renderer generation、每个一个 request；已 accepted work 可完成 |
 | 无效/当前不可用状态永远不会被覆盖                    | 文件存储损坏和注入故障测试                                                       | 选定的文件系统故障                                                  |
 | v1 migration 单向且 v2-present 权威                  | `WorkbenchDocumentPlacementMigration.tla` 与 migration test                      | 精确 v1；TLA+ 仅覆盖成功的精确 rename 后 reload                     |

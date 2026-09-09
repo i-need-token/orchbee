@@ -115,7 +115,7 @@ Create/Start result 不暴露内部 Terminal、Worker、operation、lease、fenc
 ## Session 查看附件控制与二进制记录
 
 `terminal.viewer` 包含 `protocolVersion`、新的 `requestId` 和一个封闭 `action`。每个已准入
-Client Session 最多拥有一个只读查看附件。`attach` 只提供 `terminalCreateRequestId`；Server
+Client Session 可以在既有有序 carrier 上拥有多个只读查看附件。`attach` 只提供 `terminalCreateRequestId`；Server
 解析同一 authority 与主体下已接受的终端，固定其既有 Worker 代次和 Host epoch，并签发新的
 附件身份。`attach-binding` 则仅提供从 canonical Workbench snapshot 获得的 `siteId`、`workerId`
 与逻辑 `terminalId`。它不携带 Workbench revision、Worker generation、Host identity、operation、
@@ -124,7 +124,7 @@ lease 或 Create reference。
 Binding triple 选择既有 terminal，且不授予 authorization。Server 必须先确认当前 active Site，
 且 canonical Workbench presentation 仍暴露精确 Worker/Terminal pair，之后才解析精确保留终端
 及其固定的 Worker generation。Selection 不产生 Open、Create、Start、launch、membership、rebind、
-navigation、input、resize 或 controller effect。经过单 viewer Session guard 后，target validation
+navigation、input、resize 或 controller effect。经过 Server 拥有的 Session capacity guard 后，target validation
 遵循以下优先级：
 
 1. registry 或 Site ownership poisoned 返回 `server-busy`；
@@ -138,16 +138,30 @@ navigation、input、resize 或 controller effect。经过单 viewer Session gua
 
 Workbench exposure 与 retained-target resolution 一起 linearize。之后 Workbench retired 不会取消
 已固定的 operation。Attachment 成功在既有 post-IPC current-Worker check 处线性化；
-检查后的 Worker loss 可能与响应交付竞争，由下一次 operation 的 fence 拦截。`poll` 与 `detach`
-没有其他字段。请求不能提供或转移 attachment identity。Session 丢失会分离临时查看状态，绝不
+检查后的 Worker loss 可能与响应交付竞争，由下一次 operation 的 fence 拦截。`poll`、`frame-applied`、
+`need-snapshot` 与 `detach` 必须在 action 内携带 `attachmentId`，采用非零 32 字符小写十六进制身份格式。
+它只选择 Server 已签发且归提交 Session 所有的 viewer，不能创建或转移所有权。
+`attach` 与 `attach-binding` 禁止该字段。Session 丢失会分离临时查看状态，绝不
 终止保留的终端。该 action 只改变 OBCS JSON；既有 OBCN relay、OBSR framing 与 byte limit 不变。
 
-`frame-applied` 携带 `sequence`、`generation` 和 `revision`；`need-snapshot` 携带 `sequence`
+`frame-applied` 还携带 `sequence`、`generation` 和 `revision`；`need-snapshot` 还携带 `sequence`
 和 `reason`。计数器使用 unsigned 64-bit 范围内的规范十进制字符串，无前导零或符号；sequence
 和 generation 必须为正。Reason 为 `activity-stale`、`base-mismatch`、`decoder-rejected`、
 `dimensions-mismatch`、`generation-mismatch`、`identity-mismatch`、`sequence-gap` 和 `store-reset`。
-只有对应 Session 唯一待确认帧的精确反馈才能到达其 Worker 附件。等待反馈期间 Poll 返回
-`empty`，不会交付另一帧。新附件需要新 baseline；查看附件不授予 input 或 resize 权限。
+只有所选 viewer 待确认帧的精确反馈才能到达其 Worker 附件。不同 viewer 的计数器可以相等；
+有效性由 selector 与该 viewer 的 frame scope 决定。该 viewer 等待反馈期间 Poll 返回 `empty`，
+不会交付另一帧，也不阻塞兄弟 viewer。
+新附件需要新 baseline；查看附件不授予 input 或 resize 权限。
+
+未知或不归当前 Session 所有的 selector，在 Poll 或反馈时返回 `terminal-unavailable`，Detach 时
+返回无副作用的 `detached`，Control 时返回 `viewer-unavailable`。同一 Session 重复附着同一个
+已解析的存活 runtime target 返回 `already-attached`；不同 target 可以共存。
+[Server 归属指南](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record)
+定义容量优先级、disposal、generation fence 和 cleanup。Codec 校验语法，不判断运行时所有权。
+
+必需 selector 改变了尚未发布的 OBCS v1 请求形状。必须一起构建、部署和回滚精确匹配的
+Client/Server/Worker 开发 cohort；不支持混合 cohort 或隐式 current viewer fallback。
+OBCN 与 OBSR wire format 不变。
 
 JSON 查看附件 outcome 包括：带 `attachmentId` 和 `hostEpoch`（非零 32 字符小写 hex）的
 `attached`；无其他字段的 `empty`、`feedback-accepted`、`detached`；reason 为 `already-attached`、
@@ -171,12 +185,13 @@ OBCS JSON 限制。其字节契约由本节定义；JSON corpus 拥有控制消�
 
 ## Session controller
 
-`terminal.control` 包含 `protocolVersion`、新的 `requestId` 和一个封闭 `action`。`acquire`
-没有其他字段，并要求已附着的 viewer。Server 为每个终端显式授予一个输入与调整大小共用的
+`terminal.control` 包含 `protocolVersion`、新的 `requestId` 和一个封闭 `action`。所有 control action
+必须在 action 内携带 `attachmentId`。`acquire` 没有其他字段，并要求该精确 viewer 已附着且归
+提交 Session 所有。Server 为每个终端显式授予一个输入与调整大小共用的
 controller，不接管或自动提升。`acquired` 结果携带新的 `controllerId`，采用非零 32 字符小写
 hex 身份格式。Grant 绑定该 Session、viewer、Worker 代次与 Host 终端。
 
-`input` 包含 `controllerId`、`sequence` 和 `bytes`；`resize` 包含 `controllerId`、`sequence`
+`input` 还包含 `controllerId`、`sequence` 和 `bytes`；`resize` 还包含 `controllerId`、`sequence`
 及完整 `geometry`。输入为 1 至 4,096 个原始 byte，以无前缀、偶数长度的小写十六进制字符串
 编码；不是 UTF-8 文本、Base64 或 executable metadata。两个 action 共用严格递增的正 u64
 sequence，以规范十进制字符串编码。允许跳号；有效提交即消费 sequence，即使下游交付失败或

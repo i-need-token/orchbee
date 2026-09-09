@@ -26,17 +26,17 @@ WorkbenchSharedDocument
         └── pending removals and allocation sequences
 ```
 
-演示意图恰好有五种形式：
+Presentation intent（呈现意图）恰好有五种形式：
 
 | 意图        | 共同的持久意义                                   |
 | ----------- | ------------------------------------------------ |
-| `provision` | 指定的表示操作仍需要协调。                       |
-| `retain`    | 预计现有技术约束力；缺席无法替代。               |
+| `provision` | 指定的 provision 操作仍需要协调。                       |
+| `retain`    | 预期存在既有技术绑定；绑定缺失时不得（也无法）新建替代品。               |
 | `close`     | 指定的关闭操作和结构拆除仍悬而未决。             |
-| `stop`      | 应用程序退出正在停止绑定，同时保留植入式广告。   |
-| `stopped`   | 植入式广告仍然存在，但预计不会有任何约束或流程。 |
+| `stop`      | 应用程序退出正在停止绑定，同时保留产品布局/放置。   |
+| `stopped`   | 产品布局/放置仍然存在，但预期不会有任何绑定或进程。 |
 
-投影将配置失败映射到 `provision`；对 `retain` 运行、恢复、协调、恢复失败或退出观察；关闭状态为 `close`；停止状态为 `stop`；并填写完整的申请表至 `stopped`。 Hydration 重建挂起的生命周期状态，但不分派任何进程命令。显式协调稍后会重播配置、关闭和停止，并仅对 `retain` 使用恢复。
+投影把 provision 失败映射到 `provision`；把 running、restoring、reconciling、restore-failed 或 exited 观测映射到 `retain`；把关闭状态映射到 `close`；把停止状态映射到 `stop`；把一次已完成的应用停止映射到 `stopped`。 Hydration 重建挂起的生命周期状态，但不分派任何进程命令。显式 reconciliation 稍后重放 provision、close 与 stop，并仅对 `retain` 使用恢复。
 
 效果命令会显式区分破坏性处置：`terminal-close-requested` 在普通关闭和结构移除时携带 `remove`，在应用停止及其持久重试时携带 `stop`。这一仅属于命令的区别允许应用归档已停止终端，而不会改变五种共享意图，也不会把普通关闭视为应保留的产品历史。
 
@@ -101,7 +101,7 @@ Client View 位于该基础的内存中。关闭页面会销毁它；除非应�
 - 选项卡和面板工作区选项卡成员身份和顺序匹配；固定的选项卡形成一个前缀，并且每个组都是连续的。
 - 每个 Split 恰好有两个子级及唯一插槽。子 Split 可以重复父级方向，因为该祖先关系决定局部关闭与调整大小行为。
 - 每个 Presentation 只出现一次。待处理移除会解析为精确非空目标，彼此绝不重叠，并且只与具有相同移除标识的 `close` 意图匹配。
-- `stop` 意图永远不属于挂起的删除。 `stopped` 从不隐式配置或恢复。
+- `stop` 意图永远不属于挂起的删除。 `stopped` 从不隐式执行 provision 或 restore。
 - 协调后的 Client View 每个共享终端上下文和选项卡只有一个条目，仅包含解析引用，并且为每个分割赋予每个槽一个非负权重，总计为 `100`。
 - 两项契约都不规定数量上限。分配或适配器资源耗尽属于类型化失败，绝不会授权截断、驱逐或复用身份。
 - 严格解析拒绝未知字段。共享文档损坏不可用且永远无法修复；无效的一次性 Client View 输入通过确定性协调回退。
@@ -129,7 +129,7 @@ ordering 与 broadcast。
 | Client View 是隔离的，协调是幂等的                   | 双视图示例、陈旧参考回归和固定种子属性                            | 仅内存中查看合约                                                  |
 | 水合会保留持久的终端意图                             | provision/retain/close/stop/stopped 运行时往返                    | Host 绑定是否存在仍由应用负责                                     |
 | 自定义标题会持久保留，自然元数据保持瞬态             | 标题覆盖/reset 与共享文档水合场景                                 | 重命名 Presentation 由适配器负责                                  |
-| 应用共享文档不会产生最终效果                         | 具有结构去除和保留运行观察的运行时跟踪                            | 一个渲染器运行时                                                  |
+| 应用共享文档不产生终端效果（terminal effect）                         | 具有结构去除和保留运行观察的运行时跟踪                            | 一个渲染器运行时                                                  |
 | Empty remote Workspace placement 不携带 Presentation | Empty-context schema/runtime 与 Desktop admission/forgery test    | 仅 Slice 3.2A admission                                           |
 | Remote provision 保持 target-exact 且 commit-first   | Workbench context test 加 Desktop routing、replay 与 forgery test | Default top-level terminal；projection 与 input 不属于本 contract |
 | 仅查看更改从不需要共享写入                           | 投影特定观察员和 Desktop coordinator 指纹测试                     | Shared ordering 由 Desktop session 负责                           |

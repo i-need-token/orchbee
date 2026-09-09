@@ -41,6 +41,10 @@ AttachBinding 携带独立 typed 的 OBCS `SiteId`、`WorkerId` 与 `TerminalId`
 不判断 tuple 当前是否已暴露。该 semantic resolution 由 Server 负责。
 `ViewerUnavailableReason::WorkbenchUnavailable` 仅用于 viewer result。
 
+Poll、FrameApplied、NeedSnapshot 和 Detach 必须携带 typed `attachment_id: ViewerId`；Attach 与
+AttachBinding 不能携带该字段。`TerminalViewerAction::attachment_id()` 返回既有 viewer selector，
+对两种附着 action 返回 `None`。Server 校验提交 Session 内的所有权；binding 只校验身份语法。
+
 `ViewerId` 与 `HostEpoch` 表示 Server 签发的附件 scope。反馈计数器使用规范 u64 十进制字符串；
 JSON corpus 测试每个 action、outcome、reason、closed field set 与 identity boundary。记录结果保留
 schema owner 定义的 OBSR 二进制 framing 和 `MAXIMUM_VIEWER_RECORD_BYTES` bound；同一组 Server
@@ -53,6 +57,9 @@ renderer 分别负责路由与呈现验证。大记录测试覆盖字节相等�
 
 `TerminalControlRequest`、`TerminalControlAction`、`TerminalControlResult` 和 `TerminalControlOutcome`
 携带显式 Acquire 与 grant scope 内的 Input/Resize。`ControllerId` 是 Server 签发的身份；
+三个 action 都必须携带 `attachment_id: ViewerId`，通过 `TerminalControlAction::attachment_id()`
+读取。这是尚未发布的 OBCS v1 必需字段变更；Client/Server/Worker 必须使用精确匹配的开发 cohort，
+不提供隐式 viewer fallback。
 `ControlInput` 验证 1 至 `MAXIMUM_CONTROL_INPUT_BYTES`（4,096）byte，并序列化为规范小写 hex。
 共用 number adapter 验证正十进制 u64 sequence。这些控制使用既有 32 KiB OBCS JSON framing；
 不增加二进制 input carrier 或 Host 依赖。Schema owner 的 corpus 检查每个 action/outcome/reason

@@ -248,7 +248,7 @@ remote transport、encryption 与 connection state machine 属于 carrier adapte
 protocol。当前本机 Server adapter 在最多一条 wire request 后拥有一个 capacity-one submitted
 slot，序列化完整 request/result exchange，校验确切 correlation 与 echoed authorization，并区分
 完整写出 request 前后的 failure。它不映射 OBCS、不合成 semantic outcome、不 retry，也不
-reconcile。Server 拥有本机终端授权与未来 reconciliation；Capability Node adapter 拥有
+reconcile。Server 拥有本机终端授权与 reconciliation；Capability Node adapter 拥有
 到其 Worker admission identity 与 Terminal Host protocol 的显式 mapping。本 crate 不依赖这两个
 protocol。
 

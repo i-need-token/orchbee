@@ -54,10 +54,10 @@ Host 到达真实的保留 shell；第二次调用加入同一 Site；输出、�
 通过这条路径工作。进程、故障与性能证据必须覆盖组合后的运行时。模型、编解码器、握手和
 尚待接线的 UI 模块是支撑证据，不等于这个用户结果已经完成。
 
-已接通的本地开发链路还支持原生 Client 之间的共享 Tab 创建、独立选择和显式刷新。
-当前交互及进程证据边界由[原生 Tab 指南](../../apps/orchbee/README.zh-CN.md#原生-tab-交互)维护。
-Canonical Move 也已接通并具有 Linux cohort 进程证据。该指南还记录原生 Close 到 Empty、手动
-Create 及保留 shell 重入的有界 Linux 进程证据；其余 Workbench 操作仍须通过各自的交付切片完成。
+已接通的本地开发链路还支持原生 Client 之间的共享 Tab 创建、canonical Move、独立选择和显式刷新。
+当前交互与进程证据边界归属[原生 Tab 指南](../../apps/orchbee/README.zh-CN.md#原生-tab-交互)。
+该指南还记录了原生 Close 到 Empty、手动 Create 及保留 shell 重入的有界 Linux 进程证据；其余
+Workbench 操作仍须通过各自的交付切片完成。
 
 [Workspace 目录切片](../../apps/orchbee-server/docs/workspace-terminal-directory.zh-CN.md)
 增加 Project 拥有的 Directory、经 Worker 校验后的显式首次关联，以及使用已接受目录和确切 Worker
@@ -68,7 +68,13 @@ Workspace 创建及显式首目录配置；终端启动仍为独立显式动作�
 [原生位置标签](../../apps/orchbee/docs/native-location-labels.zh-CN.md) 增加 Project 和 Workspace
 重命名控制，并保留终端执行。Desktop 迁移仍属独立工作。
 
-该里程碑是尚未发布的增量实现，不证明生产重启恢复、远程访问或现有 Desktop 迁移已经完成。
+[显式 Session Viewer 路由基础](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record) 支持
+多个 viewer 共享一个有序 Client Session，精确选择附件，并各自保留帧与 controller 状态。
+其所有者维护实现与可执行正确性论证。原生 Panel 分割、焦点和多终端 Tab Close 仍属后续切片；仅完成路由基础并不代表
+这些功能完成。
+
+该里程碑是尚未发布的开发路径。未发布协议的变更要求精确匹配的 Client/Server/Worker cohort，
+不承诺兼容旧开发二进制。它不证明生产重启恢复、远程访问或现有 Desktop 迁移已经完成。
 其中，对无法匹配的保留 Host inventory 返回 `RecoveryRequired` 是开发阶段边界，不是生产连续性
 体验。公开切换仍须满足原生拓扑中规定的恢复、迁移、打包与性能要求。
 
@@ -302,7 +308,7 @@ multi-user tenancy 与 mobile background behavior 仍未决定。
 
 逻辑 Client-Server-Worker 拓扑与原生物理 baseline 已经接受：公共 Rust `orchbee`、私有 Rust Server、
 私有 Rust Worker、独立 Zig Terminal Host 与可选私有 Rust Agent Bridge。其增量底座与第一条本机
-Server-Worker process spine 已经交付但尚未发布，其余Linux 本地开发链路已接通；当前与
+Server-Worker process spine 已经交付但尚未发布，其 Linux 本地开发纵向链路已接通；当前与
 Desktop 共置的 runtime 在有边界 migration slice 替换前保持权威。第一条完整本机 terminal path
 经 Server relay，裸 `orchbee` 可以懒激活确切本机 cohort，但不监督其生命周期。共置绝不能合并
 trust、state 或 lifecycle 职责。User-service installation 与 direct-path contract 已在上文接受，

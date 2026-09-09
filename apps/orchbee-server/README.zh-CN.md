@@ -271,14 +271,17 @@ cleanup 复用其有界 queue 与 owner lifetime，具体 refinement 证据由 s
 暂存的原生 LocalClient adapter 消费查看协议。进程见证证明两个独立准入的 Client 经 Server 和
 Worker 接收真实 Host projection。下文的 controller 细化增加 input/resize；Linux 裸入口已消费此 relay。
 
-每个已准入 Session 最多拥有一个临时查看附件。Attach 引用同一本机 subject 下已接受的终端
-Create；Server 解析其保留的 Host identity 与精确当前 Worker/generation，分配全新的 request、
-attachment 和 cleanup identity，并固定该 Worker handle。Client 绝不提供权威 Worker、Host 或
-attachment identity。每次 poll 移动一条完整不透明 Host record；Server 校验 envelope、route 与
-精确 feedback scope，不解码终端呈现。Frame delivery 与 feedback 不能跨 Session slot。
-Attach 在 Client publication 前提交。Disconnect、publication 失败或显式 detach 释放查看
-附件及其拥有的 controller，绝不终止或重新指向保留终端。不重放 unknown exchange。重新附着获得全新 attachment
-identity，并要求 snapshot。
+每个已准入 Session 在既有有序 carrier 上最多拥有八个临时 viewer。Attach 引用同一本机
+subject 下已接受的终端 Create；AttachBinding 提供精确 canonical binding selector。Server
+解析保留的 Host identity 与当前 Worker/generation，分配新的 request、attachment 和 cleanup
+identity，并固定 Worker handle。Client 不能分配权威 runtime identity；后续每个 viewer/control
+action 都必须回显一个由 Server 签发且归属发起 Session 的 attachment ID。每次 poll 移动一条
+完整不透明 Host record；Server 验证 envelope、所选 attachment 与精确 feedback scope，不解码
+终端呈现。每个 viewer 独立拥有 projection flight。两个 flight 的相等计数不能认证内容：显式
+selector 决定反馈归属。
+Attach 在 Client publication 前提交。显式 detach 只释放所选 viewer 及其 controller；Session
+断连或 publication 失败清理其全部 viewer。这些操作不终止或重新指向 retained terminal。
+Unknown exchange 不重放；重新附着获得全新 attachment identity，并要求 snapshot。
 
 Coordinator 或 registry lock 均不跨越 Worker/Client I/O。Drop cleanup 阻塞准入现有的单项
 Worker request queue，不等待 Client response，也不增加无界队列。退役 handler 保留原有的
@@ -289,12 +292,11 @@ Carrier 停止会关闭 broker 及其全部临时附件。Worker response 预算
 允许 idle，之后使用总计两秒 deadline；Client write 同样有总计两秒 deadline，超时只退役该
 Session。
 
-现有 `LocalTerminalRelay` 仍是 attachment scope、单帧在途、精确反馈、队列隔离与 detach
-生命周期的权威模型。本切片将这些转换映射到 OBCS viewer control、OBSR 不透明 record、
-现有 OBCN/OBNR carrier 与 Session 所有的 cleanup。证据包括严格协议 fixture、确定性的过期
-作用域／反馈测试、carrier cleanup/backpressure 测试，以及真实双 Client/Server/Worker/Host
-进程轨迹。它们证明私有只读路径，不证明 TUI 渲染、controller authority、发布性能预算或独立
-审查证据。
+`LocalTerminalRelay` 是此前每 Session 单 viewer 的抽象，覆盖 attachment scope、单帧在途、
+精确反馈、队列隔离与 detach 生命周期。其协议、确定性 feedback、carrier cleanup/backpressure
+及双 Client process 证据证明该有界只读 relay refinement，不能独立证明当前多 viewer Session
+registry。`SessionViewerRouting` 和下文必需的 generated/service/process 证据拥有此扩展；
+其（该扩展的）最终验证仍待完成。两个模型均不证明 TUI 渲染或发布性能预算。
 
 Viewer/control 的精确 ServerBusy 响应保证终端、查看附件与 controller effect 已知未改变。
 Carrier 队列拒绝发生在 dispatch 前；Attach 的 Worker 容量拒绝可以经过 OBCN exchange，
@@ -307,7 +309,7 @@ Carrier 队列拒绝发生在 dispatch 前；Attach 的 Worker 容量拒绝可�
 已接受里程碑为 Session 查看附件增加显式获取操作，每个保留 Host 终端只有一个输入与调整大小
 共用的 controller。Server 在 Worker I/O 前预留 grant；该 grant 待定、存活或清理期间，其他
 Session 不能获取。Server 新签发的 controller 身份限定 input 与 resize 共用的严格递增 sequence。
-Client 提供的身份必须等于其 Session grant。非 controller 与过时 sequence 的拒绝不派发请求；
+Client 提供的身份必须等于发起 Session 内所选 viewer 的 grant。非 controller 与过时 sequence 的拒绝不派发请求；
 有效提交的 sequence 即使交付失败也被消费。未知副作用不重放；authority 丢失不重新选择终端。
 
 Worker 将 grant 映射为独立 Host 附件，启用 input 和 resize、禁用 read，并申请 resize lease。
@@ -316,7 +318,7 @@ Worker 将 grant 映射为独立 Host 附件，启用 input 和 resize、禁用 
 原始输入。Input 包含 1 至 4,096 byte；接受表示进入 Host 有界输入 queue，不表示 shell 已执行。
 Resize 确认精确的完整 geometry。不增加 Host wire contract 或 VT owner。
 
-Detach 与 Session 丢失先释放控制附件，再分离查看附件。Server 预留持续占用，直到固定代次的
+Host cleanup 先释放控制附件，再分离查看附件。显式 OBCN Detach 在 Worker 内部执行此顺序；随后 Server lease Drop 发送幂等 Release 结算 registry。Session Drop 则先提交 OBCN Release 再 Detach。Server 预留持续占用，直到固定代次的
 cleanup 完成或该 Worker 不可用；cleanup 经既有有界 request queue 准入，不持锁跨越 I/O。
 过时 cleanup 不能清除新 grant。Host exchange 失败或结果矛盾会结束 Worker connection；完整
 交付后的故障由 Server 报告 unknown control outcome。其他 viewer 不会自动提升。
@@ -394,6 +396,75 @@ terminal；只有 Host loss 可以把 terminal 改为 `lost`。
 current Session；detach、disconnect 与 cleanup 只移除被寻址的 Session；断开未 attach Session 时会
 保留该 set。因此，每个无关 viewer 都会得到保留，且无需把 predecessor set 加入 model state。
 
+## 已接受的 Session Viewer 路由建模记录
+
+本机已接受的实现切片将一个已准入 ClientSession 及其既有有序载体扩展为多个显式寻址的
+viewer。实现使用上文所述有界 registry；下方可执行正确性论证定义其必需检查与证明边界。
+本基础切片不交付
+Native Panel 分屏、焦点、多终端 Tab Close、远程路由或持久恢复。
+[OBCS 契约](../../schemas/client-server/README.zh-CN.md) 拥有 wire 表示。
+
+| 字段         | 已接受契约                                                                                                                                                                                                                                                             |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题         | 显示/控制消费者需要在一个 Session 上独立路由 viewer，同时不转移权限或为每个 viewer 创建连接。                                                                                                                                                                          |
+| 输入         | 严格 OBCS action、发起 Session、Server 签发的 `attachmentId`、精确保留 target、Worker generation、lifecycle proof 和受控完成。缺失/格式错误/禁止位置的 selector 字段属于 codec 错误；有效但不归属的 ID 获得语义结果。                                                  |
+| 数据与 owner | `LocalTerminalSession` 独占其有界 viewer 集合；每项拥有固定 target/Worker handle、projection flight、controller lease 和精确 cleanup。Site 保留终端身份/lifecycle；controller registry 保留 target 独占 grant 所有权。                                                 |
+| 输出         | 关联的既有 viewer/control outcome 与精确 Worker request；不隐式 Create、Start、Dispose、rebind 或修改 Workbench。Unknown exchange 从不授权 replay、fallback 或 retarget。                                                                                              |
+| 准入         | 只回收具有精确已知 Disposed 证明的条目；在移除/Drop cleanup 前释放 proof 锁。已有八个已准入/存活条目时，在 target 解析或重复检查前返回 `server-busy`。否则解析授权的完整 runtime target；同一 Session 的重复 live target 返回 `already-attached`。不同 target 可并存。 |
+| 路由         | 所有非 Attach viewer action 和所有 Control action 必须带 `attachmentId`。Attach/AttachBinding 禁止该字段。只在发起 Session 内解析，再验证该 viewer 的 controller 与 sequence 或 frame flight；从不搜索其他条目。                                                       |
+| 缺失         | 不归属的 Poll/feedback 返回 `terminal-unavailable`；Control 返回 `viewer-unavailable`；Detach 返回无副作用的 `detached`。这只证明 Session 内不存在所有权，不证明终端 disposal 或其他 Session 的 cleanup。                                                              |
+| 结算         | 在最终 install gate 前准备身份/storage；围绕 IPC 固定并重验当前 Worker 和未加 fence 的 target。确定拒绝的 Attach 不拥有 cleanup；候选 ownership 不确定时保留精确 cleanup。所有 gate 均不跨 IPC 或 Drop。                                                               |
+| 生命周期     | Detach 只释放自身 controller，然后退役自身 viewer。Session 丢失通过既有有界 cleanup 清理全部所属条目。本地移除本身不证明下游 cleanup；pending cleanup 仍排斥竞争 grant。                                                                                               |
+
+显式 OBCN Detach 是 Worker 复合操作：先释放 Host controller 再 Detach Host viewer；随后 Server lease Drop 通过幂等 Release 结算 registry ownership。Session Drop 则先提交 Release 再 Detach。OBCN 消息顺序本身不等于 Host 副作用顺序。
+
+每 Session 准入上限与 Worker 既有的共享八 viewer 上限是独立计数。本地有槽位仍可能在派发后
+收到 Worker capacity 拒绝，且不获得 ownership：Worker 容量拒绝经过一次 OBCN Attach，但不派发 Host Attach；Session 满时在 OBCN 派发前拒绝，包括重复 Attach。
+候选预留计入 Session 准入容量，不得悄悄接纳第九个 live viewer。保持当前 queue、frame limit
+和 deadline。Native 在本次迁移中仍是单 viewer 消费者，必须在 setup control、poll、feedback
+或精确旧 viewer cleanup 前保留返回的 ID。
+
+每个 controller 的 input/resize sequence 严格递增、允许跳号，与其他 grant 独立。新 grant
+不能复活旧 ID。Feedback 归属显式 selector：选择 B 且计数匹配 B 当前 flight 时属于合法的 B
+反馈，即使 A 的计数相同。计数不构成内容认证。入站 binary record 仍须验证精确 attachment 和
+Host identity。Target-local 结构化请求保持无关 viewer；隔离前提排除 Session/carrier 退役、
+共享 Worker/generation 丢失，以及同一 exact target 跨 Session 的 disposal。不新增隐式
+controller 提升或 takeover。
+
+尚未发布的 OBCS v1 source contract 修改 action 必填字段，但不改变 frame version。Schema、
+corpus、Rust binding 和所有 Client producer 与精确 development Client/Server/Worker/Host
+cohort 一起推进和回退。旧省略 selector 的形状被严格解码拒绝；不猜测兼容模式，不承诺混合
+cohort。这是 action 形状的破坏性变化，不是此前 Open/AttachBinding 的 additive extension。
+
+必需的可执行检查及其边界：
+
+- `SessionViewerRouting` 建模 Session ownership、独立 Session/Worker capacity、候选及已安装
+  cleanup、精确 disposal、每 viewer flight、每 grant sequence 和共享故障。既有 Authority
+  是单 retained terminal 抽象；Relay 每 Session 只有一个 projection/flight，sequence 只覆盖
+  连续值子域；Selection 覆盖 target 解析/Worker pinning。这些模型不能独立证明多 viewer 或
+  多条目 disposal cleanup。
+- `viewer_session/tests/stateful.rs` 使用真实 `LocalTerminalSession` 和 service code、受控
+  fake Worker，对照独立 `(session, viewer, target)` oracle。Merge corpus 使用 seed 1 至 64，
+  每个最多 128 action、显式调度及带版本和 parser 的 replay。Shrinking 删除 action/chunk 并
+  简化语义值，同时保留同一 failure fingerprint 和有效依赖；基础设施错误不能替代原发现。
+  最小失败保留为 replay regression。检查 serialize/parse 稳定性与确定性 replay；oracle
+  不得复用 production transition helper，也不能仅执行复制模型。
+- Generated coverage 必须至少一次到达每个声明边界：重复 alias；满 Session 重复请求；独立
+  local/Worker capacity 拒绝；错误 scope/grant；独立相等 sequence 和跳号；旧 replacement
+  grant；相等 frame counter 下合法的 selected feedback；不匹配 flight；Detach/重复 Detach；
+  有 live sibling 的精确 disposal；多条目 Session drop；Worker generation 变化；被拒候选
+  cleanup。至少八个不同 seed 必须到达两个 live viewer 后再执行两个交错 target-local action。
+  缺少覆盖即失败；固定示例单独报告，不能代替 generated interleaving。
+- 确定性 service/carrier 测试检查精确 Worker request identity 及无额外副作用，包括 Native
+  setup 和旧 viewer cleanup。真实 process witness 在一个已准入 stream 上持有两个终端、
+  viewer 和 grant，交错 input/frame/feedback 和不同 geometry，Detach 一项后另一项继续可用，
+  并证明 Session cleanup 保留两终端。第二个 Session 检查借用 ID 和 controller 竞争。两个
+  独立的单 viewer 连接不能证明主要声明。Cleanup progress 依赖完成或 dependency retirement。
+
+普通 Server unit suite 包含该 stateful test 及其 coverage/replay 检查。Protocol、model、
+service/carrier 和真实 process evidence 都是 integration gate，不能互相替代。完成前仍须通过
+最终验证及双语契约收敛。
+
 ## 本机终端协调器建模记录
 
 已接受的本机里程碑授权 Server 的单一有效操作系统用户主体，通过获准接入的本机 Human
@@ -417,7 +488,7 @@ Client Session 执行默认 shell 的 Create 和 Start。OBLC 本身仍只负责
 | 限制   | 仅限附加、未发布的 POSIX 本机权限。1,024 条记录上限沿用已接受的 Worker 代次限制，生产前需要显式退役机制。租约有效期为四十六秒，来自 carrier 的一个排队及一个在途交换，每次均有两秒 write 和二十秒 result 截止时间；到期可拒绝且不重试。无重放 ledger、细粒度权限、UI 激活、重启协调或生产恢复。 |
 
 协调器的实际消费者是准入后的 OBCS handler。其集成见证是 Client 通过真实 Server、Worker
-和 Host 进程发起 Create 和 Start。Linux 裸 Client 现已通过托管启动打开此终端。
+和 Host 进程发起 Create 和 Start。下一个缺失的用户可见边界是 TUI 激活。
 
 [`LocalTerminalCoordinator`](formal/tla/LocalTerminalCoordinator.tla) 检查一个 deferred 绑定、
 两个 peer Session、三个 operation 身份和两个 Worker 代次。Prepare 对应 IssueCreate/IssueStart，

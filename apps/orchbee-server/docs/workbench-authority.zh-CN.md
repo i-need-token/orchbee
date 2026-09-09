@@ -388,10 +388,13 @@ Create-reference attach 继续供实验性 Create/Attach 路径使用。
 | 不变量 | 只解析当前活跃 Site 暴露的 binding；固定保留的确切 Worker generation；绝不替换终端或 Worker；target validation 失败时，在分配 attachment identity 前拒绝。                                           |
 | 所有权 | WorkbenchAuthority 检查 canonical membership；TerminalCoordinator 解析保留执行；SiteCoordinator 在现有 registry 后 Site 的锁顺序下组合这些检查。ViewerSession 在释放锁后拥有 attachment IPC 和清理。 |
 | 模型   | 解析有类型的 target，准备 attachment，通过固定的 handle dispatch，并在现有 current-Worker 检查处提交 Session attachment。                                                                            |
-| 依赖   | 尚未发布的 OBCS v1 增量值、保持不变的 OBCN/OBSR relay、现有 OBWP snapshot read，以及原生 Client 现有的绝对提交截止时间。                                                                             |
-| 限制   | 同用户本机准入，每个 Session 一个 selected viewer，不接管控制权。不声明远程授权、持久化、重启后接管、多 Tab 选择 UI 或 Worker 持续可用。                                                             |
+| 依赖   | 尚未发布的 OBCS v1 值、保持不变的 OBCN/OBSR relay、现有 OBWP snapshot read，以及原生 Client 现有的绝对提交截止时间。                                                                                 |
+| 限制   | 同用户本机 target resolution，不接管控制权。Selection 模型不证明多个 viewer 路由、远程授权、持久化、重启后接管、选择 UI 或 Worker 持续可用。                                                         |
 
-已有 viewer 时返回 `already-attached`。Registry 或 Site 锁中毒时返回 `server-busy`。
+[Session 路由所有者](../README.md#accepted-session-viewer-routing-modeling-record) 先回收精确
+已知 Disposed 的条目，再执行容量限制。有空余容量时，同一 Session 重复解析到同一个存活 target，
+会在 Worker IPC 前返回 `already-attached`；不同 target 可以共存。在 target resolution 内，
+Registry 或 Site 锁中毒时返回 `server-busy`。
 Workbench 缺失或 retired 时返回 `workbench-unavailable`；Site 错误，或当前暴露的
 Presentation binding 中不存在该三元组时，返回 `terminal-unavailable`。当前 Worker 缺失或 Worker identity 不匹配时，为 `terminal-runtime-unavailable`。
 接下来，缺失确切 retained record 时为 `terminal-unavailable`；保留 generation 不匹配时

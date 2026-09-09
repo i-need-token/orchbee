@@ -5,7 +5,7 @@ Server/Worker 执行、保留维护、精确会话清理及规范发布已集成
 协议客户端进程证据。原生 Close 控制及成员安装已集成；
 [原生 Session 契约](../../orchbee/docs/native-tab-session.zh-CN.md) 记录 Linux TUI
 Close 到 Empty、手动 Create 及保留 shell 重入的进程用例。这些有界检查不证明发布就绪或生产
-重启恢复。本 Server 所有参考文档为 Server、Worker、协议及原生 Client 维护者规定生命周期
+重启恢复。这份归 Server 所有的参考文档为 Server、Worker、协议及原生 Client 维护者规定生命周期
 工作流、跨所有者结算及细化义务。它随这些实现及证据维护。
 [Workbench 权威](workbench-authority.zh-CN.md) 继续规定当前规范投影及严格独立成员关系。
 
@@ -276,8 +276,8 @@ Close 栅栏检查准备新附件；失败保留旧所有者。仅成功的无�
 单调销毁证明清除其 Detach 意图并解除 controller 的 Host Release 意图。在所有所有者门锁
 之外 Drop 旧值，保留精确 controller ID 移除，然后派发已准备的新 Attach 并执行通常的晚到
 安装检查。不发送旧 Host 清理；新附件失败不能恢复已销毁 Viewer。这无需 Poll、显式 Detach
-或 Client Drop 即可复用八个 Client ReadySlot 之一。进程轨迹必须配合实际 service/载体的
-八所有者观测：Closed 后、任何旧会话动作之前恰好保留七个预留；隐式本地结算本身不能证明
+或 Client Drop 即可复用八个 Client ReadySlot 之一。该进程见证与实际 service/carrier 的
+八所有者观测配对：Closed 后、任何旧会话动作之前恰好保留七个预留；隐式本地结算本身不能证明
 维护所有者已释放该槽。
 
 Linux Server 进程见证保持八个原始已准入 Client 连接，关闭一个目标，观察其精确规范移除，
@@ -377,7 +377,7 @@ Presentation 标签，Tab 标签/顺序可变。可用的更高规范 snapshot �
 
 | 模型所有者及有限模型族    | 必需切点与主张                                                                                                                                                                                                                                          | 接受证据后释放                                                    |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Server 协调               | `WorkbenchTabCloseCoordination` 和 `WorkbenchTabCloseCreateReference`：含耗尽的小修订/账本/尝试值域、两个 Close 额度及一个未结载体步骤；保留回执/迟到结果、退役、当前状态发布、A-close/B-create 两种顺序及 Empty/新 C 的精确 Create seal/当前引用结算。 | Server 准入、继续执行/发布及当前引用完成。                        |
+| Server 协调               | `WorkbenchTabCloseCoordination` 和 `WorkbenchTabCloseCreateReference`：含耗尽的小修订/账本/尝试值域、两个 Close 额度及一个未结载体步骤；保留回执/迟到结果、退役、当前状态重定基（rebase）、A-close/B-create 两种顺序及 Empty/新 C 的精确 Create seal/当前引用结算。 | Server 准入、继续执行/发布及当前引用完成。                        |
 | Worker 生命周期及目标清理 | `WorkerTerminalLifecycleStep`：一次精确生命周期请求/页面，目标/外来身份及过期 epoch/代次；身份和目标清理变体，有界目标/无关缓存及旧/新 controller ID，已知/模糊 ACK/缓存/预留切点及迟到 Acquire/租约结算。                                              | OBCN 生命周期适配器、Worker 观察/清理及 Server 目标栅栏集成。     |
 | 原生 Empty 及移除屏障     | `NativeClientMembershipRemoval` 加既有 CreateBarrier Ready/Empty 变体：空/非空、活动/非活动/精确/更晚移除、挂接代次及有界队列/ID；Close 与 CreateSnapshot、Switch、Move、Refresh 和结果/UI/退役交接组合。                                               | 原生投影/状态/Empty 核心，随后 Close 在途操作、邮箱及本地化交互。 |
 
