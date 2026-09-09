@@ -5,7 +5,8 @@ use orchbee_client_server_protocol::{
     ViewerRejectedReason,
 };
 use orchbee_workbench_protocol::{
-    WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus,
+    WorkbenchPanelSplitDirection, WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome,
+    WorkbenchTabCloseStatus,
 };
 use std::{
     fs, io,
@@ -350,6 +351,150 @@ fn wait_for_process_exit(pid: u32) -> TestResult<()> {
         }
         thread::sleep(Duration::from_millis(10));
     }
+}
+
+#[test]
+fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> TestResult {
+    let server = RunningServer::start()?;
+    let fixture = RealWorkerFixture::start(&server)?;
+    let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
+    let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
+    let setup = create_associated_workspace(&fixture, &mut first, &mut second)?;
+    let geometry = geometry()?;
+
+    let created = exchange_command(
+        &mut first,
+        &command(
+            workbench_id(0x120)?,
+            &setup.snapshot,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                label: WorkbenchLabel::parse("Workspace split source")?,
+                geometry,
+            },
+        ),
+    )?;
+    let (tab_id, panel_id) = match created.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => (tab_id, panel_id),
+        outcome => return Err(format!("Workspace TabCreate did not start: {outcome:?}").into()),
+    };
+    let after_create = read_snapshot(&mut second, 0x121)?;
+    let split = exchange_command(
+        &mut second,
+        &command(
+            workbench_id(0x122)?,
+            &after_create,
+            WorkbenchAction::PanelSplit {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: WorkbenchLabel::parse("Workspace split peer")?,
+                geometry,
+            },
+        ),
+    )?;
+    let new_panel_id = match split.outcome {
+        WorkbenchCommandOutcome::PanelSplitCreated {
+            new_panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => new_panel_id,
+        outcome => return Err(format!("Workspace PanelSplit did not start: {outcome:?}").into()),
+    };
+    let after_split = read_snapshot(&mut first, 0x123)?;
+    let split_tab = workspace_context(&after_split)?
+        .tabs
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .ok_or_else(|| io::Error::other("Workspace split Tab was not projected"))?;
+    let bindings: Vec<&PresentationBinding> = match &split_tab.root {
+        PanelNode::Split { children, .. } => children
+            .iter()
+            .map(|slot| {
+                let PanelNode::Panel {
+                    panel_id: child_panel_id,
+                    primary_presentation,
+                    ..
+                } = &slot.node
+                else {
+                    return Err(io::Error::other(
+                        "Workspace PanelSplit produced an unexpected nested split",
+                    ));
+                };
+                assert!(*child_panel_id == panel_id || *child_panel_id == new_panel_id);
+                primary_presentation
+                    .binding
+                    .as_ref()
+                    .ok_or_else(|| io::Error::other("Workspace split leaf is not bound"))
+            })
+            .collect::<Result<_, _>>()?,
+        _ => {
+            return Err(
+                io::Error::other("Workspace PanelSplit did not project a split root").into(),
+            );
+        }
+    };
+    assert_eq!(bindings.len(), 2);
+    assert_ne!(bindings[0].terminal_id, bindings[1].terminal_id);
+    assert_eq!(bindings[0].worker_id, bindings[1].worker_id);
+    let launch_lines = wait_for_marker(&fixture.marker, 2)?;
+    assert_eq!(
+        launch_lines,
+        vec![
+            fixture.directory.to_string_lossy().into_owned(),
+            fixture.directory.to_string_lossy().into_owned(),
+        ]
+    );
+
+    let closed = exchange_command(
+        &mut first,
+        &command(
+            workbench_id(0x124)?,
+            &after_split,
+            WorkbenchAction::TabClose {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+            },
+        ),
+    )?;
+    let close_request_id = match closed.outcome {
+        WorkbenchCommandOutcome::TabCloseAccepted {
+            close_request_id, ..
+        } => close_request_id,
+        outcome => {
+            return Err(format!("Workspace aggregate close was not accepted: {outcome:?}").into());
+        }
+    };
+    let close_status = wait_for_closed(
+        &mut second,
+        &after_split,
+        &setup.terminal_context_id,
+        &tab_id,
+        0x125,
+    )?;
+    let WorkbenchTabCloseReadOutcome::Available {
+        close_request_id: observed_request_id,
+        status: WorkbenchTabCloseStatus::Closed { .. },
+        ..
+    } = close_status
+    else {
+        return Err("Workspace aggregate close did not return a Closed status".into());
+    };
+    assert_eq!(observed_request_id, close_request_id);
+    let after_close = read_snapshot(&mut first, 0x126)?;
+    assert!(workspace_context(&after_close)?.tabs.is_empty());
+    assert!(
+        context(&after_close, setup.standalone_context_id.as_str())?
+            .tabs
+            .is_empty()
+    );
+    Ok(())
 }
 
 #[test]

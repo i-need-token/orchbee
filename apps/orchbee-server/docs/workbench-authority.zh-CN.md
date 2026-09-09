@@ -64,9 +64,10 @@ identity 和 presentation identity。Server 与 Site 将所有 leaf binding 作�
 聚合 Close 捕获 Tab 的完整有序 leaf 成员关系。它在保留的生命周期权威下处置并清理每个 leaf，
 只有全部 leaf 都有已知 proof 后才发布一次 Tab 移除。Standalone 重定向会以剩余树校验确切移除集合，
 保留仍存在的当前引用；没有剩余成员时发布 Empty。权威单测、Linux process witness
-`real_workbench_panel_split_and_aggregate_close_releases_both_terminals` 以及有界
-`WorkbenchPanelSplit` TLA+ 模型覆盖这一细化。Client-local panel layout 和 focus 仍是下一项原生
-TUI 已通过严格 projection 和本地焦点消费这棵树；TUI 仍不会从快捷键提交 `panel.split`。
+`real_workbench_panel_split_and_aggregate_close_releases_both_terminals` 和
+`real_workspace_panel_split_and_aggregate_close_releases_both_terminals`，以及有界
+`WorkbenchPanelSplit` TLA+ 模型覆盖这一细化。Client-local panel layout 和 focus 已由原生 TUI
+通过严格 projection 和本地焦点消费这棵树；TUI 仍不会从快捷键提交 `panel.split`。
 
 ## 已接受的规范 Tab 移动模型
 
