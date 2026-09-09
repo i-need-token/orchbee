@@ -194,7 +194,7 @@ fn postcommit_coordination_failure_closes_without_a_workbench_response() {
         super::super::run(
             &mut stream,
             |_request| panic!("unexpected terminal request"),
-            |_request| WorkbenchExecution::CloseOutcomeUnknown,
+            |_request| WorkbenchExecution::OutcomeUnknown,
         ),
         Err(super::ApplicationSessionError::WorkbenchOutcomeUnknown)
     ));

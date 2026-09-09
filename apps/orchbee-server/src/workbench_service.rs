@@ -23,7 +23,7 @@ pub(crate) struct WorkbenchPolicy {
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum WorkbenchExecution {
     Response(WorkbenchResponse),
-    CloseOutcomeUnknown,
+    OutcomeUnknown,
 }
 
 #[cfg(test)]
@@ -143,7 +143,7 @@ impl WorkbenchService {
             {
                 match self.terminals.execute_terminal_tab_create(command) {
                     Ok(result) => WorkbenchExecution::Response(WorkbenchResponse::Command(result)),
-                    Err(_postcommit) => WorkbenchExecution::CloseOutcomeUnknown,
+                    Err(_postcommit) => WorkbenchExecution::OutcomeUnknown,
                 }
             }
             Err(WorkbenchRequest::Command(command))
@@ -151,7 +151,7 @@ impl WorkbenchService {
             {
                 match self.terminals.execute_terminal_panel_split(command) {
                     Ok(result) => WorkbenchExecution::Response(WorkbenchResponse::Command(result)),
-                    Err(_postcommit) => WorkbenchExecution::CloseOutcomeUnknown,
+                    Err(_postcommit) => WorkbenchExecution::OutcomeUnknown,
                 }
             }
             Err(request) => WorkbenchExecution::Response(unavailable_or_denied(request, false)),
