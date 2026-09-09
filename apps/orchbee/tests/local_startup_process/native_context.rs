@@ -1,10 +1,10 @@
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
-    ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
-    WorkbenchCommandOutcome, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchRequest,
-    WorkbenchRequestId, WorkbenchResponse, WorkbenchSnapshotOutcome, read_workbench_response,
-    write_workbench_request,
+    PanelNode, ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
+    WorkbenchCommandOutcome, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchSnapshotOutcome,
+    WorkbenchTerminalGeometry, read_workbench_response, write_workbench_request,
 };
 use rustix::process::{Pid, PidfdFlags, pidfd_open};
 use std::os::{fd::AsFd, unix::net::UnixStream};
@@ -167,6 +167,197 @@ fn observe_independent_standalone(client: &mut Client, revision: u64, active: &m
         &[],
         &mut [active],
     );
+}
+
+#[test]
+fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+    let mut client = Client::spawn(&fixture, "en_US.UTF-8");
+    client.wait_ready_after(
+        0,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::Controlling,
+    );
+
+    client.send(shell_identity_command(&fixture, "source", "native-split-source", true).as_bytes());
+    let source_identity = wait_file(
+        &fixture.base.join("native-split-source"),
+        &mut [&mut client],
+        Instant::now() + OBSERVATION_TIMEOUT,
+    );
+    let source_pid = require_shell_identity(&source_identity, "source");
+
+    let split_deadline = Instant::now() + CLOSE_TIMEOUT;
+    let mut peer = WorkbenchPeer::connect(&fixture, split_deadline)?;
+    let before_split = peer.snapshot(split_deadline)?;
+    let terminal_context_id = before_split
+        .navigation
+        .standalone_terminal_context_id
+        .clone();
+    let context = before_split
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .ok_or("Split focus context missing")?;
+    let tab = context.tabs.first().ok_or("Split focus Tab missing")?;
+    let panel_id = match &tab.root {
+        PanelNode::Panel { panel_id, .. } => panel_id.clone(),
+        PanelNode::Split { .. } => return Err("fresh native split Tab was already split".into()),
+    };
+    let tab_id = tab.tab_id.clone();
+    let split_geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
+    let new_panel_id = match peer.prepare(
+        WorkbenchAction::PanelSplit {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id,
+            panel_id,
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("Split peer")?,
+            geometry: split_geometry,
+        },
+        split_deadline,
+    )? {
+        WorkbenchCommandOutcome::PanelSplitCreated { new_panel_id, .. } => new_panel_id,
+        outcome => return Err(format!("native PanelSplit did not start: {outcome:?}").into()),
+    };
+    let after_split = peer.snapshot(split_deadline)?;
+    let split_tab = after_split
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .and_then(|candidate| candidate.tabs.first())
+        .ok_or("native split Tab was not projected")?;
+    let PanelNode::Split { children, .. } = &split_tab.root else {
+        return Err("native PanelSplit did not project a split root".into());
+    };
+    assert!(children.iter().any(|slot| {
+        matches!(&slot.node, PanelNode::Panel { panel_id, .. } if panel_id == &new_panel_id)
+    }));
+
+    let refresh_revision = after_split.revision.value();
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Workbench navigator",
+            &format!("Tabs refreshed · revision {refresh_revision}"),
+        ],
+        &[],
+        &[],
+        &mut [],
+    );
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Panel · Terminal 1 · 1",
+            "Panel · Terminal 2 · Split peer",
+            "Tab 1 · Ready · controlling",
+        ],
+        &["Workbench navigator"],
+        &[],
+        &mut [],
+    );
+
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02l");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Panel · Terminal 1 · 1",
+            "Panel · Terminal 2 · Split peer",
+            "Tab 1 · Ready · controlling",
+        ],
+        &["Workbench navigator"],
+        &[],
+        &mut [],
+    );
+    thread::sleep(Duration::from_millis(75));
+    client.send(shell_identity_command(&fixture, "split", "native-split-right", true).as_bytes());
+    let split_identity = wait_file(
+        &fixture.base.join("native-split-right"),
+        &mut [&mut client],
+        Instant::now() + OBSERVATION_TIMEOUT,
+    );
+    let split_pid = require_shell_identity(&split_identity, "split");
+    assert_ne!(
+        source_pid, split_pid,
+        "right Panel must attach the new shell"
+    );
+
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02h");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Panel · Terminal 1 · 1",
+            "Panel · Terminal 2 · Split peer",
+            "Tab 1 · Ready · controlling",
+        ],
+        &["Workbench navigator"],
+        &[],
+        &mut [],
+    );
+    thread::sleep(Duration::from_millis(75));
+    client.send(shell_identity_command(&fixture, "source", "native-split-left", false).as_bytes());
+    assert_eq!(
+        wait_file(
+            &fixture.base.join("native-split-left"),
+            &mut [&mut client],
+            Instant::now() + OBSERVATION_TIMEOUT,
+        ),
+        source_identity,
+        "left Panel must return to the original shell",
+    );
+
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02x");
+    client.wait_close_prompt_after(
+        checkpoint,
+        Instant::now() + OBSERVATION_TIMEOUT,
+        STANDALONE_HEADER,
+        &[
+            "Close terminal Tab?",
+            "",
+            "1",
+            "",
+            "Closing this Tab ends its execution for all attached Clients.",
+            "",
+            "y · confirm    n / Esc · cancel",
+        ],
+        &mut [],
+    );
+    let checkpoint = client.checkpoint();
+    client.send(b"y");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + CLOSE_TIMEOUT,
+        &[
+            STANDALONE_HEADER,
+            "No terminal tabs · Ctrl+B c to create a Tab",
+        ],
+        &["Close terminal Tab?", "[*1", "Workbench navigator"],
+        &[],
+        &mut [],
+    );
+    let closed = peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?;
+    let closed_context = closed
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .ok_or("Split focus context missing after Close")?;
+    assert!(closed_context.tabs.is_empty());
+    client.close_before(Instant::now() + EXIT_TIMEOUT);
+    Ok(())
 }
 
 #[test]
