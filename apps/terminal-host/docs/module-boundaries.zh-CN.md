@@ -8,13 +8,13 @@
 
 每个跨模块导入都使用此表中的命名导入。直接相对导入保留在导入模块目录中。一行只能导入 `Allowed imports` 中列出的行；标准库、编译器提供的、生成的构建选项和固定的外部模块仅在影响边界时才会列出。
 
-| 源边界                            | 命名导入或根                            | 责任                                                                                          | 允许的导入（imports）                                                                                                                                                                        |
+| 源边界                            | 命名导入或根                            | 责任                                                                                          | 允许的导入（imports）                                                                                                                                                           |
 | --------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/protocol/semantic_input.zig` | `terminal-input`                        | 编解码器和引擎共享的规范语义输入值类型                                                        | 无                                                                                                                                                                              |
 | `src/protocol/`                   | `terminal-protocol` 至 `root.zig`       | 共享线路合约和二进制编解码器的本机镜像                                                        | `terminal-input`                                                                                                                                                                |
 | `src/model/`                      | `terminal-host-model` 至 `root.zig`     | 规范主机标识符、配置、运行时主题、几何、生命周期、启动/配置文件、附件、投影、历史和选择命令值 | `terminal-protocol`                                                                                                                                                             |
 | `src/platform/`                   | `terminal-host-platform` 至 `root.zig`  | PTY，进程遏制和操作系统适配                                                                   | 支持的 POSIX 目标上的 `pty-c`                                                                                                                                                   |
-| `src/engine/`                     | `terminal-host-engine` 至 `root.zig`    | 一个终端引擎、Ghostty 状态、启动、运行时主题应用（application）、输入、投影、历史与编码              | `terminal-input`、`terminal-protocol`、`terminal-host-model`、`terminal-host-platform`、`ghostty-vt`                                                                            |
+| `src/engine/`                     | `terminal-host-engine` 至 `root.zig`    | 一个终端引擎、Ghostty 状态、启动、运行时主题应用（application）、输入、投影、历史与编码       | `terminal-input`、`terminal-protocol`、`terminal-host-model`、`terminal-host-platform`、`ghostty-vt`                                                                            |
 | `src/core/`                       | `terminal-host-core` 至 `root.zig`      | 纯主机、注册表、终端会话配置/主题、代理会话、附件和交付状态所有者                             | `terminal-host-model`                                                                                                                                                           |
 | `src/control/`                    | `terminal-host-control` 至 `root.zig`   | 控制记录与键入的主机命令、回复、事件和完整主题状态之间的无损适配                              | `terminal-protocol`, `terminal-host-model`                                                                                                                                      |
 | `src/service/`                    | `terminal-host-service` 至 `root.zig`   | 请求工作流程、运行时/主题协调、出口事务、维护和主机服务生命周期                               | `terminal-input`、`terminal-protocol`、`terminal-host-model`、`terminal-host-platform`、`terminal-host-engine`、`terminal-host-core`、`terminal-host-control`、 `build-options` |
@@ -30,19 +30,19 @@
 
 上面的目录边界仍然是构建图权限。其中，以下有状态或依赖于平台的接缝是持久的审查单元，而不是偶然的文件分割：
 
-| 边界          | 内部所有者                                                                                                           | 协调员或门面责任                                                                    |
-| ------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 协议          | `message_kind.zig` 拥有准确的数字类型注册表；编解码器和格式模块拥有其有界线形状                                      | `contract.zig` 拥有版本/绑定常量和角色/编码/成功映射； `root.zig` 公开协议命名空间  |
-| 模型          | `lifecycle/`，以及附件、交互、启动、配置与运行时主题值模块                                                           | `root.zig` 公开不可变的跨层值，无需导入有状态运行时边界                             |
-| Engine        | `input_queue.zig`、`input_ownership.zig`、`history/`、`projection/` 和选择所有者                                     | `runtime/` 在规范终端锁与输入锁下安排跨所有者提交                                   |
-| Engine 运行时 | `runtime/` 状态、句柄适配器、生命周期、I/O、主题、终端变更、投影、交互和测试接缝                                     | `runtime/root.zig` 保留一个公共命名空间，各事务文件拥有可独立审查的运行时操作       |
-| 核心          | `state/` 连接、终端/主题、附件和投影交易及其专用状态所有者                                                           | `state/root.zig` 保留 Core 命名空间； `host_core.zig` 保留唯一的 Core 具体实现所有者        |
-| 控制          | `decode_*` 和 `encode_*` 主机、终端、主题、投影、交互适配器                                                          | `decode.zig` 和 `encode.zig` 保留一个显式公共协议面                                 |
-| 平台          | `process_session.zig` 拥有稳定的 POSIX 遏制标识；`process_posix.zig` 和 `process_windows.zig` 拥有各目标的进程适配器 | `process.zig` 选择目标实现而不重新实现进程行为                                      |
-| 服务接入      | `runtime_aggregate/`、`runtime_maintenance/`、保留终端、主题、输入准入、历史记录、选择访问                           | `runtime_aggregate/host_aggregate.zig` 保留单一所有者；它的根保留现有的服务名称空间 |
-| 业务出口      | `interaction.zig`、`projection.zig` 和 `outgoing.zig`                                                                | `event_delivery.zig` 拥有公平调度与整批（complete-batch）移交（handoff）                                          |
-| 服务          | `terminal_requests/`、以功能命名的请求工作流、`connection_workflow.zig` 和仅测试组合观察器                           | `service.zig`拥有生命周期和组成；工作流程使用聚合而不是可变的核心内部结构           |
-| 传输          | `connection.zig`、`local_server_posix.zig` 和 `local_server_windows.zig`                                             | `root.zig` 选择本地服务器实现并公开稳定的传输边界                                   |
+| 边界          | 内部所有者                                                                                                           | 协调员或门面责任                                                                     |
+| ------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 协议          | `message_kind.zig` 拥有准确的数字类型注册表；编解码器和格式模块拥有其有界线形状                                      | `contract.zig` 拥有版本/绑定常量和角色/编码/成功映射； `root.zig` 公开协议命名空间   |
+| 模型          | `lifecycle/`，以及附件、交互、启动、配置与运行时主题值模块                                                           | `root.zig` 公开不可变的跨层值，无需导入有状态运行时边界                              |
+| Engine        | `input_queue.zig`、`input_ownership.zig`、`history/`、`projection/` 和选择所有者                                     | `runtime/` 在规范终端锁与输入锁下安排跨所有者提交                                    |
+| Engine 运行时 | `runtime/` 状态、句柄适配器、生命周期、I/O、主题、终端变更、投影、交互和测试接缝                                     | `runtime/root.zig` 保留一个公共命名空间，各事务文件拥有可独立审查的运行时操作        |
+| 核心          | `state/` 连接、终端/主题、附件和投影交易及其专用状态所有者                                                           | `state/root.zig` 保留 Core 命名空间； `host_core.zig` 保留唯一的 Core 具体实现所有者 |
+| 控制          | `decode_*` 和 `encode_*` 主机、终端、主题、投影、交互适配器                                                          | `decode.zig` 和 `encode.zig` 保留一个显式公共协议面                                  |
+| 平台          | `process_session.zig` 拥有稳定的 POSIX 遏制标识；`process_posix.zig` 和 `process_windows.zig` 拥有各目标的进程适配器 | `process.zig` 选择目标实现而不重新实现进程行为                                       |
+| 服务接入      | `runtime_aggregate/`、`runtime_maintenance/`、保留终端、主题、输入准入、历史记录、选择访问                           | `runtime_aggregate/host_aggregate.zig` 保留单一所有者；它的根保留现有的服务名称空间  |
+| 业务出口      | `interaction.zig`、`projection.zig` 和 `outgoing.zig`                                                                | `event_delivery.zig` 拥有公平调度与整批（complete-batch）移交（handoff）             |
+| 服务          | `terminal_requests/`、以功能命名的请求工作流、`connection_workflow.zig` 和仅测试组合观察器                           | `service.zig`拥有生命周期和组成；工作流程使用聚合而不是可变的核心内部结构            |
+| 传输          | `connection.zig`、`local_server_posix.zig` 和 `local_server_windows.zig`                                             | `root.zig` 选择本地服务器实现并公开稳定的传输边界                                    |
 
 一个语义所有者超出了一个独立可审阅的文件的范围，就成为一个目录。它的根源是一个狭窄的命名空间或机械外观；状态声明和分支事务逻辑存在于以职责命名的文件中。序列化提交协议在一个事务模块或类型化 prepare/commit 移交中保持显式，而不是将外观变成一个包罗万象的文件。
 

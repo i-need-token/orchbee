@@ -27,7 +27,7 @@ Utility Process 从不导入或连接 Terminal Host。它不拥有共享文档�
 | -------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Utility 启动         | 绑定临时环回端口；只有显式 trusted-LAN 预览才绑定 `0.0.0.0`，并且只接受 Desktop 提供的精确 renderer Origin 允许列表。 |
 | Control Upgrade 到达 | 接受 WebSocket 前要求精确允许的 Origin 和有效签名 Browser session Cookie；失败时不分配 Desktop 权限。                 |
-| 页面协议握手到达     | 要求在 10 秒内收到协议版本握手，然后请求一组全新的 Desktop ClientSession 与投影控制（MessagePort）对。                             |
+| 页面协议握手到达     | 要求在 10 秒内收到协议版本握手，然后请求一组全新的 Desktop ClientSession 与投影控制（MessagePort）对。                |
 | 附件握手到达         | 要求在 10 秒内收到一个由页面派生的一次性附件 capability，并且只传输匹配附件的流。                                     |
 | 已认证套接字保持连接 | 每 30 秒发送一次 ping；若上一 ping 未收到 pong，则终止该套接字。                                                      |
 | 投影打开             | 注册一个派生附件 capability，并且只传输匹配附件的流。                                                                 |

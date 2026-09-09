@@ -78,8 +78,8 @@ Host 消费已验证的相邻可执行文件，不实现清单读取。
 
 | 声明                                            | 所有者 / 细化映射                                    | 证据                                          |
 | ----------------------------------------------- | ---------------------------------------------------- | --------------------------------------------- |
-| LS01 每个运行时生命周期至多一次启动尝试         | Client 在激活 guard 下独占创建标记                        | LocalSiteStartup 模型；竞争及失败标记进程轨迹 |
-| LS02 无隐式恢复或 Client 所有的终止             | 持久标记、Server 生命周期 guard、Client 连接释放         | 模型丢失/超时；断连再打开真实进程轨迹         |
+| LS01 每个运行时生命周期至多一次启动尝试         | Client 在激活 guard 下独占创建标记                   | LocalSiteStartup 模型；竞争及失败标记进程轨迹 |
+| LS02 无隐式恢复或 Client 所有的终止             | 持久标记、Server 生命周期 guard、Client 连接释放     | 模型丢失/超时；断连再打开真实进程轨迹         |
 | LS03 授权 Launch 前没有 Host；保留同一 dispatch | Worker 授权内核和延迟启动适配器                      | 模型授权；Worker 无效/有效 Launch 进程测试    |
 | LS04 副作用前角色一致且 rendezvous 私有         | NativeCohort 和 ModeCheckedLocalSiteRendezvous       | 清单损坏、权限、符号链接及已有锁测试          |
 | LS05 一个预算内收到有效首帧才算启动就绪         | Client 截止时间、TerminalSession 投影、同一 TTY 交接 | 准入/提交截止测试及裸 TTY 进程测试            |

@@ -14,19 +14,19 @@ Desktop Main 拥有本地进程启动配置文件的一个设备本地目录。�
 
 ## 输入和验证
 
-| 输入                   | 验证与缺失（absence）                                                               |
-| ---------------------- | ------------------------------------------------------------------------ |
-| 持久目录               | UTF-8 JSON，有界文件大小，严格的 version-1 模式；缺少意味着内置目录      |
-| 配置文件 ID                | 稳定有界 ASCII 身份；缺少 IDs 拒绝而不改变状态                           |
-| 配置文件名称           | 修剪后的非空有界用户文本；允许重复的显示名称                             |
-| 系统 shell 命令        | 使用受信任的启动 shell；仅在 POSIX 上允许登录模式                        |
-| 自定义可执行文件       | 非空有界路径，无 NUL；对于桌面平台必须是绝对的                           |
-| 自定义参数             | 没有 NUL 的有序有界文字字符串；没有引用、插值或 shell 解析               |
-| 渲染器命令             | 在主调度之前由 `@orchbee/desktop-client-protocol` 解析                   |
-| 基础（Base）`TerminalLaunch`  | 仅在 `TerminalLaunchSchema` 之后才可信；提供不属于此配置文件功能的每个字段 |
-| 已解决主机启动         | 必须先编码为一个有界 `create-terminal` 控制请求，然后才能提交目录        |
-| 终端呈现（presentation）CWD           | Workbench 持有的既有值；profile launch 解析后仅覆盖 `currentDirectory`        |
-| 配置文件存储读取或失败 | 丢失、无效、读取失败和写入失败是不同的预期结果                           |
+| 输入                         | 验证与缺失（absence）                                                      |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| 持久目录                     | UTF-8 JSON，有界文件大小，严格的 version-1 模式；缺少意味着内置目录        |
+| 配置文件 ID                  | 稳定有界 ASCII 身份；缺少 IDs 拒绝而不改变状态                             |
+| 配置文件名称                 | 修剪后的非空有界用户文本；允许重复的显示名称                               |
+| 系统 shell 命令              | 使用受信任的启动 shell；仅在 POSIX 上允许登录模式                          |
+| 自定义可执行文件             | 非空有界路径，无 NUL；对于桌面平台必须是绝对的                             |
+| 自定义参数                   | 没有 NUL 的有序有界文字字符串；没有引用、插值或 shell 解析                 |
+| 渲染器命令                   | 在主调度之前由 `@orchbee/desktop-client-protocol` 解析                     |
+| 基础（Base）`TerminalLaunch` | 仅在 `TerminalLaunchSchema` 之后才可信；提供不属于此配置文件功能的每个字段 |
+| 已解决主机启动               | 必须先编码为一个有界 `create-terminal` 控制请求，然后才能提交目录          |
+| 终端呈现（presentation）CWD  | Workbench 持有的既有值；profile launch 解析后仅覆盖 `currentDirectory`     |
+| 配置文件存储读取或失败       | 丢失、无效、读取失败和写入失败是不同的预期结果                             |
 
 精确的字符串、参数计数、配置文件计数和文件大小界限是不大于其 Terminal Host 协议限制的实现常量。它们随着合同和边界测试而改变。
 
@@ -101,15 +101,15 @@ Main 串行化目录变更（mutations）。权威提交点是成功的原子文
 
 ## 所有权和依赖性
 
-| 责任（Responsibility）                                         | Owner                               |
+| 责任（Responsibility）                       | Owner                              |
 | -------------------------------------------- | ---------------------------------- |
 | 目录状态、转换、持久性与 profile launch 解析 | `apps/desktop`                     |
 | profile 之后的自动 Shell Integration 细化    | `apps/desktop`                     |
-| 沙箱化 wire schema 与固定端口角色                   | `@orchbee/desktop-client-protocol` |
+| 沙箱化 wire schema 与固定端口角色            | `@orchbee/desktop-client-protocol` |
 | 本地设置呈现和请求客户端                     | `apps/web`                         |
-| 产品消息（messages）与翻译                               | `@orchbee/i18n`                    |
+| 产品消息（messages）与翻译                   | `@orchbee/i18n`                    |
 | CWD 和终端呈现意图                           | `@orchbee/workbench`               |
-| 具体（concrete）持久绑定（binding）的启动                           | Desktop terminal binding store                   |
+| 具体（concrete）持久绑定（binding）的启动    | Desktop terminal binding store     |
 | PTY 创建和可执行文件可用性                   | Terminal Host                      |
 
 目录存储仅需要加载和原子替换。控制器需要平台、可信基础启动、稳定的 ID 分配和存储。平台是构造内置回退和执行重置时的显式输入。确定性目录转换和启动解析器不执行文件系统、进程、传输、本地化或 React 工作。

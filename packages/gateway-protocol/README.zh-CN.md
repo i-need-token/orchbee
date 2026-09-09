@@ -27,10 +27,10 @@ Orchbee 本地开发 Browser Gateway 的严格、运行时无关契约。
 | 输入     | 不受信任的 query 值、WebSocket 消息、传输端口消息、二进制帧、套接字生命周期和传输队列状态。                                                                                             |
 | 拥有数据 | 新页面连接 identity、一次性附件 socket identity 与 capability，以及 framing metadata。                                                                                                  |
 | 输出     | 验证通用 Workbench 客户端消息、范围 Desktop 父请求、类型化故障和规范二进制帧。                                                                                                          |
-| 权威     | Desktop Main 拥有规范的 Workbench 与 TerminalPresentation 状态； Terminal Host 拥有 PTY/VT 状态； Browser 拥有 Client View 和 Browser 效果。                                             |
+| 权威     | Desktop Main 拥有规范的 Workbench 与 TerminalPresentation 状态； Terminal Host 拥有 PTY/VT 状态； Browser 拥有 Client View 和 Browser 效果。                                            |
 | 认证     | Main 向 Server 与 Gateway 共享一个仅当前 activation 有效的 Browser session 签名密钥。Cookie 校验先于 control Upgrade；附件 capability 只为一个 socket identity 派生，绝不授权其他附件。 |
 | 隔离     | 页面仅接收其客户端会话和投影端口。没有 Gateway 消息携带 Host 连接、绑定存储、生命周期端口、文件系统端口或通用 Main 功能。                                                               |
-| 断开连接 | 关闭页面（page）控制通道会退役该页面会话及其附件，而不会更改共享拓扑或终端生命周期。                                                                                                            |
+| 断开连接 | 关闭页面（page）控制通道会退役该页面会话及其附件，而不会更改共享拓扑或终端生命周期。                                                                                                    |
 | 背压     | 有界附件队列在空时接纳一个最大尺寸的有效帧，并在溢出时仅收回确切的附件。重新打开投影会创建新的附件和完整的快照。                                                                        |
 | 基数     | 页面、终端或附件不存在产品数量上限。字节和缓冲传输限制会拒绝受影响的消息或连接，而不是驱逐另一个客户端。                                                                                |
 | 活性     | 每个已接受套接字都有 10 秒认证期限。已认证套接字每 30 秒收到一次 ping，并在一个周期未响应后被终止。                                                                                     |

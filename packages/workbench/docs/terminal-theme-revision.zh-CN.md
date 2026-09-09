@@ -4,13 +4,13 @@
 
 一个工作台组合为其连接的 Terminal Host 纪元协调一个完整的运行时主题修订。该事务会更改主机拥有的终端颜色状态和匹配的客户端拥有的呈现，而不使任何一方对另一方具有权威性。
 
-| 领域   | 合同                                                                                                           |
-| ------ | -------------------------------------------------------------------------------------------------------------- |
-| 问题   | 仅限客户端的默认颜色覆盖可能与主机调色板、光标、投影像素、覆盖层和应用程序表面不一致。                         |
-| 输入   | 工作台拥有的操作 ID、最后观察到的主机呈现版本以及一个完整的规范化呈现快照。                                    |
-| 输出   | 一个已完成的修订、一个键入的过时/失败/取消结果或对当前已完成快照的有意无操作。                                 |
-| 非目标 | 字体、填充、不透明度、光标形状/闪烁、VT 内容修订、保留的首选项布局、新的设置界面以及浏览器端 VT 或调色板权限。 |
-| Owner   | Workbench 拥有 intent、supersession 与发布资格；Terminal Host 拥有 revision 分配与终端颜色提交；投影客户端（projected client）拥有准备与原子呈现。   |
+| 领域   | 合同                                                                                                                                               |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | 仅限客户端的默认颜色覆盖可能与主机调色板、光标、投影像素、覆盖层和应用程序表面不一致。                                                             |
+| 输入   | 工作台拥有的操作 ID、最后观察到的主机呈现版本以及一个完整的规范化呈现快照。                                                                        |
+| 输出   | 一个已完成的修订、一个键入的过时/失败/取消结果或对当前已完成快照的有意无操作。                                                                     |
+| 非目标 | 字体、填充、不透明度、光标形状/闪烁、VT 内容修订、保留的首选项布局、新的设置界面以及浏览器端 VT 或调色板权限。                                     |
+| Owner  | Workbench 拥有 intent、supersession 与发布资格；Terminal Host 拥有 revision 分配与终端颜色提交；投影客户端（projected client）拥有准备与原子呈现。 |
 
 `TerminalThemeSnapshot` 已完成：
 
@@ -28,17 +28,17 @@
 
 ## 转换模型
 
-| 目前状态                  | 事件                     | 结果和命令                                                                       |
-| ------------------------- | ------------------------ | -------------------------------------------------------------------------------- |
-| 无活动请求（no active request）       | 请求更改的完整快照       | 不取代任何东西；准备客户端快照并请求针对上次观察到的主机修订进行主机提交。       |
-| 请求活跃                  | 较新的请求               | 撤销旧操作的发表资格；保留最后呈现的快照。已经开始的工作可以落定（settle），但无法发布。 |
-| 主机待定                  | 确切的主机提交           | 保留返回的Host状态；仅在相同的最新操作可供客户端使用后才发布。                   |
-| 主机待定                  | 陈旧的结果               | 保留当前呈现，采用返回的主机状态，并允许对相同所需操作进行显式变基。             |
-| 主机待定                  | 已知的可重试预提交失败   | 保留两个权威（authorities）并允许针对相同的观察到的修订进行显式重试。                         |
-| Host 待定                 | 结果未知                 | 保留当前呈现，并在重试前读取/协调 Host 状态；禁止盲目重放。                      |
-| 客户端待定                | 准备失败                 | 保留当前呈现。可重试失败可以再次准备同一不可变快照；客户端绝不回滚 Host 提交。   |
-| Host 已提交且客户端已就绪 | 最新匹配操作             | 在 Host 分配的修订上原子发布终端像素、光标、覆盖层和应用表面。                   |
-| 隐藏或暂停                | 最新的匹配操作已准备就绪 | 保留它且不暴露部分呈现；恢复（resume）时只发布最新的合格完整 revision。                         |
+| 目前状态                        | 事件                     | 结果和命令                                                                               |
+| ------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| 无活动请求（no active request） | 请求更改的完整快照       | 不取代任何东西；准备客户端快照并请求针对上次观察到的主机修订进行主机提交。               |
+| 请求活跃                        | 较新的请求               | 撤销旧操作的发表资格；保留最后呈现的快照。已经开始的工作可以落定（settle），但无法发布。 |
+| 主机待定                        | 确切的主机提交           | 保留返回的Host状态；仅在相同的最新操作可供客户端使用后才发布。                           |
+| 主机待定                        | 陈旧的结果               | 保留当前呈现，采用返回的主机状态，并允许对相同所需操作进行显式变基。                     |
+| 主机待定                        | 已知的可重试预提交失败   | 保留两个权威（authorities）并允许针对相同的观察到的修订进行显式重试。                    |
+| Host 待定                       | 结果未知                 | 保留当前呈现，并在重试前读取/协调 Host 状态；禁止盲目重放。                              |
+| 客户端待定                      | 准备失败                 | 保留当前呈现。可重试失败可以再次准备同一不可变快照；客户端绝不回滚 Host 提交。           |
+| Host 已提交且客户端已就绪       | 最新匹配操作             | 在 Host 分配的修订上原子发布终端像素、光标、覆盖层和应用表面。                           |
+| 隐藏或暂停                      | 最新的匹配操作已准备就绪 | 保留它且不暴露部分呈现；恢复（resume）时只发布最新的合格完整 revision。                  |
 
 过时、失败、取消、隐藏或暂停路径绝不会只写入 Host 或客户端字段集的一部分。当客户端准备（client preparation）尚未完成时，Host 提交可能领先于可见呈现；在确切的最新操作可发布前，先前完整呈现保持可见。
 
@@ -46,7 +46,7 @@
 
 | 结果                   | 含义                                             | 重试规则                                                       |
 | ---------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
-| `completed`            | 主机操作和完整的客户端呈现只需一次修订。           | 无需重试。                                                     |
+| `completed`            | 主机操作和完整的客户端呈现只需一次修订。         | 无需重试。                                                     |
 | `cancelled/superseded` | 较新的工作台操作取消了发布资格。                 | 切勿重试旧意图。                                               |
 | `stale`                | 在此比较和设置之前，另一个操作更改了主机修订版。 | 采用当前的主机状态，然后显式地重新设置仍然当前所需操作的基础。 |
 | 已知的可重试失败       | 指定所有者未提交。                               | 只重试失败的所有者；保留已经准备或提交的对等方。               |
@@ -57,14 +57,14 @@
 
 [`../formal/tla/TerminalThemeRevision.tla`](../formal/tla/TerminalThemeRevision.tla) 检查两个独立排序的操作、主机/客户端准备、主机比较和设置、精确重播、操作冲突、已知和未知故障、协调、重试、取代和隐藏/暂停呈现。两个抽象 snapshot token 区分同操作精确 replay 与不同数据 conflict，而不复制具体 RGB 载荷。
 
-| SU-09 声明                               | TLA+ 属性                                                                                                                                              | 确定性细化                                                                                                                                  |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host 默认值、调色板与光标一起提交（commit）           | `HostStateIdentityIsCoherent`, `HostCommitIsAtomic`, `HostChangesOnlyOnCommit`                                                                         | Terminal Host 保留回复，预检完整的物理更新，然后提交一项操作/修订；其声明映射的本机测试拒绝部分失败。                                       |
-| 像素、覆盖层、光标和应用程序表面一起发布 | `PresentationIsAtomic`, `PresentationChangesOnlyOnPresent`                                                                                             | 只有在主机/客户端完全达成一致后，Reducer 才会发布一份完整的快照； Web 屏障在更改应用程序令牌主题之前同步提交每个准备好的投影终端。          |
-| 被取代/陈旧/失败的路径保留呈现           | `NonPresentationActionsPreservePresentation`, `SupersessionPreservesPresentation`                                                                      | 非最新匹配成功的操作相关事件不返回发布命令。                                                                                                |
-| 精确 replay 幂等；不同数据复用 ID 会冲突 | `HostReplayIsExactAndIdempotent`, `HostConflictIsDifferentAndNonMutating`                                                                              | Host request 测试比较完整 terminal snapshot，并返回 already-applied 或不可重试 conflict。                                                   |
-| 未知结果保留观察并先协调                 | `UnknownOutcomePreservesObservation`, `ReconciliationAdoptsActualHost`, `ReconciliationClassifiesHostIdentity`, `UnknownOutcomeRequiresReconciliation` | reducer 测试保留此前观察到的 Host 状态、采用 reconcile 结果，并按 operation 加 snapshot identity 选择 committed、stale/rebase 或 conflict。 |
-| 持续 ready 的当前修订在可见时成功        | `EligibleReadyEventuallyResolves`                                                                                                                      | 以 `Present` 表示的成功发布分支为条件；类型化 presentation failure 与 retry 属于 reducer/controller 证据。                                  |
+| SU-09 声明                                  | TLA+ 属性                                                                                                                                              | 确定性细化                                                                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host 默认值、调色板与光标一起提交（commit） | `HostStateIdentityIsCoherent`, `HostCommitIsAtomic`, `HostChangesOnlyOnCommit`                                                                         | Terminal Host 保留回复，预检完整的物理更新，然后提交一项操作/修订；其声明映射的本机测试拒绝部分失败。                                       |
+| 像素、覆盖层、光标和应用程序表面一起发布    | `PresentationIsAtomic`, `PresentationChangesOnlyOnPresent`                                                                                             | 只有在主机/客户端完全达成一致后，Reducer 才会发布一份完整的快照； Web 屏障在更改应用程序令牌主题之前同步提交每个准备好的投影终端。          |
+| 被取代/陈旧/失败的路径保留呈现              | `NonPresentationActionsPreservePresentation`, `SupersessionPreservesPresentation`                                                                      | 非最新匹配成功的操作相关事件不返回发布命令。                                                                                                |
+| 精确 replay 幂等；不同数据复用 ID 会冲突    | `HostReplayIsExactAndIdempotent`, `HostConflictIsDifferentAndNonMutating`                                                                              | Host request 测试比较完整 terminal snapshot，并返回 already-applied 或不可重试 conflict。                                                   |
+| 未知结果保留观察并先协调                    | `UnknownOutcomePreservesObservation`, `ReconciliationAdoptsActualHost`, `ReconciliationClassifiesHostIdentity`, `UnknownOutcomeRequiresReconciliation` | reducer 测试保留此前观察到的 Host 状态、采用 reconcile 结果，并按 operation 加 snapshot identity 选择 committed、stale/rebase 或 conflict。 |
+| 持续 ready 的当前修订在可见时成功           | `EligibleReadyEventuallyResolves`                                                                                                                      | 以 `Present` 表示的成功发布分支为条件；类型化 presentation failure 与 retry 属于 reducer/controller 证据。                                  |
 
 TLA+ `Present` 操作抽象出成功的 `publish-theme` 命令及随后的精确 `presentation-committed` 结果；
 确定性 reducer 保持这两个 adapter 步骤与类型化 presentation-failure/retry 分支显式。弱公平性仅用于该

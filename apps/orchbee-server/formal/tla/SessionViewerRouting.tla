@@ -14,11 +14,16 @@ EXTENDS Naturals, FiniteSets
 \* Existing selection/authority/relay models and tests own target resolution,
 \* wire bytes, the three relay hops, Host effects and physical cleanup queues.
 \* Disposal is an external exact completed proof, never a routing operation.
+\* The routing variant retains a third viewer identity to exercise shared-capacity
+\* refusal and never-reused identity allocation. Control and cleanup need only two
+\* identities to exercise independent controllers, equal/gapped sequences, and
+\* sibling cleanup; their smaller identity domain keeps those composed proofs
+\* tractable without changing any production bound.
 CONSTANT Scenario
 ASSUME Scenario \in {"routing", "control", "cleanup"}
 Sessions == {"a", "b"}
 Targets == {"x", "y"}
-Viewers == 1..3
+Viewers == IF Scenario = "routing" THEN 1..3 ELSE 1..2
 Grants == 1..3
 SessionLimit == 2
 WorkerLimit == 2
@@ -41,17 +46,16 @@ vars == <<s>>
 Init == s = [live |-> [a \in Sessions |-> TRUE], phase |-> [a \in Sessions |-> "idle"],
   flight |-> [a \in Sessions |-> NoFlight], viewers |-> [v \in Viewers |-> NoViewer],
   grants |-> [g \in Grants |-> NoGrant], cursor |-> 0, grantCursor |-> 0,
-  workerGeneration |-> 1, workerOwned |-> {}, possibleOwned |-> {}, attachSent |-> {},
-  rejected |-> {}, disposed |-> {}, terminalAlive |-> [t \in Targets |-> TRUE],
+  workerGeneration |-> 1, workerOwned |-> {},
+  disposed |-> {},
   pending |-> [v \in Viewers |-> NoFrame], baseline |-> [v \in Viewers |-> FALSE],
-  frameSequence |-> [v \in Viewers |-> 0], polled |-> [v \in Viewers |-> 0],
-  inputEffects |-> [t \in Targets |-> 0], geometry |-> [t \in Targets |-> 0],
-  viewerCleaned |-> {}, grantCleaned |-> {}, starts |-> 0]
+  frameSequence |-> [v \in Viewers |-> 0]]
 
 Idle(a) == s.live[a] /\ s.phase[a] = "idle"
 Owned(a, v) == IF v \in Viewers THEN s.viewers[v].owner = a /\ s.viewers[v].state = "active" ELSE FALSE
 Current(v) == s.viewers[v].generation = s.workerGeneration /\ s.viewers[v].target \notin s.disposed
 Routable(a, v) == Idle(a) /\ Owned(a, v) /\ Current(v)
+PossibleViewer(v) == s.viewers[v].state \in {"issued", "acknowledged", "active", "closing"}
 SessionCount(a) == Cardinality({v \in Viewers: s.viewers[v].owner = a /\ s.viewers[v].state \in Registered})
 Duplicate(a, target) == \E v \in Viewers:
   s.viewers[v].owner = a /\ s.viewers[v].state \in Registered /\ s.viewers[v].target = target
@@ -62,11 +66,12 @@ G(a) == s.flight[a].grant
 ActiveGrant(v) == IF s.viewers[v].grant = 0 THEN FALSE
   ELSE s.grants[s.viewers[v].grant].state = "active"
 Projection(v) == <<s.viewers[v], s.pending[v], s.baseline[v], s.frameSequence[v],
-  s.polled[v], {s.grants[g]: g \in {id \in Grants: s.grants[id].viewer = v}}>>
+  {s.grants[g]: g \in {id \in Grants: s.grants[id].viewer = v}}>>
 
 AdmitAttach(a, target) ==
   /\ Idle(a) /\ target \in Targets /\ SessionCount(a) < SessionLimit
-  /\ ~Duplicate(a, target) /\ target \notin s.disposed /\ s.workerGeneration = 1 /\ s.cursor < 3
+  /\ ~Duplicate(a, target) /\ target \notin s.disposed /\ s.workerGeneration = 1
+  /\ s.cursor < Cardinality(Viewers)
   /\ s' = [s EXCEPT !.cursor = @+1, !.phase[a] = "attach-admitted",
        !.flight[a] = [viewer |-> s.cursor+1, grant |-> 0, kind |-> "attach", sequence |-> 0],
        !.viewers[s.cursor+1] = [owner |-> a, target |-> target, generation |-> 1, state |-> "candidate", grant |-> 0]]
@@ -78,15 +83,16 @@ RejectDuplicateTarget(a, target) ==
   /\ UNCHANGED vars
 DispatchAttach(a) ==
   /\ s.live[a] /\ s.phase[a] = "attach-admitted"
-  /\ s' = [s EXCEPT !.phase[a] = "attach-issued", !.viewers[V(a)].state = "issued",
-       !.attachSent = @ \cup {V(a)}, !.possibleOwned = @ \cup {V(a)}]
-AttachDefiniteRefusal(a) ==
+  /\ s' = [s EXCEPT !.phase[a] = "attach-issued", !.viewers[V(a)].state = "issued"]
+AttachDefiniteRefusalCore(a) ==
   /\ s.live[a] /\ s.phase[a] = "attach-issued" /\ V(a) \notin s.workerOwned
-  /\ s' = [s EXCEPT !.phase[a] = "idle", !.flight[a] = NoFlight, !.viewers[V(a)].state = "rejected",
-       !.possibleOwned = @ \ {V(a)}, !.rejected = @ \cup {V(a)}]
+  /\ s' = [s EXCEPT !.phase[a] = "idle", !.flight[a] = NoFlight, !.viewers[V(a)].state = "rejected"]
+AttachDefiniteRefusal(a) ==
+  /\ Cardinality(s.workerOwned) # WorkerLimit
+  /\ AttachDefiniteRefusalCore(a)
 RejectWorkerCapacity(a) ==
-  /\ s.phase[a] = "attach-issued" /\ Cardinality(s.workerOwned) = WorkerLimit
-  /\ AttachDefiniteRefusal(a)
+  /\ Cardinality(s.workerOwned) = WorkerLimit
+  /\ AttachDefiniteRefusalCore(a)
 WorkerAcceptAttach(a) ==
   /\ s.live[a] /\ s.phase[a] = "attach-issued" /\ Current(V(a))
   /\ Cardinality(s.workerOwned) < WorkerLimit
@@ -99,7 +105,7 @@ PublishAttach(a) ==
   /\ s.live[a] /\ s.phase[a] = "attach-published"
   /\ s' = [s EXCEPT !.phase[a] = "idle", !.flight[a] = NoFlight]
 CloseViewer(state, v) == [state EXCEPT !.viewers[v].state = "closing", !.pending[v] = NoFrame,
-  !.baseline[v] = FALSE, !.frameSequence[v] = 0, !.polled[v] = 0,
+  !.baseline[v] = FALSE, !.frameSequence[v] = 0,
   !.grants = [g \in Grants |-> IF state.grants[g].viewer = v /\ state.grants[g].state \in GrantHeld
     THEN [state.grants[g] EXCEPT !.state = "closing"] ELSE state.grants[g]]]
 AttachUnknown(a) ==
@@ -131,13 +137,12 @@ ReapDisposed(a) ==
        THEN [s.viewers[v] EXCEPT !.state = "closing"] ELSE s.viewers[v]],
        !.pending = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN NoFrame ELSE s.pending[v]],
        !.baseline = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN FALSE ELSE s.baseline[v]],
-       !.frameSequence = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN 0 ELSE s.frameSequence[v]],
-       !.polled = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN 0 ELSE s.polled[v]]]
+       !.frameSequence = [v \in Viewers |-> IF Owned(a, v) /\ s.viewers[v].target \in s.disposed THEN 0 ELSE s.frameSequence[v]]]
 
 PollRecord(a, v) ==
   /\ WithFrames /\ Routable(a, v) /\ s.pending[v] = NoFrame /\ s.frameSequence[v] < MaxFrame
   /\ s' = [s EXCEPT !.pending[v] = Frame(v, s.frameSequence[v]+1, IF s.baseline[v] THEN "delta" ELSE "snapshot"),
-       !.frameSequence[v] = @+1, !.polled[v] = @+1, !.baseline[v] = TRUE]
+       !.frameSequence[v] = @+1, !.baseline[v] = TRUE]
 PollWhileSiblingPending(a, v) ==
   /\ \E other \in Viewers: other # v /\ Owned(a, other) /\ s.pending[other] # NoFrame
   /\ PollRecord(a, v)
@@ -165,34 +170,40 @@ ReserveController(a, v) ==
        !.grants[s.grantCursor+1] = [owner |-> a, viewer |-> v, target |-> s.viewers[v].target,
          generation |-> s.viewers[v].generation, state |-> "reserved", sequence |-> 0]]
 RejectControllerBusy(a, v) == /\ WithControl /\ Routable(a, v) /\ HeldOn(s.viewers[v].target) # {} /\ UNCHANGED vars
-AcceptController(a) ==
+AcceptControllerCore(a) ==
   /\ s.live[a] /\ s.phase[a] = "acquire" /\ Current(V(a)) /\ s.grants[G(a)].state = "reserved"
   /\ s' = [s EXCEPT !.phase[a] = "idle", !.flight[a] = NoFlight, !.grants[G(a)].state = "active"]
+NextRenewedGrant(a) == IF s.phase[a] = "acquire" THEN
+  \E old \in Grants: old # G(a) /\ s.grants[old].target = s.grants[G(a)].target
+    /\ s.grants[old].state = "released" /\ s.grants[old].sequence > 0
+  ELSE FALSE
+AcceptController(a) == /\ ~NextRenewedGrant(a) /\ AcceptControllerCore(a)
 NewGrantResetsSequence(a) ==
-  /\ s.phase[a] = "acquire"
-  /\ \E old \in Grants: old # G(a) /\ s.grants[old].target = s.grants[G(a)].target
-       /\ s.grants[old].state = "released" /\ s.grants[old].sequence > 0
-  /\ AcceptController(a)
+  /\ NextRenewedGrant(a) /\ AcceptControllerCore(a)
 RejectControllerAcquire(a) ==
   /\ s.live[a] /\ s.phase[a] = "acquire" /\ s.grants[G(a)].state = "reserved"
   /\ s' = [s EXCEPT !.phase[a] = "idle", !.flight[a] = NoFlight, !.grants[G(a)].state = "released"]
 UnknownControllerAcquire(a) ==
   /\ s.live[a] /\ s.phase[a] = "acquire"
   /\ s' = [s EXCEPT !.phase[a] = "idle", !.flight[a] = NoFlight, !.grants[G(a)].state = IF @ = "reserved" THEN "closing" ELSE @]
-BeginControl(a, v, kind, sequence) ==
+BeginControlCore(a, v, kind, sequence) ==
   /\ WithControl /\ Routable(a, v) /\ ActiveGrant(v) /\ kind \in {"input", "resize"}
   /\ sequence \in 1..MaxSequence /\ sequence > s.grants[s.viewers[v].grant].sequence
   /\ s' = [s EXCEPT !.phase[a] = "control", !.grants[s.viewers[v].grant].sequence = sequence,
        !.flight[a] = [viewer |-> v, grant |-> s.viewers[v].grant, kind |-> kind, sequence |-> sequence]]
-BeginInput(a, v, sequence) == /\ WithControl /\ BeginControl(a, v, "input", sequence)
-BeginResize(a, v, sequence) == /\ WithControl /\ BeginControl(a, v, "resize", sequence)
+NextInputGap(v, sequence) == IF ActiveGrant(v)
+  THEN sequence > s.grants[s.viewers[v].grant].sequence+1 ELSE FALSE
+NextInputEqual(a, v, sequence) ==
+  \E other \in Viewers: other # v /\ Owned(a, other) /\ ActiveGrant(other)
+    /\ s.grants[s.viewers[other].grant].sequence = sequence
+BeginInput(a, v, sequence) ==
+  /\ ~NextInputGap(v, sequence) /\ ~NextInputEqual(a, v, sequence)
+  /\ BeginControlCore(a, v, "input", sequence)
+BeginResize(a, v, sequence) == /\ WithControl /\ BeginControlCore(a, v, "resize", sequence)
 AcceptSequenceGap(a, v, sequence) ==
-  /\ ActiveGrant(v) /\ sequence > s.grants[s.viewers[v].grant].sequence+1
-  /\ BeginInput(a, v, sequence)
+  /\ NextInputGap(v, sequence) /\ BeginControlCore(a, v, "input", sequence)
 AcceptIndependentEqualSequence(a, v, sequence) ==
-  /\ \E other \in Viewers: other # v /\ Owned(a, other) /\ ActiveGrant(other)
-       /\ s.grants[s.viewers[other].grant].sequence = sequence
-  /\ BeginInput(a, v, sequence)
+  /\ NextInputEqual(a, v, sequence) /\ BeginControlCore(a, v, "input", sequence)
 RejectWrongGrant(a, v) == /\ WithControl /\ Routable(a, v) /\ UNCHANGED vars
 RejectOldGrant(a, v) ==
   /\ WithControl /\ Routable(a, v) /\ ActiveGrant(v)
@@ -203,9 +214,7 @@ RejectStaleSequence(a, v) ==
   /\ UNCHANGED vars
 CommitControl(a) ==
   /\ s.live[a] /\ s.phase[a] = "control" /\ Current(V(a)) /\ s.grants[G(a)].state = "active"
-  /\ s' = [s EXCEPT !.phase[a] = "control-committed",
-       !.inputEffects[s.viewers[V(a)].target] = IF s.flight[a].kind = "input" THEN @+1 ELSE @,
-       !.geometry[s.viewers[V(a)].target] = IF s.flight[a].kind = "resize" THEN s.flight[a].sequence ELSE @]
+  /\ s' = [s EXCEPT !.phase[a] = "control-committed"]
 CompleteControl(a) == /\ s.live[a] /\ s.phase[a] = "control-committed" /\ s' = [s EXCEPT !.phase[a] = "idle", !.flight[a] = NoFlight]
 ControlBusyConsumesSequence(a) ==
   /\ s.live[a] /\ s.phase[a] = "control"
@@ -216,7 +225,7 @@ ControlOutcomeUnknown(a) ==
 
 DisposeTarget(target) ==
   /\ Scenario = "cleanup" /\ target \in Targets /\ target \notin s.disposed
-  /\ s' = [s EXCEPT !.disposed = @ \cup {target}, !.terminalAlive[target] = FALSE,
+  /\ s' = [s EXCEPT !.disposed = @ \cup {target},
        !.workerOwned = {v \in s.workerOwned: s.viewers[v].target # target},
        !.grants = [g \in Grants |-> IF s.grants[g].target = target /\ s.grants[g].state \in GrantHeld
          THEN [s.grants[g] EXCEPT !.state = "closing"] ELSE s.grants[g]]]
@@ -225,37 +234,48 @@ ReplaceWorker ==
   /\ s' = [s EXCEPT !.workerGeneration = 2, !.workerOwned = {},
        !.grants = [g \in Grants |-> IF s.grants[g].state \in GrantHeld
          THEN [s.grants[g] EXCEPT !.state = "closing"] ELSE s.grants[g]]]
-DropSession(a) ==
+DropSessionCore(a) ==
   /\ s.live[a]
   /\ s' = [s EXCEPT !.live[a] = FALSE, !.phase[a] = "dead", !.flight[a] = NoFlight,
        !.viewers = [v \in Viewers |-> IF s.viewers[v].owner = a /\ s.viewers[v].state \in Registered
-         THEN [s.viewers[v] EXCEPT !.state = IF v \in s.possibleOwned THEN "closing" ELSE "retired"] ELSE s.viewers[v]],
+         THEN [s.viewers[v] EXCEPT !.state = IF PossibleViewer(v) THEN "closing" ELSE "retired"] ELSE s.viewers[v]],
        !.pending = [v \in Viewers |-> IF s.viewers[v].owner = a THEN NoFrame ELSE s.pending[v]],
        !.baseline = [v \in Viewers |-> IF s.viewers[v].owner = a THEN FALSE ELSE s.baseline[v]],
        !.frameSequence = [v \in Viewers |-> IF s.viewers[v].owner = a THEN 0 ELSE s.frameSequence[v]],
-       !.polled = [v \in Viewers |-> IF s.viewers[v].owner = a THEN 0 ELSE s.polled[v]],
        !.grants = [g \in Grants |-> IF s.grants[g].owner = a /\ s.grants[g].state \in GrantHeld
          THEN [s.grants[g] EXCEPT !.state = "closing"] ELSE s.grants[g]]]
-LoseAttachPublication(a) == /\ s.phase[a] = "attach-published" /\ DropSession(a)
-CarrierCorrelationFailure(a) == /\ s.phase[a] # "idle" /\ DropSession(a)
-DropMultipleViewers(a) == /\ SessionCount(a) = 2 /\ DropSession(a)
-ExpireFlight(a) == /\ s.phase[a] \notin {"idle", "dead"} /\ DropSession(a)
+NextDropBranch(a) ==
+  IF SessionCount(a) = 2 THEN "multiple"
+  ELSE IF s.phase[a] = "attach-published" THEN "publication"
+  ELSE IF s.phase[a] \in {"acquire", "control", "control-committed"} THEN "carrier"
+  ELSE IF s.phase[a] \in {"attach-admitted", "attach-issued", "attach-acknowledged"} THEN "flight"
+  ELSE "ordinary"
+DropSession(a) == /\ NextDropBranch(a) = "ordinary" /\ DropSessionCore(a)
+LoseAttachPublication(a) ==
+  /\ NextDropBranch(a) = "publication" /\ DropSessionCore(a)
+CarrierCorrelationFailure(a) ==
+  /\ NextDropBranch(a) = "carrier" /\ DropSessionCore(a)
+DropMultipleViewers(a) ==
+  /\ NextDropBranch(a) = "multiple" /\ DropSessionCore(a)
+ExpireFlight(a) ==
+  /\ NextDropBranch(a) = "flight" /\ DropSessionCore(a)
+ExpireFlightFair(a) ==
+  /\ s.phase[a] \notin {"idle", "dead"} /\ DropSessionCore(a)
 CleanupController(g) ==
   /\ g \in Grants /\ s.grants[g].state = "closing"
   /\ s.grants[g].generation = s.workerGeneration /\ s.grants[g].target \notin s.disposed
-  /\ s' = [s EXCEPT !.grants[g].state = "released", !.grantCleaned = @ \cup {g}]
+  /\ s' = [s EXCEPT !.grants[g].state = "released"]
 ForgetUnavailableController(g) ==
   /\ g \in Grants /\ s.grants[g].state = "closing"
   /\ (s.grants[g].generation # s.workerGeneration \/ s.grants[g].target \in s.disposed)
   /\ s' = [s EXCEPT !.grants[g].state = "released"]
 CleanupViewer(v) ==
   /\ v \in Viewers /\ s.viewers[v].state = "closing" /\ GrantsOf(v) = {}
-  /\ v \in s.possibleOwned /\ Current(v)
-  /\ s' = [s EXCEPT !.viewers[v].state = "retired", !.workerOwned = @ \ {v},
-       !.possibleOwned = @ \ {v}, !.viewerCleaned = @ \cup {v}]
+  /\ Current(v)
+  /\ s' = [s EXCEPT !.viewers[v].state = "retired", !.workerOwned = @ \ {v}]
 ForgetUnavailableViewer(v) ==
   /\ v \in Viewers /\ s.viewers[v].state = "closing" /\ GrantsOf(v) = {} /\ ~Current(v)
-  /\ s' = [s EXCEPT !.viewers[v].state = "retired", !.workerOwned = @ \ {v}, !.possibleOwned = @ \ {v}]
+  /\ s' = [s EXCEPT !.viewers[v].state = "retired", !.workerOwned = @ \ {v}]
 DisposedCleanupSkipsWorker(v) ==
   /\ v \in Viewers /\ s.viewers[v].target \in s.disposed /\ ForgetUnavailableViewer(v)
 StaleCleanupNeverUsesReplacement(v) ==
@@ -295,7 +315,7 @@ Next ==
 \* a cleanup response eventually arrives or the pinned dependency is unavailable;
 \* no fairness is asserted for Client polling, input or scheduling among Viewers.
 Spec == Init /\ [][Next]_vars /\ WF_vars(CleanupAny)
-  /\ (\A a \in Sessions: WF_vars(ExpireFlight(a)))
+  /\ (\A a \in Sessions: WF_vars(ExpireFlightFair(a)))
 
 TypeOK ==
   /\ s.live \in [Sessions -> BOOLEAN]
@@ -307,13 +327,11 @@ TypeOK ==
   /\ s.grants \in [Grants -> [owner : Sessions \cup {"none"}, viewer : 0..3, target : Targets \cup {"none"}, generation : 0..1,
        state : GrantHeld \cup {"unused", "released"}, sequence : 0..2]]
   /\ s.cursor \in 0..3 /\ s.grantCursor \in 0..3 /\ s.workerGeneration \in 1..2
-  /\ s.workerOwned \subseteq Viewers /\ s.possibleOwned \subseteq Viewers /\ s.attachSent \subseteq Viewers
-  /\ s.rejected \subseteq Viewers /\ s.disposed \subseteq Targets /\ s.terminalAlive \in [Targets -> BOOLEAN]
+  /\ s.workerOwned \subseteq Viewers
+  /\ s.disposed \subseteq Targets
   /\ s.pending \in [Viewers -> [viewer : 0..3, host : 0..1, sequence : 0..2, generation : 0..1, revision : 0..2,
        kind : {"none", "snapshot", "delta"}]]
-  /\ s.baseline \in [Viewers -> BOOLEAN] /\ s.frameSequence \in [Viewers -> 0..2] /\ s.polled \in [Viewers -> 0..2]
-  /\ s.inputEffects \in [Targets -> 0..6] /\ s.geometry \in [Targets -> 0..2]
-  /\ s.viewerCleaned \subseteq Viewers /\ s.grantCleaned \subseteq Grants /\ s.starts = 0
+  /\ s.baseline \in [Viewers -> BOOLEAN] /\ s.frameSequence \in [Viewers -> 0..2]
 SeparateCapacityBounds == /\ \A a \in Sessions: SessionCount(a) <= SessionLimit
   /\ Cardinality(s.workerOwned) <= WorkerLimit
 UniqueLiveTargetPerSession == \A a \in Sessions, target \in Targets:
@@ -326,12 +344,16 @@ ExactGrantOwnership == \A g \in Grants: s.grants[g].state # "unused" =>
 ExactPendingFrame == \A v \in Viewers: s.pending[v] # NoFrame =>
   s.viewers[v].state = "active" /\ s.pending[v].viewer = v /\ s.pending[v].host = 1
   /\ s.pending[v].sequence = s.frameSequence[v] /\ s.baseline[v]
-CandidateOwnershipIsAccounted == s.workerOwned \subseteq s.possibleOwned /\ s.possibleOwned \subseteq s.attachSent
-RejectedAttachNeverOwnsCleanup == s.rejected \cap (s.possibleOwned \cup s.workerOwned \cup s.viewerCleaned) = {}
-NoViewerCleanupAheadOfController == \A v \in s.viewerCleaned: GrantsOf(v) = {}
+CandidateOwnershipIsAccounted ==
+  s.workerOwned \subseteq {v \in Viewers: PossibleViewer(v)}
+RejectedAttachNeverOwnsCleanup ==
+  \A v \in Viewers: s.viewers[v].state = "rejected" =>
+    v \notin s.workerOwned
+NoViewerCleanupAheadOfController ==
+  \A v \in Viewers: s.viewers[v].state \in {"retired", "rejected"} => GrantsOf(v) = {}
 DeadSessionHasNoRegisteredViewer == \A a \in Sessions: ~s.live[a] => SessionCount(a) = 0
 RetiredViewerHasNoFlight == \A v \in Viewers: s.viewers[v].state \in {"retired", "rejected"} =>
-  s.pending[v] = NoFrame /\ v \notin s.possibleOwned /\ v \notin s.workerOwned
+  s.pending[v] = NoFrame /\ v \notin s.workerOwned
 
 AttachAllocatesFreshIdentity == [][\A a \in Sessions, target \in Targets: AdmitAttach(a, target) =>
   s'.cursor = s.cursor+1 /\ s.viewers[s'.cursor] = NoViewer /\ s'.baseline[s'.cursor] = FALSE]_vars
@@ -344,7 +366,10 @@ ControlDispatchUsesExactOwner == [][\A a \in Sessions: CommitControl(a) =>
 LocalRequest(a, v) == DetachViewer(a, v) \/ PollRecord(a, v) \/ PollAwaitingFeedback(a, v)
   \/ FrameApplied(a, v) \/ NeedSnapshot(a, v) \/ RejectFeedbackMismatch(a, v) \/ RejectWrongRecordRoute(a, v)
   \/ ReserveController(a, v) \/ RejectControllerBusy(a, v) \/ RejectWrongGrant(a, v) \/ RejectStaleSequence(a, v)
-  \/ (\E kind \in {"input", "resize"}, sequence \in 1..MaxSequence: BeginControl(a, v, kind, sequence))
+  \/ (\E sequence \in 1..MaxSequence:
+       BeginInput(a, v, sequence) \/ BeginResize(a, v, sequence)
+         \/ AcceptSequenceGap(a, v, sequence)
+         \/ AcceptIndependentEqualSequence(a, v, sequence))
 TargetLocalRequestsPreserveSiblings == [][\A a \in Sessions, v \in Viewers:
   LocalRequest(a, v) => \A other \in Viewers \ {v}: Projection(other)' = Projection(other)]_vars
 LocalCompletion(a) == AcceptController(a) \/ RejectControllerAcquire(a) \/ UnknownControllerAcquire(a)
@@ -356,14 +381,16 @@ FreshBaselineRequiresSnapshot == [][\A a \in Sessions, v \in Viewers:
 FeedbackCountersDoNotChooseViewer == [][\A a \in Sessions, v \in Viewers:
   AcceptEqualCounterSiblingFeedback(a, v) => \A other \in Viewers \ {v}: s'.pending[other] = s.pending[other]]_vars
 LocalCapacityDoesNotDispatch == [][\A a \in Sessions: RejectSessionCapacity(a) =>
-  UNCHANGED <<s.cursor, s.attachSent, s.workerOwned, s.viewers>>]_vars
+  UNCHANGED <<s.cursor, s.workerOwned, s.viewers>>]_vars
 WorkerCapacityRejectsOnlyCandidate == [][\A a \in Sessions: RejectWorkerCapacity(a) =>
-  V(a) \in s.attachSent /\ V(a) \in s'.rejected /\ UNCHANGED s.workerOwned]_vars
+  s'.viewers[V(a)].state = "rejected"
+    /\ UNCHANGED s.workerOwned]_vars
 CleanupUsesExactPinnedOwnership == [][\A v \in Viewers: CleanupViewer(v) =>
-  v \in s.possibleOwned /\ Current(v) /\ GrantsOf(v) = {}]_vars
+  Current(v) /\ GrantsOf(v) = {}]_vars
 DisposalAndStaleCleanupEmitNoWorkerRequest == [][\A v \in Viewers: ForgetUnavailableViewer(v) =>
-  UNCHANGED <<s.viewerCleaned, s.grantCleaned>>]_vars
-OnlyExternalDisposalEndsTerminal == [][s'.terminalAlive # s.terminalAlive => \E target \in Targets: DisposeTarget(target)]_vars
+  UNCHANGED <<s.workerOwned, s.grants>>]_vars
+OnlyExternalDisposalEndsTerminal == [][s'.disposed # s.disposed =>
+  \E target \in Targets: DisposeTarget(target)]_vars
 DisposedProofNeverRegresses == [][s.disposed \subseteq s'.disposed]_vars
 ReleasedGrantNeverRevives == [][\A g \in Grants: s.grants[g].state = "released" => s'.grants[g].state = "released"]_vars
 ClosingEventuallyRetires == \A v \in Viewers: (s.viewers[v].state = "closing") ~> (s.viewers[v].state = "retired")

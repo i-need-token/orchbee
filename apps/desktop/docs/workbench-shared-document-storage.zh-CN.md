@@ -101,7 +101,7 @@ Desktop 不会将 `WorkbenchClientView` 写入此文件或浏览器键值存储�
 
 | 声明                                                 | 证据                                                                             | 限制                                                                |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| 仅下一个 CAS 更改存储的修订版本                      | `DesktopWorkbenchDocumentStore.tla` 和确定性核心测试                             | TLC 检查两个提交者，以及缺失到 `2` 为止的修订                               |
+| 仅下一个 CAS 更改存储的修订版本                      | `DesktopWorkbenchDocumentStore.tla` 和确定性核心测试                             | TLC 检查两个提交者，以及缺失到 `2` 为止的修订                       |
 | 已 dispose 的 queued work 在 storage 前被 suppress   | `DesktopWorkbenchDocumentStore.tla` 与 session queue regression                  | 两个 renderer generation、每个一个 request；已 accepted work 可完成 |
 | 无效/当前不可用状态永远不会被覆盖                    | 文件存储损坏和注入故障测试                                                       | 选定的文件系统故障                                                  |
 | v1 migration 单向且 v2-present 权威                  | `WorkbenchDocumentPlacementMigration.tla` 与 migration test                      | 精确 v1；TLA+ 仅覆盖成功的精确 rename 后 reload                     |

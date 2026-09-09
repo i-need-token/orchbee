@@ -496,6 +496,11 @@ Required executable checks and their limits:
   Existing Authority is a one-retained-terminal abstraction; Relay has one projection/flight per
   Session and a consecutive-sequence subdomain; Selection covers target resolution/Worker pinning.
   Those models do not independently establish multiple viewers or multi-entry disposal cleanup.
+  Its three registered variants use three viewer identities for routing capacity/refusal coverage,
+  and two for control and cleanup composition; these are exhaustive exploration bounds, not the
+  runtime registry limit of eight. Settled flights and cleanup evidence that can be derived from
+  current viewer/grant state are normalized rather than retained as history-only sets, without
+  weakening exact cleanup or liveness checks.
 - `viewer_session/tests/stateful.rs` executes real `LocalTerminalSession` and service code with a
   controlled fake Worker against an independent `(session, viewer, target)` oracle. The merge corpus
   uses seeds 1 through 64 and at most 128 actions each, explicit scheduling and versioned parsed
