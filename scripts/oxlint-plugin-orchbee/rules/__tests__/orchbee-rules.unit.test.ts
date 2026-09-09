@@ -1406,17 +1406,42 @@ describe('zustand-scope', () => {
 });
 
 describe('require-unit-test', () => {
-	it('requires a sibling test for a top-level arrow function in a TS module', () => {
+	it.each([
+		'FunctionDeclaration',
+		'ClassDeclaration',
+		'ArrowFunctionExpression',
+		'FunctionExpression',
+		'ClassExpression',
+	])('requires a sibling test for a top-level %s in a TS module', (type) => {
 		const { context, reports } = createContext('/workspace/packages/core/src/session-service.ts');
 		const program = { type: 'Program' };
 		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
 		const variableDeclaration = { type: 'VariableDeclaration', parent: exportDeclaration };
-		requireUnitTest.create(context).VariableDeclarator({
-			parent: variableDeclaration,
-			init: { type: 'ArrowFunctionExpression' },
-			id: { loc: LOCATION },
-		});
-		expect(reports[0]?.message).toContain('session-service.unit.test.ts');
+		const visitors = requireUnitTest.create(context);
+		if (type === 'FunctionDeclaration') {
+			visitors.FunctionDeclaration({ type, parent: exportDeclaration, id: { loc: LOCATION } });
+		} else if (type === 'ClassDeclaration') {
+			visitors.ClassDeclaration({ type, parent: exportDeclaration, id: { loc: LOCATION } });
+		} else {
+			visitors.VariableDeclarator({
+				parent: variableDeclaration,
+				init: { type },
+				id: { loc: LOCATION },
+			});
+		}
+		expect(reports).toHaveLength(1);
+		expect(reports[0]?.message).toBe(
+			'Add "__tests__/session-service.unit.test.ts" next to this source file; functions and classes require a sibling unit test. See docs/TESTING.md#required-unit-tests.',
+		);
+	});
+
+	it('accepts a source file with its existing sibling unit test', () => {
+		const root = createFixture();
+		const filename = writeFixture(root, 'src/session-service.ts');
+		writeFixture(root, 'src/__tests__/session-service.unit.test.ts');
+		const { context, reports } = createContext(filename);
+		expect(requireUnitTest.create(context)).toEqual({});
+		expect(reports).toEqual([]);
 	});
 
 	it('does not require sibling tests for TSX components', () => {

@@ -114,6 +114,10 @@ flight; a second distinct request receives `busy` and changes no state.
 
 ## State and transitions
 
+Catalog reads admit only regular files. POSIX opens are nonblocking so a FIFO without a writer
+reaches the same-handle file-type check and returns `invalid-record` instead of waiting for a peer.
+This does not impose a deadline on arbitrary filesystem I/O or change symbolic-link handling.
+
 ```text
 uninitialized
   └── load ──> ready(built-in, no issue)       when missing

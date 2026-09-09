@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { constants } from 'node:fs';
 import { chmod, mkdir, open, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -83,7 +84,7 @@ export class FileTerminalLaunchProfileStore implements TerminalLaunchProfileStor
 async function readCatalogFile(filePath: string): Promise<TerminalLaunchProfileStoreLoadResult> {
 	let handle: Awaited<ReturnType<typeof open>>;
 	try {
-		handle = await open(filePath, 'r');
+		handle = await open(filePath, constants.O_RDONLY | constants.O_NONBLOCK);
 	} catch (error: unknown) {
 		if (isNodeError(error) && error.code === 'ENOENT') return { kind: 'missing' };
 		return { kind: 'unavailable', reason: 'read-failed' };

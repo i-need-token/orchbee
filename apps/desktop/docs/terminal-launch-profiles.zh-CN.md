@@ -81,6 +81,8 @@ TerminalLaunchProfileCatalog (version 1)
 
 ## 状态和转换
 
+目录读取只接纳普通文件。POSIX 使用非阻塞打开，使没有写入端的 FIFO 也能进入同一句柄的文件类型检查，并返回 `invalid-record`，而不是等待另一端。此约束不为任意文件系统 I/O 设定截止时间，也不改变符号链接处理方式。
+
 ```text
 uninitialized
   └── load ──> ready(built-in, no issue)       when missing

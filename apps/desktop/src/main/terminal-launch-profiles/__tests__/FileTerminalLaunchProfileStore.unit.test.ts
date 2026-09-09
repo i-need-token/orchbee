@@ -1,4 +1,6 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { constants } from 'node:fs';
+import { mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -49,6 +51,34 @@ describe('FileTerminalLaunchProfileStore', () => {
 
 		await expect(store.load()).resolves.toEqual({ kind: 'unavailable', reason: 'invalid-record' });
 	});
+
+	it.skipIf(process.platform === 'win32')(
+		'rejects a FIFO catalog without waiting for a writer',
+		async () => {
+			const filePath = await temporaryFilePath();
+			execFileSync('mkfifo', [filePath]);
+			const pending = new FileTerminalLaunchProfileStore(filePath).load();
+			let guard: ReturnType<typeof setTimeout> | undefined;
+			try {
+				const result = await Promise.race([
+					pending,
+					new Promise<null>((resolve) => {
+						guard = setTimeout(() => resolve(null), 1000);
+					}),
+				]);
+				expect(result).toEqual({ kind: 'unavailable', reason: 'invalid-record' });
+			} finally {
+				clearTimeout(guard);
+				// Release an incorrectly blocked reader even when the regression assertion fails.
+				const peer = await open(filePath, constants.O_RDWR | constants.O_NONBLOCK);
+				try {
+					await pending;
+				} finally {
+					await peer.close();
+				}
+			}
+		},
+	);
 
 	it('preserves the previous file when atomic replacement cannot create its temporary file', async () => {
 		const filePath = await temporaryFilePath();
