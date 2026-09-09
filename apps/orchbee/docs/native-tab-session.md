@@ -841,7 +841,10 @@ the complete projection, including order and labels. At greater revision, each o
 exactly once anywhere with exact Panel/Presentation identities, shape, binding, terminal-state
 constraints and `Presentation.label`; only `Tab.label` and order may differ. New members pass the
 complete schema/strict projector and structural identity uniqueness. Removal, duplicate ID or any
-other immutable-member change is divergence. At most 256 Tabs need only exact scans, no stored map.
+other immutable-member change is divergence. A higher-revision peer refresh may additionally add
+exactly one server-created leaf by wrapping one retained leaf in one new split; every retained
+panel, binding, tree edge, slot and split remains exact, and replacement or reshaping is divergence.
+At most 256 Tabs need only exact scans, no stored map.
 
 `CreatedTabExpectation` is projection-owned and carries only the six canonical facts needed for
 pure validation. The session state embeds or constructs it; request identity, terminal provenance,

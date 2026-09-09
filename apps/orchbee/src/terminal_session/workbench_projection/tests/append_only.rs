@@ -42,6 +42,68 @@ fn canonical_refresh_accepts_identical_revision_advances_and_ordered_extensions(
 }
 
 #[test]
+fn canonical_refresh_accepts_one_exact_panel_split_extension() {
+    let mut current_snapshot = snapshot(3, 10);
+    current_snapshot.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: panel(30, 31, 32, 33, "left"),
+                slot_id: slot_id(34),
+            },
+            PanelSlot {
+                node: panel(35, 36, 37, 38, "right"),
+                slot_id: slot_id(39),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: split_id(40),
+    };
+    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+
+    let mut candidate_snapshot = current_snapshot;
+    candidate_snapshot.revision = WorkbenchRevision::new(11);
+    let old_root = candidate_snapshot.terminal_contexts[0].tabs[1].root.clone();
+    let PanelNode::Split {
+        children,
+        orientation,
+        split_id: old_split_id,
+    } = old_root
+    else {
+        panic!("the baseline fixture must contain a split root");
+    };
+    let [old_first, old_second] = *children;
+    candidate_snapshot.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: PanelNode::Split {
+                    children: Box::new([
+                        PanelSlot {
+                            node: panel(50, 51, 52, 53, "new"),
+                            slot_id: slot_id(54),
+                        },
+                        PanelSlot {
+                            node: old_first.node,
+                            slot_id: slot_id(55),
+                        },
+                    ]),
+                    orientation: PanelOrientation::Vertical,
+                    split_id: split_id(56),
+                },
+                slot_id: old_first.slot_id,
+            },
+            old_second,
+        ]),
+        orientation,
+        split_id: old_split_id,
+    };
+    let candidate = project_native_standalone_tabs(&candidate_snapshot).unwrap();
+    assert_eq!(
+        validate_canonical_refresh(&current, candidate.clone()),
+        Ok(candidate)
+    );
+}
+
+#[test]
 fn canonical_refresh_checks_every_cache_length_through_the_protocol_bound() {
     for current_tab_count in 0..=MAXIMUM_TABS_PER_CONTEXT {
         let current = projected(current_tab_count, 1);

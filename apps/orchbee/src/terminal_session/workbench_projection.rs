@@ -771,6 +771,7 @@ pub(super) fn validate_retained_context(
                     || current.presentation_id == candidate.presentation_id
                     || current.binding.terminal_id == candidate.binding.terminal_id)
                     && !stable_member_except_tab_label(current, candidate)
+                    && !panel_split_extension(current, candidate)
             })
         })
     {
@@ -840,6 +841,103 @@ fn stable_member_except_tab_label(current: &NativeSimpleTab, candidate: &NativeS
         && current.binding == candidate.binding
         && current.panels == candidate.panels
         && current.tree == candidate.tree
+}
+
+fn panel_split_extension(current: &NativeSimpleTab, candidate: &NativeSimpleTab) -> bool {
+    if current.tab_id != candidate.tab_id
+        || candidate.panels.len() != current.panels.len() + 1
+        || !current
+            .panels
+            .iter()
+            .all(|panel| candidate.panels.iter().any(|other| other == panel))
+        || candidate
+            .panels
+            .iter()
+            .filter(|panel| !current.panels.iter().any(|other| other == *panel))
+            .count()
+            != 1
+    {
+        return false;
+    }
+    split_tree_extension(
+        &current.tree,
+        &candidate.tree,
+        &current.panels,
+        &candidate.panels,
+    )
+}
+
+fn split_tree_extension(
+    current: &NativePanelTree,
+    candidate: &NativePanelTree,
+    current_panels: &[NativePanel],
+    candidate_panels: &[NativePanel],
+) -> bool {
+    match (current, candidate) {
+        (
+            NativePanelTree::Panel {
+                panel_index: current_index,
+            },
+            NativePanelTree::Split { first, second, .. },
+        ) => {
+            let old_matches = |node: &NativePanelTree| {
+                matches!(
+                    node,
+                    NativePanelTree::Panel {
+                        panel_index: candidate_index,
+                    } if current_panels.get(*current_index) == candidate_panels.get(*candidate_index)
+                )
+            };
+            let new_leaf = |node: &NativePanelTree| {
+                matches!(
+                    node,
+                    NativePanelTree::Panel {
+                        panel_index: candidate_index,
+                    } if candidate_panels
+                        .get(*candidate_index)
+                        .is_some_and(|candidate| {
+                            !current_panels.iter().any(|current| current == candidate)
+                        })
+                )
+            };
+            (old_matches(first) && new_leaf(second)) || (old_matches(second) && new_leaf(first))
+        }
+        (
+            NativePanelTree::Split {
+                first: current_first,
+                second: current_second,
+                first_slot_id: current_first_slot,
+                second_slot_id: current_second_slot,
+                orientation: current_orientation,
+                split_id: current_split_id,
+            },
+            NativePanelTree::Split {
+                first: candidate_first,
+                second: candidate_second,
+                first_slot_id: candidate_first_slot,
+                second_slot_id: candidate_second_slot,
+                orientation: candidate_orientation,
+                split_id: candidate_split_id,
+            },
+        ) if current_first_slot == candidate_first_slot
+            && current_second_slot == candidate_second_slot
+            && current_orientation == candidate_orientation
+            && current_split_id == candidate_split_id =>
+        {
+            split_tree_extension(
+                current_first,
+                candidate_first,
+                current_panels,
+                candidate_panels,
+            ) ^ split_tree_extension(
+                current_second,
+                candidate_second,
+                current_panels,
+                candidate_panels,
+            )
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
