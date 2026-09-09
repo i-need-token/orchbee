@@ -28,6 +28,7 @@ fn an_oblc_admitted_session_with_read_only_policy_cannot_mutate_or_discover_ledg
         WorkbenchPolicy {
             read: true,
             manage_navigation: false,
+            associate_directory: false,
             create_terminal: false,
             manage_terminal_lifecycle: false,
         },

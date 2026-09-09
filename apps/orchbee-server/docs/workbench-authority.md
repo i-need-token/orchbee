@@ -203,7 +203,9 @@ The native Server owns one canonical Workbench state per local Site. The first n
 transition group creates and renames Projects and Workspaces. Creating a Workspace creates exactly
 one empty Terminal Context; it does not launch a terminal, create a directory, or select a Worker.
 The first standalone Open also commits shared Tab/Panel/Presentation membership and logical terminal
-binding before launch, as defined below. Local `tab.create` appends another simple standalone Tab
+binding before launch, as defined below. The [Workspace directory contract](workspace-terminal-directory.md)
+adds explicit, independently authorized directory association after Worker validation. Local
+`tab.create` appends a simple standalone or configured Workspace Tab
 with the same joint membership/terminal-intent boundary and exact pending/final replay. Pure
 `tab.rename` changes only the canonical Tab label; `tab.move` changes its canonical position.
 Both may run while that completion is pending. Other
@@ -218,8 +220,9 @@ The language-neutral request/result authority is
 [the Workbench contract](../../../schemas/workbench/README.md). Workbench uses its own OBWP carrier
 on the same admitted local connection; OBCS remains the terminal-only contract. Same-user OBLC
 admission precedes either protocol. The Server then selects an explicit Site-scoped Workbench grant.
-Development composition grants snapshot reading and the five pure Workbench operations; standalone
-`tab.create` also requires the explicit terminal-create grant. For externally submitted OBWP reads and commands, the
+Development composition grants snapshot reading and the five pure Workbench operations;
+`tab.create` also requires the explicit terminal-create grant. Directory association requires navigation
+and its independent directory-association grant. For externally submitted OBWP reads and commands, the
 authority checks that grant before any state read or ledger lookup. Read-only and denied policies
 remain representable. An absent or wrong-Site grant returns typed denied without state, revision,
 identity or ledger disclosure; a grant never comes from wire input. Clients submit semantic operations and expected revisions;

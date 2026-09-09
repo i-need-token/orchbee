@@ -5,9 +5,9 @@ use std::{
 
 use crate::{
     identity::{
-        TerminalId, TerminalPresentationId, WorkbenchPanelId, WorkbenchPanelSlotId,
-        WorkbenchSplitId, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId,
-        WorkbenchWorkspaceId,
+        TerminalId, TerminalPresentationId, WorkbenchDirectoryId, WorkbenchPanelId,
+        WorkbenchPanelSlotId, WorkbenchSplitId, WorkbenchTabGroupId, WorkbenchTabId,
+        WorkbenchTerminalContextId, WorkbenchWorkspaceId,
     },
     model::{
         Delta, DeltaChange, DeltaRejectionReason, Navigation, PanelNode, Presentation, Snapshot,
@@ -19,6 +19,7 @@ pub const MAXIMUM_ENCODED_INTENT_BYTES: usize = 16 * 1024;
 pub const MAXIMUM_ENCODED_PROJECTION_BYTES: usize = 1024 * 1024;
 pub const MAXIMUM_LABEL_LENGTH: usize = 512;
 pub const MAXIMUM_PROJECTS: usize = 256;
+pub const MAXIMUM_DIRECTORIES_PER_PROJECT: usize = 256;
 pub const MAXIMUM_WORKSPACES_PER_PROJECT: usize = 256;
 pub const MAXIMUM_TERMINAL_CONTEXTS: usize = 1024;
 pub const MAXIMUM_TAB_GROUPS_PER_CONTEXT: usize = 64;
@@ -210,12 +211,28 @@ pub(crate) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), ContractError
     }
 
     let mut workspace_ids = HashSet::<WorkbenchWorkspaceId>::new();
+    let mut directory_ids = HashSet::<WorkbenchDirectoryId>::new();
     let mut referenced_context_counts = HashMap::<WorkbenchTerminalContextId, usize>::new();
     increment_reference(
         &mut referenced_context_counts,
         snapshot.navigation.standalone_terminal_context_id.clone(),
     );
     for project in &snapshot.navigation.projects {
+        if !strictly_ordered_by(&project.directories, |directory| &directory.directory_id) {
+            return Err(ContractError::InvalidDocument);
+        }
+        let project_directory_ids = project
+            .directories
+            .iter()
+            .map(|directory| directory.directory_id.clone())
+            .collect::<HashSet<_>>();
+        if project_directory_ids.len() != project.directories.len()
+            || !project_directory_ids
+                .iter()
+                .all(|directory_id| directory_ids.insert(directory_id.clone()))
+        {
+            return Err(ContractError::InvalidDocument);
+        }
         if !strictly_ordered_by(&project.workspaces, |workspace| &workspace.workspace_id) {
             return Err(ContractError::InvalidDocument);
         }
@@ -227,6 +244,13 @@ pub(crate) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), ContractError
                 &mut referenced_context_counts,
                 workspace.terminal_context_id.clone(),
             );
+            if workspace
+                .primary_directory_id
+                .as_ref()
+                .is_some_and(|directory_id| !project_directory_ids.contains(directory_id))
+            {
+                return Err(ContractError::InvalidDocument);
+            }
         }
     }
 
@@ -281,6 +305,9 @@ fn validate_navigation_structure(navigation: &Navigation) -> Result<(), Validati
     }
     for project in &navigation.projects {
         validate_label(&project.label)?;
+        if project.directories.len() > MAXIMUM_DIRECTORIES_PER_PROJECT {
+            return Err(ValidationError);
+        }
         if project.workspaces.len() > MAXIMUM_WORKSPACES_PER_PROJECT {
             return Err(ValidationError);
         }

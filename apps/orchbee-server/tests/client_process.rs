@@ -46,6 +46,9 @@ mod tab_create;
 #[path = "client_process/workbench.rs"]
 mod workbench;
 
+#[path = "client_process/workspace_directory.rs"]
+mod workspace_directory;
+
 #[test]
 fn rejects_invalid_client_endpoint_invocations_without_output() -> TestResult {
     let directory = TestDirectory::new("invalid-client-endpoint")?;

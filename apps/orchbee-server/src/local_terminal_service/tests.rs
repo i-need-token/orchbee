@@ -148,6 +148,7 @@ fn close_site_lookup_returns_unavailable_for_missing_or_poisoned_site_owner() {
                 WorkbenchPolicy {
                     read: allowed,
                     manage_navigation: true,
+                    associate_directory: false,
                     create_terminal: true,
                     manage_terminal_lifecycle: allowed,
                 },

@@ -12,6 +12,8 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES,
 	WORKBENCH_PROTOCOL_VERSION,
+	WorkbenchDirectoryIdSchema,
+	WorkbenchDirectoryPathSchema,
 	WorkbenchLabelSchema,
 	WorkbenchPanelIdSchema,
 	WorkbenchProjectIdSchema,
@@ -23,6 +25,7 @@ import {
 	WorkbenchTerminalContextIdSchema,
 	WorkbenchWorkspaceIdSchema,
 	TerminalPresentationIdSchema,
+	WorkerIdSchema,
 } from './workbench-semantic-contract';
 
 export const WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES =
@@ -97,6 +100,14 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('workspace.primary-directory.accept'),
+			projectId: WorkbenchProjectIdSchema,
+			workspaceId: WorkbenchWorkspaceIdSchema,
+			path: WorkbenchDirectoryPathSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('tab.rename'),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			tabId: WorkbenchTabIdSchema,
@@ -153,6 +164,8 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'revision-mismatch',
 	'project-unavailable',
 	'workspace-unavailable',
+	'workspace-directory-unavailable',
+	'workspace-directory-conflict',
 	'terminal-context-unavailable',
 	'tab-unavailable',
 	'resource-limit',
@@ -168,6 +181,7 @@ export const WorkbenchCommandUnavailableReasonSchema = z.enum([
 	'terminal-runtime-unavailable',
 	'server-busy',
 	'service-unavailable',
+	'directory-unavailable',
 ]);
 export const WorkbenchSnapshotUnavailableReasonSchema = z.enum(['service-unavailable']);
 export const WorkbenchTerminalUnavailableReasonSchema = z.enum([
@@ -219,6 +233,14 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 			revision: WorkbenchRevisionSchema,
 			workspaceId: WorkbenchWorkspaceIdSchema,
 			terminalContextId: WorkbenchTerminalContextIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace-primary-directory-accepted'),
+			revision: WorkbenchRevisionSchema,
+			directoryId: WorkbenchDirectoryIdSchema,
+			workerId: WorkerIdSchema,
 		})
 		.readonly(),
 	z.strictObject({ kind: z.literal('renamed'), revision: WorkbenchRevisionSchema }).readonly(),

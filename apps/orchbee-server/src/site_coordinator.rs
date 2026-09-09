@@ -20,9 +20,10 @@ pub(crate) use standalone::PreparedOpen;
 mod tab_close;
 mod tab_create;
 #[cfg(test)]
-pub(crate) use tab_create::PendingStandaloneTabCreate;
+pub(crate) use tab_create::PendingTerminalTabCreate;
 pub(crate) use tab_create::{PostcommitCoordinationError, PreparedTerminalTabCreate};
 mod terminal_selection;
+mod workspace_directory;
 pub(crate) use terminal_selection::{BindingViewerPreparationError, PreparedBindingViewer};
 mod target_lifecycle;
 pub(crate) use target_lifecycle::TargetLifecycle;

@@ -69,6 +69,11 @@ boundaries belong to the [native Tab guide](../../apps/orchbee/README.md#native-
 Native Close-to-Empty, manual Create and retained-shell reentry also have bounded Linux process
 evidence in that guide. The remaining Workbench operations still require their own delivery slices.
 
+The [Workspace directory slice](../../apps/orchbee-server/docs/workspace-terminal-directory.md)
+adds Project-owned Directories, an explicit first association after Worker validation, and Workspace
+Tab creation using the accepted directory and exact Worker. Its consumer boundary is the local
+Server protocol; Workspace navigation and directory selection in TUI/Desktop remain separate work.
+
 This milestone is additive and unshipped. It does not prove production restart recovery, remote
 access, or migration of the existing Desktop. In particular, its accepted `RecoveryRequired`
 behavior for unmatched retained Host inventory is a development boundary, not the production
@@ -108,6 +113,11 @@ suggestion, but neither Project nor Workspace identity is a prerequisite for ter
 an independent source of Worker placement. The accepted relationship does not yet define a durable
 schema, migration, cross-machine source-transfer policy, or whether `Directory` is renamed or
 adapted internally; those decisions require a bounded Workbench proposal.
+
+The accepted local [directory contract](../../apps/orchbee-server/docs/workspace-terminal-directory.md)
+now chooses a Project-owned Directory and nullable Workspace primary reference for the unpublished
+in-memory native cohort. This closes that local representation and first-association decision;
+durable schema migration, general Directory CRUD and cross-machine transfer remain outside it.
 
 The accepted native refinement in
 [`native-runtime-topology.md`](native-runtime-topology.md) supersedes the former rule that every

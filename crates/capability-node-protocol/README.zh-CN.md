@@ -1,11 +1,10 @@
 # Capability Node Protocol
 
-这是 Orchbee Server 与 Capability Node 之间 authorized terminal operation 的私有实验性 Rust
-semantic contract。首个 Capability Node 是 Worker，但本 crate 不会把 message 绑定到本机 socket
-或任何其他 carrier。本机 Server adapter 现在会在 application-private post-OBLS carrier 中消费其
-codec。本机 Server coordinator 现在通过该 carrier 向 Worker Host 执行循环提交
-获授权的 Create/Start。它不是
-public API 或 compatibility promise。
+这是 Orchbee Server 与 Capability Node 之间 authorized terminal operation 及有界目录观察的
+私有实验性 Rust semantic contract。首个 Capability Node 是 Worker，但本 crate 不会把 message
+绑定到本机 socket 或任何其他 carrier。本机 Server adapter 现在会在 application-private
+post-OBLS carrier 中消费其 codec。本机 Server coordinator 通过该 carrier 提交获授权的
+Create/Start 与绑定代次的 cwd validation。它不是 public API 或 compatibility promise。
 
 英文规范原文：
 [README.md](README.md)。
@@ -87,6 +86,25 @@ Launch 拒绝 tag 9 和 Start 拒绝 tag 10 添加 `LifecycleActive`。精确原
 或 Host 失败观察。Server 将其映射到既有 terminal-runtime-unavailable 结果。生命周期
 变更 Unknown 在跨尝试间保持；新 lease 或更高尝试代次都不授权再次变更。库存表示本身
 不创建针对 Unknown 的 Server 对账或 Resume 路径。
+
+## Terminal cwd validation 消息
+
+OBCN kind 11 `TerminalCwdValidationRequest` 和 kind 12 `TerminalCwdValidationResult` 在既有
+串行 Server-Worker carrier 上承载一次绑定 Worker 代次的只读目录观察。请求依次包含操作 ID
+（16 字节）、Worker ID（16 字节）、正 Worker 代次（`u64`）、cwd 字节长度（`u16`）以及一个
+必需的 `AbsoluteCwd`。结果回显完整请求，再添加一个 outcome tag：1
+`DirectoryAvailable`、2 `DirectoryUnavailable` 或 3 `WorkerUnavailable`。所有整数继续使用
+既有无符号大端编码。
+
+已接受的 [Workspace terminal directory 契约](../../apps/orchbee-server/docs/workspace-terminal-directory.zh-CN.md)
+拥有消费该观察的关联操作。
+
+Codec 校验非零身份和代次、绝对 UTF-8 cwd 的长度与原始拼写、精确 payload 长度以及封闭的
+outcome 集。它不访问文件系统、不解析符号链接、不创建目录、不授权关联，也不证明 Worker
+仍为当前代次。Worker 拥有时间点目录元数据观察；Server carrier 校验完整回显，并拥有既有
+有界队列、deadline 和连接丢失分类。该消息不含 terminal 身份、lease、Host 命令、launch
+authority 或持久 effect。Protocol、Worker 和 Server 在同一未发布本机 cohort 中共同启用
+kind 11 与 12。
 
 ## Framing 与 message
 

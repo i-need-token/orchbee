@@ -15,6 +15,7 @@ fn alternating_carriers_preserve_each_response_and_exact_record_boundaries() {
         WorkbenchPolicy {
             read: true,
             manage_navigation: true,
+            associate_directory: false,
             create_terminal: true,
             manage_terminal_lifecycle: false,
         },
@@ -64,6 +65,7 @@ fn a_stalled_large_snapshot_writer_releases_the_gate_before_another_session_read
         WorkbenchPolicy {
             read: true,
             manage_navigation: true,
+            associate_directory: false,
             create_terminal: true,
             manage_terminal_lifecycle: false,
         },

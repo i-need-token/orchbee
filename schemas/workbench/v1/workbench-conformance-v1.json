@@ -99,11 +99,19 @@
 			"navigation": {
 				"projects": [
 					{
+						"directories": [
+							{
+								"directoryId": "22222222222222222222222222222222",
+								"path": "/work/orchbee",
+								"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+							}
+						],
 						"label": "Orchbee",
 						"projectId": "44444444444444444444444444444444",
 						"workspaces": [
 							{
 								"label": "Main",
+								"primaryDirectoryId": "22222222222222222222222222222222",
 								"terminalContextId": "66666666666666666666666666666666",
 								"workspaceId": "55555555555555555555555555555555"
 							}
@@ -133,11 +141,19 @@
 			"navigation": {
 				"projects": [
 					{
+						"directories": [
+							{
+								"directoryId": "22222222222222222222222222222222",
+								"path": "/work/orchbee",
+								"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+							}
+						],
 						"label": "Orchbee",
 						"projectId": "44444444444444444444444444444444",
 						"workspaces": [
 							{
 								"label": "Main",
+								"primaryDirectoryId": "22222222222222222222222222222222",
 								"terminalContextId": "66666666666666666666666666666666",
 								"workspaceId": "55555555555555555555555555555555"
 							}
@@ -289,11 +305,19 @@
 					"navigation": {
 						"projects": [
 							{
+								"directories": [
+									{
+										"directoryId": "22222222222222222222222222222222",
+										"path": "/work/orchbee",
+										"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+									}
+								],
 								"label": "Orchbee",
 								"projectId": "44444444444444444444444444444444",
 								"workspaces": [
 									{
 										"label": "Main",
+										"primaryDirectoryId": "22222222222222222222222222222222",
 										"terminalContextId": "66666666666666666666666666666666",
 										"workspaceId": "55555555555555555555555555555555"
 									}
@@ -409,6 +433,65 @@
 	"invalidDocuments": [
 		{
 			"boundary": "schema",
+			"name": "project-missing-required-directories",
+			"value": {
+				"baseRevision": "1",
+				"changes": [
+					{
+						"kind": "navigation-replaced",
+						"navigation": {
+							"projects": [
+								{
+									"label": "Orchbee",
+									"projectId": "44444444444444444444444444444444",
+									"workspaces": []
+								}
+							],
+							"standaloneTerminalContextId": "33333333333333333333333333333333"
+						}
+					}
+				],
+				"kind": "workbench.delta",
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111"
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "workspace-missing-required-primary-directory",
+			"value": {
+				"baseRevision": "1",
+				"changes": [
+					{
+						"kind": "navigation-replaced",
+						"navigation": {
+							"projects": [
+								{
+									"directories": [],
+									"label": "Orchbee",
+									"projectId": "44444444444444444444444444444444",
+									"workspaces": [
+										{
+											"label": "Main",
+											"terminalContextId": "66666666666666666666666666666666",
+											"workspaceId": "55555555555555555555555555555555"
+										}
+									]
+								}
+							],
+							"standaloneTerminalContextId": "33333333333333333333333333333333"
+						}
+					}
+				],
+				"kind": "workbench.delta",
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111"
+			}
+		},
+		{
+			"boundary": "schema",
 			"name": "unknown-client-local-field",
 			"value": {
 				"activeTabId": "88888888888888888888888888888888",
@@ -437,12 +520,14 @@
 				"navigation": {
 					"projects": [
 						{
+							"directories": [],
 							"label": "Project",
 							"projectId": "44444444444444444444444444444444",
 							"workspaces": [
 								{
 									"environmentId": "99999999999999999999999999999999",
 									"label": "Main",
+									"primaryDirectoryId": null,
 									"terminalContextId": "66666666666666666666666666666666",
 									"workspaceId": "55555555555555555555555555555555"
 								}
@@ -542,11 +627,13 @@
 				"navigation": {
 					"projects": [
 						{
+							"directories": [],
 							"label": "Project",
 							"projectId": "44444444444444444444444444444444",
 							"workspaces": [
 								{
 									"label": "Main",
+									"primaryDirectoryId": null,
 									"terminalContextId": "33333333333333333333333333333333",
 									"workspaceId": "55555555555555555555555555555555"
 								}
@@ -575,11 +662,13 @@
 				"navigation": {
 					"projects": [
 						{
+							"directories": [],
 							"label": "Project",
 							"projectId": "44444444444444444444444444444444",
 							"workspaces": [
 								{
 									"label": "Main",
+									"primaryDirectoryId": null,
 									"terminalContextId": "66666666666666666666666666666666",
 									"workspaceId": "55555555555555555555555555555555"
 								}

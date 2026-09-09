@@ -20,6 +20,7 @@ use crate::{
 };
 
 mod control;
+mod cwd_validation;
 mod lifecycle;
 mod viewer;
 
@@ -47,6 +48,8 @@ pub enum CapabilityNodeMessage {
     TerminalLifecycleResult(crate::TerminalLifecycleResult),
     TerminalControlRequest(crate::TerminalControlRequest),
     TerminalControlResult(crate::TerminalControlResult),
+    TerminalCwdValidationRequest(crate::TerminalCwdValidationRequest),
+    TerminalCwdValidationResult(crate::TerminalCwdValidationResult),
     AuthorizedTerminalLaunch(AuthorizedTerminalLaunch),
     TerminalLaunchResult(TerminalLaunchResult),
     AuthorizedTerminalStart(AuthorizedTerminalStart),
@@ -128,6 +131,12 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::TerminalLifecycleResult(value) => lifecycle::encode_result(*value),
         CapabilityNodeMessage::TerminalControlRequest(value) => control::encode_request(value),
         CapabilityNodeMessage::TerminalControlResult(value) => control::encode_result(*value),
+        CapabilityNodeMessage::TerminalCwdValidationRequest(value) => {
+            cwd_validation::encode_request(value)
+        }
+        CapabilityNodeMessage::TerminalCwdValidationResult(value) => {
+            cwd_validation::encode_result(value)
+        }
         CapabilityNodeMessage::AuthorizedTerminalLaunch(value) => {
             encode_authorized_terminal_launch(value)
         }
@@ -167,6 +176,10 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
         Some(10) => {
             lifecycle::decode_result(payload).map(CapabilityNodeMessage::TerminalLifecycleResult)
         }
+        Some(11) => cwd_validation::decode_request(payload)
+            .map(CapabilityNodeMessage::TerminalCwdValidationRequest),
+        Some(12) => cwd_validation::decode_result(payload)
+            .map(CapabilityNodeMessage::TerminalCwdValidationResult),
         Some(7) => {
             control::decode_request(payload).map(CapabilityNodeMessage::TerminalControlRequest)
         }

@@ -31,9 +31,10 @@ is accepted only through the registered request/response roles, exact correlatio
 version, matching negotiated limits, an empty feature intersection, and a nonzero Host epoch.
 
 Only after both peers accept does Worker write `ready\n` to stdout. Its main thread then runs one
-serialized OBCN Launch/Start, viewer, and controller request loop over the two owned sockets. It has no
-connection thread or operation queue; each viewer owns one bounded delivery slot. Server loss closes the Host broker socket. Host loss stops admission and allows only a
-bounded delivery attempt for an already classified result before closing the Server attachment.
+serialized OBCN Launch/Start, lifecycle, viewer, controller, and cwd-validation request loop over
+the two owned sockets. It has no connection thread or operation queue; each viewer owns one bounded
+delivery slot. Server loss closes the Host broker socket. Host loss stops admission and allows only
+a bounded delivery attempt for an already classified result before closing the Server attachment.
 Either peer loss exits silently with status `1`; retained terminals remain owned by Host. Invalid
 invocation, connection, authentication, handshake rejection, framing, output, or transport failure
 has the same silent status-`1` result. A valid operation-level rejection returns its typed OBCN result
@@ -52,11 +53,12 @@ four-artifact cohort, then registers with Server without creating a Host directo
 The [shared modeling record](../../crates/local-site-runtime/README.md) owns process/failure boundaries.
 
 The first Launch passes the existing authorization kernel and resolves launch facts before Host
-startup. Typed invalid-lease/generation rejection creates no Host; non-Launch traffic before the
-first Launch retires the connection. The admitted dispatch and same kernel survive Host startup,
-and authorization is checked again before handoff. The Host directory is `host` under the runtime,
-with fixed endpoint ID `00000000000000000000000000000001`. Any pre-existing endpoint immediately
-requires recovery; only the newly spawned Host may be awaited for its final 0600 socket.
+startup. Typed invalid-lease/generation rejection creates no Host. Generation-pinned cwd validation
+may complete before that Launch without starting a Host; any other non-Launch traffic retires the
+connection. The admitted dispatch and same kernel survive Host startup, and authorization is
+checked again before handoff. The Host directory is `host` under the runtime, with fixed endpoint ID
+`00000000000000000000000000000001`. Any pre-existing endpoint immediately requires recovery; only
+the newly spawned Host may be awaited for its final 0600 socket.
 Host startup, its one dial, and strict OBTP handshake share five seconds without renewal or retry.
 Preparation/startup failure returns a pre-handoff failure when deliverable and retires Worker;
 uncertain handed-off outcomes are never replayed. Later operations use the same serialized loop
@@ -437,6 +439,25 @@ framing and OS facts remain concrete assumptions outside its symbolic state spac
 prove Server Client Session viewer routing, activation, restart reconciliation, or another OS platform.
 The viewer process trace separately proves two read attachments, a stalled viewer, exact feedback,
 snapshot recovery, detach/reattach, and terminal retention through the real Worker and Host.
+
+## Terminal cwd validation
+
+The integrated request loop handles `TerminalCwdValidationRequest` before terminal authorization or
+viewer/controller cleanup. The lazy Linux loop handles it before resolving launch facts or starting
+a Terminal Host. Worker first compares the request's exact logical Worker ID and generation with its
+admitted OBLS identity. A mismatch returns `WorkerUnavailable` without observing the path. A match
+uses one synchronous `std::fs::metadata` lookup, follows symbolic links, preserves the supplied path
+spelling, and returns `DirectoryAvailable` only for an existing directory. Missing paths, regular
+files and every metadata error return `DirectoryUnavailable`; arbitrary OS error details do not
+cross OBCN.
+
+Validation is a point-in-time read. It creates no directory, terminal, Host, attachment, controller,
+lease, launch binding or replay cache entry and sends no Terminal Protocol record. Its response uses
+the existing bounded OBCN read/write path. The Server still owns association admission, current
+Worker revalidation and canonical state. Filesystem metadata calls are synchronous and are not made
+interruptible by carrier deadlines; the current runtime claim is limited to the supported local
+Linux filesystem cohort. Unit tests exercise a real directory, spelling-preserving symlink lookup,
+regular and missing paths, and Worker identity/generation rejection without a Host dependency.
 
 ## Ownership
 

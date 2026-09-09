@@ -13,10 +13,11 @@ pub use tab_close::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de, de::Visitor};
 
 use crate::{
+    directory::WorkbenchDirectoryPath,
     identity::{
-        ProtocolVersion, SiteId, TerminalPresentationId, WorkbenchPanelId, WorkbenchProjectId,
-        WorkbenchRequestId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
-        WorkbenchWorkspaceId,
+        ProtocolVersion, SiteId, TerminalPresentationId, WorkbenchDirectoryId, WorkbenchPanelId,
+        WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision, WorkbenchTabId,
+        WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
     },
     model::{Snapshot, SnapshotReadIntent, WorkbenchProtocolDocument},
     validation::{
@@ -238,6 +239,12 @@ pub enum WorkbenchAction {
         workspace_id: WorkbenchWorkspaceId,
         label: WorkbenchLabel,
     },
+    #[serde(rename = "workspace.primary-directory.accept")]
+    WorkspacePrimaryDirectoryAccept {
+        project_id: WorkbenchProjectId,
+        workspace_id: WorkbenchWorkspaceId,
+        path: WorkbenchDirectoryPath,
+    },
     #[serde(rename = "tab.rename")]
     TabRename {
         terminal_context_id: WorkbenchTerminalContextId,
@@ -302,6 +309,8 @@ pub enum WorkbenchRejectionReason {
     RevisionMismatch,
     ProjectUnavailable,
     WorkspaceUnavailable,
+    WorkspaceDirectoryUnavailable,
+    WorkspaceDirectoryConflict,
     TerminalContextUnavailable,
     TabUnavailable,
     ResourceLimit,
@@ -319,6 +328,7 @@ pub enum WorkbenchCommandUnavailableReason {
     TerminalRuntimeUnavailable,
     ServerBusy,
     ServiceUnavailable,
+    DirectoryUnavailable,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -371,6 +381,11 @@ pub enum WorkbenchCommandOutcome {
         revision: WorkbenchRevision,
         workspace_id: WorkbenchWorkspaceId,
         terminal_context_id: WorkbenchTerminalContextId,
+    },
+    WorkspacePrimaryDirectoryAccepted {
+        revision: WorkbenchRevision,
+        directory_id: WorkbenchDirectoryId,
+        worker_id: WorkerId,
     },
     Renamed {
         revision: WorkbenchRevision,

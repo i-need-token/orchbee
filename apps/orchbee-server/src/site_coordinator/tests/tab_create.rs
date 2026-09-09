@@ -9,13 +9,36 @@ use orchbee_capability_node_protocol::{
     TerminalLaunchRejection, TerminalLaunchResult,
 };
 use orchbee_client_server_protocol::OpenOutcome;
+use orchbee_server::{WorkbenchAuthority, WorkbenchGrant};
 use orchbee_workbench_protocol::{
     PanelNode, PresentationBinding, TerminalId as WorkbenchTerminalId, WorkbenchAction,
-    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason, WorkbenchLabel,
-    WorkbenchRejectionReason, WorkbenchRevision, WorkbenchTerminalFailureReason,
-    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
-    WorkerId as WorkbenchWorkerId,
+    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    WorkbenchCommandUnavailableReason, WorkbenchDirectoryPath, WorkbenchLabel,
+    WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
+    WorkbenchTerminalContextId, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
+    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkerId as WorkbenchWorkerId,
 };
+
+fn context_tab_command(
+    coordinator: &SiteCoordinator,
+    request: u128,
+    revision: u64,
+    terminal_context_id: WorkbenchTerminalContextId,
+    label: &str,
+) -> WorkbenchCommand {
+    let workbench = coordinator.workbench.as_ref().unwrap();
+    WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{request:032x}")).unwrap(),
+        site_id: workbench.site_id().clone(),
+        expected_revision: WorkbenchRevision::new(revision),
+        action: WorkbenchAction::TabCreate {
+            terminal_context_id,
+            label: WorkbenchLabel::parse(label).unwrap(),
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+        },
+    }
+}
 
 fn tab_command(
     coordinator: &SiteCoordinator,
@@ -23,26 +46,110 @@ fn tab_command(
     revision: u64,
     label: &str,
 ) -> WorkbenchCommand {
-    let workbench = coordinator.workbench.as_ref().unwrap();
-    let membership = workbench.standalone_membership().unwrap();
-    WorkbenchCommand {
-        protocol_version: ProtocolVersion,
-        request_id: WorkbenchRequestId::parse(&format!("{request:032x}")).unwrap(),
-        site_id: workbench.site_id().clone(),
-        expected_revision: WorkbenchRevision::new(revision),
-        action: WorkbenchAction::TabCreate {
-            terminal_context_id: membership.terminal_context_id().clone(),
-            label: WorkbenchLabel::parse(label).unwrap(),
-            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+    let terminal_context_id = coordinator
+        .workbench
+        .as_ref()
+        .unwrap()
+        .standalone_membership()
+        .unwrap()
+        .terminal_context_id()
+        .clone();
+    context_tab_command(coordinator, request, revision, terminal_context_id, label)
+}
+
+fn submit_navigation(
+    authority: &mut WorkbenchAuthority,
+    grant: &WorkbenchGrant,
+    command: WorkbenchCommand,
+) -> WorkbenchCommandResult {
+    let WorkbenchResponse::Command(result) = authority.execute(
+        Some(grant),
+        WorkbenchRequest::Command(command).try_into().unwrap(),
+    ) else {
+        panic!("Workbench command result expected")
+    };
+    result
+}
+
+fn configure_workspace(
+    coordinator: &mut SiteCoordinator,
+    path: &str,
+) -> WorkbenchTerminalContextId {
+    let workbench = coordinator.workbench.as_mut().unwrap();
+    let site_id = workbench.site_id().clone();
+    let navigation = WorkbenchGrant::manage_navigation(site_id.clone());
+    let project = submit_navigation(
+        workbench,
+        &navigation,
+        WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 700)).unwrap(),
+            site_id: site_id.clone(),
+            expected_revision: WorkbenchRevision::new(0),
+            action: WorkbenchAction::ProjectCreate {
+                label: WorkbenchLabel::parse("project").unwrap(),
+            },
         },
-    }
+    );
+    let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } = project.outcome else {
+        panic!("Project creation expected")
+    };
+    let workspace = submit_navigation(
+        workbench,
+        &navigation,
+        WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 701)).unwrap(),
+            site_id: site_id.clone(),
+            expected_revision: WorkbenchRevision::new(1),
+            action: WorkbenchAction::WorkspaceCreate {
+                project_id: project_id.clone(),
+                label: WorkbenchLabel::parse("workspace").unwrap(),
+            },
+        },
+    );
+    let WorkbenchCommandOutcome::WorkspaceCreated {
+        workspace_id,
+        terminal_context_id,
+        ..
+    } = workspace.outcome
+    else {
+        panic!("Workspace creation expected")
+    };
+    let association = WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&format!("{:032x}", 702)).unwrap(),
+        site_id,
+        expected_revision: WorkbenchRevision::new(2),
+        action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+            project_id,
+            workspace_id,
+            path: WorkbenchDirectoryPath::parse(path).unwrap(),
+        },
+    };
+    let worker_id = WorkbenchWorkerId::parse(&format!(
+        "{:032x}",
+        u128::from_be_bytes(worker(1).worker_id.as_bytes())
+    ))
+    .unwrap();
+    let association_grant = navigation.with_directory_association();
+    assert!(matches!(
+        workbench
+            .accept_workspace_directory(Some(&association_grant), association, worker_id)
+            .outcome,
+        WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted {
+            revision,
+            ..
+        } if revision == WorkbenchRevision::new(3)
+    ));
+    terminal_context_id
 }
 
 fn dispatch_tab(
     coordinator: &mut SiteCoordinator,
     command: WorkbenchCommand,
     reference: u128,
-) -> crate::site_coordinator::PendingStandaloneTabCreate {
+) -> crate::site_coordinator::PendingTerminalTabCreate {
     let PreparedTerminalTabCreate::Dispatch(pending) = coordinator.prepare_terminal_tab_create(
         command,
         Some(id(reference)),
@@ -55,7 +162,7 @@ fn dispatch_tab(
 }
 
 fn tab_authorization(
-    pending: &crate::site_coordinator::PendingStandaloneTabCreate,
+    pending: &crate::site_coordinator::PendingTerminalTabCreate,
 ) -> TerminalOperationAuthorization {
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
         panic!("terminal Launch expected")
@@ -64,9 +171,13 @@ fn tab_authorization(
 }
 
 fn immediate_tab_completion(
-    pending: &crate::site_coordinator::PendingStandaloneTabCreate,
+    pending: &crate::site_coordinator::PendingTerminalTabCreate,
 ) -> Completion {
-    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
+    immediate_completion(pending.command())
+}
+
+fn immediate_completion(command: &CapabilityNodeMessage) -> Completion {
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = command else {
         panic!("terminal Launch expected")
     };
     let TerminalLaunchMode::Immediate(geometry) = launch.mode() else {
@@ -82,6 +193,23 @@ fn immediate_tab_completion(
         )
         .unwrap(),
     )
+}
+
+fn pending_first_open(
+    coordinator: &mut SiteCoordinator,
+    request: u128,
+    reference: u128,
+) -> Box<crate::terminal_coordinator::PendingOperation> {
+    let request = orchbee_client_server_protocol::TerminalOpenRequest::new(id(request), geometry());
+    let PreparedOpen::Dispatch(pending) = coordinator.prepare_open(
+        &request,
+        Some(id(reference)),
+        Some(worker(1)),
+        Some(expiry()),
+    ) else {
+        panic!("first Open dispatch expected")
+    };
+    pending
 }
 
 fn ready(
@@ -103,6 +231,182 @@ fn terminal_outcome(
         panic!("final tab-created result expected: {:?}", result.outcome)
     };
     terminal_outcome
+}
+
+#[test]
+fn workspace_create_uses_canonical_worker_and_cwd_without_touching_standalone() {
+    let mut coordinator = site();
+    let context_id = configure_workspace(&mut coordinator, "/tmp/exact/../workspace");
+    let before = snapshot(&mut coordinator);
+    let standalone_before = before
+        .terminal_contexts
+        .iter()
+        .find(|context| {
+            context.terminal_context_id == before.navigation.standalone_terminal_context_id
+        })
+        .unwrap()
+        .clone();
+    assert!(matches!(coordinator.standalone, StandaloneTerminal::Empty));
+    let command = context_tab_command(&coordinator, 703, 3, context_id.clone(), "workspace");
+
+    let pending = dispatch_tab(&mut coordinator, command.clone(), 704);
+    assert!(!pending.settles_first());
+    let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = pending.command() else {
+        panic!("terminal Launch expected")
+    };
+    assert_eq!(
+        launch.cwd().map(|cwd| cwd.as_str()),
+        Some("/tmp/exact/../workspace")
+    );
+    assert_eq!(launch.authorization().worker_id(), worker(1).worker_id);
+    assert!(matches!(coordinator.standalone, StandaloneTerminal::Empty));
+
+    let committed = snapshot(&mut coordinator);
+    assert_eq!(committed.revision, WorkbenchRevision::new(4));
+    assert_eq!(
+        committed
+            .terminal_contexts
+            .iter()
+            .find(|context| {
+                context.terminal_context_id == committed.navigation.standalone_terminal_context_id
+            })
+            .unwrap(),
+        &standalone_before
+    );
+    let workspace = committed
+        .terminal_contexts
+        .iter()
+        .find(|context| context.terminal_context_id == context_id)
+        .unwrap();
+    assert_eq!(workspace.tabs.len(), 1);
+    assert_eq!(workspace.tabs[0].label, "workspace");
+
+    let completion = immediate_tab_completion(&pending);
+    let completed = coordinator
+        .complete_terminal_tab_create(pending, completion, Some(worker(1)))
+        .unwrap();
+    assert!(!completed.standalone_changed);
+    assert!(matches!(
+        terminal_outcome(&completed.result),
+        WorkbenchTerminalOutcome::Started { .. }
+    ));
+    assert!(matches!(coordinator.standalone, StandaloneTerminal::Empty));
+    assert_eq!(
+        snapshot(&mut coordinator)
+            .terminal_contexts
+            .iter()
+            .find(|context| {
+                context.terminal_context_id == committed.navigation.standalone_terminal_context_id
+            })
+            .unwrap(),
+        &standalone_before
+    );
+    assert_eq!(
+        ready(coordinator.prepare_terminal_tab_create(command, None, None, None)),
+        completed.result
+    );
+}
+
+#[test]
+fn workspace_create_rejects_a_different_current_worker_without_home_fallback() {
+    let mut coordinator = site();
+    let context_id = configure_workspace(&mut coordinator, "/tmp/workspace");
+    let before = snapshot(&mut coordinator);
+    let command = context_tab_command(&coordinator, 705, 3, context_id, "wrong worker");
+    let mut incompatible = worker(1);
+    incompatible.worker_id =
+        orchbee_capability_node_protocol::WorkerId::from_bytes([8; 16]).unwrap();
+
+    assert!(matches!(
+        ready(coordinator.prepare_terminal_tab_create(
+            command,
+            Some(id(706)),
+            Some(expiry()),
+            Some(incompatible),
+        ))
+        .outcome,
+        WorkbenchCommandOutcome::Unavailable {
+            reason: WorkbenchCommandUnavailableReason::NoCompatibleWorker,
+        }
+    ));
+    assert_eq!(snapshot(&mut coordinator), before);
+    assert!(matches!(coordinator.standalone, StandaloneTerminal::Empty));
+    assert_eq!(coordinator.allocate_identity(), Some(1_u128.to_be_bytes()));
+}
+
+#[test]
+fn workspace_completion_does_not_settle_a_pending_first_open() {
+    let mut coordinator = site();
+    let context_id = configure_workspace(&mut coordinator, "/tmp/workspace");
+    let first_open = pending_first_open(&mut coordinator, 710, 711);
+    assert!(matches!(
+        coordinator.standalone,
+        StandaloneTerminal::Creating(ref reference) if reference == &id(711)
+    ));
+    let command = context_tab_command(&coordinator, 712, 4, context_id, "workspace");
+    let workspace = dispatch_tab(&mut coordinator, command, 713);
+
+    let completed = coordinator
+        .complete_terminal_tab_create(workspace, Completion::Busy, Some(worker(1)))
+        .unwrap();
+    assert!(!completed.standalone_changed);
+    assert!(matches!(
+        coordinator.standalone,
+        StandaloneTerminal::Creating(ref reference) if reference == &id(711)
+    ));
+
+    assert!(matches!(
+        coordinator
+            .complete(first_open, Completion::Unknown, Some(worker(1)))
+            .unwrap(),
+        ServerMessage::TerminalCreateResult(_)
+    ));
+    assert!(matches!(
+        coordinator.standalone,
+        StandaloneTerminal::Settled {
+            ref reference,
+            outcome: OpenOutcome::OutcomeUnknown {},
+        } if reference == &id(711)
+    ));
+}
+
+#[test]
+fn workspace_completion_preserves_a_settled_first_open() {
+    let mut coordinator = site();
+    let context_id = configure_workspace(&mut coordinator, "/tmp/workspace");
+    let first_open = pending_first_open(&mut coordinator, 720, 721);
+    let first_completion = immediate_completion(first_open.command());
+    assert!(matches!(
+        coordinator
+            .complete(first_open, first_completion, Some(worker(1)))
+            .unwrap(),
+        ServerMessage::TerminalCreateResult(_)
+    ));
+    assert!(matches!(
+        coordinator.standalone,
+        StandaloneTerminal::Settled {
+            ref reference,
+            outcome: OpenOutcome::Opened {
+                ref terminal_create_request_id,
+            },
+        } if reference == &id(721) && terminal_create_request_id == &id(721)
+    ));
+    let command = context_tab_command(&coordinator, 722, 4, context_id, "workspace");
+    let workspace = dispatch_tab(&mut coordinator, command, 723);
+
+    let completed = coordinator
+        .complete_terminal_tab_create(workspace, Completion::Busy, Some(worker(1)))
+        .unwrap();
+    assert!(!completed.standalone_changed);
+    assert!(matches!(
+        coordinator.standalone,
+        StandaloneTerminal::Settled {
+            ref reference,
+            outcome: OpenOutcome::Opened {
+                ref terminal_create_request_id,
+            },
+        } if reference == &id(721) && terminal_create_request_id == &id(721)
+    ));
 }
 
 #[test]
@@ -630,7 +934,7 @@ enum CompletionCase {
 
 fn completion(
     case: CompletionCase,
-    pending: &crate::site_coordinator::PendingStandaloneTabCreate,
+    pending: &crate::site_coordinator::PendingTerminalTabCreate,
     authorization: TerminalOperationAuthorization,
 ) -> Completion {
     match case {

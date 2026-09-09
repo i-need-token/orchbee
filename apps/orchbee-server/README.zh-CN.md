@@ -14,8 +14,11 @@ installer 或 service manager 消费。
 
 `WorkbenchAuthority` 拥有一份内存 Site 导航文档及有界 request/result ledger。已准入本地 Client 可
 通过 OBWP 读取关联 snapshot，以及创建或重命名 Project 和 Workspace。Workspace 创建同时提交
-一个空 Terminal Context 及其引用。首个独立 Open 还会在启动前提交共享 Tab/Panel/Presentation
-及逻辑终端 binding。本地 `tab.create` 命令追加一个简单独立 Tab，共同提交成员关系与保留的
+一个空 Terminal Context 及其引用。独立授权的 `workspace.primary-directory.accept` 校验本地
+Worker 目录，再原子添加 Project Directory 并由该空 Workspace 选中。
+[目录契约](docs/workspace-terminal-directory.zh-CN.md) 拥有校验、重放和失败语义。
+首个独立 Open 还会在启动前提交共享 Tab/Panel/Presentation
+及逻辑终端 binding。本地 `tab.create` 命令追加一个简单独立或已配置 Workspace Tab，共同提交成员关系与保留的
 终端意图，再派发一次启动。精确重放返回同一份待处理或最终结果。后续 Close 可以移除该
 成员关系，但不改写历史 Create 结果。Client 可以使用当前 snapshot 中确切的 Site/Worker/Terminal binding，
 通过 OBCS attach viewer。[权威模型](docs/workbench-authority.zh-CN.md) 定义授权、revision
@@ -459,7 +462,9 @@ Service 在锁外构造 Workbench 权威。SiteCoordinator 拥有独立终端 wo
 `tab_create` 则通过绑定来源、消耗所有权的令牌组合命令的共同准备与结算；`terminal_selection` 组合 canonical exposure、
 保留目标解析和 attachment identity 准备。WorkbenchAuthority 的
 `terminal_binding_selection` 子模块拥有只读 canonical exposure query；`terminal_tab_create`
-拥有命令接纳、准备后的成员关系、预留账本字节及结算。`terminal_tab_move` 拥有 Move 接纳与
+拥有命令接纳、准备后的成员关系、预留账本字节及结算。
+`workspace_directory` 子模块分别拥有 WorkbenchAuthority 的目录接纳与规范提交、Site grant
+组合，以及 service 在锁外进行 Worker 观察后重新校验的流程。`terminal_tab_move` 拥有 Move 接纳与
 准备后的置换；Site 在目标/无操作判断前校验组合。二者共享命令预检；Move 复用权威的
 准备后已结算命令发布路径。
 LocalTerminalService 父模块拥有共享熵源
@@ -474,7 +479,7 @@ Carrier 拥有 I/O、精确 echo 验证和 generation retirement，不拥有 OBC
 确定性 core 不导入 transport、clock 或 process adapter。Terminal service 操作按 registry 再 Site
 的顺序获取锁；grant 操作则按 registry 再 controller map 获取锁。Workbench 访问先校验外部 OBWP policy，
 读取及纯导航随后只获取 Site gate。不透明的 `WorkbenchReadOrNavigationRequest` 排除需要 Site 组合的
-`tab.create` 和 `tab.move`。Move 要求 navigation grant，且只获取 Site gate；
+`tab.create`、`tab.move`、`tab.close` 和 `workspace.primary-directory.accept`。Move 要求 navigation grant，且只获取 Site gate；
 `tab.create` 还要求 terminal-create grant，并使用上述组合路径。Binding viewer selection 先持有 registry 和 Site 锁，再采样 handle 的
 active state；其内部 canonical query 使用 OBCS subject admission，并保持 Workbench 优先的失败顺序。I/O 前释放全部 gate，不增加自动重试。`application_session` runner 将确切
 OBCS/OBWP prefix 分派给不同语义 handler，只导入其契约及标准库 I/O。提交后协调失败会关闭混合

@@ -235,4 +235,64 @@ fn typed_tab_moves_preserve_exact_fields_through_json_and_obwp() {
     }
 }
 
+#[test]
+fn typed_workspace_primary_directory_acceptance_preserves_exact_fields() {
+    let request_id = WorkbenchRequestId::parse("11111111111111111111111111111111").unwrap();
+    let request = WorkbenchRequest::Command(WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: request_id.clone(),
+        site_id: SiteId::parse("22222222222222222222222222222222").unwrap(),
+        expected_revision: WorkbenchRevision::new(7),
+        action: WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+            project_id: WorkbenchProjectId::parse("33333333333333333333333333333333").unwrap(),
+            workspace_id: WorkbenchWorkspaceId::parse("44444444444444444444444444444444").unwrap(),
+            path: WorkbenchDirectoryPath::parse("/work/../work/orchbee").unwrap(),
+        },
+    });
+    let encoded = serialize_workbench_request(&request).unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&encoded).unwrap(),
+        serde_json::json!({
+            "kind": "workbench.command",
+            "protocolVersion": 1,
+            "requestId": request_id,
+            "siteId": "22222222222222222222222222222222",
+            "expectedRevision": "7",
+            "action": {
+                "kind": "workspace.primary-directory.accept",
+                "projectId": "33333333333333333333333333333333",
+                "workspaceId": "44444444444444444444444444444444",
+                "path": "/work/../work/orchbee"
+            }
+        })
+    );
+    assert_eq!(parse_workbench_request(&encoded).unwrap(), request);
+
+    let response = WorkbenchResponse::Command(WorkbenchCommandResult {
+        protocol_version: ProtocolVersion,
+        request_id: request_id.clone(),
+        outcome: WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted {
+            revision: WorkbenchRevision::new(8),
+            directory_id: WorkbenchDirectoryId::parse("55555555555555555555555555555555").unwrap(),
+            worker_id: WorkerId::parse("66666666666666666666666666666666").unwrap(),
+        },
+    });
+    let encoded = serialize_workbench_response(&response).unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&encoded).unwrap(),
+        serde_json::json!({
+            "kind": "workbench.command.result",
+            "protocolVersion": 1,
+            "requestId": request_id,
+            "outcome": {
+                "kind": "workspace-primary-directory-accepted",
+                "revision": "8",
+                "directoryId": "55555555555555555555555555555555",
+                "workerId": "66666666666666666666666666666666"
+            }
+        })
+    );
+    assert_eq!(parse_workbench_response(&encoded).unwrap(), response);
+}
+
 mod tab_close;

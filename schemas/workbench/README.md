@@ -37,21 +37,25 @@ remain pending; parser and model evidence do not establish working Close effects
 A `workbench.snapshot` is a complete authorized product projection for one Site revision. It
 contains:
 
-- ordered Projects and their ordered Workspaces;
+- ordered Projects, each with ordered Directories and ordered Workspaces;
 - exactly one standalone Terminal Context and one Terminal Context for every Workspace;
 - ordered Tab groups and Tabs;
 - complete binary Panel/Split topology for every Tab;
 - one primary and zero or more child Terminal Presentations per Panel; and
 - an optional opaque Worker/Terminal binding for a Presentation.
 
-The projection contains labels but no directories, paths, terminal content, terminal lifecycle
-policy, Environment, Checkout, Worktree, Agent, Launch Profile, Archive, SSH, lease, fence, Host
+Each Directory carries its typed identity, exact Worker identity, and an absolute POSIX UTF-8 path.
+Each Workspace carries a required nullable primary Directory reference into its own Project.
+The projection contains labels but no directory discovery or mutation policy, terminal content,
+terminal lifecycle policy, Environment, Checkout, Worktree, Agent, Launch Profile, Archive, SSH, lease, fence, Host
 epoch, attachment, or persistence facts. It also contains no Client-local active location, active
 Tab, focus, disclosure, selection, maximization, split weight, viewport, geometry, search, window,
 DOM, React, or pixel state. A missing Presentation binding means only that this projection exposes
 no attachable Terminal identity; a Client must not infer a lifecycle reason.
 
-Project, Workspace, and Terminal Context arrays use ascending identity order. Tab groups and Tabs
+Project, Directory, Workspace, and Terminal Context arrays use ascending identity order. Directory
+identities are unique across the Site projection, and a non-null Workspace reference resolves in
+the containing Project. Tab groups and Tabs
 retain their explicit product order. Pinned Tabs form one leading ungrouped prefix, and every Tab
 group's members are contiguous. Every referenced context exists exactly once and every context is
 referenced exactly once. Identity uniqueness, tree depth, node quantity, membership, and reference
@@ -88,9 +92,11 @@ is their shared Rust/TypeScript oracle; raw duplicate-key cases additionally exe
 parser. TypeScript validates decoded values; its transport must reject duplicate keys before decoding.
 
 `workbench.command` carries protocolVersion, requestId, siteId, expectedRevision and one action:
-project.create, project.rename, workspace.create, workspace.rename, tab.rename, tab.create, tab.move or tab.close. Labels retain exact text,
+project.create, project.rename, workspace.create, workspace.rename,
+workspace.primary-directory.accept, tab.rename, tab.create, tab.move or tab.close. Labels retain exact text,
 including whitespace, within the existing label bound. New product identities are Server-owned.
-`workbench.command.result` correlates project-created, workspace-created, renamed, unchanged,
+`workbench.command.result` correlates project-created, workspace-created,
+workspace-primary-directory-accepted, renamed, unchanged,
 tab-create-pending, tab-created, tab-moved, tab-close-accepted, rejected, denied or unavailable outcomes. Revision and created identities occur only in the variants
 that declare them. Denied results disclose neither. `workbench.snapshot.result` contains available
 with a complete nested `workbench.snapshot`, denied, or unavailable. The schema owns closed reasons;
@@ -107,6 +113,28 @@ envelope count toward the raw outer bound. Standalone snapshots retain their raw
 A valid record leaves following records unread; EOF truncation fails.
 The Rust binding supplies Read/Write codecs without owning sockets, timeouts, admission or retry.
 OBCS remains the separate terminal protocol, and OBLC admission precedes either application carrier.
+
+## Workspace primary Directory contract
+
+`workspace.primary-directory.accept` carries exactly `projectId`, `workspaceId`, and `path`.
+`path` is absolute POSIX UTF-8 text from 1 through 4,096 encoded bytes with no NUL; its spelling is
+preserved. The Client supplies no Directory or Worker identity. A successful
+`workspace-primary-directory-accepted` outcome carries the committed `revision`, Server-allocated
+`directoryId`, and selected `workerId`.
+
+The projection represents the atomic result by appending one ordered
+`Directory { directoryId, workerId, path }` to the Project and selecting it through the Workspace's
+required nullable `primaryDirectoryId`. A Project admits at most 256 Directories. Directory
+identities are unique across the Site projection; a Workspace reference must resolve inside its
+own Project. Missing required nullable fields, dangling or cross-Project references, duplicate or
+unordered Directory identities, invalid paths, unknown fields, and collection overflow are invalid.
+
+The rejection reason domain adds `workspace-directory-unavailable` and
+`workspace-directory-conflict`; the command-unavailable domain adds `directory-unavailable`.
+The [Server Directory authority](../../apps/orchbee-server/docs/workspace-terminal-directory.md)
+owns authorization, Worker validation, set-once/empty-context admission, atomic commit, replay and
+runtime behavior. These schema and binding contracts neither validate the filesystem nor select a
+Worker.
 
 ## Canonical Tab rename contract
 
@@ -263,6 +291,8 @@ replay immutability, authorization, state transitions or eventual cleanup.
 | Encoded snapshot or delta | 1 MiB                      |
 | Product label             | 512 Unicode code points    |
 | Projects                  | 256 per snapshot           |
+| Directories               | 256 per Project            |
+| Directory path            | 4,096 encoded UTF-8 bytes  |
 | Workspaces                | 256 per Project            |
 | Terminal Contexts         | 1,024 per snapshot         |
 | Tab groups                | 64 per Terminal Context    |

@@ -15,6 +15,7 @@ use orchbee_workbench_protocol::{
 use crate::workbench_projection::{PreparedProjectionAdvance, WorkbenchProjectionStore};
 
 mod terminal_membership;
+mod workspace_directory;
 pub use terminal_membership::{
     PreparedStandaloneIntent, StandaloneIntentError, StandaloneIntentMetadata,
     WorkbenchStandaloneInvariantError, WorkbenchStandaloneMembership, WorkbenchStandaloneTab,
@@ -54,6 +55,7 @@ pub struct WorkbenchGrant {
     mutate_navigation: bool,
     create_terminal: bool,
     close_terminal: bool,
+    associate_directory: bool,
 }
 
 pub struct WorkbenchReadOrNavigationRequest(ReadOrNavigationRequest);
@@ -95,6 +97,7 @@ impl WorkbenchGrant {
             mutate_navigation: false,
             create_terminal: false,
             close_terminal: false,
+            associate_directory: false,
         }
     }
     #[must_use]
@@ -104,6 +107,7 @@ impl WorkbenchGrant {
             mutate_navigation: true,
             create_terminal: false,
             close_terminal: false,
+            associate_directory: false,
         }
     }
 
@@ -114,6 +118,7 @@ impl WorkbenchGrant {
             mutate_navigation: true,
             create_terminal: true,
             close_terminal: false,
+            associate_directory: false,
         }
     }
 
@@ -121,6 +126,13 @@ impl WorkbenchGrant {
     #[must_use]
     pub const fn with_terminal_lifecycle(mut self) -> Self {
         self.close_terminal = true;
+        self
+    }
+
+    /// Adds directory association; navigation authority remains independently required.
+    #[must_use]
+    pub const fn with_directory_association(mut self) -> Self {
+        self.associate_directory = true;
         self
     }
 }
@@ -370,6 +382,7 @@ impl WorkbenchAuthority {
                 candidate.navigation.projects.push(Project {
                     project_id: project_id.clone(),
                     label: label.as_str().to_owned(),
+                    directories: Vec::new(),
                     workspaces: Vec::new(),
                 });
                 candidate.revision = revision;
@@ -418,6 +431,7 @@ impl WorkbenchAuthority {
                 let revision = self.next_revision()?;
                 project.workspaces.push(Workspace {
                     workspace_id: workspace_id.clone(),
+                    primary_directory_id: None,
                     terminal_context_id: terminal_context_id.clone(),
                     label: label.as_str().to_owned(),
                 });
@@ -610,6 +624,7 @@ impl PureWorkbenchAction {
                 label: label.clone(),
             },
             WorkbenchAction::TabCreate { .. }
+            | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
             | WorkbenchAction::TabMove { .. }
             | WorkbenchAction::TabClose { .. } => return None,
         })

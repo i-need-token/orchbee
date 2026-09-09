@@ -99,6 +99,25 @@
 					"type": "object",
 					"properties": {
 						"kind": {
+							"const": "workspace.primary-directory.accept"
+						},
+						"projectId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+						},
+						"workspaceId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+						},
+						"path": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryPath"
+						}
+					},
+					"required": ["kind", "projectId", "workspaceId", "path"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
 							"const": "tab.rename"
 						},
 						"terminalContextId": {
@@ -204,6 +223,8 @@
 				"revision-mismatch",
 				"project-unavailable",
 				"workspace-unavailable",
+				"workspace-directory-unavailable",
+				"workspace-directory-conflict",
 				"terminal-context-unavailable",
 				"tab-unavailable",
 				"resource-limit",
@@ -219,7 +240,8 @@
 				"server-busy",
 				"service-unavailable",
 				"terminal-busy",
-				"terminal-runtime-unavailable"
+				"terminal-runtime-unavailable",
+				"directory-unavailable"
 			]
 		},
 		"snapshotUnavailableReason": {
@@ -344,6 +366,25 @@
 						}
 					},
 					"required": ["kind", "revision", "workspaceId", "terminalContextId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspace-primary-directory-accepted"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						},
+						"directoryId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/directoryId"
+						},
+						"workerId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workerId"
+						}
+					},
+					"required": ["kind", "revision", "directoryId", "workerId"],
 					"additionalProperties": false
 				},
 				{

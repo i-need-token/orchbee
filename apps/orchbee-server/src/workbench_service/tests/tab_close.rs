@@ -29,6 +29,7 @@ fn close_uses_independent_grants_and_authority_preconditions_without_host_work()
         WorkbenchPolicy {
             read: true,
             manage_navigation: true,
+            associate_directory: false,
             create_terminal: false,
             manage_terminal_lifecycle: true,
         },
@@ -43,6 +44,7 @@ fn close_uses_independent_grants_and_authority_preconditions_without_host_work()
             WorkbenchPolicy {
                 read: read_grant,
                 manage_navigation: permissions & 2 != 0,
+                associate_directory: false,
                 create_terminal: permissions & 4 != 0,
                 manage_terminal_lifecycle: lifecycle_grant,
             },

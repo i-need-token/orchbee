@@ -2,8 +2,9 @@ use super::super::{MAXIMUM_LEDGER_ENTRIES, WorkbenchReadOrNavigationRequest};
 use super::*;
 use crate::workbench_projection::WorkbenchProjectionStore;
 use orchbee_workbench_protocol::{
-    PanelNode, ProtocolVersion, SiteId, SnapshotReadIntent, TerminalId, WorkbenchLabel,
-    WorkbenchProjectId, WorkbenchRequest, WorkbenchResponse, WorkbenchWorkspaceId, WorkerId,
+    Directory, PanelNode, Project, ProtocolVersion, SiteId, SnapshotReadIntent, TerminalContext,
+    TerminalId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId,
+    WorkbenchRequest, WorkbenchResponse, WorkbenchWorkspaceId, WorkerId, Workspace,
 };
 use std::collections::BTreeMap;
 
@@ -99,6 +100,40 @@ fn install_revision(authority: &mut WorkbenchAuthority, revision: u64) {
     authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
 }
 
+fn install_workspace(
+    authority: &mut WorkbenchAuthority,
+    configured: bool,
+) -> (WorkbenchTerminalContextId, WorkerId, WorkbenchDirectoryPath) {
+    let context_id = WorkbenchTerminalContextId::parse(&identity(500)).unwrap();
+    let directory_id = WorkbenchDirectoryId::parse(&identity(501)).unwrap();
+    let worker_id = WorkerId::parse(&identity(502)).unwrap();
+    let path = WorkbenchDirectoryPath::parse("/tmp/exact/../workspace").unwrap();
+    let mut snapshot = authority.projection.snapshot().clone();
+    snapshot.navigation.projects.push(Project {
+        directories: vec![Directory {
+            directory_id: directory_id.clone(),
+            worker_id: worker_id.clone(),
+            path: path.clone(),
+        }],
+        label: "project".to_owned(),
+        project_id: WorkbenchProjectId::parse(&identity(503)).unwrap(),
+        workspaces: vec![Workspace {
+            label: "workspace".to_owned(),
+            primary_directory_id: configured.then_some(directory_id),
+            terminal_context_id: context_id.clone(),
+            workspace_id: WorkbenchWorkspaceId::parse(&identity(504)).unwrap(),
+        }],
+    });
+    snapshot.terminal_contexts.push(TerminalContext {
+        groups: Vec::new(),
+        tabs: Vec::new(),
+        terminal_context_id: context_id.clone(),
+    });
+    let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap();
+    authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
+    (context_id, worker_id, path)
+}
+
 fn assert_retained_rejection(
     authority: &mut WorkbenchAuthority,
     grant: &WorkbenchGrant,
@@ -166,6 +201,60 @@ fn site_revision_and_context_preflight_precedence_is_retained_and_atomic() {
         &grant,
         command(3, 0, wrong_context, "three", geometry(80)),
         WorkbenchRejectionReason::TerminalContextUnavailable,
+    );
+}
+
+#[test]
+fn configured_workspace_stages_exact_directory_and_commits_only_its_context() {
+    let (mut authority, grant) = authority();
+    let (context_id, worker_id, path) = install_workspace(&mut authority, true);
+    let standalone_before = authority.projection.snapshot().terminal_contexts[0].clone();
+    let request = command(4, 0, context_id.clone(), "workspace tab", geometry(80));
+
+    let WorkbenchTabCreateBegin::Admitted(admission) =
+        authority.begin_terminal_tab_create(Some(&grant), request)
+    else {
+        panic!("configured Workspace was not admitted")
+    };
+    assert_eq!(admission.staged_metadata().standalone_membership(), None);
+    assert_eq!(
+        admission.staged_metadata().workspace_launch(),
+        Some((&worker_id, &path))
+    );
+    assert!(!admission.staged_metadata().is_first());
+
+    let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(20)) else {
+        panic!("configured Workspace did not prepare")
+    };
+    assert!(!prepared.metadata().is_standalone());
+    assert!(!prepared.metadata().is_first());
+    let pending = prepared.commit().into_pending();
+
+    let snapshot = authority.projection.snapshot();
+    assert_eq!(snapshot.revision, WorkbenchRevision::new(1));
+    assert_eq!(snapshot.terminal_contexts[0], standalone_before);
+    let workspace_context = snapshot
+        .terminal_contexts
+        .iter()
+        .find(|context| context.terminal_context_id == context_id)
+        .unwrap();
+    assert_eq!(workspace_context.tabs.len(), 1);
+    assert_eq!(workspace_context.tabs[0].label, "workspace tab");
+    assert!(!pending.metadata().is_standalone());
+    assert!(!pending.metadata().is_first());
+}
+
+#[test]
+fn unconfigured_workspace_rejection_is_retained_without_allocating_or_committing() {
+    let (mut authority, grant) = authority();
+    let (context_id, _worker_id, _path) = install_workspace(&mut authority, false);
+    let request = command(5, 0, context_id, "unconfigured", geometry(80));
+
+    assert_retained_rejection(
+        &mut authority,
+        &grant,
+        request,
+        WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
     );
 }
 

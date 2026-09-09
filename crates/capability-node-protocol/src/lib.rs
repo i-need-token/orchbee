@@ -1,6 +1,7 @@
 mod codec;
 mod error;
 mod identity;
+mod terminal_cwd_validation;
 mod terminal_launch;
 mod terminal_lifecycle;
 mod terminal_viewer;
@@ -17,6 +18,9 @@ pub use codec::{
 pub use error::{ProtocolError, ReadMessageError, WriteMessageError};
 pub use identity::{
     HostCreationId, HostEpoch, HostTerminalId, LeaseId, OperationId, TerminalId, WorkerId,
+};
+pub use terminal_cwd_validation::{
+    TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalCwdValidationResult,
 };
 pub use terminal_launch::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, HostLaunchAccepted,

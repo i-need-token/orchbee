@@ -18,13 +18,14 @@ use std::{
 mod lifecycle;
 
 use orchbee_capability_node_protocol::{
-    AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage, HostCreationId,
-    HostEpoch, HostTerminalId, HostTerminalIdentity, LeaseExpiresAtUnixMilliseconds, LeaseId,
-    OperationId, TerminalFence, TerminalId, TerminalLaunchMode, TerminalLaunchOutcome,
-    TerminalLaunchRejection, TerminalLaunchResult, TerminalOperationAuthorization,
-    TerminalOperationLease, TerminalPixelGeometry, TerminalStartOutcome, TerminalStartRejection,
-    TerminalStartResult, WorkerGeneration, WorkerId as CapabilityWorkerId, read_message,
-    write_message,
+    AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage,
+    HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity,
+    LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, TerminalCwdValidationOutcome,
+    TerminalCwdValidationRequest, TerminalCwdValidationResult, TerminalFence, TerminalId,
+    TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
+    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
+    TerminalStartOutcome, TerminalStartRejection, TerminalStartResult, WorkerGeneration,
+    WorkerId as CapabilityWorkerId, read_message, write_message,
 };
 use orchbee_local_site_protocol::WorkerId;
 
@@ -98,6 +99,91 @@ fn carries_launch_and_start_results_on_one_serialized_wire() -> TestResult {
     owner_thread
         .join()
         .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn carries_an_exact_cwd_validation_on_the_existing_serialized_wire() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let request = cwd_validation_request(1, GENERATION.get(), LOCAL_WORKER_ID, "/tmp/workspace")?;
+    let expected = TerminalCwdValidationResult {
+        request: request.clone(),
+        outcome: TerminalCwdValidationOutcome::DirectoryAvailable,
+    };
+    let worker_request = request.clone();
+    let worker_result = expected.clone();
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::TerminalCwdValidationRequest(worker_request)
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalCwdValidationResult(worker_result),
+        )?;
+        Ok(())
+    });
+
+    assert_eq!(handle.validate_terminal_cwd(request)?, expected);
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn cwd_validation_result_requires_the_complete_request_echo() -> TestResult {
+    let request = cwd_validation_request(1, GENERATION.get(), LOCAL_WORKER_ID, "/tmp/workspace")?;
+    let other_worker = WorkerId::from_bytes([8; 16]);
+    let cases = [
+        (
+            TerminalCwdValidationRequest {
+                operation_id: OperationId::from_bytes([9; 16])?,
+                ..request.clone()
+            },
+            WorkerResponseFailure::MismatchedCorrelation,
+        ),
+        (
+            TerminalCwdValidationRequest {
+                worker_id: CapabilityWorkerId::from_bytes(other_worker.as_bytes())?,
+                ..request.clone()
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+        (
+            TerminalCwdValidationRequest {
+                worker_generation: WorkerGeneration::new(nonzero(GENERATION.get() + 1)?),
+                ..request.clone()
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+        (
+            TerminalCwdValidationRequest {
+                cwd: AbsoluteCwd::new("/tmp/other")?,
+                ..request.clone()
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+    ];
+    for (actual, expected_failure) in cases {
+        assert_post_delivery_failure(
+            WorkerOperationRequest::CwdValidation(request.clone()),
+            CapabilityNodeMessage::TerminalCwdValidationResult(TerminalCwdValidationResult {
+                request: actual,
+                outcome: TerminalCwdValidationOutcome::DirectoryAvailable,
+            }),
+            expected_failure,
+        )?;
+    }
     Ok(())
 }
 
@@ -1046,6 +1132,20 @@ fn authorization(
         ),
         orchbee_capability_node_protocol::TERMINAL_LAUNCH_CAPABILITY_VERSION,
     ))
+}
+
+fn cwd_validation_request(
+    operation: u8,
+    generation: u64,
+    worker_id: WorkerId,
+    cwd: &str,
+) -> TestResult<TerminalCwdValidationRequest> {
+    Ok(TerminalCwdValidationRequest {
+        operation_id: OperationId::from_bytes([operation; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(worker_id.as_bytes())?,
+        worker_generation: WorkerGeneration::new(nonzero(generation)?),
+        cwd: AbsoluteCwd::new(cwd)?,
+    })
 }
 
 fn launch_request(

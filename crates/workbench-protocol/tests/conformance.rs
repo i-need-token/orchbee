@@ -1,9 +1,10 @@
 use std::{collections::BTreeMap, error::Error, io};
 
 use orchbee_workbench_protocol::{
-    ContractError, DeltaRejectionReason, MAXIMUM_ENCODED_INTENT_BYTES, SiteId,
-    WorkbenchProtocolDocument, WorkbenchRevision, apply_workbench_delta, parse_delta,
-    parse_document, parse_snapshot, serialize_document,
+    ContractError, DeltaRejectionReason, MAXIMUM_DIRECTORIES_PER_PROJECT,
+    MAXIMUM_ENCODED_INTENT_BYTES, SiteId, WorkbenchDirectoryPath, WorkbenchProtocolDocument,
+    WorkbenchRevision, apply_workbench_delta, parse_delta, parse_document, parse_snapshot,
+    serialize_document,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -170,6 +171,7 @@ fn enforces_unicode_collection_and_tree_boundaries() -> Result<(), Box<dyn Error
     let projects = (1_u128..=256)
         .map(|value| {
             json!({
+                "directories": [],
                 "label": format!("Project {value}"),
                 "projectId": identity(value),
                 "workspaces": []
@@ -181,6 +183,7 @@ fn enforces_unicode_collection_and_tree_boundaries() -> Result<(), Box<dyn Error
     assert!(parse_document(&serde_json::to_vec(&project_boundary)?).is_ok());
     let mut overflowing_projects = projects;
     overflowing_projects.push(json!({
+        "directories": [],
         "label": "Overflow",
         "projectId": identity(257),
         "workspaces": []
@@ -213,6 +216,110 @@ fn enforces_unicode_collection_and_tree_boundaries() -> Result<(), Box<dyn Error
 
     assert!(parse_document(&serde_json::to_vec(&snapshot_with_depth(16))?).is_ok());
     assert!(parse_document(&serde_json::to_vec(&snapshot_with_depth(17))?).is_err());
+    Ok(())
+}
+
+#[test]
+fn enforces_directory_paths_bounds_order_uniqueness_and_workspace_references()
+-> Result<(), Box<dyn Error>> {
+    let corpus = read_corpus()?;
+    let configured = document(&corpus, "snapshot-workspace-r2")?.clone();
+    assert!(parse_document(&serde_json::to_vec(&configured)?).is_ok());
+
+    let mut missing_primary = configured.clone();
+    object_at_mut(&mut missing_primary, "/navigation/projects/0/workspaces/0")?
+        .remove("primaryDirectoryId");
+    assert!(parse_document(&serde_json::to_vec(&missing_primary)?).is_err());
+
+    let mut missing_directories = configured.clone();
+    object_at_mut(&mut missing_directories, "/navigation/projects/0")?.remove("directories");
+    assert!(parse_document(&serde_json::to_vec(&missing_directories)?).is_err());
+
+    let mut dangling = configured.clone();
+    replace_string(
+        &mut dangling,
+        "/navigation/projects/0/workspaces/0/primaryDirectoryId",
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee".to_owned(),
+    )?;
+    assert!(parse_document(&serde_json::to_vec(&dangling)?).is_err());
+
+    let directory = json!({
+        "directoryId": "22222222222222222222222222222222",
+        "path": "/work/orchbee",
+        "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    });
+    let other_project = json!({
+        "directories": [directory.clone()],
+        "label": "Other",
+        "projectId": "77777777777777777777777777777777",
+        "workspaces": []
+    });
+
+    let mut duplicate = configured.clone();
+    array_at_mut(&mut duplicate, "/navigation/projects")?.push(other_project.clone());
+    assert!(parse_document(&serde_json::to_vec(&duplicate)?).is_err());
+
+    let mut cross_project = configured.clone();
+    *cross_project
+        .pointer_mut("/navigation/projects/0/directories")
+        .ok_or_else(|| io::Error::other("missing Project directories"))? = json!([]);
+    array_at_mut(&mut cross_project, "/navigation/projects")?.push(other_project);
+    assert!(parse_document(&serde_json::to_vec(&cross_project)?).is_err());
+
+    let mut noncanonical = configured.clone();
+    *noncanonical
+        .pointer_mut("/navigation/projects/0/directories")
+        .ok_or_else(|| io::Error::other("missing Project directories"))? = json!([
+        {
+            "directoryId": "22222222222222222222222222222222",
+            "path": "/two",
+            "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+            "directoryId": "11111111111111111111111111111112",
+            "path": "/one",
+            "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+    ]);
+    assert!(parse_document(&serde_json::to_vec(&noncanonical)?).is_err());
+
+    let directories = (1_u128..=MAXIMUM_DIRECTORIES_PER_PROJECT as u128)
+        .map(|value| {
+            json!({
+                "directoryId": identity(value),
+                "path": "/",
+                "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut bounded = configured;
+    *bounded
+        .pointer_mut("/navigation/projects/0/directories")
+        .ok_or_else(|| io::Error::other("missing Project directories"))? =
+        Value::Array(directories.clone());
+    replace_string(
+        &mut bounded,
+        "/navigation/projects/0/workspaces/0/primaryDirectoryId",
+        identity(1),
+    )?;
+    assert!(parse_document(&serde_json::to_vec(&bounded)?).is_ok());
+    let mut overflow = directories;
+    overflow.push(json!({
+        "directoryId": identity(257),
+        "path": "/",
+        "workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }));
+    *bounded
+        .pointer_mut("/navigation/projects/0/directories")
+        .ok_or_else(|| io::Error::other("missing Project directories"))? = Value::Array(overflow);
+    assert!(parse_document(&serde_json::to_vec(&bounded)?).is_err());
+
+    assert!(WorkbenchDirectoryPath::parse(&format!("/{}", "a".repeat(4095))).is_ok());
+    assert!(WorkbenchDirectoryPath::parse(&format!("/{}", "a".repeat(4096))).is_err());
+    assert!(WorkbenchDirectoryPath::parse(&format!("/{}", "🐝".repeat(1023))).is_ok());
+    assert!(WorkbenchDirectoryPath::parse(&format!("/{}", "🐝".repeat(1024))).is_err());
+    assert!(WorkbenchDirectoryPath::parse("relative/path").is_err());
+    assert!(WorkbenchDirectoryPath::parse("/nul\0path").is_err());
     Ok(())
 }
 
@@ -312,4 +419,24 @@ fn set_projects(value: &mut Value, projects: Vec<Value>) -> Result<(), io::Error
         .ok_or_else(|| io::Error::other("missing navigation projects"))?;
     *target = Value::Array(projects);
     Ok(())
+}
+
+fn object_at_mut<'value>(
+    value: &'value mut Value,
+    pointer: &str,
+) -> Result<&'value mut serde_json::Map<String, Value>, io::Error> {
+    value
+        .pointer_mut(pointer)
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| io::Error::other(format!("missing JSON object {pointer}")))
+}
+
+fn array_at_mut<'value>(
+    value: &'value mut Value,
+    pointer: &str,
+) -> Result<&'value mut Vec<Value>, io::Error> {
+    value
+        .pointer_mut(pointer)
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| io::Error::other(format!("missing JSON array {pointer}")))
 }

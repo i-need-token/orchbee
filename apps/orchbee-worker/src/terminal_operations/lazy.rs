@@ -35,10 +35,20 @@ pub(crate) fn run(
     server.set_nonblocking(true)?;
     let mut kernel = AuthorizedHostOperationKernel::new(worker_id, generation)?;
     loop {
-        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) =
-            server_transport::receive(server, None)?
-        else {
-            // No binding exists before the first Launch. Non-Launch traffic retires this
+        let request = server_transport::receive(server, None)?;
+        if let CapabilityNodeMessage::TerminalCwdValidationRequest(request) = request {
+            let result = crate::terminal_cwd_validation::validate(request, worker_id, generation);
+            // The send result reports Host closure, not Server closure. This pre-Host loop has no
+            // Host to observe, so only a result-write error retires the Server connection.
+            let _no_host = server_transport::send(
+                server,
+                None,
+                &CapabilityNodeMessage::TerminalCwdValidationResult(result),
+            )?;
+            continue;
+        }
+        let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = request else {
+            // No binding exists before the first Launch. Other non-Launch traffic retires this
             // connection and cannot acquire Host-start authority.
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -162,3 +172,6 @@ fn start_host(
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

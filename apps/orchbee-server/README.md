@@ -15,8 +15,11 @@ English remains canonical.
 `WorkbenchAuthority` owns one in-memory Site navigation document and a bounded request/result
 ledger. Admitted local Clients can read a correlated snapshot and create or rename Projects and
 Workspaces through OBWP. Workspace creation commits one empty Terminal Context with its reference.
+The independently authorized `workspace.primary-directory.accept` validates a local Worker directory
+and atomically adds a Project Directory selected by that empty Workspace. The
+[directory contract](docs/workspace-terminal-directory.md) owns validation, replay and failures.
 The first standalone Open also commits one shared Tab/Panel/Presentation and logical terminal binding
-before launch. The local `tab.create` command appends another simple standalone Tab, jointly commits
+before launch. The local `tab.create` command appends a simple standalone or configured Workspace Tab, jointly commits
 membership and retained terminal intent, and dispatches one launch. Exact replay returns the same
 pending or final result. A later Close may remove that membership without rewriting the historical
 Create result. A Client can attach a viewer using a current snapshot's exact Site/Worker/Terminal
@@ -512,6 +515,8 @@ joint command preparation and settlement with origin-bound, consuming owner toke
 `terminal_selection` composes canonical exposure, retained target resolution and attachment identity
 preparation. WorkbenchAuthority's `terminal_binding_selection` child owns the read-only canonical exposure query;
 `terminal_tab_create` owns command admission, prepared membership, reserved ledger bytes and settlement.
+The `workspace_directory` children own directory admission and canonical commit in WorkbenchAuthority,
+its Site grant composition, and the service's lock-free Worker observation followed by revalidation.
 `terminal_tab_move` owns Move admission and prepared permutation; Site checks composition before
 target/no-op evaluation. Both share command preflight; Move reuses the authority's prepared
 settled-command publication.
@@ -527,7 +532,8 @@ The carrier owns I/O, exact echo validation and generation retirement, not OBCS 
 Deterministic cores import no transport, clock or process adapter. Terminal service operations take
 registry then Site locks, or registry then controller-map locks for grants. Workbench access takes
 only the Site gate after external OBWP policy checking for reads and pure navigation. The opaque
-`WorkbenchReadOrNavigationRequest` excludes `tab.create` and `tab.move`, which need Site composition.
+`WorkbenchReadOrNavigationRequest` excludes `tab.create`, `tab.move`, `tab.close` and
+`workspace.primary-directory.accept`, which need their explicit Site composition paths.
 Move requires the navigation grant and only the Site gate; `tab.create` additionally requires
 the terminal-create grant and uses the composed path above. Binding viewer selection holds registry
 and Site locks, then samples the handle's active state; its internal canonical query uses OBCS

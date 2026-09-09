@@ -17,8 +17,9 @@ use nix::{
 };
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage, ProtocolError,
-    ReadMessageError, TerminalLaunchResult, TerminalOperationAuthorization, TerminalStartResult,
-    encode_message, read_message,
+    ReadMessageError, TerminalCwdValidationRequest, TerminalCwdValidationResult,
+    TerminalLaunchResult, TerminalOperationAuthorization, TerminalStartResult, encode_message,
+    read_message,
 };
 use orchbee_local_site_protocol::WorkerId;
 
@@ -31,6 +32,7 @@ const OWNER_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationRequest {
+    CwdValidation(TerminalCwdValidationRequest),
     Lifecycle(orchbee_capability_node_protocol::TerminalLifecycleRequest),
     Control(orchbee_capability_node_protocol::TerminalControlRequest),
     Launch(AuthorizedTerminalLaunch),
@@ -46,6 +48,7 @@ impl WorkerOperationRequest {
         orchbee_capability_node_protocol::WorkerGeneration,
     ) {
         match self {
+            Self::CwdValidation(request) => (request.worker_id, request.worker_generation),
             Self::Lifecycle(request) => (
                 request.authorization.worker_id,
                 request.authorization.worker_generation,
@@ -65,6 +68,9 @@ impl WorkerOperationRequest {
 
     fn message(&self) -> CapabilityNodeMessage {
         match self {
+            Self::CwdValidation(request) => {
+                CapabilityNodeMessage::TerminalCwdValidationRequest(request.clone())
+            }
             Self::Lifecycle(request) => CapabilityNodeMessage::TerminalLifecycleRequest(*request),
             Self::Control(request) => {
                 CapabilityNodeMessage::TerminalControlRequest(request.clone())
@@ -80,6 +86,7 @@ impl WorkerOperationRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkerOperationResult {
+    CwdValidation(TerminalCwdValidationResult),
     Lifecycle(orchbee_capability_node_protocol::TerminalLifecycleResult),
     Control(orchbee_capability_node_protocol::TerminalControlResult),
     Launch(TerminalLaunchResult),
@@ -188,6 +195,17 @@ pub(crate) struct WorkerRequestHandle {
 }
 
 impl WorkerRequestHandle {
+    pub(crate) fn validate_terminal_cwd(
+        &self,
+        request: TerminalCwdValidationRequest,
+    ) -> Result<TerminalCwdValidationResult, WorkerRequestError> {
+        let result = self.submit(WorkerOperationRequest::CwdValidation(request), false)?;
+        let WorkerOperationResult::CwdValidation(result) = result else {
+            unreachable!("cwd validation request returned another operation result");
+        };
+        Ok(result)
+    }
+
     pub(crate) fn request(
         &self,
         request: WorkerOperationRequest,
@@ -688,6 +706,35 @@ fn validate_response(
     response: CapabilityNodeMessage,
 ) -> Result<WorkerOperationResult, WorkerResponseFailure> {
     match (request, response) {
+        (
+            WorkerOperationRequest::CwdValidation(expected),
+            CapabilityNodeMessage::TerminalCwdValidationResult(actual),
+        ) => {
+            if actual.request.operation_id != expected.operation_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if actual.request.worker_id != expected.worker_id
+                || actual.request.worker_generation != expected.worker_generation
+                || actual.request.cwd != expected.cwd
+            {
+                return Err(WorkerResponseFailure::MismatchedTarget);
+            }
+            Ok(WorkerOperationResult::CwdValidation(actual))
+        }
+        (_, CapabilityNodeMessage::TerminalCwdValidationRequest(_)) => {
+            Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::TerminalCwdValidationResult(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
+        }
+        (
+            WorkerOperationRequest::CwdValidation(_),
+            CapabilityNodeMessage::TerminalLifecycleResult(_)
+            | CapabilityNodeMessage::TerminalControlResult(_)
+            | CapabilityNodeMessage::TerminalViewerResult(_)
+            | CapabilityNodeMessage::TerminalLaunchResult(_)
+            | CapabilityNodeMessage::TerminalStartResult(_),
+        ) => Err(WorkerResponseFailure::WrongResultKind),
         (
             WorkerOperationRequest::Lifecycle(expected),
             CapabilityNodeMessage::TerminalLifecycleResult(actual),

@@ -270,12 +270,14 @@ fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
                 terminal_context_id: terminal_context_id.clone(),
             });
             workspaces.push(Workspace {
+                primary_directory_id: None,
                 label: format!("Workspace {identity_value}"),
                 terminal_context_id,
                 workspace_id: WorkbenchWorkspaceId::parse(&prefixed_identity('3', identity_value))?,
             });
         }
         projects.push(Project {
+            directories: Vec::new(),
             label: format!("Project {}", project_index + 1),
             project_id: WorkbenchProjectId::parse(&prefixed_identity('2', project_index + 1))?,
             workspaces,

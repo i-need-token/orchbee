@@ -21,6 +21,7 @@ fn near_limit_snapshot() -> Snapshot {
     let mut next = 2;
     for _project in 0..2 {
         let mut project = Project {
+            directories: Vec::new(),
             project_id: WorkbenchProjectId::parse(&id(next)).unwrap(),
             label: "P".to_owned(),
             workspaces: Vec::new(),
@@ -35,6 +36,7 @@ fn near_limit_snapshot() -> Snapshot {
                 workspace_id,
                 terminal_context_id: terminal_context_id.clone(),
                 label: "\u{1f41d}".repeat(512),
+                primary_directory_id: None,
             });
             snapshot.terminal_contexts.push(TerminalContext {
                 terminal_context_id,

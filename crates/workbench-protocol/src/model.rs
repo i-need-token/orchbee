@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+use crate::directory::WorkbenchDirectoryPath;
 use crate::identity::{
-    ProtocolVersion, SiteId, TerminalId, TerminalPresentationId, WorkbenchPanelId,
-    WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchRequestId, WorkbenchRevision,
-    WorkbenchSplitId, WorkbenchTabGroupId, WorkbenchTabId, WorkbenchTerminalContextId,
-    WorkbenchWorkspaceId, WorkerId,
+    ProtocolVersion, SiteId, TerminalId, TerminalPresentationId, WorkbenchDirectoryId,
+    WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchRequestId,
+    WorkbenchRevision, WorkbenchSplitId, WorkbenchTabGroupId, WorkbenchTabId,
+    WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -107,13 +108,24 @@ pub struct TerminalContext {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Workspace {
     pub label: String,
+    #[serde(deserialize_with = "deserialize_required_nullable")]
+    pub primary_directory_id: Option<WorkbenchDirectoryId>,
     pub terminal_context_id: WorkbenchTerminalContextId,
     pub workspace_id: WorkbenchWorkspaceId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Directory {
+    pub directory_id: WorkbenchDirectoryId,
+    pub worker_id: WorkerId,
+    pub path: WorkbenchDirectoryPath,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Project {
+    pub directories: Vec<Directory>,
     pub label: String,
     pub project_id: WorkbenchProjectId,
     pub workspaces: Vec<Workspace>,
@@ -184,4 +196,12 @@ pub enum DeltaRejectionReason {
     InvalidProjection,
     NonIncreasingRevision,
     SiteMismatch,
+}
+
+fn deserialize_required_nullable<'de, D, Value>(deserializer: D) -> Result<Option<Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    Value: Deserialize<'de>,
+{
+    Option::<Value>::deserialize(deserializer)
 }

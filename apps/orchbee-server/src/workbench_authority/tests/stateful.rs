@@ -352,6 +352,9 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 WorkbenchAction::TabCreate { .. } => {
                     return Err("pure trace generated tab.create".to_owned());
                 }
+                WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } => {
+                    return Err("pure trace generated directory association".to_owned());
+                }
                 WorkbenchAction::TabClose { .. } => {
                     return Err("pure trace generated lifecycle tab.close".to_owned());
                 }

@@ -11,12 +11,15 @@ Workbench projection kernel. The language-neutral authority and canonical confor
 under [`schemas/workbench`](../../schemas/workbench/README.md). The binding parses one strict
 `workbench.snapshot.read` intent, complete bounded snapshots, and revision-chained aggregate deltas;
 `applyWorkbenchDelta` applies a delta atomically or returns one typed recovery reason. This contract
-contains Project, Workspace, Tab, Panel, and Terminal Presentation product semantics, but excludes
-Environment, Directory, Worktree, Agent, Launch Profile, terminal content, persistence, transport,
-and every Client-local view fact. No current client-session consumer uses this new contract yet.
+contains Project, Directory, Workspace, Tab, Panel, and Terminal Presentation product semantics,
+including an exact bounded POSIX path and required nullable primary Directory reference, but
+excludes Environment, Directory discovery or mutation policy, Worktree, Agent, Launch Profile,
+terminal content, persistence, transport, and every Client-local view fact. No current
+client-session consumer uses this new contract yet.
 
 The separate command binding validates `workbench.command` and correlated command/snapshot results.
-It includes Project and Workspace changes, canonical `tab.rename`, standalone `tab.move`, and
+It includes Project and Workspace changes, `workspace.primary-directory.accept`, canonical
+`tab.rename`, standalone `tab.move`, and
 standalone `tab.create` with its committed terminal result variants. Move carries exactly
 `terminalContextId`, `tabId`, and `direction: previous | next | first | last`; `tab-moved` carries
 exactly `revision`, `terminalContextId`, and `tabId`.
@@ -28,6 +31,13 @@ snapshot invariants, rejects unknown fields, and checks encoded request/result l
 Server consumes the independent Rust binding over OBWP; this package owns decoded values and does
 not implement OBWP transport, duplicate-key decoding, retries, shared-state mutation or
 authorization policy.
+
+Workspace primary Directory acceptance carries only Project, Workspace, and exact path input.
+Its accepted result carries revision plus the Server-selected Directory and Worker identities.
+The binding keeps `workspace-directory-unavailable` and `workspace-directory-conflict` in the
+rejection domain and `directory-unavailable` in the command-unavailable domain. It validates the
+closed wire and projection values; filesystem observation, Worker selection, authorization,
+set-once admission, commit, and replay remain Server responsibilities.
 
 The staged Close binding adds `tab.close`, immutable `tab-close-accepted`, effect-free
 `workbench.tab-close.read` and explicit `workbench.tab-close.resume` with their strict results.

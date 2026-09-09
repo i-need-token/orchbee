@@ -5,6 +5,8 @@ mod host_connection;
 #[cfg(any(unix, test))]
 mod terminal_authorization;
 mod terminal_control_operation;
+#[cfg(unix)]
+mod terminal_cwd_validation;
 #[cfg(any(unix, test))]
 mod terminal_host_launch_adapter;
 #[cfg(unix)]

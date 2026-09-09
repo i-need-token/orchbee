@@ -12,6 +12,7 @@ use std::sync::Arc;
 pub(crate) struct WorkbenchPolicy {
     pub(crate) read: bool,
     pub(crate) manage_navigation: bool,
+    pub(crate) associate_directory: bool,
     pub(crate) create_terminal: bool,
     pub(crate) manage_terminal_lifecycle: bool,
 }
@@ -47,6 +48,14 @@ impl WorkbenchService {
                 self.policy.manage_terminal_lifecycle
             }
             WorkbenchRequest::Command(command)
+                if matches!(
+                    &command.action,
+                    WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
+                ) =>
+            {
+                self.policy.manage_navigation && self.policy.associate_directory
+            }
+            WorkbenchRequest::Command(command)
                 if matches!(&command.action, WorkbenchAction::TabCreate { .. }) =>
             {
                 self.policy.manage_navigation && self.policy.create_terminal
@@ -57,6 +66,16 @@ impl WorkbenchService {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
         match &request {
+            WorkbenchRequest::Command(command)
+                if matches!(
+                    &command.action,
+                    WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
+                ) =>
+            {
+                return WorkbenchExecution::Response(WorkbenchResponse::Command(
+                    self.terminals.execute_workspace_directory(command.clone()),
+                ));
+            }
             WorkbenchRequest::TabCloseRead(read) => {
                 let denied = self.terminals.workbench_site_matches(&read.site_id) == Some(false);
                 let response = if denied {

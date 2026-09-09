@@ -11,12 +11,13 @@
 [`schemas/workbench`](../../schemas/workbench/README.zh-CN.md)。Binding 解析一个严格的
 `workbench.snapshot.read` intent、完整有界 snapshot 与 revision-chained aggregate delta；
 `applyWorkbenchDelta` 原子应用 delta，或返回一个 typed recovery reason。该 contract 包含
-Project、Workspace、Tab、Panel 与 Terminal Presentation 产品语义，但排除 Environment、
-Directory、Worktree、Agent、Launch Profile、terminal content、persistence、transport 与所有
-Client-local view fact。当前 client-session consumer 尚未使用这份新 contract。
+Project、Directory、Workspace、Tab、Panel 与 Terminal Presentation 产品语义，包括 exact bounded
+POSIX path 与必填且可为空的 primary Directory reference，但排除 Environment、Directory discovery
+或 mutation policy、Worktree、Agent、Launch Profile、terminal content、persistence、transport 与
+所有 Client-local view fact。当前 client-session consumer 尚未使用这份新 contract。
 
 独立 command binding 校验 `workbench.command` 及相关联的 command/snapshot result。它包括 Project
-与 Workspace 变更、canonical `tab.rename`、standalone `tab.move`，以及 standalone `tab.create`
+与 Workspace 变更、`workspace.primary-directory.accept`、canonical `tab.rename`、standalone `tab.move`，以及 standalone `tab.create`
 及其已提交的 terminal result variant。Move 仅携带 `terminalContextId`、`tabId` 和
 `direction: previous | next | first | last`；`tab-moved` 仅携带 `revision`、`terminalContextId`
 和 `tabId`。
@@ -25,6 +26,12 @@ Binding 与两个 runtime binary 作为同一个本地未发布 OBWP v1 cohort �
 decoder 会拒绝 Move。它复用 projection identity、label、revision 和 snapshot invariant，拒绝未知字段，
 并检查编码请求/结果上限。原生 Server 通过 OBWP 消费独立 Rust binding；本 package 拥有已解码值，
 不实现 OBWP transport、duplicate-key decoding、重试、共享状态 mutation 或授权策略。
+
+Workspace primary Directory 接受只携带 Project、Workspace 与确切 path 输入。其 accepted result
+携带 revision，以及 Server 选择的 Directory 与 Worker identity。Binding 将
+`workspace-directory-unavailable` 与 `workspace-directory-conflict` 保留在 rejection domain，
+将 `directory-unavailable` 保留在 command-unavailable domain。它校验封闭 wire 与 projection
+值；文件系统观察、Worker 选择、授权、set-once 准入、提交与重放仍属于 Server 职责。
 
 分阶段的 Close binding 增加 `tab.close`、不可变 `tab-close-accepted`、无副作用的
 `workbench.tab-close.read` 与显式 `workbench.tab-close.resume` 及其严格结果。

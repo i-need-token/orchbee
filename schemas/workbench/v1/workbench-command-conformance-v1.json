@@ -75,6 +75,23 @@
 			}
 		},
 		{
+			"name": "accept-workspace-primary-directory",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.primary-directory.accept",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"path": "/work/../work/orchbee"
+				}
+			}
+		},
+		{
 			"name": "create-standalone-tab",
 			"direction": "request",
 			"document": {
@@ -237,6 +254,21 @@
 					"revision": "2",
 					"workspaceId": "00000000000000000000000000000003",
 					"terminalContextId": "00000000000000000000000000000004"
+				}
+			}
+		},
+		{
+			"name": "workspace-primary-directory-accepted",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "workspace-primary-directory-accepted",
+					"revision": "3",
+					"directoryId": "00000000000000000000000000000004",
+					"workerId": "00000000000000000000000000000005"
 				}
 			}
 		},
@@ -449,6 +481,34 @@
 			}
 		},
 		{
+			"name": "workspace-directory-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "workspace-directory-unavailable"
+				}
+			}
+		},
+		{
+			"name": "workspace-directory-conflict",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "workspace-directory-conflict"
+				}
+			}
+		},
+		{
 			"name": "terminal-context-unavailable",
 			"direction": "response",
 			"document": {
@@ -597,6 +657,19 @@
 			}
 		},
 		{
+			"name": "directory-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "directory-unavailable"
+				}
+			}
+		},
+		{
 			"name": "snapshot",
 			"direction": "response",
 			"document": {
@@ -610,11 +683,19 @@
 						"navigation": {
 							"projects": [
 								{
+									"directories": [
+										{
+											"directoryId": "22222222222222222222222222222222",
+											"path": "/work/orchbee",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										}
+									],
 									"label": "Orchbee",
 									"projectId": "44444444444444444444444444444444",
 									"workspaces": [
 										{
 											"label": "Main",
+											"primaryDirectoryId": "22222222222222222222222222222222",
 											"terminalContextId": "66666666666666666666666666666666",
 											"workspaceId": "55555555555555555555555555555555"
 										}
@@ -1638,6 +1719,78 @@
 	],
 	"invalid": [
 		{
+			"name": "workspace-primary-directory-missing-path",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.primary-directory.accept",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003"
+				}
+			}
+		},
+		{
+			"name": "workspace-primary-directory-relative-path",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.primary-directory.accept",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"path": "work/orchbee"
+				}
+			}
+		},
+		{
+			"name": "workspace-primary-directory-nul-path",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.primary-directory.accept",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"path": "/work/\u0000orchbee"
+				}
+			}
+		},
+		{
+			"name": "workspace-primary-directory-extra-worker",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.primary-directory.accept",
+					"projectId": "00000000000000000000000000000002",
+					"workspaceId": "00000000000000000000000000000003",
+					"path": "/work/orchbee",
+					"workerId": "00000000000000000000000000000005"
+				}
+			}
+		},
+		{
 			"name": "tab-create-grid-product-overflow",
 			"direction": "request",
 			"boundary": "semantic",
@@ -2354,11 +2507,19 @@
 						"navigation": {
 							"projects": [
 								{
+									"directories": [
+										{
+											"directoryId": "22222222222222222222222222222222",
+											"path": "/work/orchbee",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										}
+									],
 									"label": "Orchbee",
 									"projectId": "44444444444444444444444444444444",
 									"workspaces": [
 										{
 											"label": "Main",
+											"primaryDirectoryId": "22222222222222222222222222222222",
 											"terminalContextId": "66666666666666666666666666666666",
 											"workspaceId": "55555555555555555555555555555555"
 										}
@@ -2467,11 +2628,19 @@
 						"navigation": {
 							"projects": [
 								{
+									"directories": [
+										{
+											"directoryId": "22222222222222222222222222222222",
+											"path": "/work/orchbee",
+											"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+										}
+									],
 									"label": "Orchbee",
 									"projectId": "44444444444444444444444444444444",
 									"workspaces": [
 										{
 											"label": "Main",
+											"primaryDirectoryId": "22222222222222222222222222222222",
 											"terminalContextId": "66666666666666666666666666666666",
 											"workspaceId": "55555555555555555555555555555555"
 										}

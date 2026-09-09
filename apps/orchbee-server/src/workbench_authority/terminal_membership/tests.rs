@@ -113,9 +113,11 @@ fn a_full_valid_projection_refuses_membership_before_allocating_or_retiring() {
     for index in 0_u128..256 {
         let context_id = WorkbenchTerminalContextId::parse(&identity(1000 + index)).unwrap();
         snapshot.navigation.projects.push(Project {
+            directories: Vec::new(),
             project_id: WorkbenchProjectId::parse(&identity(2000 + index)).unwrap(),
             label: "1".to_owned(),
             workspaces: vec![Workspace {
+                primary_directory_id: None,
                 workspace_id: WorkbenchWorkspaceId::parse(&identity(3000 + index)).unwrap(),
                 terminal_context_id: context_id.clone(),
                 label: "1".to_owned(),

@@ -5,9 +5,11 @@ EXTENDS FiniteSets, Naturals, TLC
 \* completely written. The registry publishes a generation-scoped request
 \* handle, while one WorkerWireOwner alone owns the stream. The handle has one
 \* submitted slot, and the wire owner has at most one request. The three
-\* operation identities include two Launch operations, so correlation is not
-\* reducible to result kind and the third request can encounter a genuinely
-\* full carrier.
+\* operation identities include two Launch operations. A dedicated scenario
+\* replaces them with two read-only cwd-validation operations whose exact cwd,
+\* Worker generation and operation identity are echoed by kinds 11/12. Thus
+\* correlation is not reducible to result kind, while the existing capacity
+\* scenario still proves that a third request can encounter a full carrier.
 \*
 \* An incoming response is environment-owned state. ReceiveExactWorkerResult
 \* validates and retains that exact state; it never constructs a replacement.
@@ -32,7 +34,12 @@ CONSTANTS
   FirstLaunchOperation,
   SecondLaunchOperation,
   StartOperation,
+  FirstCwdValidationOperation,
+  SecondCwdValidationOperation,
   NoOperation,
+  FirstCwd,
+  SecondCwd,
+  NoCwd,
   FirstLease,
   SecondLease,
   ThirdLease,
@@ -62,13 +69,19 @@ ASSUME
   /\ Cardinality({
        FirstLaunchOperation,
        SecondLaunchOperation,
-       StartOperation
-     }) = 3
+       StartOperation,
+       FirstCwdValidationOperation,
+       SecondCwdValidationOperation
+     }) = 5
   /\ NoOperation \notin {
        FirstLaunchOperation,
        SecondLaunchOperation,
-       StartOperation
+       StartOperation,
+       FirstCwdValidationOperation,
+       SecondCwdValidationOperation
      }
+  /\ FirstCwd # SecondCwd
+  /\ NoCwd \notin {FirstCwd, SecondCwd}
   /\ Cardinality({FirstLease, SecondLease, ThirdLease}) = 3
   /\ NoLease \notin {FirstLease, SecondLease, ThirdLease}
   /\ FirstHostCreation # SecondHostCreation
@@ -95,7 +108,15 @@ ASSUME
   /\ MaxTick >= 3
 
 LaunchOperations == {FirstLaunchOperation, SecondLaunchOperation}
-Operations == LaunchOperations \cup {StartOperation}
+CwdValidationOperations == {
+  FirstCwdValidationOperation,
+  SecondCwdValidationOperation
+}
+Operations ==
+  IF Scenario = "cwd-validation"
+  THEN CwdValidationOperations
+  ELSE LaunchOperations \cup {StartOperation}
+Cwds == {FirstCwd, SecondCwd}
 Terminals == {FirstTerminal, SecondTerminal}
 LeaseIds == {FirstLease, SecondLease, ThirdLease}
 Generations == 1..MaxGeneration
@@ -109,6 +130,7 @@ DefiniteOutcomePayloads == {
 }
 Scenarios == {
   "response-validation",
+  "cwd-validation",
   "disconnect-order",
   "stale-routing",
   "capacity"
@@ -140,9 +162,15 @@ OtherStartTarget == HostIdentity(
 )
 NoTarget == HostIdentity(NoHostCreation, 0, NoHostTerminal)
 HostTargetValues == {NoTarget, StartTarget, OtherStartTarget}
+TargetValues == HostTargetValues \cup Cwds
 
 OperationKind(operation) ==
-  IF operation \in LaunchOperations THEN "launch" ELSE "start"
+  CASE operation \in LaunchOperations -> "launch"
+    [] operation = StartOperation -> "start"
+    [] OTHER -> "cwd-validation"
+
+CwdForOperation(operation) ==
+  IF operation = FirstCwdValidationOperation THEN FirstCwd ELSE SecondCwd
 
 TerminalForOperation(operation) ==
   IF operation = SecondLaunchOperation
@@ -207,7 +235,10 @@ NoAuthorization == Authorization(
 Request(ref, operation) == [
   kind |-> OperationKind(operation),
   authorization |-> ExpectedAuthorization(ref, operation),
-  target |-> IF operation = StartOperation THEN StartTarget ELSE NoTarget
+  target |-> CASE operation = StartOperation -> StartTarget
+              [] operation \in CwdValidationOperations ->
+                   CwdForOperation(operation)
+              [] OTHER -> NoTarget
 ]
 
 NoRequest == [
@@ -251,9 +282,13 @@ OtherCapability(capability) ==
   IF capability = 1 THEN 2 ELSE 1
 
 OtherSameKindOperation(operation) ==
-  IF operation = FirstLaunchOperation
-  THEN SecondLaunchOperation
-  ELSE FirstLaunchOperation
+  CASE operation = FirstLaunchOperation -> SecondLaunchOperation
+    [] operation = SecondLaunchOperation -> FirstLaunchOperation
+    [] operation = FirstCwdValidationOperation ->
+         SecondCwdValidationOperation
+    [] OTHER -> FirstCwdValidationOperation
+
+OtherCwd(cwd) == IF cwd = FirstCwd THEN SecondCwd ELSE FirstCwd
 
 WrongTerminalAuthorization(authorization) ==
   [authorization EXCEPT
@@ -305,15 +340,17 @@ StartUnknownOutcome ==
 NoOutcome == Outcome("none", NoOutcomePayload, 0)
 
 Directions == {"server-to-worker", "worker-to-server"}
-ResultKinds == {"launch-result", "start-result"}
+ResultKinds == {"launch-result", "start-result", "cwd-validation-result"}
 
 ExpectedResultKind(request) ==
-  IF request.kind = "launch" THEN "launch-result" ELSE "start-result"
+  CASE request.kind = "launch" -> "launch-result"
+    [] request.kind = "start" -> "start-result"
+    [] OTHER -> "cwd-validation-result"
 
 OtherResultKind(resultKind) ==
-  IF resultKind = "launch-result"
-  THEN "start-result"
-  ELSE "launch-result"
+  CASE resultKind = "launch-result" -> "start-result"
+    [] resultKind = "start-result" -> "cwd-validation-result"
+    [] OTHER -> "launch-result"
 
 Response(direction, resultKind, authorization, target, outcome) == [
   direction |-> direction,
@@ -354,7 +391,8 @@ ExactResponseValues(request) ==
       LaunchUnknownOutcome(epoch)
     ) : epoch \in HostEpochs
   }
-  ELSE {
+  ELSE IF request.kind = "start"
+  THEN {
     Response(
       "worker-to-server",
       ExpectedResultKind(request),
@@ -363,6 +401,7 @@ ExactResponseValues(request) ==
       StartUnknownOutcome
     )
   }
+  ELSE {}
 
 AuthorizationTypeOK(authorization) ==
   /\ authorization.terminal \in Terminals
@@ -384,16 +423,18 @@ ResponseTypeOK(response) ==
   \/ /\ response.direction \in Directions
      /\ response.kind \in ResultKinds
      /\ AuthorizationTypeOK(response.authorization)
-     /\ response.target \in HostTargetValues
+     /\ response.target \in TargetValues
      /\ OutcomeTypeOK(response.outcome)
 
 OutcomeValidForRequest(request, outcome) ==
   \/ outcome \in DefiniteOutcomes
   \/ /\ outcome.classification = "outcome-unknown"
      /\ outcome.payload = NoOutcomePayload
-     /\ IF request.kind = "launch"
-          THEN outcome.launchUnknownHostEpoch \in HostEpochs
-          ELSE outcome.launchUnknownHostEpoch = 0
+     /\ CASE request.kind = "launch" ->
+               outcome.launchUnknownHostEpoch \in HostEpochs
+          [] request.kind = "start" ->
+               outcome.launchUnknownHostEpoch = 0
+          [] OTHER -> FALSE
 
 ResponseMatchesRequest(response, request) ==
   /\ response # NoResponse
@@ -440,7 +481,8 @@ WirePhases == {
 ExactIncomingClasses == {
   "exact-definite",
   "exact-launch-unknown",
-  "exact-start-unknown"
+  "exact-start-unknown",
+  "exact-cwd-validation"
 }
 
 InvalidIncomingClasses == {
@@ -455,6 +497,8 @@ InvalidIncomingClasses == {
   "wrong-lease-expiry",
   "wrong-capability",
   "wrong-start-target",
+  "wrong-cwd",
+  "invalid-cwd-unknown-payload",
   "invalid-unknown-payload"
 }
 
@@ -473,6 +517,7 @@ AttemptedOperations == {
 
 ScenarioAttemptLimit ==
   CASE Scenario = "response-validation" -> 1
+    [] Scenario = "cwd-validation" -> 2
     [] Scenario = "capacity" -> 3
     [] OTHER -> 2
 
@@ -592,7 +637,7 @@ ActivateInitialCarrier ==
   /\ \E worker \in Workers: ActivateCarrier(worker)
 
 ActivateReplacementCarrier ==
-  /\ Scenario \in {"disconnect-order", "stale-routing"}
+  /\ Scenario \in {"disconnect-order", "stale-routing", "cwd-validation"}
   /\ state.nextGeneration > 1
   /\ \E worker \in Workers: ActivateCarrier(worker)
 
@@ -631,8 +676,18 @@ SubmitStart ==
   /\ state.wireRequest = NoRequest
   /\ SubmitCurrent(StartOperation)
 
+SubmitFirstCwdValidation ==
+  /\ Scenario = "cwd-validation"
+  /\ state.wireRequest = NoRequest
+  /\ SubmitCurrent(FirstCwdValidationOperation)
+
+SubmitSecondCwdValidation ==
+  /\ Scenario = "cwd-validation"
+  /\ state.wireRequest = NoRequest
+  /\ SubmitCurrent(SecondCwdValidationOperation)
+
 QueueBehindInFlight ==
-  /\ Scenario \in {"disconnect-order", "capacity"}
+  /\ Scenario \in {"disconnect-order", "capacity", "cwd-validation"}
   /\ state.wireRequest # NoRequest
   /\ \E operation \in Operations: SubmitCurrent(operation)
 
@@ -813,8 +868,17 @@ ArriveExactStartUnknownResult ==
        "exact-start-unknown"
      )
 
+ArriveExactCwdValidationResult ==
+  /\ Scenario = "cwd-validation"
+  /\ state.wireRequest.kind = "cwd-validation"
+  /\ \E payload \in DefiniteOutcomePayloads:
+       ArriveIncomingResponse(
+         DefiniteResponse(state.wireRequest, payload),
+         "exact-cwd-validation"
+       )
+
 ArriveInvalidResponse(responseClass, response) ==
-  /\ Scenario = "response-validation"
+  /\ Scenario \in {"response-validation", "cwd-validation"}
   /\ responseClass \in InvalidIncomingClasses
   /\ ArriveIncomingResponse(response, responseClass)
 
@@ -845,7 +909,7 @@ ArriveWrongResultKind ==
      )
 
 ArriveWrongOperationCorrelation ==
-  /\ state.wireRequest.kind = "launch"
+  /\ state.wireRequest.kind \in {"launch", "cwd-validation"}
   /\ ArriveInvalidResponse(
        "wrong-operation",
        Response(
@@ -859,6 +923,7 @@ ArriveWrongOperationCorrelation ==
 
 ArriveWrongTerminalEcho ==
   /\ state.wireRequest # NoRequest
+  /\ state.wireRequest.kind # "cwd-validation"
   /\ ArriveInvalidResponse(
        "wrong-terminal",
        Response(
@@ -898,6 +963,7 @@ ArriveWrongGenerationEcho ==
 
 ArriveWrongFenceEcho ==
   /\ state.wireRequest # NoRequest
+  /\ state.wireRequest.kind # "cwd-validation"
   /\ ArriveInvalidResponse(
        "wrong-fence",
        Response(
@@ -911,6 +977,7 @@ ArriveWrongFenceEcho ==
 
 ArriveWrongLeaseIdEcho ==
   /\ state.wireRequest # NoRequest
+  /\ state.wireRequest.kind # "cwd-validation"
   /\ ArriveInvalidResponse(
        "wrong-lease-id",
        Response(
@@ -924,6 +991,7 @@ ArriveWrongLeaseIdEcho ==
 
 ArriveWrongLeaseExpiryEcho ==
   /\ state.wireRequest # NoRequest
+  /\ state.wireRequest.kind # "cwd-validation"
   /\ ArriveInvalidResponse(
        "wrong-lease-expiry",
        Response(
@@ -937,6 +1005,7 @@ ArriveWrongLeaseExpiryEcho ==
 
 ArriveWrongCapabilityEcho ==
   /\ state.wireRequest # NoRequest
+  /\ state.wireRequest.kind # "cwd-validation"
   /\ ArriveInvalidResponse(
        "wrong-capability",
        Response(
@@ -958,6 +1027,32 @@ ArriveWrongStartTarget ==
          state.wireRequest.authorization,
          OtherStartTarget,
          CanonicalDefiniteOutcome
+       )
+     )
+
+ArriveWrongCwdEcho ==
+  /\ state.wireRequest.kind = "cwd-validation"
+  /\ ArriveInvalidResponse(
+       "wrong-cwd",
+       Response(
+         "worker-to-server",
+         ExpectedResultKind(state.wireRequest),
+         state.wireRequest.authorization,
+         OtherCwd(state.wireRequest.target),
+         CanonicalDefiniteOutcome
+       )
+     )
+
+ArriveInvalidCwdUnknownPayload ==
+  /\ state.wireRequest.kind = "cwd-validation"
+  /\ ArriveInvalidResponse(
+       "invalid-cwd-unknown-payload",
+       Response(
+         "worker-to-server",
+         ExpectedResultKind(state.wireRequest),
+         state.wireRequest.authorization,
+         state.wireRequest.target,
+         StartUnknownOutcome
        )
      )
 
@@ -1065,29 +1160,29 @@ ExpireAfterCompleteWriteWithQueuedRequest ==
   /\ RetireCarrier
 
 DisconnectIdle ==
-  /\ Scenario \in {"disconnect-order", "stale-routing"}
+  /\ Scenario \in {"disconnect-order", "stale-routing", "cwd-validation"}
   /\ state.wirePhase = "idle"
   /\ RetireCarrier
 
 DisconnectBeforeWrite ==
-  /\ Scenario = "disconnect-order"
+  /\ Scenario \in {"disconnect-order", "cwd-validation"}
   /\ state.wirePhase = "ready-to-write"
   /\ RetireCarrier
 
 DisconnectAfterWrite ==
-  /\ Scenario = "disconnect-order"
+  /\ Scenario \in {"disconnect-order", "cwd-validation"}
   /\ state.wirePhase = "write-complete"
   /\ state.submittedSlot = NoRequest
   /\ RetireCarrier
 
 DisconnectAfterWriteWithQueuedRequest ==
-  /\ Scenario = "disconnect-order"
+  /\ Scenario \in {"disconnect-order", "cwd-validation"}
   /\ state.wirePhase = "write-complete"
   /\ state.submittedSlot # NoRequest
   /\ RetireCarrier
 
 DisconnectAfterResult ==
-  /\ Scenario = "disconnect-order"
+  /\ Scenario \in {"disconnect-order", "cwd-validation"}
   /\ state.wirePhase = "result-received"
   /\ RetireCarrier
 
@@ -1124,7 +1219,7 @@ PublishEffectUnknown ==
     /\ PublishCompletion(operation, "effect-unknown")
 
 DiscardLateResultAfterReplacement ==
-  /\ Scenario = "disconnect-order"
+  /\ Scenario \in {"disconnect-order", "cwd-validation"}
   /\ \E operation \in
        state.effectUnknownOperations \ state.discardedLateResults:
        /\ CarrierActive
@@ -1146,7 +1241,7 @@ CleanupAnyWorkerGeneration ==
   /\ \E ref \in WorkerRefs: CleanupWorkerGeneration(ref)
 
 CleanupStaleAfterReplacement ==
-  /\ Scenario \in {"disconnect-order", "stale-routing"}
+  /\ Scenario \in {"disconnect-order", "stale-routing", "cwd-validation"}
   /\ CarrierActive
   /\ \E ref \in state.cleanupRefs:
        /\ ref # state.activeRef
@@ -1162,6 +1257,8 @@ Next ==
   \/ SubmitFirstLaunch
   \/ SubmitSecondLaunch
   \/ SubmitStart
+  \/ SubmitFirstCwdValidation
+  \/ SubmitSecondCwdValidation
   \/ QueueBehindInFlight
   \/ RejectWrongWorkerRoute
   \/ RejectWrongGenerationRoute
@@ -1175,6 +1272,7 @@ Next ==
   \/ ArriveExactDefiniteResult
   \/ ArriveExactLaunchUnknownResult
   \/ ArriveExactStartUnknownResult
+  \/ ArriveExactCwdValidationResult
   \/ ArriveWrongDirection
   \/ ArriveWrongResultKind
   \/ ArriveWrongOperationCorrelation
@@ -1186,6 +1284,8 @@ Next ==
   \/ ArriveWrongLeaseExpiryEcho
   \/ ArriveWrongCapabilityEcho
   \/ ArriveWrongStartTarget
+  \/ ArriveWrongCwdEcho
+  \/ ArriveInvalidCwdUnknownPayload
   \/ ArriveInvalidLaunchUnknownPayload
   \/ ReceiveExactWorkerResult
   \/ RejectMismatchedWorkerResult
@@ -1371,6 +1471,25 @@ LaunchUnknownPayloadIsExact ==
            NoOutcomePayload
       /\ state.completions[operation].response.outcome.launchUnknownHostEpoch
            \in HostEpochs
+
+CwdValidationResultIsExactlyCorrelated ==
+  \A operation \in (CwdValidationOperations \intersect Operations):
+    state.completions[operation].classification = "exact-result" =>
+      /\ state.completions[operation].request.kind = "cwd-validation"
+      /\ state.completions[operation].request.target =
+           CwdForOperation(operation)
+      /\ state.completions[operation].response.kind =
+           "cwd-validation-result"
+      /\ state.completions[operation].response.target =
+           state.completions[operation].request.target
+      /\ state.completions[operation].response.authorization.operation =
+           operation
+      /\ state.completions[operation].response.authorization.worker =
+           state.completions[operation].request.authorization.worker
+      /\ state.completions[operation].response.authorization.generation =
+           state.completions[operation].request.authorization.generation
+      /\ state.completions[operation].response.outcome.classification =
+           "definite"
 
 EffectUnknownFollowsOneCompleteWrite ==
   /\ state.effectUnknownOperations = {

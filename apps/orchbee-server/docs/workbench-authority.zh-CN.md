@@ -160,8 +160,9 @@ Move 检查置换/完整成员事实保留、产品游标及无关事实不变�
 原生 Server 为每个本地 Site 持有一份规范 Workbench 状态。首组导航转换负责创建和重命名
 Project 与 Workspace。创建 Workspace 时只创建一个空 Terminal Context，不启动终端、
 创建目录或选择 Worker。首个独立 Open 还会在启动前提交共享 Tab/Panel/Presentation 成员关系
-及逻辑终端 binding，具体定义见下文。本地 `tab.create` 在同一个成员关系/终端意图共同提交边界内
-追加简单独立 Tab，并支持精确的待处理/最终结果重放。纯 `tab.rename` 只改变规范 Tab 标签，且可在
+及逻辑终端 binding，具体定义见下文。[Workspace 目录契约](workspace-terminal-directory.zh-CN.md)
+增加经 Worker 校验后、具有独立授权的显式目录关联。本地 `tab.create` 在同一个成员关系/终端意图共同提交边界内
+追加简单独立或已配置 Workspace Tab，并支持精确的待处理/最终结果重放。纯 `tab.rename` 只改变规范 Tab 标签，且可在
 该完成仍 pending 时运行。`tab.move` 改变规范位置，也可在该完成仍 pending 时运行。
 其他 Tab/Panel 转换、完整 Client Workbench 渲染、订阅、持久化、
 重启恢复及旧实现迁移仍未完成。
@@ -172,8 +173,8 @@ Projection store 是该权威的私有实现组件，没有公开的整份 snaps
 跨语言请求和结果的权威属于 [Workbench 契约](../../../schemas/workbench/README.zh-CN.md)。
 Workbench 在同一条已准入的本地连接上使用独立 OBWP carrier，OBCS 继续只负责终端契约。
 两种协议之前都须完成 same-user OBLC 准入。Server 随后选择显式的 Site-scoped Workbench
-grant。开发 composition 允许读取 snapshot 及五项纯 Workbench 操作；独立 `tab.create` 还要求显式的
-terminal-create grant。对于外部提交的 OBWP 读取及命令，
+grant。开发 composition 允许读取 snapshot 及五项纯 Workbench 操作；`tab.create` 还要求显式的
+terminal-create grant。目录关联同时要求 navigation 和独立的 directory-association grant。对于外部提交的 OBWP 读取及命令，
 权威在读取任何状态或 ledger 之前检查 grant。只读及拒绝策略均可表达。缺失或错误 Site 的 grant 返回 typed denied，不泄露
 状态、revision、identity 或 ledger；grant 绝不来自 wire input。Client 提交语义操作与预期
 revision，不能指定新产品身份、替换共享文档或发布 Client delta。

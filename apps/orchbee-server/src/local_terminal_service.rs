@@ -30,6 +30,7 @@ mod standalone;
 mod tab_close;
 mod tab_create;
 mod viewer_session;
+mod workspace_directory;
 
 // One queued plus one in-flight exchange, each with a two-second write and twenty-second read.
 const LEASE_LIFETIME_MILLISECONDS: u64 = 46_000;
@@ -180,7 +181,8 @@ fn submit(handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Comp
         Ok(WorkerOperationResult::Launch(result)) => Completion::Launch(result),
         Ok(WorkerOperationResult::Start(result)) => Completion::Start(result),
         Ok(
-            WorkerOperationResult::Viewer(_)
+            WorkerOperationResult::CwdValidation(_)
+            | WorkerOperationResult::Viewer(_)
             | WorkerOperationResult::Control(_)
             | WorkerOperationResult::Lifecycle(_),
         ) => Completion::Unknown,

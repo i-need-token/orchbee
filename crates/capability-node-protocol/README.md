@@ -1,10 +1,11 @@
 # Capability Node Protocol
 
-Private, experimental Rust semantic contract for authorized terminal operations between Orchbee
-Server and a Capability Node. The initial Capability Node is the Worker, but this crate does not
-bind the messages to a local socket or any other carrier. The local Server adapter now consumes its
-codec in an application-private post-OBLS carrier. The local Server coordinator now submits
-authorized Create/Start through that carrier to the Worker Host-execution loop. It is not a public API or a compatibility promise.
+Private, experimental Rust semantic contract for authorized terminal operations and bounded
+directory observations between Orchbee Server and a Capability Node. The initial Capability Node
+is the Worker, but this crate does not bind the messages to a local socket or any other carrier. The
+local Server adapter now consumes its codec in an application-private post-OBLS carrier. The local
+Server coordinator submits authorized Create/Start and generation-pinned cwd validation through
+that carrier. It is not a public API or a compatibility promise.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -97,6 +98,26 @@ replace a binding owned by Close. This refusal is not a stale-fence or Host-fail
 Server maps it to the existing terminal-runtime-unavailable outcome. Lifecycle mutation Unknown
 remains sticky across attempts; no new lease or higher attempt authorizes another mutation.
 Inventory representation alone creates no Server reconciliation or Resume path for Unknown.
+
+## Terminal cwd validation messages
+
+OBCN kind 11 `TerminalCwdValidationRequest` and kind 12 `TerminalCwdValidationResult` carry one
+read-only, generation-pinned directory observation on the existing serialized Server-Worker
+carrier. A request contains operation ID (16 bytes), Worker ID (16), positive Worker generation
+(`u64`), cwd byte length (`u16`) and one required `AbsoluteCwd`. A result echoes that complete
+request and adds one outcome tag: 1 `DirectoryAvailable`, 2 `DirectoryUnavailable`, or 3
+`WorkerUnavailable`. All integers retain the existing unsigned big-endian encoding.
+
+The accepted [Workspace terminal directory contract](../../apps/orchbee-server/docs/workspace-terminal-directory.md)
+owns the association that consumes this observation.
+
+The codec validates nonzero identities and generation, absolute UTF-8 cwd length and spelling,
+exact payload length, and the closed outcome set. It does not access the filesystem, resolve a
+symbolic link, create a directory, authorize association, or establish that a Worker is current.
+The Worker owns the point-in-time metadata observation; the Server carrier validates the full echo
+and owns its existing bounded queue, deadlines and connection-loss classification. The message has
+no terminal identity, lease, Host command, launch authority or durable effect. Protocol, Worker and
+Server activate kinds 11 and 12 together in the same unpublished local cohort.
 
 ## Framing and messages
 

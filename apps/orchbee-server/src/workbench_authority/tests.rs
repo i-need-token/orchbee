@@ -5,6 +5,7 @@ use orchbee_workbench_protocol::{
 };
 
 mod stateful;
+mod workspace_directory;
 
 fn authority() -> (WorkbenchAuthority, WorkbenchGrant) {
     let site = SiteId::parse(&identity(100)).unwrap();

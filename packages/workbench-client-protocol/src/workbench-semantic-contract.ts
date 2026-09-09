@@ -5,6 +5,8 @@ export const WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES = 16 * 1024;
 export const WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES = 1024 * 1024;
 export const WORKBENCH_MAXIMUM_LABEL_LENGTH = 512;
 export const WORKBENCH_MAXIMUM_PROJECTS = 256;
+export const WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT = 256;
+export const WORKBENCH_MAXIMUM_DIRECTORY_PATH_BYTES = 4096;
 export const WORKBENCH_MAXIMUM_WORKSPACES_PER_PROJECT = 256;
 export const WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS = 1024;
 export const WORKBENCH_MAXIMUM_TAB_GROUPS_PER_CONTEXT = 64;
@@ -28,6 +30,7 @@ export const SiteIdSchema = identitySchema.brand<'SiteId'>();
 export const WorkbenchRequestIdSchema = identitySchema.brand<'WorkbenchRequestId'>();
 export const WorkbenchProjectIdSchema = identitySchema.brand<'WorkbenchProjectId'>();
 export const WorkbenchWorkspaceIdSchema = identitySchema.brand<'WorkbenchWorkspaceId'>();
+export const WorkbenchDirectoryIdSchema = identitySchema.brand<'WorkbenchDirectoryId'>();
 export const WorkbenchTerminalContextIdSchema =
 	identitySchema.brand<'WorkbenchTerminalContextId'>();
 export const WorkbenchTabGroupIdSchema = identitySchema.brand<'WorkbenchTabGroupId'>();
@@ -62,10 +65,27 @@ export const WorkbenchLabelSchema = z
 		'Label exceeds the Unicode code-point limit',
 	);
 
+export const WorkbenchDirectoryPathSchema = z
+	.string()
+	.min(1)
+	.max(WORKBENCH_MAXIMUM_DIRECTORY_PATH_BYTES)
+	.refine((value) => value.startsWith('/'), 'Directory path must be absolute POSIX text')
+	.refine(
+		(value) => !value.includes('\0') && !/[\uD800-\uDFFF]/u.test(value),
+		'Directory path must contain UTF-8 text without NUL',
+	)
+	.refine(
+		(value) => new TextEncoder().encode(value).length <= WORKBENCH_MAXIMUM_DIRECTORY_PATH_BYTES,
+		'Directory path exceeds the UTF-8 byte limit',
+	)
+	.brand<'WorkbenchDirectoryPath'>();
+
 export type SiteId = z.infer<typeof SiteIdSchema>;
 export type WorkbenchRequestId = z.infer<typeof WorkbenchRequestIdSchema>;
 export type WorkbenchProjectId = z.infer<typeof WorkbenchProjectIdSchema>;
 export type WorkbenchWorkspaceId = z.infer<typeof WorkbenchWorkspaceIdSchema>;
+export type WorkbenchDirectoryId = z.infer<typeof WorkbenchDirectoryIdSchema>;
+export type WorkbenchDirectoryPath = z.infer<typeof WorkbenchDirectoryPathSchema>;
 export type WorkbenchTerminalContextId = z.infer<typeof WorkbenchTerminalContextIdSchema>;
 export type WorkbenchTabGroupId = z.infer<typeof WorkbenchTabGroupIdSchema>;
 export type WorkbenchTabId = z.infer<typeof WorkbenchTabIdSchema>;
@@ -181,9 +201,18 @@ export const WorkbenchTerminalContextSchema = z
 	})
 	.readonly();
 
+export const WorkbenchDirectorySchema = z
+	.strictObject({
+		directoryId: WorkbenchDirectoryIdSchema,
+		workerId: WorkerIdSchema,
+		path: WorkbenchDirectoryPathSchema,
+	})
+	.readonly();
+
 export const WorkbenchWorkspaceSchema = z
 	.strictObject({
 		label: WorkbenchLabelSchema,
+		primaryDirectoryId: WorkbenchDirectoryIdSchema.nullable(),
 		terminalContextId: WorkbenchTerminalContextIdSchema,
 		workspaceId: WorkbenchWorkspaceIdSchema,
 	})
@@ -191,6 +220,10 @@ export const WorkbenchWorkspaceSchema = z
 
 export const WorkbenchProjectSchema = z
 	.strictObject({
+		directories: z
+			.array(WorkbenchDirectorySchema)
+			.max(WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT)
+			.readonly(),
 		label: WorkbenchLabelSchema,
 		projectId: WorkbenchProjectIdSchema,
 		workspaces: z
@@ -282,6 +315,7 @@ export const WorkbenchProtocolDocumentSchema = z.union([
 export type WorkbenchTabGroup = z.infer<typeof WorkbenchTabGroupSchema>;
 export type WorkbenchTab = z.infer<typeof WorkbenchTabSchema>;
 export type WorkbenchTerminalContext = z.infer<typeof WorkbenchTerminalContextSchema>;
+export type WorkbenchDirectory = z.infer<typeof WorkbenchDirectorySchema>;
 export type WorkbenchWorkspace = z.infer<typeof WorkbenchWorkspaceSchema>;
 export type WorkbenchProject = z.infer<typeof WorkbenchProjectSchema>;
 export type WorkbenchNavigation = z.infer<typeof WorkbenchNavigationSchema>;
@@ -402,9 +436,20 @@ function validateWorkbenchSnapshot(
 		context,
 	);
 	const workspaceIds = new Set<WorkbenchWorkspaceId>();
+	const directoryIds = new Set<WorkbenchDirectoryId>();
 	const referencedContextCounts = new Map<WorkbenchTerminalContextId, number>();
 	incrementReference(referencedContextCounts, snapshot.navigation.standaloneTerminalContextId);
 	for (const project of snapshot.navigation.projects) {
+		validateCanonicalOrder(
+			project.directories.map((directory) => directory.directoryId),
+			`Directories in Project ${project.projectId}`,
+			context,
+		);
+		const projectDirectoryIds = new Set<WorkbenchDirectoryId>();
+		for (const directory of project.directories) {
+			requireUnique(projectDirectoryIds, directory.directoryId, 'Directory in Project', context);
+			requireUnique(directoryIds, directory.directoryId, 'Directory', context);
+		}
 		validateCanonicalOrder(
 			project.workspaces.map((workspace) => workspace.workspaceId),
 			`Workspaces in Project ${project.projectId}`,
@@ -413,6 +458,15 @@ function validateWorkbenchSnapshot(
 		for (const workspace of project.workspaces) {
 			requireUnique(workspaceIds, workspace.workspaceId, 'Workspace', context);
 			incrementReference(referencedContextCounts, workspace.terminalContextId);
+			if (
+				workspace.primaryDirectoryId !== null &&
+				!projectDirectoryIds.has(workspace.primaryDirectoryId)
+			) {
+				context.addIssue({
+					code: 'custom',
+					message: `Workspace ${workspace.workspaceId} references a Directory outside its Project`,
+				});
+			}
 		}
 	}
 

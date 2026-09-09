@@ -3,11 +3,11 @@ use std::sync::Arc;
 use orchbee_workbench_protocol::{
     ContractError, MAXIMUM_PANEL_NODES_PER_CONTEXT, MAXIMUM_TABS_PER_CONTEXT, PresentationBinding,
     TerminalPresentationId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
-    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
-    WorkbenchProtocolDocument, WorkbenchRejectionReason, WorkbenchRequestId, WorkbenchRevision,
-    WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchTerminalFailureReason,
+    WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchDirectoryPath,
+    WorkbenchPanelId, WorkbenchProtocolDocument, WorkbenchRejectionReason, WorkbenchRequestId,
+    WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchTerminalFailureReason,
     WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
-    serialize_document,
+    WorkerId, serialize_document,
 };
 
 use super::terminal_membership::{SimpleTabIds, append_simple_tab, parse_tab_ids};
@@ -42,7 +42,16 @@ pub struct StagedWorkbenchTabCreateMetadata {
     panel_id: WorkbenchPanelId,
     presentation_id: TerminalPresentationId,
     geometry: WorkbenchTerminalGeometry,
-    standalone_membership: super::WorkbenchStandaloneMembership,
+    target: WorkbenchTabCreateTarget,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum WorkbenchTabCreateTarget {
+    Standalone(super::WorkbenchStandaloneMembership),
+    Workspace {
+        worker_id: WorkerId,
+        path: WorkbenchDirectoryPath,
+    },
 }
 
 impl StagedWorkbenchTabCreateMetadata {
@@ -77,13 +86,27 @@ impl StagedWorkbenchTabCreateMetadata {
     }
 
     #[must_use]
-    pub fn standalone_membership(&self) -> &super::WorkbenchStandaloneMembership {
-        &self.standalone_membership
+    pub fn standalone_membership(&self) -> Option<&super::WorkbenchStandaloneMembership> {
+        match &self.target {
+            WorkbenchTabCreateTarget::Standalone(membership) => Some(membership),
+            WorkbenchTabCreateTarget::Workspace { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub fn workspace_launch(&self) -> Option<(&WorkerId, &WorkbenchDirectoryPath)> {
+        match &self.target {
+            WorkbenchTabCreateTarget::Standalone(_) => None,
+            WorkbenchTabCreateTarget::Workspace { worker_id, path } => Some((worker_id, path)),
+        }
     }
 
     #[must_use]
     pub fn is_first(&self) -> bool {
-        self.standalone_membership.is_empty()
+        matches!(
+            &self.target,
+            WorkbenchTabCreateTarget::Standalone(membership) if membership.is_empty()
+        )
     }
 }
 
@@ -97,6 +120,7 @@ pub struct CommittedWorkbenchTabCreateMetadata {
     presentation_id: TerminalPresentationId,
     binding: PresentationBinding,
     geometry: WorkbenchTerminalGeometry,
+    standalone: bool,
     first: bool,
 }
 
@@ -144,6 +168,11 @@ impl CommittedWorkbenchTabCreateMetadata {
     #[must_use]
     pub const fn is_first(&self) -> bool {
         self.first
+    }
+
+    #[must_use]
+    pub const fn is_standalone(&self) -> bool {
+        self.standalone
     }
 }
 
@@ -232,6 +261,7 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             }
         };
         let first = staged.is_first();
+        let standalone = staged.standalone_membership().is_some();
         let metadata = CommittedWorkbenchTabCreateMetadata {
             request_id: command.request_id.clone(),
             revision: staged.revision,
@@ -241,6 +271,7 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             presentation_id: staged.presentation_id,
             binding,
             geometry: staged.geometry,
+            standalone,
             first,
         };
         let Some(results) = TabCreateResultTable::new(&command, &metadata) else {
@@ -410,22 +441,62 @@ impl WorkbenchAuthority {
                 WorkbenchRejectionReason::RevisionMismatch,
             ));
         }
-        if terminal_context_id != snapshot.navigation.standalone_terminal_context_id {
+        let Some(context) = snapshot
+            .terminal_contexts
+            .iter()
+            .find(|context| context.terminal_context_id == terminal_context_id)
+        else {
             return WorkbenchTabCreateBegin::Ready(retain_rejection(
                 self,
                 command,
                 WorkbenchRejectionReason::TerminalContextUnavailable,
             ));
-        }
-        let membership = match self.standalone_membership() {
-            Ok(membership) => membership,
-            Err(_error) => return WorkbenchTabCreateBegin::Ready(retire(self, &command)),
         };
-        let tab_count = snapshot
-            .terminal_contexts
-            .iter()
-            .find(|context| context.terminal_context_id == terminal_context_id)
-            .map_or(0, |context| context.tabs.len());
+        let tab_count = context.tabs.len();
+        let target = if terminal_context_id == snapshot.navigation.standalone_terminal_context_id {
+            match self.standalone_membership() {
+                Ok(membership) => WorkbenchTabCreateTarget::Standalone(membership),
+                Err(_error) => return WorkbenchTabCreateBegin::Ready(retire(self, &command)),
+            }
+        } else {
+            let Some((project, workspace)) =
+                snapshot.navigation.projects.iter().find_map(|project| {
+                    project
+                        .workspaces
+                        .iter()
+                        .find(|workspace| workspace.terminal_context_id == terminal_context_id)
+                        .map(|workspace| (project, workspace))
+                })
+            else {
+                return WorkbenchTabCreateBegin::Ready(retain_rejection(
+                    self,
+                    command,
+                    WorkbenchRejectionReason::TerminalContextUnavailable,
+                ));
+            };
+            let Some(directory_id) = workspace.primary_directory_id.as_ref() else {
+                return WorkbenchTabCreateBegin::Ready(retain_rejection(
+                    self,
+                    command,
+                    WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
+                ));
+            };
+            let Some(directory) = project
+                .directories
+                .iter()
+                .find(|directory| &directory.directory_id == directory_id)
+            else {
+                return WorkbenchTabCreateBegin::Ready(retain_rejection(
+                    self,
+                    command,
+                    WorkbenchRejectionReason::WorkspaceDirectoryUnavailable,
+                ));
+            };
+            WorkbenchTabCreateTarget::Workspace {
+                worker_id: directory.worker_id.clone(),
+                path: directory.path.clone(),
+            }
+        };
         if tab_count >= MAXIMUM_TABS_PER_CONTEXT || tab_count >= MAXIMUM_PANEL_NODES_PER_CONTEXT {
             return WorkbenchTabCreateBegin::Ready(retain_rejection(
                 self,
@@ -465,7 +536,7 @@ impl WorkbenchAuthority {
                 panel_id: ids.panel_id,
                 presentation_id: ids.presentation_id,
                 geometry,
-                standalone_membership: membership,
+                target,
             },
             last_identity,
         }))

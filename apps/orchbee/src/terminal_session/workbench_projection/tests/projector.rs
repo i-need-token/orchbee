@@ -51,9 +51,11 @@ fn requires_one_matching_context_and_ignores_project_workspace_contexts() {
     let mut coexistence = snapshot(2, 8);
     let unrelated_context_id = context_id(91);
     coexistence.navigation.projects.push(Project {
+        directories: Vec::new(),
         label: "project".into(),
         project_id: project_id(92),
         workspaces: vec![Workspace {
+            primary_directory_id: None,
             label: "workspace".into(),
             terminal_context_id: unrelated_context_id.clone(),
             workspace_id: workspace_id(93),

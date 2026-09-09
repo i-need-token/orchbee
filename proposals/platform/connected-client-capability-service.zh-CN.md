@@ -59,6 +59,10 @@ Host 到达真实的保留 shell；第二次调用加入同一 Site；输出、�
 Canonical Move 也已接通并具有 Linux cohort 进程证据。该指南还记录原生 Close 到 Empty、手动
 Create 及保留 shell 重入的有界 Linux 进程证据；其余 Workbench 操作仍须通过各自的交付切片完成。
 
+[Workspace 目录切片](../../apps/orchbee-server/docs/workspace-terminal-directory.zh-CN.md)
+增加 Project 拥有的 Directory、经 Worker 校验后的显式首次关联，以及使用已接受目录和确切 Worker
+的 Workspace Tab 创建。其消费边界是本地 Server 协议；TUI/Desktop 的 Workspace 导航和目录选择仍属独立工作。
+
 该里程碑是尚未发布的增量实现，不证明生产重启恢复、远程访问或现有 Desktop 迁移已经完成。
 其中，对无法匹配的保留 Host inventory 返回 `RecoveryRequired` 是开发阶段边界，不是生产连续性
 体验。公开切换仍须满足原生拓扑中规定的恢复、迁移、打包与性能要求。
@@ -93,6 +97,10 @@ Project 是不依赖主机的产品目标。Checkout 是位于一个确切 Worke
 创建的前置条件，也不能独立决定 Worker placement。已接受的关系尚未定义 durable schema、migration、
 跨机器源码传输策略，也未决定在内部重命名还是适配 `Directory`；这些决策需要一个边界清晰的
 Workbench proposal。
+
+已接受的本地[目录契约](../../apps/orchbee-server/docs/workspace-terminal-directory.zh-CN.md)
+现为尚未发布的内存原生 cohort 选定 Project 拥有 Directory、Workspace 持有 nullable primary 引用。
+这关闭了本地表示及首次关联决策；持久化 schema migration、通用 Directory CRUD 和跨机器传输仍不在其中。
 
 [`native-runtime-topology.md`](native-runtime-topology.zh-CN.md) 中已经接受的原生 refinement 取代了
 “每个 execution effect 都必须解析通用 Environment”的旧规则。Future native terminal creation

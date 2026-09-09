@@ -8,7 +8,9 @@ import {
 	SiteIdSchema,
 	WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES,
+	WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT,
 	WorkbenchDeltaSchema,
+	WorkbenchDirectoryPathSchema,
 	WorkbenchNavigationSchema,
 	WorkbenchPanelNodeSchema,
 	WorkbenchPresentationSchema,
@@ -16,6 +18,7 @@ import {
 	WorkbenchRevisionSchema,
 	WorkbenchSnapshotReadIntentSchema,
 	WorkbenchSnapshotSchema,
+	WorkbenchWorkspaceSchema,
 	applyWorkbenchDelta,
 	parseWorkbenchDelta,
 	parseWorkbenchSnapshot,
@@ -252,6 +255,7 @@ describe('Workbench cross-language semantic contract', () => {
 		).toBe(false);
 
 		const projects = Array.from({ length: 256 }, (_value, index) => ({
+			directories: [],
 			label: `Project ${index + 1}`,
 			projectId: opaqueIdentity(index + 1),
 			workspaces: [],
@@ -266,7 +270,7 @@ describe('Workbench cross-language semantic contract', () => {
 			WorkbenchNavigationSchema.safeParse({
 				projects: [
 					...projects,
-					{ label: 'Overflow', projectId: opaqueIdentity(257), workspaces: [] },
+					{ directories: [], label: 'Overflow', projectId: opaqueIdentity(257), workspaces: [] },
 				],
 				standaloneTerminalContextId: 'ffffffffffffffffffffffffffffffff',
 			}).success,
@@ -291,5 +295,111 @@ describe('Workbench cross-language semantic contract', () => {
 		expect(WorkbenchPanelNodeSchema.safeParse(panel(16, { next: 100 })).success).toBe(true);
 		expect(WorkbenchSnapshotSchema.safeParse(snapshotWithPanelDepth(16)).success).toBe(true);
 		expect(WorkbenchSnapshotSchema.safeParse(snapshotWithPanelDepth(17)).success).toBe(false);
+	});
+
+	it('enforces Directory path, collection, identity order, and same-Project reference invariants', () => {
+		const directory = (directoryId: string, path = '/work/orchbee') => ({
+			directoryId,
+			path,
+			workerId: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+		const snapshot = (projects: readonly unknown[]) => ({
+			kind: 'workbench.snapshot',
+			navigation: {
+				projects,
+				standaloneTerminalContextId: '33333333333333333333333333333333',
+			},
+			protocolVersion: 1,
+			revision: '2',
+			siteId: '11111111111111111111111111111111',
+			terminalContexts: [
+				{ groups: [], tabs: [], terminalContextId: '33333333333333333333333333333333' },
+				{ groups: [], tabs: [], terminalContextId: '66666666666666666666666666666666' },
+			],
+		});
+		const workspace = {
+			label: 'Main',
+			primaryDirectoryId: '22222222222222222222222222222222',
+			terminalContextId: '66666666666666666666666666666666',
+			workspaceId: '55555555555555555555555555555555',
+		};
+		const project = {
+			directories: [directory('22222222222222222222222222222222')],
+			label: 'Orchbee',
+			projectId: '44444444444444444444444444444444',
+			workspaces: [workspace],
+		};
+
+		expect(WorkbenchSnapshotSchema.safeParse(snapshot([project])).success).toBe(true);
+		expect(
+			WorkbenchSnapshotSchema.safeParse(
+				snapshot([
+					{
+						...project,
+						directories: [
+							directory('22222222222222222222222222222222'),
+							directory('11111111111111111111111111111112'),
+						],
+					},
+				]),
+			).success,
+		).toBe(false);
+		expect(
+			WorkbenchSnapshotSchema.safeParse(
+				snapshot([
+					{ ...project, workspaces: [{ ...workspace, primaryDirectoryId: null }] },
+					{
+						directories: [directory('22222222222222222222222222222222')],
+						label: 'Duplicate owner',
+						projectId: '77777777777777777777777777777777',
+						workspaces: [],
+					},
+				]),
+			).success,
+		).toBe(false);
+		expect(
+			WorkbenchSnapshotSchema.safeParse(
+				snapshot([
+					{ ...project, directories: [] },
+					{
+						directories: [directory('22222222222222222222222222222222')],
+						label: 'Other owner',
+						projectId: '77777777777777777777777777777777',
+						workspaces: [],
+					},
+				]),
+			).success,
+		).toBe(false);
+		expect(
+			WorkbenchWorkspaceSchema.safeParse({
+				label: 'Missing required nullable field',
+				terminalContextId: '66666666666666666666666666666666',
+				workspaceId: '55555555555555555555555555555555',
+			}).success,
+		).toBe(false);
+
+		const directories = Array.from(
+			{ length: WORKBENCH_MAXIMUM_DIRECTORIES_PER_PROJECT },
+			(_value, index) => directory(opaqueIdentity(index + 1), '/'),
+		);
+		expect(
+			WorkbenchNavigationSchema.safeParse({
+				projects: [{ ...project, directories, workspaces: [] }],
+				standaloneTerminalContextId: 'ffffffffffffffffffffffffffffffff',
+			}).success,
+		).toBe(true);
+		expect(
+			WorkbenchNavigationSchema.safeParse({
+				projects: [
+					{ ...project, directories: [...directories, directory(opaqueIdentity(257), '/')] },
+				],
+				standaloneTerminalContextId: 'ffffffffffffffffffffffffffffffff',
+			}).success,
+		).toBe(false);
+
+		expect(WorkbenchDirectoryPathSchema.safeParse('/' + '🐝'.repeat(1023)).success).toBe(true);
+		expect(WorkbenchDirectoryPathSchema.safeParse('/' + '🐝'.repeat(1024)).success).toBe(false);
+		expect(WorkbenchDirectoryPathSchema.safeParse('relative/path').success).toBe(false);
+		expect(WorkbenchDirectoryPathSchema.safeParse('/nul\0path').success).toBe(false);
 	});
 });

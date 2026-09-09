@@ -10,10 +10,15 @@ import type {
 } from '../workbench-command-contract';
 import {
 	SiteIdSchema,
+	WorkbenchDirectoryIdSchema,
+	WorkbenchDirectoryPathSchema,
+	WorkbenchProjectIdSchema,
 	WorkbenchRequestIdSchema,
 	WorkbenchRevisionSchema,
 	WorkbenchTabIdSchema,
 	WorkbenchTerminalContextIdSchema,
+	WorkbenchWorkspaceIdSchema,
+	WorkerIdSchema,
 } from '../workbench-semantic-contract';
 import {
 	WorkbenchRequestSchema,
@@ -54,6 +59,36 @@ const corpusSchema = z.object({
 const objectSchema = z.record(z.string(), z.unknown());
 
 describe('Workbench command contract', () => {
+	it('preserves an independently constructed Workspace primary Directory acceptance', () => {
+		const request: WorkbenchCommand = {
+			kind: 'workbench.command',
+			protocolVersion: 1,
+			requestId: WorkbenchRequestIdSchema.parse('11111111111111111111111111111111'),
+			siteId: SiteIdSchema.parse('22222222222222222222222222222222'),
+			expectedRevision: WorkbenchRevisionSchema.parse('7'),
+			action: {
+				kind: 'workspace.primary-directory.accept',
+				projectId: WorkbenchProjectIdSchema.parse('33333333333333333333333333333333'),
+				workspaceId: WorkbenchWorkspaceIdSchema.parse('44444444444444444444444444444444'),
+				path: WorkbenchDirectoryPathSchema.parse('/work/../work/orchbee'),
+			},
+		};
+		const result: WorkbenchCommandResult = {
+			kind: 'workbench.command.result',
+			protocolVersion: 1,
+			requestId: request.requestId,
+			outcome: {
+				kind: 'workspace-primary-directory-accepted',
+				revision: WorkbenchRevisionSchema.parse('8'),
+				directoryId: WorkbenchDirectoryIdSchema.parse('55555555555555555555555555555555'),
+				workerId: WorkerIdSchema.parse('66666666666666666666666666666666'),
+			},
+		};
+
+		expect(parseWorkbenchRequest(JSON.parse(JSON.stringify(request)))).toEqual(request);
+		expect(parseWorkbenchResponse(JSON.parse(JSON.stringify(result)))).toEqual(result);
+	});
+
 	it.each<WorkbenchTabMoveDirection>(['previous', 'next', 'first', 'last'])(
 		'preserves an independently constructed typed %s Move and its exact result',
 		(direction) => {

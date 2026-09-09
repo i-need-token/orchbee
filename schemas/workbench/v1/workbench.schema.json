@@ -29,6 +29,10 @@
 			"title": "WorkbenchWorkspaceId",
 			"$ref": "#/$defs/identity"
 		},
+		"directoryId": {
+			"title": "WorkbenchDirectoryId",
+			"$ref": "#/$defs/identity"
+		},
 		"terminalContextId": {
 			"title": "WorkbenchTerminalContextId",
 			"$ref": "#/$defs/identity"
@@ -78,6 +82,14 @@
 			"minLength": 1,
 			"maxLength": 512,
 			"pattern": "^[^\\uD800-\\uDFFF]*$"
+		},
+		"directoryPath": {
+			"title": "WorkbenchDirectoryPath",
+			"$comment": "The independent bindings additionally enforce the 4096-byte UTF-8 limit.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4096,
+			"pattern": "^/[^\\u0000\\uD800-\\uDFFF]*$"
 		},
 		"presentationBinding": {
 			"type": "object",
@@ -190,18 +202,36 @@
 		"workspace": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["label", "terminalContextId", "workspaceId"],
+			"required": ["label", "primaryDirectoryId", "terminalContextId", "workspaceId"],
 			"properties": {
 				"label": { "$ref": "#/$defs/label" },
+				"primaryDirectoryId": {
+					"oneOf": [{ "type": "null" }, { "$ref": "#/$defs/directoryId" }]
+				},
 				"terminalContextId": { "$ref": "#/$defs/terminalContextId" },
 				"workspaceId": { "$ref": "#/$defs/workspaceId" }
+			}
+		},
+		"directory": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["directoryId", "path", "workerId"],
+			"properties": {
+				"directoryId": { "$ref": "#/$defs/directoryId" },
+				"path": { "$ref": "#/$defs/directoryPath" },
+				"workerId": { "$ref": "#/$defs/workerId" }
 			}
 		},
 		"project": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["label", "projectId", "workspaces"],
+			"required": ["directories", "label", "projectId", "workspaces"],
 			"properties": {
+				"directories": {
+					"type": "array",
+					"maxItems": 256,
+					"items": { "$ref": "#/$defs/directory" }
+				},
 				"label": { "$ref": "#/$defs/label" },
 				"projectId": { "$ref": "#/$defs/projectId" },
 				"workspaces": {

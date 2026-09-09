@@ -78,6 +78,7 @@ fn start_listener(
         WorkbenchPolicy {
             read: true,
             manage_navigation: true,
+            associate_directory: true,
             create_terminal: true,
             manage_terminal_lifecycle: true,
         },

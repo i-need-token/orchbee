@@ -51,6 +51,17 @@ pub(crate) fn run_admitted(
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
         let request = server_transport::receive(server, Some(host))?;
+        if let CapabilityNodeMessage::TerminalCwdValidationRequest(request) = request {
+            let result = crate::terminal_cwd_validation::validate(request, worker_id, generation);
+            if server_transport::send(
+                server,
+                Some(host),
+                &CapabilityNodeMessage::TerminalCwdValidationResult(result),
+            )? {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
         if let CapabilityNodeMessage::TerminalLifecycleRequest(request) = request {
             let disposition = match kernel.admit_lifecycle(request, unix_milliseconds(), epoch)? {
                 crate::terminal_authorization::LifecycleAdmission::Dispatch(dispatch) => {
@@ -123,6 +134,8 @@ pub(crate) fn run_admitted(
                 kernel.admit_start(start, now, epoch)?
             }
             CapabilityNodeMessage::TerminalControlRequest(_)
+            | CapabilityNodeMessage::TerminalCwdValidationRequest(_)
+            | CapabilityNodeMessage::TerminalCwdValidationResult(_)
             | CapabilityNodeMessage::TerminalLifecycleRequest(_)
             | CapabilityNodeMessage::TerminalLifecycleResult(_)
             | CapabilityNodeMessage::TerminalControlResult(_)

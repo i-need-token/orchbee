@@ -3640,10 +3640,15 @@
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/LocalWorkerObcnCarrier.tla",
 			"config": "apps/orchbee-server/formal/tla/LocalWorkerObcnCarrier.cfg",
-			"claims": ["apps/orchbee-server/README.md"],
+			"claims": [
+				"apps/orchbee-server/README.md",
+				"apps/orchbee-server/docs/workspace-terminal-directory.md"
+			],
 			"triggers": [
 				"apps/orchbee-server/Cargo.toml",
 				"apps/orchbee-server/README.zh-CN.md",
+				"apps/orchbee-server/docs/workspace-terminal-directory.md",
+				"apps/orchbee-server/docs/workspace-terminal-directory.zh-CN.md",
 				"apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.cfg",
 				"apps/orchbee-server/formal/tla/TerminalLaunchAuthorization.tla",
 				"apps/orchbee-server/project.json",
@@ -3678,6 +3683,8 @@
 				"SubmitFirstLaunch",
 				"SubmitSecondLaunch",
 				"SubmitStart",
+				"SubmitFirstCwdValidation",
+				"SubmitSecondCwdValidation",
 				"QueueBehindInFlight",
 				"RejectWrongWorkerRoute",
 				"RejectWrongGenerationRoute",
@@ -3691,6 +3698,7 @@
 				"ArriveExactDefiniteResult",
 				"ArriveExactLaunchUnknownResult",
 				"ArriveExactStartUnknownResult",
+				"ArriveExactCwdValidationResult",
 				"ArriveWrongDirection",
 				"ArriveWrongResultKind",
 				"ArriveWrongOperationCorrelation",
@@ -3702,6 +3710,8 @@
 				"ArriveWrongLeaseExpiryEcho",
 				"ArriveWrongCapabilityEcho",
 				"ArriveWrongStartTarget",
+				"ArriveWrongCwdEcho",
+				"ArriveInvalidCwdUnknownPayload",
 				"ArriveInvalidLaunchUnknownPayload",
 				"ReceiveExactWorkerResult",
 				"RejectMismatchedWorkerResult",
@@ -3725,6 +3735,12 @@
 					"name": "response-validation",
 					"constants": {
 						"Scenario": "response-validation"
+					}
+				},
+				{
+					"name": "cwd-validation",
+					"constants": {
+						"Scenario": "cwd-validation"
 					}
 				},
 				{
@@ -4193,6 +4209,153 @@
 				"WorkerReplace",
 				"RetireWorkbench",
 				"LaunchCompletes"
+			]
+		},
+		{
+			"id": "workspace-directory-association",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/WorkspaceDirectoryAssociation.tla",
+			"config": "apps/orchbee-server/formal/tla/WorkspaceDirectoryAssociation.cfg",
+			"claims": ["apps/orchbee-server/docs/workspace-terminal-directory.md"],
+			"triggers": [
+				"apps/orchbee-server/src/**",
+				"apps/orchbee-server/tests/**",
+				"apps/orchbee-server/docs/workspace-terminal-directory.md",
+				"apps/orchbee-server/docs/workspace-terminal-directory.zh-CN.md",
+				"apps/orchbee-server/project.json",
+				"apps/orchbee-worker/src/**",
+				"apps/orchbee-worker/tests/**",
+				"crates/capability-node-protocol/**",
+				"crates/workbench-protocol/**",
+				"packages/workbench-client-protocol/**",
+				"schemas/workbench/**"
+			],
+			"timeoutMilliseconds": 180000,
+			"workers": 2,
+			"requiredCoverage": [
+				"DenyAssociation",
+				"RefuseStaleRevision",
+				"RefuseWorkspaceConflict",
+				"RefuseWorkerUnavailable",
+				"RefuseCapacity",
+				"RefuseValidationSlot",
+				"BeginValidation",
+				"ObserveDirectoryValid",
+				"ObserveDirectoryInvalid",
+				"ObserveDirectoryUnavailable",
+				"ObserveWrongWorkerResult",
+				"ResolveDirectoryInvalid",
+				"ResolveDirectoryUnavailable",
+				"ResolveWrongWorkerResult",
+				"ReplayAcceptedFlight",
+				"ResolveObservedReplayConflict",
+				"RejectValidationRevision",
+				"RejectValidationWorker",
+				"RejectValidationCapacity",
+				"CommitAssociation",
+				"DeliverAccepted",
+				"LoseAcceptedResult",
+				"ReplayAccepted",
+				"ReplayRetainedBeforeProbe",
+				"ReplayConflict",
+				"LoseWorker",
+				"RestoreWorker",
+				"ReplaceWorker",
+				"AdvanceRevision",
+				"PopulateWorkspace",
+				"FillDirectoryCapacity",
+				"FillExternalLedger",
+				"ObserveConcurrentValidation",
+				"ObserveNegativeProbeReplayed",
+				"ObserveStaleGenerationProbeReplayed"
+			],
+			"variants": [
+				{
+					"name": "exact-request-race",
+					"constants": {
+						"MaxDirectories": 2,
+						"MaxLedgerEntries": 2,
+						"MaxLedgerBytes": 2,
+						"MaxValidationSlots": 2,
+						"SharedRequestMode": true
+					}
+				},
+				{
+					"name": "competing-requests",
+					"constants": {
+						"MaxDirectories": 2,
+						"MaxLedgerEntries": 2,
+						"MaxLedgerBytes": 2,
+						"MaxValidationSlots": 2,
+						"SharedRequestMode": false
+					}
+				},
+				{
+					"name": "resource-exhaustion",
+					"constants": {
+						"MaxDirectories": 1,
+						"MaxLedgerEntries": 1,
+						"MaxLedgerBytes": 1,
+						"MaxValidationSlots": 1,
+						"SharedRequestMode": false
+					}
+				}
+			]
+		},
+		{
+			"id": "workspace-terminal-create",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/WorkspaceTerminalCreate.tla",
+			"config": "apps/orchbee-server/formal/tla/WorkspaceTerminalCreate.cfg",
+			"claims": ["apps/orchbee-server/docs/workspace-terminal-directory.md"],
+			"triggers": [
+				"apps/orchbee-server/src/**",
+				"apps/orchbee-server/tests/**",
+				"apps/orchbee-server/docs/workspace-terminal-directory.md",
+				"apps/orchbee-server/docs/workspace-terminal-directory.zh-CN.md",
+				"apps/orchbee-server/project.json",
+				"crates/capability-node-protocol/**",
+				"crates/client-server-protocol/**",
+				"crates/workbench-protocol/**",
+				"packages/workbench-client-protocol/**",
+				"schemas/client-server/**",
+				"schemas/workbench/**"
+			],
+			"timeoutMilliseconds": 180000,
+			"workers": 1,
+			"requiredCoverage": [
+				"StageWorkspaceCreate",
+				"DropStagedCreate",
+				"RefuseWrongWorker",
+				"RefuseWorkerUnavailable",
+				"JointCommitWorkspaceCreate",
+				"DispatchLaunch",
+				"LosePendingResult",
+				"ReplayPending",
+				"CompleteStarted",
+				"CompleteRuntimeUnavailable",
+				"CompleteLaunchFailed",
+				"CompleteOutcomeUnknown",
+				"LoseFinalResult",
+				"ReplayFinal",
+				"WriteReplayResponse",
+				"ClearReplayResponse",
+				"RejectWrongCompletionSeal",
+				"RejectStaleCompletion",
+				"SelectOtherWorker",
+				"LoseDirectoryWorker",
+				"RestoreDirectoryWorker",
+				"RemoveDirectory",
+				"StandaloneBegin",
+				"StandaloneSettle",
+				"ObservePendingReplaySurvivesSettlement",
+				"ObserveWorkspaceCommitWhileStandaloneCreating",
+				"ObserveWorkspaceCompletionWhileStandaloneSettled",
+				"ObserveLaunchFailureRetainsMembership",
+				"ObserveWrongWorkerWithoutHome",
+				"ObserveResultRevisionSurvivesStandaloneAdvance"
 			]
 		},
 		{

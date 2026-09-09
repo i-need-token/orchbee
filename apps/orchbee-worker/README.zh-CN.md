@@ -30,9 +30,9 @@ diagnostic Worker broker client identity，声明 protocol hard limit 且不声�
 limit、空 feature intersection 与非零 Host epoch 都成立时才接受。
 
 只有两个对端均接受后，Worker 才向 stdout 写入 `ready\n`。随后主线程在两个自有 socket 上
-运行串行 OBCN Launch/Start、查看与控制附件 request loop，不创建 connection thread 或 operation queue；
-每个查看附件拥有一个有界交付槽。Server loss 关闭
-Host broker socket；Host loss 停止准入，只允许对已分类 result 做有界交付尝试，然后关闭 Server
+运行串行 OBCN Launch/Start、lifecycle、查看、控制及 cwd-validation request loop，不创建
+connection thread 或 operation queue；每个查看附件拥有一个有界交付槽。Server loss 关闭 Host
+broker socket；Host loss 停止准入，只允许对已分类 result 做有界交付尝试，然后关闭 Server
 attachment。任一 peer 丢失均静默以 status `1` 退出；retained terminal 继续由 Host 拥有。Invalid
 invocation、connection、authentication、handshake rejection、framing、output 或 transport failure
 也采用同样的静默 status-`1` 结果。合法的 operation-level rejection 返回 typed OBCN result，并让
@@ -50,8 +50,8 @@ Agent 行为、服务安装或恢复。
 [共享建模记录](../../crates/local-site-runtime/README.zh-CN.md) 定义进程与失败边界。
 
 首个 Launch 先由现有授权内核准入并解析启动事实。无效 lease/generation 的类型化拒绝
-不产生 Host；首个 Launch 之前的非 Launch 流量让连接退役。
-准入的 dispatch 和同一个内核跨 Host 启动保留，交接前再次校验授权。
+不产生 Host。绑定代次的 cwd validation 可以在该 Launch 前完成而不启动 Host；其他非 Launch
+流量让连接退役。准入的 dispatch 和同一个内核跨 Host 启动保留，交接前再次校验授权。
 Host 目录为运行时下的 `host`，固定 endpoint ID 为 `00000000000000000000000000000001`。
 任何已有端点立即要求恢复；只为本次新启动的 Host 等待最终 0600 socket。
 Host 启动、唯一连接和严格 OBTP 握手共用五秒预算；不续期或重试连接。
@@ -411,6 +411,22 @@ admission、delivery、loss 与 no-retry claim；framing 与 OS fact 仍是 symb
 具体假设。它们不证明 Server Client Session 查看附件路由、activation、restart reconciliation 或其他 OS
 platform。查看附件 process trace 单独证明真实 Worker 与 Host 上的两个读取附件、停滞查看
 附件、精确反馈、快照恢复、分离／重新附着，以及终端保留。
+
+## Terminal cwd validation
+
+集成 request loop 在 terminal authorization 或 viewer/controller 清理之前处理
+`TerminalCwdValidationRequest`。Linux lazy loop 会在解析 launch fact 或启动 Terminal Host 之前
+处理它。Worker 首先将请求中的精确逻辑 Worker ID 与代次同自身已准入 OBLS 身份比较。不匹配
+时不观察路径，直接返回 `WorkerUnavailable`。匹配时执行一次同步 `std::fs::metadata` 查询，
+跟随符号链接并保留输入路径拼写；仅当现有对象为目录时返回 `DirectoryAvailable`。路径缺失、
+普通文件及所有元数据错误均返回 `DirectoryUnavailable`；OBCN 不传输任意 OS 错误细节。
+
+Validation 是一个时间点只读观察。它不创建目录、terminal、Host、attachment、controller、
+lease、launch binding 或 replay cache entry，也不发送 Terminal Protocol record。响应复用既有
+有界 OBCN 读写路径。Server 仍拥有 association admission、当前 Worker revalidation 及 canonical
+state。文件系统元数据调用为同步调用，carrier deadline 不会使其可中断；当前 runtime claim
+仅限受支持的本机 Linux filesystem cohort。Unit test 覆盖真实目录、保留拼写的 symlink 查询、
+普通文件和缺失路径，以及不依赖 Host 的 Worker 身份／代次拒绝。
 
 ## 所有权
 

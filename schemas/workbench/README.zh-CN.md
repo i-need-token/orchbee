@@ -33,21 +33,24 @@ Resume 语法。[Close 线协议契约](#已接受的-tab-close-线协议契约)
 
 `workbench.snapshot` 是一个 Site revision 的完整 authorized product projection。它包含：
 
-- 有序 Project 及各自有序 Workspace；
+- 有序 Project，及各自的有序 Directory 与有序 Workspace；
 - 恰好一个 standalone Terminal Context，以及每个 Workspace 各一个 Terminal Context；
 - 有序 Tab group 与 Tab；
 - 每个 Tab 的完整 binary Panel/Split topology；
 - 每个 Panel 的一个 primary Terminal Presentation 与零个或多个 child Terminal Presentation；以及
 - Presentation 可选的 opaque Worker/Terminal binding。
 
-Projection 包含 label，但不包含 directory、path、terminal content、terminal lifecycle policy、
+每个 Directory 携带自身的 typed identity、确切 Worker identity 与 absolute POSIX UTF-8 path。
+每个 Workspace 携带一个必填且可为空的 primary Directory reference，指向自身 Project。
+Projection 包含 label，但不包含 directory discovery 或 mutation policy、terminal content、terminal lifecycle policy、
 Environment、Checkout、Worktree、Agent、Launch Profile、Archive、SSH、lease、fence、Host epoch、
 attachment 或 persistence fact。它也不包含 Client-local active location、active Tab、focus、
 disclosure、selection、maximization、split weight、viewport、geometry、search、window、DOM、React
 或 pixel state。Presentation 缺少 binding 只表示本 projection 没有暴露可 attach 的 Terminal
 identity；Client 不能据此推断 lifecycle reason。
 
-Project、Workspace 与 Terminal Context array 使用 identity 升序。Tab group 与 Tab 保留显式产品
+Project、Directory、Workspace 与 Terminal Context array 使用 identity 升序。Directory identity
+在整个 Site projection 中唯一，Workspace 的非空 reference 必须在其所在 Project 内解析。Tab group 与 Tab 保留显式产品
 顺序。Pinned Tab 构成一个前置且不分组的 prefix，每个 Tab group 的 member 都连续。每个被引用
 context 恰好存在一次，每个 context 也恰好被引用一次。除 JSON Schema validation 外，identity
 uniqueness、tree depth、node quantity、membership 与 reference invariant 还作用于完整 snapshot。
@@ -82,9 +85,10 @@ Rust/TypeScript oracle；原始 duplicate-key case 另行验证 Rust wire parser
 它的 transport 必须在解码前拒绝重复 key。
 
 `workbench.command` 携带 protocolVersion、requestId、siteId、expectedRevision 及一项 action：
-project.create、project.rename、workspace.create、workspace.rename、tab.rename、tab.create、tab.move 或 tab.close。Label 在既有上限内保留包括
+project.create、project.rename、workspace.create、workspace.rename、
+workspace.primary-directory.accept、tab.rename、tab.create、tab.move 或 tab.close。Label 在既有上限内保留包括
 空白在内的确切文本。新产品身份归 Server 所有。`workbench.command.result` 关联 project-created、
-workspace-created、renamed、unchanged、tab-create-pending、tab-created、tab-moved、tab-close-accepted、rejected、denied 或 unavailable outcome。Revision 与新身份
+workspace-created、workspace-primary-directory-accepted、renamed、unchanged、tab-create-pending、tab-created、tab-moved、tab-close-accepted、rejected、denied 或 unavailable outcome。Revision 与新身份
 仅出现于声明它们的变体；denied 不泄露两者。`workbench.snapshot.result` 包含携带完整嵌套
 `workbench.snapshot` 的 available，或 denied、unavailable。Schema 拥有封闭 reason；
 [Server 权威](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md) 拥有决策顺序、原子提交、
@@ -98,6 +102,26 @@ version、方向、kind 或超限 payload。请求与命令结果最多 16 KiB�
 计入原始外层上限。独立 snapshot 保留原始 1 MiB 上限。有效 record 保留后续 record 未读；EOF 截断失败。
 Rust binding 提供 Read/Write codec，不拥有 socket、timeout、准入或重试。OBCS 继续为独立终端协议，
 OBLC 准入位于两种 application carrier 之前。
+
+## Workspace primary Directory 契约
+
+`workspace.primary-directory.accept` 恰好携带 `projectId`、`workspaceId` 与 `path`。
+`path` 是 1 至 4,096 个编码字节的 absolute POSIX UTF-8 文本，不含 NUL，并保留原始拼写。
+Client 不提供 Directory 或 Worker identity。成功的 `workspace-primary-directory-accepted`
+outcome 携带已提交的 `revision`、Server 分配的 `directoryId` 与选定的 `workerId`。
+
+Projection 通过向 Project 追加一项有序的
+`Directory { directoryId, workerId, path }`，并由 Workspace 必填且可为空的
+`primaryDirectoryId` 选择它，来表示原子结果。每个 Project 至多接纳 256 个 Directory。
+Directory identity 在整个 Site projection 中唯一；Workspace reference 必须在自身 Project 内解析。
+缺失必填可空字段、悬空或跨 Project reference、重复或无序 Directory identity、非法 path、
+未知字段及 collection overflow 均为无效输入。
+
+Rejection reason domain 增加 `workspace-directory-unavailable` 与
+`workspace-directory-conflict`；command-unavailable domain 增加 `directory-unavailable`。
+[Server Directory 权威](../../apps/orchbee-server/docs/workspace-terminal-directory.zh-CN.md)
+拥有授权、Worker 校验、set-once/empty-context 准入、原子提交、重放及 runtime 行为。
+这些 schema 与 binding contract 不校验文件系统，也不选择 Worker。
 
 ## 规范 Tab 重命名契约
 
@@ -240,6 +264,8 @@ Command Unavailable 额外准入 `terminal-busy` 和 `terminal-runtime-unavailab
 | Encoded snapshot 或 delta | 1 MiB                          |
 | Product label             | 512 个 Unicode code point      |
 | Project                   | 每个 snapshot 256 个           |
+| Directory                 | 每个 Project 256 个            |
+| Directory path            | 4,096 个编码 UTF-8 字节        |
 | Workspace                 | 每个 Project 256 个            |
 | Terminal Context          | 每个 snapshot 1,024 个         |
 | Tab group                 | 每个 Terminal Context 64 个    |

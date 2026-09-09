@@ -65,6 +65,7 @@ define_identity!(SiteId);
 define_identity!(WorkbenchRequestId);
 define_identity!(WorkbenchProjectId);
 define_identity!(WorkbenchWorkspaceId);
+define_identity!(WorkbenchDirectoryId);
 define_identity!(WorkbenchTerminalContextId);
 define_identity!(WorkbenchTabGroupId);
 define_identity!(WorkbenchTabId);
