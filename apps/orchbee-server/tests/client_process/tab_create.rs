@@ -625,7 +625,9 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
         &mut viewer,
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             poll_request_id.clone(),
-            TerminalViewerAction::Poll {},
+            TerminalViewerAction::Poll {
+                attachment_id: attachment_id.clone(),
+            },
         )),
         settlement_deadline,
     )?;

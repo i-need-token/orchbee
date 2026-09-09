@@ -16,7 +16,12 @@ fn poll_unavailable_retirement_during_geometry_requests_one_redraw() -> TestResu
             else {
                 return Err(io::Error::other("expected the ready viewer's Poll"));
             };
-            assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+            assert_eq!(
+                poll.action(),
+                &TerminalViewerAction::Poll {
+                    attachment_id: binding_viewer_id()?,
+                }
+            );
             poll_sender.send(()).map_err(io::Error::other)?;
             release_receiver
                 .recv_timeout(Duration::from_secs(2))

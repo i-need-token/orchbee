@@ -31,11 +31,14 @@ fn viewer(
 
 fn acquire(
     session: &mut crate::local_terminal_service::viewer_session::LocalTerminalSession<'_>,
+    attachment_id: &orchbee_client_server_protocol::ViewerId,
 ) -> ControlOutcome {
     let ServerMessage::TerminalControlResult(result) =
         session.execute(ClientMessage::TerminalControl(TerminalControlRequest::new(
             client_id(1001),
-            ControlAction::Acquire {},
+            ControlAction::Acquire {
+                attachment_id: attachment_id.clone(),
+            },
         )))
     else {
         panic!("control result")
@@ -139,7 +142,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
         };
         let ControlOutcome::Acquired {
             controller_id: old_controller,
-        } = acquire(&mut session)
+        } = acquire(&mut session, &old_attachment)
         else {
             panic!("old controller")
         };
@@ -147,7 +150,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
             viewer(
                 &mut session,
                 ViewerAction::Attach {
-                    terminal_create_request_id: client_id(111)
+                    terminal_create_request_id: client_id(11)
                 }
             ),
             ViewerOutcome::Rejected {
@@ -167,13 +170,20 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
             viewer(
                 &mut session,
                 ViewerAction::Attach {
-                    terminal_create_request_id: client_id(111)
+                    terminal_create_request_id: client_id(11)
                 }
             ),
             ViewerOutcome::Rejected {
-                reason: ViewerRejectedReason::AlreadyAttached
+                reason: ViewerRejectedReason::TerminalUnavailable
             },
-            "Closing alone is not disposal proof"
+            "Closing fences new attachment resolution"
+        );
+        assert_eq!(
+            acquire(&mut session, &old_attachment),
+            ControlOutcome::Rejected {
+                reason: ControlRejectedReason::ControllerBusy
+            },
+            "Closing alone cannot reap the still-owned attachment",
         );
         release.send(()).unwrap();
         let deadline = Instant::now() + Duration::from_secs(3);
@@ -228,11 +238,11 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
             }
         );
         assert_eq!(
-            acquire(&mut session),
+            acquire(&mut session, &old_attachment),
             ControlOutcome::Rejected {
-                reason: ControlRejectedReason::ControllerBusy
+                reason: ControlRejectedReason::ViewerUnavailable
             },
-            "foreign target must leave old Viewer/controller owned"
+            "admission reaps an exactly disposed attachment before resolving the foreign target"
         );
         assert_eq!(
             viewer(
@@ -246,9 +256,9 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
             }
         );
         assert_eq!(
-            acquire(&mut session),
+            acquire(&mut session, &old_attachment),
             ControlOutcome::Rejected {
-                reason: ControlRejectedReason::ControllerBusy
+                reason: ControlRejectedReason::ViewerUnavailable
             }
         );
         let action = if by_binding {
@@ -272,7 +282,7 @@ fn exact_disposed_viewer_reuses_either_attach_form_without_old_host_cleanup() {
         assert_ne!(fresh_attachment, old_attachment);
         let ControlOutcome::Acquired {
             controller_id: fresh_controller,
-        } = acquire(&mut session)
+        } = acquire(&mut session, &fresh_attachment)
         else {
             panic!("fresh controller")
         };

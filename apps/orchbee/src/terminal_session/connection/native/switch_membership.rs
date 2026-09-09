@@ -105,6 +105,7 @@ impl NativeExecutor {
         let total = cleanup.deadlines().total();
         loop {
             let attached = self.attached_key().ok_or(CarrierFailure::Protocol)?;
+            let attachment_id = self.viewer_id_for(cleanup.old())?;
             let Some(permit) =
                 self.mailbox
                     .authorize_switch_cleanup(lease, &cleanup, attached, &self.clock)?
@@ -115,7 +116,7 @@ impl NativeExecutor {
             let response = self.client.submit_terminal_viewer_before(
                 TerminalViewerRequest::new(
                     permit.request_id().clone(),
-                    TerminalViewerAction::Detach {},
+                    TerminalViewerAction::Detach { attachment_id },
                 ),
                 total,
             );

@@ -13,7 +13,12 @@ fn joined_ordinary_poll_unavailability_allows_only_explicit_snapshot_then_empty(
             else {
                 return Err(io::Error::other("expected ordinary Poll"));
             };
-            assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+            assert_eq!(
+                poll.action(),
+                &TerminalViewerAction::Poll {
+                    attachment_id: binding_viewer_id()?,
+                }
+            );
             sent.send(poll.request_id().as_str().to_owned())
                 .map_err(io::Error::other)?;
             write_server_message(&mut stream, &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
@@ -89,7 +94,12 @@ fn retire_on_poll(stream: &mut UnixStream, geometry: Geometry) -> io::Result<()>
     else {
         return Err(io::Error::other("ordinary Poll"));
     };
-    assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+    assert_eq!(
+        poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: binding_viewer_id()?,
+        }
+    );
     write_server_message(stream, &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(poll.request_id().clone(), TerminalViewerOutcome::Unavailable { reason: orchbee_client_server_protocol::ViewerUnavailableReason::TerminalRuntimeUnavailable }))).map_err(io::Error::other)?;
     let mut byte = [0; 1];
     assert_eq!(stream.read(&mut byte)?, 0);
@@ -305,10 +315,7 @@ fn recover_neighbor(mode: u8) -> TestResult {
             reason:
                 orchbee_client_server_protocol::ViewerUnavailableReason::TerminalRuntimeUnavailable,
         };
-        let attached = TerminalViewerOutcome::Attached {
-            attachment_id: ViewerId::parse(SITE_ID).unwrap(),
-            host_epoch: HostEpoch::parse(ID).unwrap(),
-        };
+        let attached = binding_attach_outcome()?;
         write_server_message(
             &mut stream,
             &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
@@ -318,14 +325,14 @@ fn recover_neighbor(mode: u8) -> TestResult {
         )
         .map_err(io::Error::other)?;
         if mode != 0 {
-            acquire(&mut stream)?;
+            acquire(&mut stream, &binding_viewer_id()?)?;
             let ClientMessage::TerminalControl(resize) =
                 read_client_message(&mut stream).map_err(io::Error::other)?
             else {
                 return Err(io::Error::other("neighbor Resize"));
             };
             assert!(
-                matches!(resize.action(), TerminalControlAction::Resize { geometry: requested, .. } if *requested == geometry)
+                matches!(resize.action(), TerminalControlAction::Resize { attachment_id, geometry: requested, .. } if attachment_id == &binding_viewer_id()? && *requested == geometry)
             );
             write_server_message(
                 &mut stream,
@@ -340,7 +347,12 @@ fn recover_neighbor(mode: u8) -> TestResult {
             else {
                 return Err(io::Error::other("neighbor setup Poll"));
             };
-            assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+            assert_eq!(
+                poll.action(),
+                &TerminalViewerAction::Poll {
+                    attachment_id: binding_viewer_id()?,
+                }
+            );
             let outcome = if mode == 2 {
                 unavailable()
             } else {
@@ -364,7 +376,12 @@ fn recover_neighbor(mode: u8) -> TestResult {
             else {
                 return Err(io::Error::other("new setup cleanup"));
             };
-            assert_eq!(cleanup.action(), &TerminalViewerAction::Detach {});
+            assert_eq!(
+                cleanup.action(),
+                &TerminalViewerAction::Detach {
+                    attachment_id: binding_viewer_id()?,
+                }
+            );
             write_server_message(
                 &mut stream,
                 &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
@@ -390,7 +407,10 @@ fn recover_neighbor(mode: u8) -> TestResult {
                     TerminalViewerAction::FrameApplied { .. } => {
                         TerminalViewerOutcome::FeedbackAccepted {}
                     }
-                    TerminalViewerAction::Poll {} => TerminalViewerOutcome::Empty {},
+                    TerminalViewerAction::Poll { attachment_id } => {
+                        assert_eq!(attachment_id, &binding_viewer_id()?);
+                        TerminalViewerOutcome::Empty {}
+                    }
                     _ => return Err(io::Error::other("unexpected viewer action")),
                 };
                 write_server_message(

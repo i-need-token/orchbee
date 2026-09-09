@@ -154,6 +154,7 @@ impl SetupTarget {
 
 struct AttachedTerminal {
     key: AttachmentKey,
+    attachment_id: orchbee_client_server_protocol::ViewerId,
     setup: Option<SetupTarget>,
     mode: Option<ControllerMode>,
     next_sequence: u64,
@@ -345,6 +346,7 @@ impl NativeExecutor {
         };
         self.attached = Some(AttachedTerminal {
             key: target.key.clone(),
+            attachment_id: attachment_id.clone(),
             setup: Some(target.clone()),
             mode: None,
             next_sequence: 0,
@@ -418,7 +420,9 @@ impl NativeExecutor {
             .control_for_setup(
                 owner,
                 &target.key,
-                TerminalControlAction::Acquire {},
+                TerminalControlAction::Acquire {
+                    attachment_id: self.viewer_id_for(&target.key)?,
+                },
                 forward_cutoff,
             )?
             .ok_or(CarrierFailure::Deadline)?;
@@ -470,7 +474,9 @@ impl NativeExecutor {
                 .viewer_for_setup(
                     owner,
                     &target.key,
-                    TerminalViewerAction::Poll {},
+                    TerminalViewerAction::Poll {
+                        attachment_id: self.viewer_id_for(&target.key)?,
+                    },
                     forward_cutoff,
                 )?
                 .ok_or(CarrierFailure::Deadline)?;
@@ -660,6 +666,7 @@ impl NativeExecutor {
             lease,
             key,
             TerminalControlAction::Input {
+                attachment_id: self.viewer_id_for(key)?,
                 controller_id: controller,
                 sequence,
                 bytes: input,
@@ -698,6 +705,7 @@ impl NativeExecutor {
             lease,
             &key,
             TerminalControlAction::Resize {
+                attachment_id: self.viewer_id_for(&key)?,
                 controller_id: controller,
                 sequence,
                 geometry,
@@ -729,8 +737,14 @@ impl NativeExecutor {
         {
             return Ok(());
         }
-        let Some((request_id, outcome)) =
-            self.viewer_for_ready_lease(lease, &key, TerminalViewerAction::Poll {}, deadline)?
+        let Some((request_id, outcome)) = self.viewer_for_ready_lease(
+            lease,
+            &key,
+            TerminalViewerAction::Poll {
+                attachment_id: self.viewer_id_for(&key)?,
+            },
+            deadline,
+        )?
         else {
             return Ok(());
         };
@@ -1301,8 +1315,13 @@ impl NativeExecutor {
         let Some(deadlines) = target.deadlines else {
             return Err(CarrierFailure::Deadline);
         };
-        let outcome =
-            self.viewer_for_cleanup(owner, TerminalViewerAction::Detach {}, deadlines.total())?;
+        let outcome = self.viewer_for_cleanup(
+            owner,
+            TerminalViewerAction::Detach {
+                attachment_id: self.viewer_id_for(&target.key)?,
+            },
+            deadlines.total(),
+        )?;
         if !matches!(outcome, TerminalViewerOutcome::Detached {}) {
             return Err(CarrierFailure::Protocol);
         }
@@ -1342,7 +1361,13 @@ impl NativeExecutor {
         if self.attached_key() != Some(key) {
             return Err(CarrierFailure::Protocol);
         }
-        let outcome = self.viewer_for_cleanup(owner, TerminalViewerAction::Detach {}, cutoff)?;
+        let outcome = self.viewer_for_cleanup(
+            owner,
+            TerminalViewerAction::Detach {
+                attachment_id: self.viewer_id_for(key)?,
+            },
+            cutoff,
+        )?;
         if !matches!(outcome, TerminalViewerOutcome::Detached {}) {
             return Err(CarrierFailure::Protocol);
         }
@@ -1467,6 +1492,7 @@ impl NativeExecutor {
         cutoff: Instant,
     ) -> Result<bool> {
         let action = TerminalControlAction::Resize {
+            attachment_id: self.viewer_id_for(key)?,
             controller_id,
             sequence: self.next_control_sequence(key)?,
             geometry,
@@ -1618,6 +1644,9 @@ impl NativeExecutor {
             TerminalViewerOutcome,
         )>,
     > {
+        if action.attachment_id() != Some(&self.attached_ref(key)?.attachment_id) {
+            return Err(CarrierFailure::Protocol.into());
+        }
         let request_id = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
         match self.client.submit_terminal_viewer_before(
             TerminalViewerRequest::new(request_id.clone(), action),
@@ -1641,6 +1670,9 @@ impl NativeExecutor {
         deadline: Instant,
         cutoff: Instant,
     ) -> ReadyResult<TerminalControlOutcome> {
+        if action.attachment_id() != &self.attached_ref(key)?.attachment_id {
+            return Err(CarrierFailure::Protocol.into());
+        }
         let request_id = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
         self.client
             .submit_terminal_control_before(TerminalControlRequest::new(request_id, action), cutoff)
@@ -1737,6 +1769,9 @@ impl NativeExecutor {
         action: TerminalViewerAction,
         cutoff: Instant,
     ) -> Result<TerminalViewerOutcome> {
+        if let Some(attachment_id) = action.attachment_id() {
+            self.ensure_attachment_id(attachment_id)?;
+        }
         let request_id = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
         self.client
             .submit_terminal_viewer_before(TerminalViewerRequest::new(request_id, action), cutoff)
@@ -1749,6 +1784,7 @@ impl NativeExecutor {
         action: TerminalControlAction,
         cutoff: Instant,
     ) -> Result<TerminalControlOutcome> {
+        self.ensure_attachment_id(action.attachment_id())?;
         let request_id = self.mailbox.allocate_obcs_request_id().map_err(closed)?;
         self.client
             .submit_terminal_control_before(TerminalControlRequest::new(request_id, action), cutoff)
@@ -1848,6 +1884,28 @@ impl NativeExecutor {
         self.attached.as_ref().map(|attached| &attached.key)
     }
 
+    fn viewer_id_for(
+        &self,
+        key: &AttachmentKey,
+    ) -> Result<orchbee_client_server_protocol::ViewerId> {
+        Ok(self.attached_ref(key)?.attachment_id.clone())
+    }
+
+    fn ensure_attachment_id(
+        &self,
+        attachment_id: &orchbee_client_server_protocol::ViewerId,
+    ) -> Result<()> {
+        if self
+            .attached
+            .as_ref()
+            .map(|attached| &attached.attachment_id)
+            != Some(attachment_id)
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        Ok(())
+    }
+
     fn set_attached_mode(&mut self, key: &AttachmentKey, mode: ControllerMode) -> Result<()> {
         let attached = self.attached_mut(key)?;
         attached.mode = Some(mode);
@@ -1906,24 +1964,28 @@ impl NativeExecutor {
     ) -> Result<TerminalControlAction> {
         match action {
             TerminalControlAction::Input {
+                attachment_id,
                 controller_id,
                 bytes,
                 ..
             } => Ok(TerminalControlAction::Input {
+                attachment_id,
                 controller_id,
                 sequence: self.next_control_sequence(key)?,
                 bytes,
             }),
             TerminalControlAction::Resize {
+                attachment_id,
                 controller_id,
                 geometry,
                 ..
             } => Ok(TerminalControlAction::Resize {
+                attachment_id,
                 controller_id,
                 sequence: self.next_control_sequence(key)?,
                 geometry,
             }),
-            TerminalControlAction::Acquire {} => Ok(TerminalControlAction::Acquire {}),
+            action @ TerminalControlAction::Acquire { .. } => Ok(action),
         }
     }
 

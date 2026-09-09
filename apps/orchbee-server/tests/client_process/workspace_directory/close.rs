@@ -211,7 +211,7 @@ fn attach_binding(
     snapshot: &Snapshot,
     binding: &PresentationBinding,
     request_value: u128,
-) -> TestResult<()> {
+) -> TestResult<orchbee_client_server_protocol::ViewerId> {
     let request_id = client_id(request_value)?;
     write_client_message(
         client,
@@ -228,20 +228,25 @@ fn attach_binding(
         return Err("standalone AttachBinding did not return a viewer result".into());
     };
     assert_eq!(result.request_id(), &request_id);
-    assert!(matches!(
-        result.outcome(),
-        TerminalViewerOutcome::Attached { .. }
-    ));
-    Ok(())
+    let TerminalViewerOutcome::Attached { attachment_id, .. } = result.into_outcome() else {
+        return Err("AttachBinding failed".into());
+    };
+    Ok(attachment_id)
 }
 
-fn acquire_controller(client: &mut UnixStream, request_value: u128) -> TestResult<ControllerId> {
+fn acquire_controller(
+    client: &mut UnixStream,
+    attachment_id: &orchbee_client_server_protocol::ViewerId,
+    request_value: u128,
+) -> TestResult<ControllerId> {
     let request_id = client_id(request_value)?;
     write_client_message(
         client,
         &ClientMessage::TerminalControl(TerminalControlRequest::new(
             request_id.clone(),
-            TerminalControlAction::Acquire {},
+            TerminalControlAction::Acquire {
+                attachment_id: attachment_id.clone(),
+            },
         )),
     )?;
     let ServerMessage::TerminalControlResult(result) = read_server_message(client)? else {
@@ -256,6 +261,7 @@ fn acquire_controller(client: &mut UnixStream, request_value: u128) -> TestResul
 
 fn input(
     client: &mut UnixStream,
+    attachment_id: &orchbee_client_server_protocol::ViewerId,
     controller_id: &ControllerId,
     request_value: u128,
     sequence: u64,
@@ -269,6 +275,7 @@ fn input(
         &ClientMessage::TerminalControl(TerminalControlRequest::new(
             request_id.clone(),
             TerminalControlAction::Input {
+                attachment_id: attachment_id.clone(),
                 controller_id: controller_id.clone(),
                 sequence,
                 bytes: ControlInput::new(bytes)?,
@@ -384,10 +391,12 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
     let launch_lines = wait_for_marker(&fixture.marker, 1)?;
     assert_eq!(launch_lines[0], fixture.directory.to_string_lossy());
     let workspace_pid_witness = fixture.marker.with_file_name("workspace-shell-pid");
-    attach_binding(&mut second, &after_workspace_create, &old_binding, 0x120)?;
-    let workspace_controller = acquire_controller(&mut second, 0x121)?;
+    let workspace_attachment =
+        attach_binding(&mut second, &after_workspace_create, &old_binding, 0x120)?;
+    let workspace_controller = acquire_controller(&mut second, &workspace_attachment, 0x121)?;
     input(
         &mut second,
+        &workspace_attachment,
         &workspace_controller,
         0x122,
         1,
@@ -424,8 +433,9 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
         .ok_or_else(|| io::Error::other("standalone bareOpen Tab was not projected"))?;
     let standalone_binding = first_tab_binding(standalone_tab)?.clone();
     let standalone_tab_id = standalone_tab.tab_id.clone();
-    attach_binding(&mut first, &before_close, &standalone_binding, 0x10e)?;
-    let standalone_controller = acquire_controller(&mut first, 0x10f)?;
+    let standalone_attachment =
+        attach_binding(&mut first, &before_close, &standalone_binding, 0x10e)?;
+    let standalone_controller = acquire_controller(&mut first, &standalone_attachment, 0x10f)?;
 
     let before_close_project = before_close
         .navigation
@@ -559,6 +569,7 @@ fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
     let standalone_witness = fixture.marker.with_file_name("standalone-alive");
     input(
         &mut first,
+        &standalone_attachment,
         &standalone_controller,
         0x116,
         1,

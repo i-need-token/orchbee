@@ -105,6 +105,7 @@ fn maintenance_frees_one_of_eight_actual_grants_before_any_old_session_action() 
     });
     let mut sessions = Vec::new();
     let mut grants = Vec::new();
+    let mut attachments = Vec::new();
     let mut original = None;
     for index in 0..9_u8 {
         if index == 8 {
@@ -152,13 +153,18 @@ fn maintenance_frees_one_of_eight_actual_grants_before_any_old_session_action() 
                 terminal_create_request_id: client_id(11 + u128::from(index) * 100),
             },
         )));
-        assert!(
-            matches!(attached, ServerMessage::TerminalViewerResult(result) if matches!(result.outcome(), ViewerOutcome::Attached { .. }))
-        );
+        let ServerMessage::TerminalViewerResult(attached) = attached else {
+            panic!("viewer result")
+        };
+        let ViewerOutcome::Attached { attachment_id, .. } = attached.into_outcome() else {
+            panic!("attachment")
+        };
         let acquired =
             session.execute(ClientMessage::TerminalControl(TerminalControlRequest::new(
                 client_id(2100 + u128::from(index)),
-                ControlAction::Acquire {},
+                ControlAction::Acquire {
+                    attachment_id: attachment_id.clone(),
+                },
             )));
         let ServerMessage::TerminalControlResult(acquired) = acquired else {
             panic!("control result")
@@ -167,6 +173,7 @@ fn maintenance_frees_one_of_eight_actual_grants_before_any_old_session_action() 
             panic!("fresh slot must admit controller")
         };
         grants.push(controller_id);
+        attachments.push(attachment_id);
         sessions.push(session);
     }
     let owners = service.controllers.lock().unwrap().clone();
@@ -178,7 +185,7 @@ fn maintenance_frees_one_of_eight_actual_grants_before_any_old_session_action() 
     }
     assert!(
         matches!(sessions[1].execute(ClientMessage::TerminalControl(TerminalControlRequest::new(client_id(2200), ControlAction::Input {
-        controller_id: grants[1].clone(), sequence: NonZeroU64::MIN, bytes: ControlInput::new(b"unrelated still executes".to_vec()).unwrap(),
+        attachment_id: attachments[1].clone(), controller_id: grants[1].clone(), sequence: NonZeroU64::MIN, bytes: ControlInput::new(b"unrelated still executes".to_vec()).unwrap(),
     }))), ServerMessage::TerminalControlResult(result) if result.outcome() == &ControlOutcome::InputAccepted {})
     );
     let handle = service.workers.lock().unwrap().request_handle().unwrap();

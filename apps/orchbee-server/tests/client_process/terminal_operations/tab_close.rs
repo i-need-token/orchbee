@@ -136,12 +136,18 @@ fn attach(
     Ok(attachment_id)
 }
 
-fn acquire(client: &mut UnixStream, value: u128) -> TestResult<ControllerId> {
+fn acquire(
+    client: &mut UnixStream,
+    attachment_id: &orchbee_client_server_protocol::ViewerId,
+    value: u128,
+) -> TestResult<ControllerId> {
     let ServerMessage::TerminalControlResult(result) = exchange(
         client,
         &ClientMessage::TerminalControl(TerminalControlRequest::new(
             id(value)?,
-            TerminalControlAction::Acquire {},
+            TerminalControlAction::Acquire {
+                attachment_id: attachment_id.clone(),
+            },
         )),
     )?
     else {
@@ -156,6 +162,7 @@ fn acquire(client: &mut UnixStream, value: u128) -> TestResult<ControllerId> {
 
 fn input(
     client: &mut UnixStream,
+    attachment_id: &orchbee_client_server_protocol::ViewerId,
     controller: &ControllerId,
     value: u128,
     sequence: u64,
@@ -166,6 +173,7 @@ fn input(
         &ClientMessage::TerminalControl(TerminalControlRequest::new(
             id(value)?,
             TerminalControlAction::Input {
+                attachment_id: attachment_id.clone(),
                 controller_id: controller.clone(),
                 sequence: NonZeroU64::new(sequence).ok_or("zero sequence")?,
                 bytes: ControlInput::new(bytes)?,
@@ -283,8 +291,9 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
     for index in 0..8_u128 {
         let (mut client, _) = connect_bounded_client(server.client_endpoint())?;
         let (current, tab) = create_tab(&mut client, 100 + index * 10)?;
-        attachments.push(attach(&mut client, &current, &tab, 1000 + index)?);
-        controllers.push(acquire(&mut client, 1100 + index)?);
+        let attachment = attach(&mut client, &current, &tab, 1000 + index)?;
+        controllers.push(acquire(&mut client, &attachment, 1100 + index)?);
+        attachments.push(attachment);
         originals.push(tab);
         clients.push(client);
     }
@@ -304,7 +313,7 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
     let (fresh, fresh_tab) = create_tab(&mut clients[0], 2300)?;
     assert_eq!(tabs(&fresh)?.len(), 8);
     let fresh_attachment = attach(&mut clients[0], &fresh, &fresh_tab, 2400)?;
-    let fresh_controller = acquire(&mut clients[0], 2401)?;
+    let fresh_controller = acquire(&mut clients[0], &fresh_attachment, 2401)?;
     assert_ne!(fresh_attachment, attachments[0]);
     assert_ne!(fresh_controller, controllers[0]);
     assert_eq!(clients.len(), 8, "every original Client remains connected");
@@ -312,6 +321,7 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
     let quoted = format!("'{}'", witness.display().to_string().replace('\'', "'\\''"));
     input(
         &mut clients[1],
+        &attachments[1],
         &controllers[1],
         2500,
         1,
@@ -325,6 +335,7 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
     // Witness complete. Settle fixture shells through the same lifecycle owner before shutdown.
     input(
         &mut clients[0],
+        &fresh_attachment,
         &fresh_controller,
         2600,
         1,
@@ -333,6 +344,7 @@ fn real_eight_idle_clients_close_and_reuse_one_session_without_detach_or_drop() 
     for index in 1..8 {
         input(
             &mut clients[index],
+            &attachments[index],
             &controllers[index],
             2600 + u128::try_from(index)?,
             if index == 1 { 2 } else { 1 },

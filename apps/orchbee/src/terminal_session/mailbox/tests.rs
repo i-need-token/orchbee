@@ -6,7 +6,7 @@ use crate::{
         workbench_projection::project_native_standalone_tabs,
     },
 };
-use orchbee_client_server_protocol::ControllerId;
+use orchbee_client_server_protocol::{ControllerId, ViewerId};
 use orchbee_workbench_protocol::{
     Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SiteId, Snapshot,
     Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction, WorkbenchCommand,
@@ -28,6 +28,11 @@ mod switch_membership;
 mod tab_close;
 mod tab_rename;
 mod workspace_setup;
+
+fn fixture_viewer_id() -> ViewerId {
+    ViewerId::parse("11111111111111111111111111111111")
+        .expect("mailbox viewer fixture must use a valid ViewerId")
+}
 
 #[test]
 fn live_empty_mailbox_admits_and_dispatches_refresh_without_rebootstrapping() {
@@ -1254,7 +1259,9 @@ fn stale_after_draw_settlement_is_inert_after_desired_generation_changes() {
         mailbox
             .deposit_causal(
                 &poll_key,
-                CausalSettlement::Feedback(TerminalViewerAction::Poll {})
+                CausalSettlement::Feedback(TerminalViewerAction::Poll {
+                    attachment_id: fixture_viewer_id(),
+                })
             )
             .unwrap(),
         MutationResult::Stale

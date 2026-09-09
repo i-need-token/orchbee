@@ -162,7 +162,11 @@ impl RenameServer {
                         .map_err(io::Error::other)?
                     {
                         ClientMessage::TerminalViewer(request)
-                            if request.action() == &TerminalViewerAction::Detach {} =>
+                            if matches!(
+                                request.action(),
+                                TerminalViewerAction::Detach { attachment_id }
+                                    if attachment_id == &binding_viewer_id()?
+                            ) =>
                         {
                             assert!(matches!(
                                 response,
@@ -193,11 +197,7 @@ impl RenameServer {
                             let outcome = if matches!(response, RenameResponse::SuccessorReady) {
                                 assert_eq!(successor_stage, 0);
                                 successor_stage = 1;
-                                TerminalViewerOutcome::Attached {
-                                    attachment_id: ViewerId::parse(SITE_ID)
-                                        .map_err(io::Error::other)?,
-                                    host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
-                                }
+                                binding_attach_outcome()?
                             } else {
                                 TerminalViewerOutcome::Rejected { reason: orchbee_client_server_protocol::ViewerRejectedReason::TerminalUnavailable }
                             };
@@ -207,7 +207,11 @@ impl RenameServer {
                             ))
                         }
                         ClientMessage::TerminalViewer(request)
-                            if request.action() == &TerminalViewerAction::Poll {} =>
+                            if matches!(
+                                request.action(),
+                                TerminalViewerAction::Poll { attachment_id }
+                                    if attachment_id == &binding_viewer_id()?
+                            ) =>
                         {
                             let outcome = if successor_stage == 3 {
                                 successor_stage = 4;
@@ -226,7 +230,8 @@ impl RenameServer {
                         ClientMessage::TerminalViewer(request)
                             if matches!(
                                 request.action(),
-                                TerminalViewerAction::FrameApplied { .. }
+                                TerminalViewerAction::FrameApplied { attachment_id, .. }
+                                    if attachment_id == &binding_viewer_id()?
                             ) =>
                         {
                             assert_eq!(successor_stage, 4);
@@ -239,7 +244,8 @@ impl RenameServer {
                         }
                         ClientMessage::TerminalControl(request) => {
                             let outcome = match request.action() {
-                                TerminalControlAction::Acquire {} => {
+                                TerminalControlAction::Acquire { attachment_id } => {
+                                    assert_eq!(attachment_id, &binding_viewer_id()?);
                                     assert_eq!(successor_stage, 1);
                                     successor_stage = 2;
                                     TerminalControlOutcome::Acquired {
@@ -248,11 +254,21 @@ impl RenameServer {
                                                 .map_err(io::Error::other)?,
                                     }
                                 }
-                                TerminalControlAction::Input { bytes, .. } => {
+                                TerminalControlAction::Input {
+                                    attachment_id,
+                                    bytes,
+                                    ..
+                                } => {
+                                    assert_eq!(attachment_id, &binding_viewer_id()?);
                                     forwarded.lock().unwrap().extend(bytes.as_bytes());
                                     TerminalControlOutcome::InputAccepted {}
                                 }
-                                TerminalControlAction::Resize { geometry, .. } => {
+                                TerminalControlAction::Resize {
+                                    attachment_id,
+                                    geometry,
+                                    ..
+                                } => {
+                                    assert_eq!(attachment_id, &binding_viewer_id()?);
                                     if successor_stage == 2 {
                                         successor_stage = 3;
                                     }

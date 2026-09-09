@@ -86,7 +86,12 @@ fn drive_move_membership_with_queued_old_controls(neighbor: bool, resize: bool) 
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error("exact old Detach"));
     };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -155,7 +160,12 @@ fn drive_queued_control_before_switch(resize: bool) -> TestResult {
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("blocked old Poll"));
     };
-    assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+    assert_eq!(
+        poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     let latest = Geometry::new(
         geometry.columns(),
         geometry.rows(),
@@ -182,14 +192,14 @@ fn drive_queued_control_before_switch(resize: bool) -> TestResult {
     };
     let outcome = if resize {
         assert!(
-            matches!(control.action(), TerminalControlAction::Resize {controller_id,sequence,geometry}
-            if controller_id == &controller && sequence.get() == 2 && *geometry == latest)
+            matches!(control.action(), TerminalControlAction::Resize {attachment_id,controller_id,sequence,geometry}
+            if attachment_id == &attached_viewer_id()? && controller_id == &controller && sequence.get() == 2 && *geometry == latest)
         );
         TerminalControlOutcome::Resized { geometry: latest }
     } else {
         assert!(
-            matches!(control.action(), TerminalControlAction::Input {controller_id,sequence,bytes}
-            if controller_id == &controller && sequence.get() == 2 && bytes.as_bytes() == b"before-switch")
+            matches!(control.action(), TerminalControlAction::Input {attachment_id,controller_id,sequence,bytes}
+            if attachment_id == &attached_viewer_id()? && controller_id == &controller && sequence.get() == 2 && bytes.as_bytes() == b"before-switch")
         );
         TerminalControlOutcome::InputAccepted {}
     };
@@ -246,7 +256,12 @@ fn explicit_move_recovery_reads_snapshot_only_and_retains_commit_through_empty_c
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error("recovery exact Detach"));
     };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -426,7 +441,7 @@ fn move_deposits_then_waits_past_deadline_before_same_controller_input() -> Test
         return Err(test_error("settled Move must resume Input"));
     };
     assert!(
-        matches!(request.action(), TerminalControlAction::Input {controller_id, sequence, bytes} if controller_id == &controller && sequence.get() == 2 && bytes.as_bytes() == b"after-move")
+        matches!(request.action(), TerminalControlAction::Input {attachment_id,controller_id, sequence, bytes} if attachment_id == &attached_viewer_id()? && controller_id == &controller && sequence.get() == 2 && bytes.as_bytes() == b"after-move")
     );
     harness
         .carrier

@@ -8,7 +8,10 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-fn control(client: &mut UnixStream, action: ControlAction) -> TestResult<ControlOutcome> {
+pub(super) fn control(
+    client: &mut UnixStream,
+    action: ControlAction,
+) -> TestResult<ControlOutcome> {
     static NEXT: AtomicU64 = AtomicU64::new(10_000);
     let request_id = id(u128::from(NEXT.fetch_add(1, Ordering::Relaxed)))?;
     let ServerMessage::TerminalControlResult(result) = exchange(
@@ -21,15 +24,24 @@ fn control(client: &mut UnixStream, action: ControlAction) -> TestResult<Control
     assert_eq!(result.request_id(), &request_id);
     Ok(result.into_outcome())
 }
-fn acquire(client: &mut UnixStream) -> TestResult<ControllerId> {
-    let ControlOutcome::Acquired { controller_id } = control(client, ControlAction::Acquire {})?
+pub(super) fn acquire(
+    client: &mut UnixStream,
+    attachment_id: &orchbee_client_server_protocol::ViewerId,
+) -> TestResult<ControllerId> {
+    let ControlOutcome::Acquired { controller_id } = control(
+        client,
+        ControlAction::Acquire {
+            attachment_id: attachment_id.clone(),
+        },
+    )?
     else {
         return Err("controller acquisition failed".into());
     };
     Ok(controller_id)
 }
-fn input(
+pub(super) fn input(
     client: &mut UnixStream,
+    attachment_id: &orchbee_client_server_protocol::ViewerId,
     grant: &ControllerId,
     sequence: u64,
     bytes: Vec<u8>,
@@ -37,13 +49,14 @@ fn input(
     control(
         client,
         ControlAction::Input {
+            attachment_id: attachment_id.clone(),
             controller_id: grant.clone(),
             sequence: NonZeroU64::new(sequence).ok_or("zero sequence")?,
             bytes: ControlInput::new(bytes)?,
         },
     )
 }
-fn observed(path: &Path, suffix: &str) -> TestResult<String> {
+pub(super) fn observed(path: &Path, suffix: &str) -> TestResult<String> {
     let deadline = Instant::now() + PROCESS_TIMEOUT;
     loop {
         match std::fs::read_to_string(path) {
@@ -62,10 +75,17 @@ pub(super) fn exercise(
     first: &mut UnixStream,
     second: &mut UnixStream,
     runtime: &Path,
+    first_attachment: &orchbee_client_server_protocol::ViewerId,
+    second_attachment: &orchbee_client_server_protocol::ViewerId,
 ) -> TestResult {
-    let grant = acquire(first)?;
+    let grant = acquire(first, first_attachment)?;
     assert_eq!(
-        control(second, ControlAction::Acquire {})?,
+        control(
+            second,
+            ControlAction::Acquire {
+                attachment_id: second_attachment.clone()
+            }
+        )?,
         ControlOutcome::Rejected {
             reason: ControlRejectedReason::ControllerBusy
         }
@@ -75,6 +95,7 @@ pub(super) fn exercise(
     assert_eq!(
         input(
             first,
+            first_attachment,
             &grant,
             1,
             format!("printf 'start\\n' > {quoted}\n").into_bytes()
@@ -84,13 +105,13 @@ pub(super) fn exercise(
     observed(&output, "start\n")?;
     let forbidden = format!("printf 'bad\\n' >> {quoted}\n").into_bytes();
     assert_eq!(
-        input(second, &grant, 1, forbidden.clone())?,
+        input(second, second_attachment, &grant, 1, forbidden.clone())?,
         ControlOutcome::Rejected {
             reason: ControlRejectedReason::NotController
         }
     );
     assert_eq!(
-        input(first, &grant, 1, forbidden)?,
+        input(first, first_attachment, &grant, 1, forbidden)?,
         ControlOutcome::Rejected {
             reason: ControlRejectedReason::SequenceMismatch
         }
@@ -100,6 +121,7 @@ pub(super) fn exercise(
         control(
             second,
             ControlAction::Resize {
+                attachment_id: second_attachment.clone(),
                 controller_id: grant.clone(),
                 sequence: NonZeroU64::MIN,
                 geometry: resized
@@ -113,6 +135,7 @@ pub(super) fn exercise(
         control(
             first,
             ControlAction::Resize {
+                attachment_id: first_attachment.clone(),
                 controller_id: grant.clone(),
                 sequence: NonZeroU64::new(2).ok_or("zero sequence")?,
                 geometry: resized
@@ -123,6 +146,7 @@ pub(super) fn exercise(
     assert_eq!(
         input(
             first,
+            first_attachment,
             &grant,
             3,
             format!("stty size >> {quoted}; printf 'end\\n' >> {quoted}\n").into_bytes()
@@ -134,17 +158,25 @@ pub(super) fn exercise(
         content.split_whitespace().collect::<Vec<_>>(),
         vec!["start", "31", "100", "end"]
     );
-    assert_eq!(viewer(first, Action::Detach {})?, Outcome::Detached {});
     assert_eq!(
-        input(second, &grant, 4, b"invalid\n".to_vec())?,
+        viewer(
+            first,
+            Action::Detach {
+                attachment_id: first_attachment.clone()
+            }
+        )?,
+        Outcome::Detached {}
+    );
+    assert_eq!(
+        input(second, second_attachment, &grant, 4, b"invalid\n".to_vec())?,
         ControlOutcome::Rejected {
             reason: ControlRejectedReason::NotController
         }
     );
-    let replacement = acquire(second)?;
+    let replacement = acquire(second, second_attachment)?;
     assert_ne!(replacement, grant);
     assert_eq!(
-        input(second, &grant, 5, b"invalid\n".to_vec())?,
+        input(second, second_attachment, &grant, 5, b"invalid\n".to_vec())?,
         ControlOutcome::Rejected {
             reason: ControlRejectedReason::NotController
         }
@@ -152,6 +184,7 @@ pub(super) fn exercise(
     assert_eq!(
         input(
             second,
+            second_attachment,
             &replacement,
             1,
             format!("printf 'second\\n' >> {quoted}\n").into_bytes()
@@ -162,7 +195,10 @@ pub(super) fn exercise(
     Ok(())
 }
 
-fn send_control(client: &mut UnixStream, action: ControlAction) -> TestResult<RequestId> {
+pub(super) fn send_control(
+    client: &mut UnixStream,
+    action: ControlAction,
+) -> TestResult<RequestId> {
     static NEXT: AtomicU64 = AtomicU64::new(20_000);
     let request_id = id(u128::from(NEXT.fetch_add(1, Ordering::Relaxed)))?;
     write_client_message(
@@ -171,7 +207,7 @@ fn send_control(client: &mut UnixStream, action: ControlAction) -> TestResult<Re
     )?;
     Ok(request_id)
 }
-fn read_control(
+pub(super) fn read_control(
     worker: &mut UnixStream,
 ) -> TestResult<orchbee_capability_node_protocol::TerminalControlRequest> {
     let CapabilityNodeMessage::TerminalControlRequest(request) = read_obcn(worker)? else {
@@ -179,7 +215,7 @@ fn read_control(
     };
     Ok(request)
 }
-fn reply_control(
+pub(super) fn reply_control(
     worker: &mut UnixStream,
     request: &orchbee_capability_node_protocol::TerminalControlRequest,
     outcome: orchbee_capability_node_protocol::TerminalControlOutcome,
@@ -197,7 +233,11 @@ fn reply_control(
     )?;
     Ok(())
 }
-fn attach_peer(client: &mut UnixStream, worker: &mut UnixStream, request_id: u128) -> TestResult {
+fn attach_peer(
+    client: &mut UnixStream,
+    worker: &mut UnixStream,
+    request_id: u128,
+) -> TestResult<orchbee_client_server_protocol::ViewerId> {
     write_client_message(
         client,
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
@@ -209,10 +249,14 @@ fn attach_peer(client: &mut UnixStream, worker: &mut UnixStream, request_id: u12
     )?;
     let request = read_viewer(worker)?;
     reply(worker, request, WorkerOutcome::Attached)?;
-    assert!(
-        matches!(read_server_message(client)?,ServerMessage::TerminalViewerResult(result) if matches!(result.outcome(),Outcome::Attached {..}))
-    );
-    Ok(())
+    let ServerMessage::TerminalViewerResult(result) = read_server_message(client)? else {
+        return Err("missing Attach result".into());
+    };
+    assert_eq!(result.request_id(), &id(request_id)?);
+    let Outcome::Attached { attachment_id, .. } = result.into_outcome() else {
+        return Err("Attach failed".into());
+    };
+    Ok(attachment_id)
 }
 
 #[test]
@@ -227,13 +271,23 @@ fn abandoned_acquisition_keeps_reservation_until_exact_controller_cleanup_finish
     write_client_message(&mut first, &create(1)?)?;
     accept_launch(&mut worker)?;
     let _created = read_server_message(&mut first)?;
-    attach_peer(&mut first, &mut worker, 2)?;
-    attach_peer(&mut second, &mut worker, 3)?;
-    send_control(&mut first, ControlAction::Acquire {})?;
+    let first_attachment = attach_peer(&mut first, &mut worker, 2)?;
+    let second_attachment = attach_peer(&mut second, &mut worker, 3)?;
+    send_control(
+        &mut first,
+        ControlAction::Acquire {
+            attachment_id: first_attachment.clone(),
+        },
+    )?;
     let acquiring = read_control(&mut worker)?;
     assert_eq!(acquiring.action, WorkerControl::Acquire);
     assert_eq!(
-        control(&mut second, ControlAction::Acquire {})?,
+        control(
+            &mut second,
+            ControlAction::Acquire {
+                attachment_id: second_attachment.clone()
+            }
+        )?,
         ControlOutcome::Rejected {
             reason: ControlRejectedReason::ControllerBusy
         }
@@ -245,7 +299,12 @@ fn abandoned_acquisition_keeps_reservation_until_exact_controller_cleanup_finish
     assert_eq!(cleanup.controller_id, acquiring.controller_id);
     assert_eq!(cleanup.viewer_id, acquiring.viewer_id);
     assert_eq!(
-        control(&mut second, ControlAction::Acquire {})?,
+        control(
+            &mut second,
+            ControlAction::Acquire {
+                attachment_id: second_attachment.clone()
+            }
+        )?,
         ControlOutcome::Rejected {
             reason: ControlRejectedReason::ControllerBusy
         }
@@ -254,7 +313,12 @@ fn abandoned_acquisition_keeps_reservation_until_exact_controller_cleanup_finish
     let detached = read_viewer(&mut worker)?;
     assert_eq!(detached.action, WorkerAction::Detach);
     reply(&mut worker, detached, WorkerOutcome::Detached)?;
-    send_control(&mut second, ControlAction::Acquire {})?;
+    send_control(
+        &mut second,
+        ControlAction::Acquire {
+            attachment_id: second_attachment.clone(),
+        },
+    )?;
     let replacement = read_control(&mut worker)?;
     assert_ne!(replacement.controller_id, acquiring.controller_id);
     assert_ne!(replacement.viewer_id, acquiring.viewer_id);
@@ -276,8 +340,13 @@ fn lost_worker_after_input_delivery_reports_unknown_and_retires_the_grant() -> T
     write_client_message(&mut client, &create(1)?)?;
     accept_launch(&mut worker)?;
     let _created = read_server_message(&mut client)?;
-    attach_peer(&mut client, &mut worker, 2)?;
-    send_control(&mut client, ControlAction::Acquire {})?;
+    let attachment_id = attach_peer(&mut client, &mut worker, 2)?;
+    send_control(
+        &mut client,
+        ControlAction::Acquire {
+            attachment_id: attachment_id.clone(),
+        },
+    )?;
     let acquiring = read_control(&mut worker)?;
     reply_control(&mut worker, &acquiring, ControlResult::Acquired)?;
     let ServerMessage::TerminalControlResult(result) = read_server_message(&mut client)? else {
@@ -289,6 +358,7 @@ fn lost_worker_after_input_delivery_reports_unknown_and_retires_the_grant() -> T
     let request_id = send_control(
         &mut client,
         ControlAction::Input {
+            attachment_id: attachment_id.clone(),
             controller_id: controller_id.clone(),
             sequence: NonZeroU64::MIN,
             bytes: ControlInput::new(b"effect\n".to_vec())?,
@@ -304,6 +374,7 @@ fn lost_worker_after_input_delivery_reports_unknown_and_retires_the_grant() -> T
         control(
             &mut client,
             ControlAction::Input {
+                attachment_id,
                 controller_id,
                 sequence: NonZeroU64::new(2).ok_or("zero")?,
                 bytes: ControlInput::new(b"next\n".to_vec())?

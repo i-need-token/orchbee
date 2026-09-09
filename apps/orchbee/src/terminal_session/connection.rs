@@ -185,7 +185,14 @@ pub(super) fn run_legacy(
         HostEpoch::parse(host_epoch.as_str()).map_err(|_| TerminalStatus::Unavailable)?,
     );
     let mut sequence = 0_u64;
-    let result = control(&mut client, &mut ids, Control::Acquire {}, &mut sequence)?;
+    let result = control(
+        &mut client,
+        &mut ids,
+        Control::Acquire {
+            attachment_id: attachment_id.clone(),
+        },
+        &mut sequence,
+    )?;
     let controller = match result {
         ControlOutcome::Acquired { controller_id } => Some(controller_id),
         ControlOutcome::Rejected {
@@ -200,6 +207,7 @@ pub(super) fn run_legacy(
                 &mut client,
                 &mut ids,
                 Control::Resize {
+                    attachment_id: attachment_id.clone(),
                     controller_id,
                     sequence: NonZeroU64::MIN,
                     geometry
@@ -217,7 +225,13 @@ pub(super) fn run_legacy(
     while let Ok(command) = commands.recv() {
         match command {
             LegacyCommand::Poll => {
-                let record = match viewer(&mut client, &mut ids, Viewer::Poll {})? {
+                let record = match viewer(
+                    &mut client,
+                    &mut ids,
+                    Viewer::Poll {
+                        attachment_id: attachment_id.clone(),
+                    },
+                )? {
                     ViewerOutcome::Empty {} => None,
                     ViewerOutcome::Record(record) => Some(record),
                     _ => return Err(TerminalStatus::Unavailable),
@@ -227,6 +241,9 @@ pub(super) fn run_legacy(
                     .map_err(|_| TerminalStatus::Unavailable)?;
             }
             LegacyCommand::Feedback(feedback) => {
+                if feedback.attachment_id() != Some(&attachment_id) {
+                    return Err(TerminalStatus::Unavailable);
+                }
                 if viewer(&mut client, &mut ids, feedback)? != (ViewerOutcome::FeedbackAccepted {})
                 {
                     return Err(TerminalStatus::Unavailable);
@@ -242,11 +259,13 @@ pub(super) fn run_legacy(
                     NonZeroU64::new(sequence).ok_or(TerminalStatus::Unavailable)?;
                 let action = match command {
                     LegacyCommand::Input(bytes) => Control::Input {
+                        attachment_id: attachment_id.clone(),
                         controller_id,
                         sequence: request_sequence,
                         bytes,
                     },
                     LegacyCommand::Resize(geometry) => Control::Resize {
+                        attachment_id: attachment_id.clone(),
                         controller_id,
                         sequence: request_sequence,
                         geometry,

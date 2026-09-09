@@ -737,7 +737,9 @@ fn exercise_pre_marker_poll(
         return Err("poll event kind");
     }
     let settlement = if feedback {
-        CausalSettlement::Feedback(TerminalViewerAction::Poll {})
+        CausalSettlement::Feedback(TerminalViewerAction::Poll {
+            attachment_id: fixture_viewer_id(),
+        })
     } else {
         CausalSettlement::NoFeedback
     };
@@ -974,7 +976,9 @@ fn exercise_supersession(
                 mailbox
                     .deposit_causal(
                         &poll_key,
-                        CausalSettlement::Feedback(TerminalViewerAction::Poll {}),
+                        CausalSettlement::Feedback(TerminalViewerAction::Poll {
+                            attachment_id: fixture_viewer_id(),
+                        }),
                     )
                     .map_err(|_| "causal deposit")?;
                 if cut == SupersessionCut::AfterDraw {

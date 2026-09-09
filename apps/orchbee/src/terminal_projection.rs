@@ -1,5 +1,5 @@
 use orchbee_client_server_protocol::{
-    Geometry, TerminalViewerAction as Feedback, ViewerSnapshotReason as Reason,
+    Geometry, TerminalViewerAction as Feedback, ViewerId, ViewerSnapshotReason as Reason,
 };
 use orchbee_terminal_protocol::{
     AttachmentId, CURRENT_PROTOCOL_VERSION, HostEpoch, MessageRole, PayloadEncoding,
@@ -117,6 +117,7 @@ impl TerminalProjection {
             Ok(()) => {
                 self.blocked_revision = None;
                 Ok(Some(Feedback::FrameApplied {
+                    attachment_id: ViewerId::parse(&self.attachment.to_text()).map_err(|_| ())?,
                     sequence: route.sequence,
                     generation: route.generation,
                     revision: route.revision,
@@ -125,6 +126,7 @@ impl TerminalProjection {
             Err(reason) => {
                 self.clear_frame();
                 Ok(Some(Feedback::NeedSnapshot {
+                    attachment_id: ViewerId::parse(&self.attachment.to_text()).map_err(|_| ())?,
                     sequence: route.sequence,
                     reason,
                 }))

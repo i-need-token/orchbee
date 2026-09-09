@@ -170,53 +170,8 @@ fn real_standalone_opens_share_and_reopen_one_retained_shell() -> TestResult {
 
 fn run_real_terminal_vertical(standalone: bool) -> TestResult {
     let server = RunningServer::start()?;
-    let host_directory = HostDirectory::new()?;
-    let runtime = host_directory.0.as_path();
-    std::fs::set_permissions(runtime, std::fs::Permissions::from_mode(0o700))?;
-    let endpoint_id = "1234567890abcdef1234567890abcdef";
-    let endpoint = runtime.join(format!("{endpoint_id}.s"));
-    let host_binary = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../terminal-host/zig-out/bin/orchbee-terminal-host");
-    let worker_binary =
-        Path::new(env!("CARGO_BIN_EXE_orchbee-server")).with_file_name("orchbee-worker");
-    for binary in [&host_binary, &worker_binary] {
-        assert!(
-            binary.is_file(),
-            "build the Worker and Terminal Host prerequisites before this process witness: {}",
-            binary.display()
-        );
-    }
-    let mut host = ChildGuard::spawn(
-        Command::new(host_binary)
-            .args(["serve", "--runtime-directory"])
-            .arg(runtime)
-            .args(["--endpoint-id", endpoint_id]),
-        false,
-    )?;
-    let deadline = Instant::now() + PROCESS_TIMEOUT;
-    while !endpoint.exists() {
-        if let Some(status) = host.0.try_wait()? {
-            let mut diagnostic = String::new();
-            if let Some(mut stderr) = host.0.stderr.take() {
-                stderr.read_to_string(&mut diagnostic)?;
-            }
-            return Err(format!("Host exited before readiness: {status}; {diagnostic}").into());
-        }
-        if Instant::now() >= deadline {
-            return Err("Host endpoint did not appear".into());
-        }
-        thread::sleep(Duration::from_millis(5));
-    }
-    let worker = ChildGuard::spawn(
-        Command::new(worker_binary)
-            .env("SHELL", "/bin/sh")
-            .args(["--local-endpoint"])
-            .arg(server.worker_endpoint())
-            .arg("--terminal-host-runtime-directory")
-            .arg(runtime)
-            .args(["--terminal-host-endpoint-id", endpoint_id]),
-        true,
-    )?;
+    let mut real = RealTerminalRuntime::start(&server)?;
+    let runtime = real.directory.0.as_path();
     let (mut second, reference) = if standalone {
         let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
         let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
@@ -261,13 +216,78 @@ fn run_real_terminal_vertical(standalone: bool) -> TestResult {
     };
     viewers::exercise_real_viewers(&server, &mut second, runtime, &reference, !standalone)?;
     drop(second);
-    drop(worker);
+    drop(real.worker.take());
     assert_eq!(
-        running_inventory(&endpoint)?,
+        running_inventory(&real.endpoint)?,
         1,
         "Client and Worker loss must preserve one running terminal"
     );
     Ok(())
+}
+
+struct RealTerminalRuntime {
+    worker: Option<ChildGuard>,
+    _host: ChildGuard,
+    directory: HostDirectory,
+    endpoint: std::path::PathBuf,
+}
+
+impl RealTerminalRuntime {
+    fn start(server: &RunningServer) -> TestResult<Self> {
+        let host_directory = HostDirectory::new()?;
+        let runtime = host_directory.0.as_path();
+        std::fs::set_permissions(runtime, std::fs::Permissions::from_mode(0o700))?;
+        let endpoint_id = "1234567890abcdef1234567890abcdef";
+        let endpoint = runtime.join(format!("{endpoint_id}.s"));
+        let host_binary = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../terminal-host/zig-out/bin/orchbee-terminal-host");
+        let worker_binary =
+            Path::new(env!("CARGO_BIN_EXE_orchbee-server")).with_file_name("orchbee-worker");
+        for binary in [&host_binary, &worker_binary] {
+            assert!(
+                binary.is_file(),
+                "build the Worker and Terminal Host prerequisites before this process witness: {}",
+                binary.display()
+            );
+        }
+        let mut host = ChildGuard::spawn(
+            Command::new(host_binary)
+                .args(["serve", "--runtime-directory"])
+                .arg(runtime)
+                .args(["--endpoint-id", endpoint_id]),
+            false,
+        )?;
+        let deadline = Instant::now() + PROCESS_TIMEOUT;
+        while !endpoint.exists() {
+            if let Some(status) = host.0.try_wait()? {
+                let mut diagnostic = String::new();
+                if let Some(mut stderr) = host.0.stderr.take() {
+                    stderr.read_to_string(&mut diagnostic)?;
+                }
+                return Err(format!("Host exited before readiness: {status}; {diagnostic}").into());
+            }
+            if Instant::now() >= deadline {
+                return Err("Host endpoint did not appear".into());
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        let worker = ChildGuard::spawn(
+            Command::new(worker_binary)
+                .env("SHELL", "/bin/sh")
+                .args(["--local-endpoint"])
+                .arg(server.worker_endpoint())
+                .arg("--terminal-host-runtime-directory")
+                .arg(runtime)
+                .args(["--terminal-host-endpoint-id", endpoint_id]),
+            true,
+        )?;
+        Ok(Self {
+            worker: Some(worker),
+            _host: host,
+            directory: host_directory,
+            endpoint,
+        })
+    }
 }
 
 struct ChildGuard(Child);

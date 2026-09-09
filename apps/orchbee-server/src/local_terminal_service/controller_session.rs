@@ -78,11 +78,14 @@ pub(super) fn execute<'service>(
     let Some(viewer) = viewer else {
         return rejected(Rejected::ViewerUnavailable);
     };
+    if &viewer.attachment_id != request.action().attachment_id() {
+        return rejected(Rejected::ViewerUnavailable);
+    }
     if !service.viewer_worker_is_current(&viewer.handle) {
         viewer.controller.take();
         return unavailable(Unavailable::TerminalRuntimeUnavailable);
     }
-    if matches!(request.action(), Action::Acquire {}) {
+    if matches!(request.action(), Action::Acquire { .. }) {
         return acquire(service, viewer);
     }
     let Some(controller) = viewer.controller.as_mut() else {
@@ -99,7 +102,7 @@ pub(super) fn execute<'service>(
             sequence,
             ..
         } => (controller_id, *sequence),
-        Action::Acquire {} => unreachable!("acquisition handled"),
+        Action::Acquire { .. } => unreachable!("acquisition handled"),
     };
     if id.as_str()
         != format!(
@@ -130,7 +133,7 @@ pub(super) fn execute<'service>(
                 Err(_) => return rejected(Rejected::HostRejected),
             }
         }
-        Action::Acquire {} => unreachable!("effect matched"),
+        Action::Acquire { .. } => unreachable!("effect matched"),
     };
     let request_id = {
         let Ok(workers) = service.workers.lock() else {

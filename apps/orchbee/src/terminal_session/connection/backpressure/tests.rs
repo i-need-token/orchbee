@@ -48,13 +48,17 @@ fn viewer_busy_reissues_only_identity_and_preserves_exact_feedback() -> TestResu
             worker_id: WorkerId::parse(ID)?,
             terminal_id: TerminalId::parse(ID)?,
         },
-        Viewer::Poll {},
+        Viewer::Poll {
+            attachment_id: ViewerId::parse(ID)?,
+        },
         Viewer::FrameApplied {
+            attachment_id: ViewerId::parse(ID)?,
             sequence: NonZeroU64::new(7).unwrap(),
             generation: NonZeroU64::MIN,
             revision: 11,
         },
         Viewer::NeedSnapshot {
+            attachment_id: ViewerId::parse(ID)?,
             sequence: NonZeroU64::new(7).unwrap(),
             reason: ViewerSnapshotReason::BaseMismatch,
         },
@@ -84,7 +88,7 @@ fn viewer_busy_reissues_only_identity_and_preserves_exact_feedback() -> TestResu
                                 host_epoch: HostEpoch::parse(ID).unwrap(),
                             }
                         }
-                        Viewer::Poll {} => ViewerOutcome::Empty {},
+                        Viewer::Poll { .. } => ViewerOutcome::Empty {},
                         _ => ViewerOutcome::FeedbackAccepted {},
                     }
                 };
@@ -115,20 +119,24 @@ fn viewer_busy_reissues_only_identity_and_preserves_exact_feedback() -> TestResu
 fn control_busy_uses_fresh_ids_and_consumes_each_effect_sequence_once() -> TestResult {
     let geometry = Geometry::new(80, 24, 8, 16)?;
     for action in [
-        Control::Acquire {},
+        Control::Acquire {
+            attachment_id: ViewerId::parse(ID)?,
+        },
         Control::Input {
+            attachment_id: ViewerId::parse(ID)?,
             controller_id: ControllerId::parse(ID)?,
             sequence: NonZeroU64::new(41).unwrap(),
             bytes: ControlInput::new(b"one input".to_vec())?,
         },
         Control::Resize {
+            attachment_id: ViewerId::parse(ID)?,
             controller_id: ControllerId::parse(ID)?,
             sequence: NonZeroU64::new(41).unwrap(),
             geometry,
         },
     ] {
         let expected = action.clone();
-        let has_sequence = !matches!(action, Control::Acquire {});
+        let has_sequence = !matches!(action, Control::Acquire { .. });
         let server = FakeServer::start(move |mut stream| {
             admit(&mut stream)?;
             let mut previous = None;
@@ -153,7 +161,7 @@ fn control_busy_uses_fresh_ids_and_consumes_each_effect_sequence_once() -> TestR
                     }
                 } else {
                     match expected {
-                        Control::Acquire {} => ControlOutcome::Acquired {
+                        Control::Acquire { .. } => ControlOutcome::Acquired {
                             controller_id: ControllerId::parse(ID).unwrap(),
                         },
                         Control::Input { .. } => ControlOutcome::InputAccepted {},
@@ -213,7 +221,13 @@ fn a_busy_result_cannot_renew_the_deadline_for_a_silent_second_attempt() -> Test
     let started = Instant::now();
     client.set_submission_deadline(Some(started + Duration::from_millis(100)));
     assert_eq!(
-        viewer(&mut client, &mut Identities(1), Viewer::Poll {}),
+        viewer(
+            &mut client,
+            &mut Identities(1),
+            Viewer::Poll {
+                attachment_id: ViewerId::parse(ID)?,
+            },
+        ),
         Err(TerminalStatus::OutcomeUnknown)
     );
     assert!(started.elapsed() < Duration::from_millis(400));
@@ -252,7 +266,14 @@ fn non_busy_results_and_unknown_effects_are_never_resubmitted() -> TestResult {
             no_more_requests(&mut stream)
         })?;
         let mut client = LocalClient::connect(server.endpoint(), "test-cohort")?;
-        let result = control(&mut client, &mut Identities(1), Control::Acquire {}, &mut 0);
+        let result = control(
+            &mut client,
+            &mut Identities(1),
+            Control::Acquire {
+                attachment_id: ViewerId::parse(ID)?,
+            },
+            &mut 0,
+        );
         if matches!(expected, ControlOutcome::OutcomeUnknown {}) {
             assert_eq!(result, Err(TerminalStatus::OutcomeUnknown));
         } else {
@@ -289,7 +310,13 @@ fn non_busy_results_and_unknown_effects_are_never_resubmitted() -> TestResult {
         })?;
         let mut client = LocalClient::connect(server.endpoint(), "test-cohort")?;
         assert_eq!(
-            viewer(&mut client, &mut Identities(1), Viewer::Poll {}),
+            viewer(
+                &mut client,
+                &mut Identities(1),
+                Viewer::Poll {
+                    attachment_id: ViewerId::parse(ID)?,
+                },
+            ),
             Ok(expected)
         );
         drop(client);

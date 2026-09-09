@@ -90,7 +90,12 @@ fn location_rename_and_noop_recover_by_snapshot_only_without_replacing_terminal_
             let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
                 return Err(test_error("selection must detach original Viewer"));
             };
-            assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+            assert_eq!(
+                detach.action(),
+                &TerminalViewerAction::Detach {
+                    attachment_id: attached_viewer_id()?,
+                }
+            );
             harness
                 .carrier
                 .respond_obcs(ServerMessage::TerminalViewerResult(

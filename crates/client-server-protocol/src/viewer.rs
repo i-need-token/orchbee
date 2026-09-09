@@ -33,8 +33,11 @@ pub enum TerminalViewerAction {
         worker_id: WorkerId,
         terminal_id: TerminalId,
     },
-    Poll {},
+    Poll {
+        attachment_id: ViewerId,
+    },
     FrameApplied {
+        attachment_id: ViewerId,
         #[serde(with = "crate::number::positive_decimal")]
         sequence: NonZeroU64,
         #[serde(with = "crate::number::positive_decimal")]
@@ -43,11 +46,27 @@ pub enum TerminalViewerAction {
         revision: u64,
     },
     NeedSnapshot {
+        attachment_id: ViewerId,
         #[serde(with = "crate::number::positive_decimal")]
         sequence: NonZeroU64,
         reason: ViewerSnapshotReason,
     },
-    Detach {},
+    Detach {
+        attachment_id: ViewerId,
+    },
+}
+
+impl TerminalViewerAction {
+    #[must_use]
+    pub const fn attachment_id(&self) -> Option<&ViewerId> {
+        match self {
+            Self::Attach { .. } | Self::AttachBinding { .. } => None,
+            Self::Poll { attachment_id }
+            | Self::FrameApplied { attachment_id, .. }
+            | Self::NeedSnapshot { attachment_id, .. }
+            | Self::Detach { attachment_id } => Some(attachment_id),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -19,6 +19,9 @@ fn records_and_feedback_cannot_cross_attachment_or_host_scope() -> TestResult {
         .receive(&good)
         .map_err(|_| "valid frame rejected")?;
     let feedback = TerminalViewerAction::FrameApplied {
+        attachment_id: orchbee_client_server_protocol::ViewerId::parse(
+            &projection.attachment_id.to_text(),
+        )?,
         sequence: NonZeroU64::MIN,
         generation: NonZeroU64::MIN,
         revision: 5,
@@ -26,6 +29,9 @@ fn records_and_feedback_cannot_cross_attachment_or_host_scope() -> TestResult {
     assert!(projection.accepts_feedback(&feedback));
     assert!(
         !projection.accepts_feedback(&TerminalViewerAction::FrameApplied {
+            attachment_id: orchbee_client_server_protocol::ViewerId::parse(
+                &projection.attachment_id.to_text()
+            )?,
             sequence: NonZeroU64::MIN,
             generation: NonZeroU64::MIN,
             revision: 6
@@ -33,6 +39,9 @@ fn records_and_feedback_cannot_cross_attachment_or_host_scope() -> TestResult {
     );
     assert!(
         !projection.accepts_feedback(&TerminalViewerAction::NeedSnapshot {
+            attachment_id: orchbee_client_server_protocol::ViewerId::parse(
+                &projection.attachment_id.to_text()
+            )?,
             sequence: NonZeroU64::new(2).ok_or("zero sequence")?,
             reason: orchbee_client_server_protocol::ViewerSnapshotReason::StoreReset
         })
@@ -67,6 +76,9 @@ fn blocked_and_requested_snapshot_recovery_require_the_correct_snapshot() -> Tes
         .receive(&frame(1, 5)?)
         .map_err(|_| "recovery rejected")?;
     let feedback = TerminalViewerAction::NeedSnapshot {
+        attachment_id: orchbee_client_server_protocol::ViewerId::parse(
+            &projection.attachment_id.to_text(),
+        )?,
         sequence: NonZeroU64::MIN,
         reason: orchbee_client_server_protocol::ViewerSnapshotReason::DecoderRejected,
     };

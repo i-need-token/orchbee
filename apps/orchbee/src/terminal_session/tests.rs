@@ -108,6 +108,23 @@ fn admit(stream: &mut UnixStream) -> io::Result<()> {
     )
     .map_err(io::Error::other)
 }
+
+fn attach_outcome() -> io::Result<TerminalViewerOutcome> {
+    Ok(TerminalViewerOutcome::Attached {
+        attachment_id: ViewerId::parse(ID).map_err(io::Error::other)?,
+        host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
+    })
+}
+
+fn attached_viewer_id() -> io::Result<ViewerId> {
+    let TerminalViewerOutcome::Attached { attachment_id, .. } = attach_outcome()? else {
+        return Err(io::Error::other(
+            "attach fixture did not contain a ViewerId",
+        ));
+    };
+    Ok(attachment_id)
+}
+
 fn attach(stream: &mut UnixStream) -> io::Result<()> {
     let ClientMessage::TerminalViewer(request) =
         read_client_message(stream).map_err(io::Error::other)?
@@ -118,10 +135,7 @@ fn attach(stream: &mut UnixStream) -> io::Result<()> {
         stream,
         &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
             request.request_id().clone(),
-            TerminalViewerOutcome::Attached {
-                attachment_id: ViewerId::parse(ID).map_err(io::Error::other)?,
-                host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
-            },
+            attach_outcome()?,
         )),
     )
     .map_err(io::Error::other)
@@ -185,6 +199,23 @@ fn binding() -> PresentationBinding {
         worker_id: WorkerId::parse(WORKER_ID).unwrap(),
     }
 }
+
+fn binding_attach_outcome() -> io::Result<TerminalViewerOutcome> {
+    Ok(TerminalViewerOutcome::Attached {
+        attachment_id: ViewerId::parse(SITE_ID).map_err(io::Error::other)?,
+        host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
+    })
+}
+
+fn binding_viewer_id() -> io::Result<ViewerId> {
+    let TerminalViewerOutcome::Attached { attachment_id, .. } = binding_attach_outcome()? else {
+        return Err(io::Error::other(
+            "binding attach fixture did not contain a ViewerId",
+        ));
+    };
+    Ok(attachment_id)
+}
+
 fn attach_binding(stream: &mut UnixStream) -> io::Result<()> {
     let ClientMessage::TerminalViewer(request) =
         read_client_message(stream).map_err(io::Error::other)?
@@ -206,24 +237,23 @@ fn attach_binding(stream: &mut UnixStream) -> io::Result<()> {
         stream,
         &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
             request.request_id().clone(),
-            TerminalViewerOutcome::Attached {
-                attachment_id: ViewerId::parse(SITE_ID).map_err(io::Error::other)?,
-                host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
-            },
+            binding_attach_outcome()?,
         )),
     )
     .map_err(io::Error::other)
 }
-fn acquire(stream: &mut UnixStream) -> io::Result<()> {
+fn acquire(stream: &mut UnixStream, attachment_id: &ViewerId) -> io::Result<()> {
     let ClientMessage::TerminalControl(request) =
         read_client_message(stream).map_err(io::Error::other)?
     else {
         return Err(io::Error::other("expected acquire"));
     };
-    assert!(matches!(
+    assert_eq!(
         request.action(),
-        TerminalControlAction::Acquire {}
-    ));
+        &TerminalControlAction::Acquire {
+            attachment_id: attachment_id.clone(),
+        }
+    );
     write_server_message(
         stream,
         &ServerMessage::TerminalControlResult(TerminalControlResult::new(
@@ -296,10 +326,7 @@ fn serve_native_controlling_frame_with_snapshot(
         stream,
         &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
             attach.request_id().clone(),
-            TerminalViewerOutcome::Attached {
-                attachment_id: ViewerId::parse(SITE_ID).map_err(io::Error::other)?,
-                host_epoch: HostEpoch::parse(ID).map_err(io::Error::other)?,
-            },
+            binding_attach_outcome()?,
         )),
     )
     .map_err(io::Error::other)?;
@@ -310,7 +337,12 @@ fn serve_native_controlling_frame_with_snapshot(
         return Err(io::Error::other("expected Acquire"));
     };
     assert_eq!(acquire.request_id().as_str(), native_identity(0x104));
-    assert_eq!(acquire.action(), &TerminalControlAction::Acquire {});
+    assert_eq!(
+        acquire.action(),
+        &TerminalControlAction::Acquire {
+            attachment_id: binding_viewer_id()?,
+        }
+    );
     write_server_message(
         stream,
         &ServerMessage::TerminalControlResult(TerminalControlResult::new(
@@ -332,10 +364,13 @@ fn serve_native_controlling_frame_with_snapshot(
     assert!(matches!(
         resize.action(),
         TerminalControlAction::Resize {
+            attachment_id,
             sequence,
             geometry: requested,
             ..
-        } if sequence.get() == 1 && *requested == geometry
+        } if attachment_id == &binding_viewer_id()?
+            && sequence.get() == 1
+            && *requested == geometry
     ));
     write_server_message(
         stream,
@@ -352,7 +387,12 @@ fn serve_native_controlling_frame_with_snapshot(
         return Err(io::Error::other("expected setup Poll"));
     };
     assert_eq!(poll.request_id().as_str(), native_identity(0x106));
-    assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+    assert_eq!(
+        poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: binding_viewer_id()?,
+        }
+    );
     write_server_message(
         stream,
         &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
@@ -506,7 +546,12 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
             return Err(io::Error::other("expected ordinary Poll"));
         };
         assert_eq!(poll.request_id().as_str(), native_identity(0x108));
-        assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+        assert_eq!(
+            poll.action(),
+            &TerminalViewerAction::Poll {
+                attachment_id: binding_viewer_id()?,
+            }
+        );
         ordinary_poll_sent.send(()).map_err(io::Error::other)?;
         ordinary_poll_released.recv().map_err(io::Error::other)?;
         write_server_message(
@@ -554,7 +599,11 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
         loop {
             match read_client_message(&mut stream) {
                 Ok(ClientMessage::TerminalViewer(request))
-                    if request.action() == &TerminalViewerAction::Poll {} =>
+                    if matches!(
+                        request.action(),
+                        TerminalViewerAction::Poll { attachment_id }
+                            if attachment_id == &binding_viewer_id()?
+                    ) =>
                 {
                     write_server_message(
                         &mut stream,
@@ -667,7 +716,12 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             else {
                 return Err(io::Error::other("expected ordinary Poll"));
             };
-            assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+            assert_eq!(
+                poll.action(),
+                &TerminalViewerAction::Poll {
+                    attachment_id: binding_viewer_id()?,
+                }
+            );
             poll_sent.send(()).map_err(io::Error::other)?;
             poll_released.recv().map_err(io::Error::other)?;
             write_server_message(
@@ -742,7 +796,11 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                 assert_eq!(magic, *b"OBCS");
                 match read_client_message(&mut request_reader) {
                     Ok(ClientMessage::TerminalViewer(request))
-                        if request.action() == &TerminalViewerAction::Poll {} =>
+                        if matches!(
+                            request.action(),
+                            TerminalViewerAction::Poll { attachment_id }
+                                if attachment_id == &binding_viewer_id()?
+                        ) =>
                     {
                         let response = write_server_message(
                             &mut stream,
@@ -766,7 +824,11 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                         }
                     }
                     Ok(ClientMessage::TerminalControl(request)) => match request.action() {
-                        TerminalControlAction::Input { bytes, .. } => {
+                        TerminalControlAction::Input {
+                            attachment_id,
+                            bytes,
+                            ..
+                        } if attachment_id == &binding_viewer_id()? => {
                             assert_eq!(bytes.as_bytes(), b"still attached");
                             write_server_message(
                                 &mut stream,
@@ -778,7 +840,11 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                             .map_err(io::Error::other)?;
                             input_sent.send(()).map_err(io::Error::other)?;
                         }
-                        TerminalControlAction::Resize { geometry, .. } => {
+                        TerminalControlAction::Resize {
+                            attachment_id,
+                            geometry,
+                            ..
+                        } if attachment_id == &binding_viewer_id()? => {
                             write_server_message(
                                 &mut stream,
                                 &ServerMessage::TerminalControlResult(TerminalControlResult::new(
@@ -1404,7 +1470,7 @@ fn lost_input_result_retires_without_replaying_the_effect() -> TestResult {
     let server = FakeServer::start(|mut stream| {
         admit(&mut stream)?;
         attach(&mut stream)?;
-        acquire(&mut stream)?;
+        acquire(&mut stream, &attached_viewer_id()?)?;
         loop {
             match read_client_message(&mut stream).map_err(io::Error::other)? {
                 ClientMessage::TerminalViewer(request) => write_server_message(
@@ -1416,7 +1482,13 @@ fn lost_input_result_retires_without_replaying_the_effect() -> TestResult {
                 )
                 .map_err(io::Error::other)?,
                 ClientMessage::TerminalControl(request) => {
-                    if let TerminalControlAction::Resize { geometry, .. } = request.action() {
+                    if let TerminalControlAction::Resize {
+                        attachment_id,
+                        geometry,
+                        ..
+                    } = request.action()
+                    {
+                        assert_eq!(attachment_id, &attached_viewer_id()?);
                         write_server_message(
                             &mut stream,
                             &ServerMessage::TerminalControlResult(TerminalControlResult::new(
@@ -1430,7 +1502,7 @@ fn lost_input_result_retires_without_replaying_the_effect() -> TestResult {
                         continue;
                     }
                     assert!(
-                        matches!(request.action(), TerminalControlAction::Input {bytes,..} if bytes.as_bytes()==b"do-once")
+                        matches!(request.action(), TerminalControlAction::Input {attachment_id, bytes,..} if attachment_id == &attached_viewer_id()? && bytes.as_bytes()==b"do-once")
                     );
                     return Ok(());
                 }
@@ -1772,14 +1844,14 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
             respond_with_snapshot(&mut stream, available_snapshot(Some(binding())))?;
             attach_binding(&mut stream)?;
             if controlling {
-                acquire(&mut stream)?;
+                acquire(&mut stream, &binding_viewer_id()?)?;
                 let ClientMessage::TerminalControl(request) =
                     read_client_message(&mut stream).map_err(io::Error::other)?
                 else {
                     return Err(io::Error::other("expected separate controller Resize"));
                 };
                 assert!(
-                    matches!(request.action(), TerminalControlAction::Resize { geometry: actual, sequence, .. } if *actual == geometry && sequence.get() == 1)
+                    matches!(request.action(), TerminalControlAction::Resize { attachment_id, geometry: actual, sequence, .. } if attachment_id == &binding_viewer_id()? && *actual == geometry && sequence.get() == 1)
                 );
                 write_server_message(
                     &mut stream,
@@ -1795,7 +1867,12 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
                 else {
                     return Err(io::Error::other("expected Acquire"));
                 };
-                assert_eq!(request.action(), &TerminalControlAction::Acquire {});
+                assert_eq!(
+                    request.action(),
+                    &TerminalControlAction::Acquire {
+                        attachment_id: binding_viewer_id()?,
+                    }
+                );
                 write_server_message(&mut stream, &ServerMessage::TerminalControlResult(TerminalControlResult::new(request.request_id().clone(), TerminalControlOutcome::Rejected { reason: orchbee_client_server_protocol::ControlRejectedReason::ControllerBusy }))).map_err(io::Error::other)?;
             }
             let ClientMessage::TerminalViewer(request) =
@@ -1803,7 +1880,12 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
             else {
                 return Err(io::Error::other("expected first Poll"));
             };
-            assert_eq!(request.action(), &TerminalViewerAction::Poll {});
+            assert_eq!(
+                request.action(),
+                &TerminalViewerAction::Poll {
+                    attachment_id: binding_viewer_id()?,
+                }
+            );
             write_server_message(
                 &mut stream,
                 &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
@@ -1836,7 +1918,11 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
             loop {
                 match read_client_message(&mut stream) {
                     Ok(ClientMessage::TerminalViewer(request))
-                        if request.action() == &TerminalViewerAction::Poll {} =>
+                        if matches!(
+                            request.action(),
+                            TerminalViewerAction::Poll { attachment_id }
+                                if attachment_id == &binding_viewer_id()?
+                        ) =>
                     {
                         let _written = write_server_message(
                             &mut stream,
@@ -1849,8 +1935,14 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
                     Ok(ClientMessage::TerminalControl(request)) if controlling => {
                         assert!(matches!(
                             request.action(),
-                            TerminalControlAction::Resize { geometry, sequence, .. }
-                                if *geometry == changed_geometry && sequence.get() == 2
+                            TerminalControlAction::Resize {
+                                attachment_id,
+                                geometry,
+                                sequence,
+                                ..
+                            } if attachment_id == &binding_viewer_id()?
+                                && *geometry == changed_geometry
+                                && sequence.get() == 2
                         ));
                         write_server_message(
                             &mut stream,
@@ -1972,7 +2064,12 @@ fn standalone_snapshot_does_not_complete_or_reset_the_startup_deadline() -> Test
         else {
             return Err(io::Error::other("expected first Poll"));
         };
-        assert_eq!(request.action(), &TerminalViewerAction::Poll {});
+        assert_eq!(
+            request.action(),
+            &TerminalViewerAction::Poll {
+                attachment_id: binding_viewer_id()?,
+            }
+        );
         sent.send(()).map_err(io::Error::other)?;
         released.recv().map_err(io::Error::other)?;
         stream.write_all(&[0])?;

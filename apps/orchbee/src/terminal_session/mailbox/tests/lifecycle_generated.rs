@@ -4,6 +4,7 @@ use super::super::{
     MutationResult, QueuedCommand, RefreshSettlement, SwitchMarker, Tagged, UiReply,
     UiReplyTransaction, UiWaitKey, WorkerEvent,
 };
+use super::fixture_viewer_id;
 use crate::{
     local_client::workbench::{
         WorkbenchTabCreateCommit, WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest,
@@ -704,7 +705,9 @@ impl Trace {
         )?;
 
         let expected = if feedback {
-            let settlement = CausalSettlement::Feedback(TerminalViewerAction::Poll {});
+            let settlement = CausalSettlement::Feedback(TerminalViewerAction::Poll {
+                attachment_id: fixture_viewer_id(),
+            });
             require(
                 observed(
                     self.mailbox.deposit_causal(&poll_key, settlement.clone()),

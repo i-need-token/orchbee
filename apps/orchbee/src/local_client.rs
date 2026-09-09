@@ -324,14 +324,14 @@ impl LocalClient {
                 TerminalViewerAction::Attach { .. } | TerminalViewerAction::AttachBinding { .. },
                 TerminalViewerOutcome::Attached { .. }
             ) | (
-                TerminalViewerAction::Poll {},
+                TerminalViewerAction::Poll { .. },
                 TerminalViewerOutcome::Empty {} | TerminalViewerOutcome::Record(_)
             ) | (
                 TerminalViewerAction::FrameApplied { .. }
                     | TerminalViewerAction::NeedSnapshot { .. },
                 TerminalViewerOutcome::FeedbackAccepted {}
             ) | (
-                TerminalViewerAction::Detach {},
+                TerminalViewerAction::Detach { .. },
                 TerminalViewerOutcome::Detached {}
             )
         );
@@ -397,7 +397,7 @@ impl LocalClient {
                 | TerminalControlOutcome::Unavailable { .. }
                 | TerminalControlOutcome::OutcomeUnknown {},
             )
-            | (TerminalControlAction::Acquire {}, TerminalControlOutcome::Acquired { .. })
+            | (TerminalControlAction::Acquire { .. }, TerminalControlOutcome::Acquired { .. })
             | (TerminalControlAction::Input { .. }, TerminalControlOutcome::InputAccepted {}) => {
                 true
             }

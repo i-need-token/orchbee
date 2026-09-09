@@ -793,7 +793,7 @@ impl Write for ChunkedStream {
 fn viewer_reads_large_records_and_retires_on_an_incompatible_result() -> TestResult {
     use orchbee_client_server_protocol::{
         TerminalViewerAction as Action, TerminalViewerOutcome as Outcome, TerminalViewerRequest,
-        TerminalViewerResult,
+        TerminalViewerResult, ViewerId,
     };
     let server = FakeServer::start(|mut stream| {
         expect_hello(&mut stream, COHORT)?;
@@ -822,7 +822,12 @@ fn viewer_reads_large_records_and_retires_on_an_incompatible_result() -> TestRes
         Ok(())
     })?;
     let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
-    let request = TerminalViewerRequest::new(RequestId::parse(FIRST_REQUEST_ID)?, Action::Poll {});
+    let request = TerminalViewerRequest::new(
+        RequestId::parse(FIRST_REQUEST_ID)?,
+        Action::Poll {
+            attachment_id: ViewerId::parse(FIRST_REQUEST_ID)?,
+        },
+    );
     assert_eq!(
         client.submit_terminal_viewer(request.clone())?.outcome(),
         &Outcome::Record(vec![0xa5; 100_000])
@@ -846,7 +851,7 @@ fn viewer_reads_large_records_and_retires_on_an_incompatible_result() -> TestRes
 fn control_accepts_exact_unknown_and_retires_on_a_wrong_resize_geometry() -> TestResult {
     use orchbee_client_server_protocol::{
         ControllerId, Geometry, TerminalControlAction as Action, TerminalControlOutcome as Outcome,
-        TerminalControlRequest, TerminalControlResult,
+        TerminalControlRequest, TerminalControlResult, ViewerId,
     };
     let server = FakeServer::start(|mut stream| {
         expect_hello(&mut stream, COHORT)?;
@@ -877,6 +882,7 @@ fn control_accepts_exact_unknown_and_retires_on_a_wrong_resize_geometry() -> Tes
     })?;
     let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
     let action = Action::Resize {
+        attachment_id: ViewerId::parse(FIRST_REQUEST_ID)?,
         controller_id: ControllerId::parse(FIRST_REQUEST_ID)?,
         sequence: NonZeroU64::MIN,
         geometry: Geometry::new(80, 24, 8, 16)?,
@@ -894,6 +900,7 @@ fn control_accepts_exact_unknown_and_retires_on_a_wrong_resize_geometry() -> Tes
         client.submit_terminal_control(TerminalControlRequest::new(
             RequestId::parse(SECOND_REQUEST_ID)?,
             Action::Resize {
+                attachment_id: ViewerId::parse(SECOND_REQUEST_ID)?,
                 controller_id: ControllerId::parse(SECOND_REQUEST_ID)?,
                 sequence: NonZeroU64::MIN,
                 geometry: Geometry::new(80, 24, 8, 16)?,
@@ -943,6 +950,7 @@ fn initial_startup_budget_clamps_requests_until_explicit_readiness() -> TestResu
 fn caller_deadline_viewer_and_control_forms_fail_before_write_and_keep_the_carrier() -> TestResult {
     use orchbee_client_server_protocol::{
         TerminalControlAction, TerminalControlRequest, TerminalViewerAction, TerminalViewerRequest,
+        ViewerId,
     };
 
     let server = FakeServer::start(|mut stream| {
@@ -965,7 +973,9 @@ fn caller_deadline_viewer_and_control_forms_fail_before_write_and_keep_the_carri
         client.submit_terminal_viewer_before(
             TerminalViewerRequest::new(
                 RequestId::parse(FIRST_REQUEST_ID)?,
-                TerminalViewerAction::Poll {},
+                TerminalViewerAction::Poll {
+                    attachment_id: ViewerId::parse(FIRST_REQUEST_ID)?,
+                },
             ),
             client.operation_clock().now() + SERVER_GUARD_TIMEOUT,
         ),
@@ -979,7 +989,9 @@ fn caller_deadline_viewer_and_control_forms_fail_before_write_and_keep_the_carri
         client.submit_terminal_control_before(
             TerminalControlRequest::new(
                 RequestId::parse(FIRST_REQUEST_ID)?,
-                TerminalControlAction::Acquire {},
+                TerminalControlAction::Acquire {
+                    attachment_id: ViewerId::parse(FIRST_REQUEST_ID)?,
+                },
             ),
             deadline,
         ),
@@ -1002,7 +1014,7 @@ fn caller_deadline_viewer_and_control_forms_keep_the_shorter_exchange_budget() -
     use orchbee_client_server_protocol::{
         ControlRejectedReason, TerminalControlAction, TerminalControlOutcome,
         TerminalControlRequest, TerminalControlResult, TerminalViewerAction, TerminalViewerOutcome,
-        TerminalViewerRequest, TerminalViewerResult, ViewerRejectedReason,
+        TerminalViewerRequest, TerminalViewerResult, ViewerId, ViewerRejectedReason,
     };
 
     #[derive(Clone, Copy)]
@@ -1055,7 +1067,9 @@ fn caller_deadline_viewer_and_control_forms_keep_the_shorter_exchange_budget() -
                 .submit_terminal_viewer_before(
                     TerminalViewerRequest::new(
                         RequestId::parse(FIRST_REQUEST_ID)?,
-                        TerminalViewerAction::Poll {},
+                        TerminalViewerAction::Poll {
+                            attachment_id: ViewerId::parse(FIRST_REQUEST_ID)?,
+                        },
                     ),
                     caller_deadline,
                 )
@@ -1064,7 +1078,9 @@ fn caller_deadline_viewer_and_control_forms_keep_the_shorter_exchange_budget() -
                 .submit_terminal_control_before(
                     TerminalControlRequest::new(
                         RequestId::parse(FIRST_REQUEST_ID)?,
-                        TerminalControlAction::Acquire {},
+                        TerminalControlAction::Acquire {
+                            attachment_id: ViewerId::parse(FIRST_REQUEST_ID)?,
+                        },
                     ),
                     caller_deadline,
                 )

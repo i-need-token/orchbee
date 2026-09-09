@@ -510,7 +510,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
         DecodedMessage::Client(ClientMessage::TerminalControl(request)) => {
             use orchbee_client_server_protocol::TerminalControlAction as Action;
             reached.insert(match request.action() {
-                Action::Acquire {} => "control-acquire",
+                Action::Acquire { .. } => "control-acquire",
                 Action::Input { .. } => "control-input",
                 Action::Resize { .. } => "control-resize",
             });
@@ -545,10 +545,10 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
             reached.insert(match request.action() {
                 TerminalViewerAction::Attach { .. } => "viewer-attach",
                 TerminalViewerAction::AttachBinding { .. } => "viewer-attach-binding",
-                TerminalViewerAction::Poll {} => "viewer-poll",
+                TerminalViewerAction::Poll { .. } => "viewer-poll",
                 TerminalViewerAction::FrameApplied { .. } => "viewer-frame-applied",
                 TerminalViewerAction::NeedSnapshot { .. } => "viewer-need-snapshot",
-                TerminalViewerAction::Detach {} => "viewer-detach",
+                TerminalViewerAction::Detach { .. } => "viewer-detach",
             });
         }
         DecodedMessage::Server(ServerMessage::TerminalViewerResult(result)) => {

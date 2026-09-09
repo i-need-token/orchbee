@@ -54,7 +54,12 @@ fn empty_create_started_reads_candidate_without_detach_then_attaches_reserved_ge
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error("Refresh exact Detach"));
     };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -284,7 +289,12 @@ fn attached_refresh_membership_runs_real_detach_before_empty_or_successor_ready(
         let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
             return Err(test_error("exact old Detach before installation"));
         };
-        assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+        assert_eq!(
+            detach.action(),
+            &TerminalViewerAction::Detach {
+                attachment_id: attached_viewer_id()?,
+            }
+        );
         let detached = TerminalViewerResult::new(
             detach.request_id().clone(),
             if wrong_response {
@@ -460,6 +470,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
         return Err(test_error("pre-Create Resize must drain after Input"));
     };
     let TerminalControlAction::Resize {
+        attachment_id,
         controller_id,
         sequence,
         geometry: requested_geometry,
@@ -467,6 +478,7 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
     else {
         return Err(test_error("expected pre-Create Resize"));
     };
+    assert_eq!(attachment_id, &attached_viewer_id()?);
     assert_eq!(controller_id, &controller);
     assert_eq!(sequence.get(), 4);
     assert_eq!(*requested_geometry, resized);
@@ -491,7 +503,12 @@ fn create_drains_busy_input_resize_and_drawn_feedback_before_one_submission() ->
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("pre-Create Poll must drain after Resize"));
     };
-    assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+    assert_eq!(
+        poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     assert_eq!(poll.request_id().as_str(), identity(0x10c));
     harness
         .carrier
@@ -617,7 +634,12 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
     let ClientMessage::TerminalViewer(first_poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("first ordinary Poll must reach the carrier"));
     };
-    assert_eq!(first_poll.action(), &TerminalViewerAction::Poll {});
+    assert_eq!(
+        first_poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     assert_eq!(first_poll.request_id().as_str(), identity(0x108));
     harness
         .carrier
@@ -649,7 +671,12 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
     let ClientMessage::TerminalViewer(second_poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("second ordinary Poll must reach the carrier"));
     };
-    assert_eq!(second_poll.action(), &TerminalViewerAction::Poll {});
+    assert_eq!(
+        second_poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     assert_eq!(second_poll.request_id().as_str(), identity(0x109));
     harness
         .carrier
@@ -937,7 +964,12 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
             "validated candidate must license exact old Detach",
         ));
     };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -1017,7 +1049,12 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
     let ClientMessage::TerminalViewer(held_poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("held Poll must reach the carrier"));
     };
-    assert_eq!(held_poll.action(), &TerminalViewerAction::Poll {});
+    assert_eq!(
+        held_poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
 
     let stale = harness.ui.admit_switch(1)?;
     assert_eq!(stale.key.tab_id(), pending_key.tab_id());
@@ -1049,7 +1086,12 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
             "newest Switch must detach the installed old viewer",
         ));
     };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -1167,7 +1209,12 @@ fn drive_pending_create_to_selected_without_attachment(
     else {
         return Err(test_error("committed Create must detach the old viewer"));
     };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -1305,7 +1352,12 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
             "committed Started Create must detach the old viewer",
         ));
     };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -1822,7 +1874,12 @@ fn settled_refresh_reply_can_be_superseded_before_worker_resume_and_then_runs_ex
             "resumed Refresh worker must advance to the exact queued Switch",
         ));
     };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -2112,7 +2169,12 @@ fn started_projection_recovery_uses_fresh_budget_same_generation_and_new_ids() -
     let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
         return Err(test_error("recovery candidate must clean old viewer"));
     };
-    assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     assert_eq!(detach.request_id().as_str(), identity(0x10b));
     harness
         .carrier
@@ -2464,6 +2526,7 @@ fn definite_precommit_keeps_viewer_and_runs_one_catch_up_resize_before_poll() ->
         ));
     };
     let TerminalControlAction::Resize {
+        attachment_id,
         controller_id,
         sequence,
         geometry: requested,
@@ -2471,6 +2534,7 @@ fn definite_precommit_keeps_viewer_and_runs_one_catch_up_resize_before_poll() ->
     else {
         return Err(test_error("expected catch-up Resize"));
     };
+    assert_eq!(attachment_id, &attached_viewer_id()?);
     assert_eq!(controller_id, &controller);
     assert_eq!(sequence.get(), 2);
     assert_eq!(*requested, latest);
@@ -2500,7 +2564,12 @@ fn definite_precommit_keeps_viewer_and_runs_one_catch_up_resize_before_poll() ->
             "catch-up Resize must be followed by resumed Poll",
         ));
     };
-    assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+    assert_eq!(
+        poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -2720,7 +2789,12 @@ pub(super) fn drive_controlling_after_attach(
     let ClientMessage::TerminalControl(acquire) = harness.carrier.take_obcs()? else {
         return Err(test_error("Attach must be followed by Acquire"));
     };
-    assert_eq!(acquire.action(), &TerminalControlAction::Acquire {});
+    assert_eq!(
+        acquire.action(),
+        &TerminalControlAction::Acquire {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     let controller = controller_id()?;
     harness
         .carrier
@@ -2737,6 +2811,7 @@ pub(super) fn drive_controlling_after_attach(
         return Err(test_error("controlling setup must Resize"));
     };
     let TerminalControlAction::Resize {
+        attachment_id,
         controller_id,
         sequence,
         geometry: requested_geometry,
@@ -2744,6 +2819,7 @@ pub(super) fn drive_controlling_after_attach(
     else {
         return Err(test_error("controlling setup must Resize"));
     };
+    assert_eq!(attachment_id, &attached_viewer_id()?);
     assert_eq!(controller_id, &controller);
     assert_eq!(sequence.get(), 1);
     assert_eq!(*requested_geometry, geometry);
@@ -2767,7 +2843,12 @@ pub(super) fn drive_controlling_after_attach(
     let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("setup must Poll"));
     };
-    assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+    assert_eq!(
+        poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
     harness
         .carrier
         .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -2813,6 +2894,7 @@ fn assert_control_input(
     expected_input: &ControlInput,
 ) -> TestResult {
     let TerminalControlAction::Input {
+        attachment_id,
         controller_id,
         sequence,
         bytes,
@@ -2820,6 +2902,7 @@ fn assert_control_input(
     else {
         return Err(test_error("expected terminal Input"));
     };
+    assert_eq!(attachment_id, &attached_viewer_id()?);
     assert_eq!(controller_id, controller);
     assert_eq!(sequence.get(), expected_sequence);
     assert_eq!(bytes, expected_input);

@@ -6,6 +6,8 @@ use orchbee_terminal_protocol::{
 const SNAPSHOT: &[u8] =
     include_bytes!("../../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin");
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+mod routing;
+
 fn record(bytes: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     Ok(encode_transport_envelope(&Envelope {
         protocol: CURRENT_PROTOCOL_VERSION,
@@ -34,6 +36,11 @@ fn snapshot_at(sequence: u64, revision: u64) -> Vec<u8> {
     snapshot[48..56].copy_from_slice(&sequence.to_le_bytes());
     snapshot[64..72].copy_from_slice(&revision.to_le_bytes());
     snapshot
+}
+
+fn viewer_id(route: orchbee_terminal_protocol::TerminalFrameRoute) -> ViewerId {
+    ViewerId::parse(&route.attachment_id.to_text())
+        .expect("terminal frame fixture must carry a valid ViewerId")
 }
 
 fn blocked_record(
@@ -101,9 +108,10 @@ fn required_snapshot_geometry_checks_all_four_fields() -> TestResult {
         assert!(matches!(
             projection.receive_for_geometry(&record(SNAPSHOT)?, Some(mismatch)),
             Ok(Some(Feedback::NeedSnapshot {
+                attachment_id,
                 sequence,
                 reason: Reason::DimensionsMismatch,
-            })) if sequence == route.sequence
+            })) if attachment_id == viewer_id(route) && sequence == route.sequence
         ));
         assert!(projection.frame().is_none());
     }
@@ -150,9 +158,10 @@ fn mismatch_and_clear_preserve_monotonic_fences_and_allow_fresh_recovery() -> Te
     assert!(matches!(
         projection.receive_for_geometry(&record(&mismatch)?, Some(mismatched)),
         Ok(Some(Feedback::NeedSnapshot {
+            attachment_id,
             sequence,
             reason: Reason::DimensionsMismatch,
-        })) if sequence.get() == next_sequence
+        })) if attachment_id == viewer_id(route) && sequence.get() == next_sequence
     ));
     assert!(projection.frame().is_none());
     assert_eq!(projection.last_sequence, next_sequence);
@@ -182,9 +191,10 @@ fn mismatch_and_clear_preserve_monotonic_fences_and_allow_fresh_recovery() -> Te
     assert!(matches!(
         projection.receive_for_geometry(&record(&stale)?, Some(expected)),
         Ok(Some(Feedback::NeedSnapshot {
+            attachment_id,
             reason: Reason::BaseMismatch,
             ..
-        }))
+        })) if attachment_id == viewer_id(route)
     ));
     let blocked = blocked_record(route.attachment_id, route.host_epoch, blocked_revision)?;
     assert_eq!(projection.receive(&blocked), Ok(None));
@@ -218,9 +228,10 @@ fn snapshot_delta_gap_and_decoder_failure_have_atomic_feedback() -> TestResult {
     assert!(matches!(
         projection.receive(&record(&delta)?),
         Ok(Some(Feedback::NeedSnapshot {
+            attachment_id,
             reason: Reason::SequenceGap,
             ..
-        }))
+        })) if attachment_id == viewer_id(route)
     ));
     assert!(projection.frame().is_none());
     let mut snapshot = SNAPSHOT.to_vec();
@@ -235,9 +246,10 @@ fn snapshot_delta_gap_and_decoder_failure_have_atomic_feedback() -> TestResult {
     assert!(matches!(
         projection.receive(&record(&snapshot)?),
         Ok(Some(Feedback::NeedSnapshot {
+            attachment_id,
             reason: Reason::DecoderRejected,
             ..
-        }))
+        })) if attachment_id == viewer_id(route)
     ));
     assert!(projection.frame().is_none());
     assert!(projection.receive(&record(&snapshot)?).is_err());

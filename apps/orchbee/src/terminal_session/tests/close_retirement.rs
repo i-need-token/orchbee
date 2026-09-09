@@ -31,7 +31,12 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
             else {
                 return Err(io::Error::other("expected ordinary Poll"));
             };
-            assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+            assert_eq!(
+                poll.action(),
+                &TerminalViewerAction::Poll {
+                    attachment_id: binding_viewer_id()?,
+                }
+            );
             write_server_message(
                 &mut stream,
                 &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(

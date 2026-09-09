@@ -53,7 +53,12 @@ fn actual_switch_stages_snapshot_before_detach_and_installs_fresh_survivor_fallb
         let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
             return Err(test_error("exact old Detach"));
         };
-        assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+        assert_eq!(
+            detach.action(),
+            &TerminalViewerAction::Detach {
+                attachment_id: attached_viewer_id()?,
+            }
+        );
         harness
             .carrier
             .respond_obcs(ServerMessage::TerminalViewerResult(
@@ -112,7 +117,12 @@ fn actual_returned_old_poll_after_marker_prevents_unavailable_anchor_restoration
         let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
             return Err(test_error("old Poll in flight"));
         };
-        assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+        assert_eq!(
+            poll.action(),
+            &TerminalViewerAction::Poll {
+                attachment_id: attached_viewer_id()?,
+            }
+        );
         let intent = harness.ui.admit_switch(1)?;
         harness
             .carrier

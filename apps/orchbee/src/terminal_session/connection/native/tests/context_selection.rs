@@ -90,7 +90,12 @@ fn actual_context_selection_reads_snapshot_then_detaches_exact_viewer_before_wor
             let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
                 return Err(test_error("exact old Detach"));
             };
-            assert_eq!(detach.action(), &TerminalViewerAction::Detach {});
+            assert_eq!(
+                detach.action(),
+                &TerminalViewerAction::Detach {
+                    attachment_id: attached_viewer_id()?,
+                }
+            );
             harness
                 .carrier
                 .respond_obcs(ServerMessage::TerminalViewerResult(

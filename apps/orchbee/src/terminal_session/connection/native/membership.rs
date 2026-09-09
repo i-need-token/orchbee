@@ -37,7 +37,9 @@ impl NativeExecutor {
         }
         let response = self.viewer_for_cleanup(
             SetupOwner::Lease(lease),
-            TerminalViewerAction::Detach {},
+            TerminalViewerAction::Detach {
+                attachment_id: self.viewer_id_for(cleanup.old())?,
+            },
             total,
         )?;
         if !matches!(response, TerminalViewerOutcome::Detached {})

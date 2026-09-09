@@ -61,6 +61,14 @@
 			"title": "TerminalId",
 			"$ref": "#/$defs/identity"
 		},
+		"viewerId": {
+			"title": "ViewerId",
+			"$ref": "#/$defs/identity"
+		},
+		"controllerId": {
+			"title": "ControllerId",
+			"$ref": "#/$defs/identity"
+		},
 		"cwd": {
 			"title": "Absolute POSIX working directory intent",
 			"type": "string",
@@ -472,20 +480,26 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": ["kind", "attachmentId"],
 					"properties": {
 						"kind": {
 							"const": "poll"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "sequence", "generation", "revision"],
+					"required": ["kind", "attachmentId", "sequence", "generation", "revision"],
 					"properties": {
 						"kind": {
 							"const": "frame-applied"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
 						},
 						"sequence": {
 							"$ref": "#/$defs/projectionPositive"
@@ -501,10 +515,13 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "sequence", "reason"],
+					"required": ["kind", "attachmentId", "sequence", "reason"],
 					"properties": {
 						"kind": {
 							"const": "need-snapshot"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
 						},
 						"sequence": {
 							"$ref": "#/$defs/projectionPositive"
@@ -526,10 +543,13 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": ["kind", "attachmentId"],
 					"properties": {
 						"kind": {
 							"const": "detach"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
 						}
 					}
 				}
@@ -546,7 +566,7 @@
 							"const": "attached"
 						},
 						"attachmentId": {
-							"$ref": "#/$defs/identity"
+							"$ref": "#/$defs/viewerId"
 						},
 						"hostEpoch": {
 							"$ref": "#/$defs/identity"
@@ -660,23 +680,29 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind"],
+					"required": ["kind", "attachmentId"],
 					"properties": {
 						"kind": {
 							"const": "acquire"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
 						}
 					}
 				},
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "controllerId", "sequence", "bytes"],
+					"required": ["kind", "attachmentId", "controllerId", "sequence", "bytes"],
 					"properties": {
 						"kind": {
 							"const": "input"
 						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
 						"controllerId": {
-							"$ref": "#/$defs/requestId"
+							"$ref": "#/$defs/controllerId"
 						},
 						"sequence": {
 							"$ref": "#/$defs/projectionPositive"
@@ -689,13 +715,16 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "controllerId", "sequence", "geometry"],
+					"required": ["kind", "attachmentId", "controllerId", "sequence", "geometry"],
 					"properties": {
 						"kind": {
 							"const": "resize"
 						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
 						"controllerId": {
-							"$ref": "#/$defs/requestId"
+							"$ref": "#/$defs/controllerId"
 						},
 						"sequence": {
 							"$ref": "#/$defs/projectionPositive"
@@ -718,7 +747,7 @@
 							"const": "acquired"
 						},
 						"controllerId": {
-							"$ref": "#/$defs/requestId"
+							"$ref": "#/$defs/controllerId"
 						}
 					}
 				},

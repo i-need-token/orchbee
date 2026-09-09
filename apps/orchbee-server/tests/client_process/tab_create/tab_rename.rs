@@ -336,7 +336,9 @@ fn tab_rename_commits_during_parked_create_and_both_replays_keep_their_revision(
         &mut viewer,
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             poll_request_id.clone(),
-            TerminalViewerAction::Poll {},
+            TerminalViewerAction::Poll {
+                attachment_id: attachment_id.clone(),
+            },
         )),
         settlement_deadline,
     )?;

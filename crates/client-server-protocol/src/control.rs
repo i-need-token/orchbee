@@ -1,4 +1,4 @@
-use crate::{ControllerId, Geometry, ProtocolError, RequestId};
+use crate::{ControllerId, Geometry, ProtocolError, RequestId, ViewerId};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::num::NonZeroU64;
 
@@ -56,20 +56,39 @@ impl<'de> Deserialize<'de> for ControlInput {
     deny_unknown_fields
 )]
 pub enum TerminalControlAction {
-    Acquire {},
+    Acquire {
+        attachment_id: ViewerId,
+    },
     Input {
+        attachment_id: ViewerId,
         controller_id: ControllerId,
         #[serde(with = "crate::number::positive_decimal")]
         sequence: NonZeroU64,
         bytes: ControlInput,
     },
     Resize {
+        attachment_id: ViewerId,
         controller_id: ControllerId,
         #[serde(with = "crate::number::positive_decimal")]
         sequence: NonZeroU64,
         geometry: Geometry,
     },
 }
+
+impl TerminalControlAction {
+    #[must_use]
+    pub const fn attachment_id(&self) -> &ViewerId {
+        match self {
+            Self::Acquire { attachment_id }
+            | Self::Input { attachment_id, .. }
+            | Self::Resize { attachment_id, .. } => attachment_id,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ControlRejectedReason {

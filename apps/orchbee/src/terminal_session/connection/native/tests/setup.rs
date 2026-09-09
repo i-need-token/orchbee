@@ -1656,8 +1656,8 @@ impl UiDriver {
             }
             Some(TerminalViewerAction::Attach { .. })
             | Some(TerminalViewerAction::AttachBinding { .. })
-            | Some(TerminalViewerAction::Poll {})
-            | Some(TerminalViewerAction::Detach {}) => {
+            | Some(TerminalViewerAction::Poll { .. })
+            | Some(TerminalViewerAction::Detach { .. }) => {
                 Err(test_error("projection returned a non-feedback action"))
             }
         }
@@ -1812,6 +1812,13 @@ pub(super) fn attached_outcome() -> TestResult<TerminalViewerOutcome> {
         attachment_id: ViewerId::parse(VIEWER_ID)?,
         host_epoch: ObcsHostEpoch::parse(HOST_EPOCH)?,
     })
+}
+
+pub(super) fn attached_viewer_id() -> TestResult<ViewerId> {
+    let TerminalViewerOutcome::Attached { attachment_id, .. } = attached_outcome()? else {
+        return Err(test_error("attached fixture did not contain a ViewerId"));
+    };
+    Ok(attachment_id)
 }
 
 pub(super) fn controller_id() -> TestResult<ControllerId> {

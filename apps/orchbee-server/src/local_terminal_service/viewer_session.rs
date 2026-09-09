@@ -18,12 +18,17 @@ use orchbee_client_server_protocol::{
     WorkerId as ClientWorkerId,
 };
 
+mod routing;
+
+const MAXIMUM_SESSION_VIEWERS: usize = 8;
+
 pub(crate) struct LocalTerminalSession<'service> {
     service: &'service LocalTerminalService,
-    viewer: Option<ViewerAttachment<'service>>,
+    viewers: [Option<ViewerAttachment<'service>>; MAXIMUM_SESSION_VIEWERS],
 }
 
 pub(super) struct ViewerAttachment<'service> {
+    pub(super) attachment_id: ViewerId,
     service: &'service LocalTerminalService,
     pub(super) handle: WorkerRequestHandle,
     pub(super) target: BindingViewerTarget,
@@ -56,7 +61,7 @@ impl<'service> LocalTerminalSession<'service> {
     pub(super) const fn new(service: &'service LocalTerminalService) -> Self {
         Self {
             service,
-            viewer: None,
+            viewers: [const { None }; MAXIMUM_SESSION_VIEWERS],
         }
     }
 
@@ -65,7 +70,10 @@ impl<'service> LocalTerminalSession<'service> {
             ClientMessage::TerminalControl(request) => {
                 let outcome = super::controller_session::execute(
                     self.service,
-                    self.viewer.as_mut(),
+                    self.viewers
+                        .iter_mut()
+                        .flatten()
+                        .find(|viewer| &viewer.attachment_id == request.action().attachment_id()),
                     &request,
                 );
                 return ServerMessage::TerminalControlResult(
@@ -87,148 +95,27 @@ impl<'service> LocalTerminalSession<'service> {
         ))
     }
 
-    fn execute_viewer(&mut self, request: &TerminalViewerRequest) -> Outcome {
-        match request.action() {
-            Action::Attach {
-                terminal_create_request_id,
-            } => {
-                if self.viewer_prevents_fresh_attach() {
-                    return rejected(Rejected::AlreadyAttached);
+    fn admit_viewer_slot(&mut self) -> bool {
+        for entry in &mut self.viewers {
+            let disposed = entry.as_ref().is_some_and(|viewer| {
+                self.service.target_lifecycle(viewer.target) == Some(TargetLifecycle::Disposed)
+            });
+            // The exact monotonic proof was observed above; its gate is no longer held.
+            if disposed && let Some(mut viewer) = entry.take() {
+                viewer.cleanup = None;
+                if let Some(controller) = viewer.controller.as_mut() {
+                    controller.disarm_known_disposed();
                 }
-                let issued = self.service.issue_viewer(terminal_create_request_id);
-                return self.attach(issued);
-            }
-            Action::AttachBinding {
-                site_id,
-                worker_id,
-                terminal_id,
-            } => {
-                if self.viewer_prevents_fresh_attach() {
-                    return rejected(Rejected::AlreadyAttached);
-                }
-                let issued = self
-                    .service
-                    .issue_binding_viewer(site_id, worker_id, terminal_id);
-                return self.attach(issued);
-            }
-            Action::Poll {}
-            | Action::FrameApplied { .. }
-            | Action::NeedSnapshot { .. }
-            | Action::Detach {} => {}
-        }
-        let Some(viewer) = self.viewer.as_mut() else {
-            return if matches!(request.action(), Action::Detach {}) {
-                Outcome::Detached {}
-            } else {
-                rejected(Rejected::TerminalUnavailable)
-            };
-        };
-        if self.service.target_lifecycle(viewer.target) == Some(TargetLifecycle::Disposed) {
-            self.viewer.take();
-            return if matches!(request.action(), Action::Detach {}) {
-                Outcome::Detached {}
-            } else {
-                unavailable(Unavailable::TerminalRuntimeUnavailable)
-            };
-        }
-        if !self.service.viewer_worker_is_current(&viewer.handle) {
-            self.viewer.take();
-            return unavailable(Unavailable::TerminalRuntimeUnavailable);
-        }
-        if matches!(request.action(), Action::Poll {}) && viewer.projection.awaiting_feedback() {
-            return Outcome::Empty {};
-        }
-        let feedback = matches!(
-            request.action(),
-            Action::FrameApplied { .. } | Action::NeedSnapshot { .. }
-        );
-        if feedback && !viewer.projection.accepts_feedback(request.action()) {
-            return rejected(Rejected::FeedbackMismatch);
-        }
-        let Some(request_id) = self.service.next_viewer_operation() else {
-            return unavailable(Unavailable::ServerBusy);
-        };
-        let Some(template) = viewer.cleanup else {
-            return unavailable(Unavailable::TerminalRuntimeUnavailable);
-        };
-        let action = match request.action() {
-            Action::Poll {} => WorkerAction::Poll,
-            Action::Detach {} => WorkerAction::Detach,
-            Action::FrameApplied {
-                sequence,
-                generation,
-                revision,
-            } => WorkerAction::FrameApplied {
-                sequence: *sequence,
-                generation: *generation,
-                revision: *revision,
-            },
-            Action::NeedSnapshot { sequence, reason } => WorkerAction::NeedSnapshot {
-                sequence: *sequence,
-                reason: snapshot_reason(*reason),
-            },
-            Action::Attach { .. } | Action::AttachBinding { .. } => {
-                unreachable!("attach is handled before existing-viewer operations")
-            }
-        };
-        let completion = viewer
-            .handle
-            .request(WorkerOperationRequest::Viewer(WorkerRequest {
-                request_id,
-                action,
-                ..template
-            }));
-        if !self.service.viewer_worker_is_current(&viewer.handle) {
-            self.viewer.take();
-            return unavailable(Unavailable::TerminalRuntimeUnavailable);
-        }
-        match completion {
-            Ok(WorkerOperationResult::Viewer(result)) => match result.outcome {
-                WorkerOutcome::Empty => Outcome::Empty {},
-                WorkerOutcome::Record(record) => {
-                    if viewer.projection.receive(&record).is_ok() {
-                        Outcome::Record(record)
-                    } else {
-                        self.viewer.take();
-                        unavailable(Unavailable::TerminalRuntimeUnavailable)
-                    }
-                }
-                WorkerOutcome::FeedbackAccepted => {
-                    viewer.projection.complete_feedback(request.action());
-                    Outcome::FeedbackAccepted {}
-                }
-                WorkerOutcome::Detached => {
-                    viewer.cleanup = None;
-                    self.viewer.take();
-                    Outcome::Detached {}
-                }
-                WorkerOutcome::Rejected(ViewerRejection::FeedbackMismatch) => {
-                    rejected(Rejected::FeedbackMismatch)
-                }
-                WorkerOutcome::Rejected(_) | WorkerOutcome::Attached => {
-                    self.viewer.take();
-                    unavailable(Unavailable::TerminalRuntimeUnavailable)
-                }
-            },
-            Err(WorkerRequestError::Backpressure) => unavailable(Unavailable::ServerBusy),
-            _ => {
-                self.viewer.take();
-                unavailable(Unavailable::TerminalRuntimeUnavailable)
+                drop(viewer);
             }
         }
+        self.viewers.iter().any(Option::is_none)
     }
-
-    fn viewer_prevents_fresh_attach(&self) -> bool {
-        self.viewer.as_ref().is_some_and(|viewer| {
-            self.service.target_lifecycle(viewer.target) != Some(TargetLifecycle::Disposed)
-        })
-    }
-
     fn attach(&mut self, issued: Result<IssuedViewer<'service>, Outcome>) -> Outcome {
         let IssuedViewer {
             action,
             request_id,
-            viewer,
+            mut viewer,
         } = match issued {
             Ok(issued) => issued,
             Err(outcome) => return outcome,
@@ -236,14 +123,15 @@ impl<'service> LocalTerminalSession<'service> {
         let Some(cleanup) = viewer.cleanup else {
             return unavailable(Unavailable::ServerBusy);
         };
-        // Fresh preparation succeeded. The old exact disposal proof is monotonic, and no
-        // owner gate survives issue_viewer/issue_binding_viewer into this owned settlement.
-        if let Some(mut disposed) = self.viewer.take() {
-            disposed.cleanup = None;
-            if let Some(controller) = disposed.controller.as_mut() {
-                controller.disarm_known_disposed();
-            }
-            drop(disposed);
+        if self
+            .viewers
+            .iter()
+            .flatten()
+            .any(|existing| existing.target == viewer.target)
+        {
+            // This candidate never reached Worker Attach and owns no viewer cleanup.
+            viewer.cleanup = None;
+            return rejected(Rejected::AlreadyAttached);
         }
         let completion = viewer
             .handle
@@ -327,7 +215,10 @@ impl<'service> LocalTerminalSession<'service> {
         if coordinator.target_lifecycle(viewer.target) != TargetLifecycle::Unfenced {
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         }
-        self.viewer = candidate.take();
+        let Some(slot) = self.viewers.iter_mut().find(|entry| entry.is_none()) else {
+            return unavailable(Unavailable::ServerBusy);
+        };
+        *slot = candidate.take();
         Outcome::Attached {
             attachment_id,
             host_epoch,
@@ -433,6 +324,11 @@ impl LocalTerminalService {
         );
         Ok(IssuedViewer {
             viewer: ViewerAttachment {
+                attachment_id: ViewerId::parse(&format!(
+                    "{:032x}",
+                    u128::from_be_bytes(identities.attachment.as_bytes())
+                ))
+                .map_err(|_| unavailable(Unavailable::ServerBusy))?,
                 service: self,
                 target,
                 controller: None,

@@ -579,16 +579,15 @@ fn real_server_worker_workspace_directory_association_and_tab_lifecycle() -> Tes
         return Err("AttachBinding did not return a viewer result".into());
     };
     assert_eq!(attached.request_id(), &attach_request_id);
-    assert!(matches!(
-        attached.outcome(),
-        TerminalViewerOutcome::Attached { .. }
-    ));
+    let TerminalViewerOutcome::Attached { attachment_id, .. } = attached.into_outcome() else {
+        return Err("AttachBinding failed".into());
+    };
     let detach_request_id = client_id(22)?;
     write_client_message(
         &mut first,
         &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
             detach_request_id.clone(),
-            TerminalViewerAction::Detach {},
+            TerminalViewerAction::Detach { attachment_id },
         )),
     )?;
     let ServerMessage::TerminalViewerResult(detached) = read_server_message(&mut first)? else {

@@ -132,23 +132,39 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
         let actor = Arc::clone(&service);
         let client = thread::spawn(move || {
             let mut session = actor.session();
-            assert!(
-                matches!(session.execute(ClientMessage::TerminalViewer(TerminalViewerRequest::new(client_id(100), ViewerAction::Attach { terminal_create_request_id: client_id(11) }))), ServerMessage::TerminalViewerResult(result) if matches!(result.outcome(), ViewerOutcome::Attached { .. }))
-            );
-            let ControlOutcome::Acquired { controller_id } =
-                execute(&mut session, 101, ControlAction::Acquire {})
+            let ServerMessage::TerminalViewerResult(attached) =
+                session.execute(ClientMessage::TerminalViewer(TerminalViewerRequest::new(
+                    client_id(100),
+                    ViewerAction::Attach {
+                        terminal_create_request_id: client_id(11),
+                    },
+                )))
             else {
+                panic!("viewer result")
+            };
+            let ViewerOutcome::Attached { attachment_id, .. } = attached.into_outcome() else {
+                panic!("attachment")
+            };
+            let ControlOutcome::Acquired { controller_id } = execute(
+                &mut session,
+                101,
+                ControlAction::Acquire {
+                    attachment_id: attachment_id.clone(),
+                },
+            ) else {
                 panic!("controller")
             };
             let geometry = Geometry::new(100, 30, 8, 16).unwrap();
             let action = if resize {
                 ControlAction::Resize {
+                    attachment_id: attachment_id.clone(),
                     controller_id: controller_id.clone(),
                     sequence: NonZeroU64::MIN,
                     geometry,
                 }
             } else {
                 ControlAction::Input {
+                    attachment_id: attachment_id.clone(),
                     controller_id: controller_id.clone(),
                     sequence: NonZeroU64::MIN,
                     bytes: ControlInput::new(b"preadmitted".to_vec()).unwrap(),
@@ -162,6 +178,7 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
                     &mut session,
                     103 + repeat * 2,
                     ControlAction::Input {
+                        attachment_id: attachment_id.clone(),
                         controller_id: controller_id.clone(),
                         sequence: NonZeroU64::new(2).unwrap(),
                         bytes: ControlInput::new(b"fenced".to_vec()).unwrap(),
@@ -171,6 +188,7 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
                     &mut session,
                     104 + repeat * 2,
                     ControlAction::Resize {
+                        attachment_id: attachment_id.clone(),
                         controller_id: controller_id.clone(),
                         sequence: NonZeroU64::new(2).unwrap(),
                         geometry,

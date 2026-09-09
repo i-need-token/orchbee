@@ -19,6 +19,11 @@ fn viewer(service: &LocalTerminalService, handle: WorkerRequestHandle) -> Viewer
     let attachment_id = OperationId::from_bytes([2; 16]).unwrap();
     let worker_id = CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes()).unwrap();
     ViewerAttachment {
+        attachment_id: ViewerId::parse(&format!(
+            "{:032x}",
+            u128::from_be_bytes(attachment_id.as_bytes())
+        ))
+        .unwrap(),
         service,
         handle,
         target: BindingViewerTarget {
@@ -77,7 +82,7 @@ fn worker_loss_before_post_ipc_current_check_prevents_attachment_publication() {
         session.publish_attach(candidate, attached_result()),
         unavailable(Unavailable::TerminalRuntimeUnavailable)
     );
-    assert!(session.viewer.is_none());
+    assert!(session.viewers.iter().all(Option::is_none));
 }
 
 #[test]
@@ -97,14 +102,20 @@ fn worker_loss_after_attachment_installation_is_observed_on_next_poll() {
         session.publish_attach(candidate, attached_result()),
         Outcome::Attached { .. }
     ));
-    assert!(session.viewer.is_some());
+    assert!(session.viewers.iter().any(Option::is_some));
     drop(owner);
     assert!(!handle.is_active());
 
     let poll_id = RequestId::parse("77777777777777777777777777777777").unwrap();
-    let ServerMessage::TerminalViewerResult(result) = session.execute(
-        ClientMessage::TerminalViewer(TerminalViewerRequest::new(poll_id.clone(), Action::Poll {})),
-    ) else {
+    let ServerMessage::TerminalViewerResult(result) =
+        session.execute(ClientMessage::TerminalViewer(TerminalViewerRequest::new(
+            poll_id.clone(),
+            Action::Poll {
+                attachment_id: ViewerId::parse(&format!("{:032x}", u128::from_be_bytes([2; 16])))
+                    .unwrap(),
+            },
+        )))
+    else {
         panic!("Poll must produce a viewer result")
     };
     assert_eq!(result.request_id(), &poll_id);
@@ -112,5 +123,8 @@ fn worker_loss_after_attachment_installation_is_observed_on_next_poll() {
         result.outcome(),
         &unavailable(Unavailable::TerminalRuntimeUnavailable)
     );
-    assert!(session.viewer.is_none());
+    assert!(session.viewers.iter().all(Option::is_none));
 }
+
+mod fixture;
+mod stateful;

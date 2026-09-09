@@ -48,10 +48,18 @@ fn attach(
     Ok(attachment_id)
 }
 
-fn next_frame(client: &mut UnixStream) -> TestResult<TerminalFrameRoute> {
+fn next_frame(
+    client: &mut UnixStream,
+    attachment_id: &orchbee_client_server_protocol::ViewerId,
+) -> TestResult<TerminalFrameRoute> {
     let deadline = Instant::now() + PROCESS_TIMEOUT;
     loop {
-        match viewer(client, Action::Poll {})? {
+        match viewer(
+            client,
+            Action::Poll {
+                attachment_id: attachment_id.clone(),
+            },
+        )? {
             Outcome::Record(record) => {
                 let envelope = decode_transport_envelope(&record)?;
                 let route = inspect_terminal_frame_route(envelope.payload)?;
@@ -77,32 +85,53 @@ pub(super) fn exercise_real_viewers(
     let first_id = attach(first, reference)?;
     let second_id = attach(&mut second, reference)?;
     assert_ne!(first_id, second_id);
-    let first_frame = next_frame(first)?;
-    let second_frame = next_frame(&mut second)?;
+    let first_frame = next_frame(first, &first_id)?;
+    let second_frame = next_frame(&mut second, &second_id)?;
     assert_eq!(first_frame.attachment_id.to_text(), first_id.as_str());
     assert_eq!(second_frame.attachment_id.to_text(), second_id.as_str());
     assert_eq!(first_frame.host_epoch, second_frame.host_epoch);
-    assert_eq!(viewer(first, Action::Poll {})?, Outcome::Empty {});
+    assert_eq!(
+        viewer(
+            first,
+            Action::Poll {
+                attachment_id: first_id.clone()
+            }
+        )?,
+        Outcome::Empty {}
+    );
     assert_eq!(
         viewer(
             &mut second,
             Action::NeedSnapshot {
+                attachment_id: second_id.clone(),
                 sequence: second_frame.sequence,
                 reason: ViewerSnapshotReason::StoreReset
             }
         )?,
         Outcome::FeedbackAccepted {}
     );
-    let replacement = next_frame(&mut second)?;
+    let replacement = next_frame(&mut second, &second_id)?;
     assert!(replacement.sequence > second_frame.sequence);
     assert_eq!(replacement.base_revision, None);
     let feedback = Action::FrameApplied {
+        attachment_id: second_id.clone(),
         sequence: replacement.sequence,
         generation: replacement.generation,
         revision: replacement.revision,
     };
     assert_eq!(
-        viewer(first, feedback.clone())?,
+        viewer(
+            first,
+            Action::FrameApplied {
+                attachment_id: first_id.clone(),
+                sequence: first_frame
+                    .sequence
+                    .checked_add(1)
+                    .ok_or("frame sequence overflow")?,
+                generation: first_frame.generation,
+                revision: first_frame.revision
+            }
+        )?,
         Outcome::Rejected {
             reason: ViewerRejectedReason::FeedbackMismatch
         }
@@ -132,10 +161,19 @@ pub(super) fn exercise_real_viewers(
             }
         }
     );
-    assert_eq!(viewer(first, Action::Detach {})?, Outcome::Detached {});
-    assert_ne!(attach(first, reference)?, first_id);
-    let _fresh_frame = next_frame(first)?;
-    controllers::exercise(first, &mut second, runtime)?;
+    assert_eq!(
+        viewer(
+            first,
+            Action::Detach {
+                attachment_id: first_id.clone()
+            }
+        )?,
+        Outcome::Detached {}
+    );
+    let fresh_id = attach(first, reference)?;
+    assert_ne!(fresh_id, first_id);
+    let _fresh_frame = next_frame(first, &fresh_id)?;
+    controllers::exercise(first, &mut second, runtime, &fresh_id, &second_id)?;
     // The second handler's Drop owns its Detach; the terminal remains owned by Host.
     drop(second);
     Ok(())
@@ -336,7 +374,12 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
     assert_ne!(first_attachment, second_attachment);
     assert_eq!(host_epoch, second_epoch);
 
-    let first_detach = send_viewer(&mut first, Action::Detach {})?;
+    let first_detach = send_viewer(
+        &mut first,
+        Action::Detach {
+            attachment_id: first_attachment,
+        },
+    )?;
     let first_cleanup = read_viewer(&mut worker)?;
     assert_eq!(first_cleanup.action, WorkerAction::Detach);
     assert_eq!(first_cleanup.attachment_id, first_attach.attachment_id);
@@ -346,7 +389,12 @@ fn canonical_snapshot_binding_attaches_exact_host_without_launch_and_is_session_
         Outcome::Detached {}
     );
 
-    let second_detach = send_viewer(&mut second, Action::Detach {})?;
+    let second_detach = send_viewer(
+        &mut second,
+        Action::Detach {
+            attachment_id: second_attachment,
+        },
+    )?;
     let second_cleanup = read_viewer(&mut worker)?;
     assert_eq!(second_cleanup.action, WorkerAction::Detach);
     assert_eq!(second_cleanup.attachment_id, second_attach.attachment_id);
@@ -414,10 +462,18 @@ fn blocked_client_output_releases_worker_before_publication_and_times_out_only_i
     )?;
     let attached = read_viewer(&mut worker)?;
     reply(&mut worker, attached, WorkerOutcome::Attached)?;
-    let _attached = read_server_message(&mut slow)?;
+    let ServerMessage::TerminalViewerResult(result) = read_server_message(&mut slow)? else {
+        return Err("missing Attach result".into());
+    };
+    let Outcome::Attached { attachment_id, .. } = result.into_outcome() else {
+        return Err("Attach failed".into());
+    };
     write_client_message(
         &mut slow,
-        &ClientMessage::TerminalViewer(TerminalViewerRequest::new(id(3)?, Action::Poll {})),
+        &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
+            id(3)?,
+            Action::Poll { attachment_id },
+        )),
     )?;
     let polled = read_viewer(&mut worker)?;
     reply(
@@ -474,3 +530,9 @@ fn large_record(request: WorkerRequest) -> TestResult<Vec<u8>> {
 
 #[path = "viewers/controllers.rs"]
 mod controllers;
+
+#[path = "viewers/multiple.rs"]
+mod multiple;
+
+#[path = "viewers/cleanup.rs"]
+mod cleanup;

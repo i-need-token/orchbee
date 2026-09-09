@@ -34,15 +34,24 @@ impl ViewerProjection {
         };
         match action {
             TerminalViewerAction::FrameApplied {
+                attachment_id,
                 sequence,
                 generation,
                 revision,
             } => {
-                *sequence == flight.sequence
+                attachment_id.as_str() == self.attachment_id.to_text()
+                    && *sequence == flight.sequence
                     && *generation == flight.generation
                     && *revision == flight.revision
             }
-            TerminalViewerAction::NeedSnapshot { sequence, .. } => *sequence == flight.sequence,
+            TerminalViewerAction::NeedSnapshot {
+                attachment_id,
+                sequence,
+                ..
+            } => {
+                attachment_id.as_str() == self.attachment_id.to_text()
+                    && *sequence == flight.sequence
+            }
             _ => false,
         }
     }

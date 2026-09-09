@@ -24,7 +24,12 @@ fn receive_close_after_frame(stream: &mut UnixStream) -> io::Result<WorkbenchCom
         else {
             return Err(io::Error::other("expected ordinary Poll"));
         };
-        assert_eq!(poll.action(), &TerminalViewerAction::Poll {});
+        assert_eq!(
+            poll.action(),
+            &TerminalViewerAction::Poll {
+                attachment_id: binding_viewer_id()?,
+            }
+        );
         write_server_message(
             stream,
             &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(

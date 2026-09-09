@@ -182,7 +182,11 @@ fn status_close_server(
                 assert_eq!(magic, *b"OBCS");
                 match read_client_message(&mut reader).map_err(io::Error::other)? {
                     ClientMessage::TerminalViewer(request)
-                        if request.action() == &TerminalViewerAction::Poll {} =>
+                        if matches!(
+                            request.action(),
+                            TerminalViewerAction::Poll { attachment_id }
+                                if attachment_id == &binding_viewer_id()?
+                        ) =>
                     {
                         write_server_message(
                             &mut stream,
@@ -195,11 +199,21 @@ fn status_close_server(
                     }
                     ClientMessage::TerminalControl(request) => {
                         let outcome = match request.action() {
-                            TerminalControlAction::Input { bytes, .. } => {
+                            TerminalControlAction::Input {
+                                attachment_id,
+                                bytes,
+                                ..
+                            } => {
+                                assert_eq!(attachment_id, &binding_viewer_id()?);
                                 input_bytes.fetch_add(bytes.as_bytes().len(), Ordering::SeqCst);
                                 TerminalControlOutcome::InputAccepted {}
                             }
-                            TerminalControlAction::Resize { geometry, .. } => {
+                            TerminalControlAction::Resize {
+                                attachment_id,
+                                geometry,
+                                ..
+                            } => {
+                                assert_eq!(attachment_id, &binding_viewer_id()?);
                                 TerminalControlOutcome::Resized {
                                     geometry: *geometry,
                                 }

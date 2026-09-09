@@ -128,6 +128,7 @@ fn parked_attach_and_acquire_success_cannot_install_after_close_acceptance() {
                 }
             }
         });
+        let (candidate_send, candidate_receive) = mpsc::sync_channel(1);
         let actor = Arc::clone(&service);
         let client = thread::spawn(move || {
             let mut session = actor.session();
@@ -137,11 +138,27 @@ fn parked_attach_and_acquire_success_cannot_install_after_close_acceptance() {
                     terminal_create_request_id: client_id(11),
                 },
             ));
+            let attachment_id = match &attached {
+                ServerMessage::TerminalViewerResult(result) => match result.outcome() {
+                    ViewerOutcome::Attached { attachment_id, .. } => attachment_id.clone(),
+                    // Probe the exact candidate observed by the controlled Worker even when
+                    // the fenced Attach correctly withholds it from the Client result.
+                    _ => candidate_receive
+                        .recv_timeout(Duration::from_secs(3))
+                        .unwrap(),
+                },
+                _ => panic!("viewer result"),
+            };
             let result = if acquire {
                 assert!(
                     matches!(attached, ServerMessage::TerminalViewerResult(result) if matches!(result.outcome(), ViewerOutcome::Attached { .. }))
                 );
-                session.execute(control_request(101, ControlAction::Acquire {}))
+                session.execute(control_request(
+                    101,
+                    ControlAction::Acquire {
+                        attachment_id: attachment_id.clone(),
+                    },
+                ))
             } else {
                 attached
             };
@@ -149,20 +166,41 @@ fn parked_attach_and_acquire_success_cannot_install_after_close_acceptance() {
                 session.execute(control_request(
                     102,
                     ControlAction::Input {
+                        attachment_id: attachment_id.clone(),
                         controller_id: ControllerId::parse(&format!("{:032x}", 1)).unwrap(),
                         sequence: NonZeroU64::MIN,
                         bytes: ControlInput::new(b"must not dispatch".to_vec()).unwrap(),
                     },
                 ))
             } else {
-                session.execute(viewer_request(103, ViewerAction::Poll {}))
+                session.execute(viewer_request(
+                    103,
+                    ViewerAction::Poll {
+                        attachment_id: attachment_id.clone(),
+                    },
+                ))
             };
-            let acquire_after_close =
-                acquire.then(|| session.execute(control_request(104, ControlAction::Acquire {})));
+            let acquire_after_close = acquire.then(|| {
+                session.execute(control_request(
+                    104,
+                    ControlAction::Acquire { attachment_id },
+                ))
+            });
             drop(session);
             (result, after, acquire_after_close)
         });
         let attachment = parked.recv_timeout(Duration::from_secs(3)).unwrap();
+        if !acquire {
+            candidate_send
+                .send(
+                    orchbee_client_server_protocol::ViewerId::parse(&format!(
+                        "{:032x}",
+                        u128::from_be_bytes(attachment.as_bytes()),
+                    ))
+                    .unwrap(),
+                )
+                .unwrap();
+        }
         service.start_close_maintenance().unwrap();
         assert!(matches!(
             service
