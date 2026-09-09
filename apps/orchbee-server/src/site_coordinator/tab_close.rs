@@ -4,13 +4,13 @@ use orchbee_capability_node_protocol::{
     LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, TERMINAL_LIFECYCLE_CAPABILITY_VERSION,
     TerminalLifecycleAuthorization, TerminalLifecycleRequest, TerminalOperationLease,
 };
+#[cfg(test)]
+use orchbee_server::CloseContinuationNext;
 use orchbee_server::{
     CloseStepToken, WorkbenchGrant, WorkbenchTabCloseBegin, WorkbenchTabClosePreparation,
     WorkbenchTabCloseResolution, WorkbenchTabCloseResumeBegin, WorkbenchTabCloseResumePreparation,
     WorkbenchTabCloseRuntimeUnavailableReason, WorkbenchTabCloseTarget,
 };
-#[cfg(test)]
-use orchbee_server::CloseContinuationNext;
 use orchbee_workbench_protocol::{
     WorkbenchCommand, WorkbenchCommandResult, WorkbenchRequestId, WorkbenchTabCloseRead,
     WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
