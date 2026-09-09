@@ -231,7 +231,7 @@ The deterministic Client View transition model is:
 | Normal + other bytes, with or without an overlay | Preserve local view state and offer the exact ordered bytes to the terminal-input port. The unavailable port rejects them without side effects and the staged renderer reports that input was not sent.                                                                  |
 | Prefix + `b`                                     | Leave Prefix and toggle the docked wide sidebar or narrow sidebar overlay for this Client View.                                                                                                                                                                          |
 | Prefix + `w` or `?`                              | Leave Prefix and open the Workbench navigator or shortcut-help overlay locally.                                                                                                                                                                                          |
-| Prefix + `c`, `n`, `p`, `1` … `9`, or `h/j/k/l`  | Leave Prefix, preserve shared state, and surface the mapped backend-dependent action as unavailable; no command is submitted.                                                                                                                                            |
+| Prefix + `c`, `n`, `p`, `1` … `9`, or `h/j/k/l`  | Leave Prefix; a connected Native Session executes the corresponding Tab or local Panel-focus action, while the unconnected fallback preserves shared state and reports the action as unavailable. No shell-fallback command is submitted.                                |
 | Prefix + `Ctrl+B`                                | Leave Prefix and offer one literal `Ctrl+B` event to the terminal-input port.                                                                                                                                                                                            |
 | Prefix + `q` or `d`                              | Leave Prefix and close this Client shell.                                                                                                                                                                                                                                |
 | Prefix + `Esc`                                   | Cancel Prefix without changing an overlay. Outside Prefix, `Esc` and its following bytes are ordinary terminal input.                                                                                                                                                    |
@@ -453,14 +453,14 @@ activation and Worker lazy Host startup. Explicit Create and Attach intents keep
 Create-reference attachment behavior.
 
 The pure projector requires exactly one context matching the standalone context ID, no groups,
-and zero through 256 ordered, ungrouped, unpinned Tabs. Every root must be a Panel with no child
-Presentations and a bound primary Presentation. It retains both labels, all membership identities
-and each binding exactly; one unsupported member rejects the entire projection. Cold startup
-separately requires the first ordered Tab and uses its binding. Canonical OBWP validation owns
-global uniqueness and reference integrity. Pure refresh and created-member validators enforce
-revision, immutable member and correlated creation facts. Interactive creation, switching, refresh
-and Workbench rendering are integrated; the native Session record distinguishes their checked
-baseline from the pending Move refinement.
+and zero through 256 ordered, ungrouped, unpinned Tabs. Every root must be a Panel or a recursively
+binary Panel split tree with no child Presentations and a bound primary Presentation at every leaf.
+It retains both labels, all membership identities, split/slot topology and each binding exactly; one
+unsupported member rejects the entire projection. Cold startup separately requires the first ordered
+Tab and uses its binding. Canonical OBWP validation owns global uniqueness and reference integrity.
+Pure refresh and created-member validators enforce revision, immutable member and correlated creation
+facts. Interactive creation, switching, refresh, split-tree rendering and local Panel focus are
+integrated; the native Session keeps the active leaf as its one attached viewer.
 
 The terminal projection adapter also provides the native Session's controlling full-frame geometry
 gate. A supplied expected geometry must match all four fields; mismatch clears the visible frame

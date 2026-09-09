@@ -413,12 +413,12 @@ Open create reference 仍是显式旧路径的值，不用于选择此 viewer。
 保留现有 Create-reference attachment 行为。
 
 纯投影器要求恰好一个 context 匹配 standalone context ID，没有 group，并包含零到 256 个按序、
-未分组、未固定的 Tab。每个 root 都必须是 Panel，没有 child Presentation，且 primary
-Presentation 具有 binding。它精确保留两种标签、全部成员身份与各自 binding；任一不受支持的
-成员都会使整个投影被拒绝。冷启动另外要求存在第一个有序 Tab，并使用其 binding。Canonical
-OBWP validation 拥有全局唯一性和引用完整性。纯刷新与已创建成员验证器校验修订号、成员不可变事实
-及关联创建事实。交互式创建、切换、刷新及 Workbench 渲染已接入；原生 Session 记录区分其已验证基线
-与待实现的 Move 细化。
+未分组、未固定的 Tab。每个 root 都必须是 Panel 或递归二叉 Panel 分屏树，没有 child Presentation，
+且每个叶子的 primary Presentation 都具有 binding。它精确保留两种标签、全部成员身份、split/slot
+拓扑与各自 binding；任一不受支持的成员都会使整个投影被拒绝。冷启动另外要求存在第一个有序 Tab，
+并使用其 binding。Canonical OBWP validation 拥有全局唯一性和引用完整性。纯刷新与已创建成员验证器
+校验修订号、成员不可变事实及关联创建事实。交互式创建、切换、刷新、分屏树渲染及本地 Panel 焦点
+已经接入；原生 Session 保持当前叶子作为唯一已附着 viewer。
 
 终端投影适配器还为原生 Session 提供控制模式下的完整帧尺寸门。传入期望尺寸时，四个字段必须
 全部匹配；不匹配会清除可见帧并请求快照，但不会重置序号、修订号或阻塞修订号栅栏。原生控制模式

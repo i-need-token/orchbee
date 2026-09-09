@@ -166,6 +166,61 @@ fn projects_split_tree_and_directional_leaf_neighbors() {
 }
 
 #[test]
+fn navigates_nested_split_by_geometric_adjacency() {
+    let mut split = snapshot(3, 1);
+    split.terminal_contexts[0].tabs[1].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: PanelNode::Split {
+                    children: Box::new([
+                        PanelSlot {
+                            node: panel(30, 31, 32, 33, "top-left"),
+                            slot_id: slot_id(34),
+                        },
+                        PanelSlot {
+                            node: panel(35, 36, 37, 38, "top-right"),
+                            slot_id: slot_id(39),
+                        },
+                    ]),
+                    orientation: PanelOrientation::Horizontal,
+                    split_id: split_id(40),
+                },
+                slot_id: slot_id(41),
+            },
+            PanelSlot {
+                node: PanelNode::Split {
+                    children: Box::new([
+                        PanelSlot {
+                            node: panel(42, 43, 44, 45, "bottom-left"),
+                            slot_id: slot_id(46),
+                        },
+                        PanelSlot {
+                            node: panel(47, 48, 49, 50, "bottom-right"),
+                            slot_id: slot_id(51),
+                        },
+                    ]),
+                    orientation: PanelOrientation::Horizontal,
+                    split_id: split_id(52),
+                },
+                slot_id: slot_id(53),
+            },
+        ]),
+        orientation: PanelOrientation::Vertical,
+        split_id: split_id(54),
+    };
+
+    let projection = project_native_standalone_tabs(&split).unwrap();
+    let tab = &projection.tabs()[1];
+    assert_eq!(tab.panel_count(), 4);
+    assert_eq!(tab.panel_focus_target(0, PanelDirection::Right), Some(1));
+    assert_eq!(tab.panel_focus_target(1, PanelDirection::Left), Some(0));
+    assert_eq!(tab.panel_focus_target(0, PanelDirection::Down), Some(2));
+    assert_eq!(tab.panel_focus_target(1, PanelDirection::Down), Some(3));
+    assert_eq!(tab.panel_focus_target(2, PanelDirection::Up), Some(0));
+    assert_eq!(tab.panel_focus_target(3, PanelDirection::Up), Some(1));
+}
+
+#[test]
 fn preserves_exact_duplicate_whitespace_labels_and_separate_identity_domains() {
     let exact_label = "  duplicate\tlabel  ";
     let mut labeled = snapshot(2, 1);

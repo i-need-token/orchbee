@@ -214,90 +214,103 @@ pub(crate) enum NativePanelTree {
     },
 }
 
+#[derive(Clone, Copy)]
+struct PanelBounds {
+    panel_index: usize,
+    left: f64,
+    top: f64,
+    right: f64,
+    bottom: f64,
+}
+
 impl NativePanelTree {
     pub(super) fn neighbor(
         &self,
         panel_index: usize,
         direction: crate::client_view::PanelDirection,
     ) -> Option<usize> {
+        let mut bounds = Vec::new();
+        self.collect_bounds(0.0, 0.0, 1.0, 1.0, &mut bounds);
+        let current = *bounds
+            .iter()
+            .find(|candidate| candidate.panel_index == panel_index)?;
+        let mut best: Option<(usize, f64, f64)> = None;
+        for candidate in bounds {
+            if candidate.panel_index == panel_index {
+                continue;
+            }
+            let (gap, offset, overlaps) = match direction {
+                crate::client_view::PanelDirection::Left => (
+                    current.left - candidate.right,
+                    ((candidate.top + candidate.bottom) - (current.top + current.bottom)).abs(),
+                    candidate.bottom > current.top && candidate.top < current.bottom,
+                ),
+                crate::client_view::PanelDirection::Right => (
+                    candidate.left - current.right,
+                    ((candidate.top + candidate.bottom) - (current.top + current.bottom)).abs(),
+                    candidate.bottom > current.top && candidate.top < current.bottom,
+                ),
+                crate::client_view::PanelDirection::Up => (
+                    current.top - candidate.bottom,
+                    ((candidate.left + candidate.right) - (current.left + current.right)).abs(),
+                    candidate.right > current.left && candidate.left < current.right,
+                ),
+                crate::client_view::PanelDirection::Down => (
+                    candidate.top - current.bottom,
+                    ((candidate.left + candidate.right) - (current.left + current.right)).abs(),
+                    candidate.right > current.left && candidate.left < current.right,
+                ),
+            };
+            if !overlaps || gap < -f64::EPSILON {
+                continue;
+            }
+            let is_better = best.is_none_or(|(best_index, best_gap, best_offset)| {
+                gap < best_gap - f64::EPSILON
+                    || ((gap - best_gap).abs() <= f64::EPSILON
+                        && (offset < best_offset - f64::EPSILON
+                            || ((offset - best_offset).abs() <= f64::EPSILON
+                                && candidate.panel_index < best_index)))
+            });
+            if is_better {
+                best = Some((candidate.panel_index, gap, offset));
+            }
+        }
+        best.map(|(index, _, _)| index)
+    }
+
+    fn collect_bounds(
+        &self,
+        left: f64,
+        top: f64,
+        width: f64,
+        height: f64,
+        output: &mut Vec<PanelBounds>,
+    ) {
         match self {
-            Self::Panel { panel_index: _ } => None,
+            Self::Panel { panel_index } => output.push(PanelBounds {
+                panel_index: *panel_index,
+                left,
+                top,
+                right: left + width,
+                bottom: top + height,
+            }),
             Self::Split {
                 first,
                 second,
                 orientation,
                 ..
-            } => {
-                let in_first = first.contains(panel_index);
-                let in_second = second.contains(panel_index);
-                if !in_first && !in_second {
-                    return None;
+            } => match orientation {
+                PanelOrientation::Horizontal => {
+                    let half = width / 2.0;
+                    first.collect_bounds(left, top, half, height, output);
+                    second.collect_bounds(left + half, top, half, height, output);
                 }
-                let cross_axis = match orientation {
-                    PanelOrientation::Horizontal => matches!(
-                        direction,
-                        crate::client_view::PanelDirection::Left
-                            | crate::client_view::PanelDirection::Right
-                    ),
-                    PanelOrientation::Vertical => matches!(
-                        direction,
-                        crate::client_view::PanelDirection::Up
-                            | crate::client_view::PanelDirection::Down
-                    ),
-                };
-                if cross_axis {
-                    match (in_first, direction) {
-                        (true, crate::client_view::PanelDirection::Right)
-                        | (true, crate::client_view::PanelDirection::Down) => {
-                            return second.first_leaf();
-                        }
-                        (false, crate::client_view::PanelDirection::Left)
-                        | (false, crate::client_view::PanelDirection::Up) => {
-                            return first.last_leaf();
-                        }
-                        _ => {}
-                    }
-                    match (in_second, direction) {
-                        (true, crate::client_view::PanelDirection::Left)
-                        | (true, crate::client_view::PanelDirection::Up) => {
-                            return first.last_leaf();
-                        }
-                        (false, crate::client_view::PanelDirection::Right)
-                        | (false, crate::client_view::PanelDirection::Down) => {
-                            return second.first_leaf();
-                        }
-                        _ => {}
-                    }
+                PanelOrientation::Vertical => {
+                    let half = height / 2.0;
+                    first.collect_bounds(left, top, width, half, output);
+                    second.collect_bounds(left, top + half, width, half, output);
                 }
-                if in_first {
-                    first.neighbor(panel_index, direction)
-                } else {
-                    second.neighbor(panel_index, direction)
-                }
-            }
-        }
-    }
-
-    fn contains(&self, panel_index: usize) -> bool {
-        match self {
-            Self::Panel { panel_index: index } => *index == panel_index,
-            Self::Split { first, second, .. } => {
-                first.contains(panel_index) || second.contains(panel_index)
-            }
-        }
-    }
-
-    fn first_leaf(&self) -> Option<usize> {
-        match self {
-            Self::Panel { panel_index } => Some(*panel_index),
-            Self::Split { first, .. } => first.first_leaf(),
-        }
-    }
-
-    fn last_leaf(&self) -> Option<usize> {
-        match self {
-            Self::Panel { panel_index } => Some(*panel_index),
-            Self::Split { second, .. } => second.last_leaf(),
+            },
         }
     }
 
