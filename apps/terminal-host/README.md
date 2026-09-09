@@ -148,7 +148,7 @@ session. Only after Server admission, it authenticates the same-user Host and co
 exact-version `Hello` exchange. Its current slice sends no terminal command and creates no PTY;
 Server remains the launch-authorization owner and Host remains the terminal authority.
 
-Process-tree ownership follows the containment domain created at launch: a dedicated POSIX session or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. On Windows, the Host observes Job accounting at a quiet monotonic cadence and closes HPCON only after the active process count reaches zero; Desktop-owned force escalation terminates the Job so that observation can complete. Natural process exit does not signal the Job handle. Preventing a trusted same-user child from deliberately escaping a POSIX session is not an isolation promise.
+Process-tree ownership follows the containment domain created at launch: a dedicated session on Linux and macOS, the retained direct-child process-reaper subtree on FreeBSD, or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. On Windows, the Host observes Job accounting at a quiet monotonic cadence and closes HPCON only after the active process count reaches zero; Desktop-owned force escalation terminates the Job so that observation can complete. Natural process exit does not signal the Job handle. On Linux and macOS, preventing a trusted same-user child from deliberately escaping the POSIX session is not an isolation promise.
 
 ## Executable interface
 

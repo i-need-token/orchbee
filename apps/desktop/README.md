@@ -789,6 +789,9 @@ serializer.
 
 ## Development
 
+On Linux, Desktop's required shell-integration tests need Bash at `/bin/bash` and Zsh at `/bin/zsh`.
+Install both before running the unit suite or root merge gate; Linux CI provisions Zsh explicitly.
+
 The Rsbuild configuration can be inspected without workspace build artifacts or an installed
 Electron executable. It loads development runtime dependencies and resolves Electron only inside
 the development server's startup hook; configuration inspection never prepares an SSH release.

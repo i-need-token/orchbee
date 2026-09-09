@@ -519,6 +519,9 @@ Desktop terminal-archive model 另外检查一个 retiring generation 的 stop/c
 
 ## 开发
 
+在 Linux 上，Desktop 的必需 shell 集成测试需要 `/bin/bash` 处的 Bash 和 `/bin/zsh` 处的 Zsh。
+运行单元测试或根合并门禁前须安装两者；Linux CI 会显式安装 Zsh。
+
 Rsbuild 配置可以在没有工作区构建产物或已安装 Electron 可执行文件时被检查。
 它只在开发服务器启动钩子中加载开发运行时依赖并解析 Electron；检查配置不会准备 SSH 发布产物。
 

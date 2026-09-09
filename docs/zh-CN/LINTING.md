@@ -5,7 +5,7 @@
 | 命令                                           | 职责                                                                |
 | ---------------------------------------------- | ------------------------------------------------------------------- |
 | `pnpm verify`                                  | 运行 `docs/VERIFICATION.md` 定义的完整合并门禁                      |
-| `pnpm lint`                                    | 运行所有必需的代码、Rust、文档、样式、依赖、项目和体验检查          |
+| `pnpm lint`                                    | 运行完整的必需仓库 lint 流程                                        |
 | `pnpm lint:code`                               | 以面向 Agent 的输出运行会阻塞的 oxlint 诊断                         |
 | `pnpm lint:code:warnings`                      | 审计会阻塞的诊断和不阻塞的 oxlint warning                           |
 | `pnpm lint:rust`                               | 验证固定 Cargo workspace，并在 member 存在时运行 locked Clippy 工作 |

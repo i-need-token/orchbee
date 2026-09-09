@@ -2,28 +2,28 @@
 
 ## Commands
 
-| Command                                        | Responsibility                                                                                 |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `pnpm verify`                                  | Run the complete merge gate defined by `docs/VERIFICATION.md`                                  |
-| `pnpm lint`                                    | Run every required code, Rust, documentation, style, dependency, project, and experience check |
-| `pnpm lint:code`                               | Run blocking oxlint diagnostics with agent-oriented output                                     |
-| `pnpm lint:code:warnings`                      | Audit blocking diagnostics and non-blocking oxlint warnings                                    |
-| `pnpm lint:rust`                               | Validate the pinned Cargo workspace and run locked Clippy work when members exist              |
-| `pnpm lint:documentation`                      | Validate every repository Markdown pair's path, receipt, and structure                         |
-| `pnpm lint:styles`                             | Validate the token registry and authored frontend styling contract                             |
-| `pnpm lint:storage`                            | Validate browser-storage access, ownership, key shape, and versioning                          |
-| `pnpm lint:dependencies`                       | Run Knip strict dependency, file, export, catalog, and manifest analysis                       |
-| `pnpm lint:projects`                           | Validate every schema-backed workspace project contract                                        |
-| `pnpm lint:experience`                         | Validate experience-component schemas, ownership, paths, and relations                         |
-| `pnpm lint:fix`                                | Apply safe oxlint fixes; remaining diagnostics require code changes                            |
-| `pnpm typecheck`                               | Run TypeScript diagnostics that syntax-aware lint does not replace                             |
-| `pnpm test:lint-rules`                         | Test the `orchbee/*` rules and English/Chinese standards contract                              |
-| `pnpm test:documentation-pairing`              | Run negative tests for documentation pairing checks and confirmation                           |
-| `pnpm test:ghostty-source`                     | Test exact-pin and clean-worktree admission for Ghostty provenance tools                       |
-| `pnpm test:style-contract`                     | Run regression tests for the frontend style-contract checker                                   |
-| `pnpm test:storage-contract`                   | Run regression tests for the browser-storage contract checker                                  |
-| `pnpm test:experience-contract`                | Run regression tests for the experience catalog and lookup contract                            |
-| `pnpm docs:confirm-pairing -- <markdown-path>` | Update only explicitly named receipts after semantic review                                    |
+| Command                                        | Responsibility                                                                    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| `pnpm verify`                                  | Run the complete merge gate defined by `docs/VERIFICATION.md`                     |
+| `pnpm lint`                                    | Run the complete required repository lint pipeline                                |
+| `pnpm lint:code`                               | Run blocking oxlint diagnostics with agent-oriented output                        |
+| `pnpm lint:code:warnings`                      | Audit blocking diagnostics and non-blocking oxlint warnings                       |
+| `pnpm lint:rust`                               | Validate the pinned Cargo workspace and run locked Clippy work when members exist |
+| `pnpm lint:documentation`                      | Validate every repository Markdown pair's path, receipt, and structure            |
+| `pnpm lint:styles`                             | Validate the token registry and authored frontend styling contract                |
+| `pnpm lint:storage`                            | Validate browser-storage access, ownership, key shape, and versioning             |
+| `pnpm lint:dependencies`                       | Run Knip strict dependency, file, export, catalog, and manifest analysis          |
+| `pnpm lint:projects`                           | Validate every schema-backed workspace project contract                           |
+| `pnpm lint:experience`                         | Validate experience-component schemas, ownership, paths, and relations            |
+| `pnpm lint:fix`                                | Apply safe oxlint fixes; remaining diagnostics require code changes               |
+| `pnpm typecheck`                               | Run TypeScript diagnostics that syntax-aware lint does not replace                |
+| `pnpm test:lint-rules`                         | Test the `orchbee/*` rules and English/Chinese standards contract                 |
+| `pnpm test:documentation-pairing`              | Run negative tests for documentation pairing checks and confirmation              |
+| `pnpm test:ghostty-source`                     | Test exact-pin and clean-worktree admission for Ghostty provenance tools          |
+| `pnpm test:style-contract`                     | Run regression tests for the frontend style-contract checker                      |
+| `pnpm test:storage-contract`                   | Run regression tests for the browser-storage contract checker                     |
+| `pnpm test:experience-contract`                | Run regression tests for the experience catalog and lookup contract               |
+| `pnpm docs:confirm-pairing -- <markdown-path>` | Update only explicitly named receipts after semantic review                       |
 
 ## Enforcement boundary
 

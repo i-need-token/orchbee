@@ -625,6 +625,8 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
 -> TestResult {
     for unavailable in [false, true] {
         let geometry = fixture_geometry()?;
+        let teardown = Arc::new(AtomicBool::new(false));
+        let server_teardown = Arc::clone(&teardown);
         let (poll_sent, poll_seen) = mpsc::sync_channel(0);
         let (release_poll, poll_released) = mpsc::sync_channel(0);
         let (input_sent, input_seen) = mpsc::sync_channel(1);
@@ -742,14 +744,26 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                     Ok(ClientMessage::TerminalViewer(request))
                         if request.action() == &TerminalViewerAction::Poll {} =>
                     {
-                        write_server_message(
+                        let response = write_server_message(
                             &mut stream,
                             &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
                                 request.request_id().clone(),
                                 TerminalViewerOutcome::Empty {},
                             )),
-                        )
-                        .map_err(io::Error::other)?;
+                        );
+                        match response {
+                            Ok(()) => {}
+                            Err(orchbee_client_server_protocol::WriteMessageError::Io(error))
+                                if server_teardown.load(Ordering::SeqCst)
+                                    && matches!(
+                                        error.kind(),
+                                        io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset
+                                    ) =>
+                            {
+                                return Ok(());
+                            }
+                            Err(error) => return Err(io::Error::other(error)),
+                        }
                     }
                     Ok(ClientMessage::TerminalControl(request)) => match request.action() {
                         TerminalControlAction::Input { bytes, .. } => {
@@ -834,6 +848,8 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             ));
             assert_eq!(session.status(), TerminalStatus::Controlling);
         }
+        // All Move assertions precede the client's explicit carrier shutdown.
+        teardown.store(true, Ordering::SeqCst);
         drop(session);
         server.finish()?;
     }

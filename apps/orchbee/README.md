@@ -474,6 +474,9 @@ outcomes; caller-deadline methods use the earliest ordinary, caller and startup 
 shared injected clock. The deterministic Session state and bounded mailbox implement atomic
 selection admission, Create/refresh barriers, exact event settlement, geometry gating, and carrier
 retirement. Retirement preserves the first cause and distinguishes explicitly unknown outcomes
-from definite failures. These kernels are staged: the native connection executor and UI consumers
-remain the next integration boundary. Complete generated barrier coverage, scripted-carrier traces,
-and the real two-Client Tab/refresh witness are still required before claiming multi-Tab delivery.
+from definite failures. These kernels are integrated with the native connection executor and UI
+consumers. Generated barrier tests, scripted-carrier traces, and the Linux two-Client Tab/refresh
+process witness provide implementation evidence; the contract's
+[claim/evidence matrix](docs/native-tab-session.md#claimevidence-matrix) records the checked claims
+and their limits. This process evidence does not establish other operating systems, installation,
+restart recovery or remote access.

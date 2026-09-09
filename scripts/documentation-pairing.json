@@ -26,8 +26,8 @@
 			"zhCnSha256": "26d5cd462fe3e5127aea6ee408eaeb8dfc7df659ca009e609489271d8c803f9c"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "cc0c8b677d7f308fc0e3fb3cb0f53ddf5fc8676b52b2497c5582f304f17ebcfa",
-			"zhCnSha256": "f769ff262a4e4244f6361e4092019f56ff3a29d8b2a2b648c94e168864421434"
+			"englishSha256": "eaea992106c3d621ebde6f7a59596fef5f5ccf7b9f94caebef427e728fb9029f",
+			"zhCnSha256": "4dcd3f1d8c06208d28862b6b7ba32c5a1bcdc7946df3e100dd2e26f3b686d226"
 		},
 		"apps/desktop/docs/agent-integrations.md": {
 			"englishSha256": "40a3f7ce56c33760346eece74b0815bf8634b9af0967be83ee376a0e827a1a04",
@@ -122,8 +122,8 @@
 			"zhCnSha256": "7db48c2c1707f31139daf70d13eed92e46be76e46c59f22c359c037043498bf3"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "6fbcae21472558c1fdb6b4949bf147bbf93dca27b6d90009cdf7cd7f7d06fce2",
-			"zhCnSha256": "dcf74e171272377762f2430a7a1769a229a7f32ad143341200d079896fb29115"
+			"englishSha256": "ab1705a8b9b388daf98e753b939323d6c02a00c17e7769fa533bb19917857de0",
+			"zhCnSha256": "260604385b3159a957c0557f48d3ec3674b64868413c8eec43a1d8042145746c"
 		},
 		"apps/orchbee/docs/native-tab-session.md": {
 			"englishSha256": "6b17f6471d2333a85e9748a1303cd3d2df88e2b528c5fbb6eef1b19dce0e04cb",
@@ -138,8 +138,8 @@
 			"zhCnSha256": "6fbc6b6a12b7e014015a12be216a5b6500abed107f7ab3df1ab6d38f4d033b98"
 		},
 		"apps/terminal-host/README.md": {
-			"englishSha256": "6773a4a5826c98760f2e77f79c825fa72a8ed8929059c29199e23672b11a5055",
-			"zhCnSha256": "32d3d06dc77f7c0d45ffc63d470bc3ad5a7e025b4b8c257cd80562f5305225a7"
+			"englishSha256": "5338c795ae540c0530c06595988bd67e2c1b81061c316a7da97052cf14c188dd",
+			"zhCnSha256": "5cb5cd326e5b1395cf4c684e0a46a55161383adb6c3d31246dc937d942330b22"
 		},
 		"apps/terminal-host/docs/module-boundaries.md": {
 			"englishSha256": "bc7127a66ff3b985a16fcf182e29e6aec1831c002cbfde3c32006489e39dbb5f",
@@ -210,8 +210,8 @@
 			"zhCnSha256": "fc49880437f54464b9d45dd4cab5583e66082e406c1868ab87a6572019ef8fa0"
 		},
 		"docs/LINTING.md": {
-			"englishSha256": "7a45e602236b7d74586aed82876cbd8d80202628b2de7dbfabd348ac1b59af4d",
-			"zhCnSha256": "49b568ac0e31d95366aa8707256e466254f637c9641095d012beaa0f251857f5"
+			"englishSha256": "129f432ffd29cce1524ef1c7740619aaa3b52b8bb16c241a4d19ec734a942b3f",
+			"zhCnSha256": "db9c8ac16d9b91cb637faaa202a6d1a48e0d5ed48bf6175ab7c9820b038882de"
 		},
 		"docs/MODELING-AND-CORRECTNESS.md": {
 			"englishSha256": "afc8aaf6a6efae9af99dd6e408c6fa2a8b07bd7c48cc0c8df196ff9cc7bae8c0",

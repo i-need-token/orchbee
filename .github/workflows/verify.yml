@@ -51,8 +51,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Desktop SSH system-test dependencies
-        run: sudo apt-get update && sudo apt-get install --yes openssh-server xvfb xauth
+      - name: Install Desktop Linux test dependencies
+        run: sudo apt-get update && sudo apt-get install --yes openssh-server xvfb xauth zsh
 
       - name: Verify repository
         run: pnpm verify --verbose
