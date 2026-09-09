@@ -5,14 +5,15 @@ use orchbee_capability_node_protocol::{
     TerminalLifecycleAuthorization, TerminalLifecycleRequest, TerminalOperationLease,
 };
 use orchbee_server::{
-    CloseContinuationNext, CloseStepToken, WorkbenchGrant, WorkbenchTabCloseBegin,
-    WorkbenchTabClosePreparation, WorkbenchTabCloseResolution, WorkbenchTabCloseResumeBegin,
-    WorkbenchTabCloseResumePreparation, WorkbenchTabCloseRuntimeUnavailableReason,
+    CloseStepToken, WorkbenchGrant, WorkbenchTabCloseBegin, WorkbenchTabClosePreparation,
+    WorkbenchTabCloseResolution, WorkbenchTabCloseResumeBegin, WorkbenchTabCloseResumePreparation,
+    WorkbenchTabCloseRuntimeUnavailableReason, WorkbenchTabCloseTarget,
 };
+#[cfg(test)]
+use orchbee_server::CloseContinuationNext;
 use orchbee_workbench_protocol::{
     WorkbenchCommand, WorkbenchCommandResult, WorkbenchRequestId, WorkbenchTabCloseRead,
     WorkbenchTabCloseReadResult, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
-    WorkbenchTabCloseStatus,
 };
 
 use super::{PostcommitCoordinationError, SiteCoordinator, composition_matches};
@@ -53,13 +54,16 @@ impl SiteCoordinator {
                     .runtime_unavailable(WorkbenchTabCloseRuntimeUnavailableReason::ServerBusy),
             );
         }
-        let (runtime, phase) =
-            match Self::terminal_tab_close_runtime(terminals, admission.member().binding(), worker)
-            {
-                Ok(runtime) => runtime,
-                Err(reason) => return Some(admission.runtime_unavailable(reason)),
-            };
-        Some(match admission.finish(runtime, phase, now) {
+        let runtimes = admission
+            .members()
+            .iter()
+            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
+            .collect::<Result<Vec<_>, _>>();
+        let runtimes = match runtimes {
+            Ok(runtimes) => runtimes,
+            Err(reason) => return Some(admission.runtime_unavailable(reason)),
+        };
+        Some(match admission.finish_members(runtimes, now) {
             WorkbenchTabClosePreparation::Ready(result) => result,
             WorkbenchTabClosePreparation::Prepared(prepared) => prepared.commit(),
         })
@@ -94,23 +98,21 @@ impl SiteCoordinator {
             WorkbenchTabCloseResumeBegin::Ready(result) => return Some(result),
             WorkbenchTabCloseResumeBegin::Admitted(admission) => admission,
         };
-        if !owner_available {
+        let runtime_targets = admission.runtime_targets();
+        if !runtime_targets.is_empty() && !owner_available {
             return Some(admission.runtime_unavailable());
         }
-        if matches!(admission.status(), WorkbenchTabCloseStatus::DisposedAwaitingPublication { reason: orchbee_workbench_protocol::WorkbenchTabClosePublicationReason::TargetCleanupPending, .. }) && !local_cleanup_available {
+        if admission.needs_local_cleanup() && !local_cleanup_available {
             return Some(admission.runtime_unavailable());
         }
-        // The borrowed primary already proves the exact retained disposed target.
-        // Only a continuation that may still contact Host needs a live Worker.
-        if !matches!(
-            admission.status(),
-            WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. }
-        ) && !Self::terminal_tab_close_runtime_matches(
-            terminals,
-            admission.target().member().binding(),
-            admission.target().runtime(),
-            worker,
-        ) {
+        if runtime_targets.iter().any(|target| {
+            !Self::terminal_tab_close_runtime_matches(
+                terminals,
+                target.member().binding(),
+                target.runtime(),
+                worker,
+            )
+        }) {
             return Some(admission.runtime_unavailable());
         }
         Some(match admission.finish(now) {
@@ -125,14 +127,17 @@ impl SiteCoordinator {
         self.workbench.as_mut().ok_or(PostcommitCoordinationError)
     }
 
-    pub(crate) fn close_runtime_matches(
+    pub(crate) fn close_runtime_matches_for_member(
         &self,
         close_id: &WorkbenchRequestId,
+        binding: &orchbee_workbench_protocol::PresentationBinding,
         worker: Option<WorkerPlacement>,
     ) -> bool {
         self.workbench
             .as_ref()
-            .and_then(|authority| authority.terminal_tab_close_target(close_id))
+            .and_then(|authority| {
+                authority.terminal_tab_close_target_for_binding(close_id, binding)
+            })
             .is_some_and(|target| {
                 Self::terminal_tab_close_runtime_matches(
                     &self.terminals,
@@ -143,9 +148,44 @@ impl SiteCoordinator {
             })
     }
 
+    #[cfg(test)]
     pub(crate) fn reserve_close_lifecycle_step(
         &mut self,
         close_id: &WorkbenchRequestId,
+        now: Instant,
+        expiry: LeaseExpiresAtUnixMilliseconds,
+    ) -> Result<Option<CloseStepToken>, PostcommitCoordinationError> {
+        let (target, action, step_ordinal) = {
+            let workbench = self.workbench.as_mut().ok_or(PostcommitCoordinationError)?;
+            let step = workbench
+                .next_terminal_tab_close_step_target(close_id, now)
+                .map_err(|_| PostcommitCoordinationError)?;
+            let CloseContinuationNext::Lifecycle {
+                action,
+                step_ordinal,
+            } = step.next()
+            else {
+                return Ok(None);
+            };
+            let target = step.target().cloned().ok_or(PostcommitCoordinationError)?;
+            (target, action, step_ordinal)
+        };
+        self.reserve_close_lifecycle_step_for_target(
+            close_id,
+            target,
+            action,
+            step_ordinal,
+            now,
+            expiry,
+        )
+    }
+
+    pub(crate) fn reserve_close_lifecycle_step_for_target(
+        &mut self,
+        close_id: &WorkbenchRequestId,
+        target: WorkbenchTabCloseTarget,
+        action: orchbee_capability_node_protocol::TerminalLifecycleAction,
+        step_ordinal: orchbee_capability_node_protocol::LifecycleStepOrdinal,
         now: Instant,
         expiry: LeaseExpiresAtUnixMilliseconds,
     ) -> Result<Option<CloseStepToken>, PostcommitCoordinationError> {
@@ -155,19 +195,7 @@ impl SiteCoordinator {
             ..
         } = self;
         let workbench = workbench.as_mut().ok_or(PostcommitCoordinationError)?;
-        let CloseContinuationNext::Lifecycle {
-            action,
-            step_ordinal,
-        } = workbench
-            .next_terminal_tab_close_step(close_id, now)
-            .map_err(|_| PostcommitCoordinationError)?
-        else {
-            return Ok(None);
-        };
-        let runtime = workbench
-            .terminal_tab_close_target(close_id)
-            .ok_or(PostcommitCoordinationError)?
-            .runtime();
+        let runtime = target.runtime();
         let generation = workbench
             .terminal_tab_close_generation(close_id)
             .ok_or(PostcommitCoordinationError)?;

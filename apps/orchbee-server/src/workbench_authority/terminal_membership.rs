@@ -99,6 +99,16 @@ impl WorkbenchTerminalMembership {
     }
 
     #[must_use]
+    pub fn members_for_tab(
+        &self,
+        tab_id: &WorkbenchTabId,
+    ) -> impl Iterator<Item = &WorkbenchTerminalTab> {
+        self.members
+            .iter()
+            .filter(move |member| member.tab_id() == tab_id)
+    }
+
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.members.is_empty()
     }
@@ -173,6 +183,13 @@ impl WorkbenchAuthority {
         context_id: &WorkbenchTerminalContextId,
     ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
         terminal_membership(self.projection.snapshot(), context_id)
+    }
+
+    pub fn terminal_tree_membership(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+    ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
+        tree_terminal_membership(self.projection.snapshot(), context_id)
     }
 
     pub fn standalone_membership(
@@ -314,6 +331,19 @@ pub(super) fn terminal_membership(
 ) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
     let context_kind = terminal_context_kind(snapshot, context_id)?;
     let (_context, members) = legacy_single_leaf_context(snapshot, context_id)?;
+    Ok(WorkbenchTerminalMembership {
+        terminal_context_id: context_id.clone(),
+        context_kind,
+        members,
+    })
+}
+
+pub(super) fn tree_terminal_membership(
+    snapshot: &Snapshot,
+    context_id: &WorkbenchTerminalContextId,
+) -> Result<WorkbenchTerminalMembership, WorkbenchTerminalInvariantError> {
+    let context_kind = terminal_context_kind(snapshot, context_id)?;
+    let (_context, members) = tree_membership_context(snapshot, context_id)?;
     Ok(WorkbenchTerminalMembership {
         terminal_context_id: context_id.clone(),
         context_kind,

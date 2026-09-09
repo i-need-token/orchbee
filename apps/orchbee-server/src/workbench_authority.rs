@@ -43,7 +43,8 @@ pub use terminal_tab_close::{
     WorkbenchTabClosePublicationError, WorkbenchTabCloseResolution,
     WorkbenchTabCloseResumeAdmission, WorkbenchTabCloseResumeBegin,
     WorkbenchTabCloseResumePreparation, WorkbenchTabCloseRuntimeTarget,
-    WorkbenchTabCloseRuntimeUnavailableReason, WorkbenchTabCloseTarget,
+    WorkbenchTabCloseRuntimeUnavailableReason, WorkbenchTabCloseStepTarget,
+    WorkbenchTabCloseTarget,
 };
 
 const MAXIMUM_LEDGER_ENTRIES: usize = 4096;

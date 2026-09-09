@@ -28,7 +28,7 @@ pub enum WorkbenchTabCloseResumePreparation<'a> {
 
 pub struct PreparedWorkbenchTabCloseResume<'a> {
     record: &'a mut CloseRecord,
-    continuation: PreparedCloseContinuationResume,
+    continuations: Vec<(usize, PreparedCloseContinuationResume)>,
     generation: WorkbenchTabCloseAttemptGeneration,
     receipt: AcceptedResumeReceipt,
     response: WorkbenchTabCloseResumeResult,
@@ -41,8 +41,28 @@ impl<'a> WorkbenchTabCloseResumeAdmission<'a> {
     }
 
     #[must_use]
+    pub fn targets(&self) -> impl Iterator<Item = &WorkbenchTabCloseTarget> {
+        self.record.targets()
+    }
+
+    #[must_use]
+    pub fn runtime_targets(&self) -> Vec<WorkbenchTabCloseTarget> {
+        self.record
+            .targets()
+            .enumerate()
+            .filter(|(index, _target)| self.record.target_requires_runtime(*index))
+            .map(|(_index, target)| target.clone())
+            .collect()
+    }
+
+    #[must_use]
+    pub fn needs_local_cleanup(&self) -> bool {
+        self.record.has_target_cleanup_pending()
+    }
+
+    #[must_use]
     pub fn status(&self) -> orchbee_workbench_protocol::WorkbenchTabCloseStatus {
-        self.record.continuation.status()
+        self.record.status()
     }
 
     #[must_use]
@@ -54,13 +74,13 @@ impl<'a> WorkbenchTabCloseResumeAdmission<'a> {
     #[must_use]
     pub fn finish(self, now: Instant) -> WorkbenchTabCloseResumePreparation<'a> {
         let Some(generation) = self.record.generation.checked_next() else {
-            self.record.continuation.generation_exhausted();
+            self.record.generation_exhausted();
             return WorkbenchTabCloseResumePreparation::Ready(resume_result(
                 &self.request,
                 rejected(WorkbenchTabCloseResumeRejectionReason::GenerationExhausted),
             ));
         };
-        let Ok(continuation) = self.record.continuation.prepare_resume(now) else {
+        let Ok(continuations) = self.record.prepare_resumes(now) else {
             return WorkbenchTabCloseResumePreparation::Ready(resume_result(&self.request, busy()));
         };
         let response = resume_result(
@@ -80,7 +100,7 @@ impl<'a> WorkbenchTabCloseResumeAdmission<'a> {
         };
         WorkbenchTabCloseResumePreparation::Prepared(Box::new(PreparedWorkbenchTabCloseResume {
             record: self.record,
-            continuation,
+            continuations,
             generation,
             receipt,
             response,
@@ -96,7 +116,7 @@ impl PreparedWorkbenchTabCloseResume<'_> {
 
     #[must_use]
     pub fn commit(self) -> WorkbenchTabCloseResumeResult {
-        self.record.continuation.commit_resume(self.continuation);
+        self.record.commit_resumes(self.continuations);
         self.record.generation = self.generation;
         self.record.resume_receipt = Some(self.receipt);
         self.response
@@ -120,8 +140,8 @@ impl WorkbenchAuthority {
                 .values()
                 .find_map(|entry| match entry {
                     RetainedRequest::TabClose(record)
-                        if record.target.terminal_context_id == request.terminal_context_id
-                            && record.target.member.tab_id() == &request.tab_id =>
+                        if record
+                            .matches_context_tab(&request.terminal_context_id, &request.tab_id) =>
                     {
                         Some(record)
                     }
@@ -133,7 +153,7 @@ impl WorkbenchAuthority {
                         terminal_context_id: record.target.terminal_context_id.clone(),
                         tab_id: record.target.member.tab_id().clone(),
                         attempt_generation: record.generation,
-                        status: record.continuation.status(),
+                        status: record.status(),
                     }
                 })
         };
@@ -164,8 +184,7 @@ impl WorkbenchAuthority {
             ));
         };
         if request.site_id != record.command.site_id
-            || request.terminal_context_id != record.target.terminal_context_id
-            || request.tab_id != *record.target.member.tab_id()
+            || !record.matches_context_tab(&request.terminal_context_id, &request.tab_id)
         {
             return WorkbenchTabCloseResumeBegin::Ready(resume_result(
                 &request,
@@ -198,7 +217,7 @@ impl WorkbenchAuthority {
                 rejected(WorkbenchTabCloseResumeRejectionReason::GenerationMismatch),
             ));
         }
-        if !record.continuation.is_resumable() || record.continuation.has_outstanding() {
+        if !record.is_resumable() || record.has_outstanding() {
             return WorkbenchTabCloseResumeBegin::Ready(resume_result(
                 &request,
                 rejected(WorkbenchTabCloseResumeRejectionReason::NotResumable),

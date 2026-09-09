@@ -102,10 +102,11 @@ impl LocalTerminalService {
             let mut selected = None;
             for id in operations[pivot..].iter().chain(&operations[..pivot]) {
                 let now = Instant::now();
-                let next = coordinator
+                let step = coordinator
                     .close_authority()?
-                    .next_terminal_tab_close_step(id, now)
+                    .next_terminal_tab_close_step_target(id, now)
                     .map_err(|_| PostcommitCoordinationError)?;
+                let next = step.next();
                 match next {
                     CloseContinuationNext::WaitUntil(at) => {
                         due = Some(due.map_or(at, |due: Instant| due.min(at)))
@@ -114,22 +115,18 @@ impl LocalTerminalService {
                     | CloseContinuationNext::Closed
                     | CloseContinuationNext::Outstanding => {}
                     actionable => {
-                        selected = Some((id.clone(), actionable));
+                        selected = Some((id.clone(), step, actionable));
                         break;
                     }
                 }
             }
-            let Some((id, next)) = selected else {
+            let Some((id, step, next)) = selected else {
                 return Ok(due);
             };
             *cursor = Some(id.clone());
             match next {
                 CloseContinuationNext::TargetCleanup => {
-                    let runtime = coordinator
-                        .close_authority()?
-                        .terminal_tab_close_target(&id)
-                        .ok_or(PostcommitCoordinationError)?
-                        .runtime();
+                    let runtime = step.target().ok_or(PostcommitCoordinationError)?.runtime();
                     // One Site guard spans exact removal and its retained completion marker.
                     if self
                         .complete_disposed_target_cleanup(&coordinator, &id, runtime)
@@ -156,18 +153,35 @@ impl LocalTerminalService {
                     }
                     return Ok(Some(Instant::now()));
                 }
-                CloseContinuationNext::Lifecycle { .. } => {}
+                CloseContinuationNext::Lifecycle {
+                    action,
+                    step_ordinal,
+                } => {
+                    let target = step.target().cloned().ok_or(PostcommitCoordinationError)?;
+                    let now = Instant::now();
+                    let Some(expiry) = expiry else {
+                        return Ok(now.checked_add(CANDIDATE_RETRY));
+                    };
+                    let matches = coordinator.close_runtime_matches_for_member(
+                        &id,
+                        target.member().binding(),
+                        worker,
+                    );
+                    let Some(token) = coordinator.reserve_close_lifecycle_step_for_target(
+                        &id,
+                        target,
+                        action,
+                        step_ordinal,
+                        now,
+                        expiry,
+                    )?
+                    else {
+                        return Ok(now.checked_add(CANDIDATE_RETRY));
+                    };
+                    (id, token, handle, matches)
+                }
                 _ => return Err(PostcommitCoordinationError),
             }
-            let now = Instant::now();
-            let Some(expiry) = expiry else {
-                return Ok(now.checked_add(CANDIDATE_RETRY));
-            };
-            let matches = coordinator.close_runtime_matches(&id, worker);
-            let Some(token) = coordinator.reserve_close_lifecycle_step(&id, now, expiry)? else {
-                return Ok(now.checked_add(CANDIDATE_RETRY));
-            };
-            (id, token, handle, matches)
         };
 
         // Prepared state is already retained. No owner gate spans queue admission or wait.

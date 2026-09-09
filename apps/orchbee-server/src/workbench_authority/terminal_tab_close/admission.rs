@@ -36,7 +36,7 @@ pub struct WorkbenchTabClosePrimaryAdmission<'a> {
     authority: &'a mut WorkbenchAuthority,
     command: WorkbenchCommand,
     membership: WorkbenchTerminalMembership,
-    member: super::super::WorkbenchTerminalTab,
+    members: Vec<super::super::WorkbenchTerminalTab>,
 }
 
 pub enum WorkbenchTabClosePreparation<'a> {
@@ -85,18 +85,17 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
     /// Site first validates standalone reference-derived composition when applicable.
     #[must_use]
     pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
-        let Some(member) = self
+        let members: Vec<_> = self
             .membership
-            .members()
-            .iter()
-            .find(|member| member.tab_id() == &self.tab_id)
+            .members_for_tab(&self.tab_id)
             .cloned()
-        else {
+            .collect();
+        if members.is_empty() {
             return WorkbenchTabCloseResolution::Ready(
                 self.authority
                     .retain_rejection(self.command, WorkbenchRejectionReason::TabUnavailable),
             );
-        };
+        }
         let existing = self
             .authority
             .ledger
@@ -112,7 +111,7 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
                 _ => None,
             });
         if let Some(record) = existing {
-            if record.is_closed() || record.target.member != member {
+            if record.is_closed() || !record.matches_members(&members) {
                 return WorkbenchTabCloseResolution::Ready(self.authority.retire(&self.command));
             }
             // Joining retained facts is effect-free even when the runtime is now unavailable.
@@ -132,7 +131,7 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
             authority: self.authority,
             command: self.command,
             membership: self.membership,
-            member,
+            members,
         }))
     }
 }
@@ -140,7 +139,12 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
 impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
     #[must_use]
     pub fn member(&self) -> &super::super::WorkbenchTerminalTab {
-        &self.member
+        self.members.first().expect("Close membership is nonempty")
+    }
+
+    #[must_use]
+    pub fn members(&self) -> &[super::super::WorkbenchTerminalTab] {
+        &self.members
     }
 
     #[must_use]
@@ -164,7 +168,27 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         observed_phase: Option<LifecycleTerminalPhase>,
         now: Instant,
     ) -> WorkbenchTabClosePreparation<'a> {
-        if !runtime.matches_member(&self.member) {
+        self.finish_members(vec![(runtime, observed_phase)], now)
+    }
+
+    /// The Site supplies one exact runtime observation for every frozen leaf,
+    /// in the deterministic membership order.
+    #[must_use]
+    pub fn finish_members(
+        self,
+        runtimes: Vec<(
+            WorkbenchTabCloseRuntimeTarget,
+            Option<LifecycleTerminalPhase>,
+        )>,
+        now: Instant,
+    ) -> WorkbenchTabClosePreparation<'a> {
+        if runtimes.len() != self.members.len()
+            || self
+                .members
+                .iter()
+                .zip(&runtimes)
+                .any(|(member, (runtime, _))| !runtime.matches_member(member))
+        {
             return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
         }
         if let Err(failure) = self.authority.next_revision() {
@@ -175,12 +199,6 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
                 PlanFailure::Internal => self.authority.retire(&self.command),
             });
         }
-        let Some(continuation) = CloseContinuation::prepare(now, observed_phase) else {
-            return WorkbenchTabClosePreparation::Ready(result(
-                &self.command,
-                unavailable(WorkbenchCommandUnavailableReason::ServerBusy),
-            ));
-        };
         let Ok(generation) = WorkbenchTabCloseAttemptGeneration::new(1) else {
             return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
         };
@@ -189,7 +207,7 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             WorkbenchCommandOutcome::TabCloseAccepted {
                 close_request_id: self.command.request_id.clone(),
                 terminal_context_id: self.membership.terminal_context_id().clone(),
-                tab_id: self.member.tab_id().clone(),
+                tab_id: self.member().tab_id().clone(),
                 accepted_revision: self.command.expected_revision,
             },
         );
@@ -209,18 +227,35 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
             ));
         }
         let request_id = self.command.request_id.clone();
+        let mut targets = Vec::with_capacity(self.members.len());
+        let mut continuations = Vec::with_capacity(self.members.len());
+        for (member, (runtime, observed_phase)) in self.members.into_iter().zip(runtimes) {
+            let Some(continuation) = CloseContinuation::prepare(now, observed_phase) else {
+                return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
+            };
+            targets.push(WorkbenchTabCloseTarget {
+                terminal_context_id: self.membership.terminal_context_id().clone(),
+                member,
+                runtime,
+            });
+            continuations.push(continuation);
+        }
+        let mut targets = targets.into_iter();
+        let mut continuations = continuations.into_iter();
+        let target = targets.next().expect("Close membership is nonempty");
+        let continuation = continuations.next().expect("Close membership is nonempty");
         let record = Box::new(CloseRecord {
             command: self.command,
             result: response.clone(),
-            target: WorkbenchTabCloseTarget {
-                terminal_context_id: self.membership.terminal_context_id().clone(),
-                member: self.member,
-                runtime,
-            },
+            target,
+            additional_targets: targets.collect(),
             generation,
             resume_receipt: None,
             reserved_bytes,
             continuation,
+            additional_continuations: continuations.collect(),
+            scheduler_cursor: 0,
+            closed_revision: None,
         });
         WorkbenchTabClosePreparation::Prepared(Box::new(PreparedWorkbenchTabClose {
             authority: self.authority,
@@ -314,7 +349,7 @@ impl WorkbenchAuthority {
         if let Some(reason) = rejection {
             return WorkbenchTabCloseBegin::Ready(self.retain_rejection(command, reason));
         }
-        let membership = match self.terminal_membership(&terminal_context_id) {
+        let membership = match self.terminal_tree_membership(&terminal_context_id) {
             Ok(membership) => membership,
             Err(_invariant) => return WorkbenchTabCloseBegin::Ready(self.retire(&command)),
         };

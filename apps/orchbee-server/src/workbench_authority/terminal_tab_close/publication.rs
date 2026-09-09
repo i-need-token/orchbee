@@ -28,6 +28,7 @@ pub struct PreparedWorkbenchTabClosePublication<'a> {
     before: WorkbenchTerminalMembership,
     after: WorkbenchTerminalMembership,
     removed: WorkbenchTerminalTab,
+    removed_members: Vec<WorkbenchTerminalTab>,
     revision: WorkbenchRevision,
     status: WorkbenchTabCloseStatus,
 }
@@ -46,6 +47,10 @@ impl PreparedWorkbenchTabClosePublication<'_> {
         &self.removed
     }
     #[must_use]
+    pub fn exact_removed_members(&self) -> &[WorkbenchTerminalTab] {
+        &self.removed_members
+    }
+    #[must_use]
     pub fn status(&self) -> &WorkbenchTabCloseStatus {
         &self.status
     }
@@ -58,7 +63,6 @@ impl PreparedWorkbenchTabClosePublication<'_> {
     pub fn retire_composition_failure(self) {
         *self.retired = true;
         self.record
-            .continuation
             .publication_failed(WorkbenchTabClosePublicationReason::AuthorityRetired);
     }
 
@@ -66,7 +70,7 @@ impl PreparedWorkbenchTabClosePublication<'_> {
     #[must_use]
     pub fn commit(self) -> WorkbenchTabCloseStatus {
         self.projection.commit_prepared(self.prepared);
-        self.record.continuation.commit_closed(self.revision);
+        self.record.commit_closed(self.revision);
         self.status
     }
 }
@@ -80,8 +84,8 @@ impl WorkbenchAuthority {
         let Some(record) = self.close_record_mut(close_request_id) else {
             return Err(WorkbenchTabClosePublicationError::OperationUnavailable);
         };
-        if record.continuation.next(now) != super::continuation::CloseContinuationNext::Publication
-            || !record.continuation.publication_ready()
+        if record.next_step(now).next() != super::continuation::CloseContinuationNext::Publication
+            || !record.publication_ready()
         {
             return Err(WorkbenchTabClosePublicationError::NotReady);
         }
@@ -94,14 +98,18 @@ impl WorkbenchAuthority {
                 WorkbenchTabClosePublicationError::AuthorityRetired,
             );
         }
-        let target = record.target.clone();
+        let targets: Vec<_> = record.targets().cloned().collect();
+        let target = targets
+            .first()
+            .cloned()
+            .ok_or(WorkbenchTabClosePublicationError::CompositionMismatch)?;
         if self.ledger_bytes < record.reserved_bytes {
             return self.fail_close_publication(
                 close_request_id,
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
         }
-        let before = match self.terminal_membership(&target.terminal_context_id) {
+        let before = match self.terminal_tree_membership(&target.terminal_context_id) {
             Ok(membership) => membership,
             Err(_error) => {
                 return self.fail_close_publication(
@@ -110,13 +118,12 @@ impl WorkbenchAuthority {
                 );
             }
         };
-        let mut exact = before
-            .members()
-            .iter()
-            .filter(|member| *member == &target.member);
+        let actual_tab_members: Vec<_> = before.members_for_tab(target.member.tab_id()).collect();
         if before.terminal_context_id() != &target.terminal_context_id
-            || exact.next().is_none()
-            || exact.next().is_some()
+            || actual_tab_members.len() != targets.len()
+            || !actual_tab_members
+                .into_iter()
+                .eq(targets.iter().map(|target| &target.member))
         {
             return self.fail_close_publication(
                 close_request_id,
@@ -150,7 +157,7 @@ impl WorkbenchAuthority {
             .tabs
             .retain(|tab| &tab.tab_id != target.member.tab_id());
         candidate.revision = revision;
-        let after = match super::super::terminal_membership::terminal_membership(
+        let after = match super::super::terminal_membership::tree_terminal_membership(
             &candidate,
             &target.terminal_context_id,
         ) {
@@ -183,6 +190,7 @@ impl WorkbenchAuthority {
             before,
             after,
             removed: target.member,
+            removed_members: targets.into_iter().map(|target| target.member).collect(),
             revision,
             status,
         })
@@ -205,7 +213,7 @@ impl WorkbenchAuthority {
             WorkbenchTabClosePublicationReason::PreparationFailed
         };
         if let Some(record) = self.close_record_mut(close_request_id) {
-            record.continuation.publication_failed(reason);
+            record.publication_failed(reason);
         }
         Err(failure)
     }

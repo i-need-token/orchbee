@@ -45,7 +45,8 @@ impl SiteCoordinator {
         let Some(close_id) = authority.terminal_tab_close_request_for_binding(&binding) else {
             return TargetLifecycle::Unfenced;
         };
-        let Some(retained) = authority.terminal_tab_close_target(close_id) else {
+        let Some(retained) = authority.terminal_tab_close_target_for_binding(close_id, &binding)
+        else {
             return TargetLifecycle::Fenced;
         };
         let runtime = retained.runtime();
@@ -53,7 +54,7 @@ impl SiteCoordinator {
             && runtime.worker_generation() == target.worker.generation
             && runtime.terminal_id() == target.terminal_id
             && runtime.host_identity() == target.identity
-            && is_disposed(authority.terminal_tab_close_status(close_id))
+            && is_disposed(authority.terminal_tab_close_target_status(close_id, runtime))
         {
             TargetLifecycle::Disposed
         } else {
@@ -67,10 +68,7 @@ impl SiteCoordinator {
         runtime: WorkbenchTabCloseRuntimeTarget,
     ) -> bool {
         self.workbench.as_ref().is_some_and(|authority| {
-            authority
-                .terminal_tab_close_target(close_id)
-                .is_some_and(|target| target.runtime() == runtime)
-                && is_disposed(authority.terminal_tab_close_status(close_id))
+            is_disposed(authority.terminal_tab_close_target_status(close_id, runtime))
         })
     }
 

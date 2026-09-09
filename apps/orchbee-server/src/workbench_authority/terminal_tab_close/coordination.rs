@@ -10,7 +10,10 @@ use super::continuation::{
     CloseContinuationNext, CloseStepObservation, CloseStepPrequeueFailure, CloseStepToken,
     CloseStepTokenMismatch,
 };
-use super::{WorkbenchTabCloseRuntimeTarget, WorkbenchTabCloseTarget};
+use super::{
+    CloseContinuation, CloseRecord, WorkbenchTabCloseRuntimeTarget, WorkbenchTabCloseStepTarget,
+    WorkbenchTabCloseTarget,
+};
 
 impl WorkbenchAuthority {
     /// Product identities are never reused; retained tombstones also fence new target effects.
@@ -31,7 +34,9 @@ impl WorkbenchAuthority {
         self.ledger
             .iter()
             .find_map(|(request_id, entry)| match entry {
-                RetainedRequest::TabClose(record) if record.target.member.binding() == binding => {
+                RetainedRequest::TabClose(record)
+                    if record.target_index_for_binding(binding).is_some() =>
+                {
                     Some(request_id)
                 }
                 _ => None,
@@ -43,8 +48,7 @@ impl WorkbenchAuthority {
         &self,
         close_request_id: &WorkbenchRequestId,
     ) -> Option<orchbee_workbench_protocol::WorkbenchTabCloseStatus> {
-        self.close_record(close_request_id)
-            .map(|record| record.continuation.status())
+        self.close_record(close_request_id).map(CloseRecord::status)
     }
 
     pub fn terminal_tab_close_operations(&self) -> impl Iterator<Item = &WorkbenchRequestId> {
@@ -66,6 +70,27 @@ impl WorkbenchAuthority {
     }
 
     #[must_use]
+    pub fn terminal_tab_close_target_for_binding(
+        &self,
+        close_request_id: &WorkbenchRequestId,
+        binding: &orchbee_workbench_protocol::PresentationBinding,
+    ) -> Option<&WorkbenchTabCloseTarget> {
+        self.close_record(close_request_id)
+            .and_then(|record| record.target_for_binding(binding))
+    }
+
+    #[must_use]
+    pub fn terminal_tab_close_target_status(
+        &self,
+        close_request_id: &WorkbenchRequestId,
+        runtime: WorkbenchTabCloseRuntimeTarget,
+    ) -> Option<orchbee_workbench_protocol::WorkbenchTabCloseStatus> {
+        let record = self.close_record(close_request_id)?;
+        let index = record.target_index_for_runtime(runtime)?;
+        record.continuation(index).map(CloseContinuation::status)
+    }
+
+    #[must_use]
     pub fn terminal_tab_close_generation(
         &self,
         close_request_id: &WorkbenchRequestId,
@@ -79,11 +104,19 @@ impl WorkbenchAuthority {
         close_request_id: &WorkbenchRequestId,
         now: Instant,
     ) -> Result<CloseContinuationNext, CloseStepTokenMismatch> {
+        self.next_terminal_tab_close_step_target(close_request_id, now)
+            .map(|step| step.next())
+    }
+
+    pub fn next_terminal_tab_close_step_target(
+        &mut self,
+        close_request_id: &WorkbenchRequestId,
+        now: Instant,
+    ) -> Result<WorkbenchTabCloseStepTarget, CloseStepTokenMismatch> {
         Ok(self
             .close_record_mut(close_request_id)
             .ok_or(CloseStepTokenMismatch)?
-            .continuation
-            .next(now))
+            .next_step(now))
     }
 
     pub fn reserve_terminal_tab_close_step(
@@ -95,7 +128,13 @@ impl WorkbenchAuthority {
         let record = self
             .close_record_mut(close_request_id)
             .ok_or(CloseStepTokenMismatch)?;
-        let runtime = record.target.runtime;
+        let index = record
+            .target_index_for_request(&request)
+            .ok_or(CloseStepTokenMismatch)?;
+        let runtime = record
+            .target(index)
+            .ok_or(CloseStepTokenMismatch)?
+            .runtime();
         let canonical_id = u128::from_str_radix(record.command.request_id.as_str(), 16)
             .map_err(|_error| CloseStepTokenMismatch)?
             .to_be_bytes();
@@ -111,7 +150,10 @@ impl WorkbenchAuthority {
         }
         let generation =
             NonZeroU64::new(record.generation.value()).ok_or(CloseStepTokenMismatch)?;
-        record.continuation.reserve_step(now, generation, request)
+        record
+            .continuation_mut(index)
+            .ok_or(CloseStepTokenMismatch)?
+            .reserve_step(now, generation, request)
     }
 
     pub fn confirm_terminal_tab_close_step_admitted(
@@ -123,10 +165,14 @@ impl WorkbenchAuthority {
         let record = self
             .close_record_mut(close_request_id)
             .ok_or(CloseStepTokenMismatch)?;
+        let index = record
+            .target_index_for_request(&token.request())
+            .ok_or(CloseStepTokenMismatch)?;
         let generation =
             NonZeroU64::new(record.generation.value()).ok_or(CloseStepTokenMismatch)?;
         record
-            .continuation
+            .continuation_mut(index)
+            .ok_or(CloseStepTokenMismatch)?
             .confirm_admitted(token, admitted_at, generation)
     }
 
@@ -137,9 +183,15 @@ impl WorkbenchAuthority {
         now: Instant,
         failure: CloseStepPrequeueFailure,
     ) -> Result<(), CloseStepTokenMismatch> {
-        self.close_record_mut(close_request_id)
+        let record = self
+            .close_record_mut(close_request_id)
+            .ok_or(CloseStepTokenMismatch)?;
+        let index = record
+            .target_index_for_request(&token.request())
+            .ok_or(CloseStepTokenMismatch)?;
+        record
+            .continuation_mut(index)
             .ok_or(CloseStepTokenMismatch)?
-            .continuation
             .reject_prequeue(token, now, failure)
     }
 
@@ -153,10 +205,14 @@ impl WorkbenchAuthority {
         let record = self
             .close_record_mut(close_request_id)
             .ok_or(CloseStepTokenMismatch)?;
+        let index = record
+            .target_index_for_request(&token.request())
+            .ok_or(CloseStepTokenMismatch)?;
         let generation =
             NonZeroU64::new(record.generation.value()).ok_or(CloseStepTokenMismatch)?;
         record
-            .continuation
+            .continuation_mut(index)
+            .ok_or(CloseStepTokenMismatch)?
             .settle_step(token, now, generation, observation)
     }
 
@@ -169,7 +225,14 @@ impl WorkbenchAuthority {
         let record = self
             .close_record_mut(close_request_id)
             .ok_or(CloseStepTokenMismatch)?;
-        if record.target.runtime != runtime || !record.continuation.target_cleanup_complete() {
+        let index = record
+            .target_index_for_runtime(runtime)
+            .ok_or(CloseStepTokenMismatch)?;
+        if !record
+            .continuation_mut(index)
+            .ok_or(CloseStepTokenMismatch)?
+            .target_cleanup_complete()
+        {
             return Err(CloseStepTokenMismatch);
         }
         Ok(())
@@ -183,7 +246,14 @@ impl WorkbenchAuthority {
         let record = self
             .close_record_mut(close_request_id)
             .ok_or(CloseStepTokenMismatch)?;
-        if record.target.runtime != runtime || !record.continuation.target_cleanup_failed() {
+        let index = record
+            .target_index_for_runtime(runtime)
+            .ok_or(CloseStepTokenMismatch)?;
+        if !record
+            .continuation_mut(index)
+            .ok_or(CloseStepTokenMismatch)?
+            .target_cleanup_failed()
+        {
             return Err(CloseStepTokenMismatch);
         }
         Ok(())
