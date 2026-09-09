@@ -2,6 +2,7 @@ use super::*;
 mod tab_close;
 mod tab_move;
 mod tab_rename;
+mod workspace_setup;
 use crate::local_client::{
     SystemMonotonicClock,
     workbench::{

@@ -72,6 +72,16 @@ fn marks_only_wide_sidebar_reflow_as_a_layout_change() {
 #[test]
 fn decides_each_completed_prefix_without_mutating_the_view() {
     let fixed_cases = [
+        (
+            ClientKey::Plain('a'),
+            ClientAction::RequestWorkspaceCreate,
+            None,
+        ),
+        (
+            ClientKey::Plain('e'),
+            ClientAction::RequestWorkspaceDirectory,
+            None,
+        ),
         (ClientKey::Plain('c'), ClientAction::CreateTab, None),
         (ClientKey::Plain('<'), ClientAction::MovePreviousTab, None),
         (ClientKey::Plain('>'), ClientAction::MoveNextTab, None),

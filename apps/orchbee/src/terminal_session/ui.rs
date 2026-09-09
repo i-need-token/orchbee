@@ -33,6 +33,11 @@ mod move_membership;
 #[cfg(target_os = "linux")]
 mod retired_membership;
 mod tab_close;
+mod workspace_setup;
+pub(crate) use workspace_setup::{
+    NativeSetupDraftView, NativeSetupEdit, NativeSetupInputContext, NativeSetupStage,
+    NativeSetupStatus, NativeSetupToken,
+};
 mod tab_rename;
 pub(crate) use tab_close::{
     NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
@@ -310,6 +315,8 @@ mod move_membership_tests;
 mod rename_membership_tests;
 #[cfg(all(test, target_os = "linux"))]
 mod retired_membership_tests;
+#[cfg(test)]
+mod workspace_setup_tests;
 
 impl NativeUi {
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
@@ -561,6 +568,7 @@ impl NativeUi {
         {
             self.invalidate_close_display();
             self.invalidate_rename_display();
+            self.invalidate_setup_display();
         }
         if self.retirement_failure.is_some() {
             return;
@@ -670,7 +678,14 @@ impl NativeUi {
         if self.retirement_failure.is_some() {
             return SessionActionDisposition::KeepNavigator;
         }
+        if let Some(state) = self.state.as_mut() {
+            state.clear_settled_setup_status();
+        }
         match action {
+            ClientAction::RequestWorkspaceCreate | ClientAction::RequestWorkspaceDirectory => {
+                self.request_setup_draft(matches!(action, ClientAction::RequestWorkspaceDirectory));
+                SessionActionDisposition::KeepNavigator
+            }
             ClientAction::RequestRenameTab => {
                 if self.request_rename_draft().is_some() {
                     SessionActionDisposition::DismissNavigator
@@ -845,6 +860,13 @@ impl NativeUi {
     }
 
     fn open_navigator(&mut self) -> SessionActionDisposition {
+        if self
+            .state
+            .as_ref()
+            .is_some_and(NativeSessionState::setup_recovery)
+        {
+            return self.refresh_workspace_setup();
+        }
         let mut reconcile = false;
         if let Some(state) = &mut self.state {
             state.request_close_manual_pass();
@@ -1004,6 +1026,9 @@ impl NativeUi {
             WorkerEvent::MoveResult { operation, outcome } => {
                 return self.apply_move_event(mailbox, wait_key, operation, outcome);
             }
+            WorkerEvent::WorkspaceSetupResult { operation, outcome } => {
+                return self.apply_workspace_setup_event(mailbox, wait_key, operation, outcome);
+            }
             WorkerEvent::RenameResult { operation, outcome } => {
                 return self.apply_rename_event(mailbox, wait_key, operation, outcome);
             }
@@ -1021,7 +1046,8 @@ impl NativeUi {
         let mut install_projection = None;
         let result = mailbox.deposit_ui_reply_before(&wait_key, &self.clock, |transaction| {
             let reply = match event {
-                WorkerEvent::RenameResult { .. }
+                WorkerEvent::WorkspaceSetupResult { .. }
+                | WorkerEvent::RenameResult { .. }
                 | WorkerEvent::MoveResult { .. }
                 | WorkerEvent::CloseReconciliationSnapshot { .. }
                 | WorkerEvent::MembershipGone { .. }
@@ -1184,12 +1210,15 @@ impl NativeUi {
         // Projection and append-only validation are bounded but intentionally run outside the
         // mailbox mutex. Only the prepared value is committed in the exact reply transaction.
         let prepared = state.prepare_refresh(generation, outcome);
-        let recovery_deadlines = state.context_selection_deadlines().or_else(|| {
-            prepared
-                .needs_recovery_deadlines()
-                .then(|| OperationDeadlines::from_sample(self.clock.now()))
-                .flatten()
-        });
+        let recovery_deadlines = state
+            .setup_deadlines()
+            .or_else(|| state.context_selection_deadlines())
+            .or_else(|| {
+                prepared
+                    .needs_recovery_deadlines()
+                    .then(|| OperationDeadlines::from_sample(self.clock.now()))
+                    .flatten()
+            });
         if let super::state::PreparedRefresh::CreateMembership {
             generation,
             operation,

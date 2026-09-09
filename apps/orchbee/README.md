@@ -77,6 +77,8 @@ explicit refresh. These controls use the existing `Ctrl+B` prefix:
 | `n` / `p` | Select the next / previous Tab in the current Client snapshot.                                     |
 | `1` … `9` | Select that position when present.                                                                 |
 | `[` / `]` | Select the previous / next standalone or Workspace context in Server navigation order.             |
+| `a`       | Create a Workspace in an existing or new Project through separate explicit submissions.            |
+| `e`       | Configure the first directory of the current Empty, unconfigured Workspace.                        |
 | `<` / `>` | Move the active Tab before / after its neighbor, wrapping at either boundary.                      |
 | `,`       | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels. |
 | `x`       | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                  |
@@ -86,7 +88,9 @@ explicit refresh. These controls use the existing `Ctrl+B` prefix:
 [Context selection](docs/native-context-selection.md) preserves each retained terminal while
 switching location. The navigator and Workbench title show the current Project/Workspace. Empty
 Workspaces can be entered and left; only explicit `c` creates a terminal, using the Workspace's
-accepted directory. Workspace creation and directory configuration UI remain separate work.
+accepted directory. [Workspace setup](docs/native-workspace-setup.md) provides creation and literal
+absolute-path input. Each step requires a complete first draw; cancellation preserves earlier
+committed objects. Directory acceptance never starts a terminal.
 
 Creation drains earlier accepted work and preserves known commit facts through deadline and Client
 retirement. Switching releases the old viewer before attaching the selected binding; it does not

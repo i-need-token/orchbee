@@ -16,6 +16,7 @@ pub(super) struct NativeContextTabs {
     tabs: Vec<NativeSimpleTab>,
     location: NativeContextLocation,
     navigation: std::sync::Arc<[NativeContext]>,
+    projects: std::sync::Arc<[orchbee_workbench_protocol::Project]>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -48,6 +49,32 @@ pub(super) struct NativeContext {
 }
 
 impl NativeContextTabs {
+    pub(super) fn projects(&self) -> &[orchbee_workbench_protocol::Project] {
+        &self.projects
+    }
+
+    pub(super) fn directory(&self) -> Option<&orchbee_workbench_protocol::Directory> {
+        let NativeContextLocation::Workspace {
+            project_id,
+            workspace_id,
+            ..
+        } = &self.location
+        else {
+            return None;
+        };
+        let project = self.projects.iter().find(|p| &p.project_id == project_id)?;
+        let directory = project
+            .workspaces
+            .iter()
+            .find(|w| &w.workspace_id == workspace_id)?
+            .primary_directory_id
+            .as_ref()?;
+        project
+            .directories
+            .iter()
+            .find(|entry| &entry.directory_id == directory)
+    }
+
     pub(super) fn location(&self) -> &NativeContextLocation {
         &self.location
     }
@@ -264,6 +291,16 @@ pub(super) fn project_native_context_tabs(
     }];
     for project in &snapshot.navigation.projects {
         for workspace in &project.workspaces {
+            if workspace.primary_directory_id.as_ref().is_some_and(|id| {
+                project
+                    .directories
+                    .iter()
+                    .filter(|directory| &directory.directory_id == id)
+                    .count()
+                    != 1
+            }) {
+                return Err(NativeProjectionError);
+            }
             if navigation.len() == MAXIMUM_TERMINAL_CONTEXTS {
                 return Err(NativeProjectionError);
             }
@@ -317,6 +354,7 @@ pub(super) fn project_native_context_tabs(
         tabs,
         location: location.clone(),
         navigation: navigation.into(),
+        projects: snapshot.navigation.projects.clone().into(),
     })
 }
 
@@ -461,7 +499,9 @@ pub(super) fn validate_canonical_candidate(
         &current.tabs,
         candidate,
     )?;
-    if candidate.revision == current.revision && candidate.navigation != current.navigation {
+    if candidate.revision == current.revision
+        && (candidate.navigation != current.navigation || candidate.projects != current.projects)
+    {
         return Err(NativeProjectionDivergence);
     }
     Ok(())

@@ -69,6 +69,8 @@ navigator 与 viewport；另一 Client 新建的 Tab 在显式刷新后可见。
 | `n` / `p` | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                  |
 | `1` … `9` | 该位置存在时选择它。                                                |
 | `[` / `]` | 按 Server 导航顺序选择上一个 / 下一个独立上下文或 Workspace。       |
+| `a`       | 通过分步显式提交，在已有或新建 Project 中创建 Workspace。           |
+| `e`       | 配置当前尚未配置且为空的 Workspace 的首个目录。                     |
 | `<` / `>` | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                      |
 | `,`       | 编辑所选 Tab 的共享 label；首次完整绘制后 Enter 提交，Escape 取消。 |
 | `x`       | 确认关闭所选 Tab 对所有已连接 Client 的执行，或取消。               |
@@ -77,7 +79,9 @@ navigator 与 viewport；另一 Client 新建的 Tab 在显式刷新后可见。
 
 [上下文选择](docs/native-context-selection.zh-CN.md) 在切换位置时保留各终端的执行。
 导航器和 Workbench 标题显示当前 Project/Workspace。可以进入和离开空 Workspace；只有显式 `c`
-才使用 Workspace 已接受的目录创建终端。Workspace 创建和目录配置 UI 仍属独立工作。
+才使用 Workspace 已接受的目录创建终端。[Workspace 设置](docs/native-workspace-setup.zh-CN.md)
+提供创建及字面绝对路径输入。每一步要求首次完整绘制；取消保留更早已提交的对象。
+目录接受绝不启动终端。
 
 创建会排空此前已接受的工作，并在截止时间或 Client 退役时保留已知提交事实。
 切换先释放旧 viewer，再附着所选 binding；不会停止或重建任一终端。

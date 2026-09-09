@@ -9,8 +9,31 @@ use utf8::Scalar;
 const WAIT: Duration = Duration::from_millis(50);
 const MAX_SEQUENCE: usize = 32;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) enum ModalCapacity {
+    #[default]
+    Scalars512,
+    Bytes4096,
+}
+
+impl ModalCapacity {
+    fn bound(self, remaining: usize) -> usize {
+        remaining.min(match self {
+            Self::Scalars512 => 512,
+            Self::Bytes4096 => 4096,
+        })
+    }
+
+    fn cost(self, character: char) -> usize {
+        match self {
+            Self::Scalars512 => 1,
+            Self::Bytes4096 => character.len_utf8(),
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
-pub(super) enum RenameInputEvent {
+pub(super) enum ModalInputEvent {
     Append(String),
     Backspace,
     Clear,
@@ -53,16 +76,18 @@ impl Sequence {
     }
 }
 
-pub(super) struct RenameDecoder {
+pub(super) struct ModalDecoder {
+    capacity: ModalCapacity,
     phase: Phase,
     editing: bool,
     handoff_deadline: Option<Instant>,
     swallow_lf: bool,
 }
 
-impl Default for RenameDecoder {
+impl Default for ModalDecoder {
     fn default() -> Self {
         Self {
+            capacity: ModalCapacity::Scalars512,
             phase: Phase::Idle,
             editing: false,
             handoff_deadline: None,
@@ -71,21 +96,27 @@ impl Default for RenameDecoder {
     }
 }
 
-impl RenameDecoder {
+impl ModalDecoder {
     pub(super) fn owns_input(&self) -> bool {
         !matches!(self.phase, Phase::Idle)
     }
 
+    #[cfg(test)]
     pub(super) fn start(&mut self) -> bool {
+        self.start_with_capacity(ModalCapacity::Scalars512)
+    }
+
+    pub(super) fn start_with_capacity(&mut self, capacity: ModalCapacity) -> bool {
         if self.owns_input() {
             return false;
         }
         self.editing = true;
+        self.capacity = capacity;
         self.phase = Phase::Text;
         true
     }
 
-    pub(super) fn cancel(&mut self, now: Instant) -> Vec<RenameInputEvent> {
+    pub(super) fn cancel(&mut self, now: Instant) -> Vec<ModalInputEvent> {
         let mut events = Vec::new();
         if !self.editing {
             return events;
@@ -104,13 +135,13 @@ impl RenameDecoder {
         events
     }
 
-    pub(super) fn tick(&mut self, now: Instant) -> Vec<RenameInputEvent> {
+    pub(super) fn tick(&mut self, now: Instant) -> Vec<ModalInputEvent> {
         let mut events = Vec::new();
         if matches!(self.phase, Phase::Escape(deadline) if now >= deadline) {
             self.phase = Phase::Quiet;
             if self.editing {
                 self.editing = false;
-                events.push(RenameInputEvent::Cancel);
+                events.push(ModalInputEvent::Cancel);
             }
             self.reset_quiet_deadline(now, &mut events);
         }
@@ -130,7 +161,7 @@ impl RenameDecoder {
         byte: u8,
         now: Instant,
         remaining: usize,
-    ) -> (bool, Vec<RenameInputEvent>) {
+    ) -> (bool, Vec<ModalInputEvent>) {
         let mut events = self.tick(now);
         if self.swallow_lf {
             self.swallow_lf = false;
@@ -170,14 +201,14 @@ impl RenameDecoder {
                 PasteStep::Pending => self.phase = Phase::Paste(paste),
                 PasteStep::Fault => {
                     if self.editing {
-                        events.push(RenameInputEvent::Fault);
+                        events.push(ModalInputEvent::Fault);
                     }
                     self.phase = Phase::Paste(paste);
                 }
                 PasteStep::Complete(text) => {
                     self.finish_frame(now, &mut events);
                     if self.editing {
-                        events.push(text.map_or(RenameInputEvent::Fault, RenameInputEvent::Append));
+                        events.push(text.map_or(ModalInputEvent::Fault, ModalInputEvent::Append));
                     }
                 }
             },
@@ -186,22 +217,25 @@ impl RenameDecoder {
         (true, events)
     }
 
-    fn text_byte(&mut self, byte: u8, now: Instant, events: &mut Vec<RenameInputEvent>) {
+    fn text_byte(&mut self, byte: u8, now: Instant, events: &mut Vec<ModalInputEvent>) {
         self.phase = Phase::Text;
         match byte {
+            0 if self.capacity == ModalCapacity::Bytes4096 => {
+                events.push(ModalInputEvent::Append("\0".to_owned()));
+            }
             0x1b => {
-                events.push(RenameInputEvent::Completeness(false));
+                events.push(ModalInputEvent::Completeness(false));
                 self.escape(now, events);
             }
-            8 | 127 => events.push(RenameInputEvent::Backspace),
-            21 => events.push(RenameInputEvent::Clear),
+            8 | 127 => events.push(ModalInputEvent::Backspace),
+            21 => events.push(ModalInputEvent::Clear),
             b'\r' | b'\n' => {
                 self.swallow_lf = byte == b'\r';
-                events.push(RenameInputEvent::Submit);
+                events.push(ModalInputEvent::Submit);
             }
-            32..=126 => events.push(RenameInputEvent::Append(char::from(byte).to_string())),
+            32..=126 => events.push(ModalInputEvent::Append(char::from(byte).to_string())),
             0x80..=0xff => {
-                events.push(RenameInputEvent::Completeness(false));
+                events.push(ModalInputEvent::Completeness(false));
                 self.scalar_byte(Scalar::default(), false, byte, now, events);
             }
             _ => {}
@@ -214,24 +248,24 @@ impl RenameDecoder {
         discard: bool,
         byte: u8,
         now: Instant,
-        events: &mut Vec<RenameInputEvent>,
+        events: &mut Vec<ModalInputEvent>,
     ) {
         match scalar.push(byte) {
             Ok(None) => self.phase = Phase::Utf8 { scalar, discard },
             Ok(Some(character)) => {
                 self.finish_frame(now, events);
                 if self.editing && !discard {
-                    events.push(RenameInputEvent::Append(character.to_string()));
+                    events.push(ModalInputEvent::Append(character.to_string()));
                 }
             }
             Err(()) => {
                 if self.editing {
-                    events.push(RenameInputEvent::Fault);
+                    events.push(ModalInputEvent::Fault);
                 }
                 self.finish_frame(now, events);
                 if byte == 0x1b {
                     if self.editing {
-                        events.push(RenameInputEvent::Completeness(false));
+                        events.push(ModalInputEvent::Completeness(false));
                     }
                     self.escape(now, events);
                 }
@@ -245,7 +279,7 @@ impl RenameDecoder {
         byte: u8,
         now: Instant,
         remaining: usize,
-        events: &mut Vec<RenameInputEvent>,
+        events: &mut Vec<ModalInputEvent>,
     ) {
         let final_byte = (0x40..=0x7e).contains(&byte);
         if !sequence.drain {
@@ -255,7 +289,7 @@ impl RenameDecoder {
             if sequence.length == MAX_SEQUENCE || !valid {
                 sequence.drain = true;
                 if self.editing {
-                    events.push(RenameInputEvent::Fault);
+                    events.push(ModalInputEvent::Fault);
                 }
             } else {
                 sequence.bytes[sequence.length] = byte;
@@ -265,7 +299,7 @@ impl RenameDecoder {
         }
         if final_byte {
             if !sequence.drain && &sequence.bytes[..sequence.length] == b"\x1b[200~" {
-                let mut paste = Paste::new(remaining);
+                let mut paste = Paste::new(self.capacity, remaining);
                 if !self.editing {
                     paste.discard();
                 }
@@ -278,16 +312,16 @@ impl RenameDecoder {
         }
     }
 
-    fn finish_frame(&mut self, now: Instant, events: &mut Vec<RenameInputEvent>) {
+    fn finish_frame(&mut self, now: Instant, events: &mut Vec<ModalInputEvent>) {
         if self.editing {
             self.phase = Phase::Text;
-            events.push(RenameInputEvent::Completeness(true));
+            events.push(ModalInputEvent::Completeness(true));
         } else if self.reset_quiet_deadline(now, events) {
             self.phase = Phase::Quiet;
         }
     }
 
-    fn escape(&mut self, now: Instant, events: &mut Vec<RenameInputEvent>) {
+    fn escape(&mut self, now: Instant, events: &mut Vec<ModalInputEvent>) {
         if let Some(deadline) = now.checked_add(WAIT) {
             self.phase = Phase::Escape(deadline);
         } else {
@@ -295,7 +329,7 @@ impl RenameDecoder {
         }
     }
 
-    fn reset_quiet_deadline(&mut self, now: Instant, events: &mut Vec<RenameInputEvent>) -> bool {
+    fn reset_quiet_deadline(&mut self, now: Instant, events: &mut Vec<ModalInputEvent>) -> bool {
         self.handoff_deadline = now.checked_add(WAIT);
         if self.handoff_deadline.is_none() {
             self.suppress(events);
@@ -304,13 +338,13 @@ impl RenameDecoder {
         true
     }
 
-    fn suppress(&mut self, events: &mut Vec<RenameInputEvent>) {
+    fn suppress(&mut self, events: &mut Vec<ModalInputEvent>) {
         if self.editing {
-            events.push(RenameInputEvent::Cancel);
+            events.push(ModalInputEvent::Cancel);
         }
         self.editing = false;
         self.phase = Phase::Suppressed;
-        events.push(RenameInputEvent::InputFailure);
+        events.push(ModalInputEvent::InputFailure);
     }
 }
 

@@ -6,6 +6,8 @@ mod native_close;
 mod native_cohort;
 #[path = "local_startup_process/native_context.rs"]
 mod native_context;
+#[path = "local_startup_process/native_workspace_setup.rs"]
+mod native_workspace_setup;
 #[path = "local_startup_process/pty_client.rs"]
 mod pty_client;
 

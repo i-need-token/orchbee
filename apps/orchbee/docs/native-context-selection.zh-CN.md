@@ -13,7 +13,8 @@
 进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；显式 `c` 使用 Server
 已有的目录准入，绝不回退到 home 目录。裸命令启动保留既有 standalone Open 和首帧就绪契约。
 
-Project/Workspace 创建、目录选择、Panel 布局、远程访问、持久化和生产恢复不在范围内。
+Project/Workspace 创建和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)，
+它复用这里的上下文安装 owner。Panel 布局、远程访问、持久化和生产恢复不在范围内。
 该未发布 cohort 整体启用和回滚。改变 Client 位置不会修改 canonical 导航或销毁保留的执行。
 
 ## 状态与转换契约

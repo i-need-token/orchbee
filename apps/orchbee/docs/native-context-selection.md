@@ -16,8 +16,10 @@ entered and left without creating a terminal. Existing Tab controls act on the a
 explicit `c` uses Server's existing directory admission and never falls back to the home directory.
 Bare startup retains the existing standalone Open and first-frame readiness contract.
 
-Project/Workspace creation, directory selection, Panel layouts, remote access, persistence and
-production recovery are excluded. This unpublished cohort rolls out and rolls back together.
+Project/Workspace creation and first-directory configuration belong to
+[Workspace setup](native-workspace-setup.md), which reuses this context installation owner.
+Panel layouts, remote access, persistence and production recovery are excluded.
+This unpublished cohort rolls out and rolls back together.
 Changing the Client location does not change canonical navigation or dispose retained execution.
 
 ## State and transition contract

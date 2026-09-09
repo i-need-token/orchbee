@@ -9,7 +9,10 @@ use orchbee_workbench_protocol::{
 use rustix::process::{Pid, PidfdFlags, pidfd_open};
 use std::os::{fd::AsFd, unix::net::UnixStream};
 
-const EMPTY: &str = "No terminal tabs · Ctrl+B c to create a Tab";
+const EMPTY: &str = "No terminal tabs";
+const CONFIGURED_EMPTY: &str = "Ctrl+B c · launch a terminal in this directory";
+const UNCONFIGURED_EMPTY: &str =
+    "No directory configured. Ctrl+B e · configure the first directory";
 const STANDALONE_HEADER: &str = "WORKBENCH · Standalone terminal";
 const CONFIGURED_HEADER: &str = "WORKBENCH · Context process / Configured";
 const UNCONFIGURED_HEADER: &str = "WORKBENCH · Context process / Unconfigured";
@@ -101,7 +104,14 @@ fn select_context(client: &mut Client, command: &[u8], header: &str, empty: bool
     // The sidebar always says "Standalone terminal". Only the active header distinguishes
     // a completed context switch from a fresh draw of the previous Ready Workspace.
     let required = if empty {
-        vec![header, EMPTY]
+        // Directory guidance owns the active Empty panel; the generic phase is clipped
+        // in the sidebar and a mutation notice may legitimately occupy the footer.
+        let guidance = match header {
+            CONFIGURED_HEADER => CONFIGURED_EMPTY,
+            UNCONFIGURED_HEADER => UNCONFIGURED_EMPTY,
+            _ => panic!("unexpected Empty fixture context {header}"),
+        };
+        vec![header, EMPTY, guidance]
     } else {
         vec![header, "[*1 1]", "Tab 1 · Ready · controlling"]
     };
@@ -385,7 +395,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     client.wait_frame_text_after(
         checkpoint,
         deadline,
-        &[CONFIGURED_HEADER, EMPTY],
+        &[CONFIGURED_HEADER, EMPTY, CONFIGURED_EMPTY],
         &["Close terminal Tab?", "[*1", "Workbench navigator"],
         &[],
         &mut [&mut independent],
@@ -432,7 +442,12 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     client.wait_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        &[UNCONFIGURED_HEADER, EMPTY, "Tab not created"],
+        &[
+            UNCONFIGURED_HEADER,
+            EMPTY,
+            UNCONFIGURED_EMPTY,
+            "Tab not created",
+        ],
         &["[*1"],
         &[],
         &mut [],

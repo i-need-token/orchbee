@@ -366,6 +366,7 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     if changed {
         terminal_input.invalidate_close_display();
         terminal_input.invalidate_rename_display();
+        terminal_input.invalidate_setup_display();
         terminal.backend_mut().set_window_dimensions(next);
         terminal
             .resize(to_area(next))

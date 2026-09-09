@@ -1,4 +1,4 @@
-use super::utf8::Scalar;
+use super::{ModalCapacity, utf8::Scalar};
 
 const END: &[u8; 6] = b"\x1b[201~";
 
@@ -6,6 +6,7 @@ pub(super) struct Paste {
     text: String,
     scalar: Scalar,
     remaining: usize,
+    capacity: ModalCapacity,
     prefix: usize,
     rejected: bool,
 }
@@ -17,11 +18,12 @@ pub(super) enum PasteStep {
 }
 
 impl Paste {
-    pub(super) fn new(remaining: usize) -> Self {
+    pub(super) fn new(capacity: ModalCapacity, remaining: usize) -> Self {
         Self {
             text: String::new(),
             scalar: Scalar::default(),
-            remaining: remaining.min(512),
+            remaining: capacity.bound(remaining),
+            capacity,
             prefix: 0,
             rejected: false,
         }
@@ -65,9 +67,9 @@ impl Paste {
             return;
         }
         match self.scalar.push(byte) {
-            Ok(Some(character)) if self.remaining > 0 => {
+            Ok(Some(character)) if self.remaining >= self.capacity.cost(character) => {
                 self.text.push(character);
-                self.remaining -= 1;
+                self.remaining -= self.capacity.cost(character);
             }
             Ok(None) => {}
             Ok(Some(_)) | Err(()) => self.discard(),

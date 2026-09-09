@@ -54,9 +54,22 @@ pub(super) struct NativeWorkerExit {
     pending_move: Option<PendingMoveCommit>,
     pending_close: Option<PendingCloseResult>,
     pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
+    pending_setup: Option<super::state::workspace_setup::SetupWorkerEvidence>,
 }
 
 impl NativeWorkerExit {
+    fn with_setup(
+        mut self,
+        evidence: Option<super::state::workspace_setup::SetupWorkerEvidence>,
+    ) -> Self {
+        self.pending_setup = evidence;
+        self
+    }
+    pub(super) fn take_setup_result(
+        &mut self,
+    ) -> Option<super::state::workspace_setup::SetupWorkerEvidence> {
+        self.pending_setup.take()
+    }
     #[cfg(target_os = "linux")]
     fn with_unavailable_poll(
         mut self,
@@ -85,6 +98,7 @@ impl NativeWorkerExit {
             pending_move,
             pending_close,
             pending_rename,
+            pending_setup: None,
         }
     }
 

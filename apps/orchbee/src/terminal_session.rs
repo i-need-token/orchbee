@@ -34,7 +34,8 @@ pub(crate) use ui::{
     NativeDisplayPhase, NativeDisplayProvenance, NativeDisplayRetirement, NativeDrawReceipt,
     NativeProjectionStatus, NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView,
     NativeRenameEdit, NativeRenameInputContext, NativeSessionNotice, NativeSessionView,
-    NativeTabView,
+    NativeSetupDraftView, NativeSetupEdit, NativeSetupInputContext, NativeSetupStage,
+    NativeSetupStatus, NativeSetupToken, NativeTabView,
 };
 
 #[derive(Clone, Debug)]
@@ -303,60 +304,77 @@ impl TerminalSession {
         }
         #[cfg(target_os = "linux")]
         let mut retired_poll = None;
-        let (pending_create, pending_move, close_return, rename_return) = match self.task.take() {
-            Some(SessionTask::Native(task)) => match task.join() {
-                Ok(returned) => {
-                    #[cfg(target_os = "linux")]
-                    let mut returned = returned;
-                    #[cfg(target_os = "linux")]
-                    {
-                        retired_poll = returned.take_unavailable_poll();
+        let (pending_create, pending_move, close_return, rename_return, setup_return) =
+            match self.task.take() {
+                Some(SessionTask::Native(task)) => match task.join() {
+                    Ok(returned) => {
+                        let mut returned = returned;
+                        #[cfg(target_os = "linux")]
+                        {
+                            retired_poll = returned.take_unavailable_poll();
+                        }
+                        let setup = returned.take_setup_result();
+                        let (create, moved, close, renamed) = returned.into_pending_results();
+                        (
+                            create,
+                            moved,
+                            state::CloseWorkerReturn::Returned(close),
+                            renamed,
+                            setup,
+                        )
                     }
-                    let (create, moved, close, renamed) = returned.into_pending_results();
-                    (
-                        create,
-                        moved,
-                        state::CloseWorkerReturn::Returned(close),
-                        renamed,
-                    )
+                    Err(_) => {
+                        let evidence = match &self.backend {
+                            SessionBackend::Native(native) => native.close_worker_loss(),
+                            #[cfg(test)]
+                            SessionBackend::Legacy(_) => state::CloseWorkerReturn::Missing {
+                                queued: None,
+                                deposited: None,
+                            },
+                        };
+                        let renamed = match &self.backend {
+                            SessionBackend::Native(native) => native.rename_worker_loss(),
+                            #[cfg(test)]
+                            SessionBackend::Legacy(_) => None,
+                        };
+                        let setup = match &self.backend {
+                            SessionBackend::Native(native) => native.setup_worker_loss(),
+                            #[cfg(test)]
+                            SessionBackend::Legacy(_) => None,
+                        };
+                        (None, None, evidence, renamed, setup)
+                    }
+                },
+                #[cfg(test)]
+                Some(task @ SessionTask::Legacy(_)) => {
+                    self.task = Some(task);
+                    return;
                 }
-                Err(_) => {
-                    let evidence = match &self.backend {
-                        SessionBackend::Native(native) => native.close_worker_loss(),
-                        #[cfg(test)]
-                        SessionBackend::Legacy(_) => state::CloseWorkerReturn::Missing {
-                            queued: None,
-                            deposited: None,
-                        },
-                    };
-                    let renamed = match &self.backend {
-                        SessionBackend::Native(native) => native.rename_worker_loss(),
-                        #[cfg(test)]
-                        SessionBackend::Legacy(_) => None,
-                    };
-                    (None, None, evidence, renamed)
-                }
-            },
-            #[cfg(test)]
-            Some(task @ SessionTask::Legacy(_)) => {
-                self.task = Some(task);
-                return;
-            }
-            None => return,
-        };
+                None => return,
+            };
         let Some(native) = self.backend.native_mut() else {
             return;
         };
+        // The UI can admit the next wizard command after settling the previous result,
+        // while that previous worker lease is still returning. Preserve both identities.
+        let queued_setup_return = native.setup_worker_loss();
         #[cfg(target_os = "linux")]
         let clean_return = pending_create.is_none()
             && pending_move.is_none()
             && rename_return.is_none()
+            && setup_return.is_none()
+            && queued_setup_return.is_none()
             && matches!(close_return, state::CloseWorkerReturn::Returned(None));
         let rename_accepted = native.finalize_rename_worker(rename_return);
+        let setup_accepted = native.finalize_setup_worker(setup_return);
+        let queued_setup_accepted = native.finalize_setup_worker(queued_setup_return);
         #[cfg(target_os = "linux")]
-        native.finish_retired_peer_join(retired_poll, clean_return && rename_accepted);
+        native.finish_retired_peer_join(
+            retired_poll,
+            clean_return && rename_accepted && setup_accepted && queued_setup_accepted,
+        );
         #[cfg(not(target_os = "linux"))]
-        let _rename_accepted = rename_accepted;
+        let _accepted_setup_and_rename = (rename_accepted, setup_accepted, queued_setup_accepted);
         let _accepted = native.finalize_retirement(pending_create, pending_move, close_return);
         native.release_mailbox();
         // Geometry observation can finalize retirement before the shell asks tick for a redraw.
@@ -365,6 +383,39 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
+        self.backend
+            .native_mut()
+            .and_then(ui::NativeUi::setup_input_context)
+    }
+
+    fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.edit_setup_draft(token, edit))
+    }
+
+    fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
+        if let Some(native) = self.backend.native_mut() {
+            native.cancel_setup_draft(token);
+        }
+    }
+
+    fn submit_setup_draft(&mut self, token: NativeSetupToken) -> Option<SessionActionDisposition> {
+        let disposition = self
+            .backend
+            .native_mut()
+            .map(|native| native.submit_setup_draft(token));
+        self.finalize_native_retirement();
+        disposition
+    }
+
+    fn invalidate_setup_display(&mut self) {
+        if let Some(native) = self.backend.native_mut() {
+            native.invalidate_setup_display();
+        }
+    }
+
     fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
         match &mut self.backend {
             SessionBackend::Native(native) => native.rename_input_context(),

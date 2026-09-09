@@ -8,6 +8,8 @@ packaging and production recovery remain separate work.
 [Native context selection](native-context-selection.md) owns Workspace navigation and the
 current-context projection extension. Its location identity, Empty selection and retained
 provenance rules extend the standalone startup and same-context Tab workflows below.
+[Native Workspace setup](native-workspace-setup.md) owns staged creation and first-directory input,
+sharing this Session's structural admission, carrier and membership settlement.
 
 ## Accepted Close refinement and local integration
 

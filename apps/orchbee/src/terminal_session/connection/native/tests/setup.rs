@@ -1,5 +1,6 @@
 use super::super::*;
 mod tab_close;
+mod workspace_setup;
 use crate::{
     local_client::{
         LocalClientShutdown, LocalOperationClock,
@@ -966,7 +967,7 @@ impl UiDriver {
     ) -> TestResult<UiEvent> {
         let (wait_key, event) = taken.into_parts();
         match event {
-            WorkerEvent::RenameResult { .. } => {
+            WorkerEvent::WorkspaceSetupResult { .. } | WorkerEvent::RenameResult { .. } => {
                 Err(test_error("Rename requires the actual NativeUi consumer"))
             }
             WorkerEvent::SwitchSnapshotResult { marker, outcome } => self.settle_switch_snapshot(

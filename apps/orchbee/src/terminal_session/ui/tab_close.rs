@@ -20,9 +20,14 @@ pub(crate) struct NativeDrawReceipt {
     prompt: Option<NativeCloseConfirmationToken>,
     status: Option<NativeCloseStatusToken>,
     rename: Option<super::NativeRenameDraftToken>,
+    setup: Option<super::NativeSetupToken>,
 }
 
 impl NativeDrawReceipt {
+    pub(crate) const fn with_setup(mut self, setup: Option<super::NativeSetupToken>) -> Self {
+        self.setup = setup;
+        self
+    }
     pub(crate) const fn new(
         prompt: Option<NativeCloseConfirmationToken>,
         status: Option<NativeCloseStatusToken>,
@@ -31,6 +36,7 @@ impl NativeDrawReceipt {
             prompt,
             status,
             rename: None,
+            setup: None,
         }
     }
     pub(crate) const fn with_rename(
@@ -281,6 +287,7 @@ impl NativeUi {
             state.acknowledge_close_draw(receipt.prompt, receipt.status);
         }
         self.after_rename_draw(receipt.rename);
+        self.after_setup_draw(receipt.setup);
     }
     pub(in crate::terminal_session) fn invalidate_close_display(&mut self) {
         if let Some(state) = &mut self.state {

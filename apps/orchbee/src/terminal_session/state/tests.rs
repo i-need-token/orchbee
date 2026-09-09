@@ -21,6 +21,7 @@ mod retirement_handoff;
 mod switch_membership;
 mod tab_close;
 mod tab_rename;
+mod workspace_setup;
 
 fn state(tab_count: usize) -> NativeSessionState {
     NativeSessionState::starting(projected(tab_count, 1), 1, geometry(80))

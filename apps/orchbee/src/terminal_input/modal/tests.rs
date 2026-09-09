@@ -1,7 +1,7 @@
-use super::{RenameDecoder, RenameInputEvent as Event};
+use super::{ModalCapacity, ModalDecoder, ModalInputEvent as Event};
 use std::time::{Duration, Instant};
 
-fn feed(decoder: &mut RenameDecoder, bytes: &[u8], now: Instant, remaining: usize) -> Vec<Event> {
+fn feed(decoder: &mut ModalDecoder, bytes: &[u8], now: Instant, remaining: usize) -> Vec<Event> {
     bytes
         .iter()
         .flat_map(|byte| {
@@ -23,11 +23,44 @@ fn appended(events: &[Event]) -> String {
 }
 
 #[test]
+fn directory_paste_limit_counts_utf8_bytes_and_rejects_the_whole_paste() {
+    let now = Instant::now();
+    for (text, capacity, accepted) in [
+        (format!("/{}abc", "雪".repeat(1364)), 4096, true),
+        (format!("/{}abcd", "雪".repeat(1364)), 4096, false),
+        ("😀".to_owned(), 3, false),
+        ("😀".to_owned(), 4, true),
+    ] {
+        let mut decoder = ModalDecoder::default();
+        decoder.start_with_capacity(ModalCapacity::Bytes4096);
+        let packet = format!("\x1b[200~{text}\x1b[201~");
+        let mut events = Vec::new();
+        for chunk in packet.as_bytes().chunks(7) {
+            events.extend(feed(&mut decoder, chunk, now, capacity));
+        }
+        assert_eq!(appended(&events), if accepted { text.as_str() } else { "" });
+        assert_eq!(events.contains(&Event::Fault), !accepted);
+        assert!(!events.contains(&Event::Submit));
+    }
+}
+
+#[test]
+fn directory_paste_leaves_literal_nul_and_path_validation_to_the_state_owner() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    decoder.start_with_capacity(ModalCapacity::Bytes4096);
+    let events = feed(&mut decoder, b"\x1b[200~relative\0path\x1b[201~", now, 4096);
+    assert_eq!(appended(&events), "relative\0path");
+    assert!(!events.contains(&Event::Fault));
+    assert_eq!(appended(&feed(&mut decoder, b"\0", now, 4096)), "\0");
+}
+
+#[test]
 fn scalar_fragments_are_exact_and_invalid_input_cannot_be_repaired_by_its_boundary_key() {
     let now = Instant::now();
     for text in ["é", "雪", "😀", "e\u{301}"] {
         for split in 0..=text.len() {
-            let mut decoder = RenameDecoder::default();
+            let mut decoder = ModalDecoder::default();
             assert!(decoder.start());
             let mut events = feed(&mut decoder, &text.as_bytes()[..split], now, 512);
             events.extend(feed(&mut decoder, &text.as_bytes()[split..], now, 512));
@@ -41,7 +74,7 @@ fn scalar_fragments_are_exact_and_invalid_input_cannot_be_repaired_by_its_bounda
         b"\xf4\x90\x80\x80",
         b"\xe2\x08",
     ] {
-        let mut decoder = RenameDecoder::default();
+        let mut decoder = ModalDecoder::default();
         decoder.start();
         let events = feed(&mut decoder, bytes, now, 512);
         assert!(events.contains(&Event::Fault));
@@ -57,7 +90,7 @@ fn paste_is_atomic_across_every_split_and_keeps_literal_controls_and_nested_open
     let text = "雪\r\n\x02x\x1b[200~\x1b[20X😀";
     let bytes = format!("\x1b[200~{text}\x1b[201~");
     for split in 0..=bytes.len() {
-        let mut decoder = RenameDecoder::default();
+        let mut decoder = ModalDecoder::default();
         decoder.start();
         let mut events = feed(&mut decoder, &bytes.as_bytes()[..split], now, 512);
         if split < bytes.len() {
@@ -70,7 +103,7 @@ fn paste_is_atomic_across_every_split_and_keeps_literal_controls_and_nested_open
             Event::Submit | Event::Cancel | Event::Backspace | Event::Clear | Event::Fault
         )));
     }
-    let mut decoder = RenameDecoder::default();
+    let mut decoder = ModalDecoder::default();
     decoder.start();
     assert_eq!(feed(&mut decoder, b"\r", now, 512), [Event::Submit]);
     assert!(feed(&mut decoder, b"\n", now, 512).is_empty());
@@ -80,7 +113,7 @@ fn paste_is_atomic_across_every_split_and_keeps_literal_controls_and_nested_open
 fn paste_overflow_and_invalid_utf8_discard_every_pending_scalar_until_the_terminator() {
     let now = Instant::now();
     for count in [512, 513] {
-        let mut decoder = RenameDecoder::default();
+        let mut decoder = ModalDecoder::default();
         decoder.start();
         let text = "😀".repeat(count);
         let bytes = format!("\x1b[200~{text}");
@@ -94,7 +127,7 @@ fn paste_overflow_and_invalid_utf8_discard_every_pending_scalar_until_the_termin
             assert!(appended(&end).is_empty());
         }
     }
-    let mut decoder = RenameDecoder::default();
+    let mut decoder = ModalDecoder::default();
     decoder.start();
     let events = feed(
         &mut decoder,
@@ -117,7 +150,7 @@ fn csi_ss3_bounds_and_alt_utf8_never_insert_navigation_bytes() {
     let now = Instant::now();
     for introducer in ['[', 'O'] {
         for length in [31, 32, 33] {
-            let mut decoder = RenameDecoder::default();
+            let mut decoder = ModalDecoder::default();
             decoder.start();
             let sequence = format!("\x1b{introducer}{}A", "1".repeat(length - 3));
             let events = feed(&mut decoder, sequence.as_bytes(), now, 512);
@@ -126,7 +159,7 @@ fn csi_ss3_bounds_and_alt_utf8_never_insert_navigation_bytes() {
             assert_eq!(appended(&feed(&mut decoder, b"x", now, 512)), "x");
         }
     }
-    let mut decoder = RenameDecoder::default();
+    let mut decoder = ModalDecoder::default();
     decoder.start();
     let events = feed(&mut decoder, "\x1bé\x1b[ 1A".as_bytes(), now, 512);
     assert!(appended(&events).is_empty());
@@ -138,7 +171,7 @@ fn cancellation_during_a_recognized_paste_opener_keeps_the_complete_payload_owne
     let now = Instant::now();
     let opener = b"\x1b[200~";
     for split in 2..=opener.len() {
-        let mut decoder = RenameDecoder::default();
+        let mut decoder = ModalDecoder::default();
         decoder.start();
         feed(&mut decoder, &opener[..split], now, 512);
         decoder.cancel(now);
@@ -165,7 +198,7 @@ fn cancellation_during_a_recognized_paste_opener_keeps_the_complete_payload_owne
 #[test]
 fn quiet_guard_resets_and_new_framing_outlives_silence_but_equality_releases_new_input() {
     let now = Instant::now();
-    let mut decoder = RenameDecoder::default();
+    let mut decoder = ModalDecoder::default();
     decoder.start();
     decoder.cancel(now);
     feed(&mut decoder, b"x", now + Duration::from_millis(49), 512);
@@ -197,7 +230,7 @@ fn quiet_guard_resets_and_new_framing_outlives_silence_but_equality_releases_new
 #[test]
 fn escape_classification_and_completed_handoff_have_the_accepted_late_opener_limit() {
     let now = Instant::now();
-    let mut decoder = RenameDecoder::default();
+    let mut decoder = ModalDecoder::default();
     decoder.start();
     feed(&mut decoder, b"\x1b", now, 512);
     assert!(decoder.tick(now + Duration::from_millis(49)).is_empty());
@@ -224,7 +257,7 @@ fn recognized_utf8_and_csi_cancellation_drain_across_arbitrary_gaps() {
         (b"\xe9\x9b".as_slice(), b"\xaa".as_slice()),
         (b"\x1b[1;", b"2A"),
     ] {
-        let mut decoder = RenameDecoder::default();
+        let mut decoder = ModalDecoder::default();
         decoder.start();
         feed(&mut decoder, prefix, now, 512);
         decoder.cancel(now);
@@ -252,7 +285,7 @@ fn checked_clock_overflow_cancels_once_and_permanently_suppresses_forwarding() {
         }
     }
     assert!(limit.checked_add(Duration::from_millis(50)).is_none());
-    let mut decoder = RenameDecoder::default();
+    let mut decoder = ModalDecoder::default();
     decoder.start();
     let events = feed(&mut decoder, b"\x1b", limit, 512);
     assert!(events.contains(&Event::Cancel));
@@ -266,7 +299,7 @@ fn checked_clock_overflow_cancels_once_and_permanently_suppresses_forwarding() {
 fn external_cancel_of_pending_escape_starts_quiet_after_classification() {
     let now = Instant::now();
     for cancel_delay in [0, 40] {
-        let mut decoder = RenameDecoder::default();
+        let mut decoder = ModalDecoder::default();
         decoder.start();
         feed(&mut decoder, b"\x1b", now, 512);
         decoder.cancel(now + Duration::from_millis(cancel_delay));
@@ -277,7 +310,7 @@ fn external_cancel_of_pending_escape_starts_quiet_after_classification() {
         decoder.tick(now + Duration::from_millis(100));
         assert!(!decoder.owns_input());
     }
-    let mut decoder = RenameDecoder::default();
+    let mut decoder = ModalDecoder::default();
     decoder.start();
     decoder.cancel(now);
     feed(&mut decoder, b"\x1b", now + Duration::from_millis(49), 512);

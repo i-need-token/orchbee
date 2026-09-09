@@ -3,6 +3,7 @@ mod context_selection;
 mod setup;
 mod switch_membership;
 mod tab_move;
+mod workspace_setup;
 
 use self::setup::*;
 use super::*;

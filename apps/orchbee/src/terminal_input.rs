@@ -2,12 +2,15 @@ use crate::client_view::{
     ClientAction, ClientKey, ClientView, SessionActionDisposition, ShellCommand,
 };
 use crate::terminal_session::{NativeRenameDraftToken, NativeRenameEdit, NativeRenameInputContext};
+use crate::terminal_session::{
+    NativeSetupEdit, NativeSetupInputContext, NativeSetupStage, NativeSetupToken,
+};
 use orchbee_client_server_protocol::Geometry;
 
 const CONTROL_B: u8 = 0x02;
 
 mod dispatcher;
-mod rename;
+mod modal;
 pub(crate) use dispatcher::InputDispatcher;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -50,6 +53,22 @@ pub(crate) trait TerminalInputPort {
     }
 
     fn invalidate_rename_display(&mut self) {}
+
+    fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
+        None
+    }
+
+    fn edit_setup_draft(&mut self, _token: NativeSetupToken, _edit: NativeSetupEdit<'_>) -> bool {
+        false
+    }
+
+    fn cancel_setup_draft(&mut self, _token: NativeSetupToken) {}
+
+    fn submit_setup_draft(&mut self, _token: NativeSetupToken) -> Option<SessionActionDisposition> {
+        None
+    }
+
+    fn invalidate_setup_display(&mut self) {}
 }
 
 #[derive(Clone, Copy, Debug, Default)]

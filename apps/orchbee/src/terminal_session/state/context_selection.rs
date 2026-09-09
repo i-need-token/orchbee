@@ -64,6 +64,7 @@ impl NativeSessionState {
             || !self.invariant_holds()
             || self.pending_refresh_generation.is_some()
             || self.pending_mutation.is_some()
+            || self.setup_blocks_structure()
             || self.pending_membership.is_some()
             || self.move_recovery.is_some()
             || self.rename_recovery.is_some()
@@ -173,7 +174,8 @@ impl NativeSessionState {
         if self.context_selection.as_ref().is_none_or(|intent| {
             self.pending_refresh_generation != Some(intent.generation)
                 || &intent.target != candidate.location()
-        }) || candidate.site_id() != self.cache.site_id()
+        }) && !self.setup_target_matches(candidate.location())
+            || candidate.site_id() != self.cache.site_id()
             || candidate.revision() < self.cache.revision()
         {
             return Err(CarrierFailure::AuthorityDivergence);

@@ -199,10 +199,28 @@ impl Client {
         content_rows: &[&str],
         pumped_peers: &mut [&mut Client],
     ) {
+        self.wait_modal_prompt_after(
+            checkpoint,
+            deadline,
+            active_header,
+            content_rows,
+            pumped_peers,
+        );
+    }
+
+    #[track_caller]
+    pub(super) fn wait_modal_prompt_after(
+        &mut self,
+        checkpoint: usize,
+        deadline: Instant,
+        active_header: &str,
+        content_rows: &[&str],
+        pumped_peers: &mut [&mut Client],
+    ) {
         self.observe_after_pumping(
             checkpoint,
             deadline,
-            "complete Close prompt with exact target inside its borders",
+            "complete modal prompt with exact content inside its borders",
             pumped_peers,
             |frame| {
                 (frame.text().contains(active_header)

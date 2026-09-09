@@ -23,6 +23,7 @@ mod tab_close;
 mod tab_rename;
 mod tabs;
 mod terminal_cells;
+mod workspace_setup;
 
 const BACKGROUND: Color = Color::Rgb(11, 14, 20);
 const BORDER: Color = Color::Rgb(52, 61, 78);
@@ -151,7 +152,19 @@ pub(crate) fn render_terminal_shell(
         prompt = None;
         rename = token;
     }
-    NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token)).with_rename(rename)
+    let mut setup = None;
+    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && let Some(draft) = native.setup_draft()
+    {
+        let (area, token) = workspace_setup::render(frame, locale, &draft, native.setup_status());
+        status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
+        prompt = None;
+        rename = None;
+        setup = token;
+    }
+    NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
+        .with_rename(rename)
+        .with_setup(setup)
 }
 
 fn render_unavailable_workbench(
@@ -294,7 +307,8 @@ fn render_native_workbench(
             terminal,
             client_view.overlay().is_none()
                 && native.close_confirmation().is_none()
-                && native.rename_draft().is_none(),
+                && native.rename_draft().is_none()
+                && native.setup_draft().is_none(),
         );
     } else {
         let panel_status = if matches!(
@@ -309,6 +323,14 @@ fn render_native_workbench(
         } else {
             phase_status
         };
+        let panel_status = workspace_setup::directory_guidance(
+            locale,
+            native.phase(),
+            native.retirement().is_some(),
+            native.workspace_directory_path(),
+            native.workspace_directory_unconfigured(),
+        )
+        .unwrap_or_else(|| panel_status.to_owned());
         frame.render_widget(
             Paragraph::new(panel_status)
                 .style(Style::new().fg(MUTED))

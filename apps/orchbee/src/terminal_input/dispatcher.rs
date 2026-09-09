@@ -2,14 +2,22 @@ use std::time::Instant;
 
 use super::{
     CONTROL_B, ClientAction, ClientView, DispatchOutcome, NativeRenameDraftToken, NativeRenameEdit,
-    SessionActionDisposition, ShellCommand, TerminalInputPort, forward_or_report, normalize_byte,
-    rename::{RenameDecoder, RenameInputEvent},
+    NativeSetupEdit, NativeSetupStage, NativeSetupToken, SessionActionDisposition, ShellCommand,
+    TerminalInputPort, forward_or_report,
+    modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
+    normalize_byte,
 };
 
 #[derive(Default)]
 pub(crate) struct InputDispatcher {
-    rename: RenameDecoder,
-    epoch: Option<NativeRenameDraftToken>,
+    decoder: ModalDecoder,
+    epoch: Option<ModalEpoch>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ModalEpoch {
+    Rename(NativeRenameDraftToken),
+    Setup(NativeSetupToken),
 }
 
 #[cfg(test)]
@@ -23,13 +31,17 @@ impl InputDispatcher {
         now: Instant,
         mode: &mut impl FnMut(bool) -> Result<(), Error>,
     ) -> Result<bool, Error> {
+        let owned_input = self.decoder.owns_input();
         let mut changed = self.reconcile(view, port, now);
-        let events = self.rename.tick(now);
+        let events = self.decoder.tick(now);
         changed |= !events.is_empty();
         self.apply_events(view, port, events);
         changed |= self.reconcile(view, port, now);
-        if !self.rename.owns_input() {
+        if !self.decoder.owns_input() {
             mode(false)?;
+        } else if !owned_input {
+            // A later wizard step can arrive after the previous decoder released its lease.
+            mode(true)?;
         }
         Ok(changed)
     }
@@ -48,10 +60,20 @@ impl InputDispatcher {
         let mut modal_packet = false;
         for (offset, byte) in input.iter().copied().enumerate() {
             self.reconcile(view, port, now);
-            let remaining = port
-                .rename_input_context()
-                .map_or(0, |context| context.remaining_scalar_capacity());
-            let (captured, events) = self.rename.push(byte, now, remaining);
+            let remaining = match self.epoch {
+                Some(ModalEpoch::Rename(_)) => port
+                    .rename_input_context()
+                    .map_or(0, |context| context.remaining_scalar_capacity()),
+                Some(ModalEpoch::Setup(_)) => port.setup_input_context().map_or(0, |context| {
+                    if context.stage() == NativeSetupStage::DirectoryPath {
+                        context.remaining_bytes()
+                    } else {
+                        context.remaining_scalars()
+                    }
+                }),
+                None => 0,
+            };
+            let (captured, events) = self.decoder.push(byte, now, remaining);
             if captured || !events.is_empty() {
                 if ordinary_start < offset {
                     forward_or_report(view, &input[ordinary_start..offset], port);
@@ -80,7 +102,15 @@ impl InputDispatcher {
             }
             let transition = view.decide(normalize_byte(byte));
             let action = transition.action();
-            if action == Some(ClientAction::RequestRenameTab) {
+            let requests_modal = matches!(
+                action,
+                Some(
+                    ClientAction::RequestRenameTab
+                        | ClientAction::RequestWorkspaceCreate
+                        | ClientAction::RequestWorkspaceDirectory
+                )
+            );
+            if requests_modal {
                 // The terminal lease must exist before the state can capture any draft authority.
                 mode(true)?;
             }
@@ -95,7 +125,7 @@ impl InputDispatcher {
                 view.report_backend_unavailable(action);
             }
             self.reconcile(view, port, now);
-            if action == Some(ClientAction::RequestRenameTab) && self.epoch.is_none() {
+            if requests_modal && self.epoch.is_none() {
                 mode(false)?;
             }
             if transition.layout_changed() {
@@ -122,16 +152,29 @@ impl InputDispatcher {
         port: &mut (impl TerminalInputPort + ?Sized),
         now: Instant,
     ) -> bool {
-        let current = port.rename_input_context().map(|context| context.token());
+        let setup = port.setup_input_context();
+        let current = setup
+            .as_ref()
+            .map(|context| ModalEpoch::Setup(context.token()))
+            .or_else(|| {
+                port.rename_input_context()
+                    .map(|context| ModalEpoch::Rename(context.token()))
+            });
         if current == self.epoch {
             return false;
         }
         if self.epoch.take().is_some() {
-            let events = self.rename.cancel(now);
+            let events = self.decoder.cancel(now);
             self.apply_events(view, port, events);
         }
+        let capacity =
+            if setup.is_some_and(|context| context.stage() == NativeSetupStage::DirectoryPath) {
+                ModalCapacity::Bytes4096
+            } else {
+                ModalCapacity::Scalars512
+            };
         if let Some(token) = current
-            && self.rename.start()
+            && self.decoder.start_with_capacity(capacity)
         {
             self.epoch = Some(token);
         }
@@ -142,35 +185,91 @@ impl InputDispatcher {
         &mut self,
         view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
-        events: Vec<RenameInputEvent>,
+        events: Vec<ModalInputEvent>,
     ) {
         for event in events {
-            if event == RenameInputEvent::InputFailure {
+            if event == ModalInputEvent::InputFailure {
                 view.report_terminal_input_unavailable();
                 continue;
             }
-            let Some(token) = self.epoch else {
+            let Some(epoch) = self.epoch else {
                 continue;
             };
-            let edit = match event {
-                RenameInputEvent::Append(ref text) => NativeRenameEdit::Append(text),
-                RenameInputEvent::Backspace => NativeRenameEdit::Backspace,
-                RenameInputEvent::Clear => NativeRenameEdit::Clear,
-                RenameInputEvent::Fault => NativeRenameEdit::Fault,
-                RenameInputEvent::Completeness(complete) => {
-                    NativeRenameEdit::Completeness(complete)
+            let token = match epoch {
+                ModalEpoch::Rename(token) => token,
+                ModalEpoch::Setup(token) => {
+                    self.apply_setup_event(port, token, event);
+                    continue;
                 }
-                RenameInputEvent::Submit => {
+            };
+            let edit = match event {
+                ModalInputEvent::Append(ref text) => NativeRenameEdit::Append(text),
+                ModalInputEvent::Backspace => NativeRenameEdit::Backspace,
+                ModalInputEvent::Clear => NativeRenameEdit::Clear,
+                ModalInputEvent::Fault => NativeRenameEdit::Fault,
+                ModalInputEvent::Completeness(complete) => NativeRenameEdit::Completeness(complete),
+                ModalInputEvent::Submit => {
                     let _disposition = port.submit_rename_draft(token);
                     continue;
                 }
-                RenameInputEvent::Cancel => {
+                ModalInputEvent::Cancel => {
                     port.cancel_rename_draft(token);
                     continue;
                 }
-                RenameInputEvent::InputFailure => continue,
+                ModalInputEvent::InputFailure => continue,
             };
             let _accepted = port.edit_rename_draft(token, edit);
+        }
+    }
+
+    fn apply_setup_event(
+        &mut self,
+        port: &mut (impl TerminalInputPort + ?Sized),
+        token: NativeSetupToken,
+        event: ModalInputEvent,
+    ) {
+        let Some(context) = port
+            .setup_input_context()
+            .filter(|context| context.token() == token)
+        else {
+            return;
+        };
+        let edit = match event {
+            ModalInputEvent::Append(ref text)
+                if context.stage() == NativeSetupStage::ChooseProject =>
+            {
+                match text.as_str() {
+                    "[" => NativeSetupEdit::SelectPreviousProject,
+                    "]" => NativeSetupEdit::SelectNextProject,
+                    _ => return,
+                }
+            }
+            ModalInputEvent::Append(ref text) => NativeSetupEdit::Append(text),
+            ModalInputEvent::Backspace => NativeSetupEdit::Backspace,
+            ModalInputEvent::Clear => NativeSetupEdit::Clear,
+            ModalInputEvent::Fault => NativeSetupEdit::Fault,
+            ModalInputEvent::Completeness(complete) => NativeSetupEdit::Completeness(complete),
+            ModalInputEvent::Submit => {
+                let _disposition = port.submit_setup_draft(token);
+                return;
+            }
+            ModalInputEvent::Cancel => {
+                port.cancel_setup_draft(token);
+                return;
+            }
+            ModalInputEvent::InputFailure => return,
+        };
+        let selecting = matches!(
+            edit,
+            NativeSetupEdit::SelectPreviousProject | NativeSetupEdit::SelectNextProject
+        );
+        if port.edit_setup_draft(token, edit)
+            && selecting
+            && let Some(context) = port.setup_input_context()
+            && context.stage() == NativeSetupStage::ChooseProject
+        {
+            // Selection changes draw authority, while this decoder still owns the same picker.
+            self.epoch = Some(ModalEpoch::Setup(context.token()));
         }
     }
 }

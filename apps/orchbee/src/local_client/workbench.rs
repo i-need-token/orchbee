@@ -14,6 +14,7 @@ use super::{ExchangeAttempt, LocalClient, exchange_once};
 mod tab_close;
 mod tab_move;
 pub(crate) mod tab_rename;
+pub(crate) mod workspace_setup;
 pub(crate) use tab_close::{
     WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
     WorkbenchTabClosePrecommit, WorkbenchTabCloseReadError, WorkbenchTabCloseRequest,

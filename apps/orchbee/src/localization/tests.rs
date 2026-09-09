@@ -61,12 +61,14 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(english.shortcuts.len(), 14);
+    assert_eq!(english.shortcuts.len(), 16);
     assert_eq!(chinese.shortcuts.len(), english.shortcuts.len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
 
     for shortcut in [
+        "Ctrl+B a",
+        "Ctrl+B e",
         "Ctrl+B c",
         "Ctrl+B ,",
         "Ctrl+B x",
@@ -319,6 +321,115 @@ fn native_empty_without_attachment_retains_the_manual_create_instruction() {
             ),
             expected
         );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn settled_setup_notices_never_hide_later_failures_or_retirement() {
+    use crate::terminal_session::{NativeSessionNotice, NativeSetupStatus};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for setup in [
+            NativeSetupStatus::ProjectCreated,
+            NativeSetupStatus::WorkspaceCreated,
+            NativeSetupStatus::DirectoryAccepted,
+            NativeSetupStatus::NotApplied,
+        ] {
+            for notice in [
+                NativeSessionNotice::CreateNotCreated,
+                NativeSessionNotice::RenameNotRenamed,
+                NativeSessionNotice::LocalBusy,
+            ] {
+                assert_eq!(
+                    locale.native_status_with_setup(
+                        "phase".to_owned(),
+                        false,
+                        Some(notice),
+                        Some(setup),
+                        true
+                    ),
+                    locale.native_notice(notice)
+                );
+                assert_eq!(
+                    locale.native_status_with_setup(
+                        "retired outcome unknown".to_owned(),
+                        true,
+                        Some(notice),
+                        Some(setup),
+                        true
+                    ),
+                    "retired outcome unknown"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn current_failure_keeps_the_known_setup_recovery_fact() {
+    use crate::terminal_session::{NativeSessionNotice, NativeSetupStatus};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for setup in [
+            NativeSetupStatus::CommittedNeedRefresh,
+            NativeSetupStatus::OutcomeUnknown,
+        ] {
+            let notice = NativeSessionNotice::LocalBusy;
+            let status = locale.native_status_with_setup(
+                "phase".to_owned(),
+                false,
+                Some(notice),
+                Some(setup),
+                false,
+            );
+            assert!(status.starts_with(&locale.native_notice(notice)));
+            assert!(status.contains(locale.setup_status(setup)));
+            let retired = locale.native_status_with_setup(
+                "retired".to_owned(),
+                true,
+                None,
+                Some(setup),
+                false,
+            );
+            assert!(retired.starts_with("retired"));
+            assert!(
+                retired.contains(if setup == NativeSetupStatus::CommittedNeedRefresh {
+                    locale.setup_committed_fact()
+                } else {
+                    locale.setup_status(setup)
+                })
+            );
+            assert!(!retired.contains("Ctrl+B w"));
+            assert_eq!(
+                locale.native_status_with_setup(
+                    "phase".to_owned(),
+                    false,
+                    None,
+                    Some(setup),
+                    false
+                ),
+                locale.setup_status(setup)
+            );
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn workspace_created_only_offers_directory_setup_for_an_eligible_current_context() {
+    use crate::terminal_session::NativeSetupStatus;
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let setup = NativeSetupStatus::WorkspaceCreated;
+        let eligible =
+            locale.native_status_with_setup("phase".to_owned(), false, None, Some(setup), true);
+        assert!(eligible.contains("Ctrl+B e"));
+        let configured_or_nonempty =
+            locale.native_status_with_setup("phase".to_owned(), false, None, Some(setup), false);
+        assert_eq!(configured_or_nonempty, locale.setup_status(setup));
+        assert!(!configured_or_nonempty.contains("Ctrl+B e"));
+        let retired =
+            locale.native_status_with_setup("retired".to_owned(), true, None, Some(setup), true);
+        assert_eq!(retired, "retired");
     }
 }
 

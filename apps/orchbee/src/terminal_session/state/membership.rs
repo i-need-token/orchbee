@@ -64,6 +64,7 @@ pub(in crate::terminal_session) struct PreparedMembershipCandidate {
     provenance: Vec<CreateTerminalProvenance>,
     selected_index: Option<usize>,
     retained_contexts: Option<Vec<super::context_selection::RetainedContext>>,
+    setup_completion: Option<Box<super::workspace_setup::PreparedSetupCompletion>>,
 }
 
 impl PreparedMembershipCandidate {
@@ -133,6 +134,9 @@ impl PreparedMembershipInstall<'_> {
         self.state.provenance = self.prepared.provenance;
         self.state.desired = self.desired;
         self.state.phase = self.replacement_phase;
+        if let Some(completion) = self.prepared.setup_completion {
+            self.state.complete_setup_refresh(*completion);
+        }
         self.state.pending_membership = None;
         if let MembershipMutationCompletion::Rename(request_id) = self.mutation_completion {
             debug_assert!(
@@ -345,6 +349,7 @@ impl NativeSessionState {
             .collect();
         Ok(PreparedMembershipCandidate {
             retained_contexts: self.prepare_retained_contexts(&candidate),
+            setup_completion: self.prepare_setup_completion(&candidate),
             baseline: self.cache.clone(),
             baseline_desired: self.desired.clone(),
             candidate,
@@ -628,6 +633,7 @@ impl NativeSessionState {
             provenance: prepared.provenance.clone(),
             selected_index: prepared.selected_index,
             retained_contexts: prepared.retained_contexts.clone(),
+            setup_completion: prepared.setup_completion.clone(),
         })
     }
 

@@ -33,6 +33,8 @@ pub(crate) enum PanelDirection {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum BackendAction {
+    CreateWorkspace,
+    ConfigureWorkspaceDirectory,
     RenameTab,
     CloseTab,
     MovePreviousTab,
@@ -49,6 +51,8 @@ pub(crate) enum BackendAction {
 // This value is shared with the native Session reducer while remaining protocol-free.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
+    RequestWorkspaceCreate,
+    RequestWorkspaceDirectory,
     RequestRenameTab,
     RequestCloseTab,
     ConfirmClose,
@@ -125,6 +129,8 @@ impl ClientTransition {
 impl ClientAction {
     pub(crate) const fn backend_action(self) -> Option<BackendAction> {
         match self {
+            Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
+            Self::RequestWorkspaceDirectory => Some(BackendAction::ConfigureWorkspaceDirectory),
             Self::RequestRenameTab => Some(BackendAction::RenameTab),
             Self::RequestCloseTab => Some(BackendAction::CloseTab),
             Self::CreateTab => Some(BackendAction::CreateTab),
@@ -288,6 +294,8 @@ impl ClientView {
                 (ClientAction::OpenShortcutHelp, ShellCommand::None)
             }
             ClientKey::Plain('q' | 'd') => (ClientAction::Exit, ShellCommand::Exit),
+            ClientKey::Plain('a') => (ClientAction::RequestWorkspaceCreate, ShellCommand::None),
+            ClientKey::Plain('e') => (ClientAction::RequestWorkspaceDirectory, ShellCommand::None),
             ClientKey::Plain('c') => (ClientAction::CreateTab, ShellCommand::None),
             ClientKey::Plain('x') => (ClientAction::RequestCloseTab, ShellCommand::None),
             ClientKey::Plain(',') => (ClientAction::RequestRenameTab, ShellCommand::None),

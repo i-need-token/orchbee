@@ -2,6 +2,8 @@ use super::*;
 use crate::terminal_input::TerminalInputUnavailable;
 use std::{cell::RefCell, io, rc::Rc};
 
+mod workspace_setup;
+
 #[derive(Debug, Eq, PartialEq)]
 enum Call {
     Forward(Vec<u8>),
@@ -121,4 +123,54 @@ fn unavailable_entry_restores_mode_and_preserves_ordinary_batch_order() {
             Call::Forward(b"after".to_vec())
         ]
     );
+}
+
+#[test]
+fn workspace_shortcuts_acquire_the_modal_lease_and_leave_exit_bindings_intact() {
+    for (key, action) in [
+        (b'a', ClientAction::RequestWorkspaceCreate),
+        (b'e', ClientAction::RequestWorkspaceDirectory),
+    ] {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let mut port = UnavailablePort(Rc::clone(&calls));
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        dispatcher
+            .dispatch(
+                &mut view,
+                &[2, key],
+                &mut port,
+                Instant::now(),
+                |_, _| Ok::<_, io::Error>(()),
+                &mut |enabled| {
+                    calls.borrow_mut().push(Call::Mode(enabled));
+                    Ok(())
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            *calls.borrow(),
+            [
+                Call::Mode(false),
+                Call::Mode(true),
+                Call::Action(action),
+                Call::Mode(false)
+            ]
+        );
+        for exit in *b"qd" {
+            assert_eq!(
+                dispatcher
+                    .dispatch(
+                        &mut view,
+                        &[2, exit],
+                        &mut port,
+                        Instant::now(),
+                        |_, _| Ok::<_, io::Error>(()),
+                        &mut |_| Ok(())
+                    )
+                    .unwrap(),
+                DispatchOutcome::Exit
+            );
+        }
+    }
 }

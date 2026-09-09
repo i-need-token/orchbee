@@ -1,0 +1,429 @@
+use super::*;
+use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
+use crate::terminal_session::state::workspace_setup::{
+    NativeSetupEdit as Edit, NativeSetupStage as Stage, NativeSetupStatus as Status,
+    SetupOperation, SetupWorkerEvidence,
+};
+use orchbee_workbench_protocol::{
+    Directory, Project, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchProjectId,
+    WorkbenchSnapshotUnavailableReason, WorkbenchWorkspaceId, Workspace,
+};
+
+fn project() -> Project {
+    Project {
+        project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+        label: "Project".into(),
+        directories: Vec::new(),
+        workspaces: Vec::new(),
+    }
+}
+fn workspace_snapshot(revision: u64, tabs: usize) -> Snapshot {
+    let mut snapshot = snapshot(1, revision, None);
+    let mut project = project();
+    project.workspaces.push(Workspace {
+        workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
+        label: "Workspace".into(),
+        primary_directory_id: None,
+        terminal_context_id: context_id(72),
+    });
+    snapshot.navigation.projects.push(project);
+    snapshot.terminal_contexts.push(TerminalContext {
+        terminal_context_id: context_id(72),
+        groups: Vec::new(),
+        tabs: (10..10 + tabs).map(tab).collect(),
+    });
+    snapshot
+}
+fn workspace_state() -> NativeSessionState {
+    let snapshot = workspace_snapshot(1, 0);
+    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    assert!(state.start_context_selection(1, true, deadlines));
+    let PreparedRefresh::Membership { prepared, .. } =
+        state.prepare_refresh(1, WorkbenchSnapshotOutcome::Available { snapshot })
+    else {
+        panic!("Empty workspace selection");
+    };
+    let old = state.attached_key().unwrap().clone();
+    let cleanup = state
+        .stage_refresh_membership_cleanup(1, prepared, deadlines)
+        .unwrap();
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, &old)
+        .unwrap();
+    assert_eq!(
+        state
+            .prepare_cleaned_membership_install(&cleanup, prepared, None)
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Empty
+    );
+    assert!(state.invariant_holds());
+    state
+}
+fn label_operation(state: &mut NativeSessionState, label: &str, generation: u64) -> SetupOperation {
+    let token = state.setup_draft().unwrap().token();
+    assert!(state.edit_setup_draft(token, Edit::Append(label)));
+    assert!(
+        state
+            .plan_setup(
+                token,
+                WorkbenchRequestId::parse(&id(90 + u128::from(generation))).unwrap(),
+                generation,
+                OperationDeadlines::from_sample(Instant::now()).unwrap()
+            )
+            .is_none()
+    );
+    state.acknowledge_setup_draw(Some(token));
+    let operation = state
+        .plan_setup(
+            token,
+            WorkbenchRequestId::parse(&id(90 + u128::from(generation))).unwrap(),
+            generation,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    state.begin_setup(operation.clone());
+    operation
+}
+fn finish(
+    state: &mut NativeSessionState,
+    snapshot: Snapshot,
+    generation: u64,
+) -> MembershipInstallDecision {
+    let PreparedRefresh::Membership { prepared, .. } =
+        state.prepare_refresh(generation, WorkbenchSnapshotOutcome::Available { snapshot })
+    else {
+        panic!("validated setup membership");
+    };
+    let desired = if prepared.preserves_selection() {
+        state.desired().cloned()
+    } else {
+        prepared
+            .selected_tab_id()
+            .map(|tab| AttachmentKey::new(generation + 30, tab.clone()))
+    };
+    let deadlines = state.setup_deadlines().unwrap();
+    if !prepared.preserves_selection() && state.attached_key().is_some() {
+        let old = state.attached_key().unwrap().clone();
+        let cleanup = state
+            .stage_refresh_membership_cleanup(generation, prepared, deadlines)
+            .unwrap();
+        let prepared = state
+            .prepare_cleaned_membership_candidate(&cleanup, &old)
+            .unwrap();
+        state
+            .prepare_cleaned_membership_install(&cleanup, prepared, desired)
+            .unwrap()
+            .commit()
+    } else {
+        state
+            .prepare_refresh_membership_install(generation, prepared, desired, Some(deadlines))
+            .unwrap()
+            .commit()
+    }
+}
+#[test]
+fn picker_keeps_empty_projects_defaults_new_on_standalone_and_rejects_old_target_draw() {
+    let mut snapshot = snapshot(1, 1, None);
+    snapshot.navigation.projects.push(project());
+    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let original = state.open_setup_draft(false).unwrap();
+    let draft = state.setup_draft().unwrap();
+    assert_eq!(draft.project_count(), 2);
+    assert!(draft.project_at(1).unwrap().selected());
+    assert_eq!(draft.project_at(0).unwrap().label(), Some("Project"));
+    state.acknowledge_setup_draw(Some(original));
+    assert!(state.edit_setup_draft(original, Edit::SelectPreviousProject));
+    let current = state.setup_draft().unwrap().token();
+    assert_ne!(current, original);
+    state.acknowledge_setup_draw(Some(original));
+    assert!(!state.advance_setup_picker(current));
+    state.acknowledge_setup_draw(Some(current));
+    assert!(state.advance_setup_picker(current));
+    assert_eq!(state.setup_draft().unwrap().stage(), Stage::WorkspaceLabel);
+    assert_eq!(
+        state.setup_draft().unwrap().project_label(),
+        Some("Project")
+    );
+}
+#[test]
+fn project_commit_refresh_failure_then_explicit_recovery_advances_fresh_step_and_cancel_keeps_project()
+ {
+    let mut state = ready(1);
+    let token = state.open_setup_draft(false).unwrap();
+    state.acknowledge_setup_draw(Some(token));
+    assert!(state.advance_setup_picker(token));
+    let operation = label_operation(&mut state, "Project", 1);
+    let known = operation
+        .known_commit(WorkbenchSetupCommit::ProjectCreated {
+            revision: WorkbenchRevision::new(2),
+            project_id: project().project_id,
+        })
+        .unwrap();
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known.clone())));
+    let prepared = state.prepare_refresh(
+        1,
+        WorkbenchSnapshotOutcome::Unavailable {
+            reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    );
+    assert_eq!(
+        state.apply_prepared_refresh(prepared),
+        RefreshDecision::Continue
+    );
+    assert_eq!(state.setup_status(), Some(Status::CommittedNeedRefresh));
+    assert!(state.setup_draft().is_none());
+    assert!(!state.start_context_selection(2, true, operation.deadlines));
+    assert!(state.start_pending_refresh(2));
+    state.reset_setup_recovery_deadlines(operation.deadlines);
+    let mut snapshot = snapshot(1, 2, None);
+    snapshot.navigation.projects.push(project());
+    assert_eq!(
+        finish(&mut state, snapshot, 2),
+        MembershipInstallDecision::Preserved
+    );
+    let draft = state.setup_draft().unwrap();
+    assert_eq!(draft.stage(), Stage::WorkspaceLabel);
+    assert!(draft.known_project_created());
+    let token = draft.token();
+    assert!(
+        state
+            .plan_setup(
+                token,
+                WorkbenchRequestId::parse(&id(98)).unwrap(),
+                3,
+                operation.deadlines
+            )
+            .is_none()
+    );
+    state.cancel_setup_draft(token);
+    assert_eq!(state.cache().projects().len(), 1);
+    assert!(!state.setup_blocks_structure());
+    state.clear_settled_setup_status();
+    assert_eq!(state.setup_status(), None);
+    let token = state.open_setup_draft(false).unwrap();
+    state.edit_setup_draft(token, Edit::SelectPreviousProject);
+    let token = state.setup_draft().unwrap().token();
+    state.acknowledge_setup_draw(Some(token));
+    state.advance_setup_picker(token);
+    let queued = label_operation(&mut state, "Queued Workspace", 3);
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+    assert_eq!(state.setup_status(), None);
+    assert!(state.setup_blocks_structure());
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::NotApplied(queued)));
+    assert!(!state.setup_blocks_structure());
+    assert_eq!(state.setup_status(), Some(Status::NotApplied));
+}
+#[test]
+fn workspace_late_snapshot_selects_real_member_after_exact_old_viewer_cleanup() {
+    let mut baseline = snapshot(1, 1, None);
+    baseline.navigation.projects.push(project());
+    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let token = state.open_setup_draft(false).unwrap();
+    assert!(state.edit_setup_draft(token, Edit::SelectPreviousProject));
+    let token = state.setup_draft().unwrap().token();
+    state.acknowledge_setup_draw(Some(token));
+    assert!(state.advance_setup_picker(token));
+    let operation = label_operation(&mut state, "Workspace", 1);
+    let known = operation
+        .known_commit(WorkbenchSetupCommit::WorkspaceCreated {
+            revision: WorkbenchRevision::new(2),
+            workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
+            terminal_context_id: context_id(72),
+        })
+        .unwrap();
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+    let old = state.attached_key().unwrap().clone();
+    let decision = finish(&mut state, workspace_snapshot(3, 1), 1);
+    let MembershipInstallDecision::Attach(target) = decision else {
+        panic!("peer-created real Tab must attach");
+    };
+    assert_ne!(target.selected().key(), &old);
+    assert_eq!(target.selected().key().tab_id(), &tab(10).tab_id);
+    assert_eq!(state.cache().terminal_context_id(), &context_id(72));
+    assert_eq!(state.setup_status(), Some(Status::WorkspaceCreated));
+    assert!(state.setup_draft().is_none());
+    assert!(state.invariant_holds());
+}
+#[test]
+fn workspace_exact_commit_rejects_fabricated_nonempty_membership_and_wrong_owner() {
+    for wrong_owner in [false, true] {
+        let mut baseline = snapshot(1, 1, None);
+        baseline.navigation.projects.push(project());
+        let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+        let token = state.open_setup_draft(false).unwrap();
+        state.edit_setup_draft(token, Edit::SelectPreviousProject);
+        let token = state.setup_draft().unwrap().token();
+        state.acknowledge_setup_draw(Some(token));
+        state.advance_setup_picker(token);
+        let operation = label_operation(&mut state, "Workspace", 1);
+        let known = operation
+            .known_commit(WorkbenchSetupCommit::WorkspaceCreated {
+                revision: WorkbenchRevision::new(2),
+                workspace_id: WorkbenchWorkspaceId::parse(&id(71)).unwrap(),
+                terminal_context_id: context_id(72),
+            })
+            .unwrap();
+        state.retain_setup_worker(SetupWorkerEvidence::Known(known));
+        let mut candidate = workspace_snapshot(2, usize::from(!wrong_owner));
+        if wrong_owner {
+            candidate.navigation.projects[0].project_id =
+                WorkbenchProjectId::parse(&id(99)).unwrap();
+        }
+        assert!(matches!(
+            state.prepare_refresh(
+                1,
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: candidate
+                }
+            ),
+            PreparedRefresh::Divergent { .. }
+        ));
+        assert!(state.attached_key().is_some());
+    }
+}
+#[test]
+fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
+    let mut state = workspace_state();
+    let token = state.open_setup_draft(true).unwrap();
+    assert!(state.edit_setup_draft(token, Edit::Append(&format!("/{}", "中".repeat(1365)))));
+    assert_eq!(state.setup_draft().unwrap().text().len(), 4096);
+    assert!(state.edit_setup_draft(token, Edit::Append("x")));
+    assert!(state.setup_draft().unwrap().faulted());
+    state.edit_setup_draft(token, Edit::Clear);
+    let path = "/tmp/literal ~ $HOME space";
+    state.edit_setup_draft(token, Edit::Append(path));
+    state.acknowledge_setup_draw(Some(token));
+    state.edit_setup_draft(token, Edit::Completeness(false));
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    let request_id = WorkbenchRequestId::parse(&id(98)).unwrap();
+    assert!(
+        state
+            .plan_setup(token, request_id.clone(), 1, deadlines)
+            .is_none()
+    );
+    state.edit_setup_draft(token, Edit::Completeness(true));
+    let operation = state.plan_setup(token, request_id, 1, deadlines).unwrap();
+    state.begin_setup(operation.clone());
+    let directory = Directory {
+        directory_id: WorkbenchDirectoryId::parse(&id(80)).unwrap(),
+        worker_id: WorkerId::parse(&id(81)).unwrap(),
+        path: WorkbenchDirectoryPath::parse(path).unwrap(),
+    };
+    let known = operation
+        .known_commit(WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted {
+            revision: WorkbenchRevision::new(2),
+            directory_id: directory.directory_id.clone(),
+            worker_id: directory.worker_id.clone(),
+        })
+        .unwrap();
+    state.retain_setup_worker(SetupWorkerEvidence::Known(known));
+    let mut candidate = workspace_snapshot(2, 0);
+    candidate.navigation.projects[0].workspaces[0].primary_directory_id =
+        Some(directory.directory_id.clone());
+    candidate.navigation.projects[0].directories.push(directory);
+    assert_eq!(
+        finish(&mut state, candidate, 1),
+        MembershipInstallDecision::Preserved
+    );
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Empty);
+    assert!(state.desired().is_none());
+    assert_eq!(state.workspace_directory_path(), Some(path));
+    assert!(state.open_setup_draft(true).is_none());
+}
+#[test]
+fn setup_draft_and_known_recovery_exclude_existing_structural_actions() {
+    let mut state = ready(2);
+    let token = state.open_setup_draft(false).unwrap();
+    assert_eq!(
+        state.plan_selection(ClientAction::SelectNextTab),
+        SelectionPlan::Busy
+    );
+    assert!(state.open_rename_draft().is_none());
+    assert!(!state.phase_allows_refresh());
+    assert!(state.open_setup_draft(true).is_none());
+    state.cancel_setup_draft(token);
+    assert!(!state.setup_blocks_structure());
+    assert!(state.open_rename_draft().is_some());
+    assert!(state.open_setup_draft(false).is_none());
+}
+#[test]
+fn known_and_definite_worker_returns_survive_retirement_without_becoming_unknown() {
+    let mut state = workspace_state();
+    let token = state.open_setup_draft(true).unwrap();
+    state.acknowledge_setup_draw(Some(token));
+    state.edit_setup_draft(token, Edit::Append("/missing"));
+    let operation = state
+        .plan_setup(
+            token,
+            WorkbenchRequestId::parse(&id(97)).unwrap(),
+            1,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    state.begin_setup(operation.clone());
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::NotApplied(operation.clone())));
+    state.retire(CarrierFailure::Deadline);
+    assert_eq!(state.setup_status(), Some(Status::NotApplied));
+    assert!(state.retain_setup_worker(SetupWorkerEvidence::NotApplied(operation)));
+    assert!(!state.setup_blocks_structure());
+}
+#[test]
+fn directory_commit_cannot_claim_an_existing_directory_identity_at_a_later_revision() {
+    let mut state = workspace_state();
+    let mut baseline = workspace_snapshot(2, 0);
+    let directory = Directory {
+        directory_id: WorkbenchDirectoryId::parse(&id(80)).unwrap(),
+        worker_id: WorkerId::parse(&id(81)).unwrap(),
+        path: WorkbenchDirectoryPath::parse("/literal").unwrap(),
+    };
+    baseline.navigation.projects[0]
+        .directories
+        .push(directory.clone());
+    assert!(state.start_pending_refresh(2));
+    let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
+        2,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: baseline.clone(),
+        },
+    ) else {
+        panic!("empty refresh");
+    };
+    state
+        .prepare_refresh_membership_install(2, prepared, None, None)
+        .unwrap()
+        .commit();
+    let token = state.open_setup_draft(true).unwrap();
+    state.edit_setup_draft(token, Edit::Append("/literal"));
+    state.acknowledge_setup_draw(Some(token));
+    let operation = state
+        .plan_setup(
+            token,
+            WorkbenchRequestId::parse(&id(99)).unwrap(),
+            3,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    state.begin_setup(operation.clone());
+    let known = operation
+        .known_commit(WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted {
+            revision: WorkbenchRevision::new(3),
+            directory_id: directory.directory_id.clone(),
+            worker_id: directory.worker_id,
+        })
+        .unwrap();
+    state.retain_setup_worker(SetupWorkerEvidence::Known(known));
+    baseline.revision = WorkbenchRevision::new(4);
+    baseline.navigation.projects[0].workspaces[0].primary_directory_id =
+        Some(directory.directory_id);
+    assert!(matches!(
+        state.prepare_refresh(
+            3,
+            WorkbenchSnapshotOutcome::Available { snapshot: baseline }
+        ),
+        PreparedRefresh::Divergent { .. }
+    ));
+    assert!(state.workspace_directory_unconfigured());
+    assert_eq!(state.setup_status(), Some(Status::CommittedNeedRefresh));
+}

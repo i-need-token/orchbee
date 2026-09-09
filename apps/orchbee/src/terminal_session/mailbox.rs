@@ -33,6 +33,10 @@ const COMMAND_CAPACITY: usize = 8;
 const CONDITION_WAIT_SLICE: Duration = Duration::from_millis(10);
 
 mod tab_close;
+mod workspace_setup;
+use super::state::workspace_setup::{SetupOperation, SetupResult};
+use workspace_setup::SetupFlight;
+pub(super) use workspace_setup::WorkspaceSetupMarker;
 mod tab_rename;
 use super::state::tab_rename::{RenameOperation, RenameResult};
 use tab_rename::RenameFlight;
@@ -179,6 +183,7 @@ pub(super) enum QueuedCommand {
     Refresh(RefreshMarker),
     Move(MoveMarker),
     Rename(RenameMarker),
+    WorkspaceSetup(WorkspaceSetupMarker),
     Close(CloseMarker),
     ReconcileClose(CloseReconciliationMarker),
 }
@@ -212,6 +217,7 @@ impl QueuedCommand {
             Self::Refresh(marker) => Some(marker.barrier()),
             Self::Move(marker) => Some(marker.barrier()),
             Self::Rename(marker) => Some(marker.barrier()),
+            Self::WorkspaceSetup(marker) => Some(marker.barrier()),
             Self::Close(marker) => Some(marker.barrier()),
             Self::ReconcileClose(marker) => Some(BarrierFence {
                 kind: BarrierKind::Close,
@@ -230,6 +236,7 @@ struct QueuedRecord {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum BarrierKind {
+    WorkspaceSetup,
     Switch,
     Create,
     Refresh,
@@ -466,6 +473,10 @@ impl UiWaitKey {
 }
 
 pub(super) enum WorkerEvent {
+    WorkspaceSetupResult {
+        operation: SetupOperation,
+        outcome: SetupResult,
+    },
     RenameResult {
         operation: RenameOperation,
         outcome: RenameResult,
@@ -622,6 +633,10 @@ impl WorkerEvent {
             Self::MoveResult { operation, .. } => (
                 UiCorrelation::Move(operation.request_id().clone()),
                 UiReplyKind::Move,
+            ),
+            Self::WorkspaceSetupResult { operation, .. } => (
+                UiCorrelation::Refresh(operation.generation),
+                UiReplyKind::Refresh,
             ),
             Self::RenameResult { operation, .. } => (
                 UiCorrelation::Rename(operation.request_id().clone()),
@@ -897,13 +912,14 @@ struct MoveFlight {
 enum StructuralMutationFlight {
     Move(Box<MoveFlight>),
     Rename(Box<RenameFlight>),
+    Setup(Box<SetupFlight>),
 }
 
 impl StructuralMutationFlight {
     fn as_move(&self) -> Option<&MoveFlight> {
         match self {
             Self::Move(flight) => Some(flight),
-            Self::Rename(_) => None,
+            Self::Rename(_) | Self::Setup(_) => None,
         }
     }
 }
@@ -1103,6 +1119,7 @@ impl CommandMailbox {
             | QueuedCommand::Refresh(_)
             | QueuedCommand::Move(_)
             | QueuedCommand::Rename(_)
+            | QueuedCommand::WorkspaceSetup(_)
             | QueuedCommand::Close(_)
             | QueuedCommand::ReconcileClose(_) => {
                 let closed = self.close_locked(&mut state, CarrierFailure::Protocol);
@@ -1616,6 +1633,7 @@ impl CommandMailbox {
                 | QueuedCommand::ReconcileClose(_)
                 | QueuedCommand::Move(_)
                 | QueuedCommand::Rename(_)
+                | QueuedCommand::WorkspaceSetup(_)
         );
         if !marker_parent
             || state.active_lease
@@ -1810,7 +1828,10 @@ impl CommandMailbox {
             ));
         }
         if let WorkerEvent::RefreshSnapshotResult { generation, .. } = &event {
-            if !matches!(deadline, EventDeadline::PlacementOnly(_))
+            if matches!(
+                state.structural_mutation_pending,
+                Some(StructuralMutationFlight::Setup(_))
+            ) || !matches!(deadline, EventDeadline::PlacementOnly(_))
                 || !matches!(
                     state.refresh_flight,
                     Some(RefreshFlight {
@@ -1859,6 +1880,13 @@ impl CommandMailbox {
         }
         if let WorkerEvent::CloseResult { operation, .. } = &event
             && !state.place_close_result(operation, deadline, event_anchor_serial)
+        {
+            return Err(EventError::Closed(
+                self.close_locked(&mut state, CarrierFailure::Protocol),
+            ));
+        }
+        if let WorkerEvent::WorkspaceSetupResult { operation, outcome } = &event
+            && !state.place_setup_result(operation, outcome, deadline, event_anchor_serial)
         {
             return Err(EventError::Closed(
                 self.close_locked(&mut state, CarrierFailure::Protocol),
@@ -2183,7 +2211,9 @@ impl CommandMailbox {
                 self.close_locked(&mut state, CarrierFailure::Protocol),
             ));
         }
-        if !state.rename_reply_current(&wait_key.correlation) {
+        if !state.rename_reply_current(&wait_key.correlation)
+            || !state.setup_reply_current(&wait_key.correlation)
+        {
             return Err(EventError::Closed(
                 self.close_locked(&mut state, CarrierFailure::Protocol),
             ));
@@ -2314,6 +2344,12 @@ impl CommandMailbox {
                 if !matches!(settlement.decision(), RefreshDecision::Cleanup(_)) {
                     if generation.is_some() {
                         state.refresh_flight = None;
+                        if matches!(
+                            state.structural_mutation_pending,
+                            Some(StructuralMutationFlight::Setup(_))
+                        ) {
+                            state.structural_mutation_pending = None;
+                        }
                     } else {
                         state.structural_mutation_pending = None;
                     }
@@ -3031,7 +3067,7 @@ impl CommandMailbox {
         // Keep exact Rename handoff/result evidence until the current worker's join is settled.
         if !matches!(
             state.structural_mutation_pending,
-            Some(StructuralMutationFlight::Rename(_))
+            Some(StructuralMutationFlight::Rename(_) | StructuralMutationFlight::Setup(_))
         ) {
             state.structural_mutation_pending = None;
         }

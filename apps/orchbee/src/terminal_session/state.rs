@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 use super::workbench_projection::project_native_standalone_tabs;
 mod context_selection;
+pub(super) mod workspace_setup;
 pub(crate) use context_selection::NativeContextView;
 mod create_membership;
 mod membership;
@@ -639,6 +640,7 @@ pub(super) struct NativeSessionState {
     rename_uncertain: Option<tab_rename::RenameOperation>,
     close: CloseState,
     rename: rename_draft::RenameDraftState,
+    setup: workspace_setup::SetupState,
     pending_membership: Option<membership::PendingMembership>,
     settled_create: Option<CommittedTabCreate>,
 }
@@ -689,6 +691,7 @@ impl NativeSessionState {
             rename_uncertain: None,
             close: CloseState::default(),
             rename: rename_draft::RenameDraftState::default(),
+            setup: workspace_setup::SetupState::default(),
             pending_membership: None,
             settled_create: None,
         };
@@ -1482,6 +1485,9 @@ impl NativeSessionState {
                 baseline_revision,
             };
         };
+        if self.setup_recovery() {
+            return self.prepare_setup_refresh(generation, &snapshot);
+        }
         if self.context_selection.is_some() {
             return self.prepare_context_selection(generation, &snapshot);
         }
@@ -1759,6 +1765,7 @@ impl NativeSessionState {
 
     pub(super) fn phase_allows_refresh(&self) -> bool {
         self.pending_mutation.is_none()
+            && !self.setup_pending_or_draft()
             && !self.rename_draft_blocks_structure()
             && matches!(
                 &self.phase,
@@ -1817,6 +1824,7 @@ impl NativeSessionState {
     pub(super) fn retire(&mut self, failure: CarrierFailure) {
         self.retire_close_reconciliations();
         self.cancel_rename_draft();
+        self.cancel_setup_on_retirement();
         if matches!(&self.phase, SessionPhase::Retired(_)) {
             return;
         }
@@ -1845,7 +1853,10 @@ impl NativeSessionState {
         if !self.membership_invariant_holds() || !self.context_invariant_holds() {
             return false;
         }
-        if !self.move_invariant_holds() || !self.rename_invariant_holds() {
+        if !self.move_invariant_holds()
+            || !self.rename_invariant_holds()
+            || !self.setup_invariant_holds()
+        {
             return false;
         }
         if self.provenance.len() != self.cache.tabs().len() {

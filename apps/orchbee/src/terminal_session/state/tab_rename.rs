@@ -29,7 +29,9 @@ impl super::NativeSessionState {
     }
     pub(super) fn rename_invariant_holds(&self) -> bool {
         if self.rename_recovery.as_ref().is_some_and(|known| {
-            self.pending_mutation.is_some() || self.settled_rename.as_ref() != Some(known)
+            self.setup_blocks_structure()
+                || self.pending_mutation.is_some()
+                || self.settled_rename.as_ref() != Some(known)
         }) {
             return false;
         }
@@ -83,7 +85,8 @@ impl super::NativeSessionState {
     }
 
     pub(in crate::terminal_session) fn mutation_blocks_structure(&self) -> bool {
-        self.pending_mutation.is_some()
+        self.setup_blocks_structure()
+            || self.pending_mutation.is_some()
             || self.move_recovery.is_some()
             || self.rename_recovery.is_some()
     }

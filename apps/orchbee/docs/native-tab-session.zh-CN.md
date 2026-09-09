@@ -6,6 +6,8 @@
 
 [原生上下文选择](native-context-selection.zh-CN.md) 拥有 Workspace 导航和当前上下文投影扩展。
 其中的位置身份、Empty 选择及保留 provenance 规则扩展下文的独立启动与同上下文 Tab 工作流。
+[原生 Workspace 设置](native-workspace-setup.zh-CN.md) 拥有分步创建和首目录输入，
+复用该 Session 的结构准入、carrier 和成员结算。
 
 ## 已接受的 Close 细化与本地集成
 
