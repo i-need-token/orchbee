@@ -111,7 +111,7 @@ impl SwitchExpiryPermit {
 impl SwitchSnapshotPermit {
     pub(in crate::terminal_session) fn request_id(&self) -> &WorkbenchRequestId {
         let SwitchCall::Snapshot { request, .. } = &self.0.call else {
-            unreachable!()
+            unreachable!("snapshot permit always carries the snapshot call")
         };
         request
     }
@@ -119,7 +119,7 @@ impl SwitchSnapshotPermit {
 impl SwitchCleanupPermit {
     pub(in crate::terminal_session) fn request_id(&self) -> &RequestId {
         let SwitchCall::Cleanup { request, .. } = &self.0.call else {
-            unreachable!()
+            unreachable!("cleanup permit always carries the cleanup call")
         };
         request
     }
