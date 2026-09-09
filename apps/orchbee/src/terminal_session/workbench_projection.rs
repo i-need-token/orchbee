@@ -158,6 +158,12 @@ impl NativeSimpleTab {
         self.panels.get(index)
     }
 
+    pub(super) fn panel_index(&self, panel_id: &WorkbenchPanelId) -> Option<usize> {
+        self.panels
+            .iter()
+            .position(|panel| panel.panel_id() == panel_id)
+    }
+
     pub(super) fn panel_tree(&self) -> &NativePanelTree {
         &self.tree
     }
@@ -180,7 +186,6 @@ pub(crate) struct NativePanel {
 }
 
 impl NativePanel {
-    #[cfg(test)]
     pub(super) fn panel_id(&self) -> &WorkbenchPanelId {
         &self.panel_id
     }

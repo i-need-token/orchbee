@@ -1656,25 +1656,32 @@ impl NativeSessionState {
         else {
             return false;
         };
-        let selected_panel_index = self
+        let selected_panel_id = self
             .active()
-            .map(SelectedTab::panel_index)
-            .unwrap_or_default();
-        if candidate
-            .tabs()
-            .get(desired_index)
-            .is_none_or(|tab| selected_panel_index >= tab.panel_count())
-        {
+            .and_then(|active| {
+                self.cache
+                    .tabs()
+                    .get(active.index())
+                    .and_then(|tab| tab.panel(active.panel_index()))
+            })
+            .map(|panel| panel.panel_id().clone());
+        let Some(selected_panel_index) = candidate.tabs().get(desired_index).and_then(|tab| {
+            selected_panel_id
+                .as_ref()
+                .map_or(Some(0), |panel_id| tab.panel_index(panel_id))
+        }) else {
             return false;
-        }
+        };
         let mut phase = self.phase.clone();
         match &mut phase {
             SessionPhase::Ready(ready) => {
                 ready.selected.index = desired_index;
+                ready.selected.panel_index = selected_panel_index;
             }
             SessionPhase::SelectedWithoutAttachment(selected)
             | SessionPhase::RetryableAttachUnavailable(selected) => {
                 selected.index = desired_index;
+                selected.panel_index = selected_panel_index;
             }
             _ => return false,
         }

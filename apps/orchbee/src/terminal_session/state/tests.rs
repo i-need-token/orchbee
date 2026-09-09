@@ -758,6 +758,81 @@ fn append_only_refresh_preserves_a_nonfirst_active_id_and_known_provenance() {
 }
 
 #[test]
+fn projection_merge_preserves_active_panel_identity_when_split_order_changes() {
+    let mut baseline = snapshot(1, 1, None);
+    let original_root = baseline.terminal_contexts[0].tabs[0].root.clone();
+    baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: original_root,
+                slot_id: WorkbenchPanelSlotId::parse(&id(3_001)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&id(3_010)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(PresentationBinding {
+                            terminal_id: TerminalId::parse(&id(3_012)).unwrap(),
+                            worker_id: WorkerId::parse(&id(3_011)).unwrap(),
+                        }),
+                        label: "peer".into(),
+                        presentation_id: TerminalPresentationId::parse(&id(3_013)).unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&id(3_014)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&id(3_020)).unwrap(),
+    };
+    let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+    let active_panel_id = state.tab(0).unwrap().panel(1).unwrap().panel_id().clone();
+    let SessionPhase::Ready(ready) = &mut state.phase else {
+        unreachable!();
+    };
+    ready.selected.panel_index = 1;
+
+    let mut refreshed = baseline.clone();
+    refreshed.revision = WorkbenchRevision::new(2);
+    let old_root = refreshed.terminal_contexts[0].tabs[0].root.clone();
+    refreshed.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&id(3_030)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(PresentationBinding {
+                            terminal_id: TerminalId::parse(&id(3_032)).unwrap(),
+                            worker_id: WorkerId::parse(&id(3_031)).unwrap(),
+                        }),
+                        label: "new".into(),
+                        presentation_id: TerminalPresentationId::parse(&id(3_033)).unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&id(3_034)).unwrap(),
+            },
+            PanelSlot {
+                node: old_root,
+                slot_id: WorkbenchPanelSlotId::parse(&id(3_035)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Vertical,
+        split_id: WorkbenchSplitId::parse(&id(3_040)).unwrap(),
+    };
+    let candidate = project_native_standalone_tabs(&refreshed).unwrap();
+
+    assert!(state.merge_projection(candidate));
+    assert_eq!(state.active().unwrap().panel_index(), 2);
+    assert_eq!(
+        state.tab(0).unwrap().panel(2).unwrap().panel_id(),
+        &active_panel_id
+    );
+    assert!(state.invariant_holds());
+}
+
+#[test]
 fn same_revision_label_change_retires_as_projection_divergence() {
     let mut state = ready(1);
     let diagnostic_active = state.active().unwrap().clone();

@@ -11,6 +11,10 @@ use orchbee_workbench_protocol::{
 
 use super::{ExchangeAttempt, LocalClient, exchange_once};
 
+// The typed split transport is admitted before a product shortcut is reserved; keep its
+// contract compiled and tested without presenting it as a UI action yet.
+#[allow(dead_code)]
+pub(crate) mod panel_split;
 mod tab_close;
 mod tab_move;
 pub(crate) mod tab_rename;
