@@ -363,6 +363,12 @@ impl CloseRecord {
                 CloseContinuationNext::Outstanding => outstanding = true,
             }
         }
+        if let Some(until) = wait_until {
+            return WorkbenchTabCloseStepTarget {
+                target: None,
+                next: CloseContinuationNext::WaitUntil(until),
+            };
+        }
         if outstanding {
             return WorkbenchTabCloseStepTarget {
                 target: None,
@@ -380,10 +386,7 @@ impl CloseRecord {
         }
         WorkbenchTabCloseStepTarget {
             target: None,
-            next: wait_until.map_or(
-                CloseContinuationNext::Parked,
-                CloseContinuationNext::WaitUntil,
-            ),
+            next: CloseContinuationNext::Parked,
         }
     }
 
