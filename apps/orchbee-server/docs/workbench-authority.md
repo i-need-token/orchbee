@@ -109,7 +109,10 @@ fresh graft, reduced trees equal — and retires on any other reshaping. The bou
 `WorkbenchPanelMove` TLA+ model covers leaf removal, parent collapse, fresh graft identities,
 direction order/orientation and replay over a three-leaf tree domain; the Linux cohort witness
 `native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell` establishes the
-shared revision, swapped leaf order, surviving shell and attached-Client refresh.
+shared revision, swapped leaf order, surviving shell and attached-Client refresh, and the Workspace
+process witness `real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal`
+exercises the same commit through the Workspace tree-membership path with both retained shells
+proven alive.
 
 ## Accepted canonical Tab move model
 

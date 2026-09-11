@@ -498,6 +498,235 @@ fn real_workspace_panel_split_and_aggregate_close_releases_both_terminals() -> T
 }
 
 #[test]
+fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal() -> TestResult {
+    let server = RunningServer::start()?;
+    let fixture = RealWorkerFixture::start(&server)?;
+    let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
+    let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
+    let setup = create_associated_workspace(&fixture, &mut first, &mut second)?;
+    let geometry = geometry()?;
+
+    let created = exchange_command(
+        &mut first,
+        &command(
+            workbench_id(0x140)?,
+            &setup.snapshot,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                label: WorkbenchLabel::parse("Workspace move source")?,
+                geometry,
+            },
+        ),
+    )?;
+    let (tab_id, panel_id) = match created.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => (tab_id, panel_id),
+        outcome => return Err(format!("Workspace TabCreate did not start: {outcome:?}").into()),
+    };
+    let after_create = read_snapshot(&mut second, 0x141)?;
+    let split = exchange_command(
+        &mut second,
+        &command(
+            workbench_id(0x142)?,
+            &after_create,
+            WorkbenchAction::PanelSplit {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: WorkbenchLabel::parse("Workspace move peer")?,
+                geometry,
+            },
+        ),
+    )?;
+    let new_panel_id = match split.outcome {
+        WorkbenchCommandOutcome::PanelSplitCreated {
+            new_panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => new_panel_id,
+        outcome => return Err(format!("Workspace PanelSplit did not start: {outcome:?}").into()),
+    };
+    let before_move = read_snapshot(&mut first, 0x143)?;
+    let before_tab = workspace_context(&before_move)?
+        .tabs
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .ok_or_else(|| io::Error::other("Workspace move Tab was not projected"))?;
+    let PanelNode::Split {
+        children: before_children,
+        split_id: before_split_id,
+        ..
+    } = &before_tab.root
+    else {
+        return Err(io::Error::other("Workspace split did not project a split root").into());
+    };
+    let before_ids: Vec<&orchbee_workbench_protocol::WorkbenchPanelId> = before_children
+        .iter()
+        .map(|slot| match &slot.node {
+            PanelNode::Panel {
+                panel_id: child, ..
+            } => Ok(child),
+            node => Err(io::Error::other(format!(
+                "Workspace split child was not a leaf: {node:?}"
+            ))),
+        })
+        .collect::<Result<_, io::Error>>()?;
+    assert_eq!(before_ids, [&panel_id, &new_panel_id]);
+    let before_slot_ids: Vec<_> = before_children
+        .iter()
+        .map(|slot| slot.slot_id.clone())
+        .collect();
+    let before_bindings: Vec<PresentationBinding> = before_children
+        .iter()
+        .map(|slot| match &slot.node {
+            PanelNode::Panel {
+                primary_presentation,
+                ..
+            } => primary_presentation
+                .binding
+                .clone()
+                .ok_or_else(|| io::Error::other("Workspace move leaf is not bound")),
+            _ => unreachable!(),
+        })
+        .collect::<Result<_, io::Error>>()?;
+    let launch_lines = wait_for_marker(&fixture.marker, 2)?;
+    assert_eq!(
+        launch_lines,
+        vec![
+            fixture.directory.to_string_lossy().into_owned(),
+            fixture.directory.to_string_lossy().into_owned(),
+        ]
+    );
+
+    let pid_paths: Vec<PathBuf> = (0..2)
+        .map(|index| {
+            fixture
+                .marker
+                .with_file_name(format!("move-shell-{index}-pid"))
+        })
+        .collect();
+    let mut pid_sequence = 0_u128;
+    for (binding, path) in before_bindings.iter().zip(&pid_paths) {
+        let attachment = attach_binding(&mut first, &before_move, binding, 0x150 + pid_sequence)?;
+        let controller = acquire_controller(&mut first, &attachment, 0x158 + pid_sequence)?;
+        input(
+            &mut first,
+            &attachment,
+            &controller,
+            0x160 + pid_sequence,
+            1,
+            format!(
+                "printf '%s\\n' \"$$\" > {}\n",
+                single_quote(path.to_string_lossy().as_ref())
+            )
+            .into_bytes(),
+        )?;
+        pid_sequence += 1;
+    }
+    let pids: Vec<u32> = pid_paths
+        .iter()
+        .map(|path| wait_for_pid(path))
+        .collect::<TestResult<_>>()?;
+
+    let moved = exchange_command(
+        &mut second,
+        &command(
+            workbench_id(0x144)?,
+            &before_move,
+            WorkbenchAction::PanelMove {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                target_panel_id: new_panel_id.clone(),
+                direction: WorkbenchPanelSplitDirection::Right,
+            },
+        ),
+    )?;
+    let move_revision = match moved.outcome {
+        WorkbenchCommandOutcome::PanelMoved {
+            revision,
+            terminal_context_id: moved_context,
+            tab_id: moved_tab,
+            panel_id: moved_panel,
+            target_panel_id: moved_target,
+        } => {
+            assert_eq!(moved_context, setup.terminal_context_id);
+            assert_eq!(moved_tab, tab_id);
+            assert_eq!(moved_panel, panel_id);
+            assert_eq!(moved_target, new_panel_id);
+            assert_eq!(revision.value(), before_move.revision.value() + 1);
+            revision
+        }
+        outcome => return Err(format!("Workspace PanelMove did not commit: {outcome:?}").into()),
+    };
+    let after_move = read_snapshot(&mut first, 0x145)?;
+    assert_eq!(after_move.revision, move_revision);
+    let moved_tab = workspace_context(&after_move)?
+        .tabs
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .ok_or_else(|| io::Error::other("moved Workspace Tab was not projected"))?;
+    let PanelNode::Split {
+        children: after_children,
+        split_id: after_split_id,
+        ..
+    } = &moved_tab.root
+    else {
+        return Err(io::Error::other("Workspace move did not project a split root").into());
+    };
+    let after_ids: Vec<&orchbee_workbench_protocol::WorkbenchPanelId> = after_children
+        .iter()
+        .map(|slot| match &slot.node {
+            PanelNode::Panel {
+                panel_id: child, ..
+            } => Ok(child),
+            node => Err(io::Error::other(format!(
+                "moved split child was not a leaf: {node:?}"
+            ))),
+        })
+        .collect::<Result<_, io::Error>>()?;
+    assert_eq!(after_ids, [&new_panel_id, &panel_id]);
+    assert_ne!(after_split_id, before_split_id);
+    for slot in after_children.iter() {
+        assert!(!before_slot_ids.contains(&slot.slot_id));
+    }
+    let after_bindings: Vec<PresentationBinding> = after_children
+        .iter()
+        .map(|slot| match &slot.node {
+            PanelNode::Panel {
+                primary_presentation,
+                ..
+            } => primary_presentation
+                .binding
+                .clone()
+                .ok_or_else(|| io::Error::other("moved Workspace leaf is not bound")),
+            _ => unreachable!(),
+        })
+        .collect::<Result<_, io::Error>>()?;
+    assert_eq!(
+        after_bindings,
+        [before_bindings[1].clone(), before_bindings[0].clone()]
+    );
+
+    // The move is lifecycle-free: no terminal launch and both retained shells still run.
+    let launch_lines = wait_for_marker(&fixture.marker, 2)?;
+    assert_eq!(launch_lines.len(), 2);
+    for (pid, path) in pids.iter().zip(&pid_paths) {
+        assert!(
+            process_is_alive(*pid)?,
+            "moved Workspace shell PID from {} is not alive",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn real_workspace_close_preserves_standalone_and_can_recreate() -> TestResult {
     let server = RunningServer::start()?;
     let fixture = RealWorkerFixture::start(&server)?;

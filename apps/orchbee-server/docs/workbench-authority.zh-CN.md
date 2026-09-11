@@ -85,7 +85,9 @@ projection 只把已提交的移动接受为这一确切重构——Panel 集合
 相等——其他任何重整形都触发退役。有界 `WorkbenchPanelMove` TLA+ 模型在三 leaf 树域上覆盖 leaf
 摘除、父级折叠、fresh graft 身份、方向次序/朝向及重放；Linux cohort witness
 `native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell` 建立共享修订、leaf
-次序交换、shell 存活及已挂接 Client 刷新。
+次序交换、shell 存活及已挂接 Client 刷新；Workspace 进程见证
+`real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal` 经 Workspace
+树成员关系路径覆盖同一提交，并证明两个保留 shell 均存活。
 
 ## 已接受的规范 Tab 移动模型
 
