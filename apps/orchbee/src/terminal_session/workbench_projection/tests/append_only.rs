@@ -104,6 +104,100 @@ fn canonical_refresh_accepts_one_exact_panel_split_extension() {
 }
 
 #[test]
+fn canonical_refresh_rejects_split_extension_that_mutates_the_untouched_sibling_subtree() {
+    let mut current_snapshot = snapshot(2, 10);
+    current_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: PanelNode::Split {
+                    children: Box::new([
+                        PanelSlot {
+                            node: panel(30, 31, 32, 33, "left"),
+                            slot_id: slot_id(44),
+                        },
+                        PanelSlot {
+                            node: panel(35, 36, 37, 38, "middle"),
+                            slot_id: slot_id(45),
+                        },
+                    ]),
+                    orientation: PanelOrientation::Vertical,
+                    split_id: split_id(46),
+                },
+                slot_id: slot_id(34),
+            },
+            PanelSlot {
+                node: panel(50, 51, 52, 53, "right"),
+                slot_id: slot_id(39),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: split_id(40),
+    };
+    let current = project_native_standalone_tabs(&current_snapshot).unwrap();
+
+    // The extension lands inside the second slot while the untouched inner-left Split has its
+    // identity rewritten; the Panel set still matches an exact split.
+    let mut candidate_snapshot = current_snapshot;
+    candidate_snapshot.revision = WorkbenchRevision::new(11);
+    let PanelNode::Split { children, .. } =
+        candidate_snapshot.terminal_contexts[0].tabs[0].root.clone()
+    else {
+        panic!("the baseline fixture must contain a split root");
+    };
+    let [first, second] = *children;
+    let PanelSlot {
+        node:
+            PanelNode::Split {
+                children: left_children,
+                orientation: left_orientation,
+                ..
+            },
+        slot_id: left_slot_id,
+    } = first
+    else {
+        panic!("the untouched fixture side must contain a split");
+    };
+    candidate_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: PanelNode::Split {
+                    children: left_children,
+                    orientation: left_orientation,
+                    split_id: split_id(99),
+                },
+                slot_id: left_slot_id,
+            },
+            PanelSlot {
+                node: PanelNode::Split {
+                    children: Box::new([
+                        PanelSlot {
+                            node: second.node,
+                            slot_id: slot_id(54),
+                        },
+                        PanelSlot {
+                            node: panel(60, 61, 62, 63, "new"),
+                            slot_id: slot_id(55),
+                        },
+                    ]),
+                    orientation: PanelOrientation::Vertical,
+                    split_id: split_id(56),
+                },
+                slot_id: second.slot_id,
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: split_id(40),
+    };
+    assert_eq!(
+        validate_canonical_refresh(
+            &current,
+            project_native_standalone_tabs(&candidate_snapshot).unwrap()
+        ),
+        Err(NativeProjectionDivergence)
+    );
+}
+
+#[test]
 fn canonical_refresh_checks_every_cache_length_through_the_protocol_bound() {
     for current_tab_count in 0..=MAXIMUM_TABS_PER_CONTEXT {
         let current = projected(current_tab_count, 1);

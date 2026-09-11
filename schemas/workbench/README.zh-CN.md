@@ -86,9 +86,10 @@ Rust/TypeScript oracle；原始 duplicate-key case 另行验证 Rust wire parser
 
 `workbench.command` 携带 protocolVersion、requestId、siteId、expectedRevision 及一项 action：
 project.create、project.rename、workspace.create、workspace.rename、
-workspace.primary-directory.accept、tab.rename、tab.create、tab.move 或 tab.close。Label 在既有上限内保留包括
+workspace.primary-directory.accept、tab.rename、tab.create、panel.split、tab.move、tab.close
+或 panel.close。Label 在既有上限内保留包括
 空白在内的确切文本。新产品身份归 Server 所有。`workbench.command.result` 关联 project-created、
-workspace-created、workspace-primary-directory-accepted、renamed、unchanged、tab-create-pending、tab-created、tab-moved、tab-close-accepted、rejected、denied 或 unavailable outcome。Revision 与新身份
+workspace-created、workspace-primary-directory-accepted、renamed、unchanged、tab-create-pending、tab-created、panel-split-pending、panel-split-created、tab-moved、tab-close-accepted、panel-close-accepted、rejected、denied 或 unavailable outcome。Revision 与新身份
 仅出现于声明它们的变体；denied 不泄露两者。`workbench.snapshot.result` 包含携带完整嵌套
 `workbench.snapshot` 的 available，或 denied、unavailable。Schema 拥有封闭 reason；
 [Server 权威](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md) 拥有决策顺序、原子提交、
@@ -245,9 +246,13 @@ schema 有效但原生不支持的布局属于内部权威分歧，不是产品�
 
 [Server Close 契约](../../apps/orchbee-server/docs/terminal-tab-close.zh-CN.md) 拥有生命周期
 准入、不可变接受、状态、显式 Resume 和发布。其严格线协议投影独立于 Server/Worker/原生
-运行时激活分阶段交付。`tab.close` action 仅增加 `terminalContextId` 和 `tabId`。
+运行时激活分阶段交付。`tab.close` action 仅增加 `terminalContextId` 和 `tabId`；
+`panel.close` 额外携带 `panelId`。
 `tab-close-accepted` 携带 `closeRequestId`、`terminalContextId`、`tabId` 和
-`acceptedRevision`；别名保留主操作最初准入修订，该值不是成员移除修订。
+`acceptedRevision`；`panel-close-accepted` 回显相同字段并附加 `panelId`。别名保留主操作最初
+准入修订，该值不是成员移除修订。叶子级操作共用同一份保留的 Close 记录、
+`workbench.tab-close.read` 状态查询及 `workbench.tab-close.resume` 控制；这些线协议结构
+不携带 `panelId`。
 
 无副作用的 `workbench.tab-close.read` 与显式 `workbench.tab-close.resume` 请求、结果、
 每个状态及原因和必需目标回显遵循该所有者记录。所有对象保持封闭。`attemptGeneration` 与

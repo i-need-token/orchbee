@@ -36,8 +36,10 @@ Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move �
 现已由 Linux 原生 Client 投影该规范分屏树，并在经过验证的叶子之间移动本地焦点；Client 仍一次只
 附着一个 viewer，TUI 快捷键也不会提交 `panel.split`。
 
-本地 standalone 与 Workspace 的 `tab.close`、状态 Read 和 Resume 使用保留的生命周期权威及单个进程生命周期
-维护所有者。已知 Host 销毁和精确 Worker/Server 清理先于规范移除；Client 退出不取消
+本地 standalone 与 Workspace 的 `tab.close`、叶子级 `panel.close`、状态 Read 和 Resume 使用保留的生命周期权威及单个进程生命周期
+维护所有者。Panel close 恰好捕获一个 leaf，经同一生命周期销毁并清理它，再发布存活
+Tab——被移除 leaf 的父 Split 折叠为兄弟子树；关闭 Tab 唯一 leaf 按聚合 Close 处理。已知
+Host 销毁和精确 Worker/Server 清理先于规范移除；Client 退出不取消
 已接受 Close。Linux 载体/进程检查覆盖八个活动 Client 连接、空闲控制槽释放，以及另一
 shell 存活时的同连接复用。[Close 契约](docs/terminal-tab-close.zh-CN.md) 规定边界、另有证据
 支持的原生 TUI 集成，以及仍待完成的生产恢复和发布义务。

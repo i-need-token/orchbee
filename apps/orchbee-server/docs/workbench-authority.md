@@ -78,14 +78,19 @@ outcome quarantines the pending operation and cannot publish a partial tree.
 
 Aggregate Close captures the complete ordered leaf membership of the Tab. It disposes and cleans up
 each leaf under its retained lifecycle authority, then publishes one Tab removal only after every
-leaf has a known proof. Standalone retargeting compares the exact removed set against the remaining
+leaf has a known proof. `panel.close` is the leaf-scoped counterpart: it captures exactly one leaf
+member, reuses the same continuation, and publishes the surviving Tab with the removed leaf's parent
+Split replaced by the sibling subtree; closing a Tab's only leaf admits as an ordinary aggregate
+Close. Standalone retargeting compares the exact removed set against the remaining
 tree and preserves the current reference when one remains, or publishes Empty when none remains.
 The authority unit test, the standalone and Workspace Linux process witnesses
 `real_workbench_panel_split_and_aggregate_close_releases_both_terminals` and
 `real_workspace_panel_split_and_aggregate_close_releases_both_terminals`, and the bounded
 `WorkbenchPanelSplit` TLA+ model cover this refinement. The native TUI consumes Client-local panel
-layout and focus through strict projection and local focus; the TUI still does not submit
-`panel.split` from a shortcut.
+layout and focus through strict projection and local focus; it admits a peer leaf close as an exact
+sibling-substituted contraction of its baseline tree and retires only when its own attached leaf was
+removed. The TUI still does not submit
+`panel.split` or `panel.close` from a shortcut.
 
 ## Accepted canonical Tab move model
 

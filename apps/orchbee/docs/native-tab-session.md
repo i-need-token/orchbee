@@ -846,7 +846,10 @@ complete schema/strict projector and structural identity uniqueness. Removal, du
 other immutable-member change is divergence. A higher-revision peer refresh may additionally add
 exactly one server-created leaf by wrapping one retained leaf in one new split; every retained
 panel, binding, tree edge, slot and split remains exact, and replacement or reshaping is divergence.
-At most 256 Tabs need only exact scans, no stored map.
+It may likewise remove exactly one leaf of a retained Tab: the candidate keeps every surviving
+panel, binding and presentation exact, and the removed leaf's parent split must be replaced by the
+sibling subtree with its own slot and split identities intact. Any other tree reshaping, survivor
+mutation or multi-leaf loss is divergence. At most 256 Tabs need only exact scans, no stored map.
 
 `CreatedTabExpectation` is projection-owned and carries only the six canonical facts needed for
 pure validation. The session state embeds or constructs it; request identity, terminal provenance,

@@ -93,13 +93,27 @@ reject Close-only reasons, accepted outcomes and response envelopes as action-in
 
 The existing `workbench.command` envelope and full fingerprint
 `(requestId, siteId, expectedRevision, action)` admit
-`{kind:"tab.close", terminalContextId, tabId}`. Precedence is lifecycle grant; exact replay/conflict;
-retirement for a new mutation; ledger entry capacity; Site/base/context/strict membership; exact
-target and terminal association; Busy/unavailable runtime identity; resource reservations; joint
-acceptance. Accepted Close replay remains readable after Workbench retirement. Replays have no effects.
+`{kind:"tab.close", terminalContextId, tabId}` and
+`{kind:"panel.close", terminalContextId, tabId, panelId}`. Precedence is lifecycle grant; exact
+replay/conflict; retirement for a new mutation; ledger entry capacity; Site/base/context/strict
+membership; exact target and terminal association; Busy/unavailable runtime identity; resource
+reservations; joint acceptance. Accepted Close replay remains readable after Workbench retirement.
+Replays have no effects.
+
+A Panel close resolves one exact leaf member inside the named Tab. When that leaf is the Tab's only
+member, the command admits as an ordinary Tab close over the whole membership; otherwise it admits
+as a leaf-scoped close over exactly that member. An unknown `panelId` on a surviving Tab returns
+`PanelUnavailable`; a missing Tab returns `TabUnavailable`. Every scoped close still freezes its
+captured leaf membership at admission, disposes and cleans each captured leaf through the same
+continuation, and joins or refuses overlapping closes: a same-action replay over the same member
+set joins with its fixed acknowledgment, while any open Close already covering a requested member
+under a different action or membership is `terminal-busy`. Disjoint leaf closes on one Tab may
+therefore retain separate primaries.
 
 Acceptance spends no canonical revision. Its fixed outcome is
-`tab-close-accepted {closeRequestId, terminalContextId, tabId, acceptedRevision}`. The primary
+`tab-close-accepted {closeRequestId, terminalContextId, tabId, acceptedRevision}` or
+`panel-close-accepted {closeRequestId, terminalContextId, tabId, panelId, acceptedRevision}`,
+echoing the admitted action's fields. The primary
 command request ID is `closeRequestId`; `acceptedRevision` is that primary command's admitted base,
 not removal. Every alias acknowledgment preserves this canonical operation's original
 `closeRequestId` and `acceptedRevision`, even when the alias has a newer expectedRevision; its own
@@ -363,7 +377,11 @@ insertion. Serialized-byte reservation does not prove allocation, panic or crash
 Retain KnownDisposed and complete exact local cleanup first. Under the Site gate, validate current
 applicable membership and the exact target tuple, then prepare from the **current** snapshot: an
 aggregate Close removes every captured tree leaf as one Tab publication, preserving other Tabs,
-order and labels. Releasing the gate requires revalidation/repreparation. No old admission snapshot replaces later writes, no Site-wide
+order and labels. A leaf-scoped Close removes exactly its captured leaf: the leaf's parent Split is
+replaced by the sibling subtree, retaining the sibling's own slot and Split identities, and the
+surviving Tab keeps its ID, label and remaining members; when the closed leaf is already the Tab
+root, the whole Tab is removed as for an aggregate Close. Releasing the gate requires
+revalidation/repreparation. No old admission snapshot replaces later writes, no Site-wide
 freeze spans grace, and the credit does not preassign the final revision.
 
 Check actual encoded projection limits and delta/full-snapshot fallback; no future full buffer is
@@ -414,7 +432,13 @@ and after A's joint Close publication, and bare Open selecting the surviving B i
 ## Native removal and barrier composition
 
 Same-revision snapshots remain exact. Higher revisions may remove IDs; surviving IDs preserve their
-immutable tuple/binding/Presentation label while Tab label/order may change. An available higher
+immutable tuple/binding/Presentation label while Tab label/order may change. A leaf close likewise
+appears as a higher-revision contraction: the surviving Tab keeps its identity with exactly one
+fewer leaf, the removed leaf's parent Split replaced by the sibling subtree. A native refresh admits
+that contraction only as the exact sibling replacement of the frozen baseline tree; any other tree
+shape change, removed-survivor mutation, or multi-leaf loss is divergence. When the contracted leaf
+was the attached selection the native session retires; a surviving attached leaf keeps its
+attachment and viewport. An available higher
 canonical snapshot proves membership removal without per-missing-Tab status reads. For own known
 Closed, its target must be absent at every snapshot revision at or above `Closed.revision`.
 
@@ -481,6 +505,10 @@ Run the three registered checks from the repository root:
 ```sh
 node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split --jobs 1
 ```
+
+`WorkbenchPanelSplit` also covers the leaf close cut: a Panel-scoped close freezes one leaf member,
+disposes and cleans it through the same outstanding-step discipline, and publishes a membership
+contraction that preserves the surviving leaf while the Split collapses to it.
 
 [`WorkbenchTabCloseCoordination`](../formal/tla/WorkbenchTabCloseCoordination.tla) has two
 configuration variants in the existing registry. `credits` explores two initially known exact

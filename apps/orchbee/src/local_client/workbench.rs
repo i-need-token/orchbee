@@ -15,6 +15,10 @@ use super::{ExchangeAttempt, LocalClient, exchange_once};
 // contract compiled and tested without presenting it as a UI action yet.
 #[allow(dead_code)]
 pub(crate) mod panel_split;
+// The typed leaf-close transport is admitted the same way: compiled and tested before any
+// product shortcut presents it.
+#[allow(dead_code)]
+pub(crate) mod panel_close;
 mod tab_close;
 mod tab_move;
 pub(crate) mod tab_rename;

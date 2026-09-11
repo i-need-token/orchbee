@@ -47,7 +47,10 @@ impl WorkbenchService {
             | WorkbenchRequest::TabCloseRead(_) => self.policy.read,
             WorkbenchRequest::TabCloseResume(_) => self.policy.manage_terminal_lifecycle,
             WorkbenchRequest::Command(command)
-                if matches!(&command.action, WorkbenchAction::TabClose { .. }) =>
+                if matches!(
+                    &command.action,
+                    WorkbenchAction::TabClose { .. } | WorkbenchAction::PanelClose { .. }
+                ) =>
             {
                 self.policy.manage_terminal_lifecycle
             }
@@ -110,7 +113,10 @@ impl WorkbenchService {
                 );
             }
             WorkbenchRequest::Command(command)
-                if matches!(&command.action, WorkbenchAction::TabClose { .. }) =>
+                if matches!(
+                    &command.action,
+                    WorkbenchAction::TabClose { .. } | WorkbenchAction::PanelClose { .. }
+                ) =>
             {
                 let response = self
                     .terminals

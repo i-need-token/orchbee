@@ -107,6 +107,18 @@ impl WorkbenchTerminalMembership {
             .filter(move |member| member.tab_id() == tab_id)
     }
 
+    /// Resolves the exact bound leaf member under `panel_id` inside `tab_id`.
+    #[must_use]
+    pub fn member_for_panel(
+        &self,
+        tab_id: &WorkbenchTabId,
+        panel_id: &WorkbenchPanelId,
+    ) -> Option<&WorkbenchTerminalTab> {
+        self.members
+            .iter()
+            .find(|member| member.tab_id() == tab_id && member.panel_id() == panel_id)
+    }
+
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.members.is_empty()

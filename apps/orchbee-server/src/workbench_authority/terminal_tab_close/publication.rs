@@ -8,8 +8,9 @@ use orchbee_workbench_protocol::{
 use super::super::{
     RetainedRequest, WorkbenchAuthority, WorkbenchTerminalMembership, WorkbenchTerminalTab,
 };
-use super::CloseRecord;
+use super::{CloseRecord, CloseScope};
 use crate::workbench_projection::{PreparedProjectionAdvance, WorkbenchProjectionStore};
+use orchbee_workbench_protocol::{PanelNode, Presentation, WorkbenchPanelId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkbenchTabClosePublicationError {
@@ -118,12 +119,22 @@ impl WorkbenchAuthority {
                 );
             }
         };
+        let scope = self
+            .close_record(close_request_id)
+            .ok_or(WorkbenchTabClosePublicationError::OperationUnavailable)?
+            .scope;
         let actual_tab_members: Vec<_> = before.members_for_tab(target.member.tab_id()).collect();
-        if before.terminal_context_id() != &target.terminal_context_id
-            || actual_tab_members.len() != targets.len()
-            || !actual_tab_members
-                .into_iter()
-                .eq(targets.iter().map(|target| &target.member))
+        if before.terminal_context_id() != &target.terminal_context_id {
+            return self.fail_close_publication(
+                close_request_id,
+                WorkbenchTabClosePublicationError::CompositionMismatch,
+            );
+        }
+        if scope == CloseScope::Tab
+            && (actual_tab_members.len() != targets.len()
+                || !actual_tab_members
+                    .into_iter()
+                    .eq(targets.iter().map(|target| &target.member)))
         {
             return self.fail_close_publication(
                 close_request_id,
@@ -152,10 +163,57 @@ impl WorkbenchAuthority {
                 WorkbenchTabClosePublicationError::CompositionMismatch,
             );
         };
-        // Strict membership proved the exact Tab/Panel/Presentation/binding tuple above.
-        context
-            .tabs
-            .retain(|tab| &tab.tab_id != target.member.tab_id());
+        match scope {
+            // Strict membership proved the exact Tab/Panel/Presentation/binding tuple above.
+            CloseScope::Tab => {
+                context
+                    .tabs
+                    .retain(|tab| &tab.tab_id != target.member.tab_id());
+            }
+            CloseScope::Panel => {
+                let Some(tab_index) = context
+                    .tabs
+                    .iter()
+                    .position(|tab| &tab.tab_id == target.member.tab_id())
+                else {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                };
+                let Some(presentation) = context
+                    .tabs
+                    .get(tab_index)
+                    .and_then(|tab| leaf_presentation(&tab.root, target.member.panel_id()))
+                else {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                };
+                // Strict membership proves the exact leaf Presentation/binding tuple.
+                if presentation.presentation_id != *target.member.presentation_id()
+                    || presentation.binding.as_ref() != Some(target.member.binding())
+                {
+                    return self.fail_close_publication(
+                        close_request_id,
+                        WorkbenchTabClosePublicationError::CompositionMismatch,
+                    );
+                }
+                if matches!(&context.tabs[tab_index].root, PanelNode::Panel { .. }) {
+                    // Sibling Closes already collapsed the tree; this leaf is the whole Tab.
+                    context.tabs.remove(tab_index);
+                } else {
+                    let tab = &mut context.tabs[tab_index];
+                    if !remove_leaf_panel(&mut tab.root, target.member.panel_id()) {
+                        return self.fail_close_publication(
+                            close_request_id,
+                            WorkbenchTabClosePublicationError::CompositionMismatch,
+                        );
+                    }
+                }
+            }
+        }
         candidate.revision = revision;
         let after = match super::super::terminal_membership::tree_terminal_membership(
             &candidate,
@@ -217,4 +275,48 @@ impl WorkbenchAuthority {
         }
         Err(failure)
     }
+}
+
+/// Resolves the primary Presentation of the leaf Panel `panel_id`, or `None` when the identity
+/// addresses no leaf (a Split identity or a vanished node).
+fn leaf_presentation<'a>(
+    node: &'a PanelNode,
+    panel_id: &WorkbenchPanelId,
+) -> Option<&'a Presentation> {
+    match node {
+        PanelNode::Panel {
+            panel_id: identity,
+            primary_presentation,
+            child_presentations,
+        } if identity == panel_id && child_presentations.is_empty() => Some(primary_presentation),
+        PanelNode::Split { children, .. } => children
+            .iter()
+            .find_map(|slot| leaf_presentation(&slot.node, panel_id)),
+        _ => None,
+    }
+}
+
+/// Removes the leaf Panel `panel_id` by replacing its parent Split with the sibling subtree.
+/// The caller handles the case where the leaf is the Tab root.
+fn remove_leaf_panel(node: &mut PanelNode, panel_id: &WorkbenchPanelId) -> bool {
+    let PanelNode::Split { children, .. } = node else {
+        return false;
+    };
+    for index in 0..2 {
+        let is_target = matches!(
+            &children[index].node,
+            PanelNode::Panel {
+                panel_id: identity,
+                ..
+            } if identity == panel_id
+        );
+        if is_target {
+            *node = children[1 - index].node.clone();
+            return true;
+        }
+        if remove_leaf_panel(&mut children[index].node, panel_id) {
+            return true;
+        }
+    }
+    false
 }

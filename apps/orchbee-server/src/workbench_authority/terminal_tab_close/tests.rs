@@ -26,6 +26,7 @@ use crate::workbench_projection::WorkbenchProjectionStore;
 
 mod aggregate;
 mod credit;
+mod panel;
 mod publication;
 mod resume;
 mod workspace;
@@ -170,12 +171,17 @@ pub(super) fn status(
     grant: &WorkbenchGrant,
     close: &WorkbenchCommand,
 ) -> WorkbenchTabCloseReadOutcome {
-    let WorkbenchAction::TabClose {
-        terminal_context_id,
-        tab_id,
-    } = &close.action
-    else {
-        panic!()
+    let (terminal_context_id, tab_id) = match &close.action {
+        WorkbenchAction::TabClose {
+            terminal_context_id,
+            tab_id,
+        }
+        | WorkbenchAction::PanelClose {
+            terminal_context_id,
+            tab_id,
+            ..
+        } => (terminal_context_id, tab_id),
+        _ => panic!(),
     };
     authority
         .read_terminal_tab_close(

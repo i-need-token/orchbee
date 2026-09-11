@@ -699,7 +699,10 @@ fn validate_created_tab(
 `Presentation.label`；只有 `Tab.label` 和顺序可不同。新成员通过完整 schema/严格投影器及结构
 身份唯一性。移除、重复 ID 或其他不可变成员变化均为分歧。更高修订的对端刷新还可以恰好通过一个新
 split 包裹一个保留叶子来加入一个由 Server 创建的新叶子；所有保留的 Panel、binding、树边、slot
-和 split 都必须精确不变，替换或重塑树形仍属于分歧。最多 256 个 Tab 只需精确扫描，不需存储映射。
+和 split 都必须精确不变，替换或重塑树形仍属于分歧。对端刷新同样可以恰好移除保留 Tab 的一个
+叶子：候选保持每个存活 Panel、binding 和 presentation 精确不变，且被移除叶子的父 split 必须由
+保留自身 slot 和 split 身份的兄弟子树替换。任何其他树形重塑、存活成员变更或多叶丢失均属分歧。
+最多 256 个 Tab 只需精确扫描，不需存储映射。
 
 `CreatedTabExpectation` 归投影层所有，只携带纯验证所需的六项规范事实。会话状态会嵌入或构造
 它；请求身份、终端来源状态、挂接代次和邮箱类型绝不进入投影器。`validate_created_tab` 在投影

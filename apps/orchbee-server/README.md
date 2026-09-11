@@ -41,8 +41,11 @@ the Worker disconnects. The Linux native Client now projects that canonical spli
 local focus across its validated leaves; it still attaches one viewer at a time and does not submit
 `panel.split` from a TUI shortcut.
 
-Local standalone and Workspace `tab.close`, status Read and Resume use the retained lifecycle authority and one
-process-lifetime maintenance owner. Known Host disposal and exact Worker/Server cleanup precede
+Local standalone and Workspace `tab.close`, leaf-scoped `panel.close`, status Read and Resume use
+the retained lifecycle authority and one process-lifetime maintenance owner. A Panel close captures
+one exact leaf, disposes and cleans it through the same lifecycle, and publishes the surviving Tab
+with the leaf's parent Split collapsed into the sibling subtree; a Tab's only leaf closes as an
+aggregate Close. Known Host disposal and exact Worker/Server cleanup precede
 canonical removal; Client exit does not cancel accepted Close. Linux carrier/process checks cover
 eight live Client connections, idle control-slot release and same-connection reuse while an
 unrelated shell survives. The [Close contract](docs/terminal-tab-close.md) owns the bounds and

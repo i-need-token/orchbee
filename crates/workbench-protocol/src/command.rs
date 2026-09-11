@@ -285,6 +285,12 @@ pub enum WorkbenchAction {
         label: WorkbenchLabel,
         geometry: WorkbenchTerminalGeometry,
     },
+    #[serde(rename = "panel.close")]
+    PanelClose {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -470,6 +476,13 @@ pub enum WorkbenchCommandOutcome {
         second_slot_id: WorkbenchPanelSlotId,
         presentation_id: TerminalPresentationId,
         terminal_outcome: WorkbenchTerminalOutcome,
+    },
+    PanelCloseAccepted {
+        close_request_id: WorkbenchRequestId,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        accepted_revision: WorkbenchRevision,
     },
     Rejected {
         revision: WorkbenchRevision,

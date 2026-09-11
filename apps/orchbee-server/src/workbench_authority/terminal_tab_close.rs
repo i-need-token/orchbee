@@ -141,9 +141,17 @@ impl WorkbenchTabCloseStepTarget {
     }
 }
 
+/// Whether the Close removes the whole Tab or one leaf Panel inside it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum CloseScope {
+    Tab,
+    Panel,
+}
+
 pub(super) struct CloseRecord {
     pub(super) command: WorkbenchCommand,
     pub(super) result: WorkbenchCommandResult,
+    pub(super) scope: CloseScope,
     target: WorkbenchTabCloseTarget,
     additional_targets: Vec<WorkbenchTabCloseTarget>,
     generation: WorkbenchTabCloseAttemptGeneration,
@@ -242,6 +250,11 @@ impl CloseRecord {
         self.targets().all(|target| {
             target.terminal_context_id() == context_id && target.member().tab_id() == tab_id
         })
+    }
+
+    /// An open or settled Close covers this exact leaf member.
+    fn covers_member(&self, member: &WorkbenchTerminalTab) -> bool {
+        self.members().any(|existing| existing == member)
     }
 
     fn matches_members(&self, members: &[WorkbenchTerminalTab]) -> bool {

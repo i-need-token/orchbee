@@ -146,6 +146,14 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			direction: WorkbenchTabMoveDirectionSchema,
 		})
 		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel.close'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+		})
+		.readonly(),
 ]);
 
 const correlation = {
@@ -327,6 +335,16 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 			secondSlotId: WorkbenchPanelSlotIdSchema,
 			presentationId: TerminalPresentationIdSchema,
 			terminalOutcome: WorkbenchTerminalOutcomeSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel-close-accepted'),
+			closeRequestId: WorkbenchRequestIdSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			acceptedRevision: WorkbenchRevisionSchema,
 		})
 		.readonly(),
 	z

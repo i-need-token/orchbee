@@ -358,8 +358,8 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } => {
                     return Err("pure trace generated directory association".to_owned());
                 }
-                WorkbenchAction::TabClose { .. } => {
-                    return Err("pure trace generated lifecycle tab.close".to_owned());
+                WorkbenchAction::TabClose { .. } | WorkbenchAction::PanelClose { .. } => {
+                    return Err("pure trace generated lifecycle close".to_owned());
                 }
                 WorkbenchAction::TabMove { .. } => {
                     return Err(

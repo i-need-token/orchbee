@@ -724,7 +724,8 @@ impl PureWorkbenchAction {
             | WorkbenchAction::PanelSplit { .. }
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
             | WorkbenchAction::TabMove { .. }
-            | WorkbenchAction::TabClose { .. } => return None,
+            | WorkbenchAction::TabClose { .. }
+            | WorkbenchAction::PanelClose { .. } => return None,
         })
     }
 }

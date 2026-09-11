@@ -93,11 +93,13 @@ parser. TypeScript validates decoded values; its transport must reject duplicate
 
 `workbench.command` carries protocolVersion, requestId, siteId, expectedRevision and one action:
 project.create, project.rename, workspace.create, workspace.rename,
-workspace.primary-directory.accept, tab.rename, tab.create, tab.move or tab.close. Labels retain exact text,
+workspace.primary-directory.accept, tab.rename, tab.create, panel.split, tab.move, tab.close or
+panel.close. Labels retain exact text,
 including whitespace, within the existing label bound. New product identities are Server-owned.
 `workbench.command.result` correlates project-created, workspace-created,
 workspace-primary-directory-accepted, renamed, unchanged,
-tab-create-pending, tab-created, tab-moved, tab-close-accepted, rejected, denied or unavailable outcomes. Revision and created identities occur only in the variants
+tab-create-pending, tab-created, panel-split-pending, panel-split-created, tab-moved,
+tab-close-accepted, panel-close-accepted, rejected, denied or unavailable outcomes. Revision and created identities occur only in the variants
 that declare them. Denied results disclose neither. `workbench.snapshot.result` contains available
 with a complete nested `workbench.snapshot`, denied, or unavailable. The schema owns closed reasons;
 the [Server authority](../../apps/orchbee-server/docs/workbench-authority.md) owns decision precedence,
@@ -272,9 +274,13 @@ bindings in one unpublished cohort, with no old-action alias or mixed-version co
 The [Server Close contract](../../apps/orchbee-server/docs/terminal-tab-close.md) owns lifecycle
 admission, immutable acceptance, status, explicit Resume and publication. Its strict wire projection
 is staged independently of Server/Worker/native runtime activation. `tab.close` adds only
-`terminalContextId` and `tabId` to the action. `tab-close-accepted` carries `closeRequestId`,
-`terminalContextId`, `tabId`, and `acceptedRevision`; aliases retain the primary operation's
-original admitted revision, which is not a membership-removal revision.
+`terminalContextId` and `tabId` to the action; `panel.close` additionally carries `panelId`.
+`tab-close-accepted` carries `closeRequestId`,
+`terminalContextId`, `tabId`, and `acceptedRevision`; `panel-close-accepted` echoes the same fields
+plus `panelId`. Aliases retain the primary operation's
+original admitted revision, which is not a membership-removal revision. The leaf-scoped operation
+shares the same retained Close record, `workbench.tab-close.read` status lookup and
+`workbench.tab-close.resume` control; those wire shapes carry no `panelId`.
 
 The effect-free `workbench.tab-close.read` and explicit `workbench.tab-close.resume` requests,
 their results, every status and reason, and the required target echoes follow that owning record.

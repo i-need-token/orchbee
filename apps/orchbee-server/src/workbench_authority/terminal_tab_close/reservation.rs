@@ -16,25 +16,32 @@ pub(super) fn maximum_primary_charge(
     command: &WorkbenchCommand,
     acknowledgment: &WorkbenchCommandResult,
 ) -> Option<usize> {
-    let WorkbenchAction::TabClose {
-        terminal_context_id,
-        tab_id,
-    } = &command.action
-    else {
-        return None;
+    let (terminal_context_id, tab_id) = match &command.action {
+        WorkbenchAction::TabClose {
+            terminal_context_id,
+            tab_id,
+        }
+        | WorkbenchAction::PanelClose {
+            terminal_context_id,
+            tab_id,
+            ..
+        } => (terminal_context_id, tab_id),
+        _ => return None,
     };
     let maximum_revision = WorkbenchRevision::new(u64::MAX);
     let maximum_generation = WorkbenchTabCloseAttemptGeneration::new(u64::MAX).ok()?;
     let mut maximum_command = command.clone();
     maximum_command.expected_revision = maximum_revision;
     let mut maximum_acknowledgment = acknowledgment.clone();
-    let WorkbenchCommandOutcome::TabCloseAccepted {
-        accepted_revision, ..
-    } = &mut maximum_acknowledgment.outcome
-    else {
-        return None;
-    };
-    *accepted_revision = maximum_revision;
+    match &mut maximum_acknowledgment.outcome {
+        WorkbenchCommandOutcome::TabCloseAccepted {
+            accepted_revision, ..
+        }
+        | WorkbenchCommandOutcome::PanelCloseAccepted {
+            accepted_revision, ..
+        } => *accepted_revision = maximum_revision,
+        _ => return None,
+    }
     let command_charge = ledger_size(&maximum_command, &maximum_acknowledgment)?;
     let mut status_charge = 0;
     for status in statuses() {

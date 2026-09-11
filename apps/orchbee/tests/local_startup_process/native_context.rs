@@ -361,6 +361,228 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
 }
 
 #[test]
+fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shell() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+    let mut client = Client::spawn(&fixture, "en_US.UTF-8");
+    client.wait_ready_after(
+        0,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::Controlling,
+    );
+
+    client.send(shell_identity_command(&fixture, "source", "native-close-source", true).as_bytes());
+    let source_identity = wait_file(
+        &fixture.base.join("native-close-source"),
+        &mut [&mut client],
+        Instant::now() + OBSERVATION_TIMEOUT,
+    );
+    let source_pid = require_shell_identity(&source_identity, "source");
+    let source_shell = pidfd_open(
+        Pid::from_raw(i32::try_from(source_pid)?).ok_or("invalid source shell PID")?,
+        PidfdFlags::empty(),
+    )?;
+
+    let split_deadline = Instant::now() + CLOSE_TIMEOUT;
+    let mut peer = WorkbenchPeer::connect(&fixture, split_deadline)?;
+    let before_split = peer.snapshot(split_deadline)?;
+    let terminal_context_id = before_split
+        .navigation
+        .standalone_terminal_context_id
+        .clone();
+    let context = before_split
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .ok_or("Panel close context missing")?;
+    let tab = context.tabs.first().ok_or("Panel close Tab missing")?;
+    let source_panel_id = match &tab.root {
+        PanelNode::Panel { panel_id, .. } => panel_id.clone(),
+        PanelNode::Split { .. } => return Err("fresh native close Tab was already split".into()),
+    };
+    let tab_id = tab.tab_id.clone();
+    let (split_revision, new_panel_id) = match peer.prepare(
+        WorkbenchAction::PanelSplit {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: source_panel_id.clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("Split peer")?,
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
+        },
+        split_deadline,
+    )? {
+        WorkbenchCommandOutcome::PanelSplitCreated {
+            revision,
+            new_panel_id,
+            ..
+        } => (revision, new_panel_id),
+        outcome => return Err(format!("native PanelSplit did not start: {outcome:?}").into()),
+    };
+
+    // Rendezvous on the committed split; the Client keeps focus on the surviving left leaf.
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Workbench navigator",
+            &format!("Tabs refreshed · revision {}", split_revision.value()),
+        ],
+        &[],
+        &[],
+        &mut [],
+    );
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Panel · Terminal 1 · 1",
+            "Panel · Terminal 2 · Split peer",
+            "Tab 1 · Ready · controlling",
+        ],
+        &["Workbench navigator"],
+        &[],
+        &mut [],
+    );
+    // The Client's attached leaf stays live across the sibling Close; prove focus and the
+    // exact shell with a fresh identity write.
+    client.send(shell_identity_command(&fixture, "source", "native-close-left", false).as_bytes());
+    assert_eq!(
+        wait_file(
+            &fixture.base.join("native-close-left"),
+            &mut [&mut client],
+            Instant::now() + OBSERVATION_TIMEOUT,
+        ),
+        source_identity,
+        "focus must remain on the original left shell after the split",
+    );
+
+    // Close the unfocused leaf through the shared lifecycle; the sibling must survive.
+    let close_deadline = Instant::now() + CLOSE_TIMEOUT;
+    match peer.prepare(
+        WorkbenchAction::PanelClose {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: new_panel_id.clone(),
+        },
+        close_deadline,
+    )? {
+        WorkbenchCommandOutcome::PanelCloseAccepted {
+            tab_id: accepted_tab,
+            panel_id: accepted_panel,
+            ..
+        } => {
+            assert_eq!(accepted_tab, tab_id);
+            assert_eq!(accepted_panel, new_panel_id);
+        }
+        outcome => return Err(format!("native PanelClose was not accepted: {outcome:?}").into()),
+    }
+    let mut surviving_panel = None;
+    while Instant::now() < close_deadline {
+        let snapshot = peer.snapshot(close_deadline)?;
+        let tab = snapshot
+            .terminal_contexts
+            .iter()
+            .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+            .and_then(|candidate| candidate.tabs.first())
+            .ok_or("Panel close Tab missing after acceptance")?;
+        if let PanelNode::Panel { panel_id, .. } = &tab.root {
+            surviving_panel = Some(panel_id.clone());
+            break;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    let surviving_panel = surviving_panel.ok_or("split root did not collapse to a leaf")?;
+    assert_eq!(surviving_panel, source_panel_id);
+    // Publication is only reachable after the leaf's lifecycle completed, so the collapsed
+    // root proves the closed leaf's terminal was disposed. The surviving leaf's shell lives.
+    let mut descriptor = [PollFd::new(source_shell.as_fd(), PollFlags::POLLIN)];
+    poll(&mut descriptor, PollTimeout::ZERO)?;
+    assert!(
+        !descriptor[0]
+            .revents()
+            .is_some_and(|flags| flags.contains(PollFlags::POLLIN)),
+        "surviving leaf shell exited"
+    );
+    // The TUI refreshes itself on the published Close without a manual poll: a single-leaf
+    // Tab renders the terminal directly with no per-Panel title.
+    let checkpoint = client.checkpoint();
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &["[*1 1]", "Tab 1 · Ready"],
+        &["Panel · Terminal 2 · Split peer", "Terminal disconnected"],
+        &[],
+        &mut [],
+    );
+    client.send(
+        shell_identity_command(&fixture, "source", "native-close-surviving", false).as_bytes(),
+    );
+    assert_eq!(
+        wait_file(
+            &fixture.base.join("native-close-surviving"),
+            &mut [&mut client],
+            Instant::now() + OBSERVATION_TIMEOUT,
+        ),
+        source_identity,
+        "surviving Panel must keep the original shell",
+    );
+
+    // Closing the only remaining leaf removes the whole Tab; the attached Client loses its
+    // terminal and enters the disconnected state, matching the established Close semantic.
+    let sole_deadline = Instant::now() + CLOSE_TIMEOUT;
+    assert!(matches!(
+        peer.prepare(
+            WorkbenchAction::PanelClose {
+                terminal_context_id: terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: surviving_panel,
+            },
+            sole_deadline,
+        )?,
+        WorkbenchCommandOutcome::PanelCloseAccepted { .. }
+    ));
+    let mut emptied = false;
+    while Instant::now() < sole_deadline && !emptied {
+        let snapshot = peer.snapshot(sole_deadline)?;
+        emptied = snapshot
+            .terminal_contexts
+            .iter()
+            .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+            .is_some_and(|context| context.tabs.is_empty());
+        thread::sleep(Duration::from_millis(50));
+    }
+    assert!(emptied, "sole leaf Close did not remove the Tab");
+    let checkpoint = client.checkpoint();
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &["Terminal disconnected · Ctrl+B then q to exit"],
+        &[],
+        &[],
+        &mut [],
+    );
+    let mut disposed = false;
+    while Instant::now() < sole_deadline && !disposed {
+        let mut descriptor = [PollFd::new(source_shell.as_fd(), PollFlags::POLLIN)];
+        poll(&mut descriptor, PollTimeout::from(100u16))?;
+        disposed = descriptor[0]
+            .revents()
+            .is_some_and(|flags| flags.contains(PollFlags::POLLIN));
+        client.collect();
+    }
+    assert!(disposed, "sole leaf shell did not exit");
+    client.close_before(Instant::now() + EXIT_TIMEOUT);
+    Ok(())
+}
+
+#[test]
 fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();

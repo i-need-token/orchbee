@@ -773,6 +773,7 @@ pub(super) fn validate_retained_context(
                     || current.binding.terminal_id == candidate.binding.terminal_id)
                     && !stable_member_except_tab_label(current, candidate)
                     && !panel_split_extension(current, candidate)
+                    && !panel_close_contraction(current, candidate)
             })
         })
     {
@@ -925,17 +926,182 @@ fn split_tree_extension(
             && current_orientation == candidate_orientation
             && current_split_id == candidate_split_id =>
         {
-            split_tree_extension(
+            (split_tree_extension(
                 current_first,
                 candidate_first,
                 current_panels,
                 candidate_panels,
-            ) ^ split_tree_extension(
+            ) && subtree_matches(
                 current_second,
                 candidate_second,
                 current_panels,
                 candidate_panels,
-            )
+            )) || (split_tree_extension(
+                current_second,
+                candidate_second,
+                current_panels,
+                candidate_panels,
+            ) && subtree_matches(
+                current_first,
+                candidate_first,
+                current_panels,
+                candidate_panels,
+            ))
+        }
+        _ => false,
+    }
+}
+
+/// `candidate` is `current` with exactly one leaf Panel closed: the Panel set loses one member and
+/// the leaf's parent Split collapses into the sibling subtree, retaining the sibling's identities.
+fn panel_close_contraction(current: &NativeSimpleTab, candidate: &NativeSimpleTab) -> bool {
+    if current.tab_id != candidate.tab_id
+        || candidate.panels.len().checked_add(1) != Some(current.panels.len())
+        || !candidate
+            .panels
+            .iter()
+            .all(|panel| current.panels.iter().any(|other| other == panel))
+        || current
+            .panels
+            .iter()
+            .filter(|panel| !candidate.panels.iter().any(|other| other == *panel))
+            .count()
+            != 1
+    {
+        return false;
+    }
+    close_tree_contraction(
+        &current.tree,
+        &candidate.tree,
+        &current.panels,
+        &candidate.panels,
+    )
+}
+
+fn close_tree_contraction(
+    current: &NativePanelTree,
+    candidate: &NativePanelTree,
+    current_panels: &[NativePanel],
+    candidate_panels: &[NativePanel],
+) -> bool {
+    let NativePanelTree::Split {
+        first: current_first,
+        second: current_second,
+        first_slot_id: current_first_slot,
+        second_slot_id: current_second_slot,
+        orientation: current_orientation,
+        split_id: current_split_id,
+    } = current
+    else {
+        return false;
+    };
+    let removed_leaf = |node: &NativePanelTree| {
+        matches!(
+            node,
+            NativePanelTree::Panel { panel_index } if current_panels
+                .get(*panel_index)
+                .is_some_and(|panel| {
+                    !candidate_panels.iter().any(|candidate| candidate == panel)
+                })
+        )
+    };
+    // The closed leaf hung directly under this Split; the sibling subtree became the candidate.
+    if (removed_leaf(current_second)
+        && subtree_matches(current_first, candidate, current_panels, candidate_panels))
+        || (removed_leaf(current_first)
+            && subtree_matches(current_second, candidate, current_panels, candidate_panels))
+    {
+        return true;
+    }
+    // A deeper leaf closed: this Split survives and exactly one child contains the contraction.
+    let NativePanelTree::Split {
+        first: candidate_first,
+        second: candidate_second,
+        first_slot_id: candidate_first_slot,
+        second_slot_id: candidate_second_slot,
+        orientation: candidate_orientation,
+        split_id: candidate_split_id,
+    } = candidate
+    else {
+        return false;
+    };
+    current_first_slot == candidate_first_slot
+        && current_second_slot == candidate_second_slot
+        && current_orientation == candidate_orientation
+        && current_split_id == candidate_split_id
+        && ((close_tree_contraction(
+            current_first,
+            candidate_first,
+            current_panels,
+            candidate_panels,
+        ) && subtree_matches(
+            current_second,
+            candidate_second,
+            current_panels,
+            candidate_panels,
+        )) || (close_tree_contraction(
+            current_second,
+            candidate_second,
+            current_panels,
+            candidate_panels,
+        ) && subtree_matches(
+            current_first,
+            candidate_first,
+            current_panels,
+            candidate_panels,
+        )))
+}
+
+/// Structural equality across two tabs' Panel arrays; leaves compare by Panel value.
+fn subtree_matches(
+    current: &NativePanelTree,
+    candidate: &NativePanelTree,
+    current_panels: &[NativePanel],
+    candidate_panels: &[NativePanel],
+) -> bool {
+    match (current, candidate) {
+        (
+            NativePanelTree::Panel {
+                panel_index: current_index,
+            },
+            NativePanelTree::Panel {
+                panel_index: candidate_index,
+            },
+        ) => current_panels.get(*current_index) == candidate_panels.get(*candidate_index),
+        (
+            NativePanelTree::Split {
+                first: current_first,
+                second: current_second,
+                first_slot_id: current_first_slot,
+                second_slot_id: current_second_slot,
+                orientation: current_orientation,
+                split_id: current_split_id,
+            },
+            NativePanelTree::Split {
+                first: candidate_first,
+                second: candidate_second,
+                first_slot_id: candidate_first_slot,
+                second_slot_id: candidate_second_slot,
+                orientation: candidate_orientation,
+                split_id: candidate_split_id,
+            },
+        ) => {
+            current_first_slot == candidate_first_slot
+                && current_second_slot == candidate_second_slot
+                && current_orientation == candidate_orientation
+                && current_split_id == candidate_split_id
+                && subtree_matches(
+                    current_first,
+                    candidate_first,
+                    current_panels,
+                    candidate_panels,
+                )
+                && subtree_matches(
+                    current_second,
+                    candidate_second,
+                    current_panels,
+                    candidate_panels,
+                )
         }
         _ => false,
     }

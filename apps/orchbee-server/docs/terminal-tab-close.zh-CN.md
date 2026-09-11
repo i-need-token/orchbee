@@ -74,13 +74,24 @@ adapter 将 Close 专属原因、已接受结果及响应信封拒绝为 action 
 
 既有 `workbench.command` 信封及完整指纹
 `(requestId, siteId, expectedRevision, action)` 准入
-`{kind:"tab.close", terminalContextId, tabId}`。优先级依次为：生命周期授权；精确重放/冲突；
+`{kind:"tab.close", terminalContextId, tabId}` 与
+`{kind:"panel.close", terminalContextId, tabId, panelId}`。优先级依次为：生命周期授权；精确重放/冲突；
 新变更的退役检查；账本条目容量；Site/基础修订/上下文/严格成员关系；精确目标及终端关联；
 Busy/运行时身份不可用；资源预留；共同接受。已接受 Close 的重放在 Workbench 退役后仍可读取。
 重放没有副作用。
 
+Panel close 在指定 Tab 内解析一个精确叶子成员。当该叶子是 Tab 唯一成员时，命令按覆盖全体
+成员的普通 Tab close 准入；否则按仅覆盖该成员的叶子级 close 准入。存活 Tab 上的未知
+`panelId` 返回 `PanelUnavailable`；缺失 Tab 返回 `TabUnavailable`。每种限定范围的 close
+仍在准入时冻结其捕获的叶子成员关系，经同一套 continuation 销毁并清理每个被捕获叶子，并按
+覆盖关系加入或拒绝重叠 close：同 action 且成员集合相同的重放携固定确认加入；已有开启中的
+Close 以不同 action 或不同成员覆盖所请求成员时返回 `terminal-busy`。因此同一 Tab 上互不相交
+的叶子 close 可以各自保留主操作。
+
 接受不消耗规范修订。其固定结果为
-`tab-close-accepted {closeRequestId, terminalContextId, tabId, acceptedRevision}`。主命令
+`tab-close-accepted {closeRequestId, terminalContextId, tabId, acceptedRevision}` 或
+`panel-close-accepted {closeRequestId, terminalContextId, tabId, panelId, acceptedRevision}`，
+回显所准入 action 的字段。主命令
 请求 ID 即 `closeRequestId`；`acceptedRevision` 是该主命令的准入基础修订，不是移除修订。
 每个别名确认均保留规范操作原始 `closeRequestId` 和 `acceptedRevision`，即使别名使用更新的
 expectedRevision；仍保留别名自身的完整请求指纹。Client 验证目标/规范操作及
@@ -306,8 +317,10 @@ Host 效果前，预留主命令及最大编码 command/ack/status/tombstone 费
 
 先保留 KnownDisposed 并完成精确本地清理。在 Site 门锁内验证当前适用的成员关系及精确目标
 元组，再从**当前** snapshot 准备：聚合 Close 将整棵捕获树的每个 leaf 作为一次 Tab 发布移除，
-保留其他 Tab、顺序及标签。释放门锁要求重新验证/准备。旧准入 snapshot 不替换后续写入，不跨宽限冻结整个 Site，
-额度也不预先指定最终修订。
+保留其他 Tab、顺序及标签。叶子级 Close 恰好移除其捕获的叶子：该叶子的父 Split 被兄弟子树
+替换，兄弟自身的 slot 与 Split 身份保留，存活 Tab 保持其 ID、标签及剩余成员；当被关闭叶子
+已是 Tab 根时，与聚合 Close 一样移除整个 Tab。释放门锁要求重新验证/准备。旧准入 snapshot
+不替换后续写入，不跨宽限冻结整个 Site，额度也不预先指定最终修订。
 
 检查实际编码投影限制及 delta/full-snapshot 回退；不假定已预分配未来完整缓冲区。准备失败
 保留销毁、成员关系、额度及可寻址状态，既不是效果前拒绝，也不允许再次终止。不变量引发的
@@ -346,7 +359,11 @@ Site 细化在每个 Terminal 绑定上保留 `Option<CreateOutcome>`：精确 C
 ## 原生移除与屏障组合
 
 相同修订 snapshot 仍须完全一致。更高修订可移除 ID；存活 ID 保留不可变元组/绑定/
-Presentation 标签，Tab 标签/顺序可变。可用的更高规范 snapshot 证明成员移除，无需为每个
+Presentation 标签，Tab 标签/顺序可变。叶子 close 同样表现为更高修订的收缩：存活 Tab 保持
+其身份并恰好减少一个叶子，被移除叶子的父 Split 由兄弟子树替换。原生刷新仅在候选是冻结
+基线树的精确兄弟替换时才接受该收缩；任何其他树形变化、存活成员变更或多叶丢失均属分歧。
+若被收缩的叶子正是已挂接选择，原生会话退役；存活的已挂接叶子保留其挂接与视口。可用的
+更高规范 snapshot 证明成员移除，无需为每个
 消失 Tab 查询状态。对自身已知 Closed，从 `Closed.revision` 起的每个 snapshot 都必须缺少目标。
 
 | 观察                                    | 必需结算                                                                                                                                                           |
@@ -404,6 +421,9 @@ Close 事实由原生状态消费者负责。运行时集成仍需要原生模�
 ```sh
 node scripts/tla/run-models.mjs --models workbench-tab-close-coordination,workbench-tab-close-create-reference,workbench-panel-split --jobs 1
 ```
+
+`WorkbenchPanelSplit` 同时覆盖叶子 close 切点：Panel 级 close 冻结一个叶子成员，经同一
+未结步骤纪律销毁并清理它，再发布收缩成员关系——保留存活叶子，同时 Split 折叠为该叶子。
 
 [`WorkbenchTabCloseCoordination`](../formal/tla/WorkbenchTabCloseCoordination.tla) 在既有注册表中
 有两个配置变体。`credits` 探索两个初始已知精确目标、一次可选普通 Create、普通 Rename/Move、

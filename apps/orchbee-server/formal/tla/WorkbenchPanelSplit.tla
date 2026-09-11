@@ -2,11 +2,13 @@
 EXTENDS Integers, Sequences, FiniteSets, TLC
 
 (*
-   A bounded refinement of one Panel Split followed by aggregate Tab Close.
+   A bounded refinement of one Panel Split followed by Close lifecycles.
    The split commits the source and new leaf together before the terminal
-   outcome is known.  Close freezes that exact ordered membership and can
-   publish only after every captured leaf is disposed and locally cleaned.
-   Unknown is a quarantine for the affected close; it never becomes a
+   outcome is known.  A Tab-scoped close freezes the exact ordered membership;
+   a Panel-scoped close freezes one leaf.  A close can publish only after every
+   captured leaf is disposed and locally cleaned.  A leaf publication contracts
+   the membership to the surviving siblings; a tab publication removes every
+   member.  Unknown is a quarantine for the affected close; it never becomes a
    successful publication.
 *)
 CONSTANTS Source, Peer, None, MaxRevision
@@ -18,6 +20,9 @@ EmptyClose == [phase |-> "idle", frozen |-> <<>>, disposed |-> {}, cleaned |-> {
 
 VARIABLE s
 vars == <<s>>
+
+MemberSet(seq) == {seq[i] : i \in DOMAIN seq}
+RemoveMembers(seq, dropped) == SelectSeq(seq, LAMBDA m : m \notin dropped)
 
 Init == s =
   [members |-> <<Source>>, revision |-> 0,
@@ -46,8 +51,15 @@ AdmitClose ==
   /\ s' = [s EXCEPT !.close = [EmptyClose EXCEPT
        !.phase = "closing", !.frozen = s.members]]
 
+AdmitPanelClose(target) ==
+  /\ ~s.retired
+  /\ target \in MemberSet(s.members)
+  /\ s.close.phase = "idle"
+  /\ s' = [s EXCEPT !.close = [EmptyClose EXCEPT
+       !.phase = "closing", !.frozen = <<target>>]]
+
 SubmitDispose(target) ==
-  /\ target \in Leafs
+  /\ target \in MemberSet(s.close.frozen)
   /\ s.close.phase = "closing"
   /\ target \notin s.close.disposed
   /\ s.flight = None
@@ -69,12 +81,14 @@ Cleanup(target) ==
 
 Publish ==
   /\ s.close.phase = "closing"
-  /\ s.close.frozen = <<Source, Peer>>
-  /\ s.close.disposed = Leafs
-  /\ s.close.cleaned = Leafs
   /\ s.flight = None
-  /\ s' = [s EXCEPT !.members = <<>>, !.revision = @ + 1,
-       !.close.phase = "closed"]
+  /\ s.revision + 1 <= MaxRevision
+  /\ MemberSet(s.close.frozen) \subseteq s.close.disposed
+  /\ MemberSet(s.close.frozen) \subseteq s.close.cleaned
+  /\ LET remaining == RemoveMembers(s.members, MemberSet(s.close.frozen))
+     IN s' = [s EXCEPT !.members = remaining, !.revision = @ + 1,
+           !.splitPhase = IF Len(remaining) = 1 THEN "absent" ELSE @,
+           !.close.phase = "closed"]
 
 Retire ==
   /\ ~s.retired
@@ -95,6 +109,12 @@ ObserveTwoLeafSplit ==
 
 ObserveAggregateClose ==
   /\ s.close.phase = "closed"
+  /\ s.members = <<>>
+  /\ UNCHANGED vars
+
+ObserveLeafContraction ==
+  /\ s.close.phase = "closed"
+  /\ Len(s.members) = 1
   /\ UNCHANGED vars
 
 Next ==
@@ -102,6 +122,7 @@ Next ==
   \/ CompleteSplitStarted
   \/ CompleteSplitUnknown
   \/ AdmitClose
+  \/ \E target \in Leafs: AdmitPanelClose(target)
   \/ \E target \in Leafs: SubmitDispose(target)
   \/ CompleteDispose
   \/ CompleteCloseUnknown
@@ -112,6 +133,7 @@ Next ==
   \/ ObserveSplitUnknown
   \/ ObserveTwoLeafSplit
   \/ ObserveAggregateClose
+  \/ ObserveLeafContraction
 
 Spec == Init /\ [][Next]_vars
 
@@ -127,20 +149,29 @@ TypeOK ==
   /\ s.retired \in BOOLEAN
 
 SplitMembershipExact ==
-  s.members =
-    IF s.close.phase = "closed" THEN <<>>
-    ELSE IF s.splitPhase = "absent" THEN <<Source>>
-    ELSE <<Source, Peer>>
+  IF s.splitPhase = "absent"
+  THEN s.members \in {<<Source>>, <<Peer>>, <<>>}
+  ELSE IF s.close.phase = "closed" THEN s.members = <<>>
+       ELSE s.members = <<Source, Peer>>
 
 CloseCapturesExact ==
-  s.close.phase = "idle" \/ s.close.frozen = <<Source, Peer>>
+  s.close.phase = "idle" \/
+    /\ s.close.frozen \in {<<Source>>, <<Peer>>, <<Source, Peer>>}
+    /\ MemberSet(s.close.frozen) \subseteq MemberSet(
+         IF s.splitPhase = "absent" /\ s.close.phase # "closed"
+         THEN <<Source>> ELSE <<Source, Peer>>)
+
+FrozenRemainUntilPublished ==
+  s.close.phase \in {"closing", "unknown"} =>
+    MemberSet(s.close.frozen) \subseteq MemberSet(s.members)
 
 ClosedRequiresProof ==
-  s.close.phase # "closed"
-  \/ /\ s.members = <<>>
-     /\ s.close.disposed = Leafs
-     /\ s.close.cleaned = Leafs
-     /\ s.revision = 2
+  s.close.phase # "closed" \/
+    /\ MemberSet(s.close.frozen) \subseteq s.close.disposed
+    /\ MemberSet(s.close.frozen) \subseteq s.close.cleaned
+    /\ MemberSet(s.close.frozen) \cap MemberSet(s.members) = {}
+    /\ s.members = <<>> \/ Len(s.members) + Len(s.close.frozen) = 2
+    /\ s.revision >= 1
 
 UnknownNeverPublishes ==
   s.close.phase = "closed" => s.splitPhase # "unknown"

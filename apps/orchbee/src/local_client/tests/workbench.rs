@@ -1,4 +1,5 @@
 use super::*;
+mod panel_close;
 mod panel_split;
 mod tab_close;
 mod tab_move;

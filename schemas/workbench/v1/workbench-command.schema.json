@@ -228,6 +228,25 @@
 					},
 					"required": ["kind", "terminalContextId", "tabId"],
 					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel.close"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						}
+					},
+					"required": ["kind", "terminalContextId", "tabId", "panelId"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -702,6 +721,38 @@
 						}
 					},
 					"required": ["kind", "closeRequestId", "terminalContextId", "tabId", "acceptedRevision"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "panel-close-accepted"
+						},
+						"closeRequestId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+						},
+						"terminalContextId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/terminalContextId"
+						},
+						"tabId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/tabId"
+						},
+						"panelId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/panelId"
+						},
+						"acceptedRevision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						}
+					},
+					"required": [
+						"kind",
+						"closeRequestId",
+						"terminalContextId",
+						"tabId",
+						"panelId",
+						"acceptedRevision"
+					],
 					"additionalProperties": false
 				}
 			]
