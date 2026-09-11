@@ -18,6 +18,9 @@ terminal content, persistence, transport, and every Client-local view fact. No c
 client-session consumer uses this new contract yet.
 
 The separate command binding validates `workbench.command` and correlated command/snapshot results.
+It also covers the revision-cursor `workbench.publication.read` intent and its
+`workbench.publication.result`, whose `published` outcome carries one through 64 ordered
+`workbench.snapshot`/`workbench.delta` documents under the shared snapshot-result byte bound.
 It includes Project and Workspace changes, `workspace.primary-directory.accept`, canonical
 `tab.rename`, `tab.move` within standalone or Workspace contexts, and
 `tab.create` in standalone or configured Workspace contexts with its committed terminal result variants. Move carries exactly

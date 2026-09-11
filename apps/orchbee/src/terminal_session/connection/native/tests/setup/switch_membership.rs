@@ -4,7 +4,6 @@ use crate::terminal_session::{
     mailbox::DesiredInstall,
     state::{MembershipCleanup, MembershipInstallDecision, MembershipResultKey},
 };
-use orchbee_workbench_protocol::WorkbenchSnapshotResult;
 
 impl UiDriver {
     pub(super) fn settle_switch_snapshot(
@@ -232,21 +231,16 @@ fn install_decision(decision: MembershipInstallDecision) -> RefreshDecision {
 pub(in crate::terminal_session::connection::native::tests) fn drive_switch_snapshot(
     harness: &mut Harness,
 ) -> TestResult<UiEvent> {
-    let WorkbenchRequest::SnapshotRead(request) = harness.carrier.take_workbench()? else {
-        return Err(test_error("Switch first request must be SnapshotRead"));
-    };
+    let request = harness.carrier.take_read()?;
     let candidate = snapshot(
         harness.ui.state().cache().tabs().len(),
         harness.ui.state().cache().revision().value(),
     );
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: request.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: candidate,
-            },
-        }))?;
+    harness.carrier.respond_read(
+        &request,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate,
+        },
+    )?;
     harness.ui.settle_next(FrameCut::None)
 }

@@ -15,7 +15,7 @@ fn serve_closed(
     operation: orchbee_workbench_protocol::WorkbenchRequestId,
 ) -> io::Result<String> {
     let WorkbenchRequest::TabCloseRead(request) =
-        read_workbench_request(stream).map_err(io::Error::other)?
+        read_workbench_request_absorbing_probes(stream).map_err(io::Error::other)?
     else {
         return Err(io::Error::other("expected exact Close Read"));
     };
@@ -82,7 +82,7 @@ fn status_only_closed_requires_a_new_drawn_manual_membership_transition_before_e
         let first_read = serve_closed(&mut stream, operation.clone().unwrap())?;
         require_manual_gap(&mut stream)?;
         gap_tx.send(()).map_err(io::Error::other)?;
-        let snapshot = respond_with_snapshot(&mut stream, empty_snapshot())?;
+        let snapshot = respond_with_read(&mut stream, empty_snapshot())?;
         assert_ne!(snapshot, first_read);
         let mut unexpected = [0; 1];
         assert_eq!(
@@ -141,10 +141,10 @@ fn failed_close_snapshot_retains_closed_and_manual_retry_uses_a_fresh_snapshot_i
         )
         .map_err(io::Error::other)?;
         let closed_read = serve_closed(&mut stream, operation)?;
-        let failed = respond_with_snapshot(&mut stream, WorkbenchSnapshotOutcome::Denied {})?;
+        let failed = respond_with_read(&mut stream, WorkbenchSnapshotOutcome::Denied {})?;
         require_manual_gap(&mut stream)?;
         gap_tx.send(()).map_err(io::Error::other)?;
-        let retry = respond_with_snapshot(&mut stream, empty_snapshot())?;
+        let retry = respond_with_read(&mut stream, empty_snapshot())?;
         assert_ne!(retry, failed);
         assert_ne!(retry, closed_read);
         let mut unexpected = [0; 1];
@@ -197,7 +197,7 @@ fn close_closed_snapshot_uses_exact_gone_and_installs_empty_without_another_term
         )
         .map_err(io::Error::other)?;
         let closed_read = serve_closed(&mut stream, operation)?;
-        let snapshot = respond_with_snapshot(&mut stream, empty_snapshot())?;
+        let snapshot = respond_with_read(&mut stream, empty_snapshot())?;
         assert_ne!(
             closed_read, snapshot,
             "membership Snapshot owns a fresh exact request"

@@ -270,14 +270,17 @@ Tab/Panel transitions, complete Client Workbench rendering,
 subscriptions, persistence, restart recovery and legacy migration remain unfinished.
 
 The projection store is a private implementation component of this authority. It has no public
-whole-snapshot mutation entry; only this authority may advance it. Active delta subscriptions and
-complete Client Workbench integration remain unfinished: this transition group provides read-after-write.
+whole-snapshot mutation entry; only this authority may advance it. Every committed publication is
+retained in a bounded 64-entry journal served through `workbench.publication.read` under the same
+read grant, so baseline-holding Clients fast-forward with ordered publications. Push subscriptions
+and complete Client Workbench integration remain unfinished.
 
 The language-neutral request/result authority is
 [the Workbench contract](../../../schemas/workbench/README.md). Workbench uses its own OBWP carrier
 on the same admitted local connection; OBCS remains the terminal-only contract. Same-user OBLC
 admission precedes either protocol. The Server then selects an explicit Site-scoped Workbench grant.
-Development composition grants snapshot reading and the five pure Workbench operations;
+Development composition grants snapshot and publication reading plus the five pure Workbench
+operations;
 `tab.create` also requires the explicit terminal-create grant. Directory association requires navigation
 and its independent directory-association grant. For externally submitted OBWP reads and commands, the
 authority checks that grant before any state read or ledger lookup. Read-only and denied policies
@@ -290,9 +293,9 @@ they cannot supply new product identities, replace the shared document, or publi
 | Field              | Contract                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem            | Independent admitted Clients must modify and observe one shared navigation structure without lost updates or duplicate logical effects.                                                                                                                                                                                                                                                                                             |
-| Inputs             | A strict read intent, or a strict command with request identity, exact Site, expected revision, and one of the five actions below. Labels preserve their exact nonempty text, bounded to 512 Unicode code points. A Tab rename fingerprint includes its context, Tab, label, and base revision.                                                                                                                                     |
+| Inputs             | A strict snapshot or publication read intent, or a strict command with request identity, exact Site, expected revision, and one of the five actions below. Labels preserve their exact nonempty text, bounded to 512 Unicode code points. A Tab rename fingerprint includes its context, Tab, label, and base revision.                                                                                                             |
 | Data               | Active or retired authority, one validated Snapshot, a Server-owned non-reusing identity cursor, and a bounded request/result ledger. The initial revision is zero and the standalone Terminal Context is empty. The adapter obtains a nonzero Site identity from operating-system randomness. The cursor never reuses navigation aggregate identities; unrelated Terminal/operation identity domains retain their existing owners. |
-| Outputs            | Read returns correlated available { snapshot }, denied {}, or unavailable { reason }. Command returns project-created, workspace-created, renamed, unchanged, rejected, denied, or unavailable. Created identities appear only in their corresponding success variants.                                                                                                                                                             |
+| Outputs            | Read returns correlated available { snapshot }, denied {}, or unavailable { reason }. Publication read returns current { revision }, published { publications }, denied {}, or unavailable { reason }. Command returns project-created, workspace-created, renamed, unchanged, rejected, denied, or unavailable. Created identities appear only in their corresponding success variants.                                            |
 | Invariants         | Only Server commits shared structure. Every Workspace references exactly one context. Rejection preserves structure, revision and allocation state. A changed candidate advances exactly one revision. An equal rename preserves revision. Tab rename changes only its target `Tab.label`; non-target labels and every other projection fact remain exact. One request identity cannot commit twice.                                |
 | Decisions          | Authorization precedes retired-state and ledger inspection. Active exact replay precedes expected-revision checks. Changed content under a retained request identity is a conflict. A rejected command has no structural effect. An unexpected internal invariant failure retires the authority atomically; every later authorized read or command, including replay, is unavailable.                                               |
 | Model              | A deterministic serialized transition over the complete candidate; network, clock, filesystem, randomness and process effects stay in adapters.                                                                                                                                                                                                                                                                                     |
@@ -560,7 +563,7 @@ owns Client evidence; installed delivery remains unfinished.
 ### Admission and joint commit
 
 The library classifies a wire request without reading authority state. Its opaque
-`WorkbenchReadOrNavigationRequest` accepts only snapshot reads and the five pure Workbench actions;
+`WorkbenchReadOrNavigationRequest` accepts only snapshot reads, publication reads and the five pure Workbench actions;
 `TryFrom<WorkbenchRequest>` returns the complete original owned request when it cannot classify it.
 The service explicitly routes rejected TabCreate and TabMove commands to their Site composition
 paths; any other rejected request receives a definite unavailable response. Rejection never

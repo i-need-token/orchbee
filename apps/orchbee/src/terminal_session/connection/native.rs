@@ -3,9 +3,9 @@ use crate::{
     local_client::{
         LocalClient, LocalOperationClock, SubmissionError,
         workbench::{
-            SnapshotReadError, SnapshotReadFailure, WorkbenchTabCreateNotSubmitted,
-            WorkbenchTabCreateOutcomeUnknownReason, WorkbenchTabCreateRequest,
-            WorkbenchTabCreateSubmission,
+            PublicationReadError, PublicationReadFailure, SnapshotReadError, SnapshotReadFailure,
+            WorkbenchTabCreateNotSubmitted, WorkbenchTabCreateOutcomeUnknownReason,
+            WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission,
         },
     },
     terminal_projection::TerminalProjection,
@@ -30,8 +30,15 @@ use orchbee_client_server_protocol::{
     TerminalViewerOutcome, TerminalViewerRequest, ViewerUnavailableReason,
 };
 use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
-use orchbee_workbench_protocol::{ProtocolVersion, SnapshotReadIntent, WorkbenchSnapshotOutcome};
-use std::{num::NonZeroU64, sync::Arc, time::Instant};
+use orchbee_workbench_protocol::{
+    DeltaRejectionReason, ProtocolVersion, PublicationReadIntent, Snapshot, SnapshotReadIntent,
+    WorkbenchPublicationOutcome, WorkbenchSnapshotOutcome, apply_workbench_publication,
+};
+use std::{
+    num::NonZeroU64,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 mod close_reconciliation;
 mod membership;
@@ -112,12 +119,17 @@ struct NativeExecutor {
     clock: LocalOperationClock,
     mailbox: Arc<CommandMailbox>,
     attached: Option<AttachedTerminal>,
+    workbench_baseline: Option<Snapshot>,
+    last_publication_probe: Option<Instant>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
     pending_close: Option<PendingCloseResult>,
     pending_rename: Option<crate::terminal_session::state::tab_rename::RenameWorkerEvidence>,
     pending_setup: Option<crate::terminal_session::state::workspace_setup::SetupWorkerEvidence>,
 }
+
+/// Minimum interval between publication probes piggybacked on ordinary polls.
+const PUBLICATION_PROBE_INTERVAL: Duration = Duration::from_millis(250);
 
 #[derive(Clone)]
 struct SetupTarget {
@@ -200,6 +212,7 @@ enum InitialAttachResult {
 impl NativeExecutor {
     fn new(client: LocalClient, mailbox: Arc<CommandMailbox>) -> Self {
         let clock = client.operation_clock();
+        let started = clock.now();
         Self {
             client,
             status_only: false,
@@ -210,6 +223,10 @@ impl NativeExecutor {
             clock,
             mailbox,
             attached: None,
+            workbench_baseline: None,
+            // Prime the probe clock so the first probe only leaves once the session has been
+            // alive for a full interval; a just-bootstrapped baseline is definitionally current.
+            last_publication_probe: Some(started),
             pending_create: None,
             pending_move: None,
             pending_close: None,
@@ -265,17 +282,9 @@ impl NativeExecutor {
             .mailbox
             .allocate_workbench_request_id()
             .map_err(closed)?;
-        let snapshot = self
-            .client
-            .submit_workbench_snapshot_read_before(
-                SnapshotReadIntent {
-                    protocol_version: ProtocolVersion,
-                    request_id: snapshot_request,
-                },
-                startup_deadline,
-            )
-            .map_err(snapshot)?;
-        let WorkbenchSnapshotOutcome::Available { snapshot } = snapshot.outcome else {
+        let WorkbenchSnapshotOutcome::Available { snapshot } =
+            self.read_workbench_before(snapshot_request, startup_deadline)?
+        else {
             return Err(CarrierFailure::Transport);
         };
         let cache = project_native_standalone_tabs(&snapshot)
@@ -494,7 +503,13 @@ impl NativeExecutor {
                 }
             };
             self.mailbox
-                .publish_poll_result_before(poll_key.clone(), record, forward_cutoff, &self.clock)
+                .publish_poll_result_before(
+                    poll_key.clone(),
+                    record,
+                    false,
+                    forward_cutoff,
+                    &self.clock,
+                )
                 .map_err(event)?;
             let causal = self
                 .mailbox
@@ -784,9 +799,18 @@ impl NativeExecutor {
             }
         };
         // Publish even a now-stale Record/Empty result so the mailbox retains its exact discard.
+        // The publication probe rides on the poll so a peer Client's committed Workbench changes
+        // surface through the ordinary refresh path without a separate event loop.
+        let publication_hint = self.probe_workbench_publication(deadline)?;
         let cutoff = self.effective_lease_cutoff(lease, deadline)?;
         self.mailbox
-            .publish_poll_result_before(poll_key.clone(), record, cutoff, &self.clock)
+            .publish_poll_result_before(
+                poll_key.clone(),
+                record,
+                publication_hint,
+                cutoff,
+                &self.clock,
+            )
             .map_err(|error| self.ready_event_error(lease, &key, deadline, error))?;
         let Some(causal) = self
             .mailbox
@@ -1054,23 +1078,14 @@ impl NativeExecutor {
             .mailbox
             .allocate_workbench_request_id()
             .map_err(closed)?;
-        let result = self
-            .client
-            .submit_workbench_snapshot_read_before(
-                SnapshotReadIntent {
-                    protocol_version: ProtocolVersion,
-                    request_id,
-                },
-                cutoff,
-            )
-            .map_err(snapshot)?;
+        let outcome = self.read_workbench_before(request_id, cutoff)?;
         let cutoff = self.effective_lease_cutoff(lease, operation.deadlines().forward_cutoff())?;
         let wait = self
             .mailbox
             .publish_event_before(
                 WorkerEvent::CreateSnapshotResult {
                     operation: operation.key().clone(),
-                    outcome: result.outcome,
+                    outcome,
                 },
                 EventDeadline::PlacementOnly(cutoff),
                 &self.clock,
@@ -1124,21 +1139,12 @@ impl NativeExecutor {
             .mailbox
             .allocate_workbench_request_id()
             .map_err(closed)?;
-        let result = self
-            .client
-            .submit_workbench_snapshot_read_before(
-                SnapshotReadIntent {
-                    protocol_version: ProtocolVersion,
-                    request_id,
-                },
-                snapshot_deadline,
-            )
-            .map_err(snapshot)?;
+        let outcome = self.read_workbench_before(request_id, snapshot_deadline)?;
         let wait = self
             .mailbox
             .publish_refresh_result_before(
                 marker.generation(),
-                result.outcome,
+                outcome,
                 snapshot_deadline,
                 &self.clock,
             )
@@ -1189,6 +1195,102 @@ impl NativeExecutor {
                         Ok(())
                     }
                 }),
+        }
+    }
+
+    /// Reads the committed Workbench projection for `request_id` before `deadline`. With a retained
+    /// baseline the read is a cursor-based `publication.read` folded into a single snapshot;
+    /// without one it falls back to a full `snapshot.read`. Every accepted result replaces the
+    /// baseline, and the wire-level `WorkbenchSnapshotOutcome` shape is preserved for callers.
+    fn read_workbench_before(
+        &mut self,
+        request_id: orchbee_workbench_protocol::WorkbenchRequestId,
+        deadline: Instant,
+    ) -> Result<WorkbenchSnapshotOutcome> {
+        let Some(baseline) = self.workbench_baseline.clone() else {
+            let result = self
+                .client
+                .submit_workbench_snapshot_read_before(
+                    SnapshotReadIntent {
+                        protocol_version: ProtocolVersion,
+                        request_id,
+                    },
+                    deadline,
+                )
+                .map_err(snapshot)?;
+            if let WorkbenchSnapshotOutcome::Available { snapshot: accepted } = &result.outcome {
+                self.workbench_baseline = Some(accepted.clone());
+            }
+            return Ok(result.outcome);
+        };
+        let result = self
+            .client
+            .submit_workbench_publication_read_before(
+                PublicationReadIntent {
+                    protocol_version: ProtocolVersion,
+                    request_id,
+                    known_revision: baseline.revision,
+                },
+                deadline,
+            )
+            .map_err(publication)?;
+        match result.outcome {
+            WorkbenchPublicationOutcome::Current { .. } => {
+                Ok(WorkbenchSnapshotOutcome::Available { snapshot: baseline })
+            }
+            WorkbenchPublicationOutcome::Published { publications } => {
+                let accepted = apply_workbench_publication(&baseline, &publications)
+                    .map_err(publication_fold_failure)?;
+                self.workbench_baseline = Some(accepted.clone());
+                Ok(WorkbenchSnapshotOutcome::Available { snapshot: accepted })
+            }
+            WorkbenchPublicationOutcome::Denied {} => Ok(WorkbenchSnapshotOutcome::Denied {}),
+            WorkbenchPublicationOutcome::Unavailable { reason } => {
+                Ok(WorkbenchSnapshotOutcome::Unavailable { reason })
+            }
+        }
+    }
+
+    /// Probes committed Workbench publications on top of an ordinary poll. A `published` outcome
+    /// is folded into the retained baseline and reported as a hint; `current`, `denied` and
+    /// `unavailable` stay silent so a transient read failure never disturbs terminal polling.
+    fn probe_workbench_publication(&mut self, deadline: Instant) -> ReadyResult<bool> {
+        let Some(baseline) = self.workbench_baseline.clone() else {
+            return Ok(false);
+        };
+        let now = self.clock.now();
+        if self
+            .last_publication_probe
+            .is_some_and(|last| now.saturating_duration_since(last) < PUBLICATION_PROBE_INTERVAL)
+        {
+            return Ok(false);
+        }
+        self.last_publication_probe = Some(now);
+        let request_id = self
+            .mailbox
+            .allocate_workbench_request_id()
+            .map_err(|error| ReadyFlowError::Carrier(closed(error)))?;
+        let result = self
+            .client
+            .submit_workbench_publication_read_before(
+                PublicationReadIntent {
+                    protocol_version: ProtocolVersion,
+                    request_id,
+                    known_revision: baseline.revision,
+                },
+                deadline,
+            )
+            .map_err(|error| ReadyFlowError::Carrier(publication(error)))?;
+        match result.outcome {
+            WorkbenchPublicationOutcome::Published { publications } => {
+                let accepted = apply_workbench_publication(&baseline, &publications)
+                    .map_err(|reason| ReadyFlowError::Carrier(publication_fold_failure(reason)))?;
+                self.workbench_baseline = Some(accepted);
+                Ok(true)
+            }
+            WorkbenchPublicationOutcome::Current { .. }
+            | WorkbenchPublicationOutcome::Denied {}
+            | WorkbenchPublicationOutcome::Unavailable { .. } => Ok(false),
         }
     }
 
@@ -2057,6 +2159,37 @@ fn snapshot(error: SnapshotReadError) -> CarrierFailure {
                 io_failure(&error)
             }
         },
+    }
+}
+
+fn publication(error: PublicationReadError) -> CarrierFailure {
+    match error {
+        PublicationReadError::SessionUnavailable => CarrierFailure::Transport,
+        PublicationReadError::RequestEncoding(_) => CarrierFailure::Protocol,
+        PublicationReadError::RequestNotSubmitted(error) => io_failure(&error),
+        PublicationReadError::Failed { reason, .. } => match reason {
+            PublicationReadFailure::Response(
+                orchbee_workbench_protocol::WorkbenchWireError::Io(error),
+            ) => io_failure(&error),
+            PublicationReadFailure::Response(_)
+            | PublicationReadFailure::UnexpectedResponse
+            | PublicationReadFailure::CorrelationMismatch { .. } => CarrierFailure::Protocol,
+            PublicationReadFailure::Write(error)
+            | PublicationReadFailure::ResponseDeadline(error) => io_failure(&error),
+        },
+    }
+}
+
+/// A publication that cannot fold onto the retained baseline either contradicts the committed
+/// history the baseline came from (authority divergence) or is malformed on the wire (protocol).
+fn publication_fold_failure(reason: DeltaRejectionReason) -> CarrierFailure {
+    match reason {
+        DeltaRejectionReason::SiteMismatch
+        | DeltaRejectionReason::BaseRevisionMismatch
+        | DeltaRejectionReason::NonIncreasingRevision => CarrierFailure::AuthorityDivergence,
+        DeltaRejectionReason::InvalidProjection | DeltaRejectionReason::DuplicateChangeTarget => {
+            CarrierFailure::Protocol
+        }
     }
 }
 

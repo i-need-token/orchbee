@@ -1,6 +1,4 @@
-use super::{
-    NativeExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event, snapshot,
-};
+use super::{NativeExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::{
     local_client::workbench::{
         WorkbenchTabMoveNotSubmitted, WorkbenchTabMoveOutcomeUnknownReason,
@@ -12,8 +10,8 @@ use crate::{
     },
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
-    WorkbenchRejectionReason, WorkbenchSnapshotOutcome,
+    ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchRejectionReason,
+    WorkbenchSnapshotOutcome,
 };
 
 impl NativeExecutor {
@@ -152,16 +150,7 @@ impl NativeExecutor {
             .mailbox
             .allocate_workbench_request_id()
             .map_err(closed)?;
-        self.client
-            .submit_workbench_snapshot_read_before(
-                SnapshotReadIntent {
-                    protocol_version: ProtocolVersion,
-                    request_id,
-                },
-                cutoff,
-            )
-            .map(|snapshot| snapshot.outcome)
-            .map_err(snapshot)
+        self.read_workbench_before(request_id, cutoff)
     }
 }
 

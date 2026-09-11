@@ -215,12 +215,14 @@ Project 与 Workspace。创建 Workspace 时只创建一个空 Terminal Context�
 重启恢复及旧实现迁移仍未完成。
 
 Projection store 是该权威的私有实现组件，没有公开的整份 snapshot 写入口，只有此权威可以
-推进它。主动 delta 订阅及完整 Client Workbench 集成仍未完成；本组转换提供写入后的按需读取。
+推进它。每条已提交 publication 保留在 64 条上限的 journal 中，并通过
+`workbench.publication.read` 在相同读取授权下提供，使持有基线的 Client 按序快进。主动推送
+订阅及完整 Client Workbench 集成仍未完成。
 
 跨语言请求和结果的权威属于 [Workbench 契约](../../../schemas/workbench/README.zh-CN.md)。
 Workbench 在同一条已准入的本地连接上使用独立 OBWP carrier，OBCS 继续只负责终端契约。
 两种协议之前都须完成 same-user OBLC 准入。Server 随后选择显式的 Site-scoped Workbench
-grant。开发 composition 允许读取 snapshot 及五项纯 Workbench 操作；`tab.create` 还要求显式的
+grant。开发 composition 允许读取 snapshot 与 publication，以及五项纯 Workbench 操作；`tab.create` 还要求显式的
 terminal-create grant。目录关联同时要求 navigation 和独立的 directory-association grant。对于外部提交的 OBWP 读取及命令，
 权威在读取任何状态或 ledger 之前检查 grant。只读及拒绝策略均可表达。缺失或错误 Site 的 grant 返回 typed denied，不泄露
 状态、revision、identity 或 ledger；grant 绝不来自 wire input。Client 提交语义操作与预期
@@ -228,19 +230,19 @@ revision，不能指定新产品身份、替换共享文档或发布 Client delt
 
 ## 导航模型
 
-| 字段       | 契约                                                                                                                                                                                                                                                                                                    |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题       | 独立准入的 Client 必须修改和观察同一份共享导航结构，避免丢失更新或重复逻辑效果。                                                                                                                                                                                                                        |
-| 输入       | 严格读取 intent，或包含 request identity、确切 Site、预期 revision 及下列五项 action 之一的严格命令。Label 保留原始非空文本，最多 512 个 Unicode code point。Tab rename fingerprint 包含 context、Tab、label 和 base revision。                                                                         |
-| 数据       | Active 或 retired 权威、一份已校验 Snapshot、Server 拥有且不复用的 identity cursor，以及有界 request/result ledger。初始 revision 为零，standalone Terminal Context 为空。Adapter 从操作系统随机源取得非零 Site identity。Cursor 不复用导航聚合内的身份；无关 Terminal/operation 身份域保留现有 owner。 |
-| 输出       | 读取返回相关联的 available { snapshot }、denied {} 或 unavailable { reason }。命令返回 project-created、workspace-created、renamed、unchanged、rejected、denied 或 unavailable。新身份仅出现于对应成功变体中。                                                                                          |
-| 不变量     | 只有 Server 提交共享结构。每个 Workspace 恰好引用一个 context。拒绝保留结构、revision 和分配状态。发生变更时 revision 恰好加一。等值重命名保留 revision。Tab rename 只改变目标 `Tab.label`；非目标标签及所有其他 projection 事实保持精确。一个 request identity 不能提交两次。                          |
-| 决策       | 授权先于 retired 状态及 ledger 检查。Active 精确重放先于预期 revision 检查。保留的 request identity 对应内容改变时是冲突。拒绝命令没有结构效果。意外内部 invariant 失败会原子停用权威；后续所有已授权读取和命令（包括重放）都不可用。                                                                   |
-| 模型       | 对完整 candidate 执行确定性串行转换；网络、时钟、文件系统、随机源及进程效果留在 adapter。                                                                                                                                                                                                               |
-| 依赖       | 既有 Workbench snapshot 校验及上限、严格 OBWP framing、已准入本地 Session。这些导航操作不需要 Worker 或 Host。                                                                                                                                                                                          |
-| 所有权     | 权威一起持有 snapshot/cursor/ledger。Service 拥有初始化及调用串行化。Application-session adapter 拥有协议选择及释放锁之后的有界响应交付。                                                                                                                                                               |
-| 验证       | 依据 schema 编写的 Rust/TypeScript conformance、可缩减的确定性有状态命令轨迹、有界 TLA 并发/重放检查，以及真实双 Client Server 进程证据。                                                                                                                                                               |
-| 正确性限制 | 模型抽象 label、identity encoding、OS 调度及 JSON。进程证据为 Linux；本组转换不声明持久化、transport retry、重启后恢复 Site identity 或公开 Client 集成。                                                                                                                                               |
+| 字段       | 契约                                                                                                                                                                                                                                                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题       | 独立准入的 Client 必须修改和观察同一份共享导航结构，避免丢失更新或重复逻辑效果。                                                                                                                                                                                                                                           |
+| 输入       | 严格 snapshot 或 publication 读取 intent，或包含 request identity、确切 Site、预期 revision 及下列五项 action 之一的严格命令。Label 保留原始非空文本，最多 512 个 Unicode code point。Tab rename fingerprint 包含 context、Tab、label 和 base revision。                                                                   |
+| 数据       | Active 或 retired 权威、一份已校验 Snapshot、Server 拥有且不复用的 identity cursor，以及有界 request/result ledger。初始 revision 为零，standalone Terminal Context 为空。Adapter 从操作系统随机源取得非零 Site identity。Cursor 不复用导航聚合内的身份；无关 Terminal/operation 身份域保留现有 owner。                    |
+| 输出       | 读取返回相关联的 available { snapshot }、denied {} 或 unavailable { reason }。Publication 读取返回 current { revision }、published { publications }、denied {} 或 unavailable { reason }。命令返回 project-created、workspace-created、renamed、unchanged、rejected、denied 或 unavailable。新身份仅出现于对应成功变体中。 |
+| 不变量     | 只有 Server 提交共享结构。每个 Workspace 恰好引用一个 context。拒绝保留结构、revision 和分配状态。发生变更时 revision 恰好加一。等值重命名保留 revision。Tab rename 只改变目标 `Tab.label`；非目标标签及所有其他 projection 事实保持精确。一个 request identity 不能提交两次。                                             |
+| 决策       | 授权先于 retired 状态及 ledger 检查。Active 精确重放先于预期 revision 检查。保留的 request identity 对应内容改变时是冲突。拒绝命令没有结构效果。意外内部 invariant 失败会原子停用权威；后续所有已授权读取和命令（包括重放）都不可用。                                                                                      |
+| 模型       | 对完整 candidate 执行确定性串行转换；网络、时钟、文件系统、随机源及进程效果留在 adapter。                                                                                                                                                                                                                                  |
+| 依赖       | 既有 Workbench snapshot 校验及上限、严格 OBWP framing、已准入本地 Session。这些导航操作不需要 Worker 或 Host。                                                                                                                                                                                                             |
+| 所有权     | 权威一起持有 snapshot/cursor/ledger。Service 拥有初始化及调用串行化。Application-session adapter 拥有协议选择及释放锁之后的有界响应交付。                                                                                                                                                                                  |
+| 验证       | 依据 schema 编写的 Rust/TypeScript conformance、可缩减的确定性有状态命令轨迹、有界 TLA 并发/重放检查，以及真实双 Client Server 进程证据。                                                                                                                                                                                  |
+| 正确性限制 | 模型抽象 label、identity encoding、OS 调度及 JSON。进程证据为 Linux；本组转换不声明持久化、transport retry、重启后恢复 Site identity 或公开 Client 集成。                                                                                                                                                                  |
 
 | Action           | Guard                                  | 提交结果                                     |
 | ---------------- | -------------------------------------- | -------------------------------------------- |
@@ -476,7 +478,7 @@ LocalClientSubmission/Backpressure 边界及运行时 deadline trace 拥有 prog
 ### 接纳与共同提交
 
 库在不读取 authority 状态的情况下分类线请求。不透明的
-`WorkbenchReadOrNavigationRequest` 只接纳快照读取和五个纯 Workbench 操作；
+`WorkbenchReadOrNavigationRequest` 只接纳快照读取、publication 读取和五个纯 Workbench 操作；
 `TryFrom<WorkbenchRequest>` 在无法分类时返回完整的原始请求并转移其所有权。
 服务显式地将被拒绝的 TabCreate 和 TabMove 命令路由到各自的 Site 组合路径；
 其他被拒绝的请求得到明确的不可用响应。分类拒绝不会隐式选择终端创建，

@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_workbench_protocol::{
-    PanelNode, PresentationBinding, SnapshotReadIntent, TerminalId, WorkbenchLabel,
-    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkerId,
+    PanelNode, PresentationBinding, PublicationReadIntent, SnapshotReadIntent, TerminalId,
+    WorkbenchLabel, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkerId,
 };
 
 mod stateful;
@@ -57,6 +57,25 @@ fn read() -> WorkbenchRequest {
         protocol_version: ProtocolVersion,
         request_id: WorkbenchRequestId::parse(&identity(999)).unwrap(),
     })
+}
+fn publication_read(id: u128, known_revision: u64) -> WorkbenchRequest {
+    WorkbenchRequest::PublicationRead(PublicationReadIntent {
+        protocol_version: ProtocolVersion,
+        request_id: WorkbenchRequestId::parse(&identity(id)).unwrap(),
+        known_revision: WorkbenchRevision::new(known_revision),
+    })
+}
+fn publication_outcome(
+    authority: &mut WorkbenchAuthority,
+    grant: Option<&WorkbenchGrant>,
+    request: WorkbenchRequest,
+) -> WorkbenchPublicationOutcome {
+    let WorkbenchResponse::Publication(WorkbenchPublicationResult { outcome, .. }) =
+        authority.execute(grant, request.try_into().unwrap())
+    else {
+        panic!("expected publication result")
+    };
+    outcome
 }
 fn project_id(result: &WorkbenchCommandResult) -> WorkbenchProjectId {
     let WorkbenchCommandOutcome::ProjectCreated { project_id, .. } = &result.outcome else {
@@ -646,4 +665,109 @@ fn publication_preflight_failure_precedes_ledger_byte_refusal_atomically() {
     assert_eq!(authority.ledger.len(), 1);
     assert_eq!(authority.ledger_bytes, MAXIMUM_LEDGER_BYTES);
     assert_eq!(authority.last_identity, 1);
+}
+
+#[test]
+fn publication_read_replays_committed_history_under_the_read_grant() {
+    let (mut authority, grant) = authority();
+    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
+
+    assert_eq!(
+        publication_outcome(&mut authority, Some(&reader), publication_read(800, 0)),
+        WorkbenchPublicationOutcome::Current {
+            revision: WorkbenchRevision::new(0)
+        }
+    );
+
+    submit(&mut authority, &grant, command(1, 0, create("First")));
+    submit(&mut authority, &grant, command(2, 1, create("Second")));
+
+    let WorkbenchPublicationOutcome::Published { publications } =
+        publication_outcome(&mut authority, Some(&reader), publication_read(801, 0))
+    else {
+        panic!("expected published publications")
+    };
+    assert_eq!(publications.len(), 2);
+    let mut replayed = snapshot(&mut authority, &grant);
+    // Rewind the reader baseline to revision 0 by re-reading the initial state shape.
+    let base = Snapshot {
+        revision: WorkbenchRevision::new(0),
+        navigation: Navigation {
+            projects: Vec::new(),
+            standalone_terminal_context_id: replayed
+                .navigation
+                .standalone_terminal_context_id
+                .clone(),
+        },
+        terminal_contexts: replayed
+            .terminal_contexts
+            .iter()
+            .cloned()
+            .map(|mut context| {
+                context.tabs.clear();
+                context.groups.clear();
+                context
+            })
+            .collect::<Vec<_>>(),
+        ..replayed.clone()
+    };
+    replayed = base;
+    for publication in &publications {
+        let WorkbenchPublicationDocument::Delta(delta) = publication else {
+            panic!("expected delta publications")
+        };
+        replayed = orchbee_workbench_protocol::apply_workbench_delta(&replayed, delta).unwrap();
+    }
+    assert_eq!(replayed, snapshot(&mut authority, &grant));
+
+    let WorkbenchPublicationOutcome::Published { publications: tail } =
+        publication_outcome(&mut authority, Some(&reader), publication_read(802, 1))
+    else {
+        panic!("expected tail publication")
+    };
+    assert_eq!(tail.len(), 1);
+    assert_eq!(
+        publication_outcome(&mut authority, Some(&reader), publication_read(803, 2)),
+        WorkbenchPublicationOutcome::Current {
+            revision: WorkbenchRevision::new(2)
+        }
+    );
+}
+
+#[test]
+fn publication_read_denies_before_disclosure_and_skips_the_command_ledger() {
+    let (mut authority, grant) = authority();
+    submit(&mut authority, &grant, command(1, 0, create("Private")));
+    let reader = WorkbenchGrant::read_only(grant.site_id.clone());
+    let wrong_site = WorkbenchGrant::manage_navigation(SiteId::parse(&identity(200)).unwrap());
+
+    for denied in [None, Some(&wrong_site)] {
+        assert_eq!(
+            publication_outcome(&mut authority, denied, publication_read(810, 0)),
+            WorkbenchPublicationOutcome::Denied {}
+        );
+    }
+    // A read-only grant may observe publications but a wrong Site still learns nothing.
+    assert!(matches!(
+        publication_outcome(&mut authority, Some(&reader), publication_read(811, 1)),
+        WorkbenchPublicationOutcome::Current { .. } | WorkbenchPublicationOutcome::Published { .. }
+    ));
+    // Publication reads never enter the command ledger, so a later command may reuse the id.
+    assert!(matches!(
+        submit(&mut authority, &grant, command(810, 1, create("After"))).outcome,
+        WorkbenchCommandOutcome::ProjectCreated { .. }
+    ));
+
+    let first = command(900, 2, create("Unused"));
+    authority.retire(&first);
+    assert_eq!(
+        publication_outcome(&mut authority, Some(&reader), publication_read(812, 0)),
+        WorkbenchPublicationOutcome::Unavailable {
+            reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable
+        }
+    );
+    assert_eq!(
+        publication_outcome(&mut authority, None, publication_read(813, 0)),
+        WorkbenchPublicationOutcome::Denied {}
+    );
 }

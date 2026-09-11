@@ -31,7 +31,7 @@ fn direction_kind_version_and_size_fail_before_body_allocation_or_read() {
         Err(WorkbenchWireError::InvalidHeader)
     ));
     assert_eq!(reader.position(), 12);
-    for (offset, byte) in [(0, b'X'), (5, 2), (7, 9)] {
+    for (offset, byte) in [(0, b'X'), (5, 2), (7, 11)] {
         let mut invalid = frame.clone();
         invalid[offset] = byte;
         let mut reader = Cursor::new(invalid);

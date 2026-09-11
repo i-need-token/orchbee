@@ -1,5 +1,10 @@
 use std::fmt;
 
+mod publication;
+pub use publication::{
+    MAXIMUM_RESULT_PUBLICATIONS, PublicationReadIntent, WorkbenchPublicationOutcome,
+    WorkbenchPublicationResult,
+};
 mod tab_close;
 pub use tab_close::{
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
@@ -20,10 +25,12 @@ use crate::{
         WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
         WorkerId,
     },
-    model::{Snapshot, SnapshotReadIntent, WorkbenchProtocolDocument},
+    model::{
+        Snapshot, SnapshotReadIntent, WorkbenchProtocolDocument, WorkbenchPublicationDocument,
+    },
     validation::{
         ContractError, MAXIMUM_ENCODED_INTENT_BYTES, MAXIMUM_ENCODED_PROJECTION_BYTES,
-        MAXIMUM_LABEL_LENGTH, enforce_encoded_limit, validate_snapshot,
+        MAXIMUM_LABEL_LENGTH, enforce_encoded_limit, validate_delta_structure, validate_snapshot,
     },
 };
 
@@ -319,6 +326,8 @@ pub enum WorkbenchRequest {
     TabCloseRead(WorkbenchTabCloseRead),
     #[serde(rename = "workbench.tab-close.resume")]
     TabCloseResume(WorkbenchTabCloseResume),
+    #[serde(rename = "workbench.publication.read")]
+    PublicationRead(PublicationReadIntent),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -512,6 +521,8 @@ pub enum WorkbenchResponse {
     TabCloseRead(WorkbenchTabCloseReadResult),
     #[serde(rename = "workbench.tab-close.resume.result")]
     TabCloseResume(WorkbenchTabCloseResumeResult),
+    #[serde(rename = "workbench.publication.result")]
+    Publication(WorkbenchPublicationResult),
 }
 
 pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, ContractError> {
@@ -554,6 +565,28 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
                 validate_snapshot(snapshot)?;
                 let document = WorkbenchProtocolDocument::Snapshot(snapshot.clone());
                 crate::validation::serialize_document(&document)?;
+            }
+            Ok(())
+        }
+        WorkbenchResponse::Publication(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES)?;
+            if let WorkbenchPublicationOutcome::Published { publications } = &result.outcome {
+                if publications.is_empty() || publications.len() > MAXIMUM_RESULT_PUBLICATIONS {
+                    return Err(ContractError::InvalidDocument);
+                }
+                for publication in publications {
+                    let document = match publication {
+                        WorkbenchPublicationDocument::Snapshot(snapshot) => {
+                            validate_snapshot(snapshot)?;
+                            WorkbenchProtocolDocument::Snapshot(snapshot.clone())
+                        }
+                        WorkbenchPublicationDocument::Delta(delta) => {
+                            validate_delta_structure(delta)?;
+                            WorkbenchProtocolDocument::Delta(delta.clone())
+                        }
+                    };
+                    crate::validation::serialize_document(&document)?;
+                }
             }
             Ok(())
         }

@@ -64,8 +64,11 @@ snapshot otherwise. An empty delta may advance revision without visible projecti
 Before changing state, the store validates and serializes the publication. An applied delta must
 reproduce the candidate exactly. Parsing, Site, revision, refinement or serialization failure leaves
 state unchanged. Only the authority advances this private component. Clients cannot replace
-snapshots or submit deltas. The carrier provides read-after-write; active publication/subscription
-remains unfinished.
+snapshots or submit deltas. The carrier provides read-after-write; every committed publication is
+retained in a 64-entry journal and served to readers through `workbench.publication.read` under the
+same read grant, so a Client holding a baseline revision fast-forwards with ordered publications
+instead of full snapshots. A journal that cannot connect the caller's revision answers with one
+complete snapshot boundary publication. Push subscription remains unfinished.
 
 ## Managed Linux Site startup
 

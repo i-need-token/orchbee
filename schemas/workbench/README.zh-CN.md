@@ -94,11 +94,20 @@ workspace-created、workspace-primary-directory-accepted、renamed、unchanged�
 [Server 权威](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md) 拥有决策顺序、原子提交、
 授权及其有界进程内 ledger。契约不隐含自动重放。
 
+`workbench.publication.read` 携带 protocolVersion、requestId 及调用方已提交的
+`knownRevision`。`workbench.publication.result` 关联携带仍为当前修订号的 `current`、携带 1 至 64
+条按序已提交 publication（每条为完整 `workbench.snapshot` 或 `workbench.delta`）的
+`published`、`denied` 或 `unavailable`。将这组有序 publication 应用到 `knownRevision` 处的
+snapshot 即复现已提交的 projection。当 Server journal 无法将 `knownRevision` 衔接到其保留的
+最旧 publication 时，可以回答携带一条完整 snapshot 边界 publication 的 `published`。Denied 与
+unavailable 不泄露修订号或内容。
+
 OBWP 使用 12 字节 header：magic `OBWP`、big-endian u16 version 1、big-endian u16 kind 及
-big-endian u32 payload length。Kind 1/2 为 snapshot.read/command 请求，3/4 为
-snapshot.result/command.result 响应。JSON kind 必须匹配 header。Reader 在分配 body 前拒绝错误
-version、方向、kind 或超限 payload。请求与命令结果最多 16 KiB；原始 snapshot 结果最多 1 MiB + 1,024
-字节，完整嵌套 snapshot 另受 canonical JSON 1 MiB 上限约束。Envelope 内的空白与替代 escape
+big-endian u32 payload length。Kind 1/2/9 为 snapshot.read/command/publication.read 请求，3/4/10 为
+snapshot.result/command.result/publication.result 响应。JSON kind 必须匹配 header。Reader 在分配 body 前拒绝错误
+version、方向、kind 或超限 payload。请求与命令结果最多 16 KiB；原始 snapshot 与 publication 结果最多
+1 MiB + 1,024 字节，每条已发布文档保留其独立 canonical 上限。完整嵌套 snapshot 另受 canonical JSON
+1 MiB 上限约束。Envelope 内的空白与替代 escape
 计入原始外层上限。独立 snapshot 保留原始 1 MiB 上限。有效 record 保留后续 record 未读；EOF 截断失败。
 Rust binding 提供 Read/Write codec，不拥有 socket、timeout、准入或重试。OBCS 继续为独立终端协议，
 OBLC 准入位于两种 application carrier 之前。

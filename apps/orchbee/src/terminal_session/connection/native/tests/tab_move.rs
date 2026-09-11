@@ -16,7 +16,7 @@ use orchbee_client_server_protocol::{
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchRequest, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason, WorkbenchTabMoveDirection,
+    WorkbenchSnapshotUnavailableReason, WorkbenchTabMoveDirection,
 };
 use std::sync::atomic::Ordering;
 
@@ -373,18 +373,8 @@ fn commit_move(harness: &Harness, operation: &MoveOperation) -> TestResult {
 }
 
 fn respond_snapshot(harness: &Harness, outcome: WorkbenchSnapshotOutcome) -> TestResult {
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error(
-            "known Move must read one Snapshot without OBCS effects",
-        ));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome,
-        }))
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(&read, outcome)
 }
 
 fn reordered_snapshot() -> Snapshot {
@@ -558,8 +548,8 @@ fn move_snapshot_corruption_retires_with_worker_owned_commit() -> TestResult {
         .admit_move_transport(WorkbenchTabMoveDirection::Next)?;
     commit_move(&harness, &operation)?;
     assert!(matches!(
-        harness.carrier.take_workbench()?,
-        WorkbenchRequest::SnapshotRead(_)
+        harness.carrier.take_read()?,
+        super::setup::ObservedRead::Publication(_)
     ));
     harness.carrier.respond_malformed_workbench()?;
     let (create, moved) =
@@ -619,23 +609,18 @@ fn move_and_snapshot_share_admission_budget_and_expire_at_equality() -> TestResu
                 tab_id: operation.target().tab_id().clone(),
             },
         }))?;
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("Move commit must use remaining Snapshot budget"));
-    };
+    let read = harness.carrier.take_read()?;
     assert_eq!(
-        u128::from_str_radix(read.request_id.as_str(), 16)?,
+        u128::from_str_radix(read.request_id().as_str(), 16)?,
         u128::from_str_radix(operation.request_id().as_str(), 16)? + 1
     );
     harness.elapsed_millis.store(50_000, Ordering::SeqCst);
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: reordered_snapshot(),
-            },
-        }))?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: reordered_snapshot(),
+        },
+    )?;
     let (create, moved) =
         harness.finish_after_worker_failure_with_pending_commits(CarrierFailure::Deadline)?;
     assert!(create.is_none());

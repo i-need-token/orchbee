@@ -10,10 +10,11 @@ pub use carrier::{
     write_workbench_request, write_workbench_response,
 };
 pub use command::{
-    MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, WorkbenchAction, WorkbenchCommand,
-    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchCommandUnavailableReason,
-    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchRejectionReason, WorkbenchRequest,
-    WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
+    MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, MAXIMUM_RESULT_PUBLICATIONS, PublicationReadIntent,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchPublicationOutcome, WorkbenchPublicationResult, WorkbenchRejectionReason,
+    WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
     WorkbenchSnapshotUnavailableReason, WorkbenchTabCloseAttemptGeneration,
     WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase, WorkbenchTabClosePublicationReason,
     WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult,
@@ -39,7 +40,8 @@ pub use identity::{
 pub use model::{
     Delta, DeltaChange, DeltaRejectionReason, Directory, Navigation, PanelNode, PanelOrientation,
     PanelSlot, Presentation, PresentationBinding, Project, Snapshot, SnapshotReadIntent, Tab,
-    TabGroup, TabGroupColor, TerminalContext, WorkbenchProtocolDocument, Workspace,
+    TabGroup, TabGroupColor, TerminalContext, WorkbenchProtocolDocument,
+    WorkbenchPublicationDocument, Workspace,
 };
 pub use validation::{
     ContractError, MAXIMUM_CHILD_PRESENTATIONS_PER_PANEL, MAXIMUM_DELTA_CHANGES,
@@ -47,6 +49,6 @@ pub use validation::{
     MAXIMUM_ENCODED_PROJECTION_BYTES, MAXIMUM_LABEL_LENGTH, MAXIMUM_PANEL_NODE_DEPTH,
     MAXIMUM_PANEL_NODES_PER_CONTEXT, MAXIMUM_PROJECTS, MAXIMUM_TAB_GROUPS_PER_CONTEXT,
     MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, MAXIMUM_WORKSPACES_PER_PROJECT,
-    apply_workbench_delta, parse_delta, parse_document, parse_snapshot, parse_snapshot_read_intent,
-    serialize_document,
+    apply_workbench_delta, apply_workbench_publication, parse_delta, parse_document,
+    parse_snapshot, parse_snapshot_read_intent, serialize_document,
 };

@@ -70,55 +70,10 @@ impl RenameServer {
                             }
                             WorkbenchRequest::Command(command) => command,
                             WorkbenchRequest::SnapshotRead(request) => {
-                                if recorded.lock().unwrap().is_empty() {
-                                    write_workbench_response(
-                                        &mut stream,
-                                        &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                                            protocol_version: ProtocolVersion,
-                                            request_id: request.request_id,
-                                            outcome: available_snapshot(Some(binding())),
-                                        }),
-                                    )
-                                    .map_err(io::Error::other)?;
-                                    continue;
-                                }
-                                let ordinal = snapshot_count.fetch_add(1, Ordering::SeqCst);
-                                if matches!(response, RenameResponse::LostSnapshot) {
-                                    return Ok(());
-                                }
-                                let WorkbenchSnapshotOutcome::Available { mut snapshot } =
-                                    available_snapshot(Some(binding()))
+                                let Some(outcome) =
+                                    next_rename_snapshot(&recorded, &snapshot_count, response)
                                 else {
-                                    unreachable!()
-                                };
-                                snapshot.revision =
-                                    WorkbenchRevision::new(if ordinal == 0 { 2 } else { 3 });
-                                if matches!(
-                                    response,
-                                    RenameResponse::Successor | RenameResponse::SuccessorReady
-                                ) {
-                                    snapshot = super::move_refinements::two_tabs();
-                                    snapshot.revision = WorkbenchRevision::new(3);
-                                    snapshot.terminal_contexts[0].tabs.remove(0);
-                                } else if matches!(response, RenameResponse::Removed) {
-                                    snapshot.revision = WorkbenchRevision::new(3);
-                                    snapshot.terminal_contexts[0].tabs.clear();
-                                } else if let WorkbenchAction::TabRename { label, .. } =
-                                    &recorded.lock().unwrap().last().unwrap().action
-                                {
-                                    snapshot.terminal_contexts[0].tabs[0].label =
-                                        if matches!(response, RenameResponse::WrongLabel) {
-                                            "other".to_owned()
-                                        } else {
-                                            label.as_str().to_owned()
-                                        };
-                                }
-                                let outcome = if matches!(response, RenameResponse::Recover)
-                                    && ordinal == 0
-                                {
-                                    WorkbenchSnapshotOutcome::Denied {}
-                                } else {
-                                    WorkbenchSnapshotOutcome::Available { snapshot }
+                                    return Ok(());
                                 };
                                 write_workbench_response(
                                     &mut stream,
@@ -126,6 +81,26 @@ impl RenameServer {
                                         protocol_version: ProtocolVersion,
                                         request_id: request.request_id,
                                         outcome,
+                                    }),
+                                )
+                                .map_err(io::Error::other)?;
+                                continue;
+                            }
+                            WorkbenchRequest::PublicationRead(request) => {
+                                let Some(outcome) =
+                                    next_rename_snapshot(&recorded, &snapshot_count, response)
+                                else {
+                                    return Ok(());
+                                };
+                                write_workbench_response(
+                                    &mut stream,
+                                    &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                                        protocol_version: ProtocolVersion,
+                                        request_id: request.request_id,
+                                        outcome: publication_outcome_for(
+                                            outcome,
+                                            request.known_revision,
+                                        ),
                                     }),
                                 )
                                 .map_err(io::Error::other)?;
@@ -798,4 +773,53 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
     assert_eq!(server.commands.lock().unwrap().len(), 1);
     server.finish(session)?;
     Ok(())
+}
+
+/// Computes the scripted outcome for whichever Workbench read arrived. The first read before any
+/// rename command is the bootstrap snapshot; later reads walk the ordinal script. `None` tells the
+/// caller to drop the connection (`LostSnapshot`).
+fn next_rename_snapshot(
+    recorded: &Arc<Mutex<Vec<orchbee_workbench_protocol::WorkbenchCommand>>>,
+    snapshot_count: &Arc<AtomicU8>,
+    response: RenameResponse,
+) -> Option<WorkbenchSnapshotOutcome> {
+    if recorded.lock().unwrap().is_empty() {
+        return Some(available_snapshot(Some(binding())));
+    }
+    let ordinal = snapshot_count.fetch_add(1, Ordering::SeqCst);
+    if matches!(response, RenameResponse::LostSnapshot) {
+        return None;
+    }
+    let WorkbenchSnapshotOutcome::Available { mut snapshot } = available_snapshot(Some(binding()))
+    else {
+        unreachable!()
+    };
+    snapshot.revision = WorkbenchRevision::new(if ordinal == 0 { 2 } else { 3 });
+    if matches!(
+        response,
+        RenameResponse::Successor | RenameResponse::SuccessorReady
+    ) {
+        snapshot = super::move_refinements::two_tabs();
+        snapshot.revision = WorkbenchRevision::new(3);
+        snapshot.terminal_contexts[0].tabs.remove(0);
+    } else if matches!(response, RenameResponse::Removed) {
+        snapshot.revision = WorkbenchRevision::new(3);
+        snapshot.terminal_contexts[0].tabs.clear();
+    } else if let WorkbenchAction::TabRename { label, .. } =
+        &recorded.lock().unwrap().last().unwrap().action
+    {
+        snapshot.terminal_contexts[0].tabs[0].label =
+            if matches!(response, RenameResponse::WrongLabel) {
+                "other".to_owned()
+            } else {
+                label.as_str().to_owned()
+            };
+    }
+    Some(
+        if matches!(response, RenameResponse::Recover) && ordinal == 0 {
+            WorkbenchSnapshotOutcome::Denied {}
+        } else {
+            WorkbenchSnapshotOutcome::Available { snapshot }
+        },
+    )
 }

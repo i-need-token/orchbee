@@ -18,10 +18,7 @@ use orchbee_client_server_protocol::{
     TerminalViewerOutcome, TerminalViewerResult, ViewerRejectedReason, ViewerSnapshotReason,
     ViewerUnavailableReason,
 };
-use orchbee_workbench_protocol::{
-    ProtocolVersion, WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotResult,
-};
+
 use std::{sync::atomic::Ordering, time::Duration};
 
 #[test]
@@ -56,19 +53,14 @@ fn startup_controlling_draws_before_exact_feedback_and_clears_its_ceiling() -> T
             },
         )))?;
 
-    let WorkbenchRequest::SnapshotRead(request) = harness.carrier.take_workbench()? else {
-        return Err(test_error("terminal.open must be followed by SnapshotRead"));
-    };
-    request_ids.push(request.request_id.as_str().to_owned());
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: request.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: setup::snapshot(2, 1),
-            },
-        }))?;
+    let request = harness.carrier.take_read()?;
+    request_ids.push(request.request_id().as_str().to_owned());
+    harness.carrier.respond_read(
+        &request,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: setup::snapshot(2, 1),
+        },
+    )?;
 
     let UiEvent::Bootstrap { key } = harness.ui.settle_next(FrameCut::None)? else {
         return Err(test_error("snapshot must publish Bootstrap"));
@@ -1746,19 +1738,14 @@ fn run_unattempted_switch_entry_expiry() -> TestResult {
         } if key == first.key && desired == newest.key
     ));
     let mailbox = Arc::clone(&harness.mailbox);
-    let WorkbenchRequest::SnapshotRead(request) = harness.carrier.take_workbench()? else {
-        return Err(test_error("newest Switch Snapshot before its setup expiry"));
-    };
+    let request = harness.carrier.take_read()?;
     let checkpoint = mailbox.pause_next_ui_reply_resume_for_test();
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: request.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: setup::snapshot(3, 1),
-            },
-        }))?;
+    harness.carrier.respond_read(
+        &request,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: setup::snapshot(3, 1),
+        },
+    )?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::SwitchSnapshot {
@@ -1950,18 +1937,13 @@ fn superseded_first_attach_prewrite_timeout_skips_the_stale_entry() -> TestResul
     }
 
     let stale = harness.ui.admit_switch(1)?;
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("retry candidate must precede its Attach"));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: setup::snapshot(3, 1),
-            },
-        }))?;
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: setup::snapshot(3, 1),
+        },
+    )?;
     harness.arm_prewrite_gate()?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
@@ -2746,18 +2728,13 @@ fn run_close_wait_cut(cut: BlockedWaitCut) -> TestResult {
                         terminal_create_request_id: obcs_request_id(900)?,
                     },
                 )))?;
-            let WorkbenchRequest::SnapshotRead(request) = harness.carrier.take_workbench()? else {
-                return Err(test_error("event cut must read the workbench snapshot"));
-            };
-            harness
-                .carrier
-                .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                    protocol_version: ProtocolVersion,
-                    request_id: request.request_id,
-                    outcome: WorkbenchSnapshotOutcome::Available {
-                        snapshot: setup::snapshot(1, 1),
-                    },
-                }))?;
+            let request = harness.carrier.take_read()?;
+            harness.carrier.respond_read(
+                &request,
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: setup::snapshot(1, 1),
+                },
+            )?;
             let _bootstrap_waiting_for_reply = harness.ui.take_next()?;
             harness.finish()
         }

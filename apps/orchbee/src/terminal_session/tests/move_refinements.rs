@@ -127,7 +127,7 @@ fn outer_native_shutdown_join_finalization_retains_exact_pending_move_and_first_
         )
         .map_err(io::Error::other)?;
         let WorkbenchRequest::Command(command) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
+            read_workbench_request_absorbing_probes(&mut stream).map_err(io::Error::other)?
         else {
             return Err(io::Error::other("expected Move"));
         };
@@ -147,11 +147,11 @@ fn outer_native_shutdown_join_finalization_retains_exact_pending_move_and_first_
             }),
         )
         .map_err(io::Error::other)?;
-        let WorkbenchRequest::SnapshotRead(_) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
-        else {
-            return Err(io::Error::other("expected postcommit Snapshot"));
-        };
+        let postcommit = read_workbench_request(&mut stream).map_err(io::Error::other)?;
+        assert!(matches!(
+            postcommit,
+            WorkbenchRequest::SnapshotRead(_) | WorkbenchRequest::PublicationRead(_)
+        ));
         // Reading Snapshot proves the worker already retained the typed Move commit. Do not answer:
         // the outer session shutdown must interrupt this read, join, and retain the worker's fact.
         snapshot_sent.send(command).map_err(io::Error::other)?;

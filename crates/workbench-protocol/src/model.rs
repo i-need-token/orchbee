@@ -188,6 +188,16 @@ pub enum WorkbenchProtocolDocument {
     Delta(Delta),
 }
 
+/// A committed projection document inside a `published` outcome; read intents are not admitted.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum WorkbenchPublicationDocument {
+    #[serde(rename = "workbench.snapshot")]
+    Snapshot(Snapshot),
+    #[serde(rename = "workbench.delta")]
+    Delta(Delta),
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum DeltaRejectionReason {

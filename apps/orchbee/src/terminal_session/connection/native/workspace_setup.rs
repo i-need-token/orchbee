@@ -1,6 +1,4 @@
-use super::{
-    NativeExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event, snapshot,
-};
+use super::{NativeExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupNotSubmitted, WorkbenchSetupSubmission,
 };
@@ -11,7 +9,7 @@ use crate::terminal_session::{
     mailbox::{CommandLease, MutationResult, UiReply},
     state::{CarrierFailure, RefreshDecision},
 };
-use orchbee_workbench_protocol::{ProtocolVersion, SnapshotReadIntent};
+
 impl NativeExecutor {
     pub(super) fn run_workspace_setup(
         &mut self,
@@ -80,19 +78,10 @@ impl NativeExecutor {
                     .mailbox
                     .allocate_workbench_request_id()
                     .map_err(closed)?;
-                let snapshot_result = self
-                    .client
-                    .submit_workbench_snapshot_read_before(
-                        SnapshotReadIntent {
-                            protocol_version: ProtocolVersion,
-                            request_id,
-                        },
-                        cutoff,
-                    )
-                    .map_err(snapshot)?;
+                let outcome = self.read_workbench_before(request_id, cutoff)?;
                 SetupResult::Committed {
                     known: Box::new(known),
-                    outcome: Box::new(snapshot_result.outcome),
+                    outcome: Box::new(outcome),
                 }
             }
         };

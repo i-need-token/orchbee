@@ -2,10 +2,11 @@ use crate::local_terminal_service::LocalTerminalService;
 use orchbee_server::WorkbenchReadOrNavigationRequest;
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchCommandUnavailableReason, WorkbenchRequest, WorkbenchResponse,
-    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchSnapshotUnavailableReason,
-    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResumeOutcome,
-    WorkbenchTabCloseResumeResult, WorkbenchTabCloseUnavailableReason,
+    WorkbenchCommandUnavailableReason, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
+    WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
+    WorkbenchSnapshotUnavailableReason, WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult,
+    WorkbenchTabCloseResumeOutcome, WorkbenchTabCloseResumeResult,
+    WorkbenchTabCloseUnavailableReason,
 };
 use std::sync::Arc;
 
@@ -41,9 +42,9 @@ impl WorkbenchService {
 
     pub(crate) fn execute(&self, request: WorkbenchRequest) -> WorkbenchExecution {
         let permitted = match &request {
-            WorkbenchRequest::SnapshotRead(_) | WorkbenchRequest::TabCloseRead(_) => {
-                self.policy.read
-            }
+            WorkbenchRequest::SnapshotRead(_)
+            | WorkbenchRequest::PublicationRead(_)
+            | WorkbenchRequest::TabCloseRead(_) => self.policy.read,
             WorkbenchRequest::TabCloseResume(_) => self.policy.manage_terminal_lifecycle,
             WorkbenchRequest::Command(command)
                 if matches!(&command.action, WorkbenchAction::TabClose { .. }) =>
@@ -119,7 +120,9 @@ impl WorkbenchService {
                     response.unwrap_or_else(|| unavailable_or_denied(request, false)),
                 );
             }
-            WorkbenchRequest::SnapshotRead(_) | WorkbenchRequest::Command(_) => {}
+            WorkbenchRequest::SnapshotRead(_)
+            | WorkbenchRequest::PublicationRead(_)
+            | WorkbenchRequest::Command(_) => {}
         }
         let fallback = request.clone();
         match WorkbenchReadOrNavigationRequest::try_from(request) {
@@ -199,6 +202,19 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                     WorkbenchSnapshotOutcome::Denied {}
                 } else {
                     WorkbenchSnapshotOutcome::Unavailable {
+                        reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                    }
+                },
+            })
+        }
+        WorkbenchRequest::PublicationRead(intent) => {
+            WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                protocol_version: ProtocolVersion,
+                request_id: intent.request_id,
+                outcome: if denied {
+                    WorkbenchPublicationOutcome::Denied {}
+                } else {
+                    WorkbenchPublicationOutcome::Unavailable {
                         reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
                     }
                 },

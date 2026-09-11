@@ -5,10 +5,11 @@ use crate::workbench_projection::{
 };
 use orchbee_workbench_protocol::{
     ContractError, Delta, DeltaChange, MAXIMUM_DELTA_CHANGES, MAXIMUM_ENCODED_PROJECTION_BYTES,
-    MAXIMUM_LABEL_LENGTH, MAXIMUM_TERMINAL_CONTEXTS, MAXIMUM_WORKSPACES_PER_PROJECT, Navigation,
-    Project, SiteId, Snapshot, TabGroup, TabGroupColor, TerminalContext, WorkbenchProjectId,
-    WorkbenchProtocolDocument, WorkbenchRevision, WorkbenchTabGroupId, WorkbenchTerminalContextId,
-    WorkbenchWorkspaceId, Workspace, apply_workbench_delta, parse_snapshot, serialize_document,
+    MAXIMUM_LABEL_LENGTH, MAXIMUM_RESULT_PUBLICATIONS, MAXIMUM_TERMINAL_CONTEXTS,
+    MAXIMUM_WORKSPACES_PER_PROJECT, Navigation, Project, SiteId, Snapshot, TabGroup, TabGroupColor,
+    TerminalContext, WorkbenchProjectId, WorkbenchProtocolDocument, WorkbenchRevision,
+    WorkbenchTabGroupId, WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
+    apply_workbench_delta, parse_snapshot, serialize_document,
 };
 use serde_json::Value;
 
@@ -239,6 +240,140 @@ fn selects_snapshot_when_a_bounded_change_set_exceeds_the_encoded_limit()
         store.advance_projection(&candidate_bytes)?,
         WorkbenchPublication::Snapshot(candidate)
     );
+    Ok(())
+}
+
+#[test]
+fn replays_a_contiguous_committed_publication_chain() -> Result<(), Box<dyn Error>> {
+    let initial_bytes = document_bytes("snapshot-empty-r1")?;
+    let initial = parse_snapshot(&initial_bytes)?;
+    let mut store = WorkbenchProjectionStore::load(&initial_bytes)?;
+
+    assert!(store.publications_since(initial.revision).is_empty());
+
+    let r2_bytes = document_bytes("snapshot-empty-r2")?;
+    let r2 = parse_snapshot(&r2_bytes)?;
+    let mut r3 = r2.clone();
+    r3.revision = WorkbenchRevision::new(3);
+    r3.navigation.projects.push(Project {
+        directories: Vec::new(),
+        label: "Third".to_owned(),
+        project_id: WorkbenchProjectId::parse(&prefixed_identity('2', 3))?,
+        workspaces: Vec::new(),
+    });
+    let r3_bytes = encode_snapshot(&r3)?;
+
+    store.advance_projection(&r2_bytes)?;
+    store.advance_projection(&r3_bytes)?;
+
+    let replay = store.publications_since(initial.revision);
+    assert_eq!(replay.len(), 2);
+    let mut applied = initial.clone();
+    for publication in &replay {
+        let WorkbenchPublication::Delta(delta) = publication else {
+            return Err(io::Error::other("expected delta publications").into());
+        };
+        applied = apply_workbench_delta(&applied, delta)
+            .map_err(|reason| io::Error::other(format!("delta rejected: {reason:?}")))?;
+    }
+    assert_eq!(applied, r3);
+
+    let tail = store.publications_since(r2.revision);
+    assert_eq!(tail.len(), 1);
+    assert!(store.publications_since(r3.revision).is_empty());
+    Ok(())
+}
+
+#[test]
+fn a_committed_snapshot_publication_resets_retained_history() -> Result<(), Box<dyn Error>> {
+    let initial = maximum_context_snapshot()?;
+    let initial_bytes = encode_snapshot(&initial)?;
+    let mut store = WorkbenchProjectionStore::load(&initial_bytes)?;
+
+    let snapshot_candidate = add_one_group_to_every_context(&initial, true)?;
+    let snapshot_candidate_bytes = encode_snapshot(&snapshot_candidate)?;
+    assert_eq!(
+        store.advance_projection(&snapshot_candidate_bytes)?,
+        WorkbenchPublication::Snapshot(snapshot_candidate.clone())
+    );
+
+    let mut next = snapshot_candidate.clone();
+    next.revision = WorkbenchRevision::new(3);
+    next.navigation
+        .projects
+        .first_mut()
+        .ok_or_else(|| io::Error::other("maximum snapshot has no project"))?
+        .label = "Delta step".to_owned();
+    store.advance_projection(&encode_snapshot(&next)?)?;
+
+    let replay = store.publications_since(initial.revision);
+    assert_eq!(replay.len(), 2);
+    assert!(matches!(
+        replay.first(),
+        Some(WorkbenchPublication::Snapshot(snapshot)) if snapshot == &snapshot_candidate
+    ));
+    let WorkbenchPublication::Delta(delta) = &replay[1] else {
+        return Err(io::Error::other("expected a trailing delta").into());
+    };
+    assert_eq!(delta.base_revision, snapshot_candidate.revision);
+    let applied = apply_workbench_delta(&snapshot_candidate, delta)
+        .map_err(|reason| io::Error::other(format!("delta rejected: {reason:?}")))?;
+    assert_eq!(applied, next);
+    Ok(())
+}
+
+#[test]
+fn evicted_or_unknown_revisions_fall_back_to_the_current_snapshot() -> Result<(), Box<dyn Error>> {
+    let initial_bytes = document_bytes("snapshot-empty-r1")?;
+    let initial = parse_snapshot(&initial_bytes)?;
+    let mut store = WorkbenchProjectionStore::load(&initial_bytes)?;
+
+    let mut current = initial.clone();
+    let overflow = MAXIMUM_RESULT_PUBLICATIONS + 2;
+    for step in 0..overflow {
+        let mut candidate = current.clone();
+        candidate.revision = WorkbenchRevision::new(current.revision.value() + 1);
+        candidate.navigation.projects.push(Project {
+            directories: Vec::new(),
+            label: format!("Project {step}"),
+            project_id: WorkbenchProjectId::parse(&prefixed_identity('2', step + 1))?,
+            workspaces: Vec::new(),
+        });
+        let candidate_bytes = encode_snapshot(&candidate)?;
+        store.advance_projection(&candidate_bytes)?;
+        current = candidate;
+    }
+
+    // The retained journal holds only the last MAXIMUM_RESULT_PUBLICATIONS deltas, so a reader
+    // anchored before the retained head cannot be connected and receives the current snapshot.
+    for replay in [
+        store.publications_since(initial.revision),
+        store.publications_since(WorkbenchRevision::new(current.revision.value() + 7)),
+    ] {
+        assert_eq!(replay.len(), 1);
+        assert!(matches!(
+            replay.first(),
+            Some(WorkbenchPublication::Snapshot(snapshot)) if snapshot == &current
+        ));
+    }
+
+    // A reader at the oldest retained base still replays the full retained chain.
+    let oldest_base = current
+        .revision
+        .value()
+        .checked_sub(u64::try_from(MAXIMUM_RESULT_PUBLICATIONS)?)
+        .ok_or_else(|| io::Error::other("revision underflow"))?;
+    let replay = store.publications_since(WorkbenchRevision::new(oldest_base));
+    assert_eq!(replay.len(), MAXIMUM_RESULT_PUBLICATIONS);
+    let mut applied = None;
+    for publication in &replay {
+        let WorkbenchPublication::Delta(delta) = publication else {
+            return Err(io::Error::other("expected delta publications").into());
+        };
+        applied = Some(delta.revision);
+    }
+    assert_eq!(applied, Some(current.revision));
+    assert!(store.publications_since(current.revision).is_empty());
     Ok(())
 }
 

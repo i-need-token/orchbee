@@ -1,14 +1,24 @@
-use std::fmt;
+use std::{collections::VecDeque, fmt};
 
 use orchbee_workbench_protocol::{
-    ContractError, Delta, DeltaChange, MAXIMUM_DELTA_CHANGES, Snapshot, WorkbenchProtocolDocument,
-    apply_workbench_delta, parse_snapshot, serialize_document,
+    ContractError, Delta, DeltaChange, MAXIMUM_DELTA_CHANGES, MAXIMUM_RESULT_PUBLICATIONS,
+    Snapshot, WorkbenchProtocolDocument, WorkbenchRevision, apply_workbench_delta, parse_snapshot,
+    serialize_document,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchPublication {
     Delta(Delta),
     Snapshot(Snapshot),
+}
+
+impl WorkbenchPublication {
+    fn revision(&self) -> WorkbenchRevision {
+        match self {
+            Self::Delta(delta) => delta.revision,
+            Self::Snapshot(snapshot) => snapshot.revision,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -52,6 +62,10 @@ impl From<ContractError> for ProjectionAdvanceError {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkbenchProjectionStore {
     snapshot: Snapshot,
+    /// Bounded journal of committed publications, in revision order. A retained Snapshot entry is a
+    /// replay boundary: everything committed before it is subsumed, so it is stored alone at the
+    /// front of the post-commit history.
+    publications: VecDeque<WorkbenchPublication>,
 }
 
 pub(crate) struct PreparedProjectionAdvance {
@@ -63,6 +77,7 @@ impl WorkbenchProjectionStore {
     pub(crate) fn load(encoded_snapshot: &[u8]) -> Result<Self, ContractError> {
         Ok(Self {
             snapshot: parse_snapshot(encoded_snapshot)?,
+            publications: VecDeque::new(),
         })
     }
 
@@ -132,7 +147,44 @@ impl WorkbenchProjectionStore {
         prepared: PreparedProjectionAdvance,
     ) -> WorkbenchPublication {
         self.snapshot = prepared.candidate;
+        if matches!(prepared.publication, WorkbenchPublication::Snapshot(_)) {
+            self.publications.clear();
+        }
+        self.publications.push_back(prepared.publication.clone());
+        while self.publications.len() > MAXIMUM_RESULT_PUBLICATIONS {
+            self.publications.pop_front();
+        }
         prepared.publication
+    }
+
+    /// Returns the committed publications a reader at `known_revision` must apply to reach the
+    /// current revision. An empty batch means the reader is already current. When the retained
+    /// journal can no longer connect `known_revision` to the head — because entries were evicted,
+    /// the revision was never committed, or it is ahead of the store — the batch is a single
+    /// current Snapshot that replaces the reader's projection outright.
+    pub(crate) fn publications_since(
+        &self,
+        known_revision: WorkbenchRevision,
+    ) -> Vec<WorkbenchPublication> {
+        if known_revision == self.snapshot.revision {
+            return Vec::new();
+        }
+        let Some(start) = self
+            .publications
+            .iter()
+            .position(|entry| entry.revision() > known_revision)
+        else {
+            return vec![WorkbenchPublication::Snapshot(self.snapshot.clone())];
+        };
+        let connected = match &self.publications[start] {
+            WorkbenchPublication::Delta(delta) => delta.base_revision == known_revision,
+            WorkbenchPublication::Snapshot(_) => true,
+        };
+        if connected {
+            self.publications.iter().skip(start).cloned().collect()
+        } else {
+            vec![WorkbenchPublication::Snapshot(self.snapshot.clone())]
+        }
     }
 }
 

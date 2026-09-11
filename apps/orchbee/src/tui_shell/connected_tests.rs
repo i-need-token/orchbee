@@ -59,8 +59,8 @@ fn real_tui_renders_shell_resizes_and_restores_modes_while_terminal_is_retained(
         Some(&Winsize {
             ws_col: 120,
             ws_row: 32,
-            ws_xpixel: 960,
-            ws_ypixel: 640,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
         }),
         None,
     )?;

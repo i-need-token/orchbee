@@ -568,6 +568,7 @@ pub(super) enum WorkerEvent {
     PollResult {
         poll_key: PollKey,
         record: Option<Vec<u8>>,
+        publication_hint: bool,
     },
 }
 
@@ -1935,16 +1936,29 @@ impl CommandMailbox {
         &self,
         poll_key: PollKey,
         record: Option<Vec<u8>>,
+        publication_hint: bool,
         cutoff: Instant,
         clock: &LocalOperationClock,
     ) -> Result<MutationResult, EventError> {
-        self.publish_poll_result_before_using(poll_key, record, cutoff, clock)
+        self.publish_poll_result_with_hint_using(poll_key, record, publication_hint, cutoff, clock)
     }
 
+    #[cfg(test)]
     fn publish_poll_result_before_using(
         &self,
         poll_key: PollKey,
         record: Option<Vec<u8>>,
+        cutoff: Instant,
+        clock: &dyn MailboxClock,
+    ) -> Result<MutationResult, EventError> {
+        self.publish_poll_result_with_hint_using(poll_key, record, false, cutoff, clock)
+    }
+
+    fn publish_poll_result_with_hint_using(
+        &self,
+        poll_key: PollKey,
+        record: Option<Vec<u8>>,
+        publication_hint: bool,
         cutoff: Instant,
         clock: &dyn MailboxClock,
     ) -> Result<MutationResult, EventError> {
@@ -1984,7 +1998,11 @@ impl CommandMailbox {
         state.event_deadline = deadline;
         state.event_anchor_serial = Some(poll_key.serial);
         state.causal = CausalCell::Awaiting(poll_key.clone());
-        state.event = EventCell::Event(Box::new(WorkerEvent::PollResult { poll_key, record }));
+        state.event = EventCell::Event(Box::new(WorkerEvent::PollResult {
+            poll_key,
+            record,
+            publication_hint,
+        }));
         self.changed.notify_all();
         Ok(MutationResult::Applied)
     }

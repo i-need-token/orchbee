@@ -12,9 +12,8 @@ use orchbee_client_server_protocol::{
 use orchbee_workbench_protocol::{
     Project, ProtocolVersion, Snapshot, TerminalContext, WorkbenchAction, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchProjectId, WorkbenchRequest, WorkbenchResponse,
-    WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
-    WorkbenchSnapshotUnavailableReason, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
-    Workspace,
+    WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
+    WorkbenchTerminalContextId, WorkbenchWorkspaceId, Workspace,
 };
 use std::sync::atomic::Ordering;
 
@@ -42,18 +41,8 @@ fn workspace_snapshot() -> Snapshot {
 }
 
 fn respond_snapshot(harness: &Harness, outcome: WorkbenchSnapshotOutcome) -> TestResult {
-    let WorkbenchRequest::SnapshotRead(request) = harness.carrier.take_workbench()? else {
-        return Err(test_error(
-            "location rename may only observe its known result",
-        ));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: request.request_id,
-            outcome,
-        }))
+    let request = harness.carrier.take_read()?;
+    harness.carrier.respond_read(&request, outcome)
 }
 
 #[test]

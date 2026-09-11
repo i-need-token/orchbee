@@ -1,12 +1,12 @@
 use std::{fmt, io, time::Instant};
 
 use orchbee_workbench_protocol::{
-    SnapshotReadIntent, TerminalPresentationId, WorkbenchAction, WorkbenchCommand,
-    WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
-    WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
-    WorkbenchRevision, WorkbenchSnapshotResult, WorkbenchTabId, WorkbenchTerminalContextId,
-    WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, WorkbenchWireError,
-    read_workbench_response, write_workbench_request,
+    PublicationReadIntent, SnapshotReadIntent, TerminalPresentationId, WorkbenchAction,
+    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
+    WorkbenchPublicationResult, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotResult, WorkbenchTabId,
+    WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+    WorkbenchWireError, read_workbench_response, write_workbench_request,
 };
 
 use super::{ExchangeAttempt, LocalClient, exchange_once};
@@ -116,6 +116,104 @@ impl LocalClient {
             return self.retire_with_snapshot_failure(
                 request_id.clone(),
                 SnapshotReadFailure::CorrelationMismatch {
+                    expected: request_id,
+                    received,
+                },
+            );
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn submit_workbench_publication_read(
+        &mut self,
+        request: PublicationReadIntent,
+    ) -> Result<WorkbenchPublicationResult, PublicationReadError> {
+        self.submit_workbench_publication_read_with_deadline(request, None)
+    }
+
+    pub(crate) fn submit_workbench_publication_read_before(
+        &mut self,
+        request: PublicationReadIntent,
+        deadline: Instant,
+    ) -> Result<WorkbenchPublicationResult, PublicationReadError> {
+        self.submit_workbench_publication_read_with_deadline(request, Some(deadline))
+    }
+
+    fn submit_workbench_publication_read_with_deadline(
+        &mut self,
+        request: PublicationReadIntent,
+        caller_deadline: Option<Instant>,
+    ) -> Result<WorkbenchPublicationResult, PublicationReadError> {
+        if self.connection.is_none() {
+            return Err(PublicationReadError::SessionUnavailable);
+        }
+
+        let request_id = request.request_id.clone();
+        let mut frame = Vec::new();
+        write_workbench_request(&mut frame, &WorkbenchRequest::PublicationRead(request))
+            .map_err(PublicationReadError::RequestEncoding)?;
+        let deadline = match caller_deadline {
+            Some(deadline) => self
+                .submission_deadline_before(deadline)
+                .map_err(PublicationReadError::RequestNotSubmitted)?,
+            None => {
+                let mut deadline =
+                    super::SubmissionDeadline::start(&self.clock, self.request_timeout)
+                        .map_err(PublicationReadError::RequestNotSubmitted)?;
+                if let Some(startup) = self.submission_deadline {
+                    deadline.expires_at = deadline.expires_at.min(startup);
+                }
+                deadline
+            }
+        };
+        let attempt = {
+            let Some(connection) = self.connection.as_mut() else {
+                return Err(PublicationReadError::SessionUnavailable);
+            };
+            exchange_once(
+                connection,
+                &self.clock,
+                deadline,
+                self.io_chunk_limits,
+                &frame,
+                |io| read_workbench_response(io),
+            )
+        };
+        let response = match attempt {
+            ExchangeAttempt::Result(response) => response,
+            ExchangeAttempt::NotSubmitted(error) => {
+                return Err(PublicationReadError::RequestNotSubmitted(error));
+            }
+            ExchangeAttempt::WriteFailed(error) => {
+                return self.retire_with_publication_failure(
+                    request_id,
+                    PublicationReadFailure::Write(error),
+                );
+            }
+            ExchangeAttempt::ReadFailed(error) => {
+                return self.retire_with_publication_failure(
+                    request_id,
+                    PublicationReadFailure::Response(error),
+                );
+            }
+            ExchangeAttempt::ReadDeadline(error) => {
+                return self.retire_with_publication_failure(
+                    request_id,
+                    PublicationReadFailure::ResponseDeadline(error),
+                );
+            }
+        };
+        let WorkbenchResponse::Publication(result) = response else {
+            return self.retire_with_publication_failure(
+                request_id,
+                PublicationReadFailure::UnexpectedResponse,
+            );
+        };
+        if result.request_id != request_id {
+            let received = result.request_id.clone();
+            return self.retire_with_publication_failure(
+                request_id.clone(),
+                PublicationReadFailure::CorrelationMismatch {
                     expected: request_id,
                     received,
                 },
@@ -238,6 +336,15 @@ impl LocalClient {
     ) -> Result<Value, SnapshotReadError> {
         self.connection.take();
         Err(SnapshotReadError::Failed { request_id, reason })
+    }
+
+    fn retire_with_publication_failure<Value>(
+        &mut self,
+        request_id: WorkbenchRequestId,
+        reason: PublicationReadFailure,
+    ) -> Result<Value, PublicationReadError> {
+        self.connection.take();
+        Err(PublicationReadError::Failed { request_id, reason })
     }
 
     fn retire_with_tab_create_unknown(
@@ -634,6 +741,93 @@ impl fmt::Display for SnapshotReadFailure {
 }
 
 impl std::error::Error for SnapshotReadFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Write(error) | Self::ResponseDeadline(error) => Some(error),
+            Self::Response(error) => Some(error),
+            Self::UnexpectedResponse | Self::CorrelationMismatch { .. } => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum PublicationReadError {
+    SessionUnavailable,
+    RequestEncoding(WorkbenchWireError),
+    RequestNotSubmitted(io::Error),
+    Failed {
+        request_id: WorkbenchRequestId,
+        reason: PublicationReadFailure,
+    },
+}
+
+impl fmt::Display for PublicationReadError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SessionUnavailable => formatter.write_str("local Client Session is unavailable"),
+            Self::RequestEncoding(error) => {
+                write!(
+                    formatter,
+                    "OBWP publication request encoding failed: {error}"
+                )
+            }
+            Self::RequestNotSubmitted(error) => write!(
+                formatter,
+                "OBWP publication request failed before any transport handoff: {error}"
+            ),
+            Self::Failed { request_id, reason } => {
+                write!(
+                    formatter,
+                    "OBWP publication request {request_id} failed: {reason}"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for PublicationReadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::RequestEncoding(error) => Some(error),
+            Self::RequestNotSubmitted(error) => Some(error),
+            Self::Failed { reason, .. } => reason.source(),
+            Self::SessionUnavailable => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum PublicationReadFailure {
+    Write(io::Error),
+    Response(WorkbenchWireError),
+    ResponseDeadline(io::Error),
+    UnexpectedResponse,
+    CorrelationMismatch {
+        expected: WorkbenchRequestId,
+        received: WorkbenchRequestId,
+    },
+}
+
+impl fmt::Display for PublicationReadFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Write(error) => write!(formatter, "request write failed: {error}"),
+            Self::Response(error) => write!(formatter, "invalid publication response: {error}"),
+            Self::ResponseDeadline(error) => {
+                write!(formatter, "publication response failed: {error}")
+            }
+            Self::UnexpectedResponse => {
+                formatter.write_str("expected workbench.publication.result response")
+            }
+            Self::CorrelationMismatch { expected, received } => write!(
+                formatter,
+                "expected Workbench request identity {expected} but received {received}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for PublicationReadFailure {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Write(error) | Self::ResponseDeadline(error) => Some(error),

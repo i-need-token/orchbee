@@ -1791,6 +1791,156 @@
 					"reason": "terminal-runtime-unavailable"
 				}
 			}
+		},
+		{
+			"name": "publication-read",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.publication.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"knownRevision": "2"
+			}
+		},
+		{
+			"name": "publication-read-known-revision-zero",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.publication.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"knownRevision": "0"
+			}
+		},
+		{
+			"name": "publication-current",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "current",
+					"revision": "2"
+				}
+			}
+		},
+		{
+			"name": "publication-published-delta",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "published",
+					"publications": [
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "publication-published-snapshot",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "published",
+					"publications": [
+						{
+							"kind": "workbench.snapshot",
+							"protocolVersion": 1,
+							"revision": "2",
+							"siteId": "11111111111111111111111111111111",
+							"navigation": {
+								"projects": [],
+								"standaloneTerminalContextId": "33333333333333333333333333333333"
+							},
+							"terminalContexts": [
+								{
+									"terminalContextId": "33333333333333333333333333333333",
+									"groups": [],
+									"tabs": []
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "publication-published-mixed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "published",
+					"publications": [
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.snapshot",
+							"protocolVersion": 1,
+							"revision": "4",
+							"siteId": "11111111111111111111111111111111",
+							"navigation": {
+								"projects": [],
+								"standaloneTerminalContextId": "33333333333333333333333333333333"
+							},
+							"terminalContexts": [
+								{
+									"terminalContextId": "33333333333333333333333333333333",
+									"groups": [],
+									"tabs": []
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "publication-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "publication-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "service-unavailable"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -5704,6 +5854,706 @@
 					"expectedAttemptGeneration": "1"
 				}
 			}
+		},
+		{
+			"name": "publication-read-missing-known-revision",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009"
+			}
+		},
+		{
+			"name": "publication-read-extra-field",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"knownRevision": "2",
+				"siteId": "11111111111111111111111111111111"
+			}
+		},
+		{
+			"name": "publication-read-noncanonical-revision",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"knownRevision": "02"
+			}
+		},
+		{
+			"name": "publication-read-numeric-revision",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"knownRevision": 2
+			}
+		},
+		{
+			"name": "publication-read-wrong-version",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.read",
+				"protocolVersion": 2,
+				"requestId": "00000000000000000000000000000009",
+				"knownRevision": "2"
+			}
+		},
+		{
+			"name": "publication-empty-list",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "published",
+					"publications": []
+				}
+			}
+		},
+		{
+			"name": "publication-over-limit",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "published",
+					"publications": [
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						},
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"siteId": "11111111111111111111111111111111",
+							"baseRevision": "2",
+							"changes": []
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "publication-read-intent-document",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "published",
+					"publications": [
+						{
+							"kind": "workbench.snapshot.read",
+							"protocolVersion": 1,
+							"requestId": "00000000000000000000000000000009"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "publication-unknown-outcome",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected"
+				}
+			}
+		},
+		{
+			"name": "publication-current-extra-field",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "current",
+					"revision": "2",
+					"publications": []
+				}
+			}
+		},
+		{
+			"name": "publication-unavailable-wrong-reason",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "unavailable",
+					"reason": "server-busy"
+				}
+			}
+		},
+		{
+			"name": "publication-delta-missing-site",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "published",
+					"publications": [
+						{
+							"kind": "workbench.delta",
+							"protocolVersion": 1,
+							"revision": "3",
+							"baseRevision": "2",
+							"changes": []
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "publication-result-missing-request-id",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.publication.result",
+				"protocolVersion": 1,
+				"outcome": {
+					"kind": "denied"
+				}
+			}
 		}
 	],
 	"invalidJson": [
@@ -5949,6 +6799,16 @@
 			"direction": "response",
 			"json": "{\"kind\":\"workbench.tab-close.resume.result\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"siteId\":\"00000000000000000000000000000001\",\"terminalContextId\":\"00000000000000000000000000000004\",\"tabId\":\"00000000000000000000000000000005\",\"closeRequestId\":\"00000000000000000000000000000008\",\"outcome\":{\"kind\":\"resumed\",\"kind\":\"resumed\",\"attemptGeneration\":\"2\"}}",
 			"boundary": "wire"
+		},
+		{
+			"name": "publication-read-duplicate-known-revision",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.publication.read\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"knownRevision\":\"2\",\"knownRevision\":\"2\"}"
+		},
+		{
+			"name": "publication-read-unknown-field",
+			"direction": "request",
+			"json": "{\"kind\":\"workbench.publication.read\",\"protocolVersion\":1,\"requestId\":\"00000000000000000000000000000009\",\"knownRevision\":\"2\",\"extra\":1}"
 		}
 	],
 	"validJson": [

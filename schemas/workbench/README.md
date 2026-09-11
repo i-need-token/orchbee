@@ -103,11 +103,22 @@ with a complete nested `workbench.snapshot`, denied, or unavailable. The schema 
 the [Server authority](../../apps/orchbee-server/docs/workbench-authority.md) owns decision precedence,
 atomic commitment, authorization and its bounded process-local ledger. No automatic replay is implied.
 
+`workbench.publication.read` carries protocolVersion, requestId and the caller's committed
+`knownRevision`. `workbench.publication.result` correlates `current` with the still-current
+revision, `published` with one through 64 ordered committed publications (each a complete
+`workbench.snapshot` or `workbench.delta`), `denied`, or `unavailable`. Applying the ordered
+publications to a snapshot at `knownRevision` reproduces the committed projection. When a Server
+journal cannot connect `knownRevision` to its oldest retained publication, it may answer
+`published` with one complete snapshot as the boundary publication. Denied and unavailable
+disclose no revision or content.
+
 OBWP uses a 12-byte header: magic `OBWP`, big-endian u16 version 1, big-endian u16 kind,
-and big-endian u32 payload length. Kinds 1/2 are snapshot.read/command requests; kinds 3/4 are
-snapshot.result/command.result responses. JSON kind must match the header. Readers reject the wrong
+and big-endian u32 payload length. Kinds 1/2/9 are snapshot.read/command/publication.read
+requests; kinds 3/4/10 are snapshot.result/command.result/publication.result responses. JSON kind
+must match the header. Readers reject the wrong
 version, direction, kind or payload bound before body allocation. Requests and command results are
-at most 16 KiB. Raw snapshot results are at most 1 MiB + 1,024 bytes. The complete nested snapshot
+at most 16 KiB. Raw snapshot and publication results are at most 1 MiB + 1,024 bytes, and each
+published document retains its standalone canonical bound. The complete nested snapshot
 is additionally limited to 1 MiB in canonical JSON; whitespace and alternate escapes inside the
 envelope count toward the raw outer bound. Standalone snapshots retain their raw 1 MiB bound.
 A valid record leaves following records unread; EOF truncation fails.

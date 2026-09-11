@@ -55,7 +55,11 @@ snapshot。没有可见 projection 变化时，empty delta 可以推进 revision
 
 Store 在改变状态之前校验并序列化 publication。应用 delta 必须精确重现 candidate。Parsing、
 Site、revision、refinement 或 serialization 失败保持状态不变。只有权威可以推进该私有组件。
-Client 不能替换 snapshot 或提交 delta。Carrier 提供写入后的按需读取；主动发布/订阅仍未完成。
+Client 不能替换 snapshot 或提交 delta。Carrier 提供写入后的按需读取；每条已提交 publication
+保留在 64 条上限的 journal 中，并通过 `workbench.publication.read` 在相同读取授权下提供给
+读取方，使持有基线 revision 的 Client 用有序 publication 快进，而不是重新拉取完整 snapshot。
+journal 无法衔接调用方 revision 时，以一条完整 snapshot 边界 publication 应答。主动推送订阅
+仍未完成。
 
 ## 托管 Linux Site 启动
 

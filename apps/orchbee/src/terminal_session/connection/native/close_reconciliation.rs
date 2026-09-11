@@ -17,24 +17,10 @@ impl NativeExecutor {
         }
         let cutoff = self.effective_lease_cutoff(lease, marker.deadline())?;
         self.ensure_before(cutoff)?;
-        let result = self
-            .client
-            .submit_workbench_snapshot_read_before(
-                SnapshotReadIntent {
-                    protocol_version: ProtocolVersion,
-                    request_id: marker.snapshot_request_id().clone(),
-                },
-                cutoff,
-            )
-            .map_err(snapshot)?;
+        let outcome = self.read_workbench_before(marker.snapshot_request_id().clone(), cutoff)?;
         let wait = self
             .mailbox
-            .publish_close_reconciliation_before(
-                marker.clone(),
-                result.outcome,
-                cutoff,
-                &self.clock,
-            )
+            .publish_close_reconciliation_before(marker.clone(), outcome, cutoff, &self.clock)
             .map_err(event)?;
         let reply = self
             .mailbox

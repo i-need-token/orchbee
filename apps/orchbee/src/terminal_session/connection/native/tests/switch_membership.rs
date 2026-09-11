@@ -29,22 +29,17 @@ fn actual_switch_stages_snapshot_before_detach_and_installs_fresh_survivor_fallb
         let old = drive_controlling_startup(&mut harness, geometry, 2)?;
         let baseline = harness.ui.state().cache().clone();
         let intent = harness.ui.admit_switch(1)?;
-        let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-            return Err(test_error("Snapshot precedes cleanup"));
-        };
+        let read = harness.carrier.take_read()?;
         let mut candidate = snapshot(if empty { 0 } else { 2 }, 2);
         if remove_target && !empty {
             candidate.terminal_contexts[0].tabs.remove(1);
         }
-        harness
-            .carrier
-            .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: read.request_id,
-                outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: candidate,
-                },
-            }))?;
+        harness.carrier.respond_read(
+            &read,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: candidate,
+            },
+        )?;
         assert!(
             matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::SwitchSnapshot { work, decision: RefreshDecision::Cleanup(_) } if work == intent.key)
         );
@@ -136,18 +131,13 @@ fn actual_returned_old_poll_after_marker_prevents_unavailable_anchor_restoration
                     },
                 ),
             ))?;
-        let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-            return Err(test_error("one Switch Snapshot after old result settles"));
-        };
-        harness
-            .carrier
-            .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: read.request_id,
-                outcome: WorkbenchSnapshotOutcome::Unavailable {
-                    reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
-                },
-            }))?;
+        let read = harness.carrier.take_read()?;
+        harness.carrier.respond_read(
+            &read,
+            WorkbenchSnapshotOutcome::Unavailable {
+                reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            },
+        )?;
         assert!(
             matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::SwitchSnapshot { work, decision: RefreshDecision::Retire } if work == intent.key)
         );
@@ -193,11 +183,7 @@ fn actual_taken_feedback_discard_records_exact_old_proof_after_causal_cell_is_re
     assert_eq!(mailbox.switch_anchor_invalidation_for_test(), None);
     let before = mailbox.cursors();
     drop(checkpoint);
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error(
-            "Switch Snapshot follows actual taken Feedback discard",
-        ));
-    };
+    let read = harness.carrier.take_read()?;
     assert_eq!(
         mailbox.switch_anchor_invalidation_for_test(),
         Some((intent.key.clone(), old))
@@ -207,15 +193,12 @@ fn actual_taken_feedback_discard_records_exact_old_proof_after_causal_cell_is_re
         (after.0, after.1, after.2),
         (before.0, before.1, before.2 + 1)
     );
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Unavailable {
-                reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
-            },
-        }))?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Unavailable {
+            reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    )?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::SwitchSnapshot {
@@ -252,20 +235,15 @@ fn actual_busy_old_poll_without_frame_preserves_exact_unavailable_restoration() 
                 },
             ),
         ))?;
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("Busy old Poll settles without frame discard"));
-    };
+    let read = harness.carrier.take_read()?;
     assert_eq!(harness.mailbox.switch_anchor_invalidation_for_test(), None);
     let before = harness.mailbox.cursors();
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Unavailable {
-                reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
-            },
-        }))?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Unavailable {
+            reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    )?;
     assert!(
         matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::SwitchSnapshot { work, decision: RefreshDecision::Continue } if work == intent.key)
     );
@@ -286,18 +264,13 @@ fn timely_switch_unavailable_waits_for_exact_ui_restore_after_original_total_dea
     let mailbox = Arc::clone(&harness.mailbox);
     let checkpoint = mailbox.pause_next_switch_snapshot_wait_for_test();
     let intent = harness.ui.admit_switch(1)?;
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("Switch Snapshot"));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Unavailable {
-                reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
-            },
-        }))?;
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Unavailable {
+            reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    )?;
     let taken = harness.ui.take_next()?;
     assert!(checkpoint.await_reached_before(Instant::now() + Duration::from_secs(2)));
     let cursors = mailbox.cursors();

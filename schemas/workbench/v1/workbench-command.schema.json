@@ -26,6 +26,12 @@
 		},
 		{
 			"$ref": "#/$defs/tabCloseResumeResult"
+		},
+		{
+			"$ref": "#/$defs/publicationRead"
+		},
+		{
+			"$ref": "#/$defs/publicationResult"
 		}
 	],
 	"$defs": {
@@ -1153,6 +1159,115 @@
 				"closeRequestId",
 				"outcome"
 			],
+			"additionalProperties": false
+		},
+		"publicationRead": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.publication.read"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"knownRevision": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "knownRevision"],
+			"additionalProperties": false
+		},
+		"publicationDocument": {
+			"oneOf": [
+				{
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/snapshot"
+				},
+				{
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/delta"
+				}
+			]
+		},
+		"publicationOutcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "current"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						}
+					},
+					"required": ["kind", "revision"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "published"
+						},
+						"publications": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 64,
+							"items": {
+								"$ref": "#/$defs/publicationDocument"
+							}
+						}
+					},
+					"required": ["kind", "publications"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "denied"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/publicationUnavailableReason"
+						}
+					},
+					"required": ["kind", "reason"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"publicationUnavailableReason": {
+			"enum": ["service-unavailable"]
+		},
+		"publicationResult": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"const": "workbench.publication.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "urn:orchbee:schema:workbench:v1#/$defs/requestId"
+				},
+				"outcome": {
+					"$ref": "#/$defs/publicationOutcome"
+				}
+			},
+			"required": ["kind", "protocolVersion", "requestId", "outcome"],
 			"additionalProperties": false
 		}
 	}

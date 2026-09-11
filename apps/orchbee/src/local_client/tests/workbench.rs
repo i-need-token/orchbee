@@ -7,23 +7,25 @@ mod workspace_setup;
 use crate::local_client::{
     SystemMonotonicClock,
     workbench::{
-        SnapshotReadError, SnapshotReadFailure, WorkbenchTabCreateCommit,
-        WorkbenchTabCreateNotSubmitted, WorkbenchTabCreateOutcomeUnknownReason,
-        WorkbenchTabCreatePrecommit, WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission,
+        PublicationReadError, PublicationReadFailure, SnapshotReadError, SnapshotReadFailure,
+        WorkbenchTabCreateCommit, WorkbenchTabCreateNotSubmitted,
+        WorkbenchTabCreateOutcomeUnknownReason, WorkbenchTabCreatePrecommit,
+        WorkbenchTabCreateRequest, WorkbenchTabCreateSubmission,
     },
 };
 use orchbee_workbench_protocol::{
     ContractError, MAXIMUM_ENCODED_INTENT_BYTES, MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES, Navigation,
-    PanelNode, Presentation, PresentationBinding, ProtocolVersion, SiteId, Snapshot,
-    SnapshotReadIntent, Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction,
-    WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
+    PanelNode, Presentation, PresentationBinding, ProtocolVersion, PublicationReadIntent, SiteId,
+    Snapshot, SnapshotReadIntent, Tab, TerminalContext, TerminalId, TerminalPresentationId,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchPanelId, WorkbenchProjectId,
+    WorkbenchPublicationDocument, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
     WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse,
-    WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTabId,
-    WorkbenchTerminalContextId, WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry,
-    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkbenchWireError,
-    WorkbenchWorkspaceId, WorkerId, read_workbench_request, write_workbench_request,
-    write_workbench_response,
+    WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
+    WorkbenchSnapshotUnavailableReason, WorkbenchTabId, WorkbenchTerminalContextId,
+    WorkbenchTerminalFailureReason, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
+    WorkbenchTerminalUnavailableReason, WorkbenchWireError, WorkbenchWorkspaceId, WorkerId,
+    read_workbench_request, write_workbench_request, write_workbench_response,
 };
 
 #[test]
@@ -1069,6 +1071,115 @@ fn snapshot_prewrite_deadline_is_definite_and_keeps_the_carrier() -> TestResult 
     Ok(())
 }
 
+#[test]
+fn publication_read_preserves_every_outcome_on_the_same_carrier() -> TestResult {
+    let outcomes = [
+        WorkbenchPublicationOutcome::Current {
+            revision: WorkbenchRevision::new(7),
+        },
+        WorkbenchPublicationOutcome::Published {
+            publications: vec![WorkbenchPublicationDocument::Snapshot(snapshot())],
+        },
+        WorkbenchPublicationOutcome::Denied {},
+        WorkbenchPublicationOutcome::Unavailable {
+            reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    ];
+    let server_outcomes = outcomes.clone();
+    let server = FakeServer::start(move |mut stream| {
+        expect_hello(&mut stream, COHORT)?;
+        admit(&mut stream, 42)?;
+        for (index, outcome) in server_outcomes.into_iter().enumerate() {
+            let request_id = id(200 + index as u128);
+            assert_eq!(
+                read_workbench_request(&mut stream).map_err(io::Error::other)?,
+                WorkbenchRequest::PublicationRead(publication_request(&request_id, 6))
+            );
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::Publication(publication_result(&request_id, outcome)),
+            )
+            .map_err(io::Error::other)?;
+        }
+        assert_eq!(
+            read_workbench_request(&mut stream).map_err(io::Error::other)?,
+            WorkbenchRequest::SnapshotRead(snapshot_request(SECOND_REQUEST_ID))
+        );
+        write_workbench_response(
+            &mut stream,
+            &WorkbenchResponse::Snapshot(snapshot_result(SECOND_REQUEST_ID)),
+        )
+        .map_err(io::Error::other)
+    })?;
+
+    let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+    for (index, expected) in outcomes.into_iter().enumerate() {
+        let request_id = id(200 + index as u128);
+        assert_eq!(
+            client.submit_workbench_publication_read(publication_request(&request_id, 6))?,
+            publication_result(&request_id, expected)
+        );
+    }
+    assert_eq!(
+        client.submit_workbench_snapshot_read(snapshot_request(SECOND_REQUEST_ID))?,
+        snapshot_result(SECOND_REQUEST_ID)
+    );
+    assert_eq!(client.generation().map(NonZeroU64::get), Some(42));
+    drop(client);
+    server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn publication_read_retires_on_wrong_kind_or_correlation() -> TestResult {
+    for response in [
+        WorkbenchResponse::Snapshot(snapshot_result(FIRST_REQUEST_ID)),
+        WorkbenchResponse::Publication(publication_result(
+            SECOND_REQUEST_ID,
+            WorkbenchPublicationOutcome::Denied {},
+        )),
+    ] {
+        let expected_wrong_kind = matches!(response, WorkbenchResponse::Snapshot(_));
+        let server = FakeServer::start(move |mut stream| {
+            expect_hello(&mut stream, COHORT)?;
+            admit(&mut stream, 43)?;
+            let _request = read_workbench_request(&mut stream).map_err(io::Error::other)?;
+            write_workbench_response(&mut stream, &response).map_err(io::Error::other)?;
+            require_retirement(&mut stream)
+        })?;
+        let mut client = LocalClient::connect(server.endpoint(), COHORT)?;
+        let error = client
+            .submit_workbench_publication_read(publication_request(FIRST_REQUEST_ID, 6))
+            .expect_err("invalid response classification must fail");
+        if expected_wrong_kind {
+            assert!(matches!(
+                error,
+                PublicationReadError::Failed {
+                    reason: PublicationReadFailure::UnexpectedResponse,
+                    ..
+                }
+            ));
+        } else {
+            assert!(matches!(
+                error,
+                PublicationReadError::Failed {
+                    request_id,
+                    reason: PublicationReadFailure::CorrelationMismatch { expected, received },
+                } if request_id.as_str() == FIRST_REQUEST_ID
+                    && expected.as_str() == FIRST_REQUEST_ID
+                    && received.as_str() == SECOND_REQUEST_ID
+            ));
+        }
+        assert_eq!(client.generation(), None);
+        assert!(matches!(
+            client.submit_workbench_publication_read(publication_request(SECOND_REQUEST_ID, 6)),
+            Err(PublicationReadError::SessionUnavailable)
+        ));
+        server.finish()?;
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy)]
 enum InvalidResponse {
     Malformed,
@@ -1167,6 +1278,25 @@ fn snapshot_result(request_id: &str) -> WorkbenchSnapshotResult {
         outcome: WorkbenchSnapshotOutcome::Available {
             snapshot: snapshot(),
         },
+    }
+}
+
+fn publication_request(request_id: &str, known_revision: u64) -> PublicationReadIntent {
+    PublicationReadIntent {
+        protocol_version: ProtocolVersion,
+        request_id: workbench_id(request_id),
+        known_revision: WorkbenchRevision::new(known_revision),
+    }
+}
+
+fn publication_result(
+    request_id: &str,
+    outcome: WorkbenchPublicationOutcome,
+) -> WorkbenchPublicationResult {
+    WorkbenchPublicationResult {
+        protocol_version: ProtocolVersion,
+        request_id: workbench_id(request_id),
+        outcome,
     }
 }
 

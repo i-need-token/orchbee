@@ -105,6 +105,21 @@ fn status_close_server(
                 if magic == *b"OBWP" {
                     let request = read_workbench_request(&mut reader).map_err(io::Error::other)?;
                     let command = match request {
+                        // Publication probes ride the ordinary polls this loop serves.
+                        WorkbenchRequest::PublicationRead(intent) => {
+                            write_workbench_response(
+                                &mut stream,
+                                &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                                    protocol_version: ProtocolVersion,
+                                    request_id: intent.request_id,
+                                    outcome: WorkbenchPublicationOutcome::Current {
+                                        revision: intent.known_revision,
+                                    },
+                                }),
+                            )
+                            .map_err(io::Error::other)?;
+                            continue;
+                        }
                         WorkbenchRequest::Command(command) => command,
                         WorkbenchRequest::TabCloseRead(request) if resumes.is_some() => {
                             write_workbench_response(

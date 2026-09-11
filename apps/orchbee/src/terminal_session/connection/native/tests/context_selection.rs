@@ -30,16 +30,10 @@ fn snapshot(empty: bool, unsupported: bool) -> Snapshot {
 }
 
 fn return_snapshot(harness: &mut Harness, snapshot: Snapshot) -> TestResult {
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("only SnapshotRead may precede context cleanup"));
-    };
+    let read = harness.carrier.take_read()?;
     harness
         .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available { snapshot },
-        }))
+        .respond_read(&read, WorkbenchSnapshotOutcome::Available { snapshot })
 }
 
 #[test]

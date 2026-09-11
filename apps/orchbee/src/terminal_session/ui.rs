@@ -1014,12 +1014,17 @@ impl NativeUi {
         taken: super::mailbox::TakenEvent,
     ) -> bool {
         let (wait_key, event) = taken.into_parts();
-        if let WorkerEvent::PollResult { poll_key, record } = event {
+        if let WorkerEvent::PollResult {
+            poll_key,
+            record,
+            publication_hint,
+        } = event
+        {
             if wait_key.is_some() {
                 self.retire(CarrierFailure::Protocol);
                 return true;
             }
-            return self.apply_poll_result(mailbox, poll_key, record);
+            return self.apply_poll_result(mailbox, poll_key, record, publication_hint);
         }
         let Some(wait_key) = wait_key else {
             self.retire(CarrierFailure::Protocol);
@@ -1387,7 +1392,11 @@ impl NativeUi {
         mailbox: &Arc<CommandMailbox>,
         poll_key: super::mailbox::PollKey,
         record: Option<Vec<u8>>,
+        publication_hint: bool,
     ) -> bool {
+        if publication_hint {
+            self.enqueue_publication_refresh(mailbox);
+        }
         let ordinary = self.ordinary_poll_serial == Some(poll_key.serial());
         let Some(record) = record else {
             if ordinary {
@@ -1467,6 +1476,29 @@ impl NativeUi {
             ordinary,
         });
         true
+    }
+
+    /// Queues a silent Workbench refresh after the Worker reported committed peer publications.
+    /// Admission failures stay silent: the next hint retries, and explicit user actions keep their
+    /// own notices.
+    fn enqueue_publication_refresh(&mut self, mailbox: &Arc<CommandMailbox>) {
+        let (Some(deadline), Some(state)) = (
+            self.clock.now().checked_add(super::state::OPERATION_TOTAL),
+            self.state.as_mut(),
+        ) else {
+            return;
+        };
+        let _ = mailbox.try_enqueue_refresh_for(
+            state,
+            deadline,
+            |state, generation| {
+                state
+                    .start_pending_refresh(generation)
+                    .then_some(())
+                    .ok_or(ActionBuildError::Busy)
+            },
+            |_state, _result| {},
+        );
     }
 
     fn schedule_poll(&mut self, mailbox: &Arc<CommandMailbox>) {

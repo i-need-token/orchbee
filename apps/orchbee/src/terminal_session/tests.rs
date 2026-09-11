@@ -29,10 +29,11 @@ use orchbee_terminal_protocol::{
 use orchbee_workbench_protocol::{
     Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SiteId, Snapshot,
     Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction,
-    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchPanelId, WorkbenchRequest,
-    WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
-    WorkbenchTabId, WorkbenchTerminalContextId, WorkerId, read_workbench_request,
-    write_workbench_response,
+    WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchPanelId,
+    WorkbenchPublicationDocument, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
+    WorkbenchRequest, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
+    WorkbenchSnapshotResult, WorkbenchTabId, WorkbenchTerminalContextId, WorkerId,
+    read_workbench_request, write_workbench_response,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::io::Write;
@@ -160,6 +161,94 @@ fn respond_with_snapshot(
     )
     .map_err(io::Error::other)?;
     Ok(request_id)
+}
+
+/// Reads the next OBWP request, transparently answering `publication.read` probes with `current`
+/// so scripted expectations only observe logical requests.
+fn read_workbench_request_absorbing_probes(
+    stream: &mut UnixStream,
+) -> io::Result<WorkbenchRequest> {
+    loop {
+        let request = read_workbench_request(&mut *stream).map_err(io::Error::other)?;
+        if let WorkbenchRequest::PublicationRead(intent) = request {
+            write_workbench_response(
+                stream,
+                &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: intent.request_id,
+                    outcome: WorkbenchPublicationOutcome::Current {
+                        revision: intent.known_revision,
+                    },
+                }),
+            )
+            .map_err(io::Error::other)?;
+            continue;
+        }
+        return Ok(request);
+    }
+}
+
+/// Maps the latest committed snapshot outcome onto a `publication.read` reply the way a real
+/// journal would: `current` when the reader already holds the offered revision, otherwise
+/// `published` carrying the full snapshot as the boundary publication.
+fn publication_outcome_for(
+    outcome: WorkbenchSnapshotOutcome,
+    known_revision: WorkbenchRevision,
+) -> WorkbenchPublicationOutcome {
+    match outcome {
+        WorkbenchSnapshotOutcome::Available { snapshot } => {
+            if snapshot.revision > known_revision {
+                WorkbenchPublicationOutcome::Published {
+                    publications: vec![WorkbenchPublicationDocument::Snapshot(snapshot)],
+                }
+            } else {
+                WorkbenchPublicationOutcome::Current {
+                    revision: snapshot.revision,
+                }
+            }
+        }
+        WorkbenchSnapshotOutcome::Denied {} => WorkbenchPublicationOutcome::Denied {},
+        WorkbenchSnapshotOutcome::Unavailable { reason } => {
+            WorkbenchPublicationOutcome::Unavailable { reason }
+        }
+    }
+}
+
+/// Answers whichever Workbench read the Client issued: a `snapshot.read` gets the outcome
+/// verbatim, while a `publication.read` is served through `publication_outcome_for`.
+fn respond_with_read(
+    stream: &mut UnixStream,
+    outcome: WorkbenchSnapshotOutcome,
+) -> io::Result<String> {
+    match read_workbench_request(stream).map_err(io::Error::other)? {
+        WorkbenchRequest::SnapshotRead(request) => {
+            let request_id = request.request_id.as_str().to_owned();
+            write_workbench_response(
+                stream,
+                &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    outcome,
+                }),
+            )
+            .map_err(io::Error::other)?;
+            Ok(request_id)
+        }
+        WorkbenchRequest::PublicationRead(request) => {
+            let request_id = request.request_id.as_str().to_owned();
+            write_workbench_response(
+                stream,
+                &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    outcome: publication_outcome_for(outcome, request.known_revision),
+                }),
+            )
+            .map_err(io::Error::other)?;
+            Ok(request_id)
+        }
+        _ => Err(io::Error::other("expected a Workbench read request")),
+    }
 }
 fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshotOutcome {
     WorkbenchSnapshotOutcome::Available {
@@ -564,7 +653,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
         .map_err(io::Error::other)?;
 
         let WorkbenchRequest::Command(command) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
+            read_workbench_request_absorbing_probes(&mut stream).map_err(io::Error::other)?
         else {
             return Err(io::Error::other("expected tab.create"));
         };
@@ -733,7 +822,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             )
             .map_err(io::Error::other)?;
             let WorkbenchRequest::Command(command) =
-                read_workbench_request(&mut stream).map_err(io::Error::other)?
+                read_workbench_request_absorbing_probes(&mut stream).map_err(io::Error::other)?
             else {
                 return Err(io::Error::other("expected Move"));
             };
@@ -757,7 +846,7 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             .map_err(io::Error::other)?;
             snapshot.revision = WorkbenchRevision::new(2);
             snapshot.terminal_contexts[0].tabs.swap(0, 1);
-            respond_with_snapshot(
+            respond_with_read(
                 &mut stream,
                 if unavailable {
                     WorkbenchSnapshotOutcome::Denied {}
@@ -774,21 +863,40 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
                 }
                 let mut request_reader = std::io::Cursor::new(magic).chain(&mut stream);
                 if magic == *b"OBWP" {
-                    let WorkbenchRequest::SnapshotRead(request) =
-                        read_workbench_request(&mut request_reader).map_err(io::Error::other)?
-                    else {
-                        return Err(io::Error::other("recovery must submit only Snapshot"));
+                    // Reads and probes are both expected here: the logical recovery read and
+                    // poll-carried publication probes are served from the same latest snapshot.
+                    let (request_id, known) = match read_workbench_request(&mut request_reader)
+                        .map_err(io::Error::other)?
+                    {
+                        WorkbenchRequest::SnapshotRead(request) => (request.request_id, None),
+                        WorkbenchRequest::PublicationRead(request) => {
+                            (request.request_id, Some(request.known_revision))
+                        }
+                        _ => {
+                            return Err(io::Error::other(
+                                "recovery must submit only Workbench reads",
+                            ));
+                        }
                     };
-                    assert!(unavailable);
+                    let outcome = WorkbenchSnapshotOutcome::Available {
+                        snapshot: snapshot.clone(),
+                    };
                     write_workbench_response(
                         &mut stream,
-                        &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                            protocol_version: ProtocolVersion,
-                            request_id: request.request_id,
-                            outcome: WorkbenchSnapshotOutcome::Available {
-                                snapshot: snapshot.clone(),
-                            },
-                        }),
+                        &match known {
+                            Some(known) => {
+                                WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                                    protocol_version: ProtocolVersion,
+                                    request_id,
+                                    outcome: publication_outcome_for(outcome, known),
+                                })
+                            }
+                            None => WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                                protocol_version: ProtocolVersion,
+                                request_id,
+                                outcome,
+                            }),
+                        },
                     )
                     .map_err(io::Error::other)?;
                     continue;
@@ -949,7 +1057,7 @@ fn native_ui_leaves_a_taken_forward_expiry_for_worker_retirement() -> TestResult
         .map_err(io::Error::other)?;
 
         let WorkbenchRequest::Command(command) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
+            read_workbench_request_absorbing_probes(&mut stream).map_err(io::Error::other)?
         else {
             return Err(io::Error::other("expected tab.create"));
         };
@@ -1076,7 +1184,7 @@ fn native_worker_commit_survives_ui_deadline_retirement_and_join() -> TestResult
         .map_err(io::Error::other)?;
 
         let WorkbenchRequest::Command(command) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
+            read_workbench_request_absorbing_probes(&mut stream).map_err(io::Error::other)?
         else {
             return Err(io::Error::other("expected tab.create"));
         };
@@ -1212,7 +1320,7 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
         .map_err(io::Error::other)?;
 
         let WorkbenchRequest::Command(command) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
+            read_workbench_request_absorbing_probes(&mut stream).map_err(io::Error::other)?
         else {
             return Err(io::Error::other("expected tab.create"));
         };
@@ -1235,7 +1343,7 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
         )
         .map_err(io::Error::other)?;
 
-        respond_with_snapshot(&mut stream, available_snapshot(Some(binding())))?;
+        respond_with_read(&mut stream, available_snapshot(Some(binding())))?;
         snapshot_sent.send(()).map_err(io::Error::other)?;
         let mut trailing = Vec::new();
         stream.read_to_end(&mut trailing)?;
@@ -1352,7 +1460,7 @@ fn closed_action_admission_preserves_a_worker_pending_commit() -> TestResult {
         .map_err(io::Error::other)?;
 
         let WorkbenchRequest::Command(command) =
-            read_workbench_request(&mut stream).map_err(io::Error::other)?
+            read_workbench_request_absorbing_probes(&mut stream).map_err(io::Error::other)?
         else {
             return Err(io::Error::other("expected tab.create"));
         };

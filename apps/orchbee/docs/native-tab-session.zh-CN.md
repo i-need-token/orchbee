@@ -504,8 +504,9 @@ Resize 可继续。恢复仅提交 Snapshot，绝不提交 Open、Create、Start
 经验证的移除使用共用精确清理及可选后继 setup。身份耗尽或损坏/歧义恢复退役。
 新启动仍加入保留 Open 引用/outcome，再选当前快照 `tabs[0]`：将 B 移到引导 A 前后，新 Client
 选择 B，已有 Client 保留活动 ID。失败/unavailable/unknown 锚结果在 Snapshot 前失败；Started
-锚配不可挂接的新首项时，在该首项 AttachBinding 失败。不得回退选择或扫描。其他活动 Client 仅经
-显式 `Ctrl+B w` 更新，无推送或终端切换。
+锚配不可挂接的新首项时，在该首项 AttachBinding 失败。不得回退选择或扫描。其他活动 Client 通过
+就绪循环的 `workbench.publication.read` 探测获知已提交变更，探测将一个刷新提示送入与
+`Ctrl+B w` 相同的准入路径；无推送或终端切换。
 
 Move 成员关系消费者已实现共用清理和安装细化。`NativeClientMoveBarrier` 继续负责无移除的传输/FIFO/
 提交保留切片；已检查 `NativeClientMembershipRemoval` 的 move 起点负责后续活动目标移除、
@@ -1230,6 +1231,14 @@ Input/Resize 会排在该读取操作之后等待。工作线程发出带刷新�
 清除待处理代次并通知条件变量；执行器只能在此之后继续。Exit 或载体退役也会唤醒它，并丢弃未
 发送记录。成帧、关联、类型错误或传输歧义会在发出类型化结果前被检测到，并立即使载体退役。
 因此 Refresh 屏障跨越读取前的因果反馈排空、线路读取和 UI 语义结算。
+
+执行器保留最近接受的 snapshot 作为基线。每一次逻辑 Workbench 读取——引导、刷新、恢复或提交后
+投影——在无基线时落到 `workbench.snapshot.read`，有基线时落到 `workbench.publication.read`。
+`current` 结果直接返回保留基线；`published` 将有序 publication 折叠进基线并保存结果。无法推进
+基线的 publication 视为权威分歧并使载体退役，绝不覆盖先前缓存。就绪阶段的轮询还会以每 250 毫秒
+至多一次的频率探测 `workbench.publication.read`；`published` 结果发出一个布尔提示进入普通刷新
+准入路径，因此已有待处理刷新时会静默丢弃该提示，由后续探测重试。`current`、denied 与
+unavailable 探测保持静默。
 
 `RefreshMarker` 有意不携带请求 ID。因果在途请求排空完成、它到达 FIFO 头部后，工作线程锁住
 同一个邮箱身份游标，恰好分配一个 SnapshotRead ID，解锁，然后执行 I/O。本地身份耗尽发生在

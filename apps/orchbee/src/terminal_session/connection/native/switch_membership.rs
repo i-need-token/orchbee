@@ -1,4 +1,4 @@
-use super::{NativeExecutor, Result, closed, event, snapshot, submission};
+use super::{NativeExecutor, Result, closed, event, submission};
 use crate::{
     local_client::SubmissionError,
     terminal_session::{
@@ -9,7 +9,6 @@ use crate::{
 use orchbee_client_server_protocol::{
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerUnavailableReason,
 };
-use orchbee_workbench_protocol::{ProtocolVersion, SnapshotReadIntent};
 
 impl NativeExecutor {
     pub(super) fn run_switch_membership(
@@ -44,23 +43,14 @@ impl NativeExecutor {
             Err(failure) => return Err(failure),
         };
         let cutoff = target.deadlines().forward_cutoff();
-        let result = self
-            .client
-            .submit_workbench_snapshot_read_before(
-                SnapshotReadIntent {
-                    protocol_version: ProtocolVersion,
-                    request_id: permit.request_id().clone(),
-                },
-                cutoff,
-            )
-            .map_err(snapshot)?;
+        let outcome = self.read_workbench_before(permit.request_id().clone(), cutoff)?;
         self.mailbox.answer_switch_snapshot(permit)?;
         let wait = self
             .mailbox
             .publish_event_before(
                 WorkerEvent::SwitchSnapshotResult {
                     marker: target.selected().key().clone(),
-                    outcome: result.outcome,
+                    outcome,
                 },
                 EventDeadline::PlacementOnly(cutoff),
                 &self.clock,

@@ -5,14 +5,17 @@ use orchbee_workbench_protocol::{
     Navigation, Project, ProtocolVersion, SiteId, Snapshot, TerminalContext, WorkbenchAction,
     WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchCommandUnavailableReason, WorkbenchLabel, WorkbenchProjectId,
-    WorkbenchProtocolDocument, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchProtocolDocument, WorkbenchPublicationDocument, WorkbenchPublicationOutcome,
+    WorkbenchPublicationResult, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchRequestId,
     WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
     WorkbenchSnapshotUnavailableReason, WorkbenchTabId, WorkbenchTerminalContextId,
     WorkbenchWorkspaceId, Workspace, serialize_document, serialize_workbench_request,
     serialize_workbench_response,
 };
 
-use crate::workbench_projection::{PreparedProjectionAdvance, WorkbenchProjectionStore};
+use crate::workbench_projection::{
+    PreparedProjectionAdvance, WorkbenchProjectionStore, WorkbenchPublication,
+};
 
 mod terminal_membership;
 mod workspace_directory;
@@ -71,6 +74,7 @@ pub struct WorkbenchReadOrNavigationRequest(ReadOrNavigationRequest);
 #[allow(clippy::large_enum_variant)]
 enum ReadOrNavigationRequest {
     SnapshotRead(orchbee_workbench_protocol::SnapshotReadIntent),
+    PublicationRead(orchbee_workbench_protocol::PublicationReadIntent),
     Command {
         command: WorkbenchCommand,
         action: PureWorkbenchAction,
@@ -84,6 +88,9 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
         match request {
             WorkbenchRequest::SnapshotRead(intent) => {
                 Ok(Self(ReadOrNavigationRequest::SnapshotRead(intent)))
+            }
+            WorkbenchRequest::PublicationRead(intent) => {
+                Ok(Self(ReadOrNavigationRequest::PublicationRead(intent)))
             }
             WorkbenchRequest::Command(command) => {
                 let Some(action) = PureWorkbenchAction::from_action(&command.action) else {
@@ -240,6 +247,23 @@ impl WorkbenchAuthority {
                     outcome,
                 })
             }
+            ReadOrNavigationRequest::PublicationRead(intent) => {
+                let authorized = grant.is_some_and(|grant| grant.site_id == *self.site_id());
+                let outcome = if !authorized {
+                    WorkbenchPublicationOutcome::Denied {}
+                } else if self.retired {
+                    WorkbenchPublicationOutcome::Unavailable {
+                        reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                    }
+                } else {
+                    self.publication_outcome(intent.known_revision)
+                };
+                WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: intent.request_id,
+                    outcome,
+                })
+            }
             ReadOrNavigationRequest::Command { command, action } => {
                 let authorized = grant.is_some_and(|grant| {
                     grant.site_id == *self.site_id() && grant.mutate_navigation
@@ -252,6 +276,67 @@ impl WorkbenchAuthority {
                 WorkbenchResponse::Command(command_result)
             }
         }
+    }
+
+    /// Builds the committed-publication replay for `known_revision`. A batch that cannot fit the
+    /// snapshot-result envelope degrades to a single current Snapshot; that Snapshot already passed
+    /// its own encoded bound when it was committed.
+    fn publication_outcome(
+        &self,
+        known_revision: WorkbenchRevision,
+    ) -> WorkbenchPublicationOutcome {
+        let batch = self.projection.publications_since(known_revision);
+        if batch.is_empty() {
+            return WorkbenchPublicationOutcome::Current {
+                revision: self.projection.snapshot().revision,
+            };
+        }
+        let documents = batch
+            .iter()
+            .map(|publication| match publication {
+                WorkbenchPublication::Delta(delta) => {
+                    WorkbenchPublicationDocument::Delta(delta.clone())
+                }
+                WorkbenchPublication::Snapshot(snapshot) => {
+                    WorkbenchPublicationDocument::Snapshot(snapshot.clone())
+                }
+            })
+            .collect::<Vec<_>>();
+        if self.publication_batch_fits(&documents) {
+            return WorkbenchPublicationOutcome::Published {
+                publications: documents,
+            };
+        }
+        let snapshot = vec![WorkbenchPublicationDocument::Snapshot(
+            self.projection.snapshot().clone(),
+        )];
+        if self.publication_batch_fits(&snapshot) {
+            WorkbenchPublicationOutcome::Published {
+                publications: snapshot,
+            }
+        } else {
+            WorkbenchPublicationOutcome::Unavailable {
+                reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            }
+        }
+    }
+
+    /// Serializes a candidate `published` outcome to prove the encoded envelope and every nested
+    /// document fit their bounds before the outcome is emitted.
+    fn publication_batch_fits(&self, documents: &[WorkbenchPublicationDocument]) -> bool {
+        let Ok(request_id) = WorkbenchRequestId::parse("00000000000000000000000000000001") else {
+            return false;
+        };
+        serialize_workbench_response(&WorkbenchResponse::Publication(
+            WorkbenchPublicationResult {
+                protocol_version: ProtocolVersion,
+                request_id,
+                outcome: WorkbenchPublicationOutcome::Published {
+                    publications: documents.to_vec(),
+                },
+            },
+        ))
+        .is_ok()
     }
 
     fn command(

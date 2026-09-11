@@ -612,7 +612,9 @@ Fresh startup still joins the retained Open reference/outcome and selects curren
 `tabs[0]`: after moving B before bootstrap A, new Clients select B and existing Clients keep their
 active ID. Failed/unavailable/unknown anchor outcome fails before Snapshot; a Started anchor with
 nonattachable moved head fails at that head's AttachBinding. No fallback or scan is allowed.
-Other live Clients update only via explicit `Ctrl+B w`, with no push or terminal switch.
+Other live Clients learn committed changes through the ready-loop `workbench.publication.read`
+probe, which routes one refresh hint through the same `Ctrl+B w` admission; there is no push or
+terminal switch.
 
 The Move membership consumer implements the common cleanup and installation refinement. `NativeClientMoveBarrier` continues
 to own the no-removal transport/FIFO/commit-preservation slice; the checked move origin of
@@ -1491,6 +1493,16 @@ variable; only then may the executor continue. Exit or carrier retirement also w
 unsent records. Framing, correlation, wrong-kind, or transport ambiguity is detected before a typed
 result is emitted and retires immediately. Thus the Refresh barrier spans pre-read causal-feedback
 drain, wire read, and UI semantic settlement.
+
+The executor retains the latest accepted snapshot as its baseline. Every logical Workbench read —
+bootstrap, refresh, recovery, or post-commit projection — resolves to `workbench.snapshot.read`
+while no baseline exists and to `workbench.publication.read` once one does. A `current` outcome
+returns the retained baseline; `published` folds the ordered publications into it and stores the
+result. A publication that cannot advance the baseline is authority divergence and retires the
+carrier, never overwriting the prior cache. Ready-phase polling additionally probes
+`workbench.publication.read` at most once every 250 ms; a `published` outcome emits one boolean
+hint that enters the ordinary refresh admission path, so an occupied pending refresh silently
+drops the hint and a later probe retries. `current`, denied and unavailable probes stay silent.
 
 `RefreshMarker` intentionally carries no request ID. When it reaches the FIFO head after the causal
 flight drain, the worker locks the same mailbox identity cursor, allocates exactly one SnapshotRead

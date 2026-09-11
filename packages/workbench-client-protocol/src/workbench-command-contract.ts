@@ -12,6 +12,7 @@ import {
 	WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES,
 	WORKBENCH_PROTOCOL_VERSION,
+	WorkbenchDeltaSchema,
 	WorkbenchDirectoryIdSchema,
 	WorkbenchDirectoryPathSchema,
 	WorkbenchLabelSchema,
@@ -32,6 +33,7 @@ import {
 
 export const WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES =
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES + 1024;
+export const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
 
 const terminalGeometryDimensionSchema = z.number().int().min(1).max(4096);
 
@@ -161,12 +163,21 @@ export const WorkbenchCommandSchema = z
 	})
 	.readonly();
 
+export const WorkbenchPublicationReadIntentSchema = z
+	.strictObject({
+		kind: z.literal('workbench.publication.read'),
+		...correlation,
+		knownRevision: WorkbenchRevisionSchema,
+	})
+	.readonly();
+
 export const WorkbenchRequestSchema = z
 	.discriminatedUnion('kind', [
 		WorkbenchSnapshotReadIntentSchema,
 		WorkbenchCommandSchema,
 		WorkbenchTabCloseReadSchema,
 		WorkbenchTabCloseResumeSchema,
+		WorkbenchPublicationReadIntentSchema,
 	])
 	.refine(
 		(value) => encodedBytes(value) <= WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES,
@@ -355,16 +366,53 @@ export const WorkbenchSnapshotResultSchema = z
 	})
 	.readonly();
 
+export const WorkbenchPublicationUnavailableReasonSchema = z.enum(['service-unavailable']);
+
+export const WorkbenchPublicationDocumentSchema = z.union([
+	WorkbenchSnapshotSchema,
+	WorkbenchDeltaSchema,
+]);
+
+export const WorkbenchPublicationOutcomeSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('current'), revision: WorkbenchRevisionSchema }).readonly(),
+	z
+		.strictObject({
+			kind: z.literal('published'),
+			publications: z
+				.array(WorkbenchPublicationDocumentSchema)
+				.min(1)
+				.max(WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS)
+				.readonly(),
+		})
+		.readonly(),
+	deniedSchema,
+	z
+		.strictObject({
+			kind: z.literal('unavailable'),
+			reason: WorkbenchPublicationUnavailableReasonSchema,
+		})
+		.readonly(),
+]);
+
+export const WorkbenchPublicationResultSchema = z
+	.strictObject({
+		kind: z.literal('workbench.publication.result'),
+		...correlation,
+		outcome: WorkbenchPublicationOutcomeSchema,
+	})
+	.readonly();
+
 export const WorkbenchResponseSchema = z
 	.discriminatedUnion('kind', [
 		WorkbenchCommandResultSchema,
 		WorkbenchSnapshotResultSchema,
 		WorkbenchTabCloseReadResultSchema,
 		WorkbenchTabCloseResumeResultSchema,
+		WorkbenchPublicationResultSchema,
 	])
 	.superRefine((value, context) => {
 		const maximum =
-			value.kind === 'workbench.snapshot.result'
+			value.kind === 'workbench.snapshot.result' || value.kind === 'workbench.publication.result'
 				? WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES
 				: WORKBENCH_MAXIMUM_ENCODED_INTENT_BYTES;
 		if (encodedBytes(value) > maximum)
@@ -379,6 +427,17 @@ export const WorkbenchResponseSchema = z
 				message: 'Nested Workbench snapshot exceeds its encoded limit',
 			});
 		}
+		if (value.kind === 'workbench.publication.result' && value.outcome.kind === 'published') {
+			for (const publication of value.outcome.publications) {
+				if (encodedBytes(publication) > WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES) {
+					context.addIssue({
+						code: 'custom',
+						message: 'Nested Workbench publication exceeds its encoded limit',
+					});
+					break;
+				}
+			}
+		}
 	});
 
 export type WorkbenchTerminalGeometry = z.infer<typeof WorkbenchTerminalGeometrySchema>;
@@ -391,6 +450,13 @@ export type WorkbenchCommandOutcome = z.infer<typeof WorkbenchCommandOutcomeSche
 export type WorkbenchCommandResult = z.infer<typeof WorkbenchCommandResultSchema>;
 export type WorkbenchSnapshotOutcome = z.infer<typeof WorkbenchSnapshotOutcomeSchema>;
 export type WorkbenchSnapshotResult = z.infer<typeof WorkbenchSnapshotResultSchema>;
+export type WorkbenchPublicationReadIntent = z.infer<typeof WorkbenchPublicationReadIntentSchema>;
+export type WorkbenchPublicationDocument = z.infer<typeof WorkbenchPublicationDocumentSchema>;
+export type WorkbenchPublicationOutcome = z.infer<typeof WorkbenchPublicationOutcomeSchema>;
+export type WorkbenchPublicationResult = z.infer<typeof WorkbenchPublicationResultSchema>;
+export type WorkbenchPublicationUnavailableReason = z.infer<
+	typeof WorkbenchPublicationUnavailableReasonSchema
+>;
 export type WorkbenchResponse = z.infer<typeof WorkbenchResponseSchema>;
 export type WorkbenchRejectionReason = z.infer<typeof WorkbenchRejectionReasonSchema>;
 export type WorkbenchCommandUnavailableReason = z.infer<

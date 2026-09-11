@@ -15,8 +15,8 @@ use orchbee_client_server_protocol::{
 use orchbee_workbench_protocol::{
     PanelNode, ProtocolVersion, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
-    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTerminalFailureReason,
-    WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
+    WorkbenchSnapshotOutcome, WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome,
+    WorkbenchTerminalUnavailableReason,
 };
 use std::sync::atomic::Ordering;
 
@@ -36,18 +36,13 @@ fn empty_create_started_reads_candidate_without_detach_then_attaches_reserved_ge
     let mut harness = Harness::start(kinds, geometry)?;
     drive_controlling_ready(&mut harness, geometry)?;
     let generation = harness.ui.admit_refresh()?;
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("Refresh Snapshot"));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: snapshot(0, 2),
-            },
-        }))?;
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(0, 2),
+        },
+    )?;
     assert!(
         matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::Refresh { generation: actual, decision: RefreshDecision::Cleanup(_) } if actual == generation)
     );
@@ -120,20 +115,13 @@ fn empty_create_started_reads_candidate_without_detach_then_attaches_reserved_ge
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::CreateCommittedKnown { .. }
     ));
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error(
-            "Empty Create must read before any viewer request",
-        ));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: candidate,
-            },
-        }))?;
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate,
+        },
+    )?;
     assert!(
         matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::CreateProjection { decision: CreateProjectionDecision::Attach(ref target), .. } if target.selected().key() == &expected)
     );
@@ -204,19 +192,14 @@ fn candidate_first_create_unavailable_never_detaches_or_publishes_the_reserved_t
     assert!(
         matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::CreateCommittedKnown { operation: actual } if actual == operation)
     );
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("candidate Snapshot must precede old Detach"));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-        protocol_version: ProtocolVersion,
-        request_id: read.request_id,
-        outcome: WorkbenchSnapshotOutcome::Unavailable {
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Unavailable {
             reason:
                 orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
         },
-    }))?;
+    )?;
     let taken = harness.ui.take_next()?;
     harness.elapsed_millis.store(51_000, Ordering::SeqCst);
     assert!(matches!(
@@ -264,22 +247,17 @@ fn attached_refresh_membership_runs_real_detach_before_empty_or_successor_ready(
         let (old, _) = drive_controlling_ready(&mut harness, geometry)?;
         let baseline = harness.ui.state().cache().clone();
         let generation = harness.ui.admit_refresh()?;
-        let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-            return Err(test_error("one membership Snapshot"));
-        };
+        let read = harness.carrier.take_read()?;
         let mut candidate = snapshot(if neighbor { 2 } else { 0 }, 2);
         if neighbor {
             candidate.terminal_contexts[0].tabs.remove(0);
         }
-        harness
-            .carrier
-            .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: read.request_id,
-                outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: candidate,
-                },
-            }))?;
+        harness.carrier.respond_read(
+            &read,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: candidate,
+            },
+        )?;
         assert!(
             matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::Refresh { generation: actual, decision: RefreshDecision::Cleanup(_) } if actual == generation)
         );
@@ -932,22 +910,13 @@ fn run_non_attachable_commit(case: NonAttachableCommit) -> TestResult {
         operation.reserved_generation(),
         created.tab_id.clone(),
     );
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error(
-            "CommitRetained must license Snapshot before old cleanup",
-        ));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(
-            orchbee_workbench_protocol::WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: read.request_id,
-                outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
-                    snapshot: candidate,
-                },
-            },
-        ))?;
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate,
+        },
+    )?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::CreateProjection {
@@ -1182,20 +1151,13 @@ fn drive_pending_create_to_selected_without_attachment(
         UiEvent::CreateCommittedKnown { operation: ref actual } if actual == &operation
     ));
 
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error(
-            "committed Create must read the exact projection",
-        ));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: candidate.clone(),
-            },
-        }))?;
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate.clone(),
+        },
+    )?;
     assert!(
         matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::CreateProjection {
         operation: ref actual, decision: CreateProjectionDecision::Cleanup(_),
@@ -1323,25 +1285,14 @@ fn started_create_accepts_a_later_renamed_snapshot_and_attaches_the_exact_bindin
         operation.reserved_generation(),
         expected_new_tab.clone(),
     );
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error(
-            "published committed target must read one snapshot",
-        ));
-    };
+    let read = harness.carrier.take_read()?;
     let mut renamed = candidate;
     renamed.revision = WorkbenchRevision::new(3);
     renamed.terminal_contexts[0].tabs[1].label = "renamed-after-create".to_owned();
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(
-            orchbee_workbench_protocol::WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: read.request_id,
-                outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
-                    snapshot: renamed,
-                },
-            },
-        ))?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available { snapshot: renamed },
+    )?;
     assert!(
         matches!(harness.ui.settle_next(FrameCut::None)?, UiEvent::CreateProjection {
         operation: ref actual, decision: CreateProjectionDecision::Cleanup(_),
@@ -1531,23 +1482,18 @@ fn refresh_uses_one_pending_generation_and_ui_settles_after_transport_deadline()
         Some(generation)
     );
 
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("Refresh must issue exactly one SnapshotRead"));
-    };
-    assert_eq!(read.request_id.as_str(), identity(0x108));
+    let read = harness.carrier.take_read()?;
+    assert_eq!(read.request_id().as_str(), identity(0x108));
     assert_eq!(
         harness.mailbox.pending_refresh_stage(),
         Some((generation, PendingRefreshStage::InFlight))
     );
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: snapshot(2, 2),
-            },
-        }))?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(2, 2),
+        },
+    )?;
 
     let completion = harness.ui.take_next()?;
     assert_eq!(
@@ -1661,18 +1607,13 @@ fn label_only_refresh_preserves_selection_viewer_frame_and_presentation_anchor()
     let no_frame_redraws = harness.ui.no_frame_redraws();
 
     let generation = harness.ui.admit_refresh()?;
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("label Refresh must issue SnapshotRead"));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: refreshed,
-            },
-        }))?;
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: refreshed,
+        },
+    )?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Refresh {
@@ -1748,16 +1689,10 @@ fn denied_refresh_preserves_cache_viewer_and_reports_baseline_failure() -> TestR
     )?;
     let (active, _controller) = drive_controlling_ready(&mut harness, geometry)?;
     let generation = harness.ui.admit_refresh()?;
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("Refresh must issue SnapshotRead"));
-    };
+    let read = harness.carrier.take_read()?;
     harness
         .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Denied {},
-        }))?;
+        .respond_read(&read, WorkbenchSnapshotOutcome::Denied {})?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::Refresh {
@@ -1814,16 +1749,10 @@ fn settled_refresh_reply_can_be_superseded_before_worker_resume_and_then_runs_ex
         drive_controlling_ready_from_snapshot(&mut harness, snapshot(2, 1), geometry)?;
 
     let refresh_generation = harness.ui.admit_refresh()?;
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("Refresh must issue one SnapshotRead"));
-    };
+    let read = harness.carrier.take_read()?;
     harness
         .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Denied {},
-        }))?;
+        .respond_read(&read, WorkbenchSnapshotOutcome::Denied {})?;
     let refresh_result = harness.ui.take_next()?;
     assert_eq!(
         harness.mailbox.pending_refresh_stage(),
@@ -2066,28 +1995,29 @@ fn divergent_refresh_retires_after_exact_typed_ui_settlement() -> TestResult {
     )?;
     let (_active, _controller) =
         drive_controlling_ready_from_snapshot(&mut harness, initial, geometry)?;
-    let generation = harness.ui.admit_refresh()?;
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("Refresh must issue SnapshotRead"));
-    };
+    let _generation = harness.ui.admit_refresh()?;
+    let read = harness.carrier.take_read()?;
+    // The refresh read is a publication read once the baseline exists; a snapshot publication
+    // that cannot advance the held revision is authority divergence and folds to a hard retire.
+    let request_id = read.request_id().clone();
     harness
         .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            // Even a canonical label change is divergent at the same authority revision.
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: divergent,
+        .respond_workbench(WorkbenchResponse::Publication(
+            orchbee_workbench_protocol::WorkbenchPublicationResult {
+                protocol_version: ProtocolVersion,
+                request_id,
+                outcome: orchbee_workbench_protocol::WorkbenchPublicationOutcome::Published {
+                    publications: vec![
+                        orchbee_workbench_protocol::WorkbenchPublicationDocument::Snapshot(
+                            divergent,
+                        ),
+                    ],
+                },
             },
-        }))?;
-    assert!(matches!(
-        harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::Refresh {
-            generation: actual,
-            decision: RefreshDecision::Retire,
-        } if actual == generation
-    ));
-    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Retired);
+        ))?;
+    // The fold failure retires the worker before any typed Refresh event reaches the UI; the
+    // untouched cache still holds the baseline revision and labels.
+    assert!(harness.ui.take_next().is_err());
     assert_eq!(
         harness.ui.state().cache().revision(),
         WorkbenchRevision::new(1)
@@ -2099,8 +2029,6 @@ fn divergent_refresh_retires_after_exact_typed_ui_settlement() -> TestResult {
         .ok_or_else(|| test_error("divergent Refresh must retain the prior cached tab"))?;
     assert_eq!(retained.tab_label().as_str(), "old");
     assert_eq!(retained.presentation_label().as_str(), "creation-anchor");
-    assert_eq!(harness.ui.state().refresh_status(), None);
-    assert!(harness.ui.take_next().is_err());
     assert_eq!(
         harness.mailbox.is_closed(),
         Some(CarrierFailure::AuthorityDivergence)
@@ -2140,21 +2068,16 @@ fn started_projection_recovery_uses_fresh_budget_same_generation_and_new_ids() -
     harness.elapsed_millis.store(60_000, Ordering::SeqCst);
     let refresh_generation = harness.ui.admit_refresh()?;
     assert_eq!(refresh_generation, 1);
-    let WorkbenchRequest::SnapshotRead(refresh) = harness.carrier.take_workbench()? else {
-        return Err(test_error(
-            "recovery Refresh must issue one fresh SnapshotRead",
-        ));
-    };
-    assert_eq!(refresh.request_id.as_str(), identity(0x10a));
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: refresh.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: candidate,
-            },
-        }))?;
+    let refresh = harness.carrier.take_read()?;
+    assert_eq!(refresh.request_id().as_str(), identity(0x10a));
+    // The retained baseline revision is the cursor the Server journal fast-forwards from.
+    assert_eq!(refresh.known_revision(), Some(WorkbenchRevision::new(1)));
+    harness.carrier.respond_read(
+        &refresh,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate,
+        },
+    )?;
 
     let completion = harness.ui.take_next()?;
     // The transport result was placed before its 110-second deadline. Semantic UI settlement is
@@ -2379,19 +2302,14 @@ fn create_projection_missing_committed_tab_retires_authority_divergence() -> Tes
         UiEvent::CreateCommittedKnown { operation: ref actual } if actual == &operation
     ));
 
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("committed Create must validate a SnapshotRead"));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            // Revision 2 is plausible, but the exact committed tuple is missing.
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: snapshot(1, 2),
-            },
-        }))?;
+    let read = harness.carrier.take_read()?;
+    // Revision 2 is plausible, but the exact committed tuple is missing.
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(1, 2),
+        },
+    )?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::CreateProjection {
@@ -2659,17 +2577,11 @@ fn drive_started_create_to_projection_unavailable(
         UiEvent::CreateCommittedKnown { operation: ref actual } if actual == &operation
     ));
 
-    let WorkbenchRequest::SnapshotRead(read) = harness.carrier.take_workbench()? else {
-        return Err(test_error("committed target must issue SnapshotRead"));
-    };
-    assert_eq!(read.request_id.as_str(), identity(0x109));
+    let read = harness.carrier.take_read()?;
+    assert_eq!(read.request_id().as_str(), identity(0x109));
     harness
         .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: read.request_id,
-            outcome: WorkbenchSnapshotOutcome::Denied {},
-        }))?;
+        .respond_read(&read, WorkbenchSnapshotOutcome::Denied {})?;
     assert!(matches!(
         harness.ui.settle_next(FrameCut::None)?,
         UiEvent::CreateProjection {
@@ -2762,16 +2674,11 @@ pub(super) fn drive_controlling_ready_from_snapshot(
                 },
             ),
         ))?;
-    let WorkbenchRequest::SnapshotRead(request) = harness.carrier.take_workbench()? else {
-        return Err(test_error("terminal.open must be followed by SnapshotRead"));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
-            protocol_version: ProtocolVersion,
-            request_id: request.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available { snapshot: initial },
-        }))?;
+    let request = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &request,
+        WorkbenchSnapshotOutcome::Available { snapshot: initial },
+    )?;
     let key = match harness.ui.settle_next(FrameCut::None)? {
         UiEvent::Bootstrap { key } => key,
         _ => return Err(test_error("custom snapshot must publish Bootstrap")),

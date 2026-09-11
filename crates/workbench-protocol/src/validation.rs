@@ -12,6 +12,7 @@ use crate::{
     model::{
         Delta, DeltaChange, DeltaRejectionReason, Navigation, PanelNode, Presentation, Snapshot,
         SnapshotReadIntent, TerminalContext, WorkbenchProtocolDocument,
+        WorkbenchPublicationDocument,
     },
 };
 
@@ -178,6 +179,34 @@ pub fn apply_workbench_delta(
     Ok(candidate)
 }
 
+/// Folds one ordered committed-publication batch over `base`. Every Delta must name the running
+/// revision as its base; a Snapshot document requires a strictly increasing revision and replaces
+/// the running projection outright. An empty batch is an accepted no-op.
+pub fn apply_workbench_publication(
+    base: &Snapshot,
+    publications: &[WorkbenchPublicationDocument],
+) -> Result<Snapshot, DeltaRejectionReason> {
+    let mut current = base.clone();
+    for publication in publications {
+        current = match publication {
+            WorkbenchPublicationDocument::Snapshot(snapshot) => {
+                if snapshot.site_id != current.site_id {
+                    return Err(DeltaRejectionReason::SiteMismatch);
+                }
+                if snapshot.revision <= current.revision {
+                    return Err(DeltaRejectionReason::NonIncreasingRevision);
+                }
+                if validate_snapshot(snapshot).is_err() {
+                    return Err(DeltaRejectionReason::InvalidProjection);
+                }
+                snapshot.clone()
+            }
+            WorkbenchPublicationDocument::Delta(delta) => apply_workbench_delta(&current, delta)?,
+        };
+    }
+    Ok(current)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ValidationError;
 
@@ -277,7 +306,7 @@ pub(crate) fn validate_snapshot(snapshot: &Snapshot) -> Result<(), ContractError
     Ok(())
 }
 
-fn validate_delta_structure(delta: &Delta) -> Result<(), ContractError> {
+pub(crate) fn validate_delta_structure(delta: &Delta) -> Result<(), ContractError> {
     if delta.changes.len() > MAXIMUM_DELTA_CHANGES {
         return Err(ContractError::InvalidDocument);
     }

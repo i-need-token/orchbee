@@ -195,6 +195,7 @@ fn second_live_client_refreshes_shared_tabs_and_preserves_independent_selection(
     peer.wait_ready_after(0, startup_deadline, 1, "1", ReadyMode::ViewOnly);
 
     let create_deadline = Instant::now() + STARTUP_OR_CREATE_TIMEOUT;
+    let peer_checkpoint = peer.checkpoint();
     let checkpoint = creator.checkpoint();
     creator.send(b"\x02c");
     creator.wait_ready_after(checkpoint, create_deadline, 2, "2", ReadyMode::Controlling);
@@ -212,13 +213,15 @@ fn second_live_client_refreshes_shared_tabs_and_preserves_independent_selection(
         "the two Tabs must own distinct shells"
     );
 
-    let peer_tab_row = peer.current_row_containing("[*1 1]");
-    assert_eq!(
-        peer_tab_row.matches("[*1 1]").count(),
+    // Committed publications propagate to the live peer without an explicit refresh,
+    // while the peer keeps its independent selection on the first Tab.
+    peer.wait_ordered_ready_after(
+        peer_checkpoint,
+        Instant::now() + OBSERVATION_TIMEOUT,
+        &["1", "2"],
         1,
-        "{peer_tab_row:?}"
+        ReadyMode::ViewOnly,
     );
-    assert!(!peer_tab_row.contains("[ 2 2]"), "{peer_tab_row:?}");
 
     let refresh_deadline = Instant::now() + OBSERVATION_TIMEOUT;
     let checkpoint = peer.checkpoint();

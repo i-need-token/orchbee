@@ -72,20 +72,8 @@ impl NativeExecutor {
                     .mailbox
                     .allocate_workbench_request_id()
                     .map_err(closed)?;
-                let result = self
-                    .client
-                    .submit_workbench_snapshot_read_before(
-                        SnapshotReadIntent {
-                            protocol_version: ProtocolVersion,
-                            request_id,
-                        },
-                        cutoff,
-                    )
-                    .map_err(snapshot)?;
-                RenameResult::Committed {
-                    revision,
-                    outcome: result.outcome,
-                }
+                let outcome = self.read_workbench_before(request_id, cutoff)?;
+                RenameResult::Committed { revision, outcome }
             }
         };
         let wait = self

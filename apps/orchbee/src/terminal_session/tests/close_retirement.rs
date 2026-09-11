@@ -14,9 +14,23 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
             stream.read_exact(&mut magic)?;
             let mut reader = io::Cursor::new(magic).chain(&mut stream);
             if magic == *b"OBWP" {
-                let WorkbenchRequest::Command(command) =
-                    read_workbench_request(&mut reader).map_err(io::Error::other)?
-                else {
+                let request = read_workbench_request(&mut reader).map_err(io::Error::other)?;
+                if let WorkbenchRequest::PublicationRead(intent) = request {
+                    // Publication probes may interleave with ordinary polls on the ready session.
+                    write_workbench_response(
+                        &mut stream,
+                        &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                            protocol_version: ProtocolVersion,
+                            request_id: intent.request_id,
+                            outcome: WorkbenchPublicationOutcome::Current {
+                                revision: intent.known_revision,
+                            },
+                        }),
+                    )
+                    .map_err(io::Error::other)?;
+                    continue;
+                }
+                let WorkbenchRequest::Command(command) = request else {
                     return Err(io::Error::other("expected Close"));
                 };
                 assert!(matches!(command.action, WorkbenchAction::TabClose { .. }));

@@ -40,11 +40,14 @@ use orchbee_terminal_protocol::{
     inspect_terminal_frame_route,
 };
 use orchbee_workbench_protocol::{
-    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion, SiteId, Snapshot,
-    Tab, TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction, WorkbenchCommand,
-    WorkbenchLabel, WorkbenchPanelId, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
-    WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
-    WorkbenchTerminalGeometry, WorkerId, read_workbench_request, write_workbench_response,
+    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion,
+    PublicationReadIntent, SiteId, Snapshot, SnapshotReadIntent, Tab, TerminalContext, TerminalId,
+    TerminalPresentationId, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchPanelId,
+    WorkbenchPublicationDocument, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
+    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
+    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTabId, WorkbenchTabMoveDirection,
+    WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkerId, read_workbench_request,
+    write_workbench_response,
 };
 use std::{
     error::Error,
@@ -86,6 +89,55 @@ enum ObservedRequest {
     Workbench(WorkbenchRequest),
 }
 
+/// A Workbench read observed on the wire. Refresh-path reads arrive as `publication.read` once
+/// the executor holds a baseline; bootstrap reads stay `snapshot.read`.
+pub(super) enum ObservedRead {
+    Snapshot(SnapshotReadIntent),
+    Publication(PublicationReadIntent),
+}
+
+impl ObservedRead {
+    pub(super) fn request_id(&self) -> &WorkbenchRequestId {
+        match self {
+            Self::Snapshot(intent) => &intent.request_id,
+            Self::Publication(intent) => &intent.request_id,
+        }
+    }
+
+    pub(super) fn known_revision(&self) -> Option<WorkbenchRevision> {
+        match self {
+            Self::Snapshot(_) => None,
+            Self::Publication(intent) => Some(intent.known_revision),
+        }
+    }
+}
+
+/// Maps the latest committed snapshot outcome onto a `publication.read` reply the way the real
+/// journal does: `current` when the reader already holds that revision, otherwise `published`
+/// carrying the full snapshot as the boundary publication.
+fn publication_outcome_for(
+    outcome: WorkbenchSnapshotOutcome,
+    known_revision: WorkbenchRevision,
+) -> WorkbenchPublicationOutcome {
+    match outcome {
+        WorkbenchSnapshotOutcome::Available { snapshot } => {
+            if snapshot.revision > known_revision {
+                WorkbenchPublicationOutcome::Published {
+                    publications: vec![WorkbenchPublicationDocument::Snapshot(snapshot)],
+                }
+            } else {
+                WorkbenchPublicationOutcome::Current {
+                    revision: snapshot.revision,
+                }
+            }
+        }
+        WorkbenchSnapshotOutcome::Denied {} => WorkbenchPublicationOutcome::Denied {},
+        WorkbenchSnapshotOutcome::Unavailable { reason } => {
+            WorkbenchPublicationOutcome::Unavailable { reason }
+        }
+    }
+}
+
 enum ScriptResponse {
     Obcs(ServerMessage),
     Workbench(WorkbenchResponse),
@@ -108,13 +160,52 @@ impl ScriptedCarrier {
         let server = FakeServer::start(move |mut stream| {
             admit(&mut stream)?;
             for step in steps {
-                let request = match step {
-                    WireKind::Obcs => ObservedRequest::Obcs(
-                        read_client_message(&mut stream).map_err(io::Error::other)?,
-                    ),
-                    WireKind::Workbench => ObservedRequest::Workbench(
-                        read_workbench_request(&mut stream).map_err(io::Error::other)?,
-                    ),
+                let request = loop {
+                    let mut magic = [0; 4];
+                    stream.read_exact(&mut magic)?;
+                    let mut reader = io::Cursor::new(magic).chain(&mut stream);
+                    match step {
+                        WireKind::Obcs => {
+                            if magic == *b"OBWP" {
+                                match read_workbench_request(&mut reader)
+                                    .map_err(io::Error::other)?
+                                {
+                                    // A publication probe may interleave with scripted OBCS
+                                    // traffic; answer it like an idle journal without
+                                    // consuming the scripted step.
+                                    WorkbenchRequest::PublicationRead(intent) => {
+                                        write_workbench_response(
+                                            &mut stream,
+                                            &WorkbenchResponse::Publication(
+                                                WorkbenchPublicationResult {
+                                                    protocol_version: ProtocolVersion,
+                                                    request_id: intent.request_id,
+                                                    outcome: WorkbenchPublicationOutcome::Current {
+                                                        revision: intent.known_revision,
+                                                    },
+                                                },
+                                            ),
+                                        )
+                                        .map_err(io::Error::other)?;
+                                        continue;
+                                    }
+                                    _ => {
+                                        return Err(io::Error::other(
+                                            "unscripted Workbench request during an OBCS step",
+                                        ));
+                                    }
+                                }
+                            }
+                            break ObservedRequest::Obcs(
+                                read_client_message(&mut reader).map_err(io::Error::other)?,
+                            );
+                        }
+                        WireKind::Workbench => {
+                            break ObservedRequest::Workbench(
+                                read_workbench_request(&mut reader).map_err(io::Error::other)?,
+                            );
+                        }
+                    }
                 };
                 request_sender.send(request).map_err(io::Error::other)?;
                 match response_receiver.recv().map_err(io::Error::other)? {
@@ -144,14 +235,37 @@ impl ScriptedCarrier {
                     }
                 }
             }
-            let mut trailing = Vec::new();
-            stream.read_to_end(&mut trailing)?;
-            if trailing.is_empty() {
-                Ok(())
-            } else {
-                Err(io::Error::other(
+            // After the script ends the session may still emit publication probes from idle
+            // polls; answer them like an idle journal and fail on anything else.
+            loop {
+                let mut magic = [0; 4];
+                match stream.read_exact(&mut magic) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
+                    Err(error) => return Err(error),
+                }
+                if magic == *b"OBWP" {
+                    let mut reader = io::Cursor::new(magic).chain(&mut stream);
+                    if let WorkbenchRequest::PublicationRead(intent) =
+                        read_workbench_request(&mut reader).map_err(io::Error::other)?
+                    {
+                        write_workbench_response(
+                            &mut stream,
+                            &WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                                protocol_version: ProtocolVersion,
+                                request_id: intent.request_id,
+                                outcome: WorkbenchPublicationOutcome::Current {
+                                    revision: intent.known_revision,
+                                },
+                            }),
+                        )
+                        .map_err(io::Error::other)?;
+                        continue;
+                    }
+                }
+                return Err(io::Error::other(
                     "executor sent an unscripted trailing request",
-                ))
+                ));
             }
         })?;
         Ok(Self {
@@ -173,6 +287,41 @@ impl ScriptedCarrier {
         match self.requests.recv_timeout(WALL_GUARD)? {
             ObservedRequest::Workbench(request) => Ok(request),
             ObservedRequest::Obcs(_) => Err(test_error("expected OBWP request")),
+        }
+    }
+
+    /// Takes the next scripted request when it is a Workbench read, whichever read kind the
+    /// executor picked for its current baseline state.
+    pub(super) fn take_read(&self) -> TestResult<ObservedRead> {
+        match self.take_workbench()? {
+            WorkbenchRequest::SnapshotRead(intent) => Ok(ObservedRead::Snapshot(intent)),
+            WorkbenchRequest::PublicationRead(intent) => Ok(ObservedRead::Publication(intent)),
+            _ => Err(test_error("expected a Workbench read request")),
+        }
+    }
+
+    /// Answers an observed read with the latest snapshot outcome; `publication.read` requests are
+    /// served `current`/`published` through the journal-style mapping.
+    pub(super) fn respond_read(
+        &self,
+        read: &ObservedRead,
+        outcome: WorkbenchSnapshotOutcome,
+    ) -> TestResult {
+        match read {
+            ObservedRead::Snapshot(intent) => {
+                self.respond_workbench(WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: intent.request_id.clone(),
+                    outcome,
+                }))
+            }
+            ObservedRead::Publication(intent) => {
+                self.respond_workbench(WorkbenchResponse::Publication(WorkbenchPublicationResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: intent.request_id.clone(),
+                    outcome: publication_outcome_for(outcome, intent.known_revision),
+                }))
+            }
         }
     }
 
@@ -1230,9 +1379,16 @@ impl UiDriver {
                     }
                 }
             }
-            WorkerEvent::PollResult { poll_key, record } => {
+            WorkerEvent::PollResult {
+                poll_key,
+                record,
+                publication_hint,
+            } => {
                 if wait_key.is_some() {
                     return Err(test_error("PollResult must use the causal slot"));
+                }
+                if publication_hint {
+                    let _generation = self.admit_refresh()?;
                 }
                 self.settle_poll(poll_key, record, frame_cut)
             }
@@ -1874,20 +2030,13 @@ pub(super) fn drive_open_snapshot_bootstrap(
                 },
             ),
         ))?;
-    let WorkbenchRequest::SnapshotRead(request) = harness.carrier.take_workbench()? else {
-        return Err(test_error("terminal.open must be followed by SnapshotRead"));
-    };
-    harness
-        .carrier
-        .respond_workbench(WorkbenchResponse::Snapshot(
-            orchbee_workbench_protocol::WorkbenchSnapshotResult {
-                protocol_version: ProtocolVersion,
-                request_id: request.request_id,
-                outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
-                    snapshot: snapshot(tab_count, 1),
-                },
-            },
-        ))?;
+    let request = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &request,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(tab_count, 1),
+        },
+    )?;
     match harness.ui.settle_next(FrameCut::None)? {
         UiEvent::Bootstrap { key } => Ok(key),
         _ => Err(test_error("snapshot must publish Bootstrap")),
