@@ -44,6 +44,10 @@ Host 销毁和精确 Worker/Server 清理先于规范移除；Client 退出不�
 shell 存活时的同连接复用。[Close 契约](docs/terminal-tab-close.zh-CN.md) 规定边界、另有证据
 支持的原生 TUI 集成，以及仍待完成的生产恢复和发布义务。
 
+`panel.move` 是无生命周期的树操作：它把同一 Tab 内一个 leaf 重定位到另一个 leaf 旁，折叠源
+父 Split，并在单个修订中提交一个 fresh Split 与两个 fresh Slot；被移动 leaf 的 Panel、
+Presentation 与 terminal 绑定保持精确不变。
+
 无效、过大、语义不一致或错误 kind 的输入在协议边界失败。请求在解码前受 16 KiB 上限约束，
 snapshot 上限仍为 1 MiB。OBWP 拥有请求/结果 envelope。Application library 保持未发布，仅供
 自身 executable 使用。完整 TUI/Desktop/CLI Workbench 集成仍未完成。
@@ -566,7 +570,8 @@ Carrier 拥有 I/O、精确 echo 验证和 generation retirement，不拥有 OBC
 确定性 core 不导入 transport、clock 或 process adapter。Terminal service 操作按 registry 再 Site
 的顺序获取锁；grant 操作则按 registry 再 controller map 获取锁。Workbench 访问先校验外部 OBWP policy，
 读取及纯导航随后只获取 Site gate。不透明的 `WorkbenchReadOrNavigationRequest` 排除需要 Site 组合的
-`tab.create`、`tab.move`、`tab.close` 和 `workspace.primary-directory.accept`。Move 要求 navigation grant，且只获取 Site gate；
+`tab.create`、`tab.move`、`tab.close`、`panel.split`、`panel.close`、`panel.move` 和
+`workspace.primary-directory.accept`。Move 要求 navigation grant，且只获取 Site gate；
 `tab.create` 还要求 terminal-create grant，并使用上述组合路径。Binding viewer selection 先持有 registry 和 Site 锁，再采样 handle 的
 active state；其内部 canonical query 使用 OBCS subject admission，并保持 Workbench 优先的失败顺序。I/O 前释放全部 gate，不增加自动重试。`application_session` runner 将确切
 OBCS/OBWP prefix 分派给不同语义 handler，只导入其契约及标准库 I/O。提交后协调失败会关闭混合

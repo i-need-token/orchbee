@@ -19,6 +19,10 @@ pub(crate) mod panel_split;
 // product shortcut presents it.
 #[allow(dead_code)]
 pub(crate) mod panel_close;
+// The typed leaf-move transport is admitted the same way: compiled and tested before any
+// product shortcut presents it.
+#[allow(dead_code)]
+pub(crate) mod panel_move;
 mod tab_close;
 mod tab_move;
 pub(crate) mod tab_rename;

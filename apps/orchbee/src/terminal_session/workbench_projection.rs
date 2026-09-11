@@ -774,6 +774,7 @@ pub(super) fn validate_retained_context(
                     && !stable_member_except_tab_label(current, candidate)
                     && !panel_split_extension(current, candidate)
                     && !panel_close_contraction(current, candidate)
+                    && !panel_move_restructure(current, candidate)
             })
         })
     {
@@ -1050,6 +1051,206 @@ fn close_tree_contraction(
             current_panels,
             candidate_panels,
         )))
+}
+
+/// `candidate` is `current` with one leaf Panel relocated: the retained leaf reattaches under a
+/// fresh Split at a surviving target leaf, and the vacated parent Split collapses away.
+fn panel_move_restructure(current: &NativeSimpleTab, candidate: &NativeSimpleTab) -> bool {
+    if current.tab_id != candidate.tab_id
+        || candidate.panels.len() != current.panels.len()
+        || !candidate
+            .panels
+            .iter()
+            .all(|panel| current.panels.iter().any(|other| other == panel))
+    {
+        return false;
+    }
+    move_tree_restructure(
+        &current.tree,
+        &candidate.tree,
+        &current.panels,
+        &candidate.panels,
+    )
+}
+
+fn move_tree_restructure(
+    current: &NativePanelTree,
+    candidate: &NativePanelTree,
+    current_panels: &[NativePanel],
+    candidate_panels: &[NativePanel],
+) -> bool {
+    let mut current_split_ids = Vec::new();
+    current.split_ids(&mut current_split_ids);
+    let mut current_slot_ids = Vec::new();
+    current.slot_ids(&mut current_slot_ids);
+    let mut grafts = Vec::new();
+    collect_move_grafts(
+        candidate,
+        &current_split_ids,
+        &current_slot_ids,
+        &mut grafts,
+    );
+    let [graft] = grafts.as_slice() else {
+        return false;
+    };
+    // Either child of the fresh Split can be the moved leaf; the other is the surviving target.
+    [true, false].iter().any(|moved_is_first| {
+        let (moved, kept) = if *moved_is_first {
+            (graft.first, graft.second)
+        } else {
+            (graft.second, graft.first)
+        };
+        let NativePanelTree::Panel { panel_index } = moved else {
+            return false;
+        };
+        let Some(moved) = candidate_panels.get(*panel_index) else {
+            return false;
+        };
+        let Some(reduced_current) = take_panel_leaf(current, moved, current_panels) else {
+            return false;
+        };
+        let Some(reduced_candidate) = prune_move_graft(candidate, graft.split_id, kept) else {
+            return false;
+        };
+        subtree_matches(
+            &reduced_current,
+            &reduced_candidate,
+            current_panels,
+            candidate_panels,
+        )
+    })
+}
+
+struct MoveGraft<'a> {
+    split_id: &'a WorkbenchSplitId,
+    first: &'a NativePanelTree,
+    second: &'a NativePanelTree,
+}
+
+/// Collects the candidate Splits whose identities are all fresh: an unknown Split identity, two
+/// unknown Slot identities, and two leaf Panel children.
+fn collect_move_grafts<'a>(
+    node: &'a NativePanelTree,
+    split_ids: &[WorkbenchSplitId],
+    slot_ids: &[WorkbenchPanelSlotId],
+    grafts: &mut Vec<MoveGraft<'a>>,
+) {
+    let NativePanelTree::Split {
+        first,
+        second,
+        first_slot_id,
+        second_slot_id,
+        split_id,
+        ..
+    } = node
+    else {
+        return;
+    };
+    if !split_ids.contains(split_id)
+        && !slot_ids.contains(first_slot_id)
+        && !slot_ids.contains(second_slot_id)
+        && matches!(first.as_ref(), NativePanelTree::Panel { .. })
+        && matches!(second.as_ref(), NativePanelTree::Panel { .. })
+    {
+        grafts.push(MoveGraft {
+            split_id,
+            first,
+            second,
+        });
+    }
+    collect_move_grafts(first, split_ids, slot_ids, grafts);
+    collect_move_grafts(second, split_ids, slot_ids, grafts);
+}
+
+/// Removes the leaf holding `moved`, collapsing its parent Split into the sibling subtree, and
+/// returns the reduced tree. A root leaf has no parent Split and cannot be taken.
+fn take_panel_leaf(
+    node: &NativePanelTree,
+    moved: &NativePanel,
+    panels: &[NativePanel],
+) -> Option<NativePanelTree> {
+    let NativePanelTree::Split {
+        first,
+        second,
+        first_slot_id,
+        second_slot_id,
+        orientation,
+        split_id,
+    } = node
+    else {
+        return None;
+    };
+    let is_moved = |child: &NativePanelTree| {
+        matches!(
+            child,
+            NativePanelTree::Panel { panel_index } if panels.get(*panel_index) == Some(moved)
+        )
+    };
+    if is_moved(first) {
+        return Some(second.as_ref().clone());
+    }
+    if is_moved(second) {
+        return Some(first.as_ref().clone());
+    }
+    if let Some(taken) = take_panel_leaf(first, moved, panels) {
+        return Some(NativePanelTree::Split {
+            first: Box::new(taken),
+            second: second.clone(),
+            first_slot_id: first_slot_id.clone(),
+            second_slot_id: second_slot_id.clone(),
+            orientation: *orientation,
+            split_id: split_id.clone(),
+        });
+    }
+    take_panel_leaf(second, moved, panels).map(|taken| NativePanelTree::Split {
+        first: first.clone(),
+        second: Box::new(taken),
+        first_slot_id: first_slot_id.clone(),
+        second_slot_id: second_slot_id.clone(),
+        orientation: *orientation,
+        split_id: split_id.clone(),
+    })
+}
+
+/// Replaces the fresh Split `split_id` with its retained target child, producing the candidate
+/// tree as it stood before the moved leaf was grafted.
+fn prune_move_graft(
+    node: &NativePanelTree,
+    graft_id: &WorkbenchSplitId,
+    kept: &NativePanelTree,
+) -> Option<NativePanelTree> {
+    let NativePanelTree::Split {
+        first,
+        second,
+        first_slot_id,
+        second_slot_id,
+        orientation,
+        split_id,
+    } = node
+    else {
+        return None;
+    };
+    if split_id == graft_id {
+        return Some(kept.clone());
+    }
+    if let Some(pruned) = prune_move_graft(first, graft_id, kept) {
+        return Some(NativePanelTree::Split {
+            first: Box::new(pruned),
+            second: second.clone(),
+            first_slot_id: first_slot_id.clone(),
+            second_slot_id: second_slot_id.clone(),
+            orientation: *orientation,
+            split_id: split_id.clone(),
+        });
+    }
+    prune_move_graft(second, graft_id, kept).map(|pruned| NativePanelTree::Split {
+        first: first.clone(),
+        second: Box::new(pruned),
+        first_slot_id: first_slot_id.clone(),
+        second_slot_id: second_slot_id.clone(),
+        orientation: *orientation,
+        split_id: split_id.clone(),
+    })
 }
 
 /// Structural equality across two tabs' Panel arrays; leaves compare by Panel value.

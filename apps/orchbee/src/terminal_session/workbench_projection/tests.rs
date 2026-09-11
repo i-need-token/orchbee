@@ -13,6 +13,7 @@ mod label_evolution;
 mod membership;
 mod moved_tab;
 mod panel_close;
+mod panel_move;
 mod projector;
 mod renamed_tab;
 mod reorder;

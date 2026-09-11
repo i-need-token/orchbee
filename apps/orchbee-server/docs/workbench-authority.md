@@ -92,6 +92,25 @@ sibling-substituted contraction of its baseline tree and retires only when its o
 removed. The TUI still does not submit
 `panel.split` or `panel.close` from a shortcut.
 
+`panel.move` is the pure projection counterpart: it relocates one leaf Panel inside its Tab without
+any lifecycle. Admission reuses the navigation mutation grant, the exact context/Tab checks, and
+tree membership — the leaf-level membership required for Split-bearing trees — then validates both
+leaves as direct members of the named Tab. A move that names the same leaf, or whose placement is
+already satisfied because the pair are direct children of a matching-orientation Split in the
+direction-implied order, commits `Unchanged` without consuming identities. A committed move detaches
+the source leaf — collapsing its parent Split into the sibling subtree — and grafts it beside the
+target leaf under one fresh Split with one fresh Split identity and two fresh Slot identities; the
+source leaf keeps its complete Panel node, Presentations and binding, and every untouched subtree
+keeps every identity. The operation allocates three structural identities and one revision, then
+publishes `panel-moved` through the same baseline/publication path as every other committed
+projection. Replay, stale-revision and request-identity rules are the shared command rules. The
+Client projection admits a committed move only as this exact restructure — unchanged Panel set, one
+fresh graft, reduced trees equal — and retires on any other reshaping. The bounded
+`WorkbenchPanelMove` TLA+ model covers leaf removal, parent collapse, fresh graft identities,
+direction order/orientation and replay over a three-leaf tree domain; the Linux cohort witness
+`native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell` establishes the
+shared revision, swapped leaf order, surviving shell and attached-Client refresh.
+
 ## Accepted canonical Tab move model
 
 ### Workspace context extension

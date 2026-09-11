@@ -583,6 +583,195 @@ fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shel
 }
 
 #[test]
+fn native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+    let mut client = Client::spawn(&fixture, "en_US.UTF-8");
+    client.wait_ready_after(
+        0,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::Controlling,
+    );
+
+    client.send(shell_identity_command(&fixture, "source", "native-move-source", true).as_bytes());
+    let source_identity = wait_file(
+        &fixture.base.join("native-move-source"),
+        &mut [&mut client],
+        Instant::now() + OBSERVATION_TIMEOUT,
+    );
+    let source_pid = require_shell_identity(&source_identity, "source");
+    let source_shell = pidfd_open(
+        Pid::from_raw(i32::try_from(source_pid)?).ok_or("invalid source shell PID")?,
+        PidfdFlags::empty(),
+    )?;
+
+    let split_deadline = Instant::now() + CLOSE_TIMEOUT;
+    let mut peer = WorkbenchPeer::connect(&fixture, split_deadline)?;
+    let before_split = peer.snapshot(split_deadline)?;
+    let terminal_context_id = before_split
+        .navigation
+        .standalone_terminal_context_id
+        .clone();
+    let context = before_split
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .ok_or("Panel move context missing")?;
+    let tab = context.tabs.first().ok_or("Panel move Tab missing")?;
+    let source_panel_id = match &tab.root {
+        PanelNode::Panel { panel_id, .. } => panel_id.clone(),
+        PanelNode::Split { .. } => return Err("fresh native move Tab was already split".into()),
+    };
+    let tab_id = tab.tab_id.clone();
+    let (split_revision, new_panel_id) = match peer.prepare(
+        WorkbenchAction::PanelSplit {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: source_panel_id.clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("Split peer")?,
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
+        },
+        split_deadline,
+    )? {
+        WorkbenchCommandOutcome::PanelSplitCreated {
+            revision,
+            new_panel_id,
+            ..
+        } => (revision, new_panel_id),
+        outcome => return Err(format!("native PanelSplit did not start: {outcome:?}").into()),
+    };
+
+    // Rendezvous on the committed split before relocating its left leaf.
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Workbench navigator",
+            &format!("Tabs refreshed · revision {}", split_revision.value()),
+        ],
+        &[],
+        &[],
+        &mut [],
+    );
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Panel · Terminal 1 · 1",
+            "Panel · Terminal 2 · Split peer",
+            "Tab 1 · Ready · controlling",
+        ],
+        &["Workbench navigator"],
+        &[],
+        &mut [],
+    );
+
+    let move_deadline = Instant::now() + CLOSE_TIMEOUT;
+    let moved_revision = match peer.prepare(
+        WorkbenchAction::PanelMove {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: source_panel_id.clone(),
+            target_panel_id: new_panel_id.clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+        },
+        move_deadline,
+    )? {
+        WorkbenchCommandOutcome::PanelMoved {
+            revision,
+            terminal_context_id: moved_context,
+            tab_id: moved_tab,
+            panel_id: moved_panel,
+            target_panel_id: moved_target,
+        } => {
+            assert_eq!(moved_context, terminal_context_id);
+            assert_eq!(moved_tab, tab_id);
+            assert_eq!(moved_panel, source_panel_id);
+            assert_eq!(moved_target, new_panel_id);
+            revision
+        }
+        outcome => return Err(format!("native PanelMove did not commit: {outcome:?}").into()),
+    };
+
+    // The peer observes Split(new, source): leaves swapped order under a fresh Split, each leaf
+    // keeps its Panel identity and terminal binding.
+    let moved = peer.snapshot(move_deadline)?;
+    assert_eq!(moved.revision, moved_revision);
+    let moved_tab = moved
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .and_then(|candidate| candidate.tabs.first())
+        .ok_or("Panel move Tab missing after commit")?;
+    let PanelNode::Split { children, .. } = &moved_tab.root else {
+        return Err("PanelMove did not retain a split root".into());
+    };
+    let [first, second] = children.as_ref();
+    let PanelNode::Panel {
+        panel_id: first_id, ..
+    } = &first.node
+    else {
+        return Err("first leaf must stay a Panel".into());
+    };
+    let PanelNode::Panel {
+        panel_id: second_id,
+        ..
+    } = &second.node
+    else {
+        return Err("second leaf must stay a Panel".into());
+    };
+    assert_eq!(first_id, &new_panel_id);
+    assert_eq!(second_id, &source_panel_id);
+
+    // A pure relocation never starts or ends a terminal: the source shell stays alive.
+    let mut descriptor = [PollFd::new(source_shell.as_fd(), PollFlags::POLLIN)];
+    poll(&mut descriptor, PollTimeout::ZERO)?;
+    assert!(
+        !descriptor[0]
+            .revents()
+            .is_some_and(|flags| flags.contains(PollFlags::POLLIN)),
+        "source shell exited during PanelMove"
+    );
+
+    // The attached Client refreshes on the published move: the leaves swap positions while each
+    // keeps its own label, and the Client's leaf keeps its shell binding — focus input still
+    // reaches the original source shell even though the leaf changed position.
+    let checkpoint = client.checkpoint();
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Panel · Terminal 1 · Split peer",
+            "Panel · Terminal 2 · 1",
+            "Tab 1 · Ready · controlling",
+        ],
+        &["Terminal disconnected"],
+        &[],
+        &mut [],
+    );
+    client.send(shell_identity_command(&fixture, "source", "native-move-after", false).as_bytes());
+    assert_eq!(
+        wait_file(
+            &fixture.base.join("native-move-after"),
+            &mut [&mut client],
+            Instant::now() + OBSERVATION_TIMEOUT,
+        ),
+        source_identity,
+        "moved Panel must keep its original shell",
+    );
+
+    client.close_before(Instant::now() + EXIT_TIMEOUT);
+    Ok(())
+}
+
+#[test]
 fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();

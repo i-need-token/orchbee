@@ -848,7 +848,11 @@ exactly one server-created leaf by wrapping one retained leaf in one new split; 
 panel, binding, tree edge, slot and split remains exact, and replacement or reshaping is divergence.
 It may likewise remove exactly one leaf of a retained Tab: the candidate keeps every surviving
 panel, binding and presentation exact, and the removed leaf's parent split must be replaced by the
-sibling subtree with its own slot and split identities intact. Any other tree reshaping, survivor
+sibling subtree with its own slot and split identities intact. It may also relocate exactly one
+retained leaf beside another retained leaf: the candidate keeps the complete Panel set exact, adds
+exactly one fresh split carrying two fresh slot identities and two leaf children, and after removing
+the moved leaf from the baseline and the fresh graft from the candidate the reduced trees must be
+structurally identical. Any other tree reshaping, survivor
 mutation or multi-leaf loss is divergence. At most 256 Tabs need only exact scans, no stored map.
 
 `CreatedTabExpectation` is projection-owned and carries only the six canonical facts needed for
@@ -891,7 +895,8 @@ leaf alone owns the attached viewer and terminal frame.
 In a connected Native Session, `Ctrl+B h`, `j`, `k`, and `l` are Client-local focus actions. When a
 direction has a neighboring leaf, the Client allocates a fresh attachment generation for the same
 Tab, selects that leaf's exact binding and retained provenance, and runs the existing Switch cleanup
-and Attach lifecycle. It never writes a Workbench revision and never submits `panel.split`. A single
+and Attach lifecycle. It never writes a Workbench revision and never submits `panel.split`,
+`panel.close`, or `panel.move`. A single
 Panel or an edge with no neighbor is a local no-op. The renderer divides the canonical tree, marks
 the selected leaf, and draws the current live frame only there; inactive leaves retain their labels,
 identity, and geometry but show no second live frame until focused. Simultaneous multi-viewer

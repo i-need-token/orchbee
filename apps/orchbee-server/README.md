@@ -51,6 +51,10 @@ eight live Client connections, idle control-slot release and same-connection reu
 unrelated shell survives. The [Close contract](docs/terminal-tab-close.md) owns the bounds and
 separately evidenced native TUI integration and remaining production recovery and release obligations.
 
+`panel.move` is the lifecycle-free tree operation: it relocates one leaf beside another leaf in the
+same Tab, collapsing the source parent Split and committing one fresh Split with two fresh Slots in
+a single revision while the moved leaf keeps its Panel, Presentation and terminal binding exact.
+
 Invalid, oversized, semantically inconsistent, or wrong-kind inputs fail through the protocol
 boundary. Requests are bounded to 16 KiB before decoding; the snapshot bound remains 1 MiB.
 OBWP owns the request/result envelope. The application library remains unpublished and is consumed
@@ -632,7 +636,8 @@ The carrier owns I/O, exact echo validation and generation retirement, not OBCS 
 Deterministic cores import no transport, clock or process adapter. Terminal service operations take
 registry then Site locks, or registry then controller-map locks for grants. Workbench access takes
 only the Site gate after external OBWP policy checking for reads and pure navigation. The opaque
-`WorkbenchReadOrNavigationRequest` excludes `tab.create`, `tab.move`, `tab.close` and
+`WorkbenchReadOrNavigationRequest` excludes `tab.create`, `tab.move`, `tab.close`,
+`panel.split`, `panel.close`, `panel.move` and
 `workspace.primary-directory.accept`, which need their explicit Site composition paths.
 Move requires the navigation grant and only the Site gate; `tab.create` additionally requires
 the terminal-create grant and uses the composed path above. Binding viewer selection holds registry

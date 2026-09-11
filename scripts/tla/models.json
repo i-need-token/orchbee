@@ -4287,6 +4287,40 @@
 			]
 		},
 		{
+			"id": "workbench-panel-move",
+			"owner": "orchbee-server",
+			"workspace": "apps/orchbee-server",
+			"module": "apps/orchbee-server/formal/tla/WorkbenchPanelMove.tla",
+			"config": "apps/orchbee-server/formal/tla/WorkbenchPanelMove.cfg",
+			"claims": [
+				"apps/orchbee-server/docs/workbench-authority.md"
+			],
+			"triggers": [
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_move.rs",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_move/**",
+				"apps/orchbee-server/src/workbench_authority/terminal_membership.rs",
+				"apps/orchbee-server/src/site_coordinator.rs",
+				"apps/orchbee-server/docs/workbench-authority.md",
+				"apps/orchbee-server/docs/workbench-authority.zh-CN.md"
+			],
+			"timeoutMilliseconds": 180000,
+			"workers": 1,
+			"requiredCoverage": [
+				"NewMove",
+				"Replay",
+				"ObserveAbove",
+				"ObserveBelow",
+				"ObserveLeft",
+				"ObserveRight",
+				"ObserveNoop",
+				"ObserveStale",
+				"ObserveMissing",
+				"ObserveNestedMove",
+				"ObserveFlatSwap",
+				"ObserveReplay"
+			]
+		},
+		{
 			"id": "workbench-panel-split",
 			"owner": "orchbee-server",
 			"workspace": "apps/orchbee-server",

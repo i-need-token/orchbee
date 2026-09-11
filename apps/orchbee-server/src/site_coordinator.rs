@@ -126,6 +126,34 @@ impl SiteCoordinator {
         })
     }
 
+    pub(crate) fn execute_terminal_panel_move(
+        &mut self,
+        command: orchbee_workbench_protocol::WorkbenchCommand,
+    ) -> Option<orchbee_workbench_protocol::WorkbenchCommandResult> {
+        use orchbee_server::{WorkbenchPanelMoveBegin, WorkbenchPanelMovePreparation};
+        let Self {
+            terminals,
+            workbench,
+            standalone,
+        } = self;
+        let workbench = workbench.as_mut()?;
+        let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone());
+        let admission = match workbench.begin_terminal_panel_move(Some(&grant), command) {
+            WorkbenchPanelMoveBegin::Ready(result) => return Some(result),
+            WorkbenchPanelMoveBegin::Admitted(admission) => admission,
+        };
+        if admission
+            .standalone_membership()
+            .is_some_and(|membership| !composition_matches(membership, standalone, terminals))
+        {
+            return Some(admission.retire_composition_failure());
+        }
+        Some(match admission.finish() {
+            WorkbenchPanelMovePreparation::Ready(result) => result,
+            WorkbenchPanelMovePreparation::Prepared(prepared) => prepared.commit(),
+        })
+    }
+
     pub(crate) fn complete(
         &mut self,
         pending: Box<PendingOperation>,

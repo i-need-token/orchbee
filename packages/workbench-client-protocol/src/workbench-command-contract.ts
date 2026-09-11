@@ -154,6 +154,16 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 			panelId: WorkbenchPanelIdSchema,
 		})
 		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel.move'),
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			targetPanelId: WorkbenchPanelIdSchema,
+			direction: WorkbenchPanelSplitDirectionSchema,
+		})
+		.readonly(),
 ]);
 
 const correlation = {
@@ -345,6 +355,16 @@ export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
 			tabId: WorkbenchTabIdSchema,
 			panelId: WorkbenchPanelIdSchema,
 			acceptedRevision: WorkbenchRevisionSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('panel-moved'),
+			revision: WorkbenchRevisionSchema,
+			terminalContextId: WorkbenchTerminalContextIdSchema,
+			tabId: WorkbenchTabIdSchema,
+			panelId: WorkbenchPanelIdSchema,
+			targetPanelId: WorkbenchPanelIdSchema,
 		})
 		.readonly(),
 	z

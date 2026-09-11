@@ -86,10 +86,10 @@ Rust/TypeScript oracle；原始 duplicate-key case 另行验证 Rust wire parser
 
 `workbench.command` 携带 protocolVersion、requestId、siteId、expectedRevision 及一项 action：
 project.create、project.rename、workspace.create、workspace.rename、
-workspace.primary-directory.accept、tab.rename、tab.create、panel.split、tab.move、tab.close
-或 panel.close。Label 在既有上限内保留包括
+workspace.primary-directory.accept、tab.rename、tab.create、panel.split、tab.move、tab.close、
+panel.close 或 panel.move。Label 在既有上限内保留包括
 空白在内的确切文本。新产品身份归 Server 所有。`workbench.command.result` 关联 project-created、
-workspace-created、workspace-primary-directory-accepted、renamed、unchanged、tab-create-pending、tab-created、panel-split-pending、panel-split-created、tab-moved、tab-close-accepted、panel-close-accepted、rejected、denied 或 unavailable outcome。Revision 与新身份
+workspace-created、workspace-primary-directory-accepted、renamed、unchanged、tab-create-pending、tab-created、panel-split-pending、panel-split-created、tab-moved、tab-close-accepted、panel-close-accepted、panel-moved、rejected、denied 或 unavailable outcome。Revision 与新身份
 仅出现于声明它们的变体；denied 不泄露两者。`workbench.snapshot.result` 包含携带完整嵌套
 `workbench.snapshot` 的 available，或 denied、unavailable。Schema 拥有封闭 reason；
 [Server 权威](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md) 拥有决策顺序、原子提交、
@@ -241,6 +241,20 @@ schema 有效但原生不支持的布局属于内部权威分歧，不是产品�
 拥有授权、退役、容量和发布。严格语料在两个语言 binding 中覆盖每个方向及错误/额外字段。
 消费 adapter 单独校验请求/结果关联及 action 兼容性。OBCS Open 不变。此扩展和两种二进制及两个 binding 作为一个未发布批次激活
 及回退，不提供旧 action 别名或混合版本兼容性。
+
+## 已接受的 Panel Move 线协议契约
+
+`panel.move { terminalContextId, tabId, panelId, targetPanelId, direction }` 在 Tab 内重定位一个叶子
+Panel，direction 严格为 `above | below | left | right` —— 即 `panel.split` 使用的同一
+`WorkbenchPanelSplitDirection` 文法。above/left 在目标叶子之前插入源叶子，below/right 在其后插入，
+两者都建立一个新的垂直/水平 Split。源叶子与目标同名，或这对叶子已是匹配方向 Split 按隐含次序排列的
+直接孩子（即布局已满足）时，产生现有 `Unchanged { revision }`。实际重定位产生
+`PanelMoved { revision, terminalContextId, tabId, panelId, targetPanelId }`（线上 outcome 为
+`panel-moved`），恰好推进一个修订。源叶子保留其完整 Panel 节点——身份、Presentation 与绑定——新
+Split 是唯一新增结构：一个 fresh Split 身份加两个 fresh Slot 身份，同时源叶子空出的父 Split 折叠为
+兄弟子树。不允许任何终端或查看器效果。指定 Tab 中不存在的源/目标叶子为 `PanelUnavailable`；缺失
+Tab 为 `TabUnavailable`；未知上下文为 `TerminalContextUnavailable`。Server 优先级、重放保留、身份
+分配与发布遵循共享命令规则；严格语料在两个语言 binding 中覆盖每个方向、no-op 及错误/额外字段。
 
 ## 已接受的 Tab Close 线协议契约
 

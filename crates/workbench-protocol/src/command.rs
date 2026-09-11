@@ -291,6 +291,14 @@ pub enum WorkbenchAction {
         tab_id: WorkbenchTabId,
         panel_id: WorkbenchPanelId,
     },
+    #[serde(rename = "panel.move")]
+    PanelMove {
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        target_panel_id: WorkbenchPanelId,
+        direction: WorkbenchPanelSplitDirection,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -483,6 +491,13 @@ pub enum WorkbenchCommandOutcome {
         tab_id: WorkbenchTabId,
         panel_id: WorkbenchPanelId,
         accepted_revision: WorkbenchRevision,
+    },
+    PanelMoved {
+        revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        target_panel_id: WorkbenchPanelId,
     },
     Rejected {
         revision: WorkbenchRevision,

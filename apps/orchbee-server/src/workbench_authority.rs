@@ -44,6 +44,11 @@ pub use terminal_tab_move::{
     PreparedWorkbenchTabMove, WorkbenchTabMoveAdmission, WorkbenchTabMoveBegin,
     WorkbenchTabMovePreparation,
 };
+mod terminal_panel_move;
+pub use terminal_panel_move::{
+    PreparedWorkbenchPanelMove, WorkbenchPanelMoveAdmission, WorkbenchPanelMoveBegin,
+    WorkbenchPanelMovePreparation,
+};
 mod terminal_tab_close;
 pub use terminal_tab_close::{
     CloseContinuationNext, CloseStepObservation, CloseStepPrequeueFailure, CloseStepToken,
@@ -725,7 +730,8 @@ impl PureWorkbenchAction {
             | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
             | WorkbenchAction::TabMove { .. }
             | WorkbenchAction::TabClose { .. }
-            | WorkbenchAction::PanelClose { .. } => return None,
+            | WorkbenchAction::PanelClose { .. }
+            | WorkbenchAction::PanelMove { .. } => return None,
         })
     }
 }

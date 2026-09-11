@@ -73,6 +73,20 @@ identity 和 presentation identity。Server 与 Site 将所有 leaf binding 作�
 替换收缩，仅当自身已挂接 leaf 被移除时才退役。TUI 仍不会从快捷键提交 `panel.split`
 或 `panel.close`。
 
+`panel.move` 是纯 projection 对应操作：它在 Tab 内重定位一个 leaf Panel，不涉及任何生命周期。
+准入复用 navigation 变更授权、确切上下文/Tab 校验，以及树成员关系——Split 树所需的 leaf 级成员
+关系——随后校验两个 leaf 都是指定 Tab 的直接成员。源 leaf 与目标同名，或这对叶子已是匹配方向
+Split 按隐含次序排列的直接孩子（布局已满足）时，提交 `Unchanged`，不消耗任何身份。实际移动的
+提交会摘除源 leaf——其父 Split 折叠为兄弟子树——并将其移植到目标 leaf 旁的一个 fresh Split 下，
+消耗一个 fresh Split 身份和两个 fresh Slot 身份；源 leaf 保留完整 Panel 节点、Presentation 与绑定，
+所有未触及子树保留全部身份。该操作分配三个结构身份和一个修订，随后与其他已提交 projection 一样
+经基线/发表路径发布 `panel-moved`。重放、陈旧修订与请求身份规则遵循共享命令规则。Client
+projection 只把已提交的移动接受为这一确切重构——Panel 集合不变、恰有一个 fresh graft、化简后两树
+相等——其他任何重整形都触发退役。有界 `WorkbenchPanelMove` TLA+ 模型在三 leaf 树域上覆盖 leaf
+摘除、父级折叠、fresh graft 身份、方向次序/朝向及重放；Linux cohort witness
+`native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell` 建立共享修订、leaf
+次序交换、shell 存活及已挂接 Client 刷新。
+
 ## 已接受的规范 Tab 移动模型
 
 ### Workspace 上下文扩展

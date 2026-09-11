@@ -93,13 +93,13 @@ parser. TypeScript validates decoded values; its transport must reject duplicate
 
 `workbench.command` carries protocolVersion, requestId, siteId, expectedRevision and one action:
 project.create, project.rename, workspace.create, workspace.rename,
-workspace.primary-directory.accept, tab.rename, tab.create, panel.split, tab.move, tab.close or
-panel.close. Labels retain exact text,
+workspace.primary-directory.accept, tab.rename, tab.create, panel.split, tab.move, tab.close,
+panel.close or panel.move. Labels retain exact text,
 including whitespace, within the existing label bound. New product identities are Server-owned.
 `workbench.command.result` correlates project-created, workspace-created,
 workspace-primary-directory-accepted, renamed, unchanged,
 tab-create-pending, tab-created, panel-split-pending, panel-split-created, tab-moved,
-tab-close-accepted, panel-close-accepted, rejected, denied or unavailable outcomes. Revision and created identities occur only in the variants
+tab-close-accepted, panel-close-accepted, panel-moved, rejected, denied or unavailable outcomes. Revision and created identities occur only in the variants
 that declare them. Denied results disclose neither. `workbench.snapshot.result` contains available
 with a complete nested `workbench.snapshot`, denied, or unavailable. The schema owns closed reasons;
 the [Server authority](../../apps/orchbee-server/docs/workbench-authority.md) owns decision precedence,
@@ -268,6 +268,25 @@ and malformed/extra fields in both language bindings. Consuming adapters separat
 request/result correlation and action compatibility.
 OBCS Open is unchanged. This extension activates and rolls back with both binaries and both
 bindings in one unpublished cohort, with no old-action alias or mixed-version compatibility.
+
+## Accepted Panel Move wire contract
+
+`panel.move { terminalContextId, tabId, panelId, targetPanelId, direction }` relocates one leaf
+Panel inside its Tab, where direction is exactly `above | below | left | right` — the same
+`WorkbenchPanelSplitDirection` grammar `panel.split` uses. Above/left insert the source leaf before
+the target leaf under a fresh vertical/horizontal Split; below/right insert it after. A move that
+names the same leaf twice, or whose placement is already satisfied because the pair are the direct
+children of a matching-orientation Split in the implied order, yields existing
+`Unchanged { revision }`. A committed relocation yields
+`PanelMoved { revision, terminalContextId, tabId, panelId, targetPanelId }` (wire outcome
+`panel-moved`) with exactly one revision advance. The source leaf keeps its complete Panel node —
+identity, Presentations and binding — and the fresh Split is the only new structure: one fresh
+Split identity plus two fresh Slot identities, while the source's vacated parent Split collapses
+into the sibling subtree. No terminal or viewer effect is permitted. A source or target leaf
+absent from the named Tab is `PanelUnavailable`; a missing Tab is `TabUnavailable`; an unknown
+context is `TerminalContextUnavailable`. Server precedence, replay retention, identity allocation
+and publication follow the shared command rules; the strict corpus covers each direction, the
+no-op and malformed/extra fields in both language bindings.
 
 ## Accepted Tab Close wire contract
 

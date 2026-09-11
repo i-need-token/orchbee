@@ -148,6 +148,16 @@ impl WorkbenchService {
                 )
             }
             Err(WorkbenchRequest::Command(command))
+                if matches!(&command.action, WorkbenchAction::PanelMove { .. }) =>
+            {
+                WorkbenchExecution::Response(
+                    self.terminals
+                        .execute_terminal_panel_move(command)
+                        .map(WorkbenchResponse::Command)
+                        .unwrap_or_else(|| unavailable_or_denied(fallback, false)),
+                )
+            }
+            Err(WorkbenchRequest::Command(command))
                 if matches!(&command.action, WorkbenchAction::TabCreate { .. }) =>
             {
                 match self.terminals.execute_terminal_tab_create(command) {

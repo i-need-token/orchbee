@@ -701,7 +701,9 @@ fn validate_created_tab(
 split 包裹一个保留叶子来加入一个由 Server 创建的新叶子；所有保留的 Panel、binding、树边、slot
 和 split 都必须精确不变，替换或重塑树形仍属于分歧。对端刷新同样可以恰好移除保留 Tab 的一个
 叶子：候选保持每个存活 Panel、binding 和 presentation 精确不变，且被移除叶子的父 split 必须由
-保留自身 slot 和 split 身份的兄弟子树替换。任何其他树形重塑、存活成员变更或多叶丢失均属分歧。
+保留自身 slot 和 split 身份的兄弟子树替换。它还可以恰好把一个保留叶子重定位到另一个保留叶子旁：
+候选保持完整 Panel 集合精确不变，恰好新增一个携带两个 fresh slot 身份与两个叶子孩子的 fresh
+split，且从基线中摘除被移动叶子、从候选中剪除该 fresh graft 后，两棵化简树必须结构相等。任何其他树形重塑、存活成员变更或多叶丢失均属分歧。
 最多 256 个 Tab 只需精确扫描，不需存储映射。
 
 `CreatedTabExpectation` 归投影层所有，只携带纯验证所需的六项规范事实。会话状态会嵌入或构造
@@ -734,7 +736,8 @@ split 包裹一个保留叶子来加入一个由 Server 创建的新叶子；所
 
 在已连接 Native Session 中，`Ctrl+B h`、`j`、`k` 和 `l` 是 Client 本地焦点操作。当方向上存在
 相邻叶子时，Client 为同一个 Tab 分配新的挂接代次，选择该叶子的精确 binding 与保留的来源状态，
-并运行既有的 Switch 清理和 Attach 生命周期。它绝不写入 Workbench 修订，也绝不提交 `panel.split`。
+并运行既有的 Switch 清理和 Attach 生命周期。它绝不写入 Workbench 修订，也绝不提交 `panel.split`、
+`panel.close` 或 `panel.move`。
 单个 Panel 或边界处没有相邻叶子时，本地空操作。渲染器按规范树划分区域、标记所选叶子，并只在
 该处绘制当前实时帧；非活动叶子保留标签、身份和几何，但在获得焦点前不显示第二个实时帧。
 一个 Client 内的同时多 viewer 组合仍不在本切片范围内。对端创建的单叶子 split 会被普通刷新路径
