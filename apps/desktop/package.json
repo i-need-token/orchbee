@@ -9,7 +9,7 @@
 		"benchmark": "node scripts/benchmark-throughput.mjs",
 		"build:package-inputs": "pnpm --filter @orchbee/terminal-host build && pnpm --filter @orchbee/server... build && pnpm --filter @orchbee/gateway... build && pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/cli... build && pnpm --filter @orchbee/desktop... build",
 		"build:native": "node scripts/build-posix-host-endpoint.mjs && node scripts/build-semantic-command-endpoint.mjs",
-		"dev": "pnpm --filter @orchbee/ssh-environment-protocol build && rsbuild dev",
+		"dev": "pnpm --filter @orchbee/ssh-environment-protocol build && rsbuild dev --config-loader jiti",
 		"build": "rsbuild build --log-level error && pnpm build:native",
 		"package:dev": "pnpm build:package-inputs && node scripts/package.mjs --profile dev",
 		"package:local": "pnpm build:package-inputs && node scripts/package.mjs --profile local",
