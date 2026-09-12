@@ -475,6 +475,8 @@ test('Workbench tab-close owners select the panel split model', () => {
 		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/admission.rs',
 		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/publication.rs',
 		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/tests.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_panel_move.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_panel_move/tests.rs',
 	]) {
 		assert.equal(
 			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
@@ -486,7 +488,7 @@ test('Workbench tab-close owners select the panel split model', () => {
 	}
 	for (const changedPath of [
 		'apps/orchbee-server/src/workbench_authority/terminal_tab_create.rs',
-		'apps/orchbee-server/src/workbench_authority/terminal_panel_move.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_tab_move.rs',
 	]) {
 		assert.equal(
 			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
