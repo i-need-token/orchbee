@@ -55,12 +55,14 @@ fn real_tui_renders_shell_resizes_and_restores_modes_while_terminal_is_retained(
         }
     ));
     drop(client);
+    // The PTY must declare valid cell-pixel geometry: the TUI derives cell width/height from
+    // ws_xpixel/ws_col and ws_ypixel/ws_row, and a zero-pixel PTY is rejected by Geometry::new.
     let pty = openpty(
         Some(&Winsize {
             ws_col: 120,
             ws_row: 32,
-            ws_xpixel: 0,
-            ws_ypixel: 0,
+            ws_xpixel: 120 * 8,
+            ws_ypixel: 32 * 16,
         }),
         None,
     )?;
