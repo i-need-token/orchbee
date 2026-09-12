@@ -149,7 +149,7 @@ function checkTestFile(context, node, relativePath, fileName) {
 		report(
 			context,
 			node,
-			`Rename unit test "${fileName}" to "<source-name>${expectedSuffix}". See docs/TESTING.md#source-and-test-paths.`,
+			`Rename unit test "${fileName}" to "<source-or-behavior-name>${expectedSuffix}". See docs/TESTING.md#source-and-test-paths.`,
 		);
 		return true;
 	}
@@ -158,7 +158,7 @@ function checkTestFile(context, node, relativePath, fileName) {
 		report(
 			context,
 			node,
-			`Move unit test "${fileName}" into the source file's sibling "__tests__" directory. See docs/TESTING.md#source-and-test-paths.`,
+			`Move unit test "${fileName}" into the owning module's "__tests__" directory. See docs/TESTING.md#source-and-test-paths.`,
 		);
 	}
 
@@ -169,7 +169,7 @@ function checkTestFile(context, node, relativePath, fileName) {
 		report(
 			context,
 			node,
-			`Rename unit test "${fileName}" to preserve its source file's kebab-case module, camelCase function, or PascalCase component or class name. See docs/TESTING.md#source-and-test-paths.`,
+			`Rename unit test "${fileName}" using a kebab-case behavior name or its source's kebab-case, camelCase, or PascalCase name. See docs/TESTING.md#source-and-test-paths.`,
 		);
 	}
 	return true;

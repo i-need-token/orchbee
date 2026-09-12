@@ -2,28 +2,29 @@
 
 ## 命令
 
-| 命令                                           | 职责                                                                |
-| ---------------------------------------------- | ------------------------------------------------------------------- |
-| `pnpm verify`                                  | 运行 `docs/VERIFICATION.md` 定义的完整合并门禁                      |
-| `pnpm lint`                                    | 运行完整的必需仓库 lint 流程                                        |
-| `pnpm lint:code`                               | 以面向 Agent 的输出运行会阻塞的 oxlint 诊断                         |
-| `pnpm lint:code:warnings`                      | 审计会阻塞的诊断和不阻塞的 oxlint warning                           |
-| `pnpm lint:rust`                               | 验证固定 Cargo workspace，并在 member 存在时运行 locked Clippy 工作 |
-| `pnpm lint:documentation`                      | 验证每个仓库 Markdown 文档对的路径、凭据和结构                      |
-| `pnpm lint:styles`                             | 验证 Token 注册表和自有前端样式契约                                 |
-| `pnpm lint:storage`                            | 验证浏览器存储访问、所有权、key 形态和版本                          |
-| `pnpm lint:dependencies`                       | 运行 Knip 严格依赖、文件、导出、catalog 和清单分析                  |
-| `pnpm lint:projects`                           | 验证每个基于 Schema 的工作区项目契约                                |
-| `pnpm lint:experience`                         | 验证体验组件 Schema、所有权、路径和关系                             |
-| `pnpm lint:fix`                                | 应用安全的 oxlint 修复；剩余诊断需要修改代码                        |
-| `pnpm typecheck`                               | 运行语法感知 lint 无法替代的 TypeScript 诊断                        |
-| `pnpm test:lint-rules`                         | 测试 `orchbee/*` 规则和中英文规范契约                               |
-| `pnpm test:documentation-pairing`              | 运行文档配对检查与确认流程的负向测试                                |
-| `pnpm test:ghostty-source`                     | 测试 Ghostty 来源工具的精确 pin 与干净工作树准入                    |
-| `pnpm test:style-contract`                     | 运行前端样式契约检查器的回归测试                                    |
-| `pnpm test:storage-contract`                   | 运行浏览器存储契约检查器的回归测试                                  |
-| `pnpm test:experience-contract`                | 运行体验目录与查找契约的回归测试                                    |
-| `pnpm docs:confirm-pairing -- <markdown-path>` | 完成语义审查后仅更新显式指定的凭据                                  |
+| 命令                                           | 职责                                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `pnpm verify`                                  | 运行 `docs/VERIFICATION.md` 定义的完整合并门禁                            |
+| `pnpm lint`                                    | 运行完整的必需仓库 lint 流程                                              |
+| `pnpm lint:code`                               | 以面向 Agent 的输出运行会阻塞的 oxlint 诊断                               |
+| `pnpm lint:code:warnings`                      | 审计会阻塞的诊断和不阻塞的 oxlint warning                                 |
+| `pnpm lint:rust`                               | 验证固定 Cargo workspace，并在 member 存在时运行 locked Clippy 工作       |
+| `pnpm lint:documentation`                      | 验证每个仓库 Markdown 文档对的路径、凭据和结构                            |
+| `pnpm lint:styles`                             | 验证 Token 注册表和自有前端样式契约                                       |
+| `pnpm lint:storage`                            | 验证浏览器存储访问、所有权、key 形态和版本                                |
+| `pnpm lint:dependencies`                       | 运行 Knip 严格依赖、文件、导出、catalog 和清单分析                        |
+| `pnpm lint:projects`                           | 验证每个基于 Schema 的工作区项目契约                                      |
+| `pnpm lint:experience`                         | 验证体验组件 Schema、所有权、路径和关系                                   |
+| `pnpm lint:fix`                                | 应用安全的 oxlint 修复；剩余诊断需要修改代码                              |
+| `pnpm typecheck`                               | 运行语法感知 lint 无法替代的 TypeScript 诊断                              |
+| `pnpm test:lint-rules`                         | 测试 `orchbee/*` 规则和中英文规范契约                                     |
+| `pnpm test:rust-runner`                        | 使用隔离 Cargo fixture 验证 Rust 测试范围、失败传播和自有 unsafe 代码策略 |
+| `pnpm test:documentation-pairing`              | 运行文档配对检查与确认流程的负向测试                                      |
+| `pnpm test:ghostty-source`                     | 测试 Ghostty 来源工具的精确 pin 与干净工作树准入                          |
+| `pnpm test:style-contract`                     | 运行前端样式契约检查器的回归测试                                          |
+| `pnpm test:storage-contract`                   | 运行浏览器存储契约检查器的回归测试                                        |
+| `pnpm test:experience-contract`                | 运行体验目录与查找契约的回归测试                                          |
+| `pnpm docs:confirm-pairing -- <markdown-path>` | 完成语义审查后仅更新显式指定的凭据                                        |
 
 ## 强制执行边界
 
@@ -37,7 +38,7 @@
 | 依赖          | `pnpm lint:dependencies` 运行 Knip `--strict`；直接导入未声明依赖、未使用的文件、依赖、导出或类型、无法解析的导入、重复导出、循环依赖和过期 catalog 条目都会失败。                                                                                                                                                                                      |
 | Knip 范围     | 在 `knip.json#workspaces` 中列出所有可运行脚本、构建配置、测试套件和公共包入口；绝不能忽略由入口遗漏导致的发现。                                                                                                                                                                                                                                        |
 | 类型感知      | 包审查加入 `oxlint-tsgolint` 前，类型感知 oxlint 规则保持未启用；lint 不会检测悬空 Promise 或来自第三方的不安全 `any` 传播。                                                                                                                                                                                                                            |
-| Rust          | `pnpm lint:rust` 验证精确工具链与 Cargo metadata；member 存在后，使用已提交 lockfile 对每个 target 和 feature 运行 workspace Clippy，并拒绝 warning。[`docs/RUST.md`](RUST.md) 拥有源码策略。                                                                                                                                                           |
+| Rust          | `pnpm lint:rust` 验证精确工具链与 Cargo metadata；member 存在后，使用已提交 lockfile 对每个 target 和 feature 运行 workspace Clippy，并拒绝已启用的 warning。源码策略和 Cargo 清单审查并非全部由此自动执行；其边界见 [`docs/RUST.md`](RUST.md#lint-策略与执行边界)。                                                                                    |
 | 样式          | `pnpm lint:styles` 强制执行 [`docs/frontend/design-tokens.md`](frontend/design-tokens.md)：注册表、生成的 TypeScript 清单、CSS Module、Tailwind 边界、原始值、响应式阈值、JSX class 和内联样式。生成的公共 Token 名称必须等于 CSS 注册表；完整 Tailwind 映射必须精确覆盖已安装的公共主题、指向已注册的 Orchbee Token，并保留编译时字面量断点和容器值。  |
 | 样式例外      | `pnpm lint:styles` 的 shadcn 编写例外按路径限制在检入的生成源码和支持文件中。                                                                                                                                                                                                                                                                           |
 | 浏览器存储    | `pnpm lint:storage` 强制执行 [`docs/frontend/browser-storage.md`](frontend/browser-storage.md)：只有应用组合入口可以访问 `localStorage` 或 `sessionStorage`；`orchbee:` key 字面量保留在所属的 `*-storage.ts` 模块中，并使用带版本的语法。                                                                                                              |
@@ -46,14 +47,14 @@
 
 ## 生成的源码
 
-| 范围               | 契约                                                                                                                                                                                                                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 快照               | 让 `packages/ui/src/components/ui/*.tsx` 和生成的 `use-mobile.ts` 与上游 shadcn 注册表保持接近，使 CLI 刷新易于审查。                                                                                                                                                          |
-| 编写例外           | 按路径限定的覆盖豁免显式模块边界返回类型、断言、遮蔽、相等性和嵌套三元表达式风格、组件分组、TSX 中直接调用 React Hook、TSX 额外运行时声明、TSX 单函数与 Hook 单文件边界、`use-mobile.ts` 的唯一符号文件名匹配及同级测试。自动 JSX 运行时使 `react/react-in-jsx-scope` 不适用。 |
-| 仍生效的正确性规则 | React Hooks、JSX key、模块边界、跨工作区导入、不安全 TypeScript 构造和内联抑制禁令仍然生效。                                                                                                                                                                                   |
-| `ChartStyle`       | 其上游控制的 style 元素是唯一额外例外；[`docs/frontend/react.md`](frontend/react.md#正确性与安全性) 负责该约束。                                                                                                                                                               |
-| Orchbee 自有模块   | 绝不能把生成源码覆盖扩展到这些模块。                                                                                                                                                                                                                                           |
-| 上游刷新           | 审查每次刷新，保留聚焦的兼容性调整，并测试 Orchbee 所拥有的行为和集成。                                                                                                                                                                                                        |
+| 范围               | 契约                                                                                                                                                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 快照               | 让 `packages/ui/src/components/ui/*.tsx` 和生成的 `use-mobile.ts` 与上游 shadcn 注册表保持接近，使 CLI 刷新易于审查。                                                                                                                                                |
+| 编写例外           | 按路径限定的覆盖豁免显式模块边界返回类型、断言、遮蔽、相等性和嵌套三元表达式风格、组件分组、TSX 中直接调用 React Hook、TSX 额外运行时声明、TSX 单函数与 Hook 单文件边界、`use-mobile.ts` 的唯一符号文件名匹配。自动 JSX 运行时使 `react/react-in-jsx-scope` 不适用。 |
+| 仍生效的正确性规则 | React Hooks、JSX key、模块边界、跨工作区导入、不安全 TypeScript 构造和内联抑制禁令仍然生效。                                                                                                                                                                         |
+| `ChartStyle`       | 其上游控制的 style 元素是唯一额外例外；[`docs/frontend/react.md`](frontend/react.md#正确性与安全性) 负责该约束。                                                                                                                                                     |
+| Orchbee 自有模块   | 绝不能把生成源码覆盖扩展到这些模块。                                                                                                                                                                                                                                 |
+| 上游刷新           | 审查每次刷新，保留聚焦的兼容性调整，并测试 Orchbee 所拥有的行为和集成。                                                                                                                                                                                              |
 
 ## 自定义规则归属
 
@@ -69,7 +70,6 @@
 | `orchbee/no-react-use-callback`                | `docs/frontend/react.md#callback-identity`            |
 | `orchbee/one-function-per-tsx`                 | `docs/frontend/react.md#tsx-file-boundary`            |
 | `orchbee/one-hook-per-file`                    | `docs/frontend/react.md#hook-file-boundary`           |
-| `orchbee/require-unit-test`                    | `docs/TESTING.md#required-unit-tests`                 |
 | `orchbee/zustand-scope`                        | `docs/frontend/react.md#zustand-and-context`          |
 
 每次自定义规则变更都要同时更新其实现、权威来源、诊断和回归测试。

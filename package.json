@@ -32,6 +32,7 @@
 		"build": "pnpm --filter \"./packages/*\" build && pnpm --filter \"./apps/*\" build && node scripts/run-rust-workspace.mjs build",
 		"test": "node scripts/run-checks.mjs test",
 		"test:check-output": "node scripts/run-checks.mjs test:check-output",
+		"test:rust-runner": "node --test scripts/run-rust-workspace.test.mjs",
 		"test:lint-rules": "vitest run --config scripts/oxlint-plugin-orchbee/vitest.config.ts",
 		"test:documentation-pairing": "node scripts/run-checks.mjs test:documentation-pairing",
 		"test:ghostty-source": "node scripts/run-checks.mjs test:ghostty-source",

@@ -12,7 +12,6 @@ import { noReactHooksInTsx } from '../no-react-hooks-in-tsx';
 import { noReactUseCallback } from '../no-react-use-callback';
 import { oneFunctionPerTsx } from '../one-function-per-tsx';
 import { oneHookPerFile } from '../one-hook-per-file';
-import { requireUnitTest } from '../require-unit-test';
 import { zustandScope } from '../zustand-scope';
 
 interface LintReport {
@@ -156,6 +155,18 @@ afterEach(() => {
 });
 
 describe('filename-naming-convention', () => {
+	it('accepts a behavior suite covering several files without a same-named source', () => {
+		const root = createFixture();
+		writeFixture(root, 'packages/example/src/index.ts');
+		writeFixture(root, 'packages/example/src/subscribe.ts');
+		writeFixture(root, 'packages/example/src/publish.ts');
+		const filename = writeFixture(
+			root,
+			'packages/example/src/__tests__/observer-lifecycle.unit.test.ts',
+		);
+		expect(lintFilename(filename)).toEqual([]);
+	});
+
 	it('accepts sibling TSX unit tests with kebab-case paths', () => {
 		const reports = lintFilename(
 			'/workspace/packages/ui/src/components/__tests__/agent-panel.unit.test.tsx',
@@ -272,7 +283,7 @@ describe('filename-naming-convention', () => {
 		const reports = lintFilename(
 			'/workspace/packages/ui/src/components/__tests__/agent-panel.test.tsx',
 		);
-		expect(reports[0]?.message).toContain('<source-name>.unit.test.tsx');
+		expect(reports[0]?.message).toContain('<source-or-behavior-name>.unit.test.tsx');
 	});
 });
 
@@ -1402,61 +1413,5 @@ describe('zustand-scope', () => {
 		});
 
 		expect(reports[0]?.message).toContain('shared across feature mounts');
-	});
-});
-
-describe('require-unit-test', () => {
-	it.each([
-		'FunctionDeclaration',
-		'ClassDeclaration',
-		'ArrowFunctionExpression',
-		'FunctionExpression',
-		'ClassExpression',
-	])('requires a sibling test for a top-level %s in a TS module', (type) => {
-		const { context, reports } = createContext('/workspace/packages/core/src/session-service.ts');
-		const program = { type: 'Program' };
-		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
-		const variableDeclaration = { type: 'VariableDeclaration', parent: exportDeclaration };
-		const visitors = requireUnitTest.create(context);
-		if (type === 'FunctionDeclaration') {
-			visitors.FunctionDeclaration({ type, parent: exportDeclaration, id: { loc: LOCATION } });
-		} else if (type === 'ClassDeclaration') {
-			visitors.ClassDeclaration({ type, parent: exportDeclaration, id: { loc: LOCATION } });
-		} else {
-			visitors.VariableDeclarator({
-				parent: variableDeclaration,
-				init: { type },
-				id: { loc: LOCATION },
-			});
-		}
-		expect(reports).toHaveLength(1);
-		expect(reports[0]?.message).toBe(
-			'Add "__tests__/session-service.unit.test.ts" next to this source file; functions and classes require a sibling unit test. See docs/TESTING.md#required-unit-tests.',
-		);
-	});
-
-	it('accepts a source file with its existing sibling unit test', () => {
-		const root = createFixture();
-		const filename = writeFixture(root, 'src/session-service.ts');
-		writeFixture(root, 'src/__tests__/session-service.unit.test.ts');
-		const { context, reports } = createContext(filename);
-		expect(requireUnitTest.create(context)).toEqual({});
-		expect(reports).toEqual([]);
-	});
-
-	it('does not require sibling tests for TSX components', () => {
-		const { context, reports } = createContext(
-			'/workspace/packages/ui/src/components/agent-panel.tsx',
-		);
-		const visitors = requireUnitTest.create(context);
-		expect(visitors).not.toHaveProperty('VariableDeclarator');
-		expect(reports).toEqual([]);
-	});
-
-	it('does not require tests for type-only source files', () => {
-		const { context, reports } = createContext('/workspace/packages/core/src/types.ts');
-		const visitors = requireUnitTest.create(context);
-		expect(visitors).not.toHaveProperty('Program');
-		expect(reports).toEqual([]);
 	});
 });

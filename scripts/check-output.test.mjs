@@ -272,6 +272,7 @@ test('the root gate preserves its ordered stages and every automatic test scope'
 		steps[0].concurrent.map((step) => step.name),
 		[
 			'test:check-output',
+			'test:rust-runner',
 			'test:lint-rules',
 			'test:documentation-pairing',
 			'test:ghostty-source',

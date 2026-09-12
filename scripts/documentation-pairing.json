@@ -214,8 +214,8 @@
 			"zhCnSha256": "88189bbbec708864d88b322ac2ba752438c5a4e48c8ecfc9471dba71aae16383"
 		},
 		"docs/CODESTYLE.md": {
-			"englishSha256": "3023b49ff411564bc845ef516164cecf1ce4ef17dbb8e8deb8a95271bca67588",
-			"zhCnSha256": "e635694fcaa1b721085c60c26c9656737ff5cffbdda072f383f0c29cceab95fc"
+			"englishSha256": "d265ed43a933930f35ce28bf4f0f5c437f196797ad3b4b6be736ad7cdb419bf5",
+			"zhCnSha256": "da03877385fe310f7d3450a713602c66813692c2da84047a38d2b4305aaf4a5e"
 		},
 		"docs/DEVELOPMENT.md": {
 			"englishSha256": "0163df4639d34a486fbda3e34dd79c91b42d8f705e56150f479c6906eccc7a39",
@@ -226,8 +226,8 @@
 			"zhCnSha256": "fc49880437f54464b9d45dd4cab5583e66082e406c1868ab87a6572019ef8fa0"
 		},
 		"docs/LINTING.md": {
-			"englishSha256": "129f432ffd29cce1524ef1c7740619aaa3b52b8bb16c241a4d19ec734a942b3f",
-			"zhCnSha256": "db9c8ac16d9b91cb637faaa202a6d1a48e0d5ed48bf6175ab7c9820b038882de"
+			"englishSha256": "7d7ce64e4de77716f4f9c90372fde749621f8f169a4053b1794e2868ec104636",
+			"zhCnSha256": "243c50660b391d8447267e5827da85928a2898e590f3c4a6ea9e4820b0b05baf"
 		},
 		"docs/MODELING-AND-CORRECTNESS.md": {
 			"englishSha256": "afc8aaf6a6efae9af99dd6e408c6fa2a8b07bd7c48cc0c8df196ff9cc7bae8c0",
@@ -250,12 +250,12 @@
 			"zhCnSha256": "fdc03e8b6406a04fef47fc8c217c5147b4dd1f3ab92dc5fd545a58800150a660"
 		},
 		"docs/RUST.md": {
-			"englishSha256": "e288c5ef27f47a48b1f17b9e71e19571015cde5afd8d9336764edc4e1d610671",
-			"zhCnSha256": "c3088d5a2b7f21dcf3989bf8cf1e10efce4a0207be9150a3f7ffbe91e47a2b6d"
+			"englishSha256": "c8b90ee9972da0a1527c73cd91ecc116adcb56d239bb97f813536584fd2d5478",
+			"zhCnSha256": "0fb3f7ea8c3b81d18daf1a4615470b7208a892a8832bb459fafa253b6a0f7ac9"
 		},
 		"docs/TESTING.md": {
-			"englishSha256": "bb3cd263d1e914d1b6d3c6d0253a8f6b34c1d40cb5eeff3ac5be439cc73e518f",
-			"zhCnSha256": "94c5a5c4cb7ee7c3090f5482cb3bc560c5d7f6a52f1b5c04c721bba929f8aea4"
+			"englishSha256": "ba6ca1764da301f06561eb0895eedd356dca6817d7ac0912848b201e17ebb7fd",
+			"zhCnSha256": "e7eadfda17bcc86deb68847970a27d9354b35148c89d77daa0d7be1ee9d6565e"
 		},
 		"docs/TYPESCRIPT.md": {
 			"englishSha256": "bdebd302896c153ca0360928e18fe03d88f2538c233a0f793df9b39dfa964ef9",

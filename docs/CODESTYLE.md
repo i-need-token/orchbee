@@ -2,9 +2,9 @@
 
 ## Formatting
 
-- `.oxfmtrc.json` is authoritative for Oxfmt-managed files; Zig source and build files use the exact workspace-pinned `zig fmt` implementation.
+- `.oxfmtrc.json` is authoritative for Oxfmt-managed files; Rust uses the root toolchain's `rustfmt`; Zig source and build files use the exact workspace-pinned `zig fmt` implementation.
 - Run `pnpm format` from the repository root after changing formatter-managed files; it invokes Oxfmt and every declared native workspace formatter.
-- `useTabs`: Indent with tabs wherever the file format permits indentation with tabs.
+- `useTabs`: Use tabs in Oxfmt-managed files where the format permits them; native formatters own their indentation conventions.
 - `singleQuote` and `jsxSingleQuote`: Use single quotes in JavaScript, TypeScript, and JSX strings unless escaping makes double quotes clearer.
 - `semi`: Terminate statements with semicolons.
 - `trailingComma`: Use trailing commas wherever Oxfmt supports them.
@@ -54,3 +54,7 @@ React-specific rules are authoritative in [`docs/frontend/react.md`](frontend/re
 ## Zig
 
 Zig-specific naming, resource, failure, boundary, concurrency, and testing rules are authoritative in [`docs/ZIG.md`](ZIG.md).
+
+## Rust
+
+Rust-specific types, visibility, numbers, failures, resources, and lint exceptions are authoritative in [`docs/RUST.md`](RUST.md).

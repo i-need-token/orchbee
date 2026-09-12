@@ -32,8 +32,7 @@ consumer 后，才把它移到共享边界。
 ## 清单、依赖和生成状态
 
 - 每个 member 从根清单继承 `edition`、`rust-version` 和 workspace lint。
-- 第一个真实 member 创建唯一的根 `Cargo.lock`；提交它，并在必需验证和发布命令中使用
-  `--locked`。禁止嵌套 lockfile。
+- 提交唯一的根 `Cargo.lock`，并在必需验证和发布命令中使用 `--locked`。禁止嵌套 lockfile。
 - 多个 member 有意共享 dependency version 或 feature 时，在 `[workspace.dependencies]` 中声明。
   member 仍需通过 `workspace = true` 显式选择该 dependency。
 - Registry dependency 由已提交 lockfile 解析。Git dependency 固定不可变 revision。Path
@@ -49,8 +48,11 @@ consumer 后，才把它移到共享边界。
 
 - Type 与 trait 使用 `UpperCamelCase`，module、function 与 value 使用 `snake_case`，constant 与
   static 使用 `SCREAMING_SNAKE_CASE`。
-- 把 `pub` 视为架构边界。优先使用 private item 和 `pub(crate)`；只有真实 consumer 所需时，
-  才通过所属 crate boundary 暴露 public item。
+- 把 `pub` 视为架构边界。选择最小范围：先考虑 private、`pub(super)` 或 `pub(in ...)`，再考虑
+  `pub(crate)`。crate 范围或公共 item 必须在该边界有真实使用方。优先使用私有子模块，并显式
+  重导出所属操作。
+- 编译器可见性是必要条件，但不授权横向依赖。明确所属模块契约与依赖方向；测试访问不得
+  扩大生产可见性。
 - Composition 与 process startup 留在 binary crate。Domain module 不依赖 CLI、TUI、transport、
   persistence 或 service-lifecycle adapter。
 - 不创建 `util`、`common`、`helpers` 或 `shared` 包罗万象模块。按模块唯一所属职责命名；当
@@ -58,24 +60,89 @@ consumer 后，才把它移到共享边界。
 - 生产代码避免 glob import 和 glob re-export。它们会隐藏已审阅 public surface，并让跨模块
   ownership 变更变得非局部。
 
-## 失败、资源和并发
+## 类型与受检边界
 
-- 对 invalid input、protocol rejection、operating-system failure、service unavailable、
-  cancellation、timeout 与 exhausted limit 返回类型化错误。在 adapter boundary 增加上下文，
-  但不要把稳定的 machine-readable cause 转换成 presentation text。
-- 对外部输入或可恢复 runtime state，不使用 `unwrap`、`expect`、可能 panic 的索引或故意 panic。
-  Panic 只代表内部 invariant violation，而且只能终止 process design 承诺的所属 failure domain。
-- 每个 file、socket、process、PTY attachment、task、channel、timer 与 temporary artifact 只有一个
-  lifecycle owner。Shutdown 会停止 admission、取消或排空有界工作、join 自有 task，并且每项
-  resource 只释放一次。
-- 限制 input length、decoded collection、queue、retry、concurrency 与 per-dispatch work。每个
-  bound 都有可观察的 rejection、backpressure、truncation 或 cancellation outcome。
-- 绝不跨 `.await`、IPC、filesystem/process wait、callback 或 blocking computation 持有同步锁。
-  无法避免的 blocking work 必须与 async executor 隔离。
+使用 Rust 原生类型落实共享的[领域建模规则](MODELING-AND-CORRECTNESS.md#领域契约)；不要
+复制 TypeScript 的文件数量或语法惯例。
 
-Workspace policy 禁止手写 `unsafe` code。如果无法用安全方式表达某个不可避免的操作系统或
-foreign-code boundary，则需要单独接受的变更：先把例外收窄到一个 adapter，记录每项 safety
-invariant，并添加 boundary-focused test，然后才能修改 workspace lint policy。
+- 为含义不同的身份使用不同的 newtype。任意构造或修改会破坏不变量时，保持字段私有，并
+  暴露受检构造函数或 `TryFrom`。当 `NonZero*` 和领域枚举能直接表示已接受值域时使用它们。
+- 用携带必需数据的枚举变体表示不同情况。不要用互不关联的布尔值和可选字段编码状态机，
+  从而允许不可能的组合。
+- 在所属边界校验不可信的 CLI、环境、文件、IPC 和外部代码数据。反序列化只证明该反序列化器
+  实施的检查。派生的 `Deserialize` 不得绕过领域值的受检构造；进入领域逻辑前，校验传输
+  表示，或让自定义反序列化委托给同一个构造函数。
+- 必需事实通过准入后不再可选。区分缺失、拒绝、不可用和效果结果未知；不要用貌似合理的
+  默认值替代格式错误的输入。
+- API 只检查数据时借用，保留或消费数据时取得所有权。根据语义和生命周期选择 `Clone`、
+  共享所有权和内部可变性，不要仅为消除借用错误而使用它们。克隆句柄不授予另一个权威写者。
+- 为实际能力或可替换行为引入 trait 和泛型抽象。不要求每个 struct 对应 trait、每个 module
+  对应共享 crate，或每个 helper 都使用类型状态编码。保持能表达已接受不变量的最小设计。
+
+## 数值与布局
+
+- 传输、ABI 和持久化值使用固定宽度整数，内存长度和索引使用 `usize`。Rust 默认内存布局
+  不是序列化格式。
+- 无损转换优先使用 `From`，可能失败的转换使用 `TryFrom`。数值 `as` 转换需要局部证明，
+  确保截断、符号变化或精度损失不会违反契约。不要通过转换把不可信长度或身份强行压入范围。
+- 分配、索引或切片前检查长度、标签、范围和容量运算。溢出表示失败时使用 `checked_*`；
+  只有截断到边界或模运算是规定行为时才使用 `saturating_*` 或 `wrapping_*`。身份、代次和
+  序列耗尽必须有明确结果，不得静默回绕或复用值。
+- 在名称和操作中区分字节数、Unicode 标量数和终端显示单元格宽度；字节边界不一定是合法
+  文本边界。
+- 外部 ABI 需要精确布局时，将其隔离在所属适配器，并验证大小、对齐和偏移。按协议权威
+  显式序列化各字段。
+
+## 错误与 panic 边界
+
+- 领域和协议操作为预期拒绝与失败返回可匹配的错误变体。通过适配器转换和错误链保留机器
+  可读原因；呈现文本不是判别值，不得驱动重试或恢复。
+- I/O 边界的语义足够时使用 `io::Error`。只报告或终止的最外层应用边界可以聚合类型擦除
+  错误；调用方必须区分领域结果的操作不得传播这类错误。
+- 对外部输入或可恢复运行时状态，不使用 `unwrap`、`expect`、可能 panic 的索引或故意 panic。
+  局部已证明的不变量可以支持断言或 `expect`，证明应体现在类型或邻近说明中。测试断言可以
+  直接让测试失败。
+- panic 表示内部不变量违反，而且只能终止进程设计承诺的所属失败域。定义线程或任务 panic
+  如何传达给所有者；捕获 panic 或忽略 join 结果都不能证明恢复成功。
+- 不得静默丢弃操作或清理失败。有意尽力而为的操作需要归属明确的理由，并在契约要求时
+  提供可观察的失败处理。
+
+## 资源与并发
+
+- 每个文件、socket、进程、PTY attachment、任务、channel、timer 和临时产物只有一个生命周期
+  所有者。使用 RAII guard 管理获取和部分初始化回滚。共享引用或克隆句柄不能免除唯一关闭
+  所有者的要求。
+- 清理可能失败或需要等待工作时，提供显式 close、shutdown 或 join 操作。定义适合该所有者
+  的 `Drop` 兜底职责；它不得 panic 或隐藏无界阻塞等待。丢弃线程或任务句柄不证明工作已停止。
+- 关闭先停止准入，再取消或排空有界工作、join 自有工作，并且每项资源只释放一次。取消本地
+  等待不会撤回已提交的外部效果；保留其身份以及契约规定的对账或失败结果。
+- 限制输入长度、解码集合、队列、重试、并发和每次分发的工作。每个上限都有可观察的拒绝、
+  背压、截断或取消结果。
+- 说明每把锁保护的不变量、多锁获取顺序以及锁中毒的失败策略。绝不跨 `.await`、IPC、
+  文件系统或进程等待、回调或阻塞计算持有同步锁。将不可避免的阻塞工作与异步执行器隔离；
+  截止时间不会让阻塞工作变成异步工作。
+
+## Lint 策略与执行边界
+
+Workspace policy 对自有代码使用 `unsafe_code = "forbid"`。局部 `allow` 或 `expect` 无法降低它。
+如果无法用安全方式表达不可避免的操作系统或外部代码边界，需要单独接受的策略变更：将例外
+收窄到一个适配器，记录每项安全不变量，并添加边界测试。此策略不审计第三方依赖内部的
+unsafe 代码；依赖与 feature 评审仍然必要。
+
+`clippy::all` 是默认 lint 组，并非全部可用的 Clippy 检查。针对已证明的风险选择额外检查，并
+区分生产不变量和刻意无效的测试输入。不要仅为增加 lint 数量而启用整个可选组。每次执行规则
+变更都在固定工具链下同步更新权威、配置、自有诊断以及有意义的正向和负向回归证据。
+
+新增或变更的局部 lint 例外必须列出具体 lint，使用最小适用范围，并通过 `reason` 说明不变量或
+取舍。告警可靠存在时优先使用 `#[expect(...)]`，以便诊断过期例外。解释依赖配置的 `allow`
+用法；不得抑制整个模块的正确性检查或绕过仓库硬约束。
+
+| 关注点              | 证据与限制                                                                                                                 |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 工具链与 Cargo 执行 | 根 runner 检查编译器固定版本和 locked Cargo metadata，再执行所选 workspace task。                                          |
+| 编译器与 lint 诊断  | 成员继承 workspace lint；rustfmt 检查格式，Clippy 拒绝已启用的告警。这不证明全部源码策略义务。                             |
+| 清单与架构策略      | 评审成员注册、lint 继承、依赖方向、版本与 feature 共享、嵌套 workspace 和路径边界。Cargo metadata 本身不检查这些仓库契约。 |
+| 语义安全与测试价值  | 评审受检构造、不变量证明、取消、关闭和对应主张的证据；编译与测试文件数量无法判断它们。                                     |
 
 ## 跨语言契约
 
@@ -94,6 +161,9 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
 
 ## 测试
 
+遵循共享的[测试义务](TESTING.md#必需的单元测试)和[测试层次与成本](TESTING.md#测试层次与成本)。
+一个行为套件可以覆盖多个 Rust 模块；新增源码文件或函数都不要求新增伴随测试文件。
+
 - Unit-test body 放在相邻 test module 文件或 crate 的 `tests/` 树中。Production module 可以保留
   挂载该文件所需的窄化 `#[cfg(test)] mod tests;` 声明，但不放 inline scenario 或 fixture。
 - 测试 public behavior、invalid 与 maximum input、partial failure 后的 cleanup、cancellation、
@@ -101,21 +171,27 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
   使用 property 或 model-based evidence。
 - Integration test 使用 public crate 或 process boundary。Test-only visibility 不得扩大 production
   API 或引入 product behavior。
+- 声称可编译或运行的 Rust 文档示例必须参与 doctest。不要用 `ignore` 隐藏错误示例；
+  `compile_fail` 或 `no_run` 示例要说明其真实主张。
 - Cross-compilation 只证明可编译。Runtime、IPC、PTY、installer 与 service-lifecycle 主张需要在
   每个声称支持的 operating-system family 上使用 native runner。
 
 ## 必需命令和发布输入
 
-根 pnpm 门禁调用 `scripts/run-rust-workspace.mjs`，使一个命令继续验证整个仓库。当已接受的 Cargo
-workspace 尚无 member 时，runner 会验证精确工具链和 workspace metadata，并报告 empty state。
-添加第一个 member 后，同一批命令会执行真实 workspace 工作：
+根 pnpm 门禁调用 `scripts/run-rust-workspace.mjs` 验证每个 Cargo member。测试任务分别运行
+各 target 测试和库文档测试；`--all-targets` 不包含 doctest。`pnpm test:rust-runner` 使用隔离的
+Cargo fixture 验证该边界及自有 unsafe 代码策略，包括必须导致 runner 失败的情况。
 
-| 仓库任务            | Cargo 证据                                                                      |
-| ------------------- | ------------------------------------------------------------------------------- |
-| `pnpm format:check` | `cargo fmt --all -- --check`                                                    |
-| `pnpm lint`         | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` |
-| `pnpm build`        | `cargo build --workspace --all-targets --all-features --locked`                 |
-| `pnpm test`         | `cargo test --workspace --all-targets --all-features --locked`                  |
+| 仓库任务            | Cargo 证据                                                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check` | `cargo fmt --all -- --check`                                                                                                    |
+| `pnpm lint`         | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`                                                 |
+| `pnpm build`        | `cargo build --workspace --all-targets --all-features --locked`                                                                 |
+| `pnpm test`         | `cargo test --workspace --all-targets --all-features --locked`，随后执行 `cargo test --workspace --doc --all-features --locked` |
+
+`--all-features` 不证明每种受支持的 feature 组合或操作系统 target。引入 feature 或扩大支持
+范围时，所属方声明受支持的默认、最小和发布配置，以及所需的编译和原生运行证据。
+workspace 构建统一后的依赖 feature，不能证明独立交付的 package 仅凭自身声明的配置也能构建。
 
 聚焦迭代可以使用按 package 选择的 Cargo 命令，但完成时使用根门禁。发布自动化通过固定工具链、
 `--locked` 和 `--release` 构建确切 package 与 binary，再把已验证 artifact 暂存到所属 distribution

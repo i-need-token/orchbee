@@ -4,30 +4,68 @@
 
 `orchbee/filename-naming-convention` enforces:
 
-| Artifact                    | Naming contract                                                                                                                                                                     |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Source directory            | Use kebab-case.                                                                                                                                                                     |
-| Direct child of `locales/`  | Use the canonical BCP 47 identifier and casing, such as `en-US` or `zh-CN`.                                                                                                         |
-| Unique runtime identity     | Count named runtime exports only; type-only exports and private implementation symbols do not change public identity.                                                               |
-| Authored function module    | When its sole named runtime export is a locally defined function, use the exact camelCase symbol, such as `formatDisplayLabel.ts`.                                                  |
-| Authored class module       | When its sole named runtime export is a locally defined class, use the exact PascalCase symbol, such as `EventEmitter.ts`.                                                          |
-| General module              | Grouped operations, contracts, data catalogs, constants, re-export facades, and other modules without one callable or constructable identity use responsibility-focused kebab-case. |
-| Generated source            | Keep the generator-owned kebab-case name.                                                                                                                                           |
-| Authored function component | Use the exact PascalCase name of the sole runtime export, such as `FilterPanel.tsx`.                                                                                                |
-| Authored dedicated Hook     | Use the exact camelCase name of the sole Hook export, such as `useFilterPanel.ts`.                                                                                                  |
-| Non-component TSX entry     | Use kebab-case.                                                                                                                                                                     |
-| Unit test                   | Use a sibling `__tests__` directory and preserve the source stem in `<source-name>.unit.test.ts` or `<source-name>.unit.test.tsx`.                                                  |
+| Artifact                    | Naming contract                                                                                                                                                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source directory            | Use kebab-case.                                                                                                                                                                                                         |
+| Direct child of `locales/`  | Use the canonical BCP 47 identifier and casing, such as `en-US` or `zh-CN`.                                                                                                                                             |
+| Unique runtime identity     | Count named runtime exports only; type-only exports and private implementation symbols do not change public identity.                                                                                                   |
+| Authored function module    | When its sole named runtime export is a locally defined function, use the exact camelCase symbol, such as `formatDisplayLabel.ts`.                                                                                      |
+| Authored class module       | When its sole named runtime export is a locally defined class, use the exact PascalCase symbol, such as `EventEmitter.ts`.                                                                                              |
+| General module              | Grouped operations, contracts, data catalogs, constants, re-export facades, and other modules without one callable or constructable identity use responsibility-focused kebab-case.                                     |
+| Generated source            | Keep the generator-owned kebab-case name.                                                                                                                                                                               |
+| Authored function component | Use the exact PascalCase name of the sole runtime export, such as `FilterPanel.tsx`.                                                                                                                                    |
+| Authored dedicated Hook     | Use the exact camelCase name of the sole Hook export, such as `useFilterPanel.ts`.                                                                                                                                      |
+| Non-component TSX entry     | Use kebab-case.                                                                                                                                                                                                         |
+| Unit test                   | Use the owning module's `__tests__` directory and the `.unit.test.ts` or `.unit.test.tsx` suffix. A companion preserves its source stem; a suite covering several implementation files uses a kebab-case behavior name. |
 
 ## Required unit tests
 
-- `orchbee/require-unit-test`: Every `.ts` source file containing a top-level function, function expression, arrow function, or class must have its corresponding unit-test file.
+Test obligations follow behavior, invariants, and risk in every authored language. There is no
+one-to-one requirement between implementation files and test files. Splitting or moving an
+implementation without changing its behavior does not create a new test obligation.
 
 | Scope                      | Contract                                                                                                                                                                                                                   |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Required sibling test      | Provides discoverability, not proof of coverage. Test observable outcomes, failure paths, and owned invariants; placeholders and implementation-only assertions do not qualify.                                            |
-| `.tsx` source              | Tests are optional; add them for meaningful regressions, interactions, accessibility contracts, or integration boundaries, not prepared props or static markup.                                                            |
-| Checked-in shadcn snapshot | Retains upstream implementations as reviewable source and follows the optional TSX policy. Test Orchbee adaptations, public-package contracts, and relied-upon integration behavior instead of copying the upstream suite. |
-| Generated mobile Hook      | Exempt from per-file sibling tests.                                                                                                                                                                                        |
+| Domain behavior            | Cover decisions, state transitions, boundary inputs, expected failures, and owned invariants at the lowest layer that can judge them.                                                                                      |
+| Cohesive module            | One behavior suite may cover several implementation files. Keep its owner discoverable through its location, imports, and behavior-focused test names; use an existing owner contract when the mapping is not apparent.    |
+| Thin projection or wiring  | Reuse an existing behavior or integration test that detects a broken connection. Do not add a companion merely to assert an export's existence, a function's type, a copied constant, or the implementation's own formula. |
+| `.tsx` source              | Add tests for meaningful regressions, interactions, accessibility contracts, or integration boundaries; prepared props and static markup alone do not require tests.                                                       |
+| Checked-in shadcn snapshot | Test Orchbee adaptations, public-package contracts, and relied-upon behavior instead of copying the upstream suite or requiring one test per generated file.                                                               |
+
+For each added or materially changed test, identify the realistic defect it would catch. File
+presence, assertion count, and coverage percentages do not establish that value. Review this
+obligation with the change's claims; the filename linter enforces naming and placement only.
+Keep existing visibility boundaries when sharing a suite; test convenience does not permit
+imports of another owner's private implementation.
+
+When consolidating or removing tests, retain the distinct behavior, failure, and boundary evidence
+they provide and identify the surviving suite. Do not retain placeholder companions or create a
+second per-file coverage manifest solely to satisfy discoverability.
+
+## Test layers and cost
+
+| Layer                | Evidence and execution cost                                                                                                                                                                                            |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deterministic core   | Exercise combinations, boundaries, and transition sequences with explicit inputs, clocks, and capabilities; do not start a browser, process, or service when the claim needs none.                                     |
+| Adapter or component | Check translation, interaction, cleanup, and the owned external capability; use the smallest faithful environment. Pure TypeScript logic uses a Node environment, while DOM-dependent behavior uses a DOM environment. |
+| Process or system    | Prove real startup, IPC, PTY, operating-system, and shutdown behavior. Keep the cross-process cases required by those claims; avoid repeating the full core decision matrix through every startup path.                |
+
+Assess new and changed suites against these layers. A test's filename or runner target does not
+make real process or filesystem work a cheap unit test. Shared fixtures may reuse immutable
+preparation, but each test owns its mutable state and cleanup; fixture reuse must not make results
+depend on execution order.
+
+- Prefer observable completion and controllable time over unconditional sleeps. Use real elapsed
+  time when the claim concerns an operating-system deadline; retain a justified upper bound.
+- Explain why serialization or a concurrency limit is necessary and which resource it protects.
+  More workers do not automatically reduce elapsed time; do not remove isolation, locks, or
+  deadlines merely to obtain a faster run.
+- Measure wall-clock duration separately from compilation, module loading, environment setup,
+  and test-body time. Parallel worker totals are not additive wall-clock time. Compare equivalent
+  inputs, machine load, and cold or warm caches before claiming an improvement.
+- Maintain useful focused commands for core and expensive boundary tests. Full-gate scope,
+  affected-test selection, and changes to required checks remain governed by
+  [Verification](VERIFICATION.md); a slow test is not permission to skip required evidence.
 
 ## Test execution
 
@@ -56,7 +94,10 @@ acceptsOnlyStrings(1);
 
 ## Regression coverage
 
-Every bug fix adds a test that fails before the fix and passes after it.
+Every bug fix adds or strengthens a regression case that fails before the fix and passes after it.
+Extend the owning behavior suite when appropriate; a new file or duplicate higher-layer scenario
+is not required. An already-failing case may supply this evidence when its failure and the fix's
+effect are demonstrated.
 
 ## Localization contracts
 

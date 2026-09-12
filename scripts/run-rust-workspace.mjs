@@ -62,7 +62,18 @@ if (metadata.packages.length === 0) {
 } else {
 	process.exitCode = await runChecks({
 		name: `rust:${task}`,
-		steps: [{ name: `cargo ${task}`, command: 'cargo', args: command }],
+		steps: [
+			{ name: `cargo ${task}`, command: 'cargo', args: command },
+			...(task === 'test'
+				? [
+						{
+							name: 'cargo documentation tests',
+							command: 'cargo',
+							args: ['test', '--workspace', '--doc', '--all-features', '--locked'],
+						},
+					]
+				: []),
+		],
 		cwd: repositoryRoot,
 		verbose,
 	});

@@ -2,9 +2,9 @@
 
 ## 格式化
 
-- `.oxfmtrc.json` 对 Oxfmt 管理的文件具有权威性；Zig 源码和构建文件使用工作区精确固定的 `zig fmt` 实现。
+- `.oxfmtrc.json` 对 Oxfmt 管理的文件具有权威性；Rust 使用根工具链固定的 `rustfmt`；Zig 源码和构建文件使用工作区精确固定的 `zig fmt` 实现。
 - 修改受格式化工具管理的文件后，从仓库根目录运行 `pnpm format`；它会调用 Oxfmt 和每个已声明的原生工作区格式化器。
-- `useTabs`：在文件格式允许使用 Tab 缩进的地方一律使用 Tab。
+- `useTabs`：在 Oxfmt 管理且格式允许的文件中使用 Tab；原生格式化器拥有各自的缩进规则。
 - `singleQuote` 和 `jsxSingleQuote`：JavaScript、TypeScript 和 JSX 字符串使用单引号，除非使用双引号能让转义更清晰。
 - `semi`：语句以分号结束。
 - `trailingComma`：在 Oxfmt 支持的地方一律使用尾随逗号。
@@ -54,3 +54,7 @@ React 专属规则的权威来源是 [`docs/frontend/react.md`](frontend/react.m
 ## Zig
 
 Zig 专属的命名、资源、失败、边界、并发和测试规则的权威来源是 [`docs/ZIG.md`](ZIG.md)。
+
+## Rust
+
+Rust 专属的类型、可见性、数值、错误、资源和 lint 例外规则以 [`docs/RUST.md`](RUST.md) 为权威。

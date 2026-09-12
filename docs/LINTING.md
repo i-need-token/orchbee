@@ -2,28 +2,29 @@
 
 ## Commands
 
-| Command                                        | Responsibility                                                                    |
-| ---------------------------------------------- | --------------------------------------------------------------------------------- |
-| `pnpm verify`                                  | Run the complete merge gate defined by `docs/VERIFICATION.md`                     |
-| `pnpm lint`                                    | Run the complete required repository lint pipeline                                |
-| `pnpm lint:code`                               | Run blocking oxlint diagnostics with agent-oriented output                        |
-| `pnpm lint:code:warnings`                      | Audit blocking diagnostics and non-blocking oxlint warnings                       |
-| `pnpm lint:rust`                               | Validate the pinned Cargo workspace and run locked Clippy work when members exist |
-| `pnpm lint:documentation`                      | Validate every repository Markdown pair's path, receipt, and structure            |
-| `pnpm lint:styles`                             | Validate the token registry and authored frontend styling contract                |
-| `pnpm lint:storage`                            | Validate browser-storage access, ownership, key shape, and versioning             |
-| `pnpm lint:dependencies`                       | Run Knip strict dependency, file, export, catalog, and manifest analysis          |
-| `pnpm lint:projects`                           | Validate every schema-backed workspace project contract                           |
-| `pnpm lint:experience`                         | Validate experience-component schemas, ownership, paths, and relations            |
-| `pnpm lint:fix`                                | Apply safe oxlint fixes; remaining diagnostics require code changes               |
-| `pnpm typecheck`                               | Run TypeScript diagnostics that syntax-aware lint does not replace                |
-| `pnpm test:lint-rules`                         | Test the `orchbee/*` rules and English/Chinese standards contract                 |
-| `pnpm test:documentation-pairing`              | Run negative tests for documentation pairing checks and confirmation              |
-| `pnpm test:ghostty-source`                     | Test exact-pin and clean-worktree admission for Ghostty provenance tools          |
-| `pnpm test:style-contract`                     | Run regression tests for the frontend style-contract checker                      |
-| `pnpm test:storage-contract`                   | Run regression tests for the browser-storage contract checker                     |
-| `pnpm test:experience-contract`                | Run regression tests for the experience catalog and lookup contract               |
-| `pnpm docs:confirm-pairing -- <markdown-path>` | Update only explicitly named receipts after semantic review                       |
+| Command                                        | Responsibility                                                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `pnpm verify`                                  | Run the complete merge gate defined by `docs/VERIFICATION.md`                                           |
+| `pnpm lint`                                    | Run the complete required repository lint pipeline                                                      |
+| `pnpm lint:code`                               | Run blocking oxlint diagnostics with agent-oriented output                                              |
+| `pnpm lint:code:warnings`                      | Audit blocking diagnostics and non-blocking oxlint warnings                                             |
+| `pnpm lint:rust`                               | Validate the pinned Cargo workspace and run locked Clippy work when members exist                       |
+| `pnpm lint:documentation`                      | Validate every repository Markdown pair's path, receipt, and structure                                  |
+| `pnpm lint:styles`                             | Validate the token registry and authored frontend styling contract                                      |
+| `pnpm lint:storage`                            | Validate browser-storage access, ownership, key shape, and versioning                                   |
+| `pnpm lint:dependencies`                       | Run Knip strict dependency, file, export, catalog, and manifest analysis                                |
+| `pnpm lint:projects`                           | Validate every schema-backed workspace project contract                                                 |
+| `pnpm lint:experience`                         | Validate experience-component schemas, ownership, paths, and relations                                  |
+| `pnpm lint:fix`                                | Apply safe oxlint fixes; remaining diagnostics require code changes                                     |
+| `pnpm typecheck`                               | Run TypeScript diagnostics that syntax-aware lint does not replace                                      |
+| `pnpm test:lint-rules`                         | Test the `orchbee/*` rules and English/Chinese standards contract                                       |
+| `pnpm test:rust-runner`                        | Test Rust target coverage, failure propagation, and authored unsafe policy with isolated Cargo fixtures |
+| `pnpm test:documentation-pairing`              | Run negative tests for documentation pairing checks and confirmation                                    |
+| `pnpm test:ghostty-source`                     | Test exact-pin and clean-worktree admission for Ghostty provenance tools                                |
+| `pnpm test:style-contract`                     | Run regression tests for the frontend style-contract checker                                            |
+| `pnpm test:storage-contract`                   | Run regression tests for the browser-storage contract checker                                           |
+| `pnpm test:experience-contract`                | Run regression tests for the experience catalog and lookup contract                                     |
+| `pnpm docs:confirm-pairing -- <markdown-path>` | Update only explicitly named receipts after semantic review                                             |
 
 ## Enforcement boundary
 
@@ -37,7 +38,7 @@
 | Dependencies        | `pnpm lint:dependencies` runs Knip `--strict`; direct undeclared imports, unused files, dependencies, exports or types, unresolved imports, duplicate exports, cycles, and stale catalog entries fail.                                                                                                                                                                                                                                                                     |
 | Knip scope          | List every runnable script, build configuration, test suite, and public package entry in `knip.json#workspaces`; never ignore a finding caused by an omitted entry point.                                                                                                                                                                                                                                                                                                  |
 | Type awareness      | Type-aware oxlint rules remain inactive until package review adds `oxlint-tsgolint`; lint does not detect floating promises or unsafe third-party `any` propagation.                                                                                                                                                                                                                                                                                                       |
-| Rust                | `pnpm lint:rust` verifies the exact toolchain and Cargo metadata; once a member exists, it runs workspace Clippy with every target and feature, the committed lockfile, and warnings denied. [`docs/RUST.md`](RUST.md) owns the source policy.                                                                                                                                                                                                                             |
+| Rust                | `pnpm lint:rust` verifies the exact toolchain and Cargo metadata; once a member exists, it runs workspace Clippy with every target and feature, the committed lockfile, and enabled warnings denied. Source-policy and Cargo-manifest review obligations are not all automated; [`docs/RUST.md`](RUST.md#lint-policy-and-enforcement) defines the enforcement boundary.                                                                                                    |
 | Styles              | `pnpm lint:styles` enforces [`docs/frontend/design-tokens.md`](frontend/design-tokens.md): registry, generated TypeScript inventory, CSS Module, Tailwind boundary, raw values, responsive thresholds, JSX classes, and inline styles. Generated public token names must equal the CSS registry; the full Tailwind map must exactly cover the installed public theme, target registered Orchbee tokens, and preserve compile-time literal breakpoint and container values. |
 | Style exception     | The shadcn authoring exception for `pnpm lint:styles` is path-scoped to checked-in generated source and support files.                                                                                                                                                                                                                                                                                                                                                     |
 | Browser storage     | `pnpm lint:storage` enforces [`docs/frontend/browser-storage.md`](frontend/browser-storage.md): only an application composition entry may access `localStorage` or `sessionStorage`; `orchbee:` key literals remain in their owning `*-storage.ts` module and use the versioned grammar.                                                                                                                                                                                   |
@@ -46,14 +47,14 @@
 
 ## Generated source
 
-| Scope                    | Contract                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Snapshot                 | Keep `packages/ui/src/components/ui/*.tsx` and the generated `use-mobile.ts` close to the upstream shadcn registry so CLI refreshes remain reviewable.                                                                                                                                                                                                                                                         |
-| Authoring exceptions     | A path-scoped override exempts explicit module-boundary return types, assertion, shadowing, equality and nested-ternary style, component grouping, direct React Hook calls in TSX, extra TSX runtime declarations, one-function TSX and one-Hook file boundaries, `use-mobile.ts` unique-symbol filename matching, and sibling tests. The automatic JSX runtime makes `react/react-in-jsx-scope` inapplicable. |
-| Active correctness rules | React Hooks, JSX keys, module boundaries, cross-workspace imports, unsafe TypeScript constructs, and inline suppression bans remain active.                                                                                                                                                                                                                                                                    |
-| `ChartStyle`             | Its upstream-controlled style element is the only additional exception; [`docs/frontend/react.md`](frontend/react.md#correctness-and-safety) owns the constraint.                                                                                                                                                                                                                                              |
-| Orchbee-authored modules | Never extend generated-source overrides to them.                                                                                                                                                                                                                                                                                                                                                               |
-| Upstream refresh         | Review every refresh, preserve focused compatibility adaptations, and test Orchbee-owned behavior and integrations.                                                                                                                                                                                                                                                                                            |
+| Scope                    | Contract                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Snapshot                 | Keep `packages/ui/src/components/ui/*.tsx` and the generated `use-mobile.ts` close to the upstream shadcn registry so CLI refreshes remain reviewable.                                                                                                                                                                                                                                          |
+| Authoring exceptions     | A path-scoped override exempts explicit module-boundary return types, assertion, shadowing, equality and nested-ternary style, component grouping, direct React Hook calls in TSX, extra TSX runtime declarations, one-function TSX and one-Hook file boundaries, and `use-mobile.ts` unique-symbol filename matching. The automatic JSX runtime makes `react/react-in-jsx-scope` inapplicable. |
+| Active correctness rules | React Hooks, JSX keys, module boundaries, cross-workspace imports, unsafe TypeScript constructs, and inline suppression bans remain active.                                                                                                                                                                                                                                                     |
+| `ChartStyle`             | Its upstream-controlled style element is the only additional exception; [`docs/frontend/react.md`](frontend/react.md#correctness-and-safety) owns the constraint.                                                                                                                                                                                                                               |
+| Orchbee-authored modules | Never extend generated-source overrides to them.                                                                                                                                                                                                                                                                                                                                                |
+| Upstream refresh         | Review every refresh, preserve focused compatibility adaptations, and test Orchbee-owned behavior and integrations.                                                                                                                                                                                                                                                                             |
 
 ## Custom rule ownership
 
@@ -69,7 +70,6 @@
 | `orchbee/no-react-use-callback`                | `docs/frontend/react.md#callback-identity`            |
 | `orchbee/one-function-per-tsx`                 | `docs/frontend/react.md#tsx-file-boundary`            |
 | `orchbee/one-hook-per-file`                    | `docs/frontend/react.md#hook-file-boundary`           |
-| `orchbee/require-unit-test`                    | `docs/TESTING.md#required-unit-tests`                 |
 | `orchbee/zustand-scope`                        | `docs/frontend/react.md#zustand-and-context`          |
 
 Every custom-rule change updates its implementation, authority, diagnostic, and regression test together.

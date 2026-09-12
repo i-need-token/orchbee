@@ -36,6 +36,7 @@ export function checkSteps(task) {
 				{
 					concurrent: [
 						'test:check-output',
+						'test:rust-runner',
 						'test:lint-rules',
 						'test:documentation-pairing',
 						'test:ghostty-source',
