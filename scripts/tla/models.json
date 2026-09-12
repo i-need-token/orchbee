@@ -4331,6 +4331,8 @@
 			"triggers": [
 				"apps/orchbee-server/src/workbench_authority/terminal_panel_split.rs",
 				"apps/orchbee-server/src/workbench_authority/terminal_panel_split/**",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_move.rs",
+				"apps/orchbee-server/src/workbench_authority/terminal_panel_move/**",
 				"apps/orchbee-server/src/workbench_authority/terminal_membership.rs",
 				"apps/orchbee-server/src/workbench_authority/terminal_tab_close*",
 				"apps/orchbee-server/src/workbench_authority/terminal_tab_close/**",
@@ -4347,6 +4349,7 @@
 			"workers": 1,
 			"requiredCoverage": [
 				"AdmitSplit",
+				"AdmitMove",
 				"CompleteSplitStarted",
 				"CompleteSplitUnknown",
 				"AdmitClose",
@@ -4361,7 +4364,9 @@
 				"ObserveSplitUnknown",
 				"ObserveTwoLeafSplit",
 				"ObserveAggregateClose",
-				"ObserveLeafContraction"
+				"ObserveLeafContraction",
+				"ObserveMovedMembers",
+				"ObserveMoveDuringLeafClose"
 			]
 		},
 		{

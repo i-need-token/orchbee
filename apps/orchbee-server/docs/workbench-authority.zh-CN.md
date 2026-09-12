@@ -65,7 +65,12 @@ identity 和 presentation identity。Server 与 Site 将所有 leaf binding 作�
 只有全部 leaf 都有已知 proof 后才发布一次 Tab 移除。`panel.close` 是叶子级对应操作：它恰好
 捕获一个 leaf 成员，复用同一 continuation，并发布存活 Tab——被移除 leaf 的父 Split 由兄弟
 子树替换；关闭 Tab 的唯一 leaf 按普通聚合 Close 准入。Standalone 重定向会以剩余树校验确切移除集合，
-保留仍存在的当前引用；没有剩余成员时发布 Empty。权威单测、Linux process witness
+保留仍存在的当前引用；没有剩余成员时发布 Empty。当聚合 Close 在某 Tab 上处于开启状态时，指向
+同一上下文/Tab 的 `panel.split` 与 `panel.move` 准入均以既有的瞬态 `terminal-busy` 拒绝：该
+Close 发布时需重新证明其捕获的完整有序 leaf 成员关系，任何同 Tab 成员变更都会使其失效。隔离
+检查位于授权、重放/冲突、退役、账本容量、Site、基础修订与上下文校验之后；它不留存结果也不派发
+terminal，Close 发布后同一请求可按原样重试。叶子级 Close 仅重新证明自身 leaf 元组，对两者均不
+隔离；其他 Tab 的写入照常进行。权威单测、Linux process witness
 `real_workbench_panel_split_and_aggregate_close_releases_both_terminals` 和
 `real_workspace_panel_split_and_aggregate_close_releases_both_terminals`，以及有界
 `WorkbenchPanelSplit` TLA+ 模型覆盖这一细化。Client-local panel layout 和 focus 已由原生 TUI
@@ -75,7 +80,9 @@ identity 和 presentation identity。Server 与 Site 将所有 leaf binding 作�
 
 `panel.move` 是纯 projection 对应操作：它在 Tab 内重定位一个 leaf Panel，不涉及任何生命周期。
 准入复用 navigation 变更授权、确切上下文/Tab 校验，以及树成员关系——Split 树所需的 leaf 级成员
-关系——随后校验两个 leaf 都是指定 Tab 的直接成员。源 leaf 与目标同名，或这对叶子已是匹配方向
+关系——随后校验两个 leaf 都是指定 Tab 的直接成员。若指定 Tab 上存在开启中的聚合 Close，本可
+提交的移动以瞬态 `terminal-busy` 拒绝，而拒绝与无操作 `Unchanged` 结果保持原有优先级；叶子级
+Close 不设隔离。源 leaf 与目标同名，或这对叶子已是匹配方向
 Split 按隐含次序排列的直接孩子（布局已满足）时，提交 `Unchanged`，不消耗任何身份。实际移动的
 提交会摘除源 leaf——其父 Split 折叠为兄弟子树——并将其移植到目标 leaf 旁的一个 fresh Split 下，
 消耗一个 fresh Split 身份和两个 fresh Slot 身份；源 leaf 保留完整 Panel 节点、Presentation 与绑定，

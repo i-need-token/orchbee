@@ -7,7 +7,7 @@ use orchbee_capability_node_protocol::{
 use orchbee_workbench_protocol::{
     WorkbenchCommand, WorkbenchCommandResult, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseResume, WorkbenchTabCloseResumeResult,
-    WorkbenchTabCloseStatus, WorkbenchTerminalContextId,
+    WorkbenchTabCloseStatus, WorkbenchTabId, WorkbenchTerminalContextId,
 };
 
 use super::{PlanFailure, RetainedRequest, WorkbenchAuthority, WorkbenchTerminalTab};
@@ -245,11 +245,25 @@ impl CloseRecord {
     fn matches_context_tab(
         &self,
         context_id: &WorkbenchTerminalContextId,
-        tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
+        tab_id: &WorkbenchTabId,
     ) -> bool {
         self.targets().all(|target| {
             target.terminal_context_id() == context_id && target.member().tab_id() == tab_id
         })
+    }
+
+    /// An open aggregate Close fences same-Tab structural admission: its publication
+    /// re-proves the complete captured ordered leaf membership, which a same-Tab
+    /// split/move would invalidate. A leaf-scoped Close re-proves only its own captured
+    /// leaf tuple and fences neither operation.
+    fn fences_tab_structure(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+        tab_id: &WorkbenchTabId,
+    ) -> bool {
+        self.scope == CloseScope::Tab
+            && !self.is_closed()
+            && self.matches_context_tab(context_id, tab_id)
     }
 
     /// An open or settled Close covers this exact leaf member.
@@ -523,6 +537,20 @@ impl WorkbenchAuthority {
             )
             .count();
         u64::try_from(count).map_err(|_error| PlanFailure::Internal)
+    }
+
+    /// Whether an open aggregate Close on `tab_id` under `context_id` fences `panel.split`
+    /// and `panel.move` admission. The shared ledger's bounded scan is the same one
+    /// `outstanding_close_credits` performs.
+    pub(super) fn aggregate_close_fences_tab(
+        &self,
+        context_id: &WorkbenchTerminalContextId,
+        tab_id: &WorkbenchTabId,
+    ) -> bool {
+        self.ledger.values().any(|entry| {
+            matches!(entry, RetainedRequest::TabClose(record)
+                if record.fences_tab_structure(context_id, tab_id))
+        })
     }
 
     pub(super) fn next_revision(&self) -> Result<WorkbenchRevision, PlanFailure> {

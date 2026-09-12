@@ -72,6 +72,19 @@ impl<'a> WorkbenchPanelMoveAdmission<'a> {
                 return WorkbenchPanelMovePreparation::Ready(self.authority.retire(&self.command));
             }
         };
+        // An open aggregate Close fences a committed same-Tab move: publication re-proves
+        // the complete captured ordered leaf membership. Rejection and no-op `Unchanged`
+        // outcomes keep their precedence, and the transient busy retains nothing.
+        if matches!(plan.outcome, WorkbenchCommandOutcome::PanelMoved { .. })
+            && self
+                .authority
+                .aggregate_close_fences_tab(&self.terminal_context_id, &self.tab_id)
+        {
+            return WorkbenchPanelMovePreparation::Ready(result(
+                &self.command,
+                unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
+            ));
+        }
         match self.authority.prepare_command_commit(self.command, plan) {
             Ok(prepared) => WorkbenchPanelMovePreparation::Prepared(Box::new(
                 PreparedWorkbenchPanelMove(prepared),

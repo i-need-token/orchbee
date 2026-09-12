@@ -108,7 +108,11 @@ captured leaf membership at admission, disposes and cleans each captured leaf th
 continuation, and joins or refuses overlapping closes: a same-action replay over the same member
 set joins with its fixed acknowledgment, while any open Close already covering a requested member
 under a different action or membership is `terminal-busy`. Disjoint leaf closes on one Tab may
-therefore retain separate primaries.
+therefore retain separate primaries. An open aggregate Close also fences the same Tab's
+`panel.split` and `panel.move` admissions: both are refused the transient `terminal-busy` rather
+than being allowed to invalidate the complete ordered leaf membership that publication re-proves.
+A leaf-scoped Close re-proves only its own captured leaf tuple, so it fences neither operation, and
+operations on other Tabs are unaffected.
 
 Acceptance spends no canonical revision. Its fixed outcome is
 `tab-close-accepted {closeRequestId, terminalContextId, tabId, acceptedRevision}` or

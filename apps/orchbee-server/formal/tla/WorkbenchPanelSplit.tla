@@ -16,13 +16,23 @@ ASSUME /\ Cardinality({Source, Peer, None}) = 3
        /\ MaxRevision = 2
 
 Leafs == {Source, Peer}
-EmptyClose == [phase |-> "idle", frozen |-> <<>>, disposed |-> {}, cleaned |-> {}]
+EmptyClose == [phase |-> "idle", frozen |-> <<>>, disposed |-> {}, cleaned |-> {},
+               aggregate |-> FALSE]
 
 VARIABLE s
 vars == <<s>>
 
 MemberSet(seq) == {seq[i] : i \in DOMAIN seq}
 RemoveMembers(seq, dropped) == SelectSeq(seq, LAMBDA m : m \notin dropped)
+
+(*
+   An open aggregate Close fences the same Tab's structural admission: its
+   publication re-proves the complete captured ordered leaf membership, which a
+   same-Tab split or move would invalidate.  A leaf-scoped Close re-proves only
+   its own captured leaf tuple and fences neither operation.
+*)
+PendingAggregateClose ==
+  s.close.phase \in {"closing", "unknown"} /\ s.close.aggregate
 
 Init == s =
   [members |-> <<Source>>, revision |-> 0,
@@ -33,9 +43,18 @@ AdmitSplit ==
   /\ ~s.retired
   /\ s.splitPhase = "absent"
   /\ s.members = <<Source>>
+  /\ ~PendingAggregateClose
   /\ s.revision + 1 <= MaxRevision
   /\ s' = [s EXCEPT !.members = <<Source, Peer>>,
        !.revision = @ + 1, !.splitPhase = "pending"]
+
+AdmitMove ==
+  /\ ~s.retired
+  /\ Len(s.members) = 2
+  /\ ~PendingAggregateClose
+  /\ s.revision + 1 <= MaxRevision
+  /\ s' = [s EXCEPT !.members = <<s.members[2], s.members[1]>>,
+       !.revision = @ + 1]
 
 CompleteSplitStarted ==
   /\ s.splitPhase = "pending"
@@ -49,14 +68,14 @@ AdmitClose ==
   /\ s.splitPhase = "started"
   /\ s.close.phase = "idle"
   /\ s' = [s EXCEPT !.close = [EmptyClose EXCEPT
-       !.phase = "closing", !.frozen = s.members]]
+       !.phase = "closing", !.frozen = s.members, !.aggregate = TRUE]]
 
 AdmitPanelClose(target) ==
   /\ ~s.retired
   /\ target \in MemberSet(s.members)
   /\ s.close.phase = "idle"
   /\ s' = [s EXCEPT !.close = [EmptyClose EXCEPT
-       !.phase = "closing", !.frozen = <<target>>]]
+       !.phase = "closing", !.frozen = <<target>>, !.aggregate = FALSE]]
 
 SubmitDispose(target) ==
   /\ target \in MemberSet(s.close.frozen)
@@ -117,8 +136,19 @@ ObserveLeafContraction ==
   /\ Len(s.members) = 1
   /\ UNCHANGED vars
 
+ObserveMovedMembers ==
+  /\ s.members = <<Peer, Source>>
+  /\ UNCHANGED vars
+
+ObserveMoveDuringLeafClose ==
+  /\ s.close.phase = "closing"
+  /\ ~s.close.aggregate
+  /\ s.members = <<Peer, Source>>
+  /\ UNCHANGED vars
+
 Next ==
   \/ AdmitSplit
+  \/ AdmitMove
   \/ CompleteSplitStarted
   \/ CompleteSplitUnknown
   \/ AdmitClose
@@ -134,6 +164,8 @@ Next ==
   \/ ObserveTwoLeafSplit
   \/ ObserveAggregateClose
   \/ ObserveLeafContraction
+  \/ ObserveMovedMembers
+  \/ ObserveMoveDuringLeafClose
 
 Spec == Init /\ [][Next]_vars
 
@@ -147,19 +179,24 @@ TypeOK ==
   /\ s.close.cleaned \subseteq Leafs
   /\ s.flight \in Leafs \cup {None}
   /\ s.retired \in BOOLEAN
+  /\ s.close.aggregate \in BOOLEAN
 
 SplitMembershipExact ==
   IF s.splitPhase = "absent"
   THEN s.members \in {<<Source>>, <<Peer>>, <<>>}
   ELSE IF s.close.phase = "closed" THEN s.members = <<>>
-       ELSE s.members = <<Source, Peer>>
+       ELSE s.members \in {<<Source, Peer>>, <<Peer, Source>>}
 
 CloseCapturesExact ==
   s.close.phase = "idle" \/
-    /\ s.close.frozen \in {<<Source>>, <<Peer>>, <<Source, Peer>>}
+    /\ s.close.frozen \in {<<Source>>, <<Peer>>, <<Source, Peer>>, <<Peer, Source>>}
     /\ MemberSet(s.close.frozen) \subseteq MemberSet(
          IF s.splitPhase = "absent" /\ s.close.phase # "closed"
          THEN <<Source>> ELSE <<Source, Peer>>)
+
+AggregateCloseStable ==
+  s.close.phase \in {"closing", "unknown"} /\ s.close.aggregate =>
+    s.members = s.close.frozen
 
 FrozenRemainUntilPublished ==
   s.close.phase \in {"closing", "unknown"} =>

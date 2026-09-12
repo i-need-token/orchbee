@@ -715,6 +715,16 @@ impl WorkbenchAuthority {
                 return WorkbenchPanelSplitBegin::Ready(retire(self, &command));
             }
         };
+        // An open aggregate Close fences the same-Tab split: its publication re-proves the
+        // complete captured ordered leaf membership this commit would invalidate. The
+        // refusal is transient — nothing is retained and no terminal launch is staged, so
+        // the same request can be retried after the Close publishes.
+        if self.aggregate_close_fences_tab(&terminal_context_id, &tab_id) {
+            return WorkbenchPanelSplitBegin::Ready(result(
+                &command,
+                unavailable(WorkbenchCommandUnavailableReason::TerminalBusy),
+            ));
+        }
         WorkbenchPanelSplitBegin::Admitted(Box::new(WorkbenchPanelSplitAdmission {
             authority: self,
             command,

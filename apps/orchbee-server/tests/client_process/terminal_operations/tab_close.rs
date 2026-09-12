@@ -572,3 +572,319 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
     }
     Ok(())
 }
+
+#[test]
+fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult {
+    macro_rules! stage {
+        ($name:literal, $operation:expr) => {
+            $operation.map_err(|error| std::io::Error::other(format!("{}: {error}", $name)))?
+        };
+    }
+    let server = stage!("server start", RunningServer::start());
+    let mut real = stage!("real runtime start", RealTerminalRuntime::start(&server));
+    let (mut client, _) = stage!(
+        "workbench client connect",
+        connect_bounded_client(server.client_endpoint())
+    );
+    let initial = stage!("initial snapshot", snapshot(&mut client, 1));
+    let context_id = initial.navigation.standalone_terminal_context_id.clone();
+    let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
+    let created = stage!(
+        "tab.create",
+        command(
+            &mut client,
+            &initial,
+            2,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: context_id.clone(),
+                label: WorkbenchLabel::parse("fenced split source")?,
+                geometry,
+            },
+        )
+    );
+    let (tab_id, panel_id) = match created.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => (tab_id, panel_id),
+        outcome => return Err(format!("real tab.create did not start: {outcome:?}").into()),
+    };
+    let after_create = stage!("snapshot after tab.create", snapshot(&mut client, 3));
+    // A second standalone tab.create must be staged while every Tab is still a single leaf:
+    // create's admission derives the legacy membership shape, which a split Tab no longer
+    // satisfies.
+    let other = stage!(
+        "unrelated tab.create",
+        command(
+            &mut client,
+            &after_create,
+            4,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: context_id.clone(),
+                label: WorkbenchLabel::parse("unrelated Tab")?,
+                geometry,
+            },
+        )
+    );
+    let (other_tab_id, other_panel_id) = match other.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => (tab_id, panel_id),
+        outcome => return Err(format!("unrelated tab.create did not start: {outcome:?}").into()),
+    };
+    let after_other = stage!(
+        "snapshot after unrelated tab.create",
+        snapshot(&mut client, 5)
+    );
+    let split = stage!(
+        "panel.split",
+        command(
+            &mut client,
+            &after_other,
+            6,
+            WorkbenchAction::PanelSplit {
+                terminal_context_id: context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: WorkbenchLabel::parse("fenced split peer")?,
+                geometry,
+            },
+        )
+    );
+    let new_panel_id = match split.outcome {
+        WorkbenchCommandOutcome::PanelSplitCreated {
+            new_panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => new_panel_id,
+        outcome => return Err(format!("real panel.split did not start: {outcome:?}").into()),
+    };
+    let pending_close = stage!("snapshot before close", snapshot(&mut client, 7));
+    let closed = stage!(
+        "tab.close",
+        command(
+            &mut client,
+            &pending_close,
+            8,
+            WorkbenchAction::TabClose {
+                terminal_context_id: context_id.clone(),
+                tab_id: tab_id.clone(),
+            },
+        )
+    );
+    let close_request_id = match closed.outcome {
+        WorkbenchCommandOutcome::TabCloseAccepted {
+            close_request_id, ..
+        } => close_request_id,
+        outcome => {
+            return Err(format!("real aggregate close was not accepted: {outcome:?}").into());
+        }
+    };
+
+    // While the aggregate Close is pending, same-Tab structural admission is refused with
+    // transient terminal-busy; the refusal stages no terminal launch and retains nothing.
+    let fenced_split = WorkbenchCommand {
+        protocol_version: ProtocolVersion,
+        request_id: workbench_id(9)?,
+        site_id: pending_close.site_id.clone(),
+        expected_revision: pending_close.revision,
+        action: WorkbenchAction::PanelSplit {
+            terminal_context_id: context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: panel_id.clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("fenced during close")?,
+            geometry,
+        },
+    };
+    for attempt in 0..2 {
+        stage!(
+            "fenced panel.split write",
+            write_workbench_request(
+                &mut client,
+                &WorkbenchRequest::Command(fenced_split.clone())
+            )
+        );
+        let WorkbenchResponse::Command(fenced) = stage!(
+            "fenced panel.split response",
+            read_workbench_response(&mut client)
+        ) else {
+            return Err("missing fenced split result".into());
+        };
+        assert_eq!(fenced.request_id, workbench_id(9)?);
+        let WorkbenchCommandOutcome::Unavailable {
+            reason: orchbee_workbench_protocol::WorkbenchCommandUnavailableReason::TerminalBusy,
+        } = fenced.outcome
+        else {
+            return Err(format!(
+                "same-Tab split during pending aggregate Close was not fenced (attempt {attempt}): {:?}",
+                fenced.outcome
+            )
+            .into());
+        };
+    }
+    let fenced_move = stage!(
+        "fenced panel.move",
+        command(
+            &mut client,
+            &pending_close,
+            10,
+            WorkbenchAction::PanelMove {
+                terminal_context_id: context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                target_panel_id: new_panel_id.clone(),
+                direction: WorkbenchPanelSplitDirection::Right,
+            },
+        )
+    );
+    let WorkbenchCommandOutcome::Unavailable {
+        reason: orchbee_workbench_protocol::WorkbenchCommandUnavailableReason::TerminalBusy,
+    } = fenced_move.outcome
+    else {
+        return Err(format!(
+            "same-Tab move during pending aggregate Close was not fenced: {:?}",
+            fenced_move.outcome
+        )
+        .into());
+    };
+
+    // An unrelated Tab still admits and launches structural work during the pending Close.
+    let other_split = stage!(
+        "unrelated panel.split",
+        command(
+            &mut client,
+            &pending_close,
+            11,
+            WorkbenchAction::PanelSplit {
+                terminal_context_id: context_id.clone(),
+                tab_id: other_tab_id.clone(),
+                panel_id: other_panel_id.clone(),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: WorkbenchLabel::parse("unrelated split")?,
+                geometry,
+            },
+        )
+    );
+    match other_split.outcome {
+        WorkbenchCommandOutcome::PanelSplitCreated {
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => {}
+        outcome => {
+            return Err(format!("unrelated Tab split was not admitted: {outcome:?}").into());
+        }
+    }
+
+    let deadline = Instant::now() + Duration::from_secs(40);
+    let mut request_value = 12;
+    loop {
+        let request_id = workbench_id(request_value)?;
+        stage!(
+            "tab-close.read write",
+            write_workbench_request(
+                &mut client,
+                &WorkbenchRequest::TabCloseRead(WorkbenchTabCloseRead {
+                    protocol_version: ProtocolVersion,
+                    request_id: request_id.clone(),
+                    site_id: pending_close.site_id.clone(),
+                    terminal_context_id: context_id.clone(),
+                    tab_id: tab_id.clone(),
+                }),
+            )
+        );
+        let response = stage!(
+            "tab-close.read response",
+            read_workbench_response(&mut client)
+        );
+        let WorkbenchResponse::TabCloseRead(result) = response else {
+            return Err("fenced aggregate close returned the wrong response".into());
+        };
+        assert_eq!(result.request_id, request_id);
+        let WorkbenchTabCloseReadOutcome::Available {
+            close_request_id: observed_request_id,
+            status,
+            ..
+        } = result.outcome
+        else {
+            return Err("fenced aggregate close became unavailable".into());
+        };
+        assert_eq!(observed_request_id, close_request_id);
+        match &status {
+            WorkbenchTabCloseStatus::Closed { .. } => break,
+            WorkbenchTabCloseStatus::OutcomeUnknown { .. }
+            | WorkbenchTabCloseStatus::CleanupBlocked { .. } => {
+                return Err(format!("fenced aggregate close failed: {status:?}").into());
+            }
+            _ => {}
+        }
+        if Instant::now() >= deadline {
+            return Err(format!("fenced aggregate close did not settle: {status:?}").into());
+        }
+        request_value += 1;
+        thread::sleep(Duration::from_millis(10));
+    }
+    let after_close = stage!(
+        "snapshot after fenced close",
+        snapshot(&mut client, request_value + 1)
+    );
+    let surviving = tabs(&after_close)?;
+    assert_eq!(surviving.len(), 1);
+    assert_eq!(surviving[0].tab_id, other_tab_id);
+    let PanelNode::Split { children, .. } = &surviving[0].root else {
+        return Err("unrelated Tab split did not project a split root".into());
+    };
+    assert_eq!(children.len(), 2);
+
+    // The fenced request retained nothing: replaying it now resolves against the published
+    // revision, and the authority keeps serving commands.
+    stage!(
+        "post-publication split replay write",
+        write_workbench_request(&mut client, &WorkbenchRequest::Command(fenced_split))
+    );
+    let WorkbenchResponse::Command(replayed) = stage!(
+        "post-publication split replay response",
+        read_workbench_response(&mut client)
+    ) else {
+        return Err("missing post-publication split result".into());
+    };
+    let WorkbenchCommandOutcome::Rejected {
+        reason: orchbee_workbench_protocol::WorkbenchRejectionReason::RevisionMismatch,
+        ..
+    } = replayed.outcome
+    else {
+        return Err(format!(
+            "post-publication fenced split did not re-evaluate: {:?}",
+            replayed.outcome
+        )
+        .into());
+    };
+
+    close_tab(&mut client, &after_close, &surviving[0], request_value + 2)?;
+    let emptied = stage!("final snapshot", snapshot(&mut client, request_value + 3));
+    assert!(tabs(&emptied)?.is_empty());
+    drop(real.worker.take());
+    // Releasing the last terminal retires the Host; its endpoint may briefly outlive it.
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    loop {
+        if real._host.0.try_wait()?.is_some() {
+            break;
+        }
+        if let Ok(inventory) = running_inventory(real.endpoint.as_path()) {
+            assert_eq!(inventory, 0);
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "Host stayed alive without serving a drained terminal inventory"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    Ok(())
+}

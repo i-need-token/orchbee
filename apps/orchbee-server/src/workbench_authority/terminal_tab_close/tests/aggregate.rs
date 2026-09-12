@@ -5,11 +5,20 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PanelSlot, Presentation, TerminalPresentationId, WorkbenchPanelId,
-    WorkbenchPanelSlotId, WorkbenchSplitId,
+    WorkbenchPanelSlotId, WorkbenchPanelSplitDirection, WorkbenchSplitId,
+};
+
+use crate::workbench_authority::{
+    WorkbenchPanelMoveBegin, WorkbenchPanelMovePreparation, WorkbenchPanelSplitBegin,
+    WorkbenchPanelSplitPreparation,
 };
 
 fn split_authority() -> (WorkbenchAuthority, WorkbenchGrant) {
-    let (mut authority, grant) = fixture(1);
+    split_fixture(1)
+}
+
+fn split_fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
+    let (mut authority, grant) = fixture(count);
     let mut snapshot = authority.projection.snapshot().clone();
     let tab = &mut snapshot.terminal_contexts[0].tabs[0];
     let left = tab.root.clone();
@@ -24,7 +33,7 @@ fn split_authority() -> (WorkbenchAuthority, WorkbenchGrant) {
                     child_presentations: Vec::new(),
                     panel_id: WorkbenchPanelId::parse(&identity(102)).unwrap(),
                     primary_presentation: Presentation {
-                        binding: Some(binding(701)),
+                        binding: Some(binding(700 + count)),
                         label: "right".to_owned(),
                         presentation_id: TerminalPresentationId::parse(&identity(103)).unwrap(),
                     },
@@ -43,6 +52,55 @@ fn split_authority() -> (WorkbenchAuthority, WorkbenchGrant) {
     )
     .unwrap();
     (authority, grant)
+}
+
+fn accept_close_members(
+    authority: &mut WorkbenchAuthority,
+    grant: &WorkbenchGrant,
+    close: WorkbenchCommand,
+    now: Instant,
+) -> WorkbenchCommandResult {
+    let primary = primary(authority, grant, close);
+    let runtimes = primary
+        .members()
+        .iter()
+        .map(|member| (runtime(member), Some(LifecycleTerminalPhase::AwaitingStart)))
+        .collect();
+    let WorkbenchTabClosePreparation::Prepared(prepared) = primary.finish_members(runtimes, now)
+    else {
+        panic!("aggregate Close preparation")
+    };
+    prepared.commit()
+}
+
+fn drive_close_to_publication(
+    authority: &mut WorkbenchAuthority,
+    close_id: &WorkbenchRequestId,
+    now: Instant,
+) -> WorkbenchTabCloseStatus {
+    loop {
+        let step = authority
+            .next_terminal_tab_close_step_target(close_id, now)
+            .unwrap();
+        match step.next() {
+            CloseContinuationNext::Lifecycle { .. } => {
+                settle_disposed(authority, close_id, step, now)
+            }
+            CloseContinuationNext::TargetCleanup => {
+                let runtime = step.target().unwrap().runtime();
+                authority
+                    .complete_terminal_tab_close_target_cleanup(close_id, runtime)
+                    .unwrap();
+            }
+            CloseContinuationNext::Publication => {
+                return authority
+                    .prepare_terminal_tab_close_publication(close_id, now)
+                    .unwrap()
+                    .commit();
+            }
+            next => panic!("unexpected Close step {next:?}"),
+        }
+    }
 }
 
 fn step_request(
@@ -300,4 +358,258 @@ fn split_tab_close_quarantines_siblings_after_unknown_but_keeps_known_cleanup() 
             .unwrap(),
         WorkbenchTabCloseStatus::Closing { .. }
     ));
+}
+
+#[test]
+fn aggregate_close_fences_same_tab_split_and_move_until_publication() {
+    let (mut authority, grant) = split_fixture(2);
+    let context_id = authority
+        .projection
+        .snapshot()
+        .navigation
+        .standalone_terminal_context_id
+        .clone();
+    let closing_tab_id = authority.projection.snapshot().terminal_contexts[0].tabs[0]
+        .tab_id
+        .clone();
+    let other_tab_id = authority.projection.snapshot().terminal_contexts[0].tabs[1]
+        .tab_id
+        .clone();
+    let membership = authority.terminal_tree_membership(&context_id).unwrap();
+    let closing_members: Vec<_> = membership
+        .members_for_tab(&closing_tab_id)
+        .cloned()
+        .collect();
+    let other_members: Vec<_> = membership.members_for_tab(&other_tab_id).cloned().collect();
+    assert_eq!(closing_members.len(), 2);
+    assert_eq!(other_members.len(), 1);
+    let now = Instant::now();
+    let close = command(
+        &authority,
+        10000,
+        WorkbenchAction::TabClose {
+            terminal_context_id: context_id.clone(),
+            tab_id: closing_tab_id.clone(),
+        },
+    );
+    let accepted = accept_close_members(&mut authority, &grant, close.clone(), now);
+    assert!(matches!(
+        accepted.outcome,
+        WorkbenchCommandOutcome::TabCloseAccepted { .. }
+    ));
+    let retained = authority.ledger.len();
+
+    // The pending aggregate Close fences same-Tab structural admission; the refusal is
+    // transient — no ledger entry, no admission, no terminal launch.
+    let split = command(
+        &authority,
+        10001,
+        WorkbenchAction::PanelSplit {
+            terminal_context_id: context_id.clone(),
+            tab_id: closing_tab_id.clone(),
+            panel_id: closing_members[0].panel_id().clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("fenced split").unwrap(),
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+        },
+    );
+    let WorkbenchPanelSplitBegin::Ready(fenced) =
+        authority.begin_terminal_panel_split(Some(&grant), split.clone())
+    else {
+        panic!("pending aggregate Close must fence the split before admission")
+    };
+    assert!(matches!(
+        fenced.outcome,
+        WorkbenchCommandOutcome::Unavailable {
+            reason: WorkbenchCommandUnavailableReason::TerminalBusy
+        }
+    ));
+    assert_eq!(authority.ledger.len(), retained);
+    let WorkbenchPanelSplitBegin::Ready(retried) =
+        authority.begin_terminal_panel_split(Some(&grant), split.clone())
+    else {
+        panic!("unretained refusal must re-evaluate")
+    };
+    assert_eq!(retried, fenced);
+    assert_eq!(authority.ledger.len(), retained);
+
+    let movement = command(
+        &authority,
+        10002,
+        WorkbenchAction::PanelMove {
+            terminal_context_id: context_id.clone(),
+            tab_id: closing_tab_id.clone(),
+            panel_id: closing_members[0].panel_id().clone(),
+            target_panel_id: closing_members[1].panel_id().clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+        },
+    );
+    let WorkbenchPanelMoveBegin::Admitted(moving) =
+        authority.begin_terminal_panel_move(Some(&grant), movement)
+    else {
+        panic!("move admission")
+    };
+    let WorkbenchPanelMovePreparation::Ready(fenced_move) = moving.finish() else {
+        panic!("pending aggregate Close must fence the move before commit")
+    };
+    assert!(matches!(
+        fenced_move.outcome,
+        WorkbenchCommandOutcome::Unavailable {
+            reason: WorkbenchCommandUnavailableReason::TerminalBusy
+        }
+    ));
+    assert_eq!(authority.ledger.len(), retained);
+
+    // Ledger replay precedes the fence.
+    let WorkbenchTabCloseBegin::Ready(replayed) =
+        authority.begin_terminal_tab_close(Some(&grant), close.clone())
+    else {
+        panic!("Close replay")
+    };
+    assert_eq!(replayed, accepted);
+
+    // An unrelated Tab still admits structural work.
+    let other_split = command(
+        &authority,
+        10003,
+        WorkbenchAction::PanelSplit {
+            terminal_context_id: context_id.clone(),
+            tab_id: other_tab_id.clone(),
+            panel_id: other_members[0].panel_id().clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("other split").unwrap(),
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+        },
+    );
+    let WorkbenchPanelSplitBegin::Admitted(other) =
+        authority.begin_terminal_panel_split(Some(&grant), other_split.clone())
+    else {
+        panic!("unrelated Tab split must remain admissible")
+    };
+    let WorkbenchPanelSplitPreparation::Prepared(other_prepared) = other.finish(binding(1703))
+    else {
+        panic!("unrelated Tab split preparation")
+    };
+    let _pending = other_prepared.commit_into_pending();
+    let WorkbenchPanelSplitBegin::Ready(replayed_split) =
+        authority.begin_terminal_panel_split(Some(&grant), other_split)
+    else {
+        panic!("pending split replay")
+    };
+    assert!(matches!(
+        replayed_split.outcome,
+        WorkbenchCommandOutcome::PanelSplitPending { .. }
+    ));
+
+    // The fenced Close still publishes exactly and the authority remains usable.
+    let closed = drive_close_to_publication(&mut authority, &close.request_id, now);
+    assert!(matches!(closed, WorkbenchTabCloseStatus::Closed { .. }));
+    assert!(!authority.retired);
+    let tabs = &authority.projection.snapshot().terminal_contexts[0].tabs;
+    assert_eq!(tabs.len(), 1);
+    assert_eq!(tabs[0].tab_id, other_tab_id);
+    let WorkbenchPanelSplitBegin::Ready(after) =
+        authority.begin_terminal_panel_split(Some(&grant), split)
+    else {
+        panic!("post-publication re-evaluation")
+    };
+    assert!(matches!(
+        after.outcome,
+        WorkbenchCommandOutcome::Rejected {
+            reason: WorkbenchRejectionReason::RevisionMismatch,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn leaf_close_leaves_same_tab_split_and_move_admissible() {
+    let (mut authority, grant) = split_authority();
+    let context_id = authority
+        .projection
+        .snapshot()
+        .navigation
+        .standalone_terminal_context_id
+        .clone();
+    let tab_id = authority.projection.snapshot().terminal_contexts[0].tabs[0]
+        .tab_id
+        .clone();
+    let membership = authority.terminal_tree_membership(&context_id).unwrap();
+    let members: Vec<_> = membership.members_for_tab(&tab_id).cloned().collect();
+    assert_eq!(members.len(), 2);
+    let now = Instant::now();
+    let close = command(
+        &authority,
+        10010,
+        WorkbenchAction::PanelClose {
+            terminal_context_id: context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: members[0].panel_id().clone(),
+        },
+    );
+    let accepted = accept(&mut authority, &grant, close.clone(), now);
+    assert!(matches!(
+        accepted.outcome,
+        WorkbenchCommandOutcome::PanelCloseAccepted { .. }
+    ));
+
+    // A leaf-scoped Close re-proves only its captured leaf tuple: the same-Tab move is
+    // still admitted and commits.
+    let movement = command(
+        &authority,
+        10011,
+        WorkbenchAction::PanelMove {
+            terminal_context_id: context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id: members[1].panel_id().clone(),
+            target_panel_id: members[0].panel_id().clone(),
+            direction: WorkbenchPanelSplitDirection::Left,
+        },
+    );
+    let WorkbenchPanelMoveBegin::Admitted(moving) =
+        authority.begin_terminal_panel_move(Some(&grant), movement)
+    else {
+        panic!("leaf Close must not fence the same-Tab move")
+    };
+    let WorkbenchPanelMovePreparation::Prepared(prepared_move) = moving.finish() else {
+        panic!("leaf Close must not fence the same-Tab move")
+    };
+    let moved = prepared_move.commit();
+    assert!(matches!(
+        moved.outcome,
+        WorkbenchCommandOutcome::PanelMoved { .. }
+    ));
+
+    // A same-Tab split on the surviving leaf is still admitted.
+    let split = command(
+        &authority,
+        10012,
+        WorkbenchAction::PanelSplit {
+            terminal_context_id: context_id,
+            tab_id: tab_id.clone(),
+            panel_id: members[1].panel_id().clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("leaf split").unwrap(),
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+        },
+    );
+    let WorkbenchPanelSplitBegin::Admitted(splitting) =
+        authority.begin_terminal_panel_split(Some(&grant), split)
+    else {
+        panic!("leaf Close must not fence the same-Tab split")
+    };
+    let WorkbenchPanelSplitPreparation::Prepared(prepared_split) = splitting.finish(binding(1702))
+    else {
+        panic!("same-Tab split preparation")
+    };
+    let _pending = prepared_split.commit_into_pending();
+
+    // The leaf Close still publishes its contraction over the changed membership.
+    let closed = drive_close_to_publication(&mut authority, &close.request_id, now);
+    assert!(matches!(closed, WorkbenchTabCloseStatus::Closed { .. }));
+    assert!(!authority.retired);
+    assert_eq!(
+        authority.projection.snapshot().terminal_contexts[0].tabs[0].tab_id,
+        tab_id
+    );
 }

@@ -83,6 +83,13 @@ member, reuses the same continuation, and publishes the surviving Tab with the r
 Split replaced by the sibling subtree; closing a Tab's only leaf admits as an ordinary aggregate
 Close. Standalone retargeting compares the exact removed set against the remaining
 tree and preserves the current reference when one remains, or publishes Empty when none remains.
+While an aggregate Close is open on a Tab, `panel.split` and `panel.move` admissions naming the same
+context/Tab are refused the existing transient `terminal-busy`: publication re-proves the complete
+captured ordered leaf membership, which any same-Tab membership change would invalidate. The fence
+follows grant, replay/conflict, retirement, ledger-capacity, Site, base-revision and context checks;
+it retains no result and launches no terminal, and the same request can be retried after the Close
+publishes. A leaf-scoped Close re-proves only its own leaf tuple and fences neither operation; every
+other Tab's writes proceed.
 The authority unit test, the standalone and Workspace Linux process witnesses
 `real_workbench_panel_split_and_aggregate_close_releases_both_terminals` and
 `real_workspace_panel_split_and_aggregate_close_releases_both_terminals`, and the bounded
@@ -95,7 +102,9 @@ removed. The TUI still does not submit
 `panel.move` is the pure projection counterpart: it relocates one leaf Panel inside its Tab without
 any lifecycle. Admission reuses the navigation mutation grant, the exact context/Tab checks, and
 tree membership — the leaf-level membership required for Split-bearing trees — then validates both
-leaves as direct members of the named Tab. A move that names the same leaf, or whose placement is
+leaves as direct members of the named Tab. An aggregate Close open on the named Tab refuses an
+otherwise-committable move with transient `terminal-busy`, while rejections and the no-op
+`Unchanged` outcome keep their precedence; a leaf-scoped Close does not fence. A move that names the same leaf, or whose placement is
 already satisfied because the pair are direct children of a matching-orientation Split in the
 direction-implied order, commits `Unchanged` without consuming identities. A committed move detaches
 the source leaf — collapsing its parent Split into the sibling subtree — and grafts it beside the
