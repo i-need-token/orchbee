@@ -150,8 +150,14 @@ Linux 进程证据；发布收敛仍待完成。不增加显式空 Open 结果�
 并且向量任意位置恰有一个匹配绑定。位置从不标识引导或完成。零/多个匹配、授权缺失/无法转换、
 重复上下文或固定/分组/拆分/子项/缺失绑定布局属于内部权威分歧，从不修复或返回 `TabUnavailable`。
 
-在 Site 门锁内，在先行准入决策之后，对新的首次/后续 create 和 Move、现有初始 Open 要求组合
-检查的位置，以及共同精确已提交 create 完成前应用此关系。它不是无条件入口检查：授权、退役、
+`standalone_membership()` 是严格简单投影——每个 Tab 一个成员——首个/后续 create 和 Move 准入
+使用它；含拆分的树对这些调用方属于分歧。`tree_standalone_membership()` 是严格树读取——在相同的
+上下文验证下，按规范顺序返回独立 Tab 树的每个叶成员。Open 读取严格树成员关系，并对其成员应用同一
+引用派生锚点关系，因此合法的多叶形状绝不是组合分歧；仅凭"全体成员有 retained binding"不能证明
+槽位锚点，授权缺失、零/重复锚点匹配及任何结构性违规仍是失败关闭的分歧。
+
+在 Site 门锁内，在先行准入决策之后，对新的首次/后续 create 和 Move，以及共同精确已提交 create
+完成前应用此关系；Open 在严格树成员关系上应用它。它不是无条件入口检查：授权、退役、
 活动态精确 pending/final 重放或冲突及更早预检保留优先级。提交前分歧退役 Workbench，并返回顶层
 `unavailable/service-unavailable`；Open 保留 `server-busy`。提交后令牌/组合失败按现有失败关闭
 规则关闭载体，绝非提交前拒绝。已结算 Open 在无关 Workbench 退役后仍可读取。
@@ -211,9 +217,16 @@ PTY 轨迹。不作无界变换/细化声明；一次性收窄 TLC 不是所属�
 create 结果修订；按创建时间排序的完成顺序见证使用引导引用，而非当前顺序。
 
 `LocalStandaloneTerminal` 保留两个 Client、两个引用/绑定、一次引导派发以及最多两次其他投影
-提交。这些提交可实际追加后续成员并交换两者。`authorization` 属于 Terminal 所有者，有序
+提交。这些提交可实际追加后续成员并交换两者。追加的成员抽象任意后续叶——`tab.create` 成员或已
+提交的 `panel.split` 叶——因此 `membership` 是 Open 读取的有序叶序列，而非每个 Tab 一个成员；
+待处理的 split 叶已经是成员，绝不延迟或重定向已结算引用的重放。`DerivedComposition` 是合法形状
+边界：成员为空当且仅当槽位为 Empty，否则锚点 binding 恰好出现一次；其不可达违例代表生产端退役的
+分歧。`authorization` 属于 Terminal 所有者，有序
 `membership` 属于 Workbench，Site 槽位仅保留其引用/outcome。`member` 从该授权派生。读取
-使用按修订索引的规范首项历史；Open 仍观察原引用。现有两个 Open 的等待/超时公平性仍必须满足。
+使用按修订索引的规范首项历史；Open 仍观察原引用，合法叶重排（`MoveMembership`）保留它。叶移除、
+锚点移除后的槽位重定向及最终 Empty 转移属于 `WorkbenchTabCloseCreateReference` 和
+`WorkbenchPanelSplit`；与重定向相关的逐成员 pending/settled 阶段归它们而非本模型。现有两个
+Open 的等待/超时公平性仍必须满足。
 这些有界模型是成员关系/Site 细化的前提，不建立后续 Move 线上、导航账本或原生传输/投影器细化。
 
 `WorkbenchNavigationCommit` 保留两个现有导航/rename 变体，并增加独立 Move 顺序、单成员、
@@ -378,7 +391,7 @@ Context 先于 Tab 的解析、确切 Unicode 标签文本、identity 编码、c
 | 数据   | 同一个 Site gate 串行化 Workbench 权威、终端意图 coordinator 及 SiteCoordinator 拥有的 Empty/Creating/Settled 独立状态。Client identity、Create reference、聚合身份和逻辑 Terminal/Worker binding 属于不同身份领域。 |
 | 输出   | 现有相关联的 Open result，以及包含首个独立 Tab、Panel 和 Presentation 的一个规范 snapshot revision。                                                                                                                 |
 | 不变量 | 没有已提交成员关系和终端意图就不能启动；成员关系必须对应确切的计划终端意图；预检失败不消耗任何 allocator；后续导航保留 binding；提交后不自动回滚、重置或重新启动。                                                   |
-| 模型   | 纯终端预检、已验证的 Workbench candidate、一次受 gate 保护的跨组件提交、释放锁后 dispatch、相关联的终端 settlement，最后发布响应。                                                                                   |
+| 模型   | 纯终端预检、已验证的 Workbench candidate、一次受 gate 保护的跨组件提交、释放锁后 dispatch、相关联的终端 settlement，最后发布响应。已结算重放读取严格树成员关系，并要求保留的锚点 binding 恰好出现一次。              |
 | Owner  | binary-private SiteCoordinator 在现有 service gate 下组合两个确定性 owner。只有 WorkbenchAuthority 写 projection；只有 TerminalCoordinator 拥有 launch/start authorization 和执行 phase。                            |
 | 依赖   | 现有 OBCS Open、OBCN authorization、OBWP read、Workbench projection 和本地 Worker registry。不增加协议、依赖、package 或网络权威。                                                                                   |
 | 验证   | core 边界及序列测试，区分身份领域并覆盖导航/读取交错的 LocalStandaloneTerminal，真实 Server/Worker carrier trace，以及保留 shell 的 PTY 证据。                                                                       |
@@ -410,8 +423,18 @@ typed unavailable result，不启动也不创建成员关系。Workbench 预检/
 result。Client 丢失及响应未读都不能撤销提交。确切 Worker generation 校验仍约束成功；替换 Worker
 不会接管或重新启动该终端。现有 condition wait 释放 gate，并沿用同一个绝对截止时间。
 
+Creating 与 Settled 重放读取 `tree_standalone_membership()`——按规范顺序返回独立 Tab 树的每个叶
+成员——因此合法拆分或重排的树绝不是不变量失败，也不会退役权威。锚点关系不变：树无成员时槽位恰为
+Empty；否则槽位引用的保留授权必须转换为 `PresentationBinding`，并在全体成员中恰好出现一次。已提交
+的 split 叶在其终端 outcome 可知前已是成员：待处理兄弟叶既不重定向也不阻塞已结算引用的重放，合法
+叶重排保留该引用。只有既有 Close settlement 改变引用——指向保留的幸存成员——最后一次移除回到
+Empty；Open 绝不另选替代终端。授权缺失、零/重复锚点出现次数及任何树形状或 binding 违规仍是失败
+关闭的分歧，会退役权威并返回 `server-busy`。
+
 形式模型使用两个 Client、两个独立 Create reference、两个不透明逻辑 binding，以及最多两次交错的
-导航提交。Reserve 表示完整的 gate 内提交；Dispatch 是独立动作，必须携带该 binding。
+导航提交。Reserve 表示完整的 gate 内提交；Dispatch 是独立动作，必须携带该 binding。其有序
+`membership` 抽象叶级严格树成员关系：追加的成员既代表 `tab.create` 成员也代表已提交的 split 叶，
+因此两成员上的已结算槽位正是多叶重放形状。
 ReadWorkbench 观察一份已提交 snapshot。抽象 capacity 和 Workbench retirement 不能代替确切编码、
 身份分配及真实进程测试。
 

@@ -1,9 +1,10 @@
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
-    PanelNode, ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchAction, WorkbenchCommand,
-    WorkbenchCommandOutcome, WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
-    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchSnapshotOutcome,
+    PanelNode, ProtocolVersion, PublicationReadIntent, Snapshot, SnapshotReadIntent,
+    WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchDirectoryPath,
+    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchPublicationOutcome, WorkbenchRequest,
+    WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
     WorkbenchTerminalGeometry, read_workbench_response, write_workbench_request,
 };
 use rustix::process::{Pid, PidfdFlags, pidfd_open};
@@ -92,6 +93,24 @@ impl WorkbenchPeer {
         });
         let WorkbenchResponse::Command(result) = self.exchange(request, deadline)? else {
             return Err("expected preparation Command response".into());
+        };
+        assert_eq!(result.request_id, request_id);
+        Ok(result.outcome)
+    }
+
+    fn publication(
+        &mut self,
+        known_revision: WorkbenchRevision,
+        deadline: Instant,
+    ) -> Result<WorkbenchPublicationOutcome, Box<dyn Error>> {
+        let request_id = self.request_id()?;
+        let request = WorkbenchRequest::PublicationRead(PublicationReadIntent {
+            protocol_version: ProtocolVersion,
+            request_id: request_id.clone(),
+            known_revision,
+        });
+        let WorkbenchResponse::Publication(result) = self.exchange(request, deadline)? else {
+            return Err("expected Publication response".into());
         };
         assert_eq!(result.request_id, request_id);
         Ok(result.outcome)
@@ -1214,5 +1233,120 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     assert_eq!(peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?, closed);
     client.close_before(Instant::now() + EXIT_TIMEOUT);
     independent.close_before(Instant::now() + EXIT_TIMEOUT);
+    Ok(())
+}
+
+#[test]
+fn native_bare_reentry_replays_the_settled_anchor_across_a_split_leaf() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+    let mut client = Client::spawn(&fixture, "en_US.UTF-8");
+    client.wait_ready_after(
+        0,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::Controlling,
+    );
+    client
+        .send(shell_identity_command(&fixture, "anchor", "native-reentry-anchor", true).as_bytes());
+    let anchor_identity = wait_file(
+        &fixture.base.join("native-reentry-anchor"),
+        &mut [&mut client],
+        Instant::now() + OBSERVATION_TIMEOUT,
+    );
+    require_shell_identity(&anchor_identity, "anchor");
+
+    // Commit a second leaf through the shared Workbench protocol; the anchor stays settled.
+    let deadline = Instant::now() + CLOSE_TIMEOUT;
+    let mut peer = WorkbenchPeer::connect(&fixture, deadline)?;
+    let before_split = peer.snapshot(deadline)?;
+    let terminal_context_id = before_split
+        .navigation
+        .standalone_terminal_context_id
+        .clone();
+    let context = before_split
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .ok_or("reentry context missing")?;
+    let tab = context.tabs.first().ok_or("reentry Tab missing")?;
+    let source_panel_id = match &tab.root {
+        PanelNode::Panel { panel_id, .. } => panel_id.clone(),
+        PanelNode::Split { .. } => return Err("fresh reentry Tab was already split".into()),
+    };
+    let tab_id = tab.tab_id.clone();
+    let new_panel_id = match peer.prepare(
+        WorkbenchAction::PanelSplit {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id,
+            panel_id: source_panel_id.clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("Split peer")?,
+            geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16)?,
+        },
+        deadline,
+    )? {
+        WorkbenchCommandOutcome::PanelSplitCreated { new_panel_id, .. } => new_panel_id,
+        outcome => return Err(format!("reentry PanelSplit did not start: {outcome:?}").into()),
+    };
+    let split = peer.snapshot(deadline)?;
+    let split_tab = split
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .and_then(|candidate| candidate.tabs.first())
+        .ok_or("reentry split Tab was not projected")?;
+    let PanelNode::Split { children, .. } = &split_tab.root else {
+        return Err("reentry PanelSplit did not project a split root".into());
+    };
+    let [anchor_slot, split_slot] = children.as_ref();
+    assert!(matches!(
+        &anchor_slot.node,
+        PanelNode::Panel { panel_id, .. } if panel_id == &source_panel_id
+    ));
+    assert!(matches!(
+        &split_slot.node,
+        PanelNode::Panel { panel_id, .. } if panel_id == &new_panel_id
+    ));
+
+    let process_names = ["orchbee-server", "orchbee-worker", "orchbee-terminal-host"];
+    let retained = process_names.map(|name| one_process(&fixture, name));
+    client.close_before(Instant::now() + EXIT_TIMEOUT);
+
+    // Bare reentry must replay the settled anchor reference across the live multi-leaf tree:
+    // the same shell, the same managed processes, and no new Workbench revision.
+    let mut reopened = Client::spawn(&fixture, "en_US.UTF-8");
+    reopened.wait_ready_after(
+        0,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::Controlling,
+    );
+    for (name, expected) in process_names.into_iter().zip(retained) {
+        assert_process_retained(&fixture, name, &expected);
+    }
+    reopened.send(shell_identity_command(&fixture, "", "native-reentry-after", false).as_bytes());
+    assert_eq!(
+        wait_file(
+            &fixture.base.join("native-reentry-after"),
+            &mut [&mut reopened],
+            Instant::now() + OBSERVATION_TIMEOUT,
+        ),
+        anchor_identity,
+        "bare reentry must return the original anchor shell and its marker",
+    );
+    let observe = Instant::now() + OBSERVATION_TIMEOUT;
+    let after = peer.snapshot(observe)?;
+    assert_eq!(
+        after.revision, split.revision,
+        "bare reentry must not write a Workbench revision"
+    );
+    assert!(matches!(
+        peer.publication(split.revision, observe)?,
+        WorkbenchPublicationOutcome::Current { .. } | WorkbenchPublicationOutcome::Published { .. }
+    ));
+    reopened.close_before(Instant::now() + EXIT_TIMEOUT);
     Ok(())
 }

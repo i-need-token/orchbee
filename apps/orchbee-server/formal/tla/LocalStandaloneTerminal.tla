@@ -14,6 +14,14 @@ vars == <<slot, creator, phase, observed, worker, creates, action,
           membership, authorization, orderHistory, revision, navigationWrites, dispatched, workbench, capacity,
           readRevision, readMember, createdAt, reference, dispatchedBinding>>
 member == IF reference = NoReference THEN NoBinding ELSE authorization[reference]
+(* `membership` abstracts the strict ordered leaf membership of the standalone
+   context: every leaf Panel member, not one member per Tab.  `DerivedComposition`
+   is the legal-shape boundary Open enforces under the Site gate: the slot is
+   Empty exactly when the member sequence is empty, otherwise the anchor — the
+   slot reference's retained authorization converted to a binding — occurs
+   exactly once.  States violating it (missing/unconvertible retained
+   authorization, zero or duplicate anchor occurrences) are unreachable through
+   these transitions; production retires the Workbench authority on them. *)
 DerivedComposition ==
   /\ (Len(membership) = 0) = (slot = "empty")
   /\ (slot # "empty" =>
@@ -134,9 +142,13 @@ RetireWorkbench ==
                  navigationWrites, dispatched, capacity, readRevision, readMember, createdAt, reference, dispatchedBinding>>
   /\ action' = "RetireWorkbench"
 
-(* A later tab.create has passed its joint owner preflight. Its authorization
-and membership are committed together; detailed dispatch/settlement stays in
-WorkbenchTabCreate. The Site stores no second binding or positional anchor. *)
+(* A later leaf member has passed its joint owner preflight: its authorization
+and membership are committed together.  The added member abstracts either a
+later tab.create or a panel.split leaf; the split's orientation, dispatch and
+per-leaf settlement detail stay in WorkbenchTabCreate and WorkbenchPanelSplit.
+A pending split leaf is already a member here, so Open replays the settled
+slot reference while it exists; the Site stores no second binding or
+positional anchor. *)
 CreateLaterMember(r, b) ==
   /\ workbench /\ slot # "empty" /\ DerivedComposition
   /\ Len(membership) = 1 /\ navigationWrites < 2
@@ -150,6 +162,8 @@ CreateLaterMember(r, b) ==
        dispatched, workbench, capacity, readRevision, readMember, createdAt,
        reference, dispatchedBinding>>
 
+(* A legal leaf reorder: membership shape changes without touching the slot,
+   so the anchor reference and every Open replay are preserved. *)
 MoveMembership ==
   /\ workbench /\ DerivedComposition /\ Len(membership) = 2
   /\ navigationWrites < 2
@@ -209,6 +223,9 @@ DisconnectPreservesSlot ==
   [][(action' = "Disconnect" => UNCHANGED <<slot, creator, creates, membership, authorization, orderHistory, revision, dispatched>>)]_vars
 PreflightPreservesState ==
   [][(action' = "PreflightFailure" => UNCHANGED <<slot, creator, creates, membership, authorization, orderHistory, revision, dispatched>>)]_vars
+(* Scope: this model has no leaf removal; member contraction, slot retarget
+   after anchor removal and the final-Empty transition are owned by
+   WorkbenchTabCloseCreateReference and WorkbenchPanelSplit. *)
 MembershipIsRetained == [][(member # NoBinding =>
   /\ member' = member /\ reference' = reference)]_vars
 MovePreservesBootstrap == [][action' = "MoveMembership" =>

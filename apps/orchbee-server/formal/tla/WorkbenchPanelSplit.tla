@@ -4,12 +4,14 @@ EXTENDS Integers, Sequences, FiniteSets, TLC
 (*
    A bounded refinement of one Panel Split followed by Close lifecycles.
    The split commits the source and new leaf together before the terminal
-   outcome is known.  A Tab-scoped close freezes the exact ordered membership;
-   a Panel-scoped close freezes one leaf.  A close can publish only after every
-   captured leaf is disposed and locally cleaned.  A leaf publication contracts
-   the membership to the surviving siblings; a tab publication removes every
-   member.  Unknown is a quarantine for the affected close; it never becomes a
-   successful publication.
+   outcome is known, so `members` is the strict leaf membership a standalone
+   Open reads: a committed pending split leaf is already a member, and neither
+   it nor a legal reorder changes the slot anchor.  A Tab-scoped close freezes
+   the exact ordered membership; a Panel-scoped close freezes one leaf.  A
+   close can publish only after every captured leaf is disposed and locally
+   cleaned.  A leaf publication contracts the membership to the surviving
+   siblings; a tab publication removes every member.  Unknown is a quarantine
+   for the affected close; it never becomes a successful publication.
 *)
 CONSTANTS Source, Peer, None, MaxRevision
 ASSUME /\ Cardinality({Source, Peer, None}) = 3

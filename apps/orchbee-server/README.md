@@ -683,7 +683,9 @@ The unshipped `terminal.open` operation opens one Server-owned standalone termin
 the local single-subject native path. The first request that passes all preflights atomically commits
 shared Tab/Panel/Presentation membership and terminal intent, then dispatches one immediate launch
 with Worker-default cwd and the supplied geometry. Subsequent Opens join or return the same retained
-outcome and Create reference. OBCS local terminal admission authorizes this operation; the internal
+outcome and Create reference; the settled slot replays over the strict leaf-level tree membership,
+so a committed `panel.split` leaf or a legal reorder never changes the returned reference or retires
+the shared Workbench. OBCS local terminal admission authorizes this operation; the internal
 membership commit is separate from the OBWP navigation command ledger and its read/navigation grants.
 
 The shared binding is the logical TerminalId and WorkerId from Server authorization, not a Host,
@@ -698,7 +700,7 @@ Client Workbench rendering remain unfinished.
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inputs      | Admitted OBCS Open, real geometry, current Worker placement, lease, fresh nonzero random Create reference and monotonic wait time. Request ID only correlates the response.                                                                                                                                                        |
 | Owner       | SiteCoordinator owns the standalone slot and cross-owner workflow; WorkbenchAuthority owns projection/cursor, TerminalCoordinator owns terminal binding/allocation. The service owns IPC, entropy and deadlines; Client owns its request/viewer.                                                                                   |
-| Model       | Empty -> Creating -> Settled. Pure terminal planning and Workbench validation precede one Site-gated commit. Dispatch and response publication occur outside the gate.                                                                                                                                                             |
+| Model       | Empty -> Creating -> Settled. Pure terminal planning and Workbench validation precede one Site-gated commit. Dispatch and response publication occur outside the gate. Settled replay reads the strict leaf-level tree membership and requires the slot reference's retained binding exactly once across all members.              |
 | Preflight   | Missing Worker/Workbench, entropy failure, reference collision, capacity, identity, revision or lease failure leaves Empty with neither terminal nor membership. Internal Workbench preflight/publication failure retires Workbench without dispatch.                                                                              |
 | Completion  | Started maps to Opened; unavailable/failed preserve Create reasons; collision/entropy/Workbench preflight refusal maps to server-busy. Unexpected fixed-input rejection maps to terminal-create-failed. Unknown stays unknown. Post-commit failure retains membership and never permits another create.                            |
 | Concurrency | Wait releases the Site mutex. One absolute 46-second condition deadline returns server-busy only to that waiter, without cancellation. Worker exchange is bounded by 44 seconds; ordinary Client submission has 50 seconds, clamped to the startup deadline until first frame.                                                     |
@@ -707,19 +709,22 @@ Client Workbench rendering remain unfinished.
 
 ### Standalone opening correctness
 
-| Claim                                               | Refinement and evidence                                                                                                                     |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| SO-01: at most one prepared create                  | Reserve maps to the gated Site commit; Singleton/NoReset and core preflight/collision/concurrency tests.                                    |
-| SO-02: callers share a committed reference          | Complete/Observe, SameReference/OpenedWasCommitted, exact-placement tests and real two-Session/Host traces.                                 |
-| SO-03: Client loss never resets shared state        | Disconnect/Reopen, DisconnectPreservesSlot, unread-result and reopen process traces.                                                        |
-| SO-04: uncertainty never creates another effect     | Complete(unknown), SettledSlotIsFinal, failed/unknown/same-Worker-new-generation core and process tests.                                    |
-| SO-05: a waiter settles without Worker fairness     | Timeout/EveryWaitSettles and absolute-deadline condition tests; only local timeout observation is weakly fair.                              |
-| SO-06: launch requires committed membership         | Reserve/Dispatch, MembershipCommitted/DispatchHasMembership, logical authorization comparison before Worker completion.                     |
-| SO-07: reads preserve the binding across navigation | Navigate/ReadWorkbench, ReadIsCommitted/MembershipIsRetained, stateful navigation traces and a stalled-Worker process witness.              |
-| SO-08: preflight consumes neither allocator         | PreflightPreservesState covers abstract membership/revision; exact identity, revision and encoded-capacity tests cover concrete allocation. |
+| Claim                                                  | Refinement and evidence                                                                                                                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SO-01: at most one prepared create                     | Reserve maps to the gated Site commit; Singleton/NoReset and core preflight/collision/concurrency tests.                                                                                    |
+| SO-02: callers share a committed reference             | Complete/Observe, SameReference/OpenedWasCommitted, exact-placement tests and real two-Session/Host traces.                                                                                 |
+| SO-03: Client loss never resets shared state           | Disconnect/Reopen, DisconnectPreservesSlot, unread-result and reopen process traces.                                                                                                        |
+| SO-04: uncertainty never creates another effect        | Complete(unknown), SettledSlotIsFinal, failed/unknown/same-Worker-new-generation core and process tests.                                                                                    |
+| SO-05: a waiter settles without Worker fairness        | Timeout/EveryWaitSettles and absolute-deadline condition tests; only local timeout observation is weakly fair.                                                                              |
+| SO-06: launch requires committed membership            | Reserve/Dispatch, MembershipCommitted/DispatchHasMembership, logical authorization comparison before Worker completion.                                                                     |
+| SO-07: reads preserve the binding across navigation    | Navigate/ReadWorkbench, ReadIsCommitted/MembershipIsRetained, stateful navigation traces and a stalled-Worker process witness.                                                              |
+| SO-08: preflight consumes neither allocator            | PreflightPreservesState covers abstract membership/revision; exact identity, revision and encoded-capacity tests cover concrete allocation.                                                 |
+| SO-09: settled replay survives a legal multi-leaf tree | `DerivedComposition` anchor-once over the ordered leaf member sequence, `MovePreservesBootstrap`, deterministic Site split/reorder/close tests and the Linux PTY split-exit-reopen witness. |
 
 The [model](formal/tla/LocalStandaloneTerminal.tla) separates two Clients, two Create references
-and two logical bindings, with two navigation commits and one create attempt. It abstracts entropy,
+and two logical bindings, with two navigation commits and one create attempt. Its member sequence
+abstracts leaf-level membership, so the appended member also stands for a committed split leaf.
+It abstracts entropy,
 encoding, allocation cursors, duplicate completion, time magnitude and scheduling. Deterministic
 and stateful tests cover identity non-reuse and ignored duplicate completion; process/PTY traces
 cover framing, logical-to-Host mapping, concurrency, real execution and retention.

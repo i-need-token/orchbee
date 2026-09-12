@@ -190,9 +190,18 @@ identifies bootstrap or completion. Zero/multiple matches, absent/unconvertible 
 duplicate context or pin/group/split/child/missing-binding layout are internal divergence, never
 repaired or returned as `TabUnavailable`.
 
+`standalone_membership()` is the strict-simple projection — one member per Tab — that first/later
+create and Move admission use; a split-bearing tree is divergence for those callers.
+`tree_standalone_membership()` is the strict tree read — every leaf member of the standalone Tab
+tree in canonical order under the same context validation. Open reads the strict tree membership and
+applies the same reference-derived anchor relation over its members, so a legal multi-leaf shape is
+never a composition fault; "every member has a retained binding" alone does not prove the slot anchor,
+and missing retained authorization, zero or duplicate anchor matches and every structural violation
+remain fail-closed divergence.
+
 Apply that relation under the Site gate after preceding admission decisions for new first/later
-create and Move, where initial Open already requires composition, and before joint exact
-committed-create completion. This is not an unconditional entry guard: authorization, retirement,
+create and Move, and before joint exact
+committed-create completion; Open applies it over the strict tree membership. This is not an unconditional entry guard: authorization, retirement,
 active exact pending/final replay or conflict and earlier preflight retain precedence.
 Precommit divergence retires Workbench and returns top-level `unavailable/service-unavailable`;
 Open retains `server-busy`. Postcommit token/composition failure closes the carrier under the
@@ -265,9 +274,17 @@ result revisions; chronological completion-order witnesses use the bootstrap ref
 
 `LocalStandaloneTerminal` retains two Clients, two references/bindings, one bootstrap dispatch and
 at most two other projection commits. Those commits may actually append the later member and swap
-the two. `authorization` belongs to the Terminal owner, ordered `membership` to Workbench, and the
+the two. The appended member abstracts any later leaf — a `tab.create` member or a committed
+`panel.split` leaf — so `membership` is the ordered leaf sequence Open reads, not one member per
+Tab; a pending split leaf is already a member and never delays or retargets the settled reference's
+replay. `DerivedComposition` is the legal-shape boundary: Empty iff no members, otherwise the anchor
+binding occurs exactly once; its unreachable violations stand for the divergence production retires
+on. `authorization` belongs to the Terminal owner, ordered `membership` to Workbench, and the
 Site slot retains only its reference/outcome. `member` is derived from that authorization. Reads use
-revision-indexed canonical-head history; Open still observes its original reference. Existing
+revision-indexed canonical-head history; Open still observes its original reference, and a legal
+leaf reorder (`MoveMembership`) preserves it. Leaf removal, slot retarget after anchor removal and
+the final-Empty transition stay in `WorkbenchTabCloseCreateReference` and `WorkbenchPanelSplit`; the
+per-member pending/settled phase relevant to retarget is theirs, not this model's. Existing
 two-Open wait/timeout fairness remains required. These bounded models are prerequisites for the
 membership/Site refinement; they do not establish the later Move wire, navigation-ledger or native
 transport/projector refinements.
@@ -451,18 +468,18 @@ semantic operation does not enter the OBWP navigation command ledger. The existi
 state supplies coalescing and its no-replay rule. Later successful reads may observe different
 navigation revisions; they preserve the same committed standalone membership and binding.
 
-| Field        | Contract                                                                                                                                                                                                                                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Problem      | A retained native terminal must belong to the shared Workbench without an untracked launch or a second membership writer.                                                                                                                                          |
-| Input        | The admitted local Open, its real geometry, a fresh Server-generated Create reference, exact current Worker placement and lease.                                                                                                                                   |
-| Data         | One Site gate serializes the Workbench authority, terminal-intent coordinator and SiteCoordinator-owned Empty/Creating/Settled standalone state. Client identity, Create reference, aggregate identities and logical Terminal/Worker binding are distinct domains. |
-| Output       | The existing correlated Open result plus one canonical snapshot revision containing the first standalone Tab, Panel and Presentation.                                                                                                                              |
-| Invariants   | No launch without committed membership and terminal intent; no membership without its exact planned terminal intent; preflight failure consumes neither allocator; later navigation preserves the binding; no automatic rollback, reset or relaunch after commit.  |
-| Model        | Pure terminal preflight, validated Workbench candidate, one gated cross-component commit, unlocked dispatch, correlated terminal settlement, then response publication.                                                                                            |
-| Owner        | Binary-private SiteCoordinator composes both deterministic owners under the existing service gate. WorkbenchAuthority alone writes projection; TerminalCoordinator alone owns launch/start authorization and execution phases.                                     |
-| Dependencies | Existing OBCS Open, OBCN authorization, OBWP read, Workbench projection and local Worker registry. No new protocol, dependency, package or network authority.                                                                                                      |
-| Verification | Core boundary and sequence tests, LocalStandaloneTerminal with separate identity domains and navigation/read interleavings, real Server/Worker-carrier traces and retained-shell PTY evidence.                                                                     |
-| Limits       | One process-local standalone terminal. Further Tab/Panel mutations, complete Client Workbench integration, subscriptions, persistence and recovery remain unfinished.                                                                                              |
+| Field        | Contract                                                                                                                                                                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Problem      | A retained native terminal must belong to the shared Workbench without an untracked launch or a second membership writer.                                                                                                                                                      |
+| Input        | The admitted local Open, its real geometry, a fresh Server-generated Create reference, exact current Worker placement and lease.                                                                                                                                               |
+| Data         | One Site gate serializes the Workbench authority, terminal-intent coordinator and SiteCoordinator-owned Empty/Creating/Settled standalone state. Client identity, Create reference, aggregate identities and logical Terminal/Worker binding are distinct domains.             |
+| Output       | The existing correlated Open result plus one canonical snapshot revision containing the first standalone Tab, Panel and Presentation.                                                                                                                                          |
+| Invariants   | No launch without committed membership and terminal intent; no membership without its exact planned terminal intent; preflight failure consumes neither allocator; later navigation preserves the binding; no automatic rollback, reset or relaunch after commit.              |
+| Model        | Pure terminal preflight, validated Workbench candidate, one gated cross-component commit, unlocked dispatch, correlated terminal settlement, then response publication. Settled replay reads the strict tree membership and requires the retained anchor binding exactly once. |
+| Owner        | Binary-private SiteCoordinator composes both deterministic owners under the existing service gate. WorkbenchAuthority alone writes projection; TerminalCoordinator alone owns launch/start authorization and execution phases.                                                 |
+| Dependencies | Existing OBCS Open, OBCN authorization, OBWP read, Workbench projection and local Worker registry. No new protocol, dependency, package or network authority.                                                                                                                  |
+| Verification | Core boundary and sequence tests, LocalStandaloneTerminal with separate identity domains and navigation/read interleavings, real Server/Worker-carrier traces and retained-shell PTY evidence.                                                                                 |
+| Limits       | One process-local standalone terminal. Further Tab/Panel mutations, complete Client Workbench integration, subscriptions, persistence and recovery remain unfinished.                                                                                                          |
 
 The terminal coordinator first builds a complete, non-cloneable Create plan without mutation.
 Workbench then preflights an empty standalone context, three fresh aggregate identities, the next
@@ -496,9 +513,24 @@ failed, unavailable or unknown Open result. Client loss and unread responses can
 Worker-generation checks still fence success; replacement does not adopt or relaunch the terminal.
 The existing condition wait releases the gate and preserves its one absolute deadline.
 
+Creating and Settled replay read `tree_standalone_membership()` — every leaf member of the
+standalone Tab tree in canonical order — so a legal split or reordered tree is never an invariant
+failure and never retires the authority. The anchor relation is unchanged: the slot is Empty exactly
+when the tree has no members; otherwise the slot reference's retained authorization must convert to
+a `PresentationBinding` occurring exactly once across all members. A committed split leaf is a
+member before its terminal outcome is known, so a pending sibling neither retargets nor blocks
+replay of a settled reference; a legal leaf reorder preserves it. Only the existing Close settlement
+changes the reference — to the retained survivor — and the final removal returns Empty; Open never
+selects a substitute terminal. Missing retained authorization, zero or duplicate anchor occurrences
+and every tree-shape or binding violation remain fail-closed divergence that retires the authority
+and returns `server-busy`.
+
 The formal model uses two Clients, two independent Create references, two opaque logical bindings
 and at most two interleaved navigation commits. Reserve models the complete gated commit; Dispatch
-is separate and must carry its binding. ReadWorkbench observes one committed snapshot. Abstract
+is separate and must carry its binding. Its ordered `membership` abstracts the leaf-level strict
+tree membership: the appended member stands for either a `tab.create` member or a committed split
+leaf, so a settled slot over two members is exactly the multi-leaf replay shape.
+ReadWorkbench observes one committed snapshot. Abstract
 capacity and Workbench retirement do not replace exact encoding, allocation and real-process tests.
 
 ## Terminal selection from Workbench bindings

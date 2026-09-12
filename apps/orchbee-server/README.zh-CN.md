@@ -608,7 +608,8 @@ Server 模型命令每次只运行一个 JVM，避免大型状态图之间争用
 尚未发布的 `terminal.open` 为本机单主体原生路径打开一个 Server 拥有的独立终端引用。
 首个通过全部预检的请求原子提交共享 Tab/Panel/Presentation 成员关系及终端意图，再使用 Worker
 默认 cwd 和请求 geometry 提交一次立即启动。后续 Open 等待或返回同一份保留结果及 Create
-reference。此操作由 OBCS 本地终端准入授权；内部成员关系提交独立于 OBWP 导航 command ledger
+reference；已结算槽位在严格叶级树成员关系上重放，已提交的 `panel.split` 叶或合法重排绝不改变
+返回的引用或退役共享 Workbench。此操作由 OBCS 本地终端准入授权；内部成员关系提交独立于 OBWP 导航 command ledger
 及其 read/navigation grant。
 
 共享 binding 来自 Server authorization 中的逻辑 TerminalId 和 WorkerId，不是 Host、Client
@@ -622,7 +623,7 @@ Linux 裸启动已消费 Open 及随后基于 snapshot 的 binding attachment；
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 输入     | 已准入 OBCS Open、真实 geometry、当前 Worker placement、lease、新生成的非零随机 Create reference 及单调等待时间。Request ID 只关联响应。                                                                                                    |
 | Owner    | SiteCoordinator 拥有独立槽位和跨 owner workflow；WorkbenchAuthority 拥有 projection/cursor，TerminalCoordinator 拥有终端 binding/allocation。Service 拥有 IPC、熵源和 deadline；Client 拥有自己的 request/viewer。                          |
-| 模型     | Empty -> Creating -> Settled。纯终端 planning 和 Workbench 验证先于同一个 Site gate 下的提交。Dispatch 与响应发布位于 gate 外。                                                                                                             |
+| 模型     | Empty -> Creating -> Settled。纯终端 planning 和 Workbench 验证先于同一个 Site gate 下的提交。Dispatch 与响应发布位于 gate 外。已结算重放读取严格叶级树成员关系，并要求槽位引用的保留 binding 在全体成员中恰好出现一次。                    |
 | 预检     | 缺少 Worker/Workbench、熵源失败、reference 冲突、capacity、identity、revision 或 lease 失败均保留 Empty，不留下终端或成员关系。内部 Workbench 预检/publication 失败会退役 Workbench，且不 dispatch。                                        |
 | 完成     | Started 映射为 Opened；unavailable/failed 保留 Create 原因；引用冲突、熵源或 Workbench 预检拒绝映射为 server-busy。固定输入的意外拒绝映射为 terminal-create-failed。Unknown 保持 unknown。提交后失败保留成员关系，不允许再次创建。          |
 | 并发     | Wait 释放 Site mutex。唯一绝对 46 秒 condition deadline 到期时，仅向该 waiter 返回 server-busy，不取消操作。Worker 交换最多 44 秒；普通 Client 提交为 50 秒，首帧前还受 startup deadline 约束。                                             |
@@ -631,18 +632,20 @@ Linux 裸启动已消费 Open 及随后基于 snapshot 的 binding attachment；
 
 ### 独立终端打开正确性
 
-| Claim                                   | 精化与证据                                                                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| SO-01：最多一个准备好的 create          | Reserve 映射到 gate 内 Site 提交；Singleton/NoReset 及 core 预检/冲突/并发测试。                              |
-| SO-02：调用方共享已提交 reference       | Complete/Observe、SameReference/OpenedWasCommitted、确切 placement 测试及真实双 Session/Host trace。          |
-| SO-03：Client 丢失不重置共享状态        | Disconnect/Reopen、DisconnectPreservesSlot、未读结果及重新打开的进程 trace。                                  |
-| SO-04：不确定性不产生另一个副作用       | Complete(unknown)、SettledSlotIsFinal，失败/unknown/同 Worker 新 generation 的 core 和进程测试。              |
-| SO-05：等待不依赖 Worker 公平性即可结束 | Timeout/EveryWaitSettles 及绝对截止时间 condition 测试；只有本地 timeout 观察采用弱公平性。                   |
-| SO-06：启动必须有已提交成员关系         | Reserve/Dispatch、MembershipCommitted/DispatchHasMembership，以及 Worker 完成前的逻辑 authorization 对比。    |
-| SO-07：导航交错时读取仍保留 binding     | Navigate/ReadWorkbench、ReadIsCommitted/MembershipIsRetained、stateful 导航 trace 及 Worker 停滞进程证据。    |
-| SO-08：预检不消耗任何 allocator         | PreflightPreservesState 覆盖抽象成员关系/revision；确切 identity、revision 和编码 capacity 测试覆盖具体分配。 |
+| Claim                                   | 精化与证据                                                                                                                                   |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| SO-01：最多一个准备好的 create          | Reserve 映射到 gate 内 Site 提交；Singleton/NoReset 及 core 预检/冲突/并发测试。                                                             |
+| SO-02：调用方共享已提交 reference       | Complete/Observe、SameReference/OpenedWasCommitted、确切 placement 测试及真实双 Session/Host trace。                                         |
+| SO-03：Client 丢失不重置共享状态        | Disconnect/Reopen、DisconnectPreservesSlot、未读结果及重新打开的进程 trace。                                                                 |
+| SO-04：不确定性不产生另一个副作用       | Complete(unknown)、SettledSlotIsFinal，失败/unknown/同 Worker 新 generation 的 core 和进程测试。                                             |
+| SO-05：等待不依赖 Worker 公平性即可结束 | Timeout/EveryWaitSettles 及绝对截止时间 condition 测试；只有本地 timeout 观察采用弱公平性。                                                  |
+| SO-06：启动必须有已提交成员关系         | Reserve/Dispatch、MembershipCommitted/DispatchHasMembership，以及 Worker 完成前的逻辑 authorization 对比。                                   |
+| SO-07：导航交错时读取仍保留 binding     | Navigate/ReadWorkbench、ReadIsCommitted/MembershipIsRetained、stateful 导航 trace 及 Worker 停滞进程证据。                                   |
+| SO-08：预检不消耗任何 allocator         | PreflightPreservesState 覆盖抽象成员关系/revision；确切 identity、revision 和编码 capacity 测试覆盖具体分配。                                |
+| SO-09：合法多叶树上已结算重放仍成立     | `DerivedComposition` 在有序叶成员序列上的锚点唯一、`MovePreservesBootstrap`、确定性 Site 拆分/重排/关闭测试及 Linux PTY 拆分-退出-重进见证。 |
 
 [模型](formal/tla/LocalStandaloneTerminal.tla) 区分两个 Client、两个 Create reference 和两个逻辑
-binding，包含两次导航提交及一次创建尝试。它抽象熵源、编码、分配 cursor、重复完成、时间数值和
+binding，包含两次导航提交及一次创建尝试。其成员序列抽象叶级成员关系，追加的成员同样代表已提交的
+split 叶。它抽象熵源、编码、分配 cursor、重复完成、时间数值和
 调度。确定性与 stateful 测试覆盖身份不复用及忽略重复完成；进程/PTY trace 覆盖 framing、
 逻辑身份到 Host 的映射、并发、真实执行和保留。
