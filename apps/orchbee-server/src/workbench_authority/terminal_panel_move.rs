@@ -273,7 +273,7 @@ const fn move_inserts_before(direction: WorkbenchPanelSplitDirection) -> bool {
     )
 }
 
-fn leaf_panel_id<'a>(node: &'a PanelNode) -> Option<&'a WorkbenchPanelId> {
+fn leaf_panel_id(node: &PanelNode) -> Option<&WorkbenchPanelId> {
     match node {
         PanelNode::Panel {
             child_presentations,

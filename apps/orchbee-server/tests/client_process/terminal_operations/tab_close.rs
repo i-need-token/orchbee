@@ -554,23 +554,21 @@ fn real_workbench_panel_split_and_aggregate_close_releases_both_terminals() -> T
     );
     assert!(tabs(&after_close)?.is_empty());
     drop(real.worker.take());
-    if real.endpoint.exists() {
-        assert_eq!(
-            stage!("Host inventory", running_inventory(real.endpoint.as_path())),
-            0
-        );
-    } else {
-        let deadline = Instant::now() + PROCESS_TIMEOUT;
-        loop {
-            if real._host.0.try_wait()?.is_some() {
-                break;
-            }
-            assert!(
-                Instant::now() < deadline,
-                "Host endpoint disappeared while the Host process remained alive"
-            );
-            thread::sleep(Duration::from_millis(10));
+    // Releasing the last terminal retires the Host; its endpoint may briefly outlive it.
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    loop {
+        if real._host.0.try_wait()?.is_some() {
+            break;
         }
+        if let Ok(inventory) = running_inventory(real.endpoint.as_path()) {
+            assert_eq!(inventory, 0);
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "Host stayed alive without serving a drained terminal inventory"
+        );
+        thread::sleep(Duration::from_millis(10));
     }
     Ok(())
 }

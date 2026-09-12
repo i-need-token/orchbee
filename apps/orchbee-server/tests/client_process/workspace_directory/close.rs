@@ -610,8 +610,8 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
                 .with_file_name(format!("move-shell-{index}-pid"))
         })
         .collect();
-    let mut pid_sequence = 0_u128;
-    for (binding, path) in before_bindings.iter().zip(&pid_paths) {
+    for (pid_sequence, (binding, path)) in before_bindings.iter().zip(&pid_paths).enumerate() {
+        let pid_sequence = pid_sequence as u128;
         let attachment = attach_binding(&mut first, &before_move, binding, 0x150 + pid_sequence)?;
         let controller = acquire_controller(&mut first, &attachment, 0x158 + pid_sequence)?;
         input(
@@ -626,7 +626,6 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
             )
             .into_bytes(),
         )?;
-        pid_sequence += 1;
     }
     let pids: Vec<u32> = pid_paths
         .iter()
