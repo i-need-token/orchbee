@@ -459,9 +459,14 @@ cohort。这是 action 形状的破坏性变化，不是此前 Open/AttachBindin
   是单 retained terminal 抽象；Relay 每 Session 只有一个 projection/flight，sequence 只覆盖
   连续值子域；Selection 覆盖 target 解析/Worker pinning。这些模型不能独立证明多 viewer 或
   多条目 disposal cleanup。
-  它注册的三个 variant 使用三个 viewer identity 覆盖 routing capacity/refusal，使用两个
-  identity 组合 control 与 cleanup；这些是穷举探索边界，不是八个 viewer 的 runtime registry
-  上限。能够由当前 viewer/grant state 推导的 settled flight 与 cleanup evidence 会被规范化，
+  Routing 使用三个 viewer identity 覆盖 capacity/refusal；control 和 cleanup 使用两个。
+  这些是穷举探索边界，不是八个 viewer 的 runtime registry 上限。Cleanup 按前两次准入的
+  Session/target 分配与首次 controller 预留所属的 viewer 拆成全部 32 个组合。单调 viewer/grant
+  cursor 使每条原始轨迹都有相容组合；操作次数不足的轨迹会出现在多个组合中。这两种操作均无
+  公平性要求，每组均保留原有 cleanup/flight
+  公平性、性质及 frame/sequence 边界，因此各组的并集覆盖原始行为。Routing/control 不分组；
+  inventory 回归要求 cleanup 笛卡尔积完整，所有变体完成后才能接受 action coverage。
+  每个配置的截止时间为十分钟。能够由当前 viewer/grant state 推导的 settled flight 与 cleanup evidence 会被规范化，
   而不是作为仅用于历史记账的 set 保留；这不会削弱 exact cleanup 或 liveness 检查。
 - `viewer_session/tests/stateful.rs` 使用真实 `LocalTerminalSession` 和 service code、受控
   fake Worker，对照独立 `(session, viewer, target)` oracle。Merge corpus 使用 seed 1 至 64，

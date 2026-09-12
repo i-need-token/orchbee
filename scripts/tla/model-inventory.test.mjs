@@ -16,6 +16,47 @@ import {
 
 const repositoryInventory = validateInventory(JSON.parse(await readFile(inventoryPath, 'utf8')));
 
+test('viewer cleanup partitions cover every admission/reservation assignment with common properties', async () => {
+	const model = repositoryInventory.models.find(({ id }) => id === 'session-viewer-routing');
+	const cleanup = model.variants.filter(({ constants }) => constants.Scenario === 'cleanup');
+	const expected = [];
+	for (const firstSession of ['a', 'b']) {
+		for (const firstTarget of ['x', 'y']) {
+			for (const secondSession of ['a', 'b']) {
+				for (const secondTarget of ['x', 'y']) {
+					for (const firstGrantViewer of [1, 2]) {
+						expected.push(
+							[firstSession, firstTarget, secondSession, secondTarget, firstGrantViewer].join(','),
+						);
+					}
+				}
+			}
+		}
+	}
+	assert.deepEqual(
+		cleanup
+			.map(({ constants }) =>
+				[
+					constants.FirstSession,
+					constants.FirstTarget,
+					constants.SecondSession,
+					constants.SecondTarget,
+					constants.FirstGrantViewer,
+				].join(','),
+			)
+			.toSorted(),
+		expected.toSorted(),
+	);
+	const config = await readFile(new URL(`../../${model.config}`, import.meta.url), 'utf8');
+	for (const { constants } of model.variants) {
+		const applied = applyConfigConstants(config, constants);
+		assert.equal(
+			applied.slice(applied.indexOf('CHECK_DEADLOCK')),
+			config.slice(config.indexOf('CHECK_DEADLOCK')),
+		);
+	}
+});
+
 test('native Tab barriers follow Client state, transport, presentation, and protocol owners', () => {
 	const expected = [
 		'native-client-close-control',
@@ -88,6 +129,94 @@ test('dependency bookkeeping uses the cheap inventory gate while TLC infrastruct
 		assert.equal(
 			selectModelsForChangedPaths(repositoryInventory, [changedPath]).length,
 			repositoryInventory.models.length,
+		);
+	}
+});
+
+function selectionInventory() {
+	const inventory = structuredClone(repositoryInventory);
+	inventory.models = ['alpha', 'beta'].map((id) =>
+		Object.assign({}, inventory.models[0], {
+			id,
+			module: `apps/${id}/formal/tla/Example.tla`,
+			config: `apps/${id}/formal/tla/Example.cfg`,
+			claims: [`apps/${id}/README.md`],
+			triggers: [`apps/${id}/src/**`],
+		}),
+	);
+	return inventory;
+}
+
+test('inventory entry changes select that entry and retain both generations of owner triggers', () => {
+	const previous = selectionInventory();
+	const current = structuredClone(previous);
+	current.models[0].triggers = ['apps/replacement/src/**'];
+	const identifiers = (paths) =>
+		selectModelsForChangedPaths(current, paths, previous).map(({ id }) => id);
+	assert.deepEqual(identifiers(['scripts/tla/models.json']), ['alpha']);
+	assert.deepEqual(identifiers(['scripts/tla/models.json', 'apps/beta/src/operation.rs']), [
+		'alpha',
+		'beta',
+	]);
+	assert.deepEqual(identifiers(['apps/alpha/src/operation.rs']), ['alpha']);
+	assert.deepEqual(identifiers(['apps/replacement/src/operation.rs']), ['alpha']);
+	assert.deepEqual(
+		identifiers(['scripts/tla/models.json', 'scripts/tla/model-inventory.test.mjs']),
+		['alpha'],
+	);
+});
+
+test('inventory additions are checked, while removals and shared changes conservatively select all', () => {
+	const previous = selectionInventory();
+	const current = structuredClone(previous);
+	current.models.push({ ...current.models[1], id: 'gamma' });
+	assert.deepEqual(
+		selectModelsForChangedPaths(current, ['scripts/tla/models.json'], previous).map(({ id }) => id),
+		['gamma'],
+	);
+	for (const change of [
+		(inventory) => {
+			inventory.models.pop();
+		},
+		(inventory) => {
+			inventory.defaultTimeoutMilliseconds += 1;
+		},
+		(inventory) => {
+			inventory.tool.version = 'changed';
+		},
+		(inventory) => {
+			inventory.sharedTriggers.push('apps/additional/**');
+		},
+		(inventory) => {
+			inventory.futureExecutionOption = true;
+		},
+	]) {
+		const changed = structuredClone(previous);
+		change(changed);
+		assert.deepEqual(
+			selectModelsForChangedPaths(changed, ['scripts/tla/models.json'], previous),
+			changed.models,
+		);
+	}
+	assert.deepEqual(
+		selectModelsForChangedPaths(current, ['scripts/tla/models.json']),
+		current.models,
+	);
+});
+
+test('format-only inventory and known test entrypoint changes need only the inventory gate', () => {
+	const inventory = selectionInventory();
+	assert.deepEqual(
+		selectModelsForChangedPaths(inventory, ['scripts/tla/models.json'], structuredClone(inventory)),
+		[],
+	);
+	for (const name of ['model-inventory', 'model-checks', 'run-models']) {
+		assert.deepEqual(selectModelsForChangedPaths(inventory, [`scripts/tla/${name}.test.mjs`]), []);
+	}
+	for (const path of ['scripts/tla/run-models.mjs', 'scripts/tla/new-runtime-helper.mjs']) {
+		assert.deepEqual(
+			selectModelsForChangedPaths(inventory, [path], structuredClone(inventory)),
+			inventory.models,
 		);
 	}
 });

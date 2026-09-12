@@ -1,17 +1,22 @@
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { availableParallelism, totalmem } from 'node:os';
+import { availableParallelism, tmpdir, totalmem } from 'node:os';
 import path from 'node:path';
 
-import { modelConcurrency, modelWorkers, runModelChecks, writeTlcOutput } from './model-checks.mjs';
+import {
+	modelConcurrency,
+	modelHeapMiB,
+	modelWorkers,
+	runModelChecks,
+	writeTlcOutput,
+} from './model-checks.mjs';
 import {
 	applyConfigConstants,
-	changedPathsSince,
 	inventoryPath,
 	parseStateReport,
 	repositoryRoot,
-	selectModelsForChangedPaths,
+	selectModelsSince,
 	tlcExitError,
 	validateInventory,
 	variantConfigFileName,
@@ -119,7 +124,7 @@ async function selectModels(selection) {
 		return models;
 	}
 	try {
-		return selectModelsForChangedPaths(inventory, await changedPathsSince(selection.changedSince));
+		return await selectModelsSince(inventory, selection.changedSince);
 	} catch (error) {
 		process.stderr.write(
 			`Could not resolve changed TLA+ models; running every model: ${error instanceof Error ? error.message : String(error)}\n`,
@@ -189,10 +194,10 @@ async function runChild(
 		await log.close();
 	}
 	const output = await readFile(logPath, 'utf8');
-	return { error: result.error, output };
+	return { ...result, output };
 }
 
-async function runVariant(model, variant, recordFailure) {
+async function runVariant(model, variant, recordFailure, { logsDirectory, heapMiB }) {
 	const modulePath = path.join(repositoryRoot, model.module);
 	const sourceModulePaths = [model.module, ...(model.supportingModules ?? [])];
 	const configuredConfigPath = path.join(repositoryRoot, model.config);
@@ -225,6 +230,7 @@ async function runVariant(model, variant, recordFailure) {
 			workingDirectory = temporaryDirectory;
 		}
 		const label = variant.name === 'default' ? model.id : `${model.id}/${variant.name}`;
+		const logPath = path.join(logsDirectory, `${model.id}--${variant.name}.log`);
 		const timeoutMilliseconds = configuredTimeout(model);
 		const workers = modelWorkers(model);
 		const digestBuilder = createHash('sha256');
@@ -241,11 +247,12 @@ async function runVariant(model, variant, recordFailure) {
 			.update(await readFile(configPath))
 			.digest('hex');
 		process.stdout.write(
-			`\nChecking ${label} (timeout ${timeoutMilliseconds}ms, workers ${workers})\n`,
+			`\nChecking ${label} (timeout ${timeoutMilliseconds}ms, workers ${workers})\nLog: ${logPath}\n`,
 		);
 		const start = Date.now();
 		const childResult = await runChild(
 			[
+				`-Xmx${heapMiB}m`,
 				'-XX:+UseParallelGC',
 				`-Djava.io.tmpdir=${jvmTemporaryDirectory}`,
 				'-jar',
@@ -267,13 +274,9 @@ async function runVariant(model, variant, recordFailure) {
 			timeoutMilliseconds,
 			label,
 			workingDirectory,
-			path.join(temporaryDirectory, 'tlc.log'),
+			logPath,
 			recordFailure,
 		);
-		if (childResult.error !== undefined) {
-			await writeTlcOutput(process.stdout, label, childResult.output);
-			throw childResult.error;
-		}
 		const report = {
 			...parseStateReport(childResult.output),
 			durationMilliseconds: Date.now() - start,
@@ -281,7 +284,22 @@ async function runVariant(model, variant, recordFailure) {
 			modelConfigSha256: digest,
 			variant: variant.name,
 			workers,
+			heapMiB,
+			logPath,
 		};
+		if (childResult.error !== undefined) {
+			await writeTlcOutput(process.stdout, label, childResult.output);
+			process.stdout.write(
+				`TLA_FAILURE ${JSON.stringify({
+					...report,
+					status: childResult.timedOut ? 'timeout' : 'failed',
+					exitCode: childResult.code,
+					signal: childResult.signal,
+					message: childResult.error.message,
+				})}\n`,
+			);
+			throw childResult.error;
+		}
 		await writeTlcOutput(process.stdout, label, childResult.output, report);
 		return childResult.output;
 	} catch (error) {
@@ -293,21 +311,34 @@ async function runVariant(model, variant, recordFailure) {
 }
 
 const selection = parseArguments(process.argv.slice(2));
-const concurrency = modelConcurrency(
-	selection.jobs,
-	availableParallelism(),
-	Math.min(totalmem(), process.constrainedMemory() || Infinity),
-);
+const memoryBytes = Math.min(totalmem(), process.constrainedMemory() || Infinity);
+const concurrency = modelConcurrency(selection.jobs, availableParallelism(), memoryBytes);
 const models = await selectModels(selection);
 if (models.length === 0) {
 	process.stdout.write('No TLA+ model is affected by the selected paths.\n');
 	process.exitCode = 0;
 } else {
 	await provisionJar();
-	process.stdout.write(
-		`Checking ${models.length} models with at most ${concurrency} concurrent TLC processes.\n`,
+	const logsDirectory = await mkdtemp(path.join(tmpdir(), 'orchbee-tla-logs-'));
+	const slots = Math.min(
+		concurrency,
+		models.reduce((count, model) => count + (model.variants?.length ?? 1), 0),
 	);
-	const configurationCount = await runModelChecks(models, concurrency, runVariant);
+	const heapMiB = modelHeapMiB(slots, memoryBytes);
+	process.stdout.write(
+		`Checking ${models.length} models with at most ${slots} concurrent TLC processes (${heapMiB} MiB heap each).\nLogs: ${logsDirectory}\n`,
+	);
+	const configurationCount = await runModelChecks(
+		models,
+		slots,
+		(model, variant, recordFailure) =>
+			runVariant(model, variant, recordFailure, { logsDirectory, heapMiB }),
+		(model, variant) => {
+			process.stdout.write(
+				`TLA_SKIPPED ${JSON.stringify({ model: model.id, variant: variant.name, reason: 'earlier-failure' })}\n`,
+			);
+		},
+	);
 	process.stdout.write(
 		`\nChecked ${configurationCount} TLA+ model configurations with required action coverage.\n`,
 	);

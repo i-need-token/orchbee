@@ -19,10 +19,15 @@ EXTENDS Naturals, FiniteSets
 \* identities to exercise independent controllers, equal/gapped sequences, and
 \* sibling cleanup; their smaller identity domain keeps those composed proofs
 \* tractable without changing any production bound.
-CONSTANT Scenario
+CONSTANT Scenario, FirstSession, FirstTarget, SecondSession, SecondTarget, FirstGrantViewer
 ASSUME Scenario \in {"routing", "control", "cleanup"}
 Sessions == {"a", "b"}
 Targets == {"x", "y"}
+ASSUME /\ FirstSession \in Sessions \cup {"any"}
+  /\ SecondSession \in Sessions \cup {"any"}
+  /\ FirstTarget \in Targets \cup {"any"}
+  /\ SecondTarget \in Targets \cup {"any"}
+  /\ FirstGrantViewer \in 0..2
 Viewers == IF Scenario = "routing" THEN 1..3 ELSE 1..2
 Grants == 1..3
 SessionLimit == 2
@@ -68,10 +73,24 @@ ActiveGrant(v) == IF s.viewers[v].grant = 0 THEN FALSE
 Projection(v) == <<s.viewers[v], s.pending[v], s.baseline[v], s.frameSequence[v],
   {s.grants[g]: g \in {id \in Grants: s.grants[id].viewer = v}}>>
 
+\* Partition only the first two admitted identities. The complete Cartesian
+\* product of Session/target assignments and the first grant reservation
+\* covers every original behavior. Traces with fewer operations occur in
+\* several partitions. Neither admission nor reservation has a fairness
+\* obligation; cleanup/flight fairness is unchanged. "any" and grant viewer 0
+\* retain unrestricted routing/control configurations.
+AttachPartitionMatches(a, target) ==
+  IF s.cursor = 0 THEN
+    (FirstSession = "any" \/ a = FirstSession) /\ (FirstTarget = "any" \/ target = FirstTarget)
+  ELSE IF s.cursor = 1 THEN
+    (SecondSession = "any" \/ a = SecondSession) /\ (SecondTarget = "any" \/ target = SecondTarget)
+  ELSE TRUE
+
 AdmitAttach(a, target) ==
   /\ Idle(a) /\ target \in Targets /\ SessionCount(a) < SessionLimit
   /\ ~Duplicate(a, target) /\ target \notin s.disposed /\ s.workerGeneration = 1
   /\ s.cursor < Cardinality(Viewers)
+  /\ AttachPartitionMatches(a, target)
   /\ s' = [s EXCEPT !.cursor = @+1, !.phase[a] = "attach-admitted",
        !.flight[a] = [viewer |-> s.cursor+1, grant |-> 0, kind |-> "attach", sequence |-> 0],
        !.viewers[s.cursor+1] = [owner |-> a, target |-> target, generation |-> 1, state |-> "candidate", grant |-> 0]]
@@ -165,6 +184,7 @@ RejectWrongRecordRoute(a, v) ==
 
 ReserveController(a, v) ==
   /\ WithControl /\ Routable(a, v) /\ HeldOn(s.viewers[v].target) = {} /\ s.grantCursor < 3
+  /\ (FirstGrantViewer = 0 \/ s.grantCursor # 0 \/ v = FirstGrantViewer)
   /\ s' = [s EXCEPT !.grantCursor = @+1, !.phase[a] = "acquire", !.viewers[v].grant = s.grantCursor+1,
        !.flight[a] = [viewer |-> v, grant |-> s.grantCursor+1, kind |-> "acquire", sequence |-> 0],
        !.grants[s.grantCursor+1] = [owner |-> a, viewer |-> v, target |-> s.viewers[v].target,

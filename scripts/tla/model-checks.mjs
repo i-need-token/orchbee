@@ -2,13 +2,30 @@ import { assertRequiredCoverage } from './model-inventory.mjs';
 
 const defaultVariant = { name: 'default' };
 
-/** Each JVM may use a quarter of machine memory; never launch more than two. */
+const mebibyte = 1024 ** 2;
+const minimumHeapMiB = 256;
+const processReserveMiB = 512;
+
+/** Budget explicit JVM heaps together, leaving 40% of memory for other processes. */
 export function modelConcurrency(requested, processors, memoryBytes) {
 	if (requested !== undefined) {
-		if (requested !== '1' && requested !== '2') throw new Error('--jobs must be 1 or 2');
-		return Number(requested);
+		if (!/^[1-9]\d*$/u.test(requested) || !Number.isSafeInteger(Number(requested))) {
+			throw new Error('--jobs must be a positive safe integer');
+		}
+		const jobs = Number(requested);
+		modelHeapMiB(jobs, memoryBytes);
+		return jobs;
 	}
-	return processors >= 4 && memoryBytes >= 8 * 1024 ** 3 ? 2 : 1;
+	const memorySlots = Math.floor((memoryBytes * 0.6) / ((1024 + processReserveMiB) * mebibyte));
+	return Math.max(1, Math.min(processors, memorySlots));
+}
+
+export function modelHeapMiB(concurrency, memoryBytes) {
+	const heap = Math.floor((memoryBytes * 0.6) / concurrency / mebibyte) - processReserveMiB;
+	if (heap < minimumHeapMiB) {
+		throw new Error(`TLC concurrency ${concurrency} exceeds the available JVM memory budget`);
+	}
+	return Math.min(2048, heap);
 }
 
 export function modelWorkers(model) {
@@ -32,8 +49,9 @@ export function writeTlcOutput(stream, modelId, output, report) {
 }
 
 /** Model variants share coverage after all pass, while every variant consumes one bounded slot. */
-export async function runModelChecks(models, concurrency, runVariant) {
-	if (concurrency !== 1 && concurrency !== 2) throw new Error('concurrency must be 1 or 2');
+export async function runModelChecks(models, concurrency, runVariant, onSkipped = () => {}) {
+	if (!Number.isSafeInteger(concurrency) || concurrency < 1)
+		throw new Error('concurrency must be a positive safe integer');
 	const modelStates = models.map((model) => {
 		const variants = model.variants ?? [defaultVariant];
 		return {
@@ -79,6 +97,9 @@ export async function runModelChecks(models, concurrency, runVariant) {
 		}
 	}
 	await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, worker));
-	if (failed) throw failure;
+	if (failed) {
+		for (const { state, variant } of jobs.slice(nextIndex)) onSkipped(state.model, variant);
+		throw failure;
+	}
 	return configurationCount;
 }

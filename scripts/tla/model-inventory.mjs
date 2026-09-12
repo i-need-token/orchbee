@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 
 export const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -21,7 +22,7 @@ function runGit(arguments_) {
 			errorOutput += chunk.toString();
 		});
 		child.once('error', reject);
-		child.once('exit', (code, signal) => {
+		child.once('close', (code, signal) => {
 			if (signal) {
 				reject(new Error(`git ${arguments_[0]} terminated by ${signal}`));
 				return;
@@ -41,6 +42,17 @@ export async function changedPathsSince(reference, { includeUntracked = true } =
 		includeUntracked ? runGit(['ls-files', '--others', '--exclude-standard']) : [],
 	]);
 	return [...new Set([...changed, ...untracked])];
+}
+
+/** Both local execution and CI selection compare the same requested inventory base. */
+export async function selectModelsSince(inventory, reference, options) {
+	const changedPaths = await changedPathsSince(reference, options);
+	const previousInventory = changedPaths.includes('scripts/tla/models.json')
+		? validateInventory(
+				JSON.parse((await runGit(['show', `${reference}:scripts/tla/models.json`])).join('\n')),
+			)
+		: undefined;
+	return selectModelsForChangedPaths(inventory, changedPaths, previousInventory);
 }
 
 function assert(condition, message) {
@@ -194,8 +206,32 @@ export function globMatches(pattern, candidate) {
 	return new RegExp(`^${expression}$`, 'u').test(candidate);
 }
 
-export function selectModelsForChangedPaths(inventory, changedPaths) {
-	const normalizedPaths = changedPaths.map((changedPath) => changedPath.replaceAll('\\', '/'));
+// These are test entrypoints, never inputs to a TLC invocation. They still run in
+// the mandatory inventory gate. Unknown files under scripts/tla remain global triggers.
+const inventoryTestPaths = new Set([
+	'scripts/tla/model-inventory.test.mjs',
+	'scripts/tla/model-checks.test.mjs',
+	'scripts/tla/run-models.test.mjs',
+]);
+
+export function selectModelsForChangedPaths(inventory, changedPaths, previousInventory) {
+	let normalizedPaths = changedPaths
+		.map((changedPath) => changedPath.replaceAll('\\', '/'))
+		.filter((changedPath) => !inventoryTestPaths.has(changedPath));
+	if (previousInventory !== undefined) {
+		const { models: previousModels, ...previousShared } = previousInventory;
+		const { models: currentModels, ...currentShared } = inventory;
+		if (
+			!isDeepStrictEqual(previousShared, currentShared) ||
+			previousModels.some(
+				(previous) => !currentModels.some((current) => current.id === previous.id),
+			)
+		)
+			return [...inventory.models];
+		normalizedPaths = normalizedPaths.filter(
+			(changedPath) => changedPath !== 'scripts/tla/models.json',
+		);
+	}
 	if (
 		normalizedPaths.some((changedPath) =>
 			inventory.sharedTriggers.some((trigger) => globMatches(trigger, changedPath)),
@@ -205,13 +241,15 @@ export function selectModelsForChangedPaths(inventory, changedPaths) {
 	}
 
 	return inventory.models.filter((model) => {
-		const triggers = [
-			model.module,
-			model.config,
-			...(model.supportingModules ?? []),
-			...model.claims,
-			...model.triggers,
-		];
+		const previous = previousInventory?.models.find(({ id }) => id === model.id);
+		if (previousInventory !== undefined && !isDeepStrictEqual(model, previous)) return true;
+		const triggers = [model, ...(previous === undefined ? [] : [previous])].flatMap((entry) =>
+			[entry.module, entry.config].concat(
+				entry.supportingModules ?? [],
+				entry.claims,
+				entry.triggers,
+			),
+		);
 		return normalizedPaths.some((changedPath) =>
 			triggers.some((trigger) => globMatches(trigger, changedPath)),
 		);

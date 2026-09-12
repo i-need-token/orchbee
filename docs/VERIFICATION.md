@@ -121,9 +121,13 @@ and TLA+ modules remain authoritative for model semantics.
 
 The runner uses Node built-ins and its separately pinned Java jar. Root `package.json` and
 `pnpm-lock.yaml` changes therefore use the mandatory inventory/command checks without selecting
-all TLC models. The TLA+ runner, inventory, CI toolchain workflow, and governing verification or
-modeling standards remain shared triggers. Retain broader owner triggers where a protocol package
-or native process is the abstraction boundary; a smaller pattern alone is not correctness evidence.
+all TLC models. The three TLA runner test entrypoints likewise use the mandatory inventory gate.
+For inventory-only edits, compare the requested Git base with the working inventory: check changed
+or added model entries and match implementation paths against both old and new owner triggers.
+Formatting-only edits select no model. Removed entries, changed top-level inventory fields, an
+unreadable/invalid base, TLA runtime code (including new helpers), the CI toolchain workflow, and
+governing verification or modeling standards select all models. Retain broader owner triggers where
+a protocol package or native process is the abstraction boundary; narrower selection must not lose evidence.
 
 TLA+ model checking is change-triggered evidence: `pnpm test` and the required CI `verify` job do
 not invoke TLC implicitly. `pnpm verify` runs only the cheap `test:tla:inventory` consistency and
@@ -149,15 +153,23 @@ Safety checks still run during exploration. A timeout before final liveness chec
 never progress evidence. Keep coverage collection enabled for required action witnesses and wait
 for Java's stdio to close before parsing its final report.
 
-Independent model/configuration checks share a queue of at most two TLC processes.
-The default is two slots on machines with at least four available processors and 8 GiB of memory
-(respecting a reported process memory limit), otherwise one. Pass `--jobs 1` or `--jobs 2` to choose
-explicitly. Variants of one model can occupy both slots; required coverage is checked only after
-all its variants succeed and combines evidence only within that model.
-Each configuration owns its state directory and a file-backed Java log; the runner emits the whole
-log after Java closes so concurrent counterexamples cannot interleave. A failure stops new models
-and variants, drains already-running checks within their own timeouts, and fails the command.
-Use `--jobs 1` with unchanged declared worker counts for sequential timing comparisons on the same machine.
+Independent model/configuration checks share a resource-budgeted queue. Automatic slots are bounded
+by available processors and 60% of machine memory (respecting a reported process memory limit),
+allowing 1 GiB of heap plus 512 MiB of non-heap reserve per slot. Pass `--jobs N` with a positive
+integer for explicit concurrency. Every JVM receives an explicit `-Xmx`: divide the aggregate budget
+among active slots, subtract the reserve, and cap each heap at 2 GiB; reject allocations below
+256 MiB per JVM. This is a sizing budget, not an OS memory limit. Per-model TLC worker counts remain
+unchanged. Variants share slots, but required coverage combines only within one model after all its
+variants succeed.
+Each configuration owns its state directory and a persistent Java log under a printed OS temporary
+log directory. Logs remain available after state cleanup and can be read during execution; they
+follow the same local retention policy as root-check logs. The runner emits the whole log after Java
+closes so concurrent counterexamples cannot interleave. Completed `TLA_RESULT` records include heap
+size and log path. Timeout/child failures emit distinct `TLA_FAILURE` records with the real process
+outcome, elapsed time, partial state counts when available, and log path; partial counts are never a
+pass. A failure stops new work, emits `TLA_SKIPPED` for unstarted configurations, drains active checks
+within their own timeouts, and fails the command. Use `--jobs 1` with unchanged declared worker counts
+for sequential timing comparisons on the same machine.
 
 For the pinned TLC action-header format, coverage requires a positive generated-state count from
 `distinct:generated`, or the sole count of a single-count header. A transition to an already

@@ -515,9 +515,16 @@ Required executable checks and their limits:
   Existing Authority is a one-retained-terminal abstraction; Relay has one projection/flight per
   Session and a consecutive-sequence subdomain; Selection covers target resolution/Worker pinning.
   Those models do not independently establish multiple viewers or multi-entry disposal cleanup.
-  Its three registered variants use three viewer identities for routing capacity/refusal coverage,
-  and two for control and cleanup composition; these are exhaustive exploration bounds, not the
-  runtime registry limit of eight. Settled flights and cleanup evidence that can be derived from
+  Routing uses three viewer identities for capacity/refusal coverage; control and cleanup use two.
+  These are exhaustive exploration bounds, not the runtime registry limit of eight. Cleanup is
+  partitioned across all 32 combinations of Session/target assignments for the first two admissions
+  and the viewer receiving the first controller reservation. The monotonic viewer/grant cursors give
+  every unrestricted trace a compatible assignment; traces with fewer operations remain in multiple
+  partitions. Neither operation has a fairness obligation, and every partition retains
+  the original cleanup/flight fairness, properties, and frame/sequence bounds. Thus their union
+  covers the unrestricted behaviors. Routing/control remain unpartitioned; the inventory regression
+  requires the complete cleanup Cartesian product, and all variants must finish before action
+  coverage is accepted. Each configuration has a ten-minute deadline. Settled flights and cleanup evidence that can be derived from
   current viewer/grant state are normalized rather than retained as history-only sets, without
   weakening exact cleanup or liveness checks.
 - `viewer_session/tests/stateful.rs` executes real `LocalTerminalSession` and service code with a

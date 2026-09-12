@@ -3317,19 +3317,31 @@
 			"variants": [
 				{
 					"name": "two-switch-control",
-					"constants": { "InitialMode": "controlling", "MaxGeneration": 4 }
+					"constants": {
+						"InitialMode": "controlling",
+						"MaxGeneration": 4
+					}
 				},
 				{
 					"name": "two-switch-readonly",
-					"constants": { "InitialMode": "readonly", "MaxGeneration": 4 }
+					"constants": {
+						"InitialMode": "readonly",
+						"MaxGeneration": 4
+					}
 				},
 				{
 					"name": "exhaustion-control",
-					"constants": { "InitialMode": "controlling", "MaxGeneration": 2 }
+					"constants": {
+						"InitialMode": "controlling",
+						"MaxGeneration": 2
+					}
 				},
 				{
 					"name": "exhaustion-readonly",
-					"constants": { "InitialMode": "readonly", "MaxGeneration": 2 }
+					"constants": {
+						"InitialMode": "readonly",
+						"MaxGeneration": 2
+					}
 				}
 			]
 		},
@@ -4019,11 +4031,372 @@
 				"schemas/client-server/**"
 			],
 			"workers": 2,
-			"timeoutMilliseconds": 3600000,
+			"timeoutMilliseconds": 600000,
 			"variants": [
-				{ "name": "routing", "constants": { "Scenario": "routing" } },
-				{ "name": "control", "constants": { "Scenario": "control" } },
-				{ "name": "cleanup", "constants": { "Scenario": "cleanup" } }
+				{
+					"name": "routing",
+					"constants": {
+						"Scenario": "routing"
+					}
+				},
+				{
+					"name": "control",
+					"constants": {
+						"Scenario": "control"
+					}
+				},
+				{
+					"name": "cleanup-a-x-a-x-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "x",
+						"SecondSession": "a",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-a-x-a-x-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "x",
+						"SecondSession": "a",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-a-x-a-y-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "x",
+						"SecondSession": "a",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-a-x-a-y-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "x",
+						"SecondSession": "a",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-a-x-b-x-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "x",
+						"SecondSession": "b",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-a-x-b-x-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "x",
+						"SecondSession": "b",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-a-x-b-y-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "x",
+						"SecondSession": "b",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-a-x-b-y-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "x",
+						"SecondSession": "b",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-a-y-a-x-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "y",
+						"SecondSession": "a",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-a-y-a-x-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "y",
+						"SecondSession": "a",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-a-y-a-y-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "y",
+						"SecondSession": "a",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-a-y-a-y-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "y",
+						"SecondSession": "a",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-a-y-b-x-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "y",
+						"SecondSession": "b",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-a-y-b-x-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "y",
+						"SecondSession": "b",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-a-y-b-y-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "y",
+						"SecondSession": "b",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-a-y-b-y-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "a",
+						"FirstTarget": "y",
+						"SecondSession": "b",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-b-x-a-x-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "x",
+						"SecondSession": "a",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-b-x-a-x-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "x",
+						"SecondSession": "a",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-b-x-a-y-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "x",
+						"SecondSession": "a",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-b-x-a-y-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "x",
+						"SecondSession": "a",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-b-x-b-x-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "x",
+						"SecondSession": "b",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-b-x-b-x-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "x",
+						"SecondSession": "b",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-b-x-b-y-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "x",
+						"SecondSession": "b",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-b-x-b-y-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "x",
+						"SecondSession": "b",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-b-y-a-x-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "y",
+						"SecondSession": "a",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-b-y-a-x-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "y",
+						"SecondSession": "a",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-b-y-a-y-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "y",
+						"SecondSession": "a",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-b-y-a-y-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "y",
+						"SecondSession": "a",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-b-y-b-x-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "y",
+						"SecondSession": "b",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-b-y-b-x-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "y",
+						"SecondSession": "b",
+						"SecondTarget": "x",
+						"FirstGrantViewer": 2
+					}
+				},
+				{
+					"name": "cleanup-b-y-b-y-g1",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "y",
+						"SecondSession": "b",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 1
+					}
+				},
+				{
+					"name": "cleanup-b-y-b-y-g2",
+					"constants": {
+						"Scenario": "cleanup",
+						"FirstSession": "b",
+						"FirstTarget": "y",
+						"SecondSession": "b",
+						"SecondTarget": "y",
+						"FirstGrantViewer": 2
+					}
+				}
 			],
 			"requiredCoverage": [
 				"AdmitAttach",

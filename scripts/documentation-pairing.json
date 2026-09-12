@@ -106,8 +106,8 @@
 			"zhCnSha256": "a29fd50efce43f09119f276a75da601fa1fc71230b32d54f2b24e23f22a487e3"
 		},
 		"apps/orchbee-server/README.md": {
-			"englishSha256": "2c2f0f4220bad471858bbef877d39cd1d1f33f53a76b3bd49c4dfd500a656672",
-			"zhCnSha256": "ff00dd415f92b0dc050dd701305ced186bfbee117363b8a48a06b412a7278df6"
+			"englishSha256": "10261402024146e7baf8f2001ede04e63059272d9bebdb1420cdddfb1c2e270c",
+			"zhCnSha256": "fc0a4b4b5774f571f4d18d46ac4ddf4a5071ceccbe2a522a13833e69f90f2802"
 		},
 		"apps/orchbee-server/docs/terminal-tab-close.md": {
 			"englishSha256": "966600cde4865285d2294b4effc7a0fee7025b726b282436376ede55c506c861",
@@ -262,8 +262,8 @@
 			"zhCnSha256": "b9ea5c0be7b4c44c6aab2e71afc33737c645564933fc3e41ad3d9f783b5a28d8"
 		},
 		"docs/VERIFICATION.md": {
-			"englishSha256": "a01a1a749abb5c7885457b74d7b5520ffcd0653bf48ce0a963934e374610cc38",
-			"zhCnSha256": "ef9f915df5ec1001b6f811e65b768c031562dda77eb8970b8c2a6a515e87451c"
+			"englishSha256": "d3a8f7b59b470bf722acd4a0b3eb665d749c66c87ee3dc3a4ea4c7d23db5492c",
+			"zhCnSha256": "ad74102a112076350346b91a1333d28faa4ea42dc7e6d554bb3d77a8c6e3d343"
 		},
 		"docs/ZIG.md": {
 			"englishSha256": "6907e1c0cb6e2be32a15dc16482d9986b289cd83c929821fda0f0d927e9d7980",

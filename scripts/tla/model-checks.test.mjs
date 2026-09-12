@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
 	formatTlcOutput,
 	modelConcurrency,
+	modelHeapMiB,
 	modelWorkers,
 	runModelChecks,
 	writeTlcOutput,
@@ -23,13 +24,17 @@ function model(id, variants = [{ name: 'default' }]) {
 
 const covered = '<Advance line 1, col 1 of module Example>: 1:2\n';
 
-test('resource defaults leave room for the JVM and explicit concurrency stays bounded', () => {
-	assert.equal(modelConcurrency(undefined, 8, 16 * 1024 ** 3), 2);
-	assert.equal(modelConcurrency(undefined, 2, 16 * 1024 ** 3), 1);
-	assert.equal(modelConcurrency(undefined, 8, 7 * 1024 ** 3), 1);
+test('resource defaults scale with processors and aggregate JVM memory', () => {
+	assert.equal(modelConcurrency(undefined, 8, 16 * 1024 ** 3), 6);
+	assert.equal(modelConcurrency(undefined, 2, 16 * 1024 ** 3), 2);
+	assert.equal(modelConcurrency(undefined, 8, 7 * 1024 ** 3), 2);
 	assert.equal(modelConcurrency('1', 8, 16 * 1024 ** 3), 1);
-	for (const value of ['0', '3', '-1', '1.5', 'NaN', '']) {
-		assert.throws(() => modelConcurrency(value, 8, 16 * 1024 ** 3), /--jobs must be 1 or 2/u);
+	assert.equal(modelConcurrency('8', 24, 24 * 1024 ** 3), 8);
+	assert.equal(modelHeapMiB(1, 24 * 1024 ** 3), 2048);
+	assert.ok((modelHeapMiB(8, 24 * 1024 ** 3) + 512) * 8 <= 24 * 1024 * 0.6);
+	assert.throws(() => modelConcurrency('32', 24, 24 * 1024 ** 3), /memory budget/u);
+	for (const value of ['0', '-1', '1.5', 'NaN', '', '9007199254740992']) {
+		assert.throws(() => modelConcurrency(value, 8, 16 * 1024 ** 3), /positive safe integer/u);
 	}
 });
 
@@ -122,6 +127,7 @@ test('a variant failure stops new jobs, drains its active sibling, and preserves
 	const siblingError = new Error('active sibling failed later');
 	const calls = [];
 	let settled = false;
+	const skipped = [];
 	const checking = runModelChecks(
 		[
 			model('variants', [{ name: 'failing' }, { name: 'active' }, { name: 'queued' }]),
@@ -142,6 +148,7 @@ test('a variant failure stops new jobs, drains its active sibling, and preserves
 			activeFinished.resolve();
 			throw siblingError;
 		},
+		(selected, variant) => skipped.push(`${selected.id}/${variant.name}`),
 	).finally(() => {
 		settled = true;
 	});
@@ -155,4 +162,19 @@ test('a variant failure stops new jobs, drains its active sibling, and preserves
 	failureLogDrained.resolve();
 	await rejection;
 	assert.deepEqual(calls, ['variants/failing', 'variants/active']);
+	assert.deepEqual(skipped, ['variants/queued', 'later/default']);
+});
+
+test('independent checks can fill more than two slots without sharing model coverage', async () => {
+	const release = deferred();
+	const started = [];
+	const checks = Array.from({ length: 8 }, (_, index) => model(`model-${index}`));
+	const checking = runModelChecks(checks, 8, async (selected) => {
+		started.push(selected.id);
+		await release.promise;
+		return covered;
+	});
+	assert.equal(started.length, 8);
+	release.resolve();
+	assert.equal(await checking, 8);
 });
