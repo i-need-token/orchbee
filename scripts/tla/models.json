@@ -4292,9 +4292,7 @@
 			"workspace": "apps/orchbee-server",
 			"module": "apps/orchbee-server/formal/tla/WorkbenchPanelMove.tla",
 			"config": "apps/orchbee-server/formal/tla/WorkbenchPanelMove.cfg",
-			"claims": [
-				"apps/orchbee-server/docs/workbench-authority.md"
-			],
+			"claims": ["apps/orchbee-server/docs/workbench-authority.md"],
 			"triggers": [
 				"apps/orchbee-server/src/workbench_authority/terminal_panel_move.rs",
 				"apps/orchbee-server/src/workbench_authority/terminal_panel_move/**",
@@ -4334,6 +4332,8 @@
 				"apps/orchbee-server/src/workbench_authority/terminal_panel_split.rs",
 				"apps/orchbee-server/src/workbench_authority/terminal_panel_split/**",
 				"apps/orchbee-server/src/workbench_authority/terminal_membership.rs",
+				"apps/orchbee-server/src/workbench_authority/terminal_tab_close*",
+				"apps/orchbee-server/src/workbench_authority/terminal_tab_close/**",
 				"apps/orchbee-server/src/site_coordinator/panel_split.rs",
 				"apps/orchbee-server/src/site_coordinator/tab_close.rs",
 				"apps/orchbee-server/src/site_coordinator/standalone.rs",

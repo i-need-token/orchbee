@@ -469,6 +469,35 @@ test('Workbench code edits keep the conservative coverage of the narrowed source
 	}
 });
 
+test('Workbench tab-close owners select the panel split model', () => {
+	for (const changedPath of [
+		'apps/orchbee-server/src/workbench_authority/terminal_tab_close.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/admission.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/publication.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_tab_close/tests.rs',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'workbench-panel-split',
+			),
+			true,
+			changedPath,
+		);
+	}
+	for (const changedPath of [
+		'apps/orchbee-server/src/workbench_authority/terminal_tab_create.rs',
+		'apps/orchbee-server/src/workbench_authority/terminal_panel_move.rs',
+	]) {
+		assert.equal(
+			selectModelsForChangedPaths(repositoryInventory, [changedPath]).some(
+				({ id }) => id === 'workbench-panel-split',
+			),
+			false,
+			changedPath,
+		);
+	}
+});
+
 test('Worker terminal authorization paths select both refinement models', () => {
 	for (const changedPath of [
 		'apps/orchbee-worker/src/terminal_authorization.rs',
