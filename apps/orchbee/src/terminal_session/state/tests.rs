@@ -865,6 +865,85 @@ fn peer_panel_split_refresh_preserves_active_panel_identity() {
     assert!(state.invariant_holds());
 }
 
+fn split_panel_baseline() -> Snapshot {
+    let mut baseline = snapshot(1, 1, None);
+    let original_root = baseline.terminal_contexts[0].tabs[0].root.clone();
+    baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: original_root,
+                slot_id: WorkbenchPanelSlotId::parse(&id(3_001)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&id(3_010)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(PresentationBinding {
+                            terminal_id: TerminalId::parse(&id(3_012)).unwrap(),
+                            worker_id: WorkerId::parse(&id(3_011)).unwrap(),
+                        }),
+                        label: "peer".into(),
+                        presentation_id: TerminalPresentationId::parse(&id(3_013)).unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&id(3_014)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&id(3_020)).unwrap(),
+    };
+    baseline
+}
+
+fn switching_to_nonfirst_panel() -> (NativeSessionState, AttachmentKey, CreateTerminalProvenance) {
+    let mut state =
+        ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap());
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    let target = state
+        .plan_panel_focus(crate::client_view::PanelDirection::Right, 2, deadlines)
+        .unwrap();
+    assert_eq!(target.selected().index(), 0);
+    assert_eq!(target.selected().panel_index(), 1);
+    let marker = target.selected().key().clone();
+    let provenance = target.provenance().clone();
+    assert!(state.begin_switch(target));
+    (state, marker, provenance)
+}
+
+#[test]
+fn unattached_setup_settlement_preserves_the_validated_nonfirst_panel_selection() {
+    let (mut state, marker, provenance) = switching_to_nonfirst_panel();
+    let fresh = install_switch_candidate(&mut state, &marker);
+    assert_eq!(
+        state.settle_unattached_setup(&fresh, 0, &provenance),
+        Some(CleanupContinuation::Stable)
+    );
+    assert_eq!(
+        state.phase_kind(),
+        SessionPhaseKind::RetryableAttachUnavailable
+    );
+    assert_eq!(state.active(), Some(&SelectedTab::new_panel(fresh, 0, 1)));
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn cleanup_settlement_preserves_the_validated_nonfirst_panel_selection() {
+    let (mut state, marker, provenance) = switching_to_nonfirst_panel();
+    let fresh = install_switch_candidate(&mut state, &marker);
+    assert!(state.attached_key().is_none());
+    assert_eq!(
+        state.settle_cleanup(&fresh, 0, &provenance),
+        Some(CleanupContinuation::Stable)
+    );
+    assert_eq!(
+        state.phase_kind(),
+        SessionPhaseKind::RetryableAttachUnavailable
+    );
+    assert_eq!(state.active(), Some(&SelectedTab::new_panel(fresh, 0, 1)));
+    assert!(state.invariant_holds());
+}
+
 #[test]
 fn same_revision_label_change_retires_as_projection_divergence() {
     let mut state = ready(1);

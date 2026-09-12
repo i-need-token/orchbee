@@ -236,10 +236,28 @@ fn canonical_refresh_rejects_contraction_that_mutates_the_untouched_sibling_subt
 }
 
 #[test]
-fn canonical_refresh_rejects_contraction_candidates_that_are_not_exact_sibling_replacement() {
+fn canonical_refresh_accepts_a_close_history_that_collapsed_two_leaves() {
+    // Two committed closes folded into one refresh: each collapsed its parent Split into the
+    // sibling subtree, so the candidate keeps only the retained leaf.
+    let mut double_close = snapshot(2, 10);
+    double_close.terminal_contexts[0].tabs[0].root = nested_split_root();
+    let current_nested = project_native_standalone_tabs(&double_close).unwrap();
+    let mut collapsed = double_close;
+    collapsed.revision = WorkbenchRevision::new(11);
+    collapsed.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
+    let candidate = project_native_standalone_tabs(&collapsed).unwrap();
+    assert_eq!(
+        validate_canonical_refresh(&current_nested, candidate.clone()),
+        Ok(candidate)
+    );
+}
+
+#[test]
+fn canonical_refresh_rejects_contraction_candidates_that_reassign_retained_identity() {
     let current = project_native_standalone_tabs(&split_snapshot(2, 10)).unwrap();
 
-    // A replacement leaf that was never a member of the baseline.
+    // A replacement leaf that was never a member of the baseline: the surviving Tab identity
+    // retains no member, so this is reassignment disguised as retention, not a folded close.
     let mut stranger = split_snapshot(2, 11);
     stranger.terminal_contexts[0].tabs[0].root = panel(60, 61, 62, 63, "stranger");
     assert_eq!(
@@ -276,22 +294,8 @@ fn canonical_refresh_rejects_contraction_candidates_that_are_not_exact_sibling_r
     };
     assert!(project_native_standalone_tabs(&swapped).is_err());
 
-    // A nested close that removes two leaves at once.
-    let mut double_close = snapshot(2, 10);
-    double_close.terminal_contexts[0].tabs[0].root = nested_split_root();
-    let current_nested = project_native_standalone_tabs(&double_close).unwrap();
-    let mut collapsed = double_close;
-    collapsed.revision = WorkbenchRevision::new(11);
-    collapsed.terminal_contexts[0].tabs[0].root = panel(30, 31, 32, 33, "left");
-    assert_eq!(
-        validate_canonical_refresh(
-            &current_nested,
-            project_native_standalone_tabs(&collapsed).unwrap()
-        ),
-        Err(NativeProjectionDivergence)
-    );
-
-    // A nested close that reorders the surviving children.
+    // A retained Split whose ordered Slot identities changed: the surviving children were swapped
+    // under identities that were never free to move.
     let mut reordered_snapshot = snapshot(2, 10);
     reordered_snapshot.terminal_contexts[0].tabs[0].root = nested_split_root();
     let mut reordered = reordered_snapshot.clone();
@@ -321,7 +325,7 @@ fn canonical_refresh_rejects_contraction_candidates_that_are_not_exact_sibling_r
     };
     assert_eq!(
         validate_canonical_refresh(
-            &current_nested,
+            &project_native_standalone_tabs(&reordered_snapshot).unwrap(),
             project_native_standalone_tabs(&reordered).unwrap()
         ),
         Err(NativeProjectionDivergence)

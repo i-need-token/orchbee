@@ -681,7 +681,7 @@ Panel、Presentation 和 terminal ID 必须唯一；split 与 slot ID 必须在�
 另外两个纯验证器负责替换缓存：
 
 ```rust
-fn validate_append_only_refresh(
+fn validate_canonical_refresh(
     current: &NativeContextTabs,
     candidate: NativeContextTabs,
 ) -> Result<NativeContextTabs, NativeProjectionDivergence>;
@@ -694,17 +694,16 @@ fn validate_created_tab(
 ```
 
 已接受的 Move 细化替换旧 `validate_append_only_refresh` 前缀策略：要求 Site/上下文相同，
-拒绝更低修订；相同修订要求完整投影精确相等，包括顺序和标签。更高修订时，每个旧 Tab ID 必须在
-任意位置恰好出现一次，保持精确 Panel/Presentation 身份、结构、绑定、terminal-state 约束和
-`Presentation.label`；只有 `Tab.label` 和顺序可不同。新成员通过完整 schema/严格投影器及结构
-身份唯一性。移除、重复 ID 或其他不可变成员变化均为分歧。更高修订的对端刷新还可以恰好通过一个新
-split 包裹一个保留叶子来加入一个由 Server 创建的新叶子；所有保留的 Panel、binding、树边、slot
-和 split 都必须精确不变，替换或重塑树形仍属于分歧。对端刷新同样可以恰好移除保留 Tab 的一个
-叶子：候选保持每个存活 Panel、binding 和 presentation 精确不变，且被移除叶子的父 split 必须由
-保留自身 slot 和 split 身份的兄弟子树替换。它还可以恰好把一个保留叶子重定位到另一个保留叶子旁：
-候选保持完整 Panel 集合精确不变，恰好新增一个携带两个 fresh slot 身份与两个叶子孩子的 fresh
-split，且从基线中摘除被移动叶子、从候选中剪除该 fresh graft 后，两棵化简树必须结构相等。任何其他树形重塑、存活成员变更或多叶丢失均属分歧。
-最多 256 个 Tab 只需精确扫描，不需存储映射。
+拒绝更低修订；相同修订要求完整投影精确相等，包括顺序和标签。更高修订时适用共享规范成员规则：
+当前与候选的任一 Panel、Presentation 或 Terminal 身份重叠即要求完整不可变成员元组相同，
+存活的 Tab 身份必须保留至少一个成员，且只有 `Tab.label` 与顺序可不同。保留的结构身份保持精确：
+存活的 Split 保留其所属 Tab、两个有序 Slot 身份与方向；存活的 Slot 保留其父 Split；已移除或
+完全 fresh 的 Split/Slot 身份无需比较，且候选中每个 Panel、Presentation、Terminal、Split 与
+Slot 身份必须唯一。由于 `publication.read` 会把保留修订以来的全部已提交 publication 折叠为
+一个最终快照，且 journal 断档会以一个完整 Snapshot 作答，单次刷新可能携带多个已提交
+split、close 与 move 的总和；同一基线到最终快照的比较即可接纳该折叠结果。任何存活成员变更、
+身份重指派、保留结构重塑或伪装成保留的成员丢失均属分歧。最多 256 个 Tab 只需精确扫描，
+不需存储映射。
 
 `CreatedTabExpectation` 归投影层所有，只携带纯验证所需的六项规范事实。会话状态会嵌入或构造
 它；请求身份、终端来源状态、挂接代次和邮箱类型绝不进入投影器。`validate_created_tab` 在投影

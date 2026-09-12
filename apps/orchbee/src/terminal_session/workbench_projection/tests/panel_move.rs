@@ -373,33 +373,16 @@ fn canonical_refresh_accepts_a_leaf_swapped_within_its_own_parent() {
 }
 
 #[test]
-fn canonical_refresh_rejects_restructures_that_are_not_single_leaf_relocation() {
+fn canonical_refresh_accepts_folded_histories_beyond_a_single_relocation() {
     let current = project_native_standalone_tabs(&split_snapshot(2, 11)).unwrap();
 
-    // A leaf vanished entirely: the Panel set changed, so this is a close, not a move.
-    let mut dropped = split_snapshot(2, 12);
-    dropped.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+    // A folded close plus split: the baseline "right" leaf closed and the retained "left" leaf
+    // gained a fresh sibling under a fresh Split.
+    let mut closed_then_split = split_snapshot(2, 12);
+    closed_then_split.terminal_contexts[0].tabs[0].root = PanelNode::Split {
         children: Box::new([
             PanelSlot {
-                node: panel(30, 31, 32, 33, "left"),
-                slot_id: slot_id(34),
-            },
-            PanelSlot {
-                node: panel(30, 31, 32, 33, "left"),
-                slot_id: slot_id(39),
-            },
-        ]),
-        orientation: PanelOrientation::Horizontal,
-        split_id: split_id(40),
-    };
-    assert!(project_native_standalone_tabs(&dropped).is_err());
-
-    // A stranger leaf replaced the moved leaf: the Panel set differs.
-    let mut stranger = split_snapshot(2, 12);
-    stranger.terminal_contexts[0].tabs[0].root = PanelNode::Split {
-        children: Box::new([
-            PanelSlot {
-                node: panel(60, 61, 62, 63, "stranger"),
+                node: panel(60, 61, 62, 63, "new"),
                 slot_id: slot_id(91),
             },
             PanelSlot {
@@ -410,13 +393,14 @@ fn canonical_refresh_rejects_restructures_that_are_not_single_leaf_relocation() 
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(90),
     };
+    let candidate = project_native_standalone_tabs(&closed_then_split).unwrap();
     assert_eq!(
-        validate_canonical_refresh(&current, project_native_standalone_tabs(&stranger).unwrap()),
-        Err(NativeProjectionDivergence)
+        validate_canonical_refresh(&current, candidate.clone()),
+        Ok(candidate)
     );
 
-    // A move composed with an outer reorder is not a single-leaf relocation: pruning either
-    // graft hypothesis leaves a tree that differs from the reduced baseline.
+    // A folded history where the retained root Split kept its complete tuple while both Slot
+    // children changed: every retained member and structural identity remains exact.
     let mut nested_current = snapshot(2, 10);
     nested_current.terminal_contexts[0].tabs[0].root = nested_split_root();
     let nested = project_native_standalone_tabs(&nested_current).unwrap();
@@ -449,11 +433,54 @@ fn canonical_refresh_rejects_restructures_that_are_not_single_leaf_relocation() 
         orientation: PanelOrientation::Horizontal,
         split_id: split_id(40),
     };
+    let candidate = project_native_standalone_tabs(&compounded).unwrap();
     assert_eq!(
-        validate_canonical_refresh(
-            &nested,
-            project_native_standalone_tabs(&compounded).unwrap()
-        ),
+        validate_canonical_refresh(&nested, candidate.clone()),
+        Ok(candidate)
+    );
+}
+
+#[test]
+fn canonical_refresh_rejects_restructures_that_reassign_retained_identity() {
+    let current = project_native_standalone_tabs(&split_snapshot(2, 11)).unwrap();
+
+    // A leaf vanished entirely: the duplicate Panel identity fails the strict projector.
+    let mut dropped = split_snapshot(2, 12);
+    dropped.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: panel(30, 31, 32, 33, "left"),
+                slot_id: slot_id(34),
+            },
+            PanelSlot {
+                node: panel(30, 31, 32, 33, "left"),
+                slot_id: slot_id(39),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: split_id(40),
+    };
+    assert!(project_native_standalone_tabs(&dropped).is_err());
+
+    // A folded graft whose retained leaf member mutated: the Panel identity overlaps but the
+    // complete member tuple differs.
+    let mut mutated = split_snapshot(2, 12);
+    mutated.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: panel(60, 61, 62, 63, "new"),
+                slot_id: slot_id(91),
+            },
+            PanelSlot {
+                node: panel(30, 31, 32, 99, "left"),
+                slot_id: slot_id(92),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: split_id(90),
+    };
+    assert_eq!(
+        validate_canonical_refresh(&current, project_native_standalone_tabs(&mutated).unwrap()),
         Err(NativeProjectionDivergence)
     );
 }

@@ -40,14 +40,14 @@ use orchbee_terminal_protocol::{
     inspect_terminal_frame_route,
 };
 use orchbee_workbench_protocol::{
-    Navigation, PanelNode, Presentation, PresentationBinding, ProtocolVersion,
-    PublicationReadIntent, SiteId, Snapshot, SnapshotReadIntent, Tab, TerminalContext, TerminalId,
-    TerminalPresentationId, WorkbenchAction, WorkbenchCommand, WorkbenchLabel, WorkbenchPanelId,
-    WorkbenchPublicationDocument, WorkbenchPublicationOutcome, WorkbenchPublicationResult,
-    WorkbenchRequest, WorkbenchRequestId, WorkbenchResponse, WorkbenchRevision,
-    WorkbenchSnapshotOutcome, WorkbenchSnapshotResult, WorkbenchTabId, WorkbenchTabMoveDirection,
-    WorkbenchTerminalContextId, WorkbenchTerminalGeometry, WorkerId, read_workbench_request,
-    write_workbench_response,
+    Navigation, PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding,
+    ProtocolVersion, PublicationReadIntent, SiteId, Snapshot, SnapshotReadIntent, Tab,
+    TerminalContext, TerminalId, TerminalPresentationId, WorkbenchAction, WorkbenchCommand,
+    WorkbenchLabel, WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchPublicationDocument,
+    WorkbenchPublicationOutcome, WorkbenchPublicationResult, WorkbenchRequest, WorkbenchRequestId,
+    WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotResult,
+    WorkbenchSplitId, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
+    WorkbenchTerminalGeometry, WorkerId, read_workbench_request, write_workbench_response,
 };
 use std::{
     error::Error,
@@ -1938,19 +1938,53 @@ fn tab(index: usize) -> Tab {
         group_id: None,
         label: label.clone(),
         pinned: false,
-        root: PanelNode::Panel {
-            child_presentations: Vec::new(),
-            panel_id: WorkbenchPanelId::parse(&id(base + 1)).unwrap(),
-            primary_presentation: Presentation {
-                binding: Some(PresentationBinding {
-                    terminal_id: TerminalId::parse(&id(base + 4)).unwrap(),
-                    worker_id: WorkerId::parse(&id(base + 3)).unwrap(),
-                }),
-                label,
-                presentation_id: TerminalPresentationId::parse(&id(base + 2)).unwrap(),
-            },
-        },
+        root: panel_node(base + 1, base + 2, base + 3, base + 4, &label),
         tab_id: WorkbenchTabId::parse(&id(base)).unwrap(),
+    }
+}
+
+pub(super) fn panel_node(
+    panel: u128,
+    presentation: u128,
+    worker: u128,
+    terminal: u128,
+    label: &str,
+) -> PanelNode {
+    PanelNode::Panel {
+        child_presentations: Vec::new(),
+        panel_id: WorkbenchPanelId::parse(&id(panel)).unwrap(),
+        primary_presentation: Presentation {
+            binding: Some(PresentationBinding {
+                terminal_id: TerminalId::parse(&id(terminal)).unwrap(),
+                worker_id: WorkerId::parse(&id(worker)).unwrap(),
+            }),
+            label: label.to_owned(),
+            presentation_id: TerminalPresentationId::parse(&id(presentation)).unwrap(),
+        },
+    }
+}
+
+pub(super) fn split_node(
+    first: PanelNode,
+    first_slot: u128,
+    second: PanelNode,
+    second_slot: u128,
+    orientation: PanelOrientation,
+    split: u128,
+) -> PanelNode {
+    PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: first,
+                slot_id: WorkbenchPanelSlotId::parse(&id(first_slot)).unwrap(),
+            },
+            PanelSlot {
+                node: second,
+                slot_id: WorkbenchPanelSlotId::parse(&id(second_slot)).unwrap(),
+            },
+        ]),
+        orientation,
+        split_id: WorkbenchSplitId::parse(&id(split)).unwrap(),
     }
 }
 

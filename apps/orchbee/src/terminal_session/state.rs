@@ -1433,7 +1433,7 @@ impl NativeSessionState {
         {
             return None;
         }
-        let selected = SelectedTab::new(key.clone(), target_index);
+        let selected = setup.target.selected.clone();
         self.phase = if target_provenance.attachable() {
             SessionPhase::RetryableAttachUnavailable(selected)
         } else {
@@ -1465,7 +1465,7 @@ impl NativeSessionState {
         {
             return None;
         }
-        let selected = SelectedTab::new(key.clone(), target_index);
+        let selected = setup.target.selected.clone();
         self.phase = if target_provenance.attachable() {
             SessionPhase::RetryableAttachUnavailable(selected)
         } else {

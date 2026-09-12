@@ -7,6 +7,7 @@ use orchbee_workbench_protocol::{
 };
 
 mod append_only;
+mod catch_up;
 mod closed;
 mod created_tab;
 mod label_evolution;

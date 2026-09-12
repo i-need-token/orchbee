@@ -279,3 +279,95 @@ fn canonical_refresh_rejects_every_non_tab_label_change_to_existing_members() {
         );
     }
 }
+
+#[test]
+fn canonical_refresh_accepts_two_folded_panel_split_extensions() {
+    // `publication.read` folds every committed publication since the retained revision into one
+    // snapshot, so a single refresh can observe the sum of several individually valid splits.
+    let mut baseline_snapshot = snapshot(1, 10);
+    baseline_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: panel(30, 31, 32, 33, "left"),
+                slot_id: slot_id(34),
+            },
+            PanelSlot {
+                node: panel(35, 36, 37, 38, "right"),
+                slot_id: slot_id(39),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: split_id(40),
+    };
+    let baseline = project_native_standalone_tabs(&baseline_snapshot).unwrap();
+
+    // First committed split: the "left" leaf becomes a Split retaining itself plus one new panel.
+    let mut mid_snapshot = baseline_snapshot;
+    mid_snapshot.revision = WorkbenchRevision::new(11);
+    mid_snapshot.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: PanelNode::Split {
+                    children: Box::new([
+                        PanelSlot {
+                            node: panel(30, 31, 32, 33, "left"),
+                            slot_id: slot_id(50),
+                        },
+                        PanelSlot {
+                            node: panel(51, 52, 53, 54, "mid"),
+                            slot_id: slot_id(55),
+                        },
+                    ]),
+                    orientation: PanelOrientation::Vertical,
+                    split_id: split_id(56),
+                },
+                slot_id: slot_id(34),
+            },
+            PanelSlot {
+                node: panel(35, 36, 37, 38, "right"),
+                slot_id: slot_id(39),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: split_id(40),
+    };
+    let mid = project_native_standalone_tabs(&mid_snapshot).unwrap();
+    assert_eq!(
+        validate_canonical_refresh(&baseline, mid.clone()),
+        Ok(mid.clone())
+    );
+
+    // Second committed split on top of the first: the "right" leaf splits the same way.
+    let mut latest_snapshot = mid_snapshot;
+    latest_snapshot.revision = WorkbenchRevision::new(12);
+    let PanelNode::Split { children, .. } = &mut latest_snapshot.terminal_contexts[0].tabs[0].root
+    else {
+        panic!("the mid fixture must contain a split root");
+    };
+    children[1].node = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: panel(35, 36, 37, 38, "right"),
+                slot_id: slot_id(60),
+            },
+            PanelSlot {
+                node: panel(61, 62, 63, 64, "new"),
+                slot_id: slot_id(65),
+            },
+        ]),
+        orientation: PanelOrientation::Vertical,
+        split_id: split_id(66),
+    };
+    let latest = project_native_standalone_tabs(&latest_snapshot).unwrap();
+    assert_eq!(
+        validate_canonical_refresh(&mid, latest.clone()),
+        Ok(latest.clone())
+    );
+
+    // The folded baseline->latest jump commits both valid splits at once (+2 panels); refresh
+    // validation must accept it instead of reporting NativeProjectionDivergence.
+    assert_eq!(
+        validate_canonical_refresh(&baseline, latest.clone()),
+        Ok(latest)
+    );
+}

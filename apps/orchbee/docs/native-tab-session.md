@@ -825,7 +825,7 @@ the complete active-context projection.
 Two additional pure validators own cache replacement:
 
 ```rust
-fn validate_append_only_refresh(
+fn validate_canonical_refresh(
     current: &NativeContextTabs,
     candidate: NativeContextTabs,
 ) -> Result<NativeContextTabs, NativeProjectionDivergence>;
@@ -839,21 +839,19 @@ fn validate_created_tab(
 
 The accepted Move refinement replaces the legacy `validate_append_only_refresh` prefix policy:
 require the same Site/context and reject lower revision; same revision requires exact equality of
-the complete projection, including order and labels. At greater revision, each old Tab ID must occur
-exactly once anywhere with exact Panel/Presentation identities, shape, binding, terminal-state
-constraints and `Presentation.label`; only `Tab.label` and order may differ. New members pass the
-complete schema/strict projector and structural identity uniqueness. Removal, duplicate ID or any
-other immutable-member change is divergence. A higher-revision peer refresh may additionally add
-exactly one server-created leaf by wrapping one retained leaf in one new split; every retained
-panel, binding, tree edge, slot and split remains exact, and replacement or reshaping is divergence.
-It may likewise remove exactly one leaf of a retained Tab: the candidate keeps every surviving
-panel, binding and presentation exact, and the removed leaf's parent split must be replaced by the
-sibling subtree with its own slot and split identities intact. It may also relocate exactly one
-retained leaf beside another retained leaf: the candidate keeps the complete Panel set exact, adds
-exactly one fresh split carrying two fresh slot identities and two leaf children, and after removing
-the moved leaf from the baseline and the fresh graft from the candidate the reduced trees must be
-structurally identical. Any other tree reshaping, survivor
-mutation or multi-leaf loss is divergence. At most 256 Tabs need only exact scans, no stored map.
+the complete projection, including order and labels. At greater revision the shared canonical
+membership rule applies: overlap of any current and candidate Panel, Presentation or Terminal
+identity requires the same complete immutable member tuple, a surviving Tab identity retains at
+least one member, and only `Tab.label` and order may differ. Retained structural identities stay
+exact: a surviving Split keeps its owning Tab, both ordered Slot identities and orientation, and a
+surviving Slot keeps its parent Split; removed or entirely fresh Split/Slot identities need no
+comparison, and every candidate Panel, Presentation, Terminal, Split and Slot identity must be
+unique. Because `publication.read` folds every committed publication since the retained revision
+into one final snapshot, and a journal gap answers with one full Snapshot, a single refresh may
+carry the sum of several committed splits, closes and moves; the same baseline-to-final comparison
+admits the folded result. Any survivor mutation, identity reassignment, retained-structure
+reshaping or member loss disguised as retention is divergence. At most 256 Tabs need only exact
+scans, no stored map.
 
 `CreatedTabExpectation` is projection-owned and carries only the six canonical facts needed for
 pure validation. The session state embeds or constructs it; request identity, terminal provenance,

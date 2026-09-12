@@ -13,10 +13,11 @@ use orchbee_client_server_protocol::{
     TerminalViewerOutcome, TerminalViewerResult,
 };
 use orchbee_workbench_protocol::{
-    PanelNode, ProtocolVersion, WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult,
-    WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
-    WorkbenchSnapshotOutcome, WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome,
-    WorkbenchTerminalUnavailableReason,
+    Delta, DeltaChange, PanelNode, PanelOrientation, ProtocolVersion, TerminalContext,
+    WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchPublicationDocument,
+    WorkbenchPublicationOutcome, WorkbenchPublicationResult, WorkbenchRejectionReason,
+    WorkbenchRequest, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
+    WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason,
 };
 use std::sync::atomic::Ordering;
 
@@ -2035,6 +2036,188 @@ fn divergent_refresh_retires_after_exact_typed_ui_settlement() -> TestResult {
     );
 
     harness.finish_after_worker_failure(CarrierFailure::AuthorityDivergence)
+}
+
+#[test]
+fn refresh_folds_a_multi_revision_publication_batch_into_one_validated_snapshot() -> TestResult {
+    let geometry = fixture_geometry()?;
+    // Baseline revision 1: tab0 is the attached active leaf; tab1 starts as a single leaf.
+    let initial = snapshot(2, 1);
+    // Two committed splits on inactive tab1 since the baseline: the leaf split once, then its
+    // fresh sibling split again. Each Delta upserts the whole terminal context.
+    let mut mid = initial.clone();
+    mid.revision = WorkbenchRevision::new(2);
+    mid.terminal_contexts[0].tabs[1].root = split_node(
+        panel_node(1011, 1012, 1013, 1014, "2"),
+        1020,
+        panel_node(1030, 1031, 1032, 1033, "2-b"),
+        1021,
+        PanelOrientation::Horizontal,
+        1022,
+    );
+    let mut latest = mid.clone();
+    latest.revision = WorkbenchRevision::new(3);
+    latest.terminal_contexts[0].tabs[1].root = split_node(
+        panel_node(1011, 1012, 1013, 1014, "2"),
+        1020,
+        split_node(
+            panel_node(1030, 1031, 1032, 1033, "2-b"),
+            1040,
+            panel_node(1050, 1051, 1052, 1053, "2-c"),
+            1041,
+            PanelOrientation::Vertical,
+            1042,
+        ),
+        1021,
+        PanelOrientation::Horizontal,
+        1022,
+    );
+
+    let mut harness = Harness::start(
+        vec![
+            WireKind::Obcs,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Workbench,
+        ],
+        geometry,
+    )?;
+    let (active, _controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, initial.clone(), geometry)?;
+    let generation = harness.ui.admit_refresh()?;
+    let read = harness.carrier.take_read()?;
+    let ObservedRead::Publication(intent) = &read else {
+        return Err(test_error(
+            "a retained baseline must issue publication.read",
+        ));
+    };
+    assert_eq!(intent.known_revision, WorkbenchRevision::new(1));
+    let delta = |base: u64, revision: u64, terminal_context: &TerminalContext| {
+        WorkbenchPublicationDocument::Delta(Delta {
+            base_revision: WorkbenchRevision::new(base),
+            changes: vec![DeltaChange::TerminalContextUpserted {
+                terminal_context: terminal_context.clone(),
+            }],
+            protocol_version: ProtocolVersion,
+            revision: WorkbenchRevision::new(revision),
+            site_id: initial.site_id.clone(),
+        })
+    };
+    harness
+        .carrier
+        .respond_workbench(WorkbenchResponse::Publication(WorkbenchPublicationResult {
+            protocol_version: ProtocolVersion,
+            request_id: intent.request_id.clone(),
+            outcome: WorkbenchPublicationOutcome::Published {
+                publications: vec![
+                    delta(1, 2, &mid.terminal_contexts[0]),
+                    delta(2, 3, &latest.terminal_contexts[0]),
+                ],
+            },
+        }))?;
+
+    let completion = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(completion, FrameCut::None)?,
+        UiEvent::Refresh {
+            generation: actual,
+            decision: RefreshDecision::Continue,
+        } if actual == generation
+    ));
+    assert_eq!(
+        harness.ui.state().cache().revision(),
+        WorkbenchRevision::new(3)
+    );
+    let caught_up = harness
+        .ui
+        .state()
+        .tab(1)
+        .ok_or_else(|| test_error("folded refresh must retain the second tab"))?;
+    assert_eq!(caught_up.panel_count(), 3);
+    assert_eq!(
+        harness.ui.state().active().map(|tab| tab.key()),
+        Some(&active)
+    );
+    assert_eq!(harness.mailbox.is_closed(), None);
+
+    harness.finish()
+}
+
+#[test]
+fn refresh_validates_a_journal_gap_snapshot_fallback_against_the_retained_baseline() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let initial = snapshot(2, 1);
+    // The Server journal cannot connect the requested revision, so it answers publication.read
+    // with one full Snapshot publication covering the same folded history.
+    let mut fallback = initial.clone();
+    fallback.revision = WorkbenchRevision::new(4);
+    fallback.terminal_contexts[0].tabs[1].root = split_node(
+        panel_node(1011, 1012, 1013, 1014, "2"),
+        1020,
+        split_node(
+            panel_node(1030, 1031, 1032, 1033, "2-b"),
+            1040,
+            panel_node(1050, 1051, 1052, 1053, "2-c"),
+            1041,
+            PanelOrientation::Vertical,
+            1042,
+        ),
+        1021,
+        PanelOrientation::Horizontal,
+        1022,
+    );
+
+    let mut harness = Harness::start(
+        vec![
+            WireKind::Obcs,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Workbench,
+        ],
+        geometry,
+    )?;
+    let (active, _controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, initial, geometry)?;
+    let generation = harness.ui.admit_refresh()?;
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available { snapshot: fallback },
+    )?;
+
+    let completion = harness.ui.take_next()?;
+    assert!(matches!(
+        harness.ui.settle_taken(completion, FrameCut::None)?,
+        UiEvent::Refresh {
+            generation: actual,
+            decision: RefreshDecision::Continue,
+        } if actual == generation
+    ));
+    assert_eq!(
+        harness.ui.state().cache().revision(),
+        WorkbenchRevision::new(4)
+    );
+    let caught_up = harness
+        .ui
+        .state()
+        .tab(1)
+        .ok_or_else(|| test_error("snapshot fallback must retain the second tab"))?;
+    assert_eq!(caught_up.panel_count(), 3);
+    assert_eq!(
+        harness.ui.state().active().map(|tab| tab.key()),
+        Some(&active)
+    );
+    assert_eq!(harness.mailbox.is_closed(), None);
+
+    harness.finish()
 }
 
 #[test]

@@ -772,6 +772,147 @@ fn native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell()
 }
 
 #[test]
+fn native_standalone_refresh_catches_up_across_two_committed_peer_splits() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+    let mut client = Client::spawn(&fixture, "en_US.UTF-8");
+    client.wait_ready_after(
+        0,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::Controlling,
+    );
+
+    let deadline = Instant::now() + CLOSE_TIMEOUT;
+    let mut peer = WorkbenchPeer::connect(&fixture, deadline)?;
+    let baseline = peer.snapshot(deadline)?;
+    let terminal_context_id = baseline.navigation.standalone_terminal_context_id.clone();
+    let context = baseline
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .ok_or("catch-up context missing")?;
+    let tab = context.tabs.first().ok_or("catch-up Tab missing")?;
+    let panel_id = match &tab.root {
+        PanelNode::Panel { panel_id, .. } => panel_id.clone(),
+        PanelNode::Split { .. } => return Err("fresh catch-up Tab was already split".into()),
+    };
+    let tab_id = tab.tab_id.clone();
+    let split_geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
+
+    // The peer commits two PanelSplit revisions while the TUI retains the baseline revision; the
+    // next refresh must fold both committed publications into one final snapshot.
+    let first_panel_id = match peer.prepare(
+        WorkbenchAction::PanelSplit {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id: tab_id.clone(),
+            panel_id,
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("Peer one")?,
+            geometry: split_geometry,
+        },
+        deadline,
+    )? {
+        WorkbenchCommandOutcome::PanelSplitCreated { new_panel_id, .. } => new_panel_id,
+        outcome => {
+            return Err(format!("first catch-up PanelSplit did not start: {outcome:?}").into());
+        }
+    };
+    match peer.prepare(
+        WorkbenchAction::PanelSplit {
+            terminal_context_id: terminal_context_id.clone(),
+            tab_id,
+            panel_id: first_panel_id.clone(),
+            direction: WorkbenchPanelSplitDirection::Right,
+            label: WorkbenchLabel::parse("Peer two")?,
+            geometry: split_geometry,
+        },
+        deadline,
+    )? {
+        WorkbenchCommandOutcome::PanelSplitCreated { .. } => {}
+        outcome => {
+            return Err(format!("second catch-up PanelSplit did not start: {outcome:?}").into());
+        }
+    };
+    let after_splits = peer.snapshot(deadline)?;
+    assert_eq!(
+        after_splits.revision.value(),
+        baseline.revision.value() + 2,
+        "two committed PanelSplits must advance the journal by exactly +2"
+    );
+    let split_tab = after_splits
+        .terminal_contexts
+        .iter()
+        .find(|candidate| candidate.terminal_context_id == terminal_context_id)
+        .and_then(|candidate| candidate.tabs.first())
+        .ok_or("catch-up Tab was not projected")?;
+    fn leaf_count(node: &PanelNode) -> usize {
+        match node {
+            PanelNode::Panel { .. } => 1,
+            PanelNode::Split { children, .. } => {
+                children.iter().map(|slot| leaf_count(&slot.node)).sum()
+            }
+        }
+    }
+    assert_eq!(
+        leaf_count(&split_tab.root),
+        3,
+        "folded splits must project three leaves"
+    );
+
+    let refresh_revision = after_splits.revision.value();
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Workbench navigator",
+            &format!("Tabs refreshed · revision {refresh_revision}"),
+        ],
+        &[],
+        &[],
+        &mut [],
+    );
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02w");
+    // Three Panels share the fixed row width, so the leaf labels clip; the numbered headers are
+    // the visible membership evidence.
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Panel · Terminal 1 · 1",
+            "Panel · Terminal 2",
+            "Panel · Terminal 3",
+            "Tab 1 · Ready · controlling",
+        ],
+        &["Workbench navigator"],
+        &[],
+        &mut [],
+    );
+
+    // The refreshed selection still drives the original shell.
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02h");
+    client.wait_frame_text_after(
+        checkpoint,
+        Instant::now() + SWITCH_TIMEOUT,
+        &[
+            "Panel · Terminal 1 · 1",
+            "Panel · Terminal 2",
+            "Panel · Terminal 3",
+        ],
+        &["Workbench navigator"],
+        &[],
+        &mut [],
+    );
+    client.close_before(Instant::now() + EXIT_TIMEOUT);
+    Ok(())
+}
+
+#[test]
 fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();

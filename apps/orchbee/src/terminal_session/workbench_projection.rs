@@ -4,6 +4,7 @@ use orchbee_workbench_protocol::{
     WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId,
     WorkbenchTabMoveDirection, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
 };
+use std::collections::HashMap;
 
 mod closed;
 pub(super) mod renamed;
@@ -765,18 +766,8 @@ pub(super) fn validate_retained_context(
     }
     if candidate.tabs.len() > MAXIMUM_TABS_PER_CONTEXT
         || !unique_structural_ids(&candidate.tabs)
-        || tabs.iter().any(|current| {
-            candidate.tabs.iter().any(|candidate| {
-                (current.tab_id == candidate.tab_id
-                    || current.panel_id == candidate.panel_id
-                    || current.presentation_id == candidate.presentation_id
-                    || current.binding.terminal_id == candidate.binding.terminal_id)
-                    && !stable_member_except_tab_label(current, candidate)
-                    && !panel_split_extension(current, candidate)
-                    && !panel_close_contraction(current, candidate)
-                    && !panel_move_restructure(current, candidate)
-            })
-        })
+        || !retained_member_tuples(tabs, &candidate.tabs)
+        || !retained_structure_tuples(tabs, &candidate.tabs)
     {
         return Err(NativeProjectionDivergence);
     }
@@ -836,476 +827,150 @@ fn unique_structural_ids(tabs: &[NativeSimpleTab]) -> bool {
     })
 }
 
-fn stable_member_except_tab_label(current: &NativeSimpleTab, candidate: &NativeSimpleTab) -> bool {
-    current.tab_id == candidate.tab_id
-        && current.panel_id == candidate.panel_id
-        && current.presentation_id == candidate.presentation_id
-        && current.presentation_label == candidate.presentation_label
-        && current.binding == candidate.binding
-        && current.panels == candidate.panels
-        && current.tree == candidate.tree
-}
+/// One immutable member record: a leaf Panel member or the tab-level primary Presentation
+/// projection. Overlap on any Panel, Presentation or terminal identity requires the complete
+/// tuple to match; the Tab identity is a compared field so a changed Tab ID cannot disguise
+/// reassignment as removal plus addition, and a Worker ID alone is not a member identity.
+type MemberTuple<'a> = (
+    &'a WorkbenchTabId,
+    &'a WorkbenchPanelId,
+    &'a TerminalPresentationId,
+    &'a WorkbenchLabel,
+    &'a NativeTerminalBinding,
+);
 
-fn panel_split_extension(current: &NativeSimpleTab, candidate: &NativeSimpleTab) -> bool {
-    if current.tab_id != candidate.tab_id
-        || candidate.panels.len() != current.panels.len() + 1
-        || !current
-            .panels
-            .iter()
-            .all(|panel| candidate.panels.iter().any(|other| other == panel))
-        || candidate
-            .panels
-            .iter()
-            .filter(|panel| !current.panels.iter().any(|other| other == *panel))
-            .count()
-            != 1
-    {
-        return false;
-    }
-    split_tree_extension(
-        &current.tree,
-        &candidate.tree,
-        &current.panels,
-        &candidate.panels,
-    )
-}
-
-fn split_tree_extension(
-    current: &NativePanelTree,
-    candidate: &NativePanelTree,
-    current_panels: &[NativePanel],
-    candidate_panels: &[NativePanel],
-) -> bool {
-    match (current, candidate) {
+fn member_tuples(tab: &NativeSimpleTab) -> impl Iterator<Item = MemberTuple<'_>> {
+    std::iter::once((
+        &tab.tab_id,
+        &tab.panel_id,
+        &tab.presentation_id,
+        &tab.presentation_label,
+        &tab.binding,
+    ))
+    .chain(tab.panels.iter().map(|panel| {
         (
-            NativePanelTree::Panel {
-                panel_index: current_index,
-            },
-            NativePanelTree::Split { first, second, .. },
-        ) => {
-            let old_matches = |node: &NativePanelTree| {
-                matches!(
-                    node,
-                    NativePanelTree::Panel {
-                        panel_index: candidate_index,
-                    } if current_panels.get(*current_index) == candidate_panels.get(*candidate_index)
-                )
-            };
-            let new_leaf = |node: &NativePanelTree| {
-                matches!(
-                    node,
-                    NativePanelTree::Panel {
-                        panel_index: candidate_index,
-                    } if candidate_panels
-                        .get(*candidate_index)
-                        .is_some_and(|candidate| {
-                            !current_panels.iter().any(|current| current == candidate)
-                        })
-                )
-            };
-            (old_matches(first) && new_leaf(second)) || (old_matches(second) && new_leaf(first))
-        }
-        (
-            NativePanelTree::Split {
-                first: current_first,
-                second: current_second,
-                first_slot_id: current_first_slot,
-                second_slot_id: current_second_slot,
-                orientation: current_orientation,
-                split_id: current_split_id,
-            },
-            NativePanelTree::Split {
-                first: candidate_first,
-                second: candidate_second,
-                first_slot_id: candidate_first_slot,
-                second_slot_id: candidate_second_slot,
-                orientation: candidate_orientation,
-                split_id: candidate_split_id,
-            },
-        ) if current_first_slot == candidate_first_slot
-            && current_second_slot == candidate_second_slot
-            && current_orientation == candidate_orientation
-            && current_split_id == candidate_split_id =>
-        {
-            (split_tree_extension(
-                current_first,
-                candidate_first,
-                current_panels,
-                candidate_panels,
-            ) && subtree_matches(
-                current_second,
-                candidate_second,
-                current_panels,
-                candidate_panels,
-            )) || (split_tree_extension(
-                current_second,
-                candidate_second,
-                current_panels,
-                candidate_panels,
-            ) && subtree_matches(
-                current_first,
-                candidate_first,
-                current_panels,
-                candidate_panels,
-            ))
-        }
-        _ => false,
-    }
-}
-
-/// `candidate` is `current` with exactly one leaf Panel closed: the Panel set loses one member and
-/// the leaf's parent Split collapses into the sibling subtree, retaining the sibling's identities.
-fn panel_close_contraction(current: &NativeSimpleTab, candidate: &NativeSimpleTab) -> bool {
-    if current.tab_id != candidate.tab_id
-        || candidate.panels.len().checked_add(1) != Some(current.panels.len())
-        || !candidate
-            .panels
-            .iter()
-            .all(|panel| current.panels.iter().any(|other| other == panel))
-        || current
-            .panels
-            .iter()
-            .filter(|panel| !candidate.panels.iter().any(|other| other == *panel))
-            .count()
-            != 1
-    {
-        return false;
-    }
-    close_tree_contraction(
-        &current.tree,
-        &candidate.tree,
-        &current.panels,
-        &candidate.panels,
-    )
-}
-
-fn close_tree_contraction(
-    current: &NativePanelTree,
-    candidate: &NativePanelTree,
-    current_panels: &[NativePanel],
-    candidate_panels: &[NativePanel],
-) -> bool {
-    let NativePanelTree::Split {
-        first: current_first,
-        second: current_second,
-        first_slot_id: current_first_slot,
-        second_slot_id: current_second_slot,
-        orientation: current_orientation,
-        split_id: current_split_id,
-    } = current
-    else {
-        return false;
-    };
-    let removed_leaf = |node: &NativePanelTree| {
-        matches!(
-            node,
-            NativePanelTree::Panel { panel_index } if current_panels
-                .get(*panel_index)
-                .is_some_and(|panel| {
-                    !candidate_panels.iter().any(|candidate| candidate == panel)
-                })
+            &tab.tab_id,
+            &panel.panel_id,
+            &panel.presentation_id,
+            &panel.presentation_label,
+            &panel.binding,
         )
-    };
-    // The closed leaf hung directly under this Split; the sibling subtree became the candidate.
-    if (removed_leaf(current_second)
-        && subtree_matches(current_first, candidate, current_panels, candidate_panels))
-        || (removed_leaf(current_first)
-            && subtree_matches(current_second, candidate, current_panels, candidate_panels))
-    {
-        return true;
-    }
-    // A deeper leaf closed: this Split survives and exactly one child contains the contraction.
-    let NativePanelTree::Split {
-        first: candidate_first,
-        second: candidate_second,
-        first_slot_id: candidate_first_slot,
-        second_slot_id: candidate_second_slot,
-        orientation: candidate_orientation,
-        split_id: candidate_split_id,
-    } = candidate
-    else {
-        return false;
-    };
-    current_first_slot == candidate_first_slot
-        && current_second_slot == candidate_second_slot
-        && current_orientation == candidate_orientation
-        && current_split_id == candidate_split_id
-        && ((close_tree_contraction(
-            current_first,
-            candidate_first,
-            current_panels,
-            candidate_panels,
-        ) && subtree_matches(
-            current_second,
-            candidate_second,
-            current_panels,
-            candidate_panels,
-        )) || (close_tree_contraction(
-            current_second,
-            candidate_second,
-            current_panels,
-            candidate_panels,
-        ) && subtree_matches(
-            current_first,
-            candidate_first,
-            current_panels,
-            candidate_panels,
-        )))
+    }))
 }
 
-/// `candidate` is `current` with one leaf Panel relocated: the retained leaf reattaches under a
-/// fresh Split at a surviving target leaf, and the vacated parent Split collapses away.
-fn panel_move_restructure(current: &NativeSimpleTab, candidate: &NativeSimpleTab) -> bool {
-    if current.tab_id != candidate.tab_id
-        || candidate.panels.len() != current.panels.len()
-        || !candidate
-            .panels
-            .iter()
-            .all(|panel| current.panels.iter().any(|other| other == panel))
-    {
-        return false;
+/// Every current member identity still present in the candidate must carry the complete original
+/// tuple, and a Tab whose identity survives must retain at least one member: genuinely removed
+/// members and entirely fresh identities need no comparison.
+fn retained_member_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimpleTab]) -> bool {
+    let mut panels: HashMap<&WorkbenchPanelId, Vec<MemberTuple>> = HashMap::new();
+    let mut presentations: HashMap<&TerminalPresentationId, Vec<MemberTuple>> = HashMap::new();
+    let mut terminals: HashMap<&TerminalId, Vec<MemberTuple>> = HashMap::new();
+    for tab in candidate {
+        for member in member_tuples(tab) {
+            panels.entry(member.1).or_default().push(member);
+            presentations.entry(member.2).or_default().push(member);
+            terminals
+                .entry(&member.4.terminal_id)
+                .or_default()
+                .push(member);
+        }
     }
-    move_tree_restructure(
-        &current.tree,
-        &candidate.tree,
-        &current.panels,
-        &candidate.panels,
-    )
-}
-
-fn move_tree_restructure(
-    current: &NativePanelTree,
-    candidate: &NativePanelTree,
-    current_panels: &[NativePanel],
-    candidate_panels: &[NativePanel],
-) -> bool {
-    let mut current_split_ids = Vec::new();
-    current.split_ids(&mut current_split_ids);
-    let mut current_slot_ids = Vec::new();
-    current.slot_ids(&mut current_slot_ids);
-    let mut grafts = Vec::new();
-    collect_move_grafts(
-        candidate,
-        &current_split_ids,
-        &current_slot_ids,
-        &mut grafts,
-    );
-    let [graft] = grafts.as_slice() else {
-        return false;
-    };
-    // Either child of the fresh Split can be the moved leaf; the other is the surviving target.
-    [true, false].iter().any(|moved_is_first| {
-        let (moved, kept) = if *moved_is_first {
-            (graft.first, graft.second)
-        } else {
-            (graft.second, graft.first)
-        };
-        let NativePanelTree::Panel { panel_index } = moved else {
-            return false;
-        };
-        let Some(moved) = candidate_panels.get(*panel_index) else {
-            return false;
-        };
-        let Some(reduced_current) = take_panel_leaf(current, moved, current_panels) else {
-            return false;
-        };
-        let Some(reduced_candidate) = prune_move_graft(candidate, graft.split_id, kept) else {
-            return false;
-        };
-        subtree_matches(
-            &reduced_current,
-            &reduced_candidate,
-            current_panels,
-            candidate_panels,
-        )
+    current.iter().all(|tab| {
+        let mut retains_member = false;
+        for member in member_tuples(tab) {
+            for hit in panels
+                .get(member.1)
+                .into_iter()
+                .flatten()
+                .chain(presentations.get(member.2).into_iter().flatten())
+                .chain(terminals.get(&member.4.terminal_id).into_iter().flatten())
+            {
+                if *hit != member {
+                    return false;
+                }
+                retains_member = true;
+            }
+        }
+        retains_member || candidate.iter().all(|entry| entry.tab_id != tab.tab_id)
     })
 }
 
-struct MoveGraft<'a> {
-    split_id: &'a WorkbenchSplitId,
-    first: &'a NativePanelTree,
-    second: &'a NativePanelTree,
-}
+type SplitTuple<'a> = (
+    &'a WorkbenchTabId,
+    &'a WorkbenchPanelSlotId,
+    &'a WorkbenchPanelSlotId,
+    PanelOrientation,
+);
 
-/// Collects the candidate Splits whose identities are all fresh: an unknown Split identity, two
-/// unknown Slot identities, and two leaf Panel children.
-fn collect_move_grafts<'a>(
+fn collect_structure_tuples<'a>(
     node: &'a NativePanelTree,
-    split_ids: &[WorkbenchSplitId],
-    slot_ids: &[WorkbenchPanelSlotId],
-    grafts: &mut Vec<MoveGraft<'a>>,
+    tab_id: &'a WorkbenchTabId,
+    splits: &mut HashMap<&'a WorkbenchSplitId, SplitTuple<'a>>,
+    slots: &mut HashMap<&'a WorkbenchPanelSlotId, &'a WorkbenchSplitId>,
 ) {
     let NativePanelTree::Split {
         first,
         second,
         first_slot_id,
         second_slot_id,
+        orientation,
         split_id,
-        ..
     } = node
     else {
         return;
     };
-    if !split_ids.contains(split_id)
-        && !slot_ids.contains(first_slot_id)
-        && !slot_ids.contains(second_slot_id)
-        && matches!(first.as_ref(), NativePanelTree::Panel { .. })
-        && matches!(second.as_ref(), NativePanelTree::Panel { .. })
-    {
-        grafts.push(MoveGraft {
-            split_id,
-            first,
-            second,
-        });
-    }
-    collect_move_grafts(first, split_ids, slot_ids, grafts);
-    collect_move_grafts(second, split_ids, slot_ids, grafts);
-}
-
-/// Removes the leaf holding `moved`, collapsing its parent Split into the sibling subtree, and
-/// returns the reduced tree. A root leaf has no parent Split and cannot be taken.
-fn take_panel_leaf(
-    node: &NativePanelTree,
-    moved: &NativePanel,
-    panels: &[NativePanel],
-) -> Option<NativePanelTree> {
-    let NativePanelTree::Split {
-        first,
-        second,
-        first_slot_id,
-        second_slot_id,
-        orientation,
+    splits.insert(
         split_id,
-    } = node
-    else {
-        return None;
-    };
-    let is_moved = |child: &NativePanelTree| {
-        matches!(
-            child,
-            NativePanelTree::Panel { panel_index } if panels.get(*panel_index) == Some(moved)
-        )
-    };
-    if is_moved(first) {
-        return Some(second.as_ref().clone());
-    }
-    if is_moved(second) {
-        return Some(first.as_ref().clone());
-    }
-    if let Some(taken) = take_panel_leaf(first, moved, panels) {
-        return Some(NativePanelTree::Split {
-            first: Box::new(taken),
-            second: second.clone(),
-            first_slot_id: first_slot_id.clone(),
-            second_slot_id: second_slot_id.clone(),
-            orientation: *orientation,
-            split_id: split_id.clone(),
-        });
-    }
-    take_panel_leaf(second, moved, panels).map(|taken| NativePanelTree::Split {
-        first: first.clone(),
-        second: Box::new(taken),
-        first_slot_id: first_slot_id.clone(),
-        second_slot_id: second_slot_id.clone(),
-        orientation: *orientation,
-        split_id: split_id.clone(),
-    })
+        (tab_id, first_slot_id, second_slot_id, *orientation),
+    );
+    slots.insert(first_slot_id, split_id);
+    slots.insert(second_slot_id, split_id);
+    collect_structure_tuples(first, tab_id, splits, slots);
+    collect_structure_tuples(second, tab_id, splits, slots);
 }
 
-/// Replaces the fresh Split `split_id` with its retained target child, producing the candidate
-/// tree as it stood before the moved leaf was grafted.
-fn prune_move_graft(
+fn structure_tuples_retained(
     node: &NativePanelTree,
-    graft_id: &WorkbenchSplitId,
-    kept: &NativePanelTree,
-) -> Option<NativePanelTree> {
-    let NativePanelTree::Split {
-        first,
-        second,
-        first_slot_id,
-        second_slot_id,
-        orientation,
-        split_id,
-    } = node
-    else {
-        return None;
-    };
-    if split_id == graft_id {
-        return Some(kept.clone());
-    }
-    if let Some(pruned) = prune_move_graft(first, graft_id, kept) {
-        return Some(NativePanelTree::Split {
-            first: Box::new(pruned),
-            second: second.clone(),
-            first_slot_id: first_slot_id.clone(),
-            second_slot_id: second_slot_id.clone(),
-            orientation: *orientation,
-            split_id: split_id.clone(),
-        });
-    }
-    prune_move_graft(second, graft_id, kept).map(|pruned| NativePanelTree::Split {
-        first: first.clone(),
-        second: Box::new(pruned),
-        first_slot_id: first_slot_id.clone(),
-        second_slot_id: second_slot_id.clone(),
-        orientation: *orientation,
-        split_id: split_id.clone(),
-    })
-}
-
-/// Structural equality across two tabs' Panel arrays; leaves compare by Panel value.
-fn subtree_matches(
-    current: &NativePanelTree,
-    candidate: &NativePanelTree,
-    current_panels: &[NativePanel],
-    candidate_panels: &[NativePanel],
+    tab_id: &WorkbenchTabId,
+    splits: &HashMap<&WorkbenchSplitId, SplitTuple<'_>>,
+    slots: &HashMap<&WorkbenchPanelSlotId, &WorkbenchSplitId>,
 ) -> bool {
-    match (current, candidate) {
-        (
-            NativePanelTree::Panel {
-                panel_index: current_index,
-            },
-            NativePanelTree::Panel {
-                panel_index: candidate_index,
-            },
-        ) => current_panels.get(*current_index) == candidate_panels.get(*candidate_index),
-        (
-            NativePanelTree::Split {
-                first: current_first,
-                second: current_second,
-                first_slot_id: current_first_slot,
-                second_slot_id: current_second_slot,
-                orientation: current_orientation,
-                split_id: current_split_id,
-            },
-            NativePanelTree::Split {
-                first: candidate_first,
-                second: candidate_second,
-                first_slot_id: candidate_first_slot,
-                second_slot_id: candidate_second_slot,
-                orientation: candidate_orientation,
-                split_id: candidate_split_id,
-            },
-        ) => {
-            current_first_slot == candidate_first_slot
-                && current_second_slot == candidate_second_slot
-                && current_orientation == candidate_orientation
-                && current_split_id == candidate_split_id
-                && subtree_matches(
-                    current_first,
-                    candidate_first,
-                    current_panels,
-                    candidate_panels,
-                )
-                && subtree_matches(
-                    current_second,
-                    candidate_second,
-                    current_panels,
-                    candidate_panels,
-                )
-        }
-        _ => false,
+    let NativePanelTree::Split {
+        first,
+        second,
+        first_slot_id,
+        second_slot_id,
+        orientation,
+        split_id,
+    } = node
+    else {
+        return true;
+    };
+    if splits
+        .get(split_id)
+        .is_some_and(|tuple| *tuple != (tab_id, first_slot_id, second_slot_id, *orientation))
+        || [first_slot_id, second_slot_id]
+            .iter()
+            .any(|slot| slots.get(*slot).is_some_and(|parent| *parent != split_id))
+    {
+        return false;
     }
+    structure_tuples_retained(first, tab_id, splits, slots)
+        && structure_tuples_retained(second, tab_id, splits, slots)
+}
+
+/// A Split identity that survives keeps its owning Tab, both Slot identities and orientation; a
+/// Slot identity that survives keeps its parent Split. Removed or entirely fresh structural
+/// identities need no comparison.
+fn retained_structure_tuples(current: &[NativeSimpleTab], candidate: &[NativeSimpleTab]) -> bool {
+    let mut splits = HashMap::new();
+    let mut slots = HashMap::new();
+    for tab in candidate {
+        collect_structure_tuples(&tab.tree, &tab.tab_id, &mut splits, &mut slots);
+    }
+    current
+        .iter()
+        .all(|tab| structure_tuples_retained(&tab.tree, &tab.tab_id, &splits, &slots))
 }
 
 #[cfg(test)]
