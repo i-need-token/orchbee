@@ -5,6 +5,7 @@ const defaultVariant = { name: 'default' };
 const mebibyte = 1024 ** 2;
 const minimumHeapMiB = 256;
 const processReserveMiB = 512;
+const maximumHeapMiB = 2048;
 
 /** Budget explicit JVM heaps together, leaving 40% of memory for other processes. */
 export function modelConcurrency(requested, processors, memoryBytes) {
@@ -16,7 +17,9 @@ export function modelConcurrency(requested, processors, memoryBytes) {
 		modelHeapMiB(jobs, memoryBytes);
 		return jobs;
 	}
-	const memorySlots = Math.floor((memoryBytes * 0.6) / ((1024 + processReserveMiB) * mebibyte));
+	const memorySlots = Math.floor(
+		(memoryBytes * 0.6) / ((maximumHeapMiB + processReserveMiB) * mebibyte),
+	);
 	return Math.max(1, Math.min(processors, memorySlots));
 }
 
@@ -25,7 +28,7 @@ export function modelHeapMiB(concurrency, memoryBytes) {
 	if (heap < minimumHeapMiB) {
 		throw new Error(`TLC concurrency ${concurrency} exceeds the available JVM memory budget`);
 	}
-	return Math.min(2048, heap);
+	return Math.min(maximumHeapMiB, heap);
 }
 
 export function modelWorkers(model) {
