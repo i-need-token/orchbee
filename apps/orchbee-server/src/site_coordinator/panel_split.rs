@@ -4,7 +4,8 @@ use super::tab_create::{
     unavailable_by_id,
 };
 use super::{
-    PostcommitCoordinationError, SiteCoordinator, presentation_binding, tree_composition_matches,
+    PostcommitCoordinationError, SiteCoordinator, StandaloneTerminal, open_outcome,
+    presentation_binding, tree_composition_matches,
 };
 use crate::terminal_coordinator::{Completion, PendingOperation, WorkerPlacement};
 use orchbee_capability_node_protocol::{CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds};
@@ -23,6 +24,12 @@ use orchbee_workbench_protocol::{
 pub(crate) enum PreparedTerminalPanelSplit {
     Ready(WorkbenchCommandResult),
     Dispatch(PendingTerminalPanelSplit),
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct CompletedTerminalPanelSplit {
+    pub(crate) result: WorkbenchCommandResult,
+    pub(crate) standalone_changed: bool,
 }
 
 pub(crate) struct PendingTerminalPanelSplit {
@@ -191,7 +198,7 @@ impl SiteCoordinator {
         pending: PendingTerminalPanelSplit,
         completion: Completion,
         current_worker: Option<WorkerPlacement>,
-    ) -> Result<WorkbenchCommandResult, PostcommitCoordinationError> {
+    ) -> Result<CompletedTerminalPanelSplit, PostcommitCoordinationError> {
         let Self {
             terminals,
             workbench,
@@ -224,13 +231,23 @@ impl SiteCoordinator {
             .map_err(|_mismatch| PostcommitCoordinationError)?;
         let terminal_outcome = terminal_outcome(&reference, metadata.geometry(), terminal.result())
             .ok_or(PostcommitCoordinationError)?;
+        let standalone_changed = metadata.is_standalone()
+            && matches!(standalone, StandaloneTerminal::Creating(current) if current == &reference);
+        let settled_open = standalone_changed.then(|| open_outcome(&reference, terminal.result()));
         let workbench = workbench
             .prepare_terminal_panel_split_settlement(workbench_pending, terminal_outcome)
             .map_err(|_mismatch: WorkbenchPanelSplitSettlementTokenMismatch| {
                 PostcommitCoordinationError
             })?;
         terminal.commit();
-        Ok(workbench.commit())
+        let result = workbench.commit();
+        if let Some(outcome) = settled_open {
+            *standalone = StandaloneTerminal::Settled { reference, outcome };
+        }
+        Ok(CompletedTerminalPanelSplit {
+            result,
+            standalone_changed,
+        })
     }
 }
 

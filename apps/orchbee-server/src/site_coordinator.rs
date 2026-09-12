@@ -23,6 +23,8 @@ mod tab_create;
 pub(crate) use tab_create::PendingTerminalTabCreate;
 pub(crate) use tab_create::{PostcommitCoordinationError, PreparedTerminalTabCreate};
 mod panel_split;
+#[cfg(test)]
+pub(crate) use panel_split::PendingTerminalPanelSplit;
 pub(crate) use panel_split::PreparedTerminalPanelSplit;
 mod terminal_selection;
 mod workspace_directory;

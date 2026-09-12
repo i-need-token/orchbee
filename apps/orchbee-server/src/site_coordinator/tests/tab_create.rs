@@ -64,7 +64,7 @@ fn standalone_composition_helpers_reject_workspace_membership_even_with_a_matchi
     ));
 }
 
-fn context_tab_command(
+pub(super) fn context_tab_command(
     coordinator: &SiteCoordinator,
     request: u128,
     revision: u64,
@@ -85,7 +85,7 @@ fn context_tab_command(
     }
 }
 
-fn tab_command(
+pub(super) fn tab_command(
     coordinator: &SiteCoordinator,
     request: u128,
     revision: u64,
@@ -116,7 +116,7 @@ fn submit_navigation(
     result
 }
 
-fn configure_workspace(
+pub(super) fn configure_workspace(
     coordinator: &mut SiteCoordinator,
     path: &str,
 ) -> WorkbenchTerminalContextId {
@@ -190,7 +190,7 @@ fn configure_workspace(
     terminal_context_id
 }
 
-fn dispatch_tab(
+pub(super) fn dispatch_tab(
     coordinator: &mut SiteCoordinator,
     command: WorkbenchCommand,
     reference: u128,
@@ -221,7 +221,7 @@ fn immediate_tab_completion(
     immediate_completion(pending.command())
 }
 
-fn immediate_completion(command: &CapabilityNodeMessage) -> Completion {
+pub(super) fn immediate_completion(command: &CapabilityNodeMessage) -> Completion {
     let CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) = command else {
         panic!("terminal Launch expected")
     };
@@ -240,7 +240,7 @@ fn immediate_completion(command: &CapabilityNodeMessage) -> Completion {
     )
 }
 
-fn pending_first_open(
+pub(super) fn pending_first_open(
     coordinator: &mut SiteCoordinator,
     request: u128,
     reference: u128,
@@ -257,7 +257,7 @@ fn pending_first_open(
     pending
 }
 
-fn ready(
+pub(super) fn ready(
     prepared: PreparedTerminalTabCreate,
 ) -> orchbee_workbench_protocol::WorkbenchCommandResult {
     let PreparedTerminalTabCreate::Ready(result) = prepared else {

@@ -14,6 +14,7 @@ use orchbee_workbench_protocol::{
 };
 use std::num::NonZeroU64;
 
+mod panel_split;
 mod standalone;
 mod tab_create;
 mod terminal_selection;

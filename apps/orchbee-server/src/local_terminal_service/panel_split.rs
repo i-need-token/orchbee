@@ -52,6 +52,7 @@ impl LocalTerminalService {
             submit(&handle, pending.command())
         });
 
+        // Reacquire registry -> Site and retain both gates through the no-fail joint settlement.
         let workers = self
             .workers
             .lock()
@@ -61,10 +62,14 @@ impl LocalTerminalService {
             .coordinator
             .lock()
             .map_err(|_poison| PostcommitCoordinationError)?;
-        let result = coordinator.complete_terminal_panel_split(pending, completion, current);
+        let completed = coordinator.complete_terminal_panel_split(pending, completion, current);
         drop(coordinator);
         drop(workers);
-        result
+        let completed = completed?;
+        if completed.standalone_changed {
+            self.standalone_changed.notify_all();
+        }
+        Ok(completed.result)
     }
 }
 
@@ -78,3 +83,6 @@ fn unavailable(
         outcome: WorkbenchCommandOutcome::Unavailable { reason },
     }
 }
+
+#[cfg(test)]
+mod tests;
