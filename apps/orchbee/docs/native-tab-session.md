@@ -620,8 +620,17 @@ erase the demand. At the next stable point the UI captures that latch into canon
 state as bounded publication debt (`Clean`/`Pending`/`InFlight { late }`/`Parked`) exactly once.
 `Busy` or `Full` refresh admission leaves the debt pending for a later fair tick rather than
 dropping it; a definite admission failure parks the debt with no hot-loop retry until a new
-accepted hint or an explicit manual refresh re-arms it. A hint arriving during an active refresh
-marks that flight late and settles into exactly one follow-up demand. Ordinary Poll admission is
+accepted hint or an explicit manual refresh re-arms it. Admission checks run in mailbox order —
+`Full` first, then generation and serial exhaustion, then the phase-dependent `Busy` outcome — so
+an exhausted identity space retires the session even while a draft or switch would otherwise
+refuse the attempt. A hint arriving while a flight is live is captured against the debt itself,
+not against the live slot: only a flight that adopted the demand at admission can carry it as
+late demand, so a hint during an unassociated clean manual refresh simply pends and drains into
+one follow-up refresh after that flight settles, while a hint during an adopted flight marks it
+late and settles into exactly one follow-up demand. Every refresh's transport read and result
+placement stay deadline-bounded; once the typed result is placed, an ordinary publication/manual
+refresh waits for the UI reply without a deadline, while context-selection, setup-recovery and
+bounded membership-recovery flights keep their marker deadline. Ordinary Poll admission is
 keyed on the actual queued/leased command rather than UI observation bookkeeping, so consuming a
 Poll result or clearing its observed serial never permits a second ordinary Poll early nor
 permanently blocks the next probe; setup and bootstrap Poll keys stay outside this occupancy.
@@ -2014,14 +2023,20 @@ scripted-carrier tests distinguish Input from Resize and cover their concrete FI
 `NativeClientPublicationRefresh.tla/.cfg` checks the peer-publication refresh composition: one
 coalescing ingress latch inside the still-open mailbox that a stale Poll result, event
 consumption or causal cleanup cannot erase; canonical publication debt bounded to
-`Clean`/`Pending`/`InFlight { late }`/`Parked`; `Busy`/`Full` refresh admission retaining the
-debt for a later fair tick; a definite admission refusal parking it without hot-loop retry; one
-late hint during a flight settling to exactly one follow-up demand; and at most one ordinary
-Poll queued or active while setup/bootstrap Poll keys stay outside that occupancy. Weak fairness
-covers the executor, mailbox consumption, UI tick and settlement transitions; the checked
-progress claim is eventual installation or truthful parking/retirement, not any remote
-guarantee. The model does not claim real transport, byte validation or multiple concurrent
-publications.
+`Clean`/`Pending`/`InFlight { late }`/`Parked`; mailbox admission order (`Full`, then
+generation/serial exhaustion, then the phase-dependent `Busy` outcome) modeled for both the
+automatic drain and explicit refresh attempts; `Busy`/`Full` refresh admission retaining the
+debt for a later fair tick; a definite admission refusal parking only the demand its flight
+adopted, without hot-loop retry; hint capture keyed on the debt itself so a hint during an
+adopted flight becomes late demand settling to exactly one follow-up refresh while a hint during
+an unassociated clean flight pends; the ordinary publication/manual refresh waiting for the UI
+reply without a deadline after typed-result placement while bounded context-selection,
+setup-recovery and membership-recovery flights keep their marker deadline, with the transport
+read and placement phase deadline-bounded for every flight; and at most one ordinary Poll queued
+or active while setup/bootstrap Poll keys stay outside that occupancy. Weak fairness covers the
+executor, mailbox consumption, UI tick and settlement transitions; the checked progress claim is
+eventual installation or truthful parking/retirement, not any remote guarantee. The model does
+not claim real transport, byte validation or multiple concurrent publications.
 
 These models do not claim JSON/correlation validation, exact label or pixel values, real time,
 renderer safety, OS scheduling, or OBCS Busy retry timing; deterministic adapter, reducer,
@@ -2209,7 +2224,7 @@ with an empty state queue and all required semantic actions covered.
 
 | Model                            | Finite bounds                                        | Generated / distinct / depth | Model/configuration SHA-256                                        |
 | -------------------------------- | ---------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `NativeClientPublicationRefresh` | `MaxQueue = 2`, `MaxSerial = 8`, `MaxGeneration = 2` | 4,345,534 / 599,060 / 66     | `0241034472ee2208e18161ce41946fc08144ef8373c150f549ceb2a98f029466` |
+| `NativeClientPublicationRefresh` | `MaxQueue = 2`, `MaxSerial = 8`, `MaxGeneration = 2` | 6,344,446 / 808,396 / 66     | `b97cb0134c74f889bbf953b071ba1791a16c405790a0750df0a63c2d5a4686b2` |
 
 ## Retired peer membership recovery
 

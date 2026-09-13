@@ -7,6 +7,15 @@ EXTENDS Naturals, Sequences, FiniteSets
 \* mailbox ingress latch and the UI capture are three separate semantic boundaries here: a
 \* folded publication is owed to the UI even when its carrying PollResult is never placed,
 \* is dropped by a Switch admission, or is refused at refresh admission.
+\*
+\* Admission check order mirrors the mailbox: Full is tested first, then refresh-
+\* generation and command-serial exhaustion, and only then the phase-dependent Build
+\* (Busy) outcome, so an exhausted identity space retires the session even while a draft
+\* or switch would otherwise refuse the attempt. Refresh flights are split by their UI
+\* reply contract: ordinary publication/manual refreshes place the typed result and wait
+\* without a reply deadline, while bounded flights (context selection, setup recovery,
+\* bounded membership recovery) keep their existing marker deadline. Only the transport
+\* read/placement phase is deadline-bounded for ordinary flights.
 CONSTANTS MaxQueue, MaxSerial, MaxGeneration
 ASSUME MaxQueue = 2 /\ MaxSerial = 8 /\ MaxGeneration = 2
 
@@ -67,7 +76,8 @@ Init ==
          uiObserved |-> 0,
          pendingDraw |-> NoDraw,
          debt |-> "clean",
-         late |-> FALSE]
+         late |-> FALSE,
+         refreshBounded |-> FALSE]
 
 PollQueued == \E i \in DOMAIN s.queue : s.queue[i].kind = "poll"
 ActivePoll == s.active # NoLease /\ s.active.kind = "poll"
@@ -91,6 +101,7 @@ Retired(state) ==
     !.status = "retired", !.queue = <<>>, !.active = NoLease, !.pollExec = "idle",
     !.event = NoEvent, !.causal = NoCausal, !.latch = FALSE, !.outstanding = FALSE,
     !.uninstalled = FALSE, !.refreshGen = 0, !.debt = "clean", !.late = FALSE,
+    !.refreshBounded = FALSE,
     !.uiObserved = 0, !.pendingDraw = NoDraw, !.switching = FALSE, !.draftOpen = FALSE,
     !.mailboxBusy = FALSE, !.switchFrom = NoKey]
 
@@ -115,23 +126,28 @@ SchedulePoll ==
              !.nextSerial = serial, !.uiObserved = serial]
 
 \* A second ordinary Poll while one is queued or executing is refused as a local no-op.
+\* The mailbox checks Full and serial exhaustion before the Busy occupancy check, so this
+\* outcome only applies when the queue has room and serials remain.
 PollAdmissionBusy ==
   /\ s.status = "live" /\ s.ready /\ s.uiObserved = 0 /\ s.pendingDraw = NoDraw
   /\ PollOccupied
+  /\ Len(s.queue) < MaxQueue /\ ~SerialExhausted
   /\ UNCHANGED s
 
+\* Queue capacity is tested before serial allocation and before the Busy occupancy check.
 PollAdmissionFull ==
   /\ s.status = "live" /\ s.ready /\ s.uiObserved = 0 /\ s.pendingDraw = NoDraw
-  /\ ~PollOccupied /\ Len(s.queue) = MaxQueue
+  /\ Len(s.queue) = MaxQueue
   /\ UNCHANGED s
 
-\* Serial exhaustion on an admission attempt closes the mailbox and retires the session.
-IdentityExhausted ==
+\* Serial exhaustion is checked before the Poll Busy check, so a scheduling attempt on an
+\* exhausted space closes the mailbox and retires the session even while a Poll lease
+\* still lives. The UI schedules on every fair tick, so the attempt itself is machine
+\* owned.
+PollAdmissionExhausted ==
   /\ s.status = "live"
-  /\ \/ /\ s.ready /\ s.uiObserved = 0 /\ s.pendingDraw = NoDraw /\ ~PollOccupied
-        /\ Len(s.queue) < MaxQueue /\ SerialExhausted
-     \/ /\ ~RefreshAdmissionBlocked /\ ~RefreshAdmissionFull
-        /\ (SerialExhausted \/ GenerationExhausted)
+  /\ s.ready /\ s.uiObserved = 0 /\ s.pendingDraw = NoDraw
+  /\ Len(s.queue) < MaxQueue /\ SerialExhausted
   /\ s' = Retired(s)
 
 \* --- executor Poll lifecycle --------------------------------------------------------
@@ -255,41 +271,60 @@ PollWireExpires ==
 
 \* --- publication-hint capture and refresh debt --------------------------------------
 
-\* One fair UI tick moves a latched hint into the canonical debt exactly once: a live
-\* refresh slot turns it into late demand on that flight, otherwise it pends.
+\* One fair UI tick moves a latched hint into the canonical debt exactly once. The debt
+\* transition keys on the debt itself, never on a live refresh slot: only a flight that
+\* already ADOPTED the demand at admission can carry it as late demand. A hint captured
+\* while an unassociated flight is live (a clean manual refresh, for example) simply
+\* pends, because that flight never adopted the debt and cannot settle it.
 CaptureHint ==
   /\ s.status = "live" /\ s.latch
   /\ s' = [s EXCEPT
            !.latch = FALSE,
-           !.debt = IF s.refreshGen # 0 THEN "inflight" ELSE "pending",
-           !.late = IF s.refreshGen # 0 THEN TRUE ELSE s.late]
+           !.debt = IF s.debt = "inflight" THEN "inflight" ELSE "pending",
+           !.late = IF s.debt = "inflight" THEN TRUE ELSE s.late]
 
-\* Draining pends on one fresh refresh flight; the flight adopts the debt.
+\* Draining pends on one fresh refresh flight; the flight adopts the debt. Admission
+\* checks run in mailbox order: Full first, then generation and serial exhaustion, then
+\* the phase-dependent Busy outcome.
 DrainPendingRefresh ==
   /\ s.status = "live" /\ s.debt = "pending"
-  /\ ~RefreshAdmissionBlocked /\ ~RefreshAdmissionFull
-  /\ ~GenerationExhausted /\ ~SerialExhausted
+  /\ ~RefreshAdmissionFull /\ ~GenerationExhausted /\ ~SerialExhausted
+  /\ ~RefreshAdmissionBlocked
   /\ LET gen == s.cursor + 1
          serial == s.nextSerial + 1
      IN
        s' = [s EXCEPT
              !.queue = Append(@, [kind |-> "refresh", serial |-> serial, gen |-> gen]),
              !.cursor = gen, !.nextSerial = serial, !.refreshGen = gen,
+             !.refreshBounded = FALSE,
              !.debt = "inflight", !.late = FALSE]
 
-\* Refused admission preserves the debt; it is retried by a later fair tick.
+\* A Full admission outcome is returned before the phase check, so it applies whether or
+\* not a draft or switch would also refuse the attempt.
+DrainRefusedFull ==
+  /\ s.status = "live" /\ s.debt = "pending" /\ RefreshAdmissionFull
+  /\ UNCHANGED s
+
+\* The phase-dependent Busy outcome is reached only after Full and exhaustion pass; the
+\* pending debt is preserved and retried by a later fair tick.
 DrainRefusedBusy ==
   /\ s.status = "live" /\ s.debt = "pending" /\ RefreshAdmissionBlocked
+  /\ ~RefreshAdmissionFull /\ ~GenerationExhausted /\ ~SerialExhausted
   /\ UNCHANGED s
 
-DrainRefusedFull ==
-  /\ s.status = "live" /\ s.debt = "pending" /\ ~RefreshAdmissionBlocked
-  /\ RefreshAdmissionFull
-  /\ UNCHANGED s
+\* Generation or serial exhaustion is checked before the phase-dependent Busy outcome,
+\* so an automatic drain attempt retires on an exhausted identity space even while a
+\* draft or switch would otherwise refuse it. The fair tick drives this attempt.
+DrainAdmissionExhausted ==
+  /\ s.status = "live" /\ s.debt = "pending" /\ ~RefreshAdmissionFull
+  /\ (SerialExhausted \/ GenerationExhausted)
+  /\ s' = Retired(s)
 
-\* An explicit refresh re-arms a parked debt; a clean explicit refresh runs unassociated.
+\* An explicit refresh adopts a pending or parked debt into its flight; a parked demand
+\* is re-armed by the attempt itself. This is a user action: it is never forced, and a
+\* parked demand without a hint or an explicit refresh simply waits.
 RearmParkedRefresh ==
-  /\ s.status = "live" /\ s.debt = "parked"
+  /\ s.status = "live" /\ s.debt \in {"pending", "parked"}
   /\ ~RefreshAdmissionBlocked /\ ~RefreshAdmissionFull
   /\ ~GenerationExhausted /\ ~SerialExhausted
   /\ LET gen == s.cursor + 1
@@ -298,6 +333,7 @@ RearmParkedRefresh ==
        s' = [s EXCEPT
              !.queue = Append(@, [kind |-> "refresh", serial |-> serial, gen |-> gen]),
              !.cursor = gen, !.nextSerial = serial, !.refreshGen = gen,
+             !.refreshBounded = FALSE,
              !.debt = "inflight", !.late = FALSE]
 
 ManualRefreshClean ==
@@ -309,9 +345,52 @@ ManualRefreshClean ==
      IN
        s' = [s EXCEPT
              !.queue = Append(@, [kind |-> "refresh", serial |-> serial, gen |-> gen]),
-             !.cursor = gen, !.nextSerial = serial, !.refreshGen = gen]
+             !.cursor = gen, !.nextSerial = serial, !.refreshGen = gen,
+             !.refreshBounded = FALSE]
 
-\* A second refresh marker while a flight already owns the slot never admits a duplicate.
+\* A context-selection or bounded recovery refresh shares the ordinary admission checks
+\* and adopts a pending or parked debt the same way, but its typed result keeps the
+\* marker deadline: the UI reply wait is bounded and can expire after placement.
+BoundedRefreshStarts ==
+  /\ s.status = "live"
+  /\ ~RefreshAdmissionBlocked /\ ~RefreshAdmissionFull
+  /\ ~GenerationExhausted /\ ~SerialExhausted
+  /\ LET gen == s.cursor + 1
+         serial == s.nextSerial + 1
+     IN
+       s' = [s EXCEPT
+             !.queue = Append(@, [kind |-> "refresh", serial |-> serial, gen |-> gen]),
+             !.cursor = gen, !.nextSerial = serial, !.refreshGen = gen,
+             !.refreshBounded = TRUE,
+             !.debt = IF s.debt \in {"pending", "parked"} THEN "inflight" ELSE s.debt,
+             !.late = IF s.debt \in {"pending", "parked"} THEN FALSE ELSE s.late]
+
+\* An explicit refresh attempt refused by the local phase (draft, switching) keeps local
+\* state; Full and exhaustion outcomes are checked before the phase and modeled
+\* separately.
+RefreshAttemptBlocked ==
+  /\ s.status = "live" /\ RefreshAdmissionBlocked
+  /\ ~RefreshAdmissionFull /\ ~GenerationExhausted /\ ~SerialExhausted
+  /\ UNCHANGED s
+
+\* A user refresh attempt that reaches the mailbox while a flight already owns the slot
+\* is refused Full; the manual entry point short-circuits earlier on a pending flight,
+\* so this row covers the bounded entry points and the same unchanged outcome.
+RefreshAttemptFull ==
+  /\ s.status = "live" /\ s.refreshGen = 0
+  /\ (Len(s.queue) = MaxQueue \/ s.mailboxBusy)
+  /\ UNCHANGED s
+
+\* An explicit refresh attempt on an exhausted identity space retires the session; the
+\* attempt is a real optional input, so this is never forced to rescue a parked demand.
+ManualAdmissionExhausted ==
+  /\ s.status = "live" /\ s.debt \in {"clean", "parked"} /\ ~RefreshAdmissionFull
+  /\ (SerialExhausted \/ GenerationExhausted)
+  /\ s' = Retired(s)
+
+\* A second manual refresh while a flight already owns the slot never reaches the
+\* mailbox: the entry point returns early on the pending generation, so no admission
+\* outcome (including exhaustion) is exposed.
 ManualRefreshWhileFlightLive ==
   /\ s.status = "live" /\ s.refreshGen # 0
   /\ UNCHANGED s
@@ -333,6 +412,7 @@ ApplyRefreshInstall ==
   /\ s.event.gen = s.refreshGen /\ s.event.outcome = "install"
   /\ s' = [s EXCEPT
            !.event = NoEvent, !.active = NoLease, !.refreshGen = 0,
+           !.refreshBounded = FALSE,
            !.uninstalled = FALSE,
            !.debt = IF s.debt = "inflight"
                       THEN IF s.late THEN "pending" ELSE "clean"
@@ -340,12 +420,14 @@ ApplyRefreshInstall ==
            !.late = FALSE,
            !.uiObserved = 0, !.pendingDraw = NoDraw]
 
-\* A definite read refusal parks the demand until a new hint or explicit refresh re-arms it.
+\* A definite read refusal parks only the debt this flight actually adopted; a pending
+\* demand that no flight adopted survives the refusal and drains on a later fair tick.
 ApplyRefreshRefusal ==
   /\ s.status = "live" /\ s.event # NoEvent /\ s.event.kind = "refresh-result"
   /\ s.event.gen = s.refreshGen /\ s.event.outcome = "refuse"
   /\ s' = [s EXCEPT
            !.event = NoEvent, !.active = NoLease, !.refreshGen = 0,
+           !.refreshBounded = FALSE,
            !.debt = IF s.debt = "inflight" THEN "parked" ELSE s.debt,
            !.late = FALSE]
 
@@ -357,9 +439,20 @@ ApplyRefreshDivergence ==
 \* A refresh-result event is always published under the single live flight's generation, so
 \* a stale refresh result is unrepresentable here: whichever step clears refreshGen also
 \* consumes the event, and expiry retires the session instead of dropping the cell.
-
-RefreshDeadlineExpires ==
+\*
+\* The deadline contract is phase-scoped: every refresh's transport read and result
+\* placement are deadline-bounded, but once the typed result is placed an ordinary
+\* publication/manual refresh waits for the UI reply without a deadline. Only bounded
+\* flights (context selection, setup recovery, bounded membership recovery) can expire
+\* after placement.
+RefreshReadExpires ==
   /\ s.status = "live" /\ s.refreshGen # 0
+  /\ ~(s.event # NoEvent /\ s.event.kind = "refresh-result")
+  /\ s' = Retired(s)
+
+BoundedReplyExpires ==
+  /\ s.status = "live" /\ s.refreshGen # 0 /\ s.refreshBounded
+  /\ s.event # NoEvent /\ s.event.kind = "refresh-result"
   /\ s' = Retired(s)
 
 \* --- structural pressure and local drafts -------------------------------------------
@@ -459,23 +552,31 @@ SessionExits ==
 
 Next ==
   PeerPublishes
-  \/ SchedulePoll \/ PollAdmissionBusy \/ PollAdmissionFull \/ IdentityExhausted
+  \/ SchedulePoll \/ PollAdmissionBusy \/ PollAdmissionFull \/ PollAdmissionExhausted
   \/ Recv \/ PollSkippedStale \/ PollProbes \/ EnterPollPublish \/ PlacePollResult
   \/ StalePublishFinish \/ ConsumeEmptyPollResult \/ ConsumeFramedPollResult
   \/ SettleDraw \/ FinishPollLease \/ PublishFeedbackAccepted \/ DiscardStaleFeedback
   \/ ConsumeFeedbackAccepted \/ PollWireExpires
   \/ CaptureHint \/ DrainPendingRefresh \/ DrainRefusedBusy \/ DrainRefusedFull
-  \/ RearmParkedRefresh \/ ManualRefreshClean \/ ManualRefreshWhileFlightLive
+  \/ DrainAdmissionExhausted
+  \/ RearmParkedRefresh \/ ManualRefreshClean \/ BoundedRefreshStarts
+  \/ RefreshAttemptBlocked \/ RefreshAttemptFull \/ ManualAdmissionExhausted
+  \/ ManualRefreshWhileFlightLive
   \/ CompleteRefreshRead \/ ApplyRefreshInstall \/ ApplyRefreshRefusal
-  \/ ApplyRefreshDivergence \/ RefreshDeadlineExpires
+  \/ ApplyRefreshDivergence \/ RefreshReadExpires \/ BoundedReplyExpires
   \/ PanelFocusSwitch \/ SelectTabSwitch \/ ExecSwitch \/ SwitchRestoresAnchor
   \/ SwitchInstalls \/ SwitchSettlesNoViewer
   \/ DraftOpens \/ DraftCloses \/ MailboxBusyOn \/ MailboxBusyOff
   \/ ReconcileObservedPoll \/ SessionRetires \/ SessionExits
 
-\* The single executor thread, the UI's stable consumption points and the event-driven
-\* drain are weakly fair: a continuously enabled machine step eventually fires. User and
-\* peer inputs (switches, drafts, busy windows, publications) are not forced.
+\* The single executor thread, the UI's stable consumption points, the event-driven
+\* drain and clock-owned expiries are weakly fair: a continuously enabled machine step
+\* eventually fires. Poll scheduling and the automatic drain attempt their admissions on
+\* every fair tick, so the exhaustion outcomes of those attempts are machine owned too.
+\* User and peer inputs are never forced: publications, switches, drafts, busy windows,
+\* explicit refresh attempts (including their exhaustion outcomes) and session lifecycle
+\* may all stay quiescent, and a parked demand may wait forever without them. DraftCloses
+\* and MailboxBusyOff remain the only explicitly bounded temporary-blocking assumptions.
 Spec ==
   Init /\ [][Next]_vars
   /\ WF_vars(Recv) /\ WF_vars(ExecSwitch)
@@ -486,13 +587,14 @@ Spec ==
   /\ WF_vars(PublishFeedbackAccepted) /\ WF_vars(DiscardStaleFeedback)
   /\ WF_vars(ConsumeFeedbackAccepted)
   /\ WF_vars(CaptureHint) /\ WF_vars(ReconcileObservedPoll)
-  /\ WF_vars(DrainPendingRefresh) /\ WF_vars(RearmParkedRefresh)
+  /\ WF_vars(DrainPendingRefresh) /\ WF_vars(DrainAdmissionExhausted)
   /\ WF_vars(CompleteRefreshRead)
   /\ WF_vars(ApplyRefreshInstall) /\ WF_vars(ApplyRefreshRefusal)
   /\ WF_vars(ApplyRefreshDivergence)
-  /\ WF_vars(RefreshDeadlineExpires) /\ WF_vars(PollWireExpires)
+  /\ WF_vars(RefreshReadExpires) /\ WF_vars(BoundedReplyExpires)
+  /\ WF_vars(PollWireExpires)
   /\ WF_vars(DraftCloses) /\ WF_vars(MailboxBusyOff)
-  /\ WF_vars(IdentityExhausted)
+  /\ WF_vars(PollAdmissionExhausted)
   /\ WF_vars(SwitchRestoresAnchor) /\ WF_vars(SwitchInstalls)
   /\ WF_vars(SwitchSettlesNoViewer)
 
@@ -517,6 +619,7 @@ TypeOK ==
   /\ s.uiObserved \in 0..MaxSerial
   /\ s.pendingDraw \in PendingDraws \cup {NoDraw}
   /\ s.debt \in DebtStates /\ s.late \in BOOLEAN
+  /\ s.refreshBounded \in BOOLEAN
 
 \* At most one ordinary Poll is ever queued or executing per Session.
 AtMostOneOrdinaryPoll ==
@@ -530,6 +633,7 @@ DemandNeverLost ==
 
 InFlightDebtHasFlight == s.debt = "inflight" => s.refreshGen # 0
 LateOnlyInFlight == s.late => s.debt = "inflight"
+BoundedOnlyInFlight == s.refreshBounded => s.refreshGen # 0
 
 \* A live refresh flight is always physically tracked: queued, executing, or awaiting UI.
 FlightIsTracked == s.refreshGen # 0 => RefreshTracked
@@ -549,8 +653,24 @@ PollLeaseCoherent ==
   /\ s.pollExec # "idle" => ActivePoll
 
 \* A pending debt drains: bounded blocking plus a fair tick admits the refresh or the
-\* session ends first.
+\* session ends first. The only exits from pending are adoption into a fresh flight or
+\* retirement, so the stronger form below is also checkable.
 PendingDebtDrains == (s.debt = "pending") ~> (s.debt # "pending")
+PendingDebtAdopted == (s.debt = "pending") ~> (s.debt = "inflight" \/ s.status # "live")
+
+\* A parked demand has no machine-owned progress: it waits for an accepted hint or an
+\* explicit refresh, both optional inputs. What the machine does guarantee is the
+\* re-arm chain once new evidence arrives: a latched hint against a parked debt is
+\* captured and drained without further user input.
+ParkedHintRearms ==
+  (s.debt = "parked" /\ s.latch) ~> (s.debt # "parked" \/ s.status # "live")
+
+\* The publication-fold obligation is tracked end to end (outstanding -> pollHint ->
+\* latch -> debt -> flight -> install). A folded publication is never silently dropped:
+\* it is installed, or the session ends, or its demand is parked waiting on a new hint
+\* or an explicit refresh. Parking is a stable answer, not a loss.
+FoldInstallsOrParks ==
+  s.uninstalled ~> (~s.uninstalled \/ s.status # "live" \/ s.debt = "parked")
 
 \* A stale observed serial is reconciled so ordinary polling can resume.
 StaleObservationReconciled ==

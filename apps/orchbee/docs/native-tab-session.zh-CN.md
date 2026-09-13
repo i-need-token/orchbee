@@ -511,10 +511,17 @@ Resize 可继续。恢复仅提交 Snapshot，绝不提交 Open、Create、Start
 无法抹除该需求。在下一个稳定点，UI 将该闩锁恰好一次捕获为 canonical 会话状态中的有界
 publication 债务（`Clean`/`Pending`/`InFlight { late }`/`Parked`）。`Busy` 或 `Full` 的刷新
 准入会让债务留待后续公平 tick 重试而非丢弃；明确的准入失败把债务停驻（Parked），不做热
-循环重试，直到新接受的提示或显式手动刷新重新武装。活动刷新在途期间到达的提示会把该
-flight 标记为 late，并恰好结算为一个后续需求。普通 Poll 准入依据实际排队/租约中的命令
-而非 UI 观察簿记，因此消费 Poll 结果或清除其观察序号既不会提前放行第二个普通 Poll，也
-不会永久阻塞下一次探测；setup/bootstrap Poll key 不占用该名额。
+循环重试，直到新接受的提示或显式手动刷新重新武装。准入检查按邮箱顺序执行——先 `Full`，
+再代次/序号耗尽，最后才是依赖阶段的 `Busy` 结果——因此即使草稿或切换本将拒绝该次尝试，
+耗尽的标识空间仍会退役会话。flight 在途期间到达的提示按债务本身捕获，而不是按在途槽位：
+只有在准入时收养了该需求的 flight 才能把它携带为 late 需求，因此无关联的干净手动刷新
+在途期间到达的提示只是转为 Pending，在该 flight 结算后引流为一个后续刷新；而在已收养
+flight 在途期间到达的提示把它标记为 late，恰好结算为一个后续需求。每个刷新的传输读取和
+结果放置都保有截止时间；类型化结果一旦放置，普通 publication/手动刷新等待 UI 回复就不再
+有时限，而 context-selection、setup-recovery 与有界 membership-recovery flight 保留其标记
+截止时间。普通 Poll 准入依据实际排队/租约中的命令而非 UI 观察簿记，因此消费 Poll 结果或
+清除其观察序号既不会提前放行第二个普通 Poll，也不会永久阻塞下一次探测；setup/bootstrap
+Poll key 不占用该名额。
 `NativeClientPublicationRefresh` 拥有这一组合的已检查有界模型。
 
 Move 成员关系消费者已实现共用清理和安装细化。`NativeClientMoveBarrier` 继续负责无移除的传输/FIFO/
@@ -1666,9 +1673,14 @@ Old/New，并不证明连续 Create 的重新进入、任意成员移除、显�
 脚本化载体测试会区分 Input 与 Resize，并覆盖其具体 FIFO 结果。
 `NativeClientPublicationRefresh.tla/.cfg` 检查对等 publication 刷新组合：仍开放邮箱内
 一个可合并的 ingress 闩锁，过时 Poll 结果、事件消费或因果清理都不能抹除；canonical
-publication 债务有界于 `Clean`/`Pending`/`InFlight { late }`/`Parked`；`Busy`/`Full` 刷新
-准入把债务留待后续公平 tick；明确准入拒绝将其停驻且不做热循环重试；在途 flight 期间一个
-迟到提示恰好结算为一个后续需求；普通 Poll 至多一个排队或在途，setup/bootstrap Poll key
+publication 债务有界于 `Clean`/`Pending`/`InFlight { late }`/`Parked`；对自动引流与显式
+刷新尝试都建模了邮箱准入顺序（先 `Full`，再代次/序号耗尽，最后是依赖阶段的 `Busy` 结果）；
+`Busy`/`Full` 刷新准入把债务留待后续公平 tick；明确准入拒绝只停驻其 flight 收养的需求且
+不做热循环重试；提示捕获按债务本身进行，因此在已收养 flight 在途期间到达的提示成为恰好
+结算为一个后续刷新的 late 需求，而在无关联干净 flight 在途期间到达的提示转为 Pending；
+普通 publication/手动刷新在类型化结果放置后无时限地等待 UI 回复，而 context-selection、
+setup-recovery 与有界 membership-recovery flight 保留其标记截止时间，且每个 flight 的
+传输读取与放置阶段都保有截止时间；普通 Poll 至多一个排队或在途，setup/bootstrap Poll key
 不占用该名额。弱公平覆盖执行器、邮箱消费、UI tick 与结算转换；已检查的进展声明是最终安装
 或如实停驻/退役，而非任何远端保证。该模型不声明真实传输、字节校验或并发多次
 publication。
@@ -1834,7 +1846,7 @@ node scripts/tla/run-models.mjs --models native-client-create-barrier,native-cli
 
 | 模型                             | 有限边界                                             | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
 | -------------------------------- | ---------------------------------------------------- | -------------------------- | ------------------------------------------------------------------ |
-| `NativeClientPublicationRefresh` | `MaxQueue = 2`、`MaxSerial = 8`、`MaxGeneration = 2` | 4,345,534 / 599,060 / 66   | `0241034472ee2208e18161ce41946fc08144ef8373c150f549ceb2a98f029466` |
+| `NativeClientPublicationRefresh` | `MaxQueue = 2`、`MaxSerial = 8`、`MaxGeneration = 2` | 6,344,446 / 808,396 / 66   | `b97cb0134c74f889bbf953b071ba1791a16c405790a0750df0a63c2d5a4686b2` |
 
 ## 退役对等客户端的成员恢复
 

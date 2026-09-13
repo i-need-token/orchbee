@@ -1,7 +1,17 @@
 use super::membership_tests::snapshot;
 use super::move_membership_tests::ready_ui;
 use super::*;
-use orchbee_workbench_protocol::WorkbenchRevision;
+use crate::local_client::test_server::adjustable_operation_clock;
+use crate::terminal_projection::TerminalProjection;
+use crate::terminal_session::mailbox::EventDeadline;
+use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
+use orchbee_workbench_protocol::{
+    PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding, Snapshot,
+    TerminalId, TerminalPresentationId, WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchRevision,
+    WorkbenchSnapshotOutcome, WorkbenchSplitId, WorkerId,
+};
+use std::sync::atomic::AtomicU64;
 
 /// Runs one ordinary poll exactly the way the executor does: the queued Poll is
 /// leased, its result is published carrying the hint the publication probe
@@ -330,4 +340,392 @@ fn definite_refusal_parks_debt_until_hint_or_manual_refresh_rearms() {
         ui.state.as_ref().unwrap().cache().revision(),
         WorkbenchRevision::new(2)
     );
+}
+
+/// A parked debt is also re-armed by the real manual refresh entry point: the
+/// explicit `OpenWorkbenchNavigator` action admits an ordinary refresh that
+/// adopts the parked demand into its flight, and the install settles it.
+#[test]
+fn parked_debt_rearms_on_explicit_manual_refresh() {
+    let (mut ui, mailbox, clock, _elapsed) = ready_ui();
+    let key = ui.state.as_ref().unwrap().desired().unwrap().clone();
+
+    run_poll(&mut ui, &mailbox, &clock, &key, true);
+    assert!(mailbox.pending_refresh_stage().is_some());
+    settle_queued_refresh(
+        &mut ui,
+        &mailbox,
+        &clock,
+        orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Unavailable {
+            reason:
+                orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    );
+    assert_eq!(mailbox.pending_refresh_stage(), None);
+    assert_eq!(
+        ui.state.as_ref().unwrap().publication_debt_kind(),
+        crate::terminal_session::state::PublicationDebt::Parked
+    );
+
+    // The parked demand does not drain on its own.
+    ui.tick();
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert_eq!(
+        ui.state.as_ref().unwrap().publication_debt_kind(),
+        crate::terminal_session::state::PublicationDebt::Parked
+    );
+
+    // The real manual refresh entry point re-arms and adopts the parked debt.
+    ui.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    assert_eq!(
+        ui.state.as_ref().unwrap().publication_debt_kind(),
+        crate::terminal_session::state::PublicationDebt::InFlight { late: false }
+    );
+    assert!(mailbox.pending_refresh_stage().is_some());
+
+    settle_queued_refresh(
+        &mut ui,
+        &mailbox,
+        &clock,
+        orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(2, 2),
+        },
+    );
+    assert_eq!(
+        ui.state.as_ref().unwrap().cache().revision(),
+        WorkbenchRevision::new(2)
+    );
+    assert!(!ui.state.as_ref().unwrap().publication_debt_pending());
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+/// A hint landing during a clean manual refresh flight is not adopted by that
+/// flight: it is captured as Pending demand, a definite refusal of the manual
+/// flight parks nothing (only the adopted flight's debt parks), and the very
+/// next fair tick drains the surviving demand into exactly one follow-up
+/// refresh.
+#[test]
+fn manual_clean_flight_hint_stays_pending_through_refusal_and_drains_once() {
+    let (mut ui, mailbox, clock, _elapsed) = ready_ui();
+    let key = ui.state.as_ref().unwrap().desired().unwrap().clone();
+
+    // The real manual refresh entry point admits a clean flight: no debt exists,
+    // so nothing is adopted.
+    ui.apply_client_action(ClientAction::OpenWorkbenchNavigator);
+    let lease = mailbox.try_recv().unwrap().expect("manual Refresh queued");
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("one Refresh marker");
+    };
+    let first_generation = marker.generation();
+    assert_eq!(
+        ui.state.as_ref().unwrap().publication_debt_kind(),
+        crate::terminal_session::state::PublicationDebt::Clean
+    );
+    assert_eq!(
+        mailbox.mark_refresh_in_flight(marker.generation()).unwrap(),
+        MutationResult::Applied
+    );
+
+    // A publication hint lands while the unassociated manual flight is live. The
+    // executor-side setup Poll derived from the refresh lease publishes it, the
+    // fair tick captures the latch, and the demand pends: it is not adopted by
+    // the running flight.
+    let cutoff = clock.now() + crate::terminal_session::state::OPERATION_TOTAL;
+    let crate::terminal_session::mailbox::SetupPollKey::Allocated(setup_key) = mailbox
+        .allocate_setup_poll_key(&lease, &key)
+        .expect("setup poll key")
+    else {
+        panic!("desired still current")
+    };
+    assert_eq!(
+        mailbox
+            .publish_poll_result_before(setup_key.clone(), None, true, cutoff, &clock)
+            .expect("PollResult publication"),
+        MutationResult::Applied
+    );
+    ui.tick();
+    assert_eq!(
+        ui.state.as_ref().unwrap().publication_debt_kind(),
+        crate::terminal_session::state::PublicationDebt::Pending
+    );
+    assert!(matches!(
+        mailbox
+            .take_causal_before(&setup_key, cutoff, &clock)
+            .expect("causal take"),
+        Some(CausalSettlement::NoFeedback)
+    ));
+
+    // The manual flight is definitely refused. Parking applies only to the debt
+    // a flight adopted; this flight adopted nothing, so the pending demand
+    // survives the refusal and the same fair tick drains it once.
+    let wait = mailbox
+        .publish_refresh_result_before(
+            marker.generation(),
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Unavailable {
+                reason:
+                    orchbee_workbench_protocol::WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            },
+            marker.deadline(),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).expect("lease finish");
+
+    // Exactly one follow-up refresh was admitted, under a fresh generation.
+    assert_eq!(
+        ui.state.as_ref().unwrap().publication_debt_kind(),
+        crate::terminal_session::state::PublicationDebt::InFlight { late: false }
+    );
+    let follow_up = mailbox.try_recv().unwrap().expect("one follow-up Refresh");
+    let QueuedCommand::Refresh(follow_up_marker) = follow_up.record() else {
+        panic!("one Refresh marker");
+    };
+    assert_ne!(follow_up_marker.generation(), first_generation);
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    // The follow-up installs the folded publication and settles the debt.
+    assert_eq!(
+        mailbox
+            .mark_refresh_in_flight(follow_up_marker.generation())
+            .unwrap(),
+        MutationResult::Applied
+    );
+    let wait = mailbox
+        .publish_refresh_result_before(
+            follow_up_marker.generation(),
+            orchbee_workbench_protocol::WorkbenchSnapshotOutcome::Available {
+                snapshot: snapshot(2, 2),
+            },
+            follow_up_marker.deadline(),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(follow_up).expect("lease finish");
+    assert_eq!(
+        ui.state.as_ref().unwrap().cache().revision(),
+        WorkbenchRevision::new(2)
+    );
+    assert!(!ui.state.as_ref().unwrap().publication_debt_pending());
+    assert!(mailbox.pending_refresh_stage().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+/// Builds a ready UI over one tab split into two horizontal panels so panel
+/// focus has a real target: the MovePanelFocus switch moves `desired` to a fresh
+/// generation key without clearing the UI's observed Poll serial.
+fn ready_split_ui() -> (
+    NativeUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Arc<AtomicU64>,
+) {
+    let mut baseline = snapshot(1, 1);
+    let original_root = baseline.terminal_contexts[0].tabs[0].root.clone();
+    baseline.terminal_contexts[0].tabs[0].root = PanelNode::Split {
+        children: Box::new([
+            PanelSlot {
+                node: original_root,
+                slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", 3_001)).unwrap(),
+            },
+            PanelSlot {
+                node: PanelNode::Panel {
+                    child_presentations: Vec::new(),
+                    panel_id: WorkbenchPanelId::parse(&format!("{:032x}", 3_010)).unwrap(),
+                    primary_presentation: Presentation {
+                        binding: Some(PresentationBinding {
+                            terminal_id: TerminalId::parse(&format!("{:032x}", 3_012)).unwrap(),
+                            worker_id: WorkerId::parse(&format!("{:032x}", 3_011)).unwrap(),
+                        }),
+                        label: "peer".into(),
+                        presentation_id: TerminalPresentationId::parse(&format!("{:032x}", 3_013))
+                            .unwrap(),
+                    },
+                },
+                slot_id: WorkbenchPanelSlotId::parse(&format!("{:032x}", 3_014)).unwrap(),
+            },
+        ]),
+        orientation: PanelOrientation::Horizontal,
+        split_id: WorkbenchSplitId::parse(&format!("{:032x}", 3_020)).unwrap(),
+    };
+    let split: Snapshot = baseline;
+
+    let elapsed = Arc::new(AtomicU64::new(0));
+    let clock = adjustable_operation_clock(Arc::clone(&elapsed));
+    let mailbox = Arc::new(CommandMailbox::new(
+        10,
+        Geometry::new(80, 24, 8, 16).unwrap(),
+    ));
+    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap {
+                cache: project_native_standalone_tabs(&split).unwrap(),
+            },
+            EventDeadline::Startup(clock.now() + crate::terminal_session::state::OPERATION_TOTAL),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    let key = ui.state.as_ref().unwrap().desired().unwrap().clone();
+
+    // Drive the real setup event chain so `ui.projection` is genuinely installed:
+    // `schedule_poll` only admits an ordinary Poll while a projection for the
+    // desired attachment is live, and only the `Attached` event installs it.
+    let publish = |ui: &mut NativeUi, event: WorkerEvent| {
+        let wait = mailbox
+            .publish_event_before(
+                event,
+                EventDeadline::Forward(
+                    clock.now() + crate::terminal_session::state::OPERATION_TOTAL,
+                ),
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    };
+    publish(
+        &mut ui,
+        WorkerEvent::Attached {
+            key: key.clone(),
+            projection: TerminalProjection::new(
+                AttachmentId::parse(&format!("{:032x}", 4_001)).unwrap(),
+                HostEpoch::parse(&format!("{:032x}", 4_002)).unwrap(),
+            ),
+        },
+    );
+    publish(
+        &mut ui,
+        WorkerEvent::SetupConfigured {
+            key: key.clone(),
+            mode: ControllerMode::ReadOnly,
+            applied_geometry: None,
+        },
+    );
+    // The drawn frame is renderer-local; only its acceptance arrives as an event.
+    assert!(
+        ui.state
+            .as_mut()
+            .unwrap()
+            .stage_drawn_frame(&key, FrameIdentity::new(1))
+    );
+    publish(
+        &mut ui,
+        WorkerEvent::FeedbackAccepted {
+            key: key.clone(),
+            frame: FrameIdentity::new(1),
+        },
+    );
+    publish(
+        &mut ui,
+        WorkerEvent::ReadyCandidate {
+            key: key.clone(),
+            mode: ControllerMode::ReadOnly,
+            last_accepted_geometry: None,
+            frame: FrameIdentity::new(1),
+        },
+    );
+    assert!(ui.state.as_ref().unwrap().ready().is_some());
+    assert!(ui.projection.is_some());
+    (ui, mailbox, clock, elapsed)
+}
+
+/// The exact stall chain: a queued pre-entry Poll on K1, a panel-focus switch to
+/// K2 that abandons nothing queued but leaves the old Poll to finish silently
+/// against the moved `desired`, a scripted non-installing Denied outcome that
+/// legally restores the K1 anchor and Ready, then a fair NativeUi tick that
+/// reconciles the stale observation and admits exactly one fresh Poll under a
+/// serial the abandoned one never owned.
+#[test]
+fn panel_focus_silent_poll_finish_restores_anchor_and_readmits_one_fresh_poll() {
+    let (mut ui, mailbox, clock, _elapsed) = ready_split_ui();
+    let anchor = ui.state.as_ref().unwrap().desired().unwrap().clone();
+
+    // A fair tick schedules the ordinary K1 Poll; it stays queued pre-entry.
+    ui.tick();
+    let observed = ui
+        .ordinary_poll_serial
+        .expect("the K1 Poll is admitted and observed");
+    assert!(mailbox.ordinary_poll_continues(observed).unwrap());
+
+    // Panel focus to the second panel admits a Switch to a fresh generation key;
+    // the queued K1 Poll record survives admission untouched, and the UI's
+    // observed serial is deliberately not cleared.
+    ui.apply_client_action(ClientAction::MovePanelFocus(
+        crate::client_view::PanelDirection::Right,
+    ));
+    assert_eq!(
+        ui.ordinary_poll_serial,
+        Some(observed),
+        "panel focus keeps the stale Poll observation"
+    );
+
+    // The executor leases the stale K1 Poll and finishes it silently: its
+    // attachment is no longer the desired key, so run_poll returns before any
+    // read or publish — no PollResult event and no switch-discard record, the
+    // exact pre-entry staleness path the real executor takes.
+    let stale_poll = mailbox.try_recv().unwrap().expect("queued K1 Poll");
+    let stale_key = stale_poll.poll_key().expect("ordinary Poll key");
+    assert_eq!(stale_key.attachment(), &anchor);
+    mailbox.finish_lease(stale_poll).expect("lease finish");
+    assert!(!mailbox.ordinary_poll_continues(observed).unwrap());
+    assert_eq!(ui.ordinary_poll_serial, Some(observed));
+
+    // The scripted non-installing Denied outcome legally restores the K1 anchor.
+    let switch = mailbox.try_recv().unwrap().expect("Switch marker");
+    let QueuedCommand::Switch(switch_marker) = switch.record() else {
+        panic!("one Switch marker");
+    };
+    let target = switch_marker.target().clone();
+    let permit = mailbox
+        .authorize_switch_snapshot(&switch, &target, &clock)
+        .unwrap()
+        .expect("snapshot authorization");
+    mailbox.answer_switch_snapshot(permit).unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::SwitchSnapshotResult {
+                marker: target.selected().key().clone(),
+                outcome: WorkbenchSnapshotOutcome::Denied {},
+            },
+            EventDeadline::PlacementOnly(target.deadlines().forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(matches!(
+        mailbox.take_deposited_reply(&wait).unwrap(),
+        Some(UiReply::Switch(settlement))
+            if matches!(settlement.decision(), RefreshDecision::Continue)
+    ));
+    mailbox.finish_lease(switch).expect("lease finish");
+
+    // The anchor is legally restored: desired is the original K1 key and the
+    // session is Ready again.
+    assert_eq!(ui.state.as_ref().unwrap().desired(), Some(&anchor));
+    assert!(ui.state.as_ref().unwrap().ready().is_some());
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
+
+    // One fair tick reconciles the stale observed serial against canonical
+    // occupancy and admits exactly one fresh Poll; the abandoned serial is never
+    // reused.
+    let fresh = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("one fresh Poll must be admitted after the anchor restore");
+    let QueuedCommand::Poll(tagged) = fresh.record() else {
+        panic!("the readmitted command is an ordinary Poll");
+    };
+    assert_eq!(tagged.key(), &anchor);
+    assert_ne!(fresh.serial(), observed);
+    assert!(mailbox.ordinary_poll_continues(fresh.serial()).unwrap());
+    assert!(!mailbox.ordinary_poll_continues(observed).unwrap());
+    assert_eq!(ui.ordinary_poll_serial, Some(fresh.serial()));
+    assert!(mailbox.try_recv().unwrap().is_none());
+    mailbox.finish_lease(fresh).expect("lease finish");
 }
