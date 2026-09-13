@@ -6,7 +6,7 @@ use orchbee_client_server_protocol::{
 };
 use orchbee_workbench_protocol::{
     WorkbenchPanelSplitDirection, WorkbenchTabCloseRead, WorkbenchTabCloseReadOutcome,
-    WorkbenchTabCloseStatus,
+    WorkbenchTabCloseStatus, WorkbenchTabMoveDirection,
 };
 use std::{
     fs, io,
@@ -722,6 +722,120 @@ fn real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal()
             path.display()
         );
     }
+    Ok(())
+}
+
+#[test]
+fn real_workspace_multileaf_tab_move_reorders_without_retiring() -> TestResult {
+    let server = RunningServer::start()?;
+    let fixture = RealWorkerFixture::start(&server)?;
+    let (mut first, _) = connect_bounded_client(server.client_endpoint())?;
+    let (mut second, _) = connect_bounded_client(server.client_endpoint())?;
+    let setup = create_associated_workspace(&fixture, &mut first, &mut second)?;
+    let geometry = geometry()?;
+
+    let created = exchange_command(
+        &mut first,
+        &command(
+            workbench_id(0x180)?,
+            &setup.snapshot,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                label: WorkbenchLabel::parse("Workspace multileaf source")?,
+                geometry,
+            },
+        ),
+    )?;
+    let (tab_id, panel_id) = match created.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => (tab_id, panel_id),
+        outcome => return Err(format!("Workspace TabCreate did not start: {outcome:?}").into()),
+    };
+    let after_create = read_snapshot(&mut second, 0x181)?;
+    let split = exchange_command(
+        &mut second,
+        &command(
+            workbench_id(0x182)?,
+            &after_create,
+            WorkbenchAction::PanelSplit {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: WorkbenchLabel::parse("Workspace multileaf peer")?,
+                geometry,
+            },
+        ),
+    )?;
+    let WorkbenchCommandOutcome::PanelSplitCreated {
+        terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+        ..
+    } = split.outcome
+    else {
+        return Err(format!("Workspace PanelSplit did not start: {:?}", split.outcome).into());
+    };
+    let after_split = read_snapshot(&mut first, 0x183)?;
+    // A second workspace Tab makes the move observable while the first Tab is multileaf.
+    let other = exchange_command(
+        &mut first,
+        &command(
+            workbench_id(0x184)?,
+            &after_split,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                label: WorkbenchLabel::parse("Workspace move sibling")?,
+                geometry,
+            },
+        ),
+    )?;
+    let other_tab_id = match other.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => tab_id,
+        outcome => {
+            return Err(format!("second Workspace TabCreate did not start: {outcome:?}").into());
+        }
+    };
+    let before_move = read_snapshot(&mut second, 0x185)?;
+    assert_eq!(workspace_context(&before_move)?.tabs.len(), 2);
+
+    // Workspace TabMove admission evaluates tree membership across the context, so a
+    // split sibling Tab no longer retires the authority.
+    let moved = exchange_command(
+        &mut second,
+        &command(
+            workbench_id(0x186)?,
+            &before_move,
+            WorkbenchAction::TabMove {
+                terminal_context_id: setup.terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                direction: WorkbenchTabMoveDirection::Last,
+            },
+        ),
+    )?;
+    let WorkbenchCommandOutcome::TabMoved { revision, .. } = moved.outcome else {
+        return Err(format!(
+            "Workspace multileaf TabMove did not commit: {:?}",
+            moved.outcome
+        )
+        .into());
+    };
+    assert_eq!(revision.value(), before_move.revision.value() + 1);
+    let after_move_first = read_snapshot(&mut first, 0x187)?;
+    let after_move_second = read_snapshot(&mut second, 0x188)?;
+    assert_eq!(after_move_first, after_move_second);
+    let moved_tabs = &workspace_context(&after_move_first)?.tabs;
+    assert_eq!(moved_tabs.len(), 2);
+    assert_eq!(moved_tabs[0].tab_id, other_tab_id);
+    assert_eq!(moved_tabs[1].tab_id, tab_id);
+    assert!(matches!(moved_tabs[1].root, PanelNode::Split { .. }));
+    assert_eq!(wait_for_marker(&fixture.marker, 3)?.len(), 3);
     Ok(())
 }
 

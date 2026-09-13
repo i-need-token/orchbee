@@ -194,20 +194,21 @@ impl WorkbenchAuthority {
         if let Some(reason) = rejection {
             return WorkbenchTabMoveBegin::Ready(self.retain_rejection(command, reason));
         }
-        let membership =
-            if terminal_context_id == snapshot.navigation.standalone_terminal_context_id {
-                match self.standalone_membership() {
-                    Ok(membership) => Some(membership),
-                    Err(_invariant) => return WorkbenchTabMoveBegin::Ready(self.retire(&command)),
-                }
-            } else {
-                if super::terminal_membership::strict_simple_context(snapshot, &terminal_context_id)
-                    .is_err()
-                {
-                    return WorkbenchTabMoveBegin::Ready(self.retire(&command));
-                }
-                None
-            };
+        let membership = if terminal_context_id
+            == snapshot.navigation.standalone_terminal_context_id
+        {
+            match self.tree_standalone_membership() {
+                Ok(membership) => Some(membership),
+                Err(_invariant) => return WorkbenchTabMoveBegin::Ready(self.retire(&command)),
+            }
+        } else {
+            if super::terminal_membership::tree_terminal_membership(snapshot, &terminal_context_id)
+                .is_err()
+            {
+                return WorkbenchTabMoveBegin::Ready(self.retire(&command));
+            }
+            None
+        };
         WorkbenchTabMoveBegin::Admitted(Box::new(WorkbenchTabMoveAdmission {
             authority: self,
             command,

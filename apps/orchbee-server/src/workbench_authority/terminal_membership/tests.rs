@@ -451,7 +451,7 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
     assert_eq!(members[0].presentation_id().as_str(), identity(103));
     assert_eq!(members[1].presentation_id().as_str(), identity(106));
     assert!(
-        strict_simple_context(
+        terminal_membership(
             authority.projection.snapshot(),
             &authority
                 .projection
@@ -461,4 +461,102 @@ fn tree_membership_collects_split_primary_leaves_but_legacy_context_rejects_them
         )
         .is_err()
     );
+}
+
+#[test]
+fn tree_membership_still_rejects_genuine_tree_corruption() {
+    // The widened tree view keeps every other tree restriction: an unbound leaf,
+    // a leaf carrying child presentations, or a pinned Tab inside a split must
+    // still fail the invariant instead of being admitted.
+    fn split_snapshot(authority: &WorkbenchAuthority) -> Snapshot {
+        let mut snapshot = authority.projection.snapshot().clone();
+        let tab = &mut snapshot.terminal_contexts[0].tabs[0];
+        let PanelNode::Panel {
+            panel_id,
+            primary_presentation,
+            ..
+        } = tab.root.clone()
+        else {
+            panic!("simple member expected")
+        };
+        tab.root = PanelNode::Split {
+            children: Box::new([
+                PanelSlot {
+                    node: PanelNode::Panel {
+                        child_presentations: Vec::new(),
+                        panel_id,
+                        primary_presentation,
+                    },
+                    slot_id: WorkbenchPanelSlotId::parse(&identity(101)).unwrap(),
+                },
+                PanelSlot {
+                    node: PanelNode::Panel {
+                        child_presentations: Vec::new(),
+                        panel_id: WorkbenchPanelId::parse(&identity(105)).unwrap(),
+                        primary_presentation: Presentation {
+                            binding: Some(PresentationBinding {
+                                terminal_id: TerminalId::parse(&identity(82)).unwrap(),
+                                worker_id: WorkerId::parse(&identity(72)).unwrap(),
+                            }),
+                            label: "right".to_owned(),
+                            presentation_id: TerminalPresentationId::parse(&identity(106)).unwrap(),
+                        },
+                    },
+                    slot_id: WorkbenchPanelSlotId::parse(&identity(104)).unwrap(),
+                },
+            ]),
+            orientation: PanelOrientation::Horizontal,
+            split_id: WorkbenchSplitId::parse(&identity(100)).unwrap(),
+        };
+        snapshot
+    }
+    for case in ["unbound leaf", "child presentations", "pinned tab"] {
+        let mut authority = authority();
+        authority.commit_standalone_intent(binding()).unwrap();
+        let mut snapshot = split_snapshot(&authority);
+        let tab = &mut snapshot.terminal_contexts[0].tabs[0];
+        match case {
+            "pinned tab" => tab.pinned = true,
+            _ => {
+                let PanelNode::Split { children, .. } = &mut tab.root else {
+                    panic!("split root expected")
+                };
+                let PanelNode::Panel {
+                    primary_presentation,
+                    child_presentations,
+                    ..
+                } = &mut children[0].node
+                else {
+                    panic!("panel leaf expected")
+                };
+                match case {
+                    "unbound leaf" => primary_presentation.binding = None,
+                    _ => child_presentations.push(Presentation {
+                        presentation_id: TerminalPresentationId::parse(&identity(130)).unwrap(),
+                        label: "child".to_owned(),
+                        binding: None,
+                    }),
+                }
+            }
+        }
+        snapshot.revision = WorkbenchRevision::new(2);
+        let encoded = serialize_document(&WorkbenchProtocolDocument::Snapshot(snapshot)).unwrap();
+        authority.projection = WorkbenchProjectionStore::load(&encoded).unwrap();
+        assert_eq!(
+            authority.tree_standalone_membership(),
+            Err(WorkbenchTerminalInvariantError),
+            "{case}"
+        );
+        assert_eq!(
+            authority.terminal_tree_membership(
+                &authority
+                    .projection
+                    .snapshot()
+                    .navigation
+                    .standalone_terminal_context_id
+            ),
+            Err(WorkbenchTerminalInvariantError),
+            "{case}"
+        );
+    }
 }

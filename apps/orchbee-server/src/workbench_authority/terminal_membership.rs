@@ -372,14 +372,6 @@ pub(super) fn tree_terminal_membership(
     })
 }
 
-pub(super) fn strict_simple_context<'a>(
-    snapshot: &'a Snapshot,
-    context_id: &WorkbenchTerminalContextId,
-) -> Result<&'a TerminalContext, WorkbenchTerminalInvariantError> {
-    let (context, _members) = legacy_single_leaf_context(snapshot, context_id)?;
-    Ok(context)
-}
-
 fn legacy_single_leaf_context<'a>(
     snapshot: &'a Snapshot,
     context_id: &WorkbenchTerminalContextId,

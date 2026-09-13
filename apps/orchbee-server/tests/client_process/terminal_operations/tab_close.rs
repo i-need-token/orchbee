@@ -8,8 +8,8 @@ use orchbee_workbench_protocol::{
     WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchRequest, WorkbenchRequestId,
     WorkbenchResponse, WorkbenchSnapshotOutcome, WorkbenchTabCloseRead,
-    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus, WorkbenchTerminalGeometry,
-    read_workbench_response, write_workbench_request,
+    WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus, WorkbenchTabMoveDirection,
+    WorkbenchTerminalGeometry, read_workbench_response, write_workbench_request,
 };
 use std::num::NonZeroU64;
 
@@ -612,41 +612,12 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
         outcome => return Err(format!("real tab.create did not start: {outcome:?}").into()),
     };
     let after_create = stage!("snapshot after tab.create", snapshot(&mut client, 3));
-    // A second standalone tab.create must be staged while every Tab is still a single leaf:
-    // create's admission derives the legacy membership shape, which a split Tab no longer
-    // satisfies.
-    let other = stage!(
-        "unrelated tab.create",
-        command(
-            &mut client,
-            &after_create,
-            4,
-            WorkbenchAction::TabCreate {
-                terminal_context_id: context_id.clone(),
-                label: WorkbenchLabel::parse("unrelated Tab")?,
-                geometry,
-            },
-        )
-    );
-    let (other_tab_id, other_panel_id) = match other.outcome {
-        WorkbenchCommandOutcome::TabCreated {
-            tab_id,
-            panel_id,
-            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
-            ..
-        } => (tab_id, panel_id),
-        outcome => return Err(format!("unrelated tab.create did not start: {outcome:?}").into()),
-    };
-    let after_other = stage!(
-        "snapshot after unrelated tab.create",
-        snapshot(&mut client, 5)
-    );
     let split = stage!(
         "panel.split",
         command(
             &mut client,
-            &after_other,
-            6,
+            &after_create,
+            4,
             WorkbenchAction::PanelSplit {
                 terminal_context_id: context_id.clone(),
                 tab_id: tab_id.clone(),
@@ -664,6 +635,31 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
             ..
         } => new_panel_id,
         outcome => return Err(format!("real panel.split did not start: {outcome:?}").into()),
+    };
+    let after_split = stage!("snapshot after panel.split", snapshot(&mut client, 5));
+    // Standalone create admission evaluates tree membership, so it still admits on a
+    // context whose first Tab is already split.
+    let other = stage!(
+        "unrelated tab.create",
+        command(
+            &mut client,
+            &after_split,
+            6,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: context_id.clone(),
+                label: WorkbenchLabel::parse("unrelated Tab")?,
+                geometry,
+            },
+        )
+    );
+    let (other_tab_id, other_panel_id) = match other.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => (tab_id, panel_id),
+        outcome => return Err(format!("unrelated tab.create did not start: {outcome:?}").into()),
     };
     let pending_close = stage!("snapshot before close", snapshot(&mut client, 7));
     let closed = stage!(
@@ -871,6 +867,319 @@ fn real_workbench_aggregate_close_fences_same_tab_split_and_move() -> TestResult
     assert!(tabs(&emptied)?.is_empty());
     drop(real.worker.take());
     // Releasing the last terminal retires the Host; its endpoint may briefly outlive it.
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    loop {
+        if real._host.0.try_wait()?.is_some() {
+            break;
+        }
+        if let Ok(inventory) = running_inventory(real.endpoint.as_path()) {
+            assert_eq!(inventory, 0);
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "Host stayed alive without serving a drained terminal inventory"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    Ok(())
+}
+
+fn attach_binding(
+    client: &mut UnixStream,
+    snapshot: &Snapshot,
+    binding: &PresentationBinding,
+    value: u128,
+) -> TestResult<orchbee_client_server_protocol::ViewerId> {
+    let ServerMessage::TerminalViewerResult(result) = exchange(
+        client,
+        &ClientMessage::TerminalViewer(TerminalViewerRequest::new(
+            id(value)?,
+            TerminalViewerAction::AttachBinding {
+                site_id: orchbee_client_server_protocol::SiteId::parse(snapshot.site_id.as_str())?,
+                worker_id: orchbee_client_server_protocol::WorkerId::parse(
+                    binding.worker_id.as_str(),
+                )?,
+                terminal_id: orchbee_client_server_protocol::TerminalId::parse(
+                    binding.terminal_id.as_str(),
+                )?,
+            },
+        )),
+    )?
+    else {
+        return Err("binding Attach result".into());
+    };
+    assert_eq!(result.request_id(), &id(value)?);
+    let TerminalViewerOutcome::Attached { attachment_id, .. } = result.into_outcome() else {
+        return Err("binding Attach failed".into());
+    };
+    Ok(attachment_id)
+}
+
+fn shell_pid(
+    client: &mut UnixStream,
+    snapshot: &Snapshot,
+    binding: &PresentationBinding,
+    path: &Path,
+    value: u128,
+) -> TestResult<u32> {
+    let attachment = attach_binding(client, snapshot, binding, value)?;
+    let controller = acquire(client, &attachment, value + 1)?;
+    let quoted = format!("'{}'", path.display().to_string().replace('\'', "'\\''"));
+    input(
+        client,
+        &attachment,
+        &controller,
+        value + 2,
+        1,
+        format!("printf '%s\\n' \"$$\" > {quoted}\n").into_bytes(),
+    )?;
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    loop {
+        if let Ok(contents) = std::fs::read_to_string(path)
+            && let Ok(pid) = contents.trim().parse::<u32>()
+        {
+            return Ok(pid);
+        }
+        assert!(Instant::now() < deadline, "shell PID marker did not appear");
+        thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn process_is_alive(pid: u32) -> TestResult<bool> {
+    Ok(Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?
+        .success())
+}
+
+fn wait_for_process_exit(pid: u32) -> TestResult {
+    let deadline = Instant::now() + PROCESS_TIMEOUT;
+    while process_is_alive(pid)? {
+        assert!(Instant::now() < deadline, "closed shell PID {pid} is alive");
+        thread::sleep(Duration::from_millis(10));
+    }
+    Ok(())
+}
+
+fn leaf_bindings(tab: &Tab) -> TestResult<Vec<PresentationBinding>> {
+    let mut found = Vec::new();
+    let mut stack = vec![&tab.root];
+    while let Some(node) = stack.pop() {
+        match node {
+            PanelNode::Panel {
+                primary_presentation,
+                ..
+            } => found.push(
+                primary_presentation
+                    .binding
+                    .clone()
+                    .ok_or("leaf Presentation is unbound")?,
+            ),
+            PanelNode::Split { children, .. } => {
+                stack.extend(children.iter().map(|slot| &slot.node));
+            }
+        }
+    }
+    Ok(found)
+}
+
+#[test]
+fn real_multileaf_create_and_move_reconcile_two_clients_and_retarget_close() -> TestResult {
+    macro_rules! stage {
+        ($name:literal, $operation:expr) => {
+            $operation.map_err(|error| std::io::Error::other(format!("{}: {error}", $name)))?
+        };
+    }
+    let server = stage!("server start", RunningServer::start());
+    let mut real = stage!("real runtime start", RealTerminalRuntime::start(&server));
+    let witnesses = HostDirectory::new()?;
+    let (mut first, _) = stage!(
+        "first client connect",
+        connect_bounded_client(server.client_endpoint())
+    );
+    let (mut second, _) = stage!(
+        "second client connect",
+        connect_bounded_client(server.client_endpoint())
+    );
+    let initial = stage!("initial snapshot", snapshot(&mut first, 1));
+    let context_id = initial.navigation.standalone_terminal_context_id.clone();
+    let geometry = WorkbenchTerminalGeometry::new(80, 24, 8, 16)?;
+
+    let created = stage!(
+        "first tab.create",
+        command(
+            &mut first,
+            &initial,
+            2,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: context_id.clone(),
+                label: WorkbenchLabel::parse("multileaf source")?,
+                geometry,
+            },
+        )
+    );
+    let (tab_id, panel_id) = match created.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => (tab_id, panel_id),
+        outcome => return Err(format!("first tab.create did not start: {outcome:?}").into()),
+    };
+    let after_create = stage!("snapshot after create", snapshot(&mut second, 3));
+    let split = stage!(
+        "panel.split",
+        command(
+            &mut second,
+            &after_create,
+            4,
+            WorkbenchAction::PanelSplit {
+                terminal_context_id: context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: WorkbenchLabel::parse("multileaf peer")?,
+                geometry,
+            },
+        )
+    );
+    let new_panel_id = match split.outcome {
+        WorkbenchCommandOutcome::PanelSplitCreated {
+            new_panel_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => new_panel_id,
+        outcome => return Err(format!("panel.split did not start: {outcome:?}").into()),
+    };
+    let after_split = stage!("snapshot after split", snapshot(&mut first, 5));
+    let split_tab = tabs(&after_split)?
+        .iter()
+        .find(|tab| tab.tab_id == tab_id)
+        .ok_or("split Tab missing")?;
+    let split_bindings = leaf_bindings(split_tab)?;
+    assert_eq!(split_bindings.len(), 2);
+    assert_ne!(split_bindings[0].terminal_id, split_bindings[1].terminal_id);
+    let PanelNode::Split { children, .. } = &split_tab.root else {
+        return Err("split did not project a split root".into());
+    };
+    assert!(children.iter().any(|slot| matches!(
+        &slot.node,
+        PanelNode::Panel { panel_id: child, .. } if *child == new_panel_id
+    )));
+
+    // Standalone create admission on multileaf membership must not retire the authority.
+    let second_create = stage!(
+        "multileaf tab.create",
+        command(
+            &mut first,
+            &after_split,
+            6,
+            WorkbenchAction::TabCreate {
+                terminal_context_id: context_id.clone(),
+                label: WorkbenchLabel::parse("multileaf peer Tab")?,
+                geometry,
+            },
+        )
+    );
+    let other_tab_id = match second_create.outcome {
+        WorkbenchCommandOutcome::TabCreated {
+            tab_id,
+            terminal_outcome: orchbee_workbench_protocol::WorkbenchTerminalOutcome::Started { .. },
+            ..
+        } => tab_id,
+        outcome => {
+            return Err(format!("tab.create on multileaf membership failed: {outcome:?}").into());
+        }
+    };
+    let after_second = stage!("snapshot after second create", snapshot(&mut second, 7));
+    assert_eq!(tabs(&after_second)?.len(), 2);
+
+    // Standalone TabMove admission on the same multileaf membership.
+    let moved = stage!(
+        "multileaf tab.move",
+        command(
+            &mut second,
+            &after_second,
+            8,
+            WorkbenchAction::TabMove {
+                terminal_context_id: context_id.clone(),
+                tab_id: tab_id.clone(),
+                direction: WorkbenchTabMoveDirection::Last,
+            },
+        )
+    );
+    let WorkbenchCommandOutcome::TabMoved { .. } = moved.outcome else {
+        return Err(format!(
+            "tab.move on multileaf membership failed: {:?}",
+            moved.outcome
+        )
+        .into());
+    };
+    let after_move = stage!("snapshot after move", snapshot(&mut first, 9));
+    assert_eq!(
+        after_move,
+        stage!("second client snapshot", snapshot(&mut second, 10))
+    );
+    let ordered = tabs(&after_move)?;
+    assert_eq!(ordered.len(), 2);
+    assert_eq!(ordered[0].tab_id, other_tab_id);
+    assert_eq!(ordered[1].tab_id, tab_id);
+    assert_eq!(leaf_bindings(&ordered[1])?, split_bindings);
+
+    // Every projected binding drives a distinct real shell process.
+    let mut pids = Vec::new();
+    for (index, binding) in leaf_bindings(&ordered[1])?
+        .into_iter()
+        .chain(leaf_bindings(&ordered[0])?)
+        .enumerate()
+    {
+        let path = witnesses.0.join(format!("shell-{index}-pid"));
+        let pid = stage!(
+            "binding shell PID",
+            shell_pid(
+                &mut first,
+                &after_move,
+                &binding,
+                &path,
+                0x100 + index as u128 * 4
+            )
+        );
+        assert!(process_is_alive(pid)?, "bound shell {pid} is not alive");
+        pids.push(pid);
+    }
+    assert_eq!(pids.len(), 3);
+    let distinct: std::collections::HashSet<u32> = pids.iter().copied().collect();
+    assert_eq!(distinct.len(), 3, "two bindings share one shell PID");
+
+    // Closing the split Tab retires exactly its two leaves through the real lifecycle.
+    stage!(
+        "aggregate tab.close",
+        close_tab(&mut first, &after_move, &ordered[1], 20)
+    );
+    for pid in &pids[..2] {
+        stage!("closed shell exit", wait_for_process_exit(*pid));
+    }
+    assert!(
+        process_is_alive(pids[2])?,
+        "surviving Tab shell was killed by the aggregate close"
+    );
+    let after_close = stage!("snapshot after close", snapshot(&mut second, 30));
+    assert_eq!(
+        after_close,
+        stage!("first client snapshot", snapshot(&mut first, 31))
+    );
+    let surviving = tabs(&after_close)?;
+    assert_eq!(surviving.len(), 1);
+    assert_eq!(surviving[0].tab_id, other_tab_id);
+
+    close_tab(&mut first, &after_close, &surviving[0], 40)?;
+    let emptied = stage!("final snapshot", snapshot(&mut first, 41));
+    assert!(tabs(&emptied)?.is_empty());
+    drop(real.worker.take());
     let deadline = Instant::now() + PROCESS_TIMEOUT;
     loop {
         if real._host.0.try_wait()?.is_some() {

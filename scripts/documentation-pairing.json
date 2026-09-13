@@ -114,8 +114,8 @@
 			"zhCnSha256": "d26b8f8853ea50d35f65419dd4a5870070001099392af0dd9e0eecc609ee8a89"
 		},
 		"apps/orchbee-server/docs/workbench-authority.md": {
-			"englishSha256": "3db5eea7d958c5c23a79adf31d8cce769fdfd2f9a48ba2caa2d9b262d752a6c9",
-			"zhCnSha256": "9f25796c7147a9f3f1f068b682681e3c93b7b69f9d9be7cda9491a2781d5f058"
+			"englishSha256": "874e65678e56aa04dac190f14beeb41932a54ccddd99744e1c6b0846ee48e5a6",
+			"zhCnSha256": "d050d2868f6d3a9ffb0dba16448368e0c69ab9af43ebac15aa7b1ad3f602f243"
 		},
 		"apps/orchbee-server/docs/workspace-terminal-directory.md": {
 			"englishSha256": "b3a34554abb600efa9c147b490258d21341ceda06a93e6cf32f954ad09a3e898",

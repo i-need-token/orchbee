@@ -242,6 +242,54 @@ Move 检查置换/完整成员事实保留、产品游标及无关事实不变�
 优先级、丢弃准备、发布拒绝及门锁/传输组合仍属确定性/状态及进程义务；模型不声明并行传输在途
 操作或无界置换定理。
 
+## 已接受的多叶成员关系模型
+
+一个 Tab 合法地拥有有序的叶成员序列：`panel.split` 在同一 Tab 内产生第二叶，
+`panel.close`/聚合 Close 再将其移除。因此 `tab.create` 准入、`tab.move` 准入与独立 Create
+完成所消费的成员关系视图必须是树感知的有序成员列表，而不是每 Tab 恰一叶的形状断言。
+对合法分割树沿用旧形状会把共享权威错误退役；已接受的修正只更换这些门禁处的成员关系视图，
+并保留全部结构校验。
+
+| 字段   | 契约                                                                                                                                                                                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | TabCreate、TabMove 与 Create 完成经由「每 Tab 恰一叶」谓词读取终端成员关系，任何合法带分割树都会在准入或完成时被视为腐坏而失败。                                                                                                                                       |
+| 输入   | 已准入命令指纹、精确 Site/上下文、预期修订，以及当前规范树——其每个 Tab 各拥有有序叶序列。                                                                                                                                                                              |
+| 数据   | `tree_standalone_membership()`/`tree_terminal_membership()` 的有序成员、Site 持有的 `Empty`/`Creating`/`Settled` 槽位、保留的终端授权与逐 owner 的 presentation binding，以及不可变的已保留 Create 记录。                                                              |
+| 输出   | 原有 mutation publication 与已保留的 Create 结算；不引入新结果种类、账本记录、修订规则或 effect。                                                                                                                                                                      |
+| 不变式 | 树成员关系只替换一叶断言；独立槽位仍以「引用派生唯一 binding」校验与成员组合；Workspace 准入绝不触碰独立槽位；完成重读**当前**槽位与成员；被移除成员绝不复活，其账本恰结算一次。                                                                                       |
+| 模型   | `WorkbenchMultileafMembership` 建模两个上下文（携带槽位的独立上下文、无槽位的 Workspace）、各两个 Tab、每 Tab 至多两个有序叶、anchor 与非 anchor 的 pending Create、准入/提交、交错的分割或重排、Close 捕获/发布重定向、完成与重放，并有有界成员腐坏与运行时丢失注入。 |
+| 所有者 | SiteCoordinator 在既有 Site 门下组合；WorkbenchAuthority 拥有成员关系视图与投影；TerminalCoordinator 拥有保留授权、阶段与完成封记。所有者或锁归属不变。                                                                                                                |
+| 依赖   | 既有树成员关系读取器、共享命令账本、修订与 publication 机制；不新增协议、依赖、crate 或调度器。                                                                                                                                                                        |
+| 验证   | 带必需覆盖的有界 TLA 安全性与活性、确定性 Site/SiteCoordinator 见证，以及在真实 PTY 上覆盖分割/创建/移动与 pending-Close fencing 的 Linux 进程组；交错完成见证在受控 Worker seam 驻留 Launch 结果（已标注为合成）。                                                    |
+| 边界   | 每次至多一处成员腐坏与一处运行时丢失、一次至多一个被建模聚合 Close，Tab/叶/移动均有界，Close 清理被抽象；具体字节/布局边界、open 重入的 Empty-only intent 策略与传输公平性仍归其各自所有者。                                                                           |
+
+| 声明                                                                       | 所有者证据与细化                                                                                                                                               | 边界                                                                |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 合法多叶树可准入 create/move 并完成 pending Create，不发生形状驱动的退役   | `NoShapeRetirement`、`AnchorExactInValidStates`、`MembersRetained`；两上下文上的确定性多叶见证                                                                 | 腐坏注入是有界的、仅限独立域的示例，不是穷尽故障模型                |
+| 独立 anchor 保持精确：Empty 当且仅当无成员，否则槽位引用恰匹配一次         | `AnchorExactInValidStates`、`StrongComposition` 门禁；组合校验绝不弱化到「仅成员 binding」形式                                                                 | 具体重复/不可解析授权仍属 Site 测试证据                             |
+| Workspace 准入与 mutation 绝不读写独立槽位                                 | `WorkspaceIsolation`；Workspace 成员关系仅需可导出的树成员关系                                                                                                 | 共享请求账本与修订仍串行化两个上下文                                |
+| 完成保持投影、恰结算一次，且仅在仍为当前 anchor 时更新槽位                 | `CompletionPreservesProjection`、`SlotTransitionsExact`、`LedgerResultStable`、`NoRejectionAfterDispatch`、`UnknownIsNotSuccess`；retarget 与 Empty 的见证轨迹 | 提交后门禁失败产出诚实 unknown；绝不转化为拒绝或退役                |
+| Close 重定向跟随幸存有序成员，聚合 fence 保持精确                          | `RetargetLegal`、`AggregateFenceStable`；`split-fenced`/`unfenced-during-close` 覆盖见证                                                                       | 叶级 close 保持其自有边界；同 Tab panel mutation 仍被 fence         |
+| Close 准入要求每个被捕获成员拥有已知可用运行时                             | `RefuseCloseBusy`/`RefuseCloseUnavailable` 覆盖见证；pending 目标拒绝为 Busy，未知/不可用运行时拒绝为 Unavailable                                              | 其他幸存 Tab 上的 pending 成员不阻塞目标，且可在重定向后成为 anchor |
+| 每个已准入 pending Create 在公平派发/完成下达到保留 settled 或诚实 unknown | `PendingCompletionProgress`；移除公平性的 withheld-completion 对照使其违反                                                                                     | 义务在腐坏与退役后以诚实 unknown 存续；任意传输失败未建模           |
+
+两个谓词按设计保持区分。`composition_matches` 解析当前槽位引用的保留授权，并要求其
+binding 在有序成员中恰出现一次；`tree_composition_matches` 仅要求 Empty 等价加全部成员
+binding 被保留。较强形式用于一切写入或校验独立 anchor 关联之处：Create 准入（可能开启
+槽位）、Move 准入（重排整 Tab 但必须保持既有槽位）与 Create 完成（重读**当前**槽位与
+成员）。分割准入/完成与 Close 准入/发布保持较弱形式，因为它们从不经组合解析 anchor
+binding：Split 只在既有 Tab 下追加一叶，Close 发布直接从幸存有序成员推导新 anchor，而非
+经组合解析。
+
+因此 Close 不经组合即改变 anchor，且其可达轨迹是精确的：pending 成员绝不能成为 Close
+目标（Busy 拒绝），故没有任何 pending anchor 会被 Close 移除或重定向走，也没有 pending
+完成会在最后一次 Close 清空槽位后到达。目标成员全部已 settled 的 Close 仍可重定向到幸存
+的 pending 成员——后者以 Creating 成为 anchor 并在其完成到达时结算**当前**槽位；从不当前
+的 pending Create 在另一个幸存 pending 成员担任 anchor 时仅结算其账本；全部已 settled
+成员的最后一次 Close 留下 Empty，其已 final 的账本仍可重放。建模的单 Close 记录是有界
+检查抽象，不是生产并发限制；驻留完成的进程见证证明的是受控 Worker seam 下的顺序，而非
+独立 Worker 时序。
+
 ## 范围与所有权
 
 原生 Server 为每个本地 Site 持有一份规范 Workbench 状态。首组导航转换负责创建和重命名

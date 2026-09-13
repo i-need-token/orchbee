@@ -17,7 +17,7 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
-fn split_command(
+pub(super) fn split_command(
     coordinator: &mut SiteCoordinator,
     request: u128,
     terminal_context_id: WorkbenchTerminalContextId,
@@ -42,7 +42,7 @@ fn split_command(
     }
 }
 
-fn dispatch_split(
+pub(super) fn dispatch_split(
     coordinator: &mut SiteCoordinator,
     command: WorkbenchCommand,
     reference: u128,
@@ -65,7 +65,7 @@ fn ready_split(prepared: PreparedTerminalPanelSplit) -> WorkbenchCommandResult {
     result
 }
 
-fn standalone_leaf(
+pub(super) fn standalone_leaf(
     coordinator: &mut SiteCoordinator,
 ) -> (WorkbenchTerminalContextId, WorkbenchTabId, WorkbenchPanelId) {
     let committed = snapshot(coordinator);
@@ -85,7 +85,7 @@ fn standalone_leaf(
 }
 
 // These fabricated replies prove Site refinement of the real Close finalizer, not Worker behavior.
-fn close_leaf(
+pub(super) fn close_leaf(
     coordinator: &mut SiteCoordinator,
     context: WorkbenchTerminalContextId,
     tab: WorkbenchTabId,

@@ -252,7 +252,7 @@ impl SiteCoordinator {
         let metadata = pending.workbench.metadata().clone();
         if metadata.is_standalone() {
             let membership = workbench
-                .standalone_membership()
+                .tree_standalone_membership()
                 .map_err(|_invariant| PostcommitCoordinationError)?;
             if !composition_matches(&membership, standalone, terminals) {
                 return Err(PostcommitCoordinationError);

@@ -307,6 +307,60 @@ unsupported-layout precedence, dropped preparation, publication refusal and gate
 composition remain deterministic/stateful and process obligations; the model has no parallel
 transport-flight or unbounded permutation theorem claim.
 
+## Accepted multi-leaf membership model
+
+A Tab legally owns an ordered sequence of leaf members: `panel.split` produces a second leaf in the
+same Tab, and `panel.close`/aggregate Close remove them. The membership view consumed by
+`tab.create` admission, `tab.move` admission and standalone Create completion must therefore be the
+tree-aware ordered member list, not a one-leaf-per-Tab shape assertion. Reading a valid split tree
+through the legacy shape retired the shared authority; the accepted correction changes only the
+membership view at those gates and keeps every structural validation.
+
+| Field        | Contract                                                                                                                                                                                                                                                                                                                                                             |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | TabCreate, TabMove and Create completion read terminal membership through a one-leaf-per-Tab predicate, so any legal split-bearing tree failed admission or completion as if it were corrupt.                                                                                                                                                                        |
+| Input        | The admitted command fingerprint, exact Site/context, expected revision, and the current canonical tree whose Tabs each own an ordered leaf sequence.                                                                                                                                                                                                                |
+| Data         | `tree_standalone_membership()`/`tree_terminal_membership()` ordered members, the Site-owned `Empty`/`Creating`/`Settled` slot, retained terminal authorizations and per-owner presentation bindings, and the immutable retained Create entry.                                                                                                                        |
+| Output       | The unchanged mutation publications and the retained Create settlement; no new result kind, ledger entry, revision rule or effect is introduced.                                                                                                                                                                                                                     |
+| Invariants   | Tree membership replaces the one-leaf assertion only; the standalone slot still composes against members with the reference-derived unique-binding check; workspace admission never touches the standalone slot; completion re-reads the CURRENT slot and members; a removed member is never resurrected and its ledger settles exactly once.                        |
+| Model        | `WorkbenchMultileafMembership` models two contexts (standalone slot-bearing, workspace slot-free), two Tabs each, up to two ordered leaves per Tab, anchor and non-anchor pending Creates, admission/commit, intervening split or reorder, close capture/publication retarget, completion and replay, plus bounded membership-corruption and runtime-loss injection. |
+| Owner        | SiteCoordinator composes under the existing Site gate; WorkbenchAuthority owns the membership views and projection; TerminalCoordinator owns retained authorization, phase and the completion seal. No owner or lock ownership changes.                                                                                                                              |
+| Dependencies | Existing tree membership readers, the shared command ledger, revision and publication machinery; no protocol, dependency, crate or scheduler addition.                                                                                                                                                                                                               |
+| Verification | Bounded TLA safety and liveness with required coverage, deterministic Site/SiteCoordinator witnesses, and the Linux process cohort covering split/create/move and pending-Close fencing on real PTYs; the interleaved-completion witness parks the Launch result at a controlled Worker seam (labeled synthetic).                                                    |
+| Limits       | One membership corruption and one runtime loss at a time, one modeled aggregate Close at a time, bounded Tabs/leaves/moves, abstract close cleanup; concrete byte/layout bounds, open-reentry Empty-only intent policy and transport fairness remain with their existing owners.                                                                                     |
+
+| Claim                                                                                                    | Owning evidence and refinement                                                                                                                                          | Limits                                                                                                        |
+| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| A valid multi-leaf tree admits create/move and completes pending Creates without shape-driven retirement | `NoShapeRetirement`, `AnchorExactInValidStates`, `MembersRetained`; deterministic multileaf witnesses over both contexts                                                | Corruption injections are bounded, standalone-scoped examples, not an exhaustive fault model                  |
+| The standalone anchor stays exact: Empty iff no members, otherwise the slot reference matches once       | `AnchorExactInValidStates`, `StrongComposition` gates; composition is never weakened to the member-binding-only form                                                    | Concrete duplicate/unresolvable authorization remains Site test evidence                                      |
+| Workspace admission and mutation never read or write the standalone slot                                 | `WorkspaceIsolation`; workspace membership needs only derivable tree membership                                                                                         | A shared request ledger and revision still serialize both contexts                                            |
+| Completion preserves projection, settles exactly once, and updates the slot only while it still anchors  | `CompletionPreservesProjection`, `SlotTransitionsExact`, `LedgerResultStable`, `NoRejectionAfterDispatch`, `UnknownIsNotSuccess`; witness traces for retarget and Empty | Post-commit gate failure yields honest unknown; it never converts into a rejection or retire                  |
+| Close retarget follows the surviving ordered members and the aggregate fence stays exact                 | `RetargetLegal`, `AggregateFenceStable`; `split-fenced`/`unfenced-during-close` coverage witnesses                                                                      | Leaf-scoped close keeps its own owner; same-Tab panel mutations stay fenced                                   |
+| Close admission requires a known usable runtime for every captured member                                | `RefuseCloseBusy`/`RefuseCloseUnavailable` coverage witnesses; pending target refuses Busy, unknown/unavailable runtime refuses Unavailable                             | A pending member on a different surviving Tab does not block the target and may anchor after retarget         |
+| Each admitted pending Create reaches a retained settle or honest unknown under fair dispatch/completion  | `PendingCompletionProgress`; the withheld-completion control violates it when fairness is removed                                                                       | The obligation survives corruption and retirement as honest unknown; arbitrary transport failure is unmodeled |
+
+The predicates stay distinct by design. `composition_matches` resolves the current slot reference's
+retained authorization and requires its binding to appear exactly once among the ordered members;
+`tree_composition_matches` requires only Empty-equivalence plus every member binding retained. The
+strong form applies wherever the standalone anchor association is written or validated: Create
+admission (which may open the slot), Move admission (which must preserve the existing slot while
+reordering whole Tabs), and Create completion (which re-reads the CURRENT slot and members). Split
+admission/completion and Close admission/publication keep the weaker form because they never resolve
+the anchor binding through composition: Split only appends a leaf under an existing Tab, and Close
+publication derives the new anchor directly from the surviving ordered members rather than through
+composition resolution.
+
+Close therefore changes the anchor without re-anchoring through composition, and its admissible
+trajectories are exact: a pending member can never be a Close target (Busy refusal), so no pending
+anchor is ever removed or retargeted away by Close, and no pending completion can arrive after the
+last Close emptied the slot. A Close whose target members are all settled may still retarget onto a
+surviving pending member, which anchors as Creating and settles the CURRENT slot when its completion
+arrives; a never-current pending Create settles its ledger only while a different surviving pending
+member anchors; and the last Close of settled members leaves Empty while its already-final ledger
+stays replayable. The modeled single-Close record is a bounded-checking abstraction, not a
+production concurrency restriction, and the parked-completion process witness proves ordering
+through a controlled Worker seam, not independent Worker timing.
+
 ## Scope and ownership
 
 The native Server owns one canonical Workbench state per local Site. The first navigation

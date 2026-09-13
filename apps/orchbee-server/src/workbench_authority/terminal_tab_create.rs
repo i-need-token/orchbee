@@ -456,7 +456,7 @@ impl WorkbenchAuthority {
         };
         let tab_count = context.tabs.len();
         let target = if terminal_context_id == snapshot.navigation.standalone_terminal_context_id {
-            match self.standalone_membership() {
+            match self.tree_standalone_membership() {
                 Ok(membership) => WorkbenchTabCreateTarget::Standalone(membership),
                 Err(_error) => return WorkbenchTabCreateBegin::Ready(retire(self, &command)),
             }

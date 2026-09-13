@@ -663,6 +663,8 @@ fn tab_create_commits_before_parked_launch_and_another_client_can_read_navigate_
     Ok(())
 }
 
+#[path = "tab_create/multileaf.rs"]
+mod multileaf;
 #[path = "tab_create/tab_move.rs"]
 mod tab_move;
 #[path = "tab_create/tab_rename.rs"]
