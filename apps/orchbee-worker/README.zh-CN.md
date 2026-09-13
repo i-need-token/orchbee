@@ -117,6 +117,26 @@ Release 或 loss 均不提升其他 viewer，也不终止保留执行。八个 v
 PTY geometry、非 controller 拒绝、detach，以及另一 Client 获取全新 grant。这些运行时见证细化
 现有 authority/relay 模型；它们不证明公开 TUI 行为、独立审查或实测发布性能。
 
+### 语义粘贴准入建模记录
+
+[`SemanticPasteAdmission`](formal/tla/SemanticPasteAdmission.tla) 是既有 carrier 请求链上的
+小型有界抽象，不是通用连接或重连模型。一个请求在已建立的 carrier 上沿
+`idle -> record-open -> request-ready -> admitted -> handed -> prepared -> responded ->
+settled` 推进；partial 或 malformed record abandon 后进入终止 `failed` phase，对应 carrier
+对连接 fail-closed 的行为——模型不声称同流 realign；完整 record 之后的字节游标对齐仍由
+codec 测试承担。丢失、迟到或误分类的 Host response 把该请求结算为 `unknown` 并进入
+`failed`（真实 broker 退役）；broker 替换、化身清理与跨请求后续仍归 `LocalWorkerObcnCarrier`、
+`LocalHostBroker` 及其测试所有。
+
+模型把 Server 的每 controller sequence 与 Worker 的每 grant sequence 折叠为单一
+`grantSequence`，grant 集合保持静态，并把 child exit、writer stop、failure fencing 与
+client input closure 折叠进 `terminalAlive`。Preparation 在 terminal mutex 下快照
+bracketed-paste mode；commit 在 Core 二次授权后于独立的 input-admission 锁下发布——模型
+从不声称一把互斥锁覆盖两段。模型不假设公平性：`ReservationReleasedOnce` 是转换安全性，
+`SettledRequestHasOutcome` 只陈述 `settled => outcome # "none"`；sequence 恰好一次消费
+由单向 phase 图得出。字节预算、身份宽度与四个类型化拒绝码仍属 codec/schema/进程测试
+证据，不是模型声明。
+
 ## 默认交互式 launch 解析
 
 Application-private `default_interactive_launch` module 为运行中的 request loop 提供 launch-fact

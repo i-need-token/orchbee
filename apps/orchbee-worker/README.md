@@ -135,6 +135,28 @@ actual PTY geometry, non-controller rejection, detach, and a fresh grant for the
 These runtime witnesses refine the existing authority/relay models; they do not establish public
 TUI behavior, independent review, or measured release performance.
 
+### Semantic paste admission modeling record
+
+[`SemanticPasteAdmission`](formal/tla/SemanticPasteAdmission.tla) is a small bounded abstraction
+over the existing carrier request chain, not a general connection or reconnection model. One
+request on an already-established carrier moves `idle -> record-open -> request-ready -> admitted
+-> handed -> prepared -> responded -> settled`; a partial or malformed record abandons into the
+terminal `failed` phase, matching the carrier's fail-closed connection behavior — the model does
+not claim same-stream realignment, and byte-cursor alignment after a complete record stays with
+codec tests. A lost, late, or misclassified Host response settles the request as `unknown` and
+enters `failed` (the real broker retires); broker replacement, incarnation cleanup, and
+cross-request aftermath stay with `LocalWorkerObcnCarrier`, `LocalHostBroker`, and their tests.
+
+The model folds Server's per-controller sequence and Worker's per-grant sequence into one
+`grantSequence`, keeps a static grant set, and folds child exit, writer stop, failure fencing, and
+client input closure into `terminalAlive`. Preparation snapshots the bracketed-paste mode under
+the terminal mutex; commit publishes under the separate input-admission lock after Core
+re-authorization — the model never claims one mutex spans both. It asserts no fairness:
+`ReservationReleasedOnce` is transition safety, `SettledRequestHasOutcome` states only
+`settled => outcome # "none"`, and exactly-once sequence consumption follows the unidirectional
+phase graph. Byte budgets, identity widths, and the four typed rejection codes remain
+codec/schema/process-test evidence, not model claims.
+
 ## Default interactive launch resolution
 
 The application-private `default_interactive_launch` module supplies the running request loop's

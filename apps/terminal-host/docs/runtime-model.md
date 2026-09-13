@@ -699,6 +699,16 @@ engine holds the canonical terminal mutex while comparing that expectation with 
 encoding the paste. A mismatch is an `input-mode-changed` rejection and reserves no FIFO position;
 it is non-retryable because automatic replay would bypass a fresh inspection decision.
 
+Automatic paste (kind 39 `PasteAutoInput`) carries no mode expectation: preparation reads the live
+bracketed-paste mode once under the canonical terminal mutex, encodes with the shared Ghostty paste
+encoder — the same unsafe-byte strip set, optional twelve-byte bracketed wrapper, and non-bracketed
+LF-to-CR conversion — then applies the runtime linefeed expansion on the encoded bytes. Because the
+encoded bytes are snapshotted at preparation, a mode flip between prepare and commit can never
+change them; commit runs later under the input-admission lock, re-authorizes the attachment, and
+publishes the prepared bytes exactly once. There is no `input-mode-changed` outcome on this path.
+The acknowledged `accepted_bytes` counts encoded bytes admitted to the client-input queue, at most
+`2 × content + 12`; it is not a PTY write completion.
+
 The client-byte and client-entry limits cannot consume the bounded terminal-reply byte and entry
 budgets. Exhausting a client budget is ordinary retryable backpressure and never becomes a terminal
 failure. Exhausting the independent reply budget means the child generated replies faster than the

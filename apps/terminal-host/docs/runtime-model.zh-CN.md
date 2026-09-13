@@ -333,6 +333,8 @@ OSC 133 新提示符标记（`A` / `fresh_line_new_prompt` 与 `P` / `prompt_sta
 
 粘贴准备携带审查该投影的客户端（the reviewing projected client）所观察到的括号粘贴模式。引擎保存规范的终端互斥体，同时将该期望与 Ghostty 模式进行比较并对粘贴进行编码。不匹配是 `input-mode-changed` 拒绝并且不保留 FIFO 仓位；它是不可重试的，因为自动重播会绕过新的检查决定。
 
+自动粘贴（kind 39 `PasteAutoInput`）不携带模式期望：prepare 在规范终端互斥体内一次性读取实时括号粘贴模式，复用共享 Ghostty 粘贴编码器——同一不安全字节剥离集、可选十二字节括号包裹、非括号模式 LF→CR 转换——随后对编码结果应用运行时 linefeed 展开。由于编码字节在准备时即被快照，prepare 与 commit 之间的模式翻转永远不会改变它们；commit 随后在 input-admission 锁下运行，重新授权附件，并恰好发布一次已准备字节。此路径没有 `input-mode-changed` 结果。确认的 `accepted_bytes` 统计进入客户端输入队列的编码字节，至多为 `2 × content + 12`；它不是 PTY 写入完成。
+
 客户端字节与客户端条目限制不能消耗有界的终端回复字节与条目预算。客户端预算耗尽属于普通的可重试背压，绝不会变成终端故障。独立回复预算耗尽意味着子进程生成回复的速度超过有界写入器的承载能力；这才是实际的 `terminal_reply` 完整性故障，并走正常的栅栏与遏制路径。已准备的客户端输入会在准备回复前预留其 FIFO 位置与预算；取消输入会释放二者，且不接纳任何字节。
 
 Ghostty 的终端处理程序仍然是唯一的终端状态变异器。Host 所有的流适配器把每个普通解析器动作与效果委托给该处理程序，并拦截有界的 `DCS $ q` 与 `DCS + q` 查询族，因为固定的无分配 `ghostty_vt.TerminalStream` 会有意忽略 DCS 动作。Ghostty 的 DCS 处理程序负责分类载荷。Host 从同一规范 SGR、光标和边距状态编码 DECRPSS，并从宣称的 `TERM=xterm-256color` 身份中经过审查的固定子集回答 XTGETTCAP：终端名称、颜色数量、直接颜色位宽，以及基线导航键与 F1-F12 键字符串。一个请求只产生一个有序回复，且每个名称与值都使用大写十六进制。首个名称无效或不支持时返回 `DCS 0 + r ST`；后续名称无效时终止列表并保留此前以分号分隔的 `DCS 1 + r ... ST` 成功前缀，与 xterm 的多名称行为一致。适配器不启用 XTSETTCAP、tmux 控制模式或第二个 VT 所有者。它的 APC 处理程序禁用 Glyph Protocol 识别：在端到端投影渲染器与资源合同获接受前，support、query、registration 与 clear 请求既不回复，也不改变 glossary。保留的来源独立语料库固定 DSR、主要/次要/第三 DA、XTWINOPS、配色方案、XTVERSION、ENQ、DECRQSS、XTGETTCAP、已禁用 Glyph 请求、畸形边界及解析器分片的精确有序字节。

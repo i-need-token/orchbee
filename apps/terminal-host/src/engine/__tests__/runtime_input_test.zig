@@ -1083,27 +1083,53 @@ test "auto paste keeps opaque bytes, applies ghostty transforms, and snapshots t
     // Ctrl-B is not in the Ghostty strip list; ESC and NUL are replaced by
     // spaces, and an unbracketed paste maps LF to CR.
     const content = "\x02\x80\xff\x1b\r\nraw\x00paste";
+    const plain_encoded = "\x02\x80\xff \r\rraw paste";
+    const wrapped_encoded = "\x1b[200~\x02\x80\xff \r\nraw paste\x1b[201~";
 
+    // Prepare under plain mode, flip the real bracketed mode on, then commit
+    // for real: the queue publishes exactly the prepared plain encoding.
     var plain = try runtime.preparePasteAutoInput(content, std.math.maxInt(usize));
-    try std.testing.expectEqualSlices(u8, "\x02\x80\xff \r\rraw paste", plain.bytes.?);
-    plain.deinit();
+    try std.testing.expectEqualSlices(u8, plain_encoded, plain.bytes.?);
+    parseTerminalInput(runtime, "\x1b[?2004h");
+    try std.testing.expectEqualSlices(u8, plain_encoded, plain.bytes.?);
+    try std.testing.expectEqual(plain_encoded.len, try plain.commit());
+    try expectNextQueuedClientBytes(runtime, plain_encoded);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+
+    // Prepare under bracketed mode, flip it off, then commit for real: the
+    // twelve-byte wrapper belongs to the snapshot and is applied once.
+    var wrapped = try runtime.preparePasteAutoInput(content, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, wrapped_encoded, wrapped.bytes.?);
+    parseTerminalInput(runtime, "\x1b[?2004l");
+    try std.testing.expectEqualSlices(u8, wrapped_encoded, wrapped.bytes.?);
+    try std.testing.expectEqual(wrapped_encoded.len, try wrapped.commit());
+    try expectNextQueuedClientBytes(runtime, wrapped_encoded);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+
+    // With linefeed mode on, each carriage return in the encoded bytes
+    // expands exactly once at preparation, wrapper included.
+    parseTerminalInput(runtime, "\x1b[20h");
+    var linefeed_plain = try runtime.preparePasteAutoInput("a\rb", std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, "a\r\nb", linefeed_plain.bytes.?);
+    try std.testing.expectEqual(@as(usize, 4), try linefeed_plain.commit());
+    try expectNextQueuedClientBytes(runtime, "a\r\nb");
 
     parseTerminalInput(runtime, "\x1b[?2004h");
-    var wrapped = try runtime.preparePasteAutoInput(content, std.math.maxInt(usize));
-    try std.testing.expectEqualSlices(
-        u8,
-        "\x1b[200~\x02\x80\xff \r\nraw paste\x1b[201~",
-        wrapped.bytes.?,
-    );
-
-    parseTerminalInput(runtime, "\x1b[?2004l");
-    try std.testing.expectEqualSlices(
-        u8,
-        "\x1b[200~\x02\x80\xff \r\nraw paste\x1b[201~",
-        wrapped.bytes.?,
-    );
-    wrapped.deinit();
+    var linefeed_wrapped = try runtime.preparePasteAutoInput("a\rb", std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, "\x1b[200~a\r\nb\x1b[201~", linefeed_wrapped.bytes.?);
+    try std.testing.expectEqual(@as(usize, 16), try linefeed_wrapped.commit());
+    try expectNextQueuedClientBytes(runtime, "\x1b[200~a\r\nb\x1b[201~");
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+
+    // The lower cap applies to the final encoded size: 3 content bytes
+    // encode to 15 and expand to 16 under bracketed linefeed mode.
+    try std.testing.expectError(
+        error.InputLimitExceeded,
+        runtime.preparePasteAutoInput("a\rb", 15),
+    );
+    var fitted = try runtime.preparePasteAutoInput("a\rb", 16);
+    try std.testing.expectEqual(@as(usize, 16), try fitted.commit());
+    try expectNextQueuedClientBytes(runtime, "\x1b[200~a\r\nb\x1b[201~");
 
     try std.testing.expectError(
         error.InputLimitExceeded,
@@ -1113,6 +1139,50 @@ test "auto paste keeps opaque bytes, applies ghostty transforms, and snapshots t
         error.EmptyInput,
         runtime.preparePasteAutoInput("", std.math.maxInt(usize)),
     );
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try runtime.forceTerminate();
+}
+test "auto paste allocation failure produces no input effect and leaks nothing" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    const runtime_state = runtimeState(runtime);
+    const runtime_allocator = runtime_state.allocator;
+
+    // The encoder allocation failing before any reservation leaves no
+    // input effect behind.
+    var failing_encode = std.testing.FailingAllocator.init(
+        std.testing.allocator,
+        .{ .fail_index = 0 },
+    );
+    runtime_state.allocator = failing_encode.allocator();
+    const encode_failure = runtime.preparePasteAutoInput("payload", std.math.maxInt(usize));
+    runtime_state.allocator = runtime_allocator;
+    try std.testing.expectError(error.OutOfMemory, encode_failure);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    var snapshot = inputQueueSnapshot(runtime);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.entries);
+
+    // The reservation allocation failing after a successful encode frees
+    // the encoded copy and still leaves no input effect. The queue owns its
+    // own allocator, so both must point at the failing allocator: dupe and
+    // encode consume indices 0 and 1, the reservation consumes index 2.
+    var failing_reserve = std.testing.FailingAllocator.init(
+        std.testing.allocator,
+        .{ .fail_index = 2 },
+    );
+    const queue_allocator = runtime_state.input_queue.allocator;
+    runtime_state.allocator = failing_reserve.allocator();
+    runtime_state.input_queue.allocator = failing_reserve.allocator();
+    const reserve_failure = runtime.preparePasteAutoInput("payload", std.math.maxInt(usize));
+    runtime_state.allocator = runtime_allocator;
+    runtime_state.input_queue.allocator = queue_allocator;
+    try std.testing.expectError(error.OutOfMemory, reserve_failure);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    snapshot = inputQueueSnapshot(runtime);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.entries);
     try runtime.forceTerminate();
 }
 test "attachment detach repairs only its accepted key and mouse ownership" {
@@ -2252,6 +2322,25 @@ test "mode-effect reply exhaustion fences reader and attachment resize commits" 
         try std.testing.expectEqual(@as(u16, 90), retained.columns);
         try std.testing.expectEqual(@as(u16, 25), retained.rows);
     }
+}
+
+fn expectNextQueuedClientBytes(
+    runtime: *TerminalRuntime,
+    expected: []const u8,
+) !void {
+    var buffer: [512]u8 = undefined;
+    const runtime_state = runtimeState(runtime);
+    runtime_state.input_mutex.lock();
+    defer runtime_state.input_mutex.unlock();
+    try std.testing.expect(runtime_state.input_queue.hasWritableEntry());
+    const slice = runtime_state.input_queue.copyNextWriterSlice(&buffer);
+    try std.testing.expectEqual(InputSource.client, slice.source);
+    try std.testing.expectEqual(expected.len, slice.length);
+    try std.testing.expectEqualStrings(expected, buffer[0..slice.length]);
+    try std.testing.expect(
+        runtime_state.input_queue.accountWriterSlice(slice, slice.length) == .completed,
+    );
+    try std.testing.expect(!runtime_state.input_queue.hasWritableEntry());
 }
 
 fn expectNextQueuedTerminalBytes(

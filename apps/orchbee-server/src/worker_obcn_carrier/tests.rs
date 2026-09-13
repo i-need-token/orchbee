@@ -1394,3 +1394,196 @@ fn controller_results_require_exact_request_viewer_grant_and_geometry() -> TestR
     }
     Ok(())
 }
+
+#[test]
+fn paste_results_validate_count_boundaries_and_exact_result_class() -> TestResult {
+    use orchbee_capability_node_protocol::{
+        ControlRejection, PasteAcceptedBytes, PasteContent, TerminalControlAction,
+        TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
+    };
+    let content = PasteContent::new(b"payload".to_vec())?;
+    let paste_request = |request_id: u8| -> TestResult<TerminalControlRequest> {
+        Ok(TerminalControlRequest {
+            request_id: OperationId::from_bytes([request_id; 16])?,
+            worker_id: CapabilityWorkerId::from_bytes(LOCAL_WORKER_ID.as_bytes())?,
+            worker_generation: WorkerGeneration::new(GENERATION),
+            viewer_id: OperationId::from_bytes([2; 16])?,
+            controller_id: OperationId::from_bytes([3; 16])?,
+            action: TerminalControlAction::Paste {
+                sequence: NonZeroU64::MIN,
+                content: content.clone(),
+            },
+        })
+    };
+    let result_for = |request: &TerminalControlRequest,
+                      outcome: TerminalControlOutcome|
+     -> TerminalControlResult {
+        TerminalControlResult {
+            request_id: request.request_id,
+            viewer_id: request.viewer_id,
+            controller_id: request.controller_id,
+            outcome,
+        }
+    };
+
+    // A positive count, the exact 2 * content + 12 upper bound, and a
+    // definite Rejected outcome are all accepted on one serialized wire.
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let first_request = paste_request(1)?;
+    let second_request = paste_request(4)?;
+    let third_request = paste_request(5)?;
+    let first_result = result_for(
+        &first_request,
+        TerminalControlOutcome::Pasted {
+            accepted_bytes: PasteAcceptedBytes::new(7)?,
+        },
+    );
+    let bounded_result = result_for(
+        &second_request,
+        TerminalControlOutcome::Pasted {
+            accepted_bytes: PasteAcceptedBytes::new(26)?,
+        },
+    );
+    let rejected_result = result_for(
+        &third_request,
+        TerminalControlOutcome::Rejected(ControlRejection::HostRejected),
+    );
+    let worker_requests = (
+        first_request.clone(),
+        second_request.clone(),
+        third_request.clone(),
+    );
+    let worker_results = (first_result, bounded_result, rejected_result);
+    let worker_thread = thread::spawn(move || -> TestResult {
+        for (request, result) in [
+            (worker_requests.0, worker_results.0),
+            (worker_requests.1, worker_results.1),
+            (worker_requests.2, worker_results.2),
+        ] {
+            assert_eq!(
+                read_message(&mut worker)?,
+                CapabilityNodeMessage::TerminalControlRequest(request)
+            );
+            write_message(
+                &mut worker,
+                &CapabilityNodeMessage::TerminalControlResult(result),
+            )?;
+        }
+        Ok(())
+    });
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Control(first_request))?,
+        WorkerOperationResult::Control(first_result)
+    );
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Control(second_request))?,
+        WorkerOperationResult::Control(bounded_result)
+    );
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Control(third_request))?,
+        WorkerOperationResult::Control(rejected_result)
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+
+    // One byte beyond the 2 * content + 12 bound is not a paste result.
+    let request = paste_request(6)?;
+    for accepted_bytes in [27u32, PasteAcceptedBytes::MAXIMUM] {
+        assert_post_delivery_failure(
+            WorkerOperationRequest::Control(request.clone()),
+            CapabilityNodeMessage::TerminalControlResult(result_for(
+                &request,
+                TerminalControlOutcome::Pasted {
+                    accepted_bytes: PasteAcceptedBytes::new(accepted_bytes)?,
+                },
+            )),
+            WorkerResponseFailure::WrongResultKind,
+        )?;
+    }
+
+    // A different success class is never a paste success.
+    for outcome in [
+        TerminalControlOutcome::InputAccepted,
+        TerminalControlOutcome::Resized(TerminalPixelGeometry::new(80, 24, 8, 16)?),
+        TerminalControlOutcome::Acquired,
+        TerminalControlOutcome::Released,
+    ] {
+        assert_post_delivery_failure(
+            WorkerOperationRequest::Control(request.clone()),
+            CapabilityNodeMessage::TerminalControlResult(result_for(&request, outcome)),
+            WorkerResponseFailure::WrongResultKind,
+        )?;
+    }
+
+    // Correlation and target checks still precede result-class validation.
+    let wrong = OperationId::from_bytes([9; 16])?;
+    for (result, failure) in [
+        (
+            TerminalControlResult {
+                request_id: wrong,
+                ..result_for(
+                    &request,
+                    TerminalControlOutcome::Pasted {
+                        accepted_bytes: PasteAcceptedBytes::new(7)?,
+                    },
+                )
+            },
+            WorkerResponseFailure::MismatchedCorrelation,
+        ),
+        (
+            TerminalControlResult {
+                viewer_id: wrong,
+                ..result_for(
+                    &request,
+                    TerminalControlOutcome::Pasted {
+                        accepted_bytes: PasteAcceptedBytes::new(7)?,
+                    },
+                )
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+        (
+            TerminalControlResult {
+                controller_id: wrong,
+                ..result_for(
+                    &request,
+                    TerminalControlOutcome::Pasted {
+                        accepted_bytes: PasteAcceptedBytes::new(7)?,
+                    },
+                )
+            },
+            WorkerResponseFailure::MismatchedTarget,
+        ),
+    ] {
+        assert_post_delivery_failure(
+            WorkerOperationRequest::Control(request.clone()),
+            CapabilityNodeMessage::TerminalControlResult(result),
+            failure,
+        )?;
+    }
+
+    // A request-direction frame or a different operation's result retires
+    // the carrier.
+    assert_post_delivery_failure(
+        WorkerOperationRequest::Control(request.clone()),
+        CapabilityNodeMessage::TerminalControlRequest(paste_request(8)?),
+        WorkerResponseFailure::WrongDirection,
+    )?;
+    let unrelated_launch = launch_request(authorization(9, 9, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    assert_post_delivery_failure(
+        WorkerOperationRequest::Control(request),
+        CapabilityNodeMessage::TerminalLaunchResult(launch_result(&unrelated_launch)),
+        WorkerResponseFailure::WrongResultKind,
+    )?;
+    Ok(())
+}

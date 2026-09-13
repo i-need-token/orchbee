@@ -4,19 +4,51 @@ EXTENDS FiniteSets, Naturals, TLC
 \* Companion model for the semantic-paste admission chain authorized by
 \* packet-06. One bounded raw-byte record crosses Server (request record),
 \* Worker (grant admission plus a single Host handoff), and Host
-\* (prepare-then-commit under the terminal mutex). The model proves the
-\* chain claims the packet pins down: a partial or malformed record never
-\* produces a request and leaves the stream aligned for the next record;
-\* admission consumes the sequence exactly once and a consumed sequence is
-\* never rolled back, so a replayed sequence is rejected rather than
-\* re-handed-off; preparation snapshots the bracketed-paste mode, holds a
-\* bounded reservation, and cannot produce an effect by itself; commit is
-\* the only queue effect and still re-checks grant and terminal liveness;
-\* a definite rejection publishes no effect; a lost or misclassified Host
-\* response settles the request as unknown and is never retried or
-\* fabricated into a definite outcome. Byte budgets, identity widths, and
-\* the four typed rejection codes are conformance-tested in the owning
-\* crates; this model keeps them abstract.
+\* (preparation snapshots the bracketed-paste mode under the terminal
+\* mutex; commit publishes under the separate input-admission lock after
+\* Core re-authorization -- no single mutex covers the whole span). The
+\* model describes the request chain on one already-established carrier:
+\* a partial or malformed record produces no request and enters the
+\* terminal "failed" phase, matching the implementation where the carrier
+\* fails closed on the connection rather than realigning the byte stream;
+\* a complete record followed by the next record on the surviving carrier
+\* is modeled only as the idle -> record-open transition -- byte-cursor
+\* alignment is owned by codec tests and is not simulated here.
+\* Admission consumes the sequence once and a consumed sequence is never
+\* rolled back, so a replayed sequence is rejected rather than
+\* re-handed-off; preparation holds a bounded reservation and cannot
+\* produce an effect by itself; commit is the only queue effect and still
+\* re-checks grant and terminal liveness; a definite rejection publishes
+\* no effect; a lost or misclassified Host response settles this request
+\* as unknown, retires the carrier, and is never retried or fabricated
+\* into a definite outcome. Byte budgets, identity widths, and the four
+\* typed rejection codes are conformance-tested in the owning crates;
+\* this model keeps them abstract.
+\*
+\* Abstraction boundaries, stated honestly:
+\* - Two-level sequence: Server's per-controller sequence and Worker's
+\*   per-grant sequence are folded into one grantSequence; monotonic
+\*   consumption and no-rollback survive the fold.
+\* - Static grant set: Grants is fixed at Init; real grant
+\*   acquire/replace cycles are outside scope.
+\* - terminalAlive folds child exit, writer stop, failure fencing, and
+\*   client input closure into one bit.
+\* - Wrong/lost response: this request settles as unknown and the carrier
+\*   enters "failed"; real broker retirement, replacement-carrier
+\*   activation, and cross-request/incarnation cleanup are owned by
+\*   LocalWorkerObcnCarrier.tla and LocalHostBroker.tla and their
+\*   worker_obcn_carrier / process tests. This model does not prove any
+\*   incarnation or broker-retirement lifecycle.
+\* - No fairness is asserted. ReservationReleasedOnce is a transition
+\*   safety property (the held state is left only through commit or
+\*   cancel), not an eventual-release liveness claim.
+\*   SettledRequestHasOutcome states only that a settled request has a
+\*   non-"none" outcome; it is not by itself an exact-once proof.
+\*   Exactly-once sequence consumption follows the unidirectional phase
+\*   graph: request-ready -> admitted is the only transition that writes
+\*   grantSequence, and no transition returns a request to record-open or
+\*   request-ready; only RetireRequest resets the request fields for a
+\*   fresh record on the surviving carrier.
 
 CONSTANTS Grants, NoGrant, MaxSequence, QueueCapacity
 
@@ -28,7 +60,7 @@ Modes == {"bracketed", "plain"}
 ModeValues == Modes \cup {"none"}
 Phases == {
   "idle", "record-open", "request-ready", "admitted", "handed",
-  "prepared", "responded", "settled"
+  "prepared", "responded", "settled", "failed"
 }
 Responses == {"none", "accepted", "rejected"}
 Outcomes == {"none", "accepted", "rejected", "unknown"}
@@ -118,8 +150,12 @@ Init ==
 
 \* --- Bounded record framing -------------------------------------------
 \* A record-open phase is the partially read prefix of one bounded OBCQ or
-\* OBNQ record. While it is open no request exists, and abandoning it
-\* realigns the reader on the next record boundary.
+\* OBNQ record. While it is open no request exists. Abandoning it enters
+\* the terminal "failed" phase: the real carrier fails closed on the
+\* connection, so no further record is admitted on this request path.
+\* Successful completion of a record leaves the carrier alive and a later
+\* record re-enters at idle -- the model represents that adjacent record
+\* abstractly and does not simulate a byte cursor.
 
 BeginPasteRecord ==
   /\ phase = "idle"
@@ -132,7 +168,7 @@ BeginPasteRecord ==
 
 AbandonPartialRecord ==
   /\ phase = "record-open"
-  /\ phase' = "idle"
+  /\ phase' = "failed"
   /\ Record("abandon-partial-record")
   /\ UNCHANGED <<grantAlive, grantSequence, requestGrant, requestSequence,
        requestHandoffs, requestCommitted, terminalAlive, liveMode,
@@ -192,10 +228,12 @@ HandoffToHost ==
        committedMode, reservation, queueUsed, totalCommits, response,
        outcome, protocolViolation>>
 
-\* --- Host preparation under the terminal mutex -------------------------
-\* Prepare snapshots the live bracketed-paste mode and holds one bounded
-\* reservation against the queue budget. A dead terminal or a full queue
-\* rejects before any effect; no reservation is left behind.
+\* --- Host preparation --------------------------------------------------
+\* Prepare snapshots the live bracketed-paste mode under the terminal
+\* mutex and holds one bounded reservation against the queue budget. A
+\* dead terminal or a full queue rejects before any effect; no
+\* reservation is left behind. Commit runs later under the input-side
+\* admission lock; the mode snapshot, not the live mode, encodes it.
 
 PreparePaste ==
   /\ phase = "handed"
@@ -295,8 +333,13 @@ DrainQueue ==
 
 \* --- Response delivery -------------------------------------------------
 \* A correlated accepted or rejected result settles as the matching
-\* definite outcome. A lost, late, or misclassified response settles as
-\* unknown; it is never retried and never fabricated into a definite one.
+\* definite outcome and the carrier survives for the next record. A lost,
+\* late, or misclassified response settles this request as unknown and
+\* terminates the carrier: the implementation retires the broker for any
+\* ambiguous Host exchange, so no further record is admitted. The
+\* cross-request aftermath (replacement carrier, incarnation cleanup) is
+\* owned by the LocalWorkerObcnCarrier and LocalHostBroker models and
+\* their tests, not by this slice.
 
 DeliverResponse ==
   /\ phase = "responded"
@@ -312,7 +355,7 @@ DeliverResponse ==
 LoseResponse ==
   /\ phase = "responded"
   /\ outcome' = "unknown"
-  /\ phase' = "settled"
+  /\ phase' = "failed"
   /\ Record("lose-response")
   /\ UNCHANGED <<grantAlive, grantSequence, requestGrant, requestSequence,
        requestHandoffs, requestCommitted, terminalAlive, liveMode,
@@ -323,15 +366,17 @@ DeliverWrongResponse ==
   /\ phase = "responded"
   /\ outcome' = "unknown"
   /\ protocolViolation' = TRUE
-  /\ phase' = "settled"
+  /\ phase' = "failed"
   /\ Record("deliver-wrong-response")
   /\ UNCHANGED <<grantAlive, grantSequence, requestGrant, requestSequence,
        requestHandoffs, requestCommitted, terminalAlive, liveMode,
        preparedMode, committedMode, reservation, queueUsed, totalHandoffs,
        totalCommits, response>>
 
-\* A settled request retires: a later record is a fresh request with its
-\* own sequence check; nothing about the retired request is replayed.
+\* A request settled with a definite outcome retires and the surviving
+\* carrier accepts a later record as a fresh request with its own
+\* sequence check; nothing about the retired request is replayed. An
+\* unknown-settled or failed carrier never reaches this point.
 RetireRequest ==
   /\ phase = "settled"
   /\ reservation = "none"
@@ -401,18 +446,40 @@ TypeOK ==
   /\ priorTotalCommits \in 0..MaxRequests
   /\ lastAction \in Actions
 
-\* A partially read record is never a request; abandoning it leaves the
-\* reader aligned on the next record boundary with nothing admitted.
+\* A partially read record is never a request.
 PartialRecordProducesNoRequest ==
   phase = "record-open" => requestGrant = NoGrant
 
-\* One request is handed to Host at most once; a settled unknown outcome
-\* never re-opens a handoff for the same request.
+\* Abandoning a partial record produces no request, no handoff, no
+\* effect, and no reservation; the carrier is terminally failed.
+AbandonedRecordProducesNoEffect ==
+  lastAction = "abandon-partial-record" =>
+    /\ requestGrant = NoGrant
+    /\ requestHandoffs = 0
+    /\ ~requestCommitted
+    /\ reservation = "none"
+
+\* Once the carrier enters "failed" it never leaves: every transition
+\* observed there is the failure entry itself or a pure environment
+\* action, and no request-path action can fire.
+FailedPhaseIsTerminal ==
+  phase = "failed" =>
+    lastAction \in {
+      "abandon-partial-record", "lose-response",
+      "deliver-wrong-response", "flip-bracketed-mode", "revoke-grant",
+      "kill-terminal", "drain-queue"}
+
+\* An unknown outcome always coincides with a terminated carrier.
+UnknownOutcomeTerminatesCarrier ==
+  outcome = "unknown" => phase = "failed"
+
+\* One request is handed to Host at most once; an unknown outcome
+\* terminates the carrier so no request can be re-handed-off afterwards.
 AtMostOneHandoffPerRequest ==
   requestHandoffs <= 1
 
 NoReplayAfterUnknownOutcome ==
-  (phase = "settled" /\ outcome = "unknown") => requestHandoffs <= 1
+  outcome = "unknown" => requestHandoffs <= 1
 
 \* Every commit travels through exactly one handoff.
 CommitRequiresHandoff ==
@@ -460,8 +527,10 @@ CommitPublishesPreparedEncoding ==
     /\ committedMode = preparedMode
     /\ preparedMode \in Modes
 
-\* A reservation leaves the held state exactly once, through commit or
-\* cancellation; it cannot leak past retirement.
+\* A reservation leaves the held state only through commit or
+\* cancellation; it cannot leak past retirement. This is a transition
+\* safety property: with no fairness assumption the model does not claim
+\* the reservation is eventually released.
 ReservationReleasedOnce ==
   (priorReservation = "held" /\ reservation = "none") =>
     lastAction \in {"commit-prepared-paste", "cancel-prepared-paste"}
@@ -476,8 +545,10 @@ WrongResponseNeverFabricatesOutcome ==
     /\ outcome = "unknown"
     /\ protocolViolation
 
-\* Outcomes are written exactly once per request: settling always produces
-\* an outcome, and only retirement clears it for a fresh request.
+\* Settling always produces a non-"none" outcome; only retirement clears
+\* it for a fresh request. This states settled => outcome # "none"; it is
+\* not by itself an exact-once proof. Exactly-once sequence consumption
+\* follows from the unidirectional phase graph described in the header.
 SettledRequestHasOutcome ==
   phase = "settled" => outcome # "none"
 
