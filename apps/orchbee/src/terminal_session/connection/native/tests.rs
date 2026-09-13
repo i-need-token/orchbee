@@ -2154,6 +2154,7 @@ fn run_ready_zero_write_cut(cut: ReadyZeroWriteCut) -> TestResult {
 ///   * worker-first — the deposit parks at its clock sample until the worker's expiry has
 ///     emitted the cleanup `Detach`; the resumed same-tick deposit must observe
 ///     `MutationResult::Stale`, not `ForwardExpired`.
+///
 /// An unsynchronized `ForwardExpired`-only deposit oracle is not a correctness boundary:
 /// a stale deposit is the legal outcome once the worker's expiry retires the taken event.
 #[test]

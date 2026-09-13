@@ -1248,11 +1248,14 @@ fn run_taken_forward_expiry_worker_first() -> TestResult {
             );
             drop(worker_pause);
             let close_deadline = Instant::now() + Duration::from_secs(2);
-            while controller_mailbox.is_closed() != Some(CarrierFailure::Deadline)
-                && Instant::now() < close_deadline
-            {
+            while controller_mailbox.is_closed().is_none() && Instant::now() < close_deadline {
                 thread::yield_now();
             }
+            assert_eq!(
+                controller_mailbox.is_closed(),
+                Some(CarrierFailure::Deadline),
+                "the worker did not close the mailbox with Deadline while the deposit was parked"
+            );
             drop(deposit_gate);
         });
         assert!(session.tick());
