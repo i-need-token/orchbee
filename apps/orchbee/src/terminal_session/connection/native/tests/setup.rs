@@ -69,7 +69,7 @@ pub(super) const IDENTITY_SEED: u128 = 0x100;
 mod switch_membership;
 pub(super) use switch_membership::drive_switch_snapshot;
 const COHORT: &str = "native-scripted-test";
-const WALL_GUARD: Duration = Duration::from_secs(2);
+pub(super) const WALL_GUARD: Duration = Duration::from_secs(2);
 const VIEWER_ID: &str = "22222222222222222222222222222222";
 const HOST_EPOCH: &str = "11111111111111111111111111111111";
 const CONTROLLER_ID: &str = "33333333333333333333333333333333";
@@ -1107,6 +1107,39 @@ impl UiDriver {
         frame_cut: FrameCut,
     ) -> TestResult<UiEvent> {
         self.settle(taken, frame_cut, None)
+    }
+
+    /// Deposits the `SetupConfigured` reply for a taken event and returns the raw admission
+    /// result instead of mapping errors through `event_error`: a boundary test parks this
+    /// call at the mailbox deposit-sample gate so the worker's forward expiry can run
+    /// first, after which the resumed same-tick deposit must observe `MutationResult::Stale`
+    /// rather than `EventError::ForwardExpired`.
+    pub(super) fn deposit_setup_configuration(
+        &mut self,
+        taken: TakenEvent,
+    ) -> TestResult<std::result::Result<MutationResult, EventError>> {
+        let (wait_key, event) = taken.into_parts();
+        let WorkerEvent::SetupConfigured {
+            key,
+            mode,
+            applied_geometry,
+        } = event
+        else {
+            return Err(test_error("expected a taken SetupConfigured event"));
+        };
+        let wait_key = wait_key.ok_or_else(|| test_error("SetupConfigured wait key"))?;
+        let mailbox = Arc::clone(&self.mailbox);
+        let clock = self.clock.clone();
+        let state = self.state_mut();
+        Ok(
+            mailbox.deposit_ui_reply_before(&wait_key, &clock, |_transaction| {
+                Ok(UiReply::SetupConfigurationSettled(
+                    state
+                        .settle_setup_configuration_event(&key, mode.clone(), applied_geometry)
+                        .ok_or(CarrierFailure::Protocol)?,
+                ))
+            }),
+        )
     }
 
     pub(super) fn settle_refresh_and_supersede(

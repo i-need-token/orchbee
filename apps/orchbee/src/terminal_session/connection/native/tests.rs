@@ -9,7 +9,7 @@ mod workspace_setup;
 use self::setup::*;
 use super::*;
 use crate::terminal_session::{
-    mailbox::{QueuedCommand, Tagged, TakenEvent},
+    mailbox::{MutationResult, QueuedCommand, Tagged, TakenEvent},
     state::{CarrierFailure, CleanupContinuation, ControllerMode, ReadyDecision, SessionPhaseKind},
 };
 use orchbee_client_server_protocol::{
@@ -19,7 +19,11 @@ use orchbee_client_server_protocol::{
     ViewerUnavailableReason,
 };
 
-use std::{sync::atomic::Ordering, time::Duration};
+use std::{
+    sync::atomic::Ordering,
+    thread,
+    time::{Duration, Instant},
+};
 
 #[test]
 fn startup_controlling_draws_before_exact_feedback_and_clears_its_ceiling() -> TestResult {
@@ -2140,8 +2144,33 @@ fn run_ready_zero_write_cut(cut: ReadyZeroWriteCut) -> TestResult {
     harness.finish()
 }
 
+/// Both legal same-tick orders at the 45-second forward boundary, forced by the
+/// `CommandMailbox` test gates (`pause_next_ui_reply_await_sample_for_test` parks the
+/// worker at its reply sample; `pause_next_ui_reply_deposit_for_test` parks the UI at its
+/// deposit sample):
+///   * UI-first — the worker is parked in its reply await while the exact-cut deposit
+///     marks the cell `ForwardExpired`; releasing it lets the worker consume the mark and
+///     emit the cleanup `Detach`.
+///   * worker-first — the deposit parks at its clock sample until the worker's expiry has
+///     emitted the cleanup `Detach`; the resumed same-tick deposit must observe
+///     `MutationResult::Stale`, not `ForwardExpired`.
+/// An unsynchronized `ForwardExpired`-only deposit oracle is not a correctness boundary:
+/// a stale deposit is the legal outcome once the worker's expiry retires the taken event.
 #[test]
 fn switch_forward_and_cleanup_cuts_accept_before_and_expire_at_boundary() -> TestResult {
+    run_switch_forward_boundary_ui_first()?;
+    run_switch_forward_boundary_worker_first()
+}
+
+struct SwitchForwardBoundary {
+    harness: Harness,
+    configured: TakenEvent,
+}
+
+/// Drives a switch to a pending `SetupConfigured` handoff whose forward cutoff is exactly
+/// 45 seconds from the harness clock origin — the point where the two legal same-tick
+/// expiry orders diverge.
+fn switch_forward_boundary() -> TestResult<SwitchForwardBoundary> {
     let geometry = fixture_geometry()?;
     let mut harness = Harness::start(
         vec![
@@ -2210,26 +2239,20 @@ fn switch_forward_and_cleanup_cuts_accept_before_and_expire_at_boundary() -> Tes
         .ui
         .take_next()
         .map_err(|error| test_error(&format!("missing boundary SetupConfigured: {error}")))?;
+    Ok(SwitchForwardBoundary {
+        harness,
+        configured,
+    })
+}
 
-    harness.elapsed_millis.store(45_000, Ordering::SeqCst);
-    let error = match harness.ui.settle_taken(configured, FrameCut::None) {
-        Err(error) => error,
-        Ok(_) => {
-            return Err(test_error(
-                "a forward handoff at exactly 45 seconds must expire",
-            ));
-        }
-    };
-    assert_eq!(error.to_string(), "mailbox event failed: ForwardExpired");
-    assert_eq!(harness.mailbox.is_closed(), None);
-
-    let ClientMessage::TerminalViewer(cleanup) = harness.carrier.take_obcs().map_err(|error| {
-        test_error(&format!(
-            "missing boundary cleanup Detach: {error}; mailbox={:?}",
-            harness.mailbox.is_closed()
-        ))
-    })?
-    else {
+/// From the observed boundary cleanup `Detach`: respond `Detached`, take the published
+/// `CleanupSettled`, and settle it at exactly the 50-second total cut — the same
+/// worker-ordered tail for both boundary orders.
+fn settle_switch_forward_cleanup_at_total_cut(
+    mut harness: Harness,
+    detach: ClientMessage,
+) -> TestResult {
+    let ClientMessage::TerminalViewer(cleanup) = detach else {
         return Err(test_error("forward expiry must Detach the attached target"));
     };
     assert_eq!(
@@ -2259,6 +2282,84 @@ fn switch_forward_and_cleanup_cuts_accept_before_and_expire_at_boundary() -> Tes
     }
     assert_eq!(harness.mailbox.is_closed(), Some(CarrierFailure::Deadline));
     harness.finish_with_failure(CarrierFailure::Deadline)
+}
+
+fn run_switch_forward_boundary_ui_first() -> TestResult {
+    let SwitchForwardBoundary {
+        mut harness,
+        configured,
+    } = switch_forward_boundary()?;
+
+    let worker_pause = harness.mailbox.pause_next_ui_reply_await_sample_for_test();
+    if !worker_pause.await_reached_before(Instant::now() + WALL_GUARD) {
+        return Err(test_error(
+            "worker did not reach the armed reply-sample pause",
+        ));
+    }
+
+    harness.elapsed_millis.store(45_000, Ordering::SeqCst);
+    let error = match harness.ui.settle_taken(configured, FrameCut::None) {
+        Err(error) => error,
+        Ok(_) => {
+            return Err(test_error(
+                "a forward handoff at exactly 45 seconds must expire",
+            ));
+        }
+    };
+    assert_eq!(error.to_string(), "mailbox event failed: ForwardExpired");
+    assert_eq!(harness.mailbox.is_closed(), None);
+    drop(worker_pause);
+
+    let detach = harness.carrier.take_obcs().map_err(|error| {
+        test_error(&format!(
+            "missing boundary cleanup Detach: {error}; mailbox={:?}",
+            harness.mailbox.is_closed()
+        ))
+    })?;
+    settle_switch_forward_cleanup_at_total_cut(harness, detach)
+}
+
+fn run_switch_forward_boundary_worker_first() -> TestResult {
+    let SwitchForwardBoundary {
+        mut harness,
+        configured,
+    } = switch_forward_boundary()?;
+
+    let deposit_gate = harness.mailbox.pause_next_ui_reply_deposit_for_test();
+    harness.elapsed_millis.store(45_000, Ordering::SeqCst);
+    let detach = {
+        let ui = &mut harness.ui;
+        let carrier = &harness.carrier;
+        thread::scope(|scope| -> TestResult<ClientMessage> {
+            let parked_deposit = scope.spawn(move || ui.deposit_setup_configuration(configured));
+            if !deposit_gate.await_reached_before(Instant::now() + WALL_GUARD) {
+                drop(deposit_gate);
+                return Err(test_error("UI deposit did not reach the armed sample gate"));
+            }
+            let detach = match carrier.take_obcs() {
+                Ok(detach @ ClientMessage::TerminalViewer(_)) => detach,
+                Ok(_) | Err(_) => {
+                    drop(deposit_gate);
+                    return Err(test_error(
+                        "worker expiry did not emit the boundary cleanup Detach \
+                         while the deposit was parked",
+                    ));
+                }
+            };
+            drop(deposit_gate);
+            let deposited = parked_deposit
+                .join()
+                .map_err(|_panic| test_error("parked SetupConfigured deposit panicked"))??;
+            if !matches!(deposited, Ok(MutationResult::Stale)) {
+                return Err(test_error(
+                    "a worker-first boundary deposit must observe Stale",
+                ));
+            }
+            Ok(detach)
+        })?
+    };
+    assert_eq!(harness.mailbox.is_closed(), None);
+    settle_switch_forward_cleanup_at_total_cut(harness, detach)
 }
 
 #[test]

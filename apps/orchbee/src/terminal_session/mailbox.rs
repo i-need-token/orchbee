@@ -31,6 +31,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 const COMMAND_CAPACITY: usize = 8;
 const CONDITION_WAIT_SLICE: Duration = Duration::from_millis(10);
+#[cfg(test)]
+const UI_REPLY_DEPOSIT_SAMPLE_BOUND: Duration = Duration::from_secs(5);
 
 mod tab_close;
 mod workspace_setup;
@@ -1031,6 +1033,21 @@ pub(super) struct CommandMailbox {
     causal_take_resume_checkpoint: AtomicUsize,
     #[cfg(test)]
     switch_snapshot_wait_checkpoint: AtomicUsize,
+    // One-shot test gates covering the two native forward-expiry boundaries; each boundary
+    // test forces one of the two legal same-tick orders and asserts that order's outcome:
+    //   UI-first: `ui_reply_await_sample_checkpoint` parks the worker inside
+    //     `await_ui_reply_before` after it re-samples but before it evaluates, so the UI
+    //     deposit marks the cell `ForwardExpired` while the worker is parked; releasing the
+    //     guard lets the worker consume the mark and retire.
+    //   worker-first: `ui_reply_deposit_sample_checkpoint` parks the UI inside
+    //     `deposit_ui_reply_before` at its clock sample (mailbox mutex released) until the
+    //     guard is dropped, the worker closes the mailbox, or a wall bound elapses, so the
+    //     worker's expiry runs first; the resumed same-tick deposit then observes `Closed`
+    //     or `Stale` rather than `ForwardExpired`.
+    #[cfg(test)]
+    ui_reply_await_sample_checkpoint: AtomicUsize,
+    #[cfg(test)]
+    ui_reply_deposit_sample_checkpoint: AtomicUsize,
 }
 
 #[cfg(test)]
@@ -1097,6 +1114,10 @@ impl CommandMailbox {
             causal_take_resume_checkpoint: AtomicUsize::new(0),
             #[cfg(test)]
             switch_snapshot_wait_checkpoint: AtomicUsize::new(0),
+            #[cfg(test)]
+            ui_reply_await_sample_checkpoint: AtomicUsize::new(0),
+            #[cfg(test)]
+            ui_reply_deposit_sample_checkpoint: AtomicUsize::new(0),
         }
     }
 
@@ -2381,7 +2402,13 @@ impl CommandMailbox {
     where
         Settle: FnOnce(&mut UiReplyTransaction<'_>) -> Result<UiReply, CarrierFailure>,
     {
+        #[cfg(not(test))]
         let (mut state, observed_at) = self.lock_with_fresh_sample(clock);
+        #[cfg(test)]
+        let (mut state, observed_at) = {
+            let (state, observed_at) = self.lock_with_fresh_sample(clock);
+            self.hold_at_ui_reply_deposit_sample(state, observed_at, clock)
+        };
         Self::ensure_open(&state).map_err(EventError::Closed)?;
         if let UiReplyAdmission::Stale = self.admit_ui_reply_locked(&mut state, wait_key)? {
             return Ok(MutationResult::Stale);
@@ -2556,6 +2583,12 @@ impl CommandMailbox {
                 self.stop_at_ui_reply_resume_checkpoint();
             }
             (state, observed_at) = self.lock_with_fresh_sample(clock);
+            #[cfg(test)]
+            if self.ui_reply_await_sample_checkpoint.load(Ordering::SeqCst) == 1 {
+                drop(state);
+                Self::stop_at_resume_checkpoint(&self.ui_reply_await_sample_checkpoint);
+                (state, observed_at) = self.lock_with_fresh_sample(clock);
+            }
         }
     }
 
@@ -3198,6 +3231,23 @@ impl CommandMailbox {
         Self::arm_resume_checkpoint(&self.switch_snapshot_wait_checkpoint)
     }
 
+    /// Arms the one-shot worker park inside `await_ui_reply_before`: after the worker
+    /// re-locks with a fresh clock sample it drops the mailbox mutex and parks until this
+    /// guard is dropped, so the test can run the UI side of a forward-expiry boundary first.
+    #[cfg(test)]
+    pub(super) fn pause_next_ui_reply_await_sample_for_test(&self) -> WorkerResumeCheckpoint<'_> {
+        Self::arm_resume_checkpoint(&self.ui_reply_await_sample_checkpoint)
+    }
+
+    /// Arms the one-shot UI park inside `deposit_ui_reply_before` at its clock sample: the
+    /// deposit drops the mailbox mutex and waits until this guard is dropped, the worker
+    /// closes the mailbox, or `UI_REPLY_DEPOSIT_SAMPLE_BOUND` elapses — letting the worker
+    /// side of a forward-expiry boundary run first within the same logical tick.
+    #[cfg(test)]
+    pub(super) fn pause_next_ui_reply_deposit_for_test(&self) -> WorkerResumeCheckpoint<'_> {
+        Self::arm_resume_checkpoint(&self.ui_reply_deposit_sample_checkpoint)
+    }
+
     #[cfg(test)]
     pub(super) fn stop_at_switch_snapshot_wait_for_test(&self) {
         Self::stop_at_resume_checkpoint(&self.switch_snapshot_wait_checkpoint);
@@ -3216,6 +3266,47 @@ impl CommandMailbox {
     #[cfg(test)]
     fn stop_at_ui_reply_resume_checkpoint(&self) {
         Self::stop_at_resume_checkpoint(&self.ui_reply_resume_checkpoint);
+    }
+
+    /// `pause_next_ui_reply_deposit_for_test` hook, entered right after the deposit clock
+    /// sample inside `deposit_ui_reply_before_using`. When armed it drops the just-acquired
+    /// mailbox guard, marks the sample reached, and spins outside the mutex until the guard
+    /// is dropped, the worker closes the mailbox — a worker-originated close must resume the
+    /// same deposit so it observes `Closed` — or the wall bound elapses. The resumed deposit
+    /// re-locks and re-samples, so no state observed before the pause is reused.
+    #[cfg(test)]
+    fn hold_at_ui_reply_deposit_sample<'a>(
+        &'a self,
+        state: MutexGuard<'a, MailboxState>,
+        observed_at: Instant,
+        clock: &dyn MailboxClock,
+    ) -> (MutexGuard<'a, MailboxState>, Instant) {
+        if self
+            .ui_reply_deposit_sample_checkpoint
+            .load(Ordering::SeqCst)
+            != 1
+        {
+            return (state, observed_at);
+        }
+        drop(state);
+        if self
+            .ui_reply_deposit_sample_checkpoint
+            .compare_exchange(1, 2, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            self.changed.notify_all();
+            let bound = Instant::now() + UI_REPLY_DEPOSIT_SAMPLE_BOUND;
+            while self
+                .ui_reply_deposit_sample_checkpoint
+                .load(Ordering::SeqCst)
+                == 2
+                && self.lock().closed.is_none()
+                && Instant::now() < bound
+            {
+                std::thread::yield_now();
+            }
+        }
+        self.lock_with_fresh_sample(clock)
     }
 
     #[cfg(test)]

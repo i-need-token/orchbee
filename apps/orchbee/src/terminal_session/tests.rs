@@ -1030,8 +1030,38 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
     Ok(())
 }
 
+/// Both legal same-tick orders at the taken forward-expiry boundary, forced by the
+/// `CommandMailbox` test gates (`pause_next_ui_reply_await_sample_for_test` parks the
+/// worker at its reply sample; `pause_next_ui_reply_deposit_for_test` parks the UI at its
+/// deposit sample):
+///   * UI-first — the tick takes and deposits while the worker is parked, so the deposit
+///     marks the cell `ForwardExpired` and the tick returns `false`; releasing the worker
+///     lets it consume the mark and retire the mailbox with `Deadline`.
+///   * worker-first — the tick's deposit parks at its clock sample until the worker's
+///     expiry retires the session and closes the mailbox with `Deadline`; the resumed
+///     deposit observes `Closed` and the same tick returns `true`.
+/// An unsynchronized `assert!(!session.tick())` oracle is not a correctness boundary:
+/// `tick() == true` only reports that a UI state change happened — here the worker-first
+/// order retires inside the same tick — so both orders must be driven and judged
+/// separately.
 #[test]
 fn native_ui_leaves_a_taken_forward_expiry_for_worker_retirement() -> TestResult {
+    run_taken_forward_expiry_ui_first()?;
+    run_taken_forward_expiry_worker_first()?;
+    run_taken_forward_expiry_released_early()
+}
+
+/// A native session with a published `CreatePrecommit` worker event: the UI has not taken
+/// it and the worker is inside its reply wait — the point where the two legal same-tick
+/// expiry orders diverge.
+struct TakenForwardExpiryFixture {
+    server: FakeServer,
+    session: TerminalSession,
+    mailbox: Arc<mailbox::CommandMailbox>,
+    clock_phase: Arc<AtomicU8>,
+}
+
+fn taken_forward_expiry_fixture() -> Result<TakenForwardExpiryFixture, Box<dyn std::error::Error>> {
     let geometry = fixture_geometry()?;
     let (ordinary_poll_sent, ordinary_poll_seen) = mpsc::sync_channel(0);
     let (release_ordinary_poll, ordinary_poll_released) = mpsc::sync_channel(0);
@@ -1131,6 +1161,27 @@ fn native_ui_leaves_a_taken_forward_expiry_for_worker_retirement() -> TestResult
         thread::yield_now();
     }
     assert!(mailbox.await_condition_waiter_before(Instant::now() + Duration::from_secs(1)));
+    Ok(TakenForwardExpiryFixture {
+        server,
+        session,
+        mailbox,
+        clock_phase,
+    })
+}
+
+fn run_taken_forward_expiry_ui_first() -> TestResult {
+    let TakenForwardExpiryFixture {
+        server,
+        mut session,
+        mailbox,
+        clock_phase,
+    } = taken_forward_expiry_fixture()?;
+
+    let worker_pause = mailbox.pause_next_ui_reply_await_sample_for_test();
+    assert!(
+        worker_pause.await_reached_before(Instant::now() + Duration::from_secs(2)),
+        "worker did not reach the armed reply-sample pause"
+    );
 
     clock_phase.store(1, Ordering::SeqCst);
     assert!(!session.tick());
@@ -1140,6 +1191,91 @@ fn native_ui_leaves_a_taken_forward_expiry_for_worker_retirement() -> TestResult
     assert_eq!(view.phase(), NativeDisplayPhase::Creating);
     assert_eq!(view.retirement(), None);
     assert_eq!(clock_phase.load(Ordering::SeqCst), 3);
+    assert_eq!(mailbox.is_closed(), None);
+    drop(worker_pause);
+
+    let worker_deadline = Instant::now() + Duration::from_secs(1);
+    while mailbox.is_closed().is_none() {
+        assert!(
+            Instant::now() < worker_deadline,
+            "worker did not consume the exact expired UI receipt"
+        );
+        thread::yield_now();
+    }
+    assert_eq!(mailbox.is_closed(), Some(CarrierFailure::Deadline));
+    assert!(session.tick());
+    assert_eq!(session.status(), TerminalStatus::Unavailable);
+    drop(session);
+    server.finish()?;
+    Ok(())
+}
+
+fn run_taken_forward_expiry_worker_first() -> TestResult {
+    let TakenForwardExpiryFixture {
+        server,
+        mut session,
+        mailbox,
+        clock_phase,
+    } = taken_forward_expiry_fixture()?;
+
+    let deposit_gate = mailbox.pause_next_ui_reply_deposit_for_test();
+    clock_phase.store(1, Ordering::SeqCst);
+    // The same `session.tick` takes the event, then its deposit parks at the clock sample
+    // outside the mailbox mutex until the worker's own expiry retires the session and
+    // closes the mailbox with `Deadline` — the worker-originated close resumes the parked
+    // deposit, which observes `Closed` and retires the session view inside this tick.
+    assert!(session.tick());
+    assert!(
+        deposit_gate.await_reached_before(Instant::now()),
+        "the tick's deposit never reached the armed sample gate"
+    );
+    assert_eq!(clock_phase.load(Ordering::SeqCst), 3);
+    assert_eq!(mailbox.is_closed(), Some(CarrierFailure::Deadline));
+    assert_eq!(session.status(), TerminalStatus::Unavailable);
+    drop(deposit_gate);
+    drop(session);
+    server.finish()?;
+    Ok(())
+}
+
+/// Early-release check for the deposit gate: with the worker parked at its reply sample and
+/// the tick parked at the deposit sample, dropping the deposit guard from a scoped releaser
+/// resumes the same tick — which then marks `ForwardExpired` exactly as the UI-first order —
+/// while the parked worker still cannot run. Releasing the worker afterwards completes the
+/// same retirement.
+fn run_taken_forward_expiry_released_early() -> TestResult {
+    let TakenForwardExpiryFixture {
+        server,
+        mut session,
+        mailbox,
+        clock_phase,
+    } = taken_forward_expiry_fixture()?;
+
+    let worker_pause = mailbox.pause_next_ui_reply_await_sample_for_test();
+    assert!(
+        worker_pause.await_reached_before(Instant::now() + Duration::from_secs(2)),
+        "worker did not reach the armed reply-sample pause"
+    );
+    let deposit_gate = mailbox.pause_next_ui_reply_deposit_for_test();
+    clock_phase.store(1, Ordering::SeqCst);
+    thread::scope(|scope| {
+        scope.spawn(move || {
+            assert!(
+                deposit_gate.await_reached_before(Instant::now() + Duration::from_secs(2)),
+                "the tick's deposit did not reach the armed sample gate"
+            );
+            drop(deposit_gate);
+        });
+        assert!(!session.tick());
+    });
+    let TerminalSessionView::Native(view) = session.view() else {
+        panic!("standalone Session must retain its native view");
+    };
+    assert_eq!(view.phase(), NativeDisplayPhase::Creating);
+    assert_eq!(view.retirement(), None);
+    assert_eq!(clock_phase.load(Ordering::SeqCst), 3);
+    assert_eq!(mailbox.is_closed(), None);
+    drop(worker_pause);
 
     let worker_deadline = Instant::now() + Duration::from_secs(1);
     while mailbox.is_closed().is_none() {
