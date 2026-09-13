@@ -323,8 +323,11 @@ fn fifo_has_exactly_eight_records_and_keeps_causal_settlement_outside_the_capaci
     let base = Instant::now();
     let clock = FakeClock::new(base);
     let mailbox = bootstrapped_mailbox(1, 10);
-    for _ in 0..COMMAND_CAPACITY {
-        assert!(mailbox.try_enqueue(poll(&mailbox)).is_ok());
+    // The first record must be the Poll so the lease below carries a poll key; the
+    // remaining slots take Inputs because only one ordinary Poll may be outstanding.
+    assert!(mailbox.try_enqueue(poll(&mailbox)).is_ok());
+    for _ in 1..COMMAND_CAPACITY {
+        assert!(mailbox.try_enqueue(input(&mailbox, 0)).is_ok());
     }
     assert!(matches!(
         mailbox.try_enqueue(poll(&mailbox)),
@@ -350,7 +353,8 @@ fn fifo_has_exactly_eight_records_and_keeps_causal_settlement_outside_the_capaci
         } if record == vec![1, 2, 3]
     ));
     assert_eq!(mailbox.cells(), ("empty", "awaiting"));
-    assert!(mailbox.try_enqueue(poll(&mailbox)).is_ok());
+    // The Poll lease is still active, so the drained slot takes an Input.
+    assert!(mailbox.try_enqueue(input(&mailbox, 0)).is_ok());
     assert!(matches!(
         mailbox.try_enqueue(poll(&mailbox)),
         Err(AdmissionError::Full)
@@ -375,7 +379,7 @@ fn fifo_has_exactly_eight_records_and_keeps_causal_settlement_outside_the_capaci
 fn capacity_generation_builder_and_identity_failures_do_not_burn_other_cursors() {
     let full = bootstrapped_mailbox(7, 40);
     for _ in 0..COMMAND_CAPACITY {
-        full.try_enqueue(poll(&full)).unwrap();
+        full.try_enqueue(input(&full, 0)).unwrap();
     }
     let before = full.cursors();
     let result = full.try_enqueue_create(|_, _| -> Result<CreateMarker, ()> {
@@ -1960,6 +1964,157 @@ fn close_is_idempotent_preserves_first_reason_and_clears_all_bounded_storage() {
             failure: CarrierFailure::OutcomeUnknown
         })
     ));
+}
+
+#[test]
+fn publication_hint_latch_survives_stale_publish_and_captures_once() {
+    let mailbox = bootstrapped_mailbox(7, 9);
+    let clock = FakeClock::new(Instant::now());
+    let cutoff = Instant::now() + Duration::from_secs(10);
+
+    mailbox.try_enqueue(poll(&mailbox)).expect("Poll admission");
+    let lease = mailbox.try_recv().unwrap().expect("queued Poll");
+    let poll_key = lease.poll_key().expect("Poll lease carries a poll key");
+
+    // The desired moved after the poll leased: the publish is Stale, but the
+    // latch was registered before the stale branch and must survive it.
+    mailbox.lock().desired = MailboxMembership::Live {
+        desired: Some(key(8, 1)),
+    };
+    assert_eq!(
+        mailbox
+            .publish_poll_result_hint_before_using(poll_key.clone(), None, true, cutoff, &clock)
+            .expect("stale publish"),
+        MutationResult::Stale
+    );
+    let mut canonical = ready_state(1);
+    assert!(
+        mailbox
+            .capture_publication_hint_for(&mut canonical, NativeSessionState::note_publication_hint)
+            .expect("capture")
+    );
+    assert!(canonical.publication_debt_pending());
+    // The latch is consumed by the first capture.
+    assert!(
+        !mailbox
+            .capture_publication_hint_for(&mut canonical, NativeSessionState::note_publication_hint)
+            .expect("capture")
+    );
+    mailbox.finish_lease(lease).expect("lease finish");
+}
+
+#[test]
+fn publication_hint_latch_survives_event_and_causal_cleanup() {
+    let mailbox = bootstrapped_mailbox(7, 9);
+    let clock = FakeClock::new(Instant::now());
+    let cutoff = Instant::now() + Duration::from_secs(10);
+
+    mailbox.try_enqueue(poll(&mailbox)).expect("Poll admission");
+    let lease = mailbox.try_recv().unwrap().expect("queued Poll");
+    let poll_key = lease.poll_key().expect("Poll lease carries a poll key");
+    assert_eq!(
+        mailbox
+            .publish_poll_result_hint_before_using(poll_key.clone(), None, true, cutoff, &clock)
+            .expect("publish"),
+        MutationResult::Applied
+    );
+
+    // Event selection, causal deposit, and causal take all run their cleanup
+    // paths; none may clear the ingress latch.
+    let taken = mailbox
+        .take_event_before_using(&clock)
+        .expect("event take")
+        .expect("PollResult event");
+    drop(taken);
+    assert_eq!(
+        mailbox
+            .deposit_causal(&poll_key, CausalSettlement::NoFeedback)
+            .expect("causal deposit"),
+        MutationResult::Applied
+    );
+    assert!(matches!(
+        mailbox
+            .take_causal_before_using(&poll_key, cutoff, &clock)
+            .expect("causal take"),
+        Some(CausalSettlement::NoFeedback)
+    ));
+    mailbox.finish_lease(lease).expect("lease finish");
+
+    let mut canonical = ready_state(1);
+    assert!(
+        mailbox
+            .capture_publication_hint_for(&mut canonical, NativeSessionState::note_publication_hint)
+            .expect("capture")
+    );
+    assert!(canonical.publication_debt_pending());
+}
+
+#[test]
+fn second_ordinary_poll_admission_is_busy_while_queued_or_leased() {
+    let mailbox = bootstrapped_mailbox(7, 9);
+    let cursors = mailbox.cursors();
+
+    let first = mailbox.try_enqueue(poll(&mailbox)).expect("first Poll");
+    // A second ordinary Poll while the first is queued is a local no-op, not a
+    // retirement condition, and burns no cursor.
+    assert_eq!(
+        mailbox.try_enqueue(poll(&mailbox)),
+        Err(AdmissionError::Busy)
+    );
+    assert_eq!(mailbox.cursors(), cursors);
+    let lease = mailbox.try_recv().unwrap().expect("queued Poll");
+    // Still Busy while the first poll executes.
+    assert_eq!(
+        mailbox.try_enqueue(poll(&mailbox)),
+        Err(AdmissionError::Busy)
+    );
+    assert!(mailbox.ordinary_poll_continues(first).expect("continues"));
+    mailbox.finish_lease(lease).expect("lease finish");
+    // Once the obligation settles, a fresh ordinary Poll is admissible again.
+    let second = mailbox.try_enqueue(poll(&mailbox)).expect("second Poll");
+    assert_ne!(first, second);
+}
+
+#[test]
+fn ordinary_poll_continues_tracks_exact_serial_until_finish() {
+    let mailbox = bootstrapped_mailbox(7, 9);
+    let serial = mailbox.try_enqueue(poll(&mailbox)).expect("Poll admission");
+    assert!(mailbox.ordinary_poll_continues(serial).expect("queued"));
+    assert!(
+        !mailbox
+            .ordinary_poll_continues(serial + 1)
+            .expect("other serial")
+    );
+    let lease = mailbox.try_recv().unwrap().expect("queued Poll");
+    assert!(mailbox.ordinary_poll_continues(serial).expect("leased"));
+    mailbox.finish_lease(lease).expect("lease finish");
+    assert!(!mailbox.ordinary_poll_continues(serial).expect("finished"));
+}
+
+#[test]
+fn setup_poll_key_is_not_an_ordinary_poll_obligation() {
+    let mailbox = bootstrapped_mailbox(7, 9);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    mailbox
+        .try_enqueue_refresh(deadline, |_generation| Ok::<_, ()>(()))
+        .expect("refresh admission");
+    let lease = mailbox.try_recv().unwrap().expect("queued Refresh");
+    let desired = mailbox.lock().desired.key().cloned().unwrap();
+    let SetupPollKey::Allocated(setup_key) = mailbox
+        .allocate_setup_poll_key(&lease, &desired)
+        .expect("setup poll key")
+    else {
+        panic!("desired still current")
+    };
+    // The setup key shares a serial lane but is never an ordinary Poll
+    // obligation, so an ordinary Poll remains admissible while it exists.
+    assert!(
+        !mailbox
+            .ordinary_poll_continues(setup_key.serial())
+            .expect("setup serial")
+    );
+    assert!(mailbox.try_enqueue(poll(&mailbox)).is_ok());
+    mailbox.finish_lease(lease).expect("lease finish");
 }
 
 fn bootstrapped_mailbox(generation: u64, identity: u128) -> CommandMailbox {

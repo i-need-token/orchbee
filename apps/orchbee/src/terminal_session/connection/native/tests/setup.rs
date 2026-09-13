@@ -928,6 +928,44 @@ impl UiDriver {
             .map_err(|error| test_error(&format!("Refresh admission failed: {error:?}")))
     }
 
+    /// Mirrors the native UI's stable-tick capture: the mailbox ingress latch becomes
+    /// canonical debt, and one pending demand drains into a refresh flight. Busy/Full
+    /// refusal is a local no-op so the debt survives for a later settle point.
+    pub(super) fn drain_publication_hint(&mut self) -> TestResult {
+        let mailbox = Arc::clone(&self.mailbox);
+        let deadline = self
+            .clock
+            .now()
+            .checked_add(OPERATION_TOTAL)
+            .ok_or_else(|| test_error("Refresh deadline overflow"))?;
+        let state = self.state_mut();
+        mailbox
+            .capture_publication_hint_for(state, |state| state.note_publication_hint())
+            .map_err(|closed| test_error(&format!("mailbox closed: {:?}", closed.failure())))?;
+        if !state.publication_debt_pending() {
+            return Ok(());
+        }
+        match mailbox.try_enqueue_refresh_for(
+            state,
+            deadline,
+            |state, generation| {
+                state
+                    .start_publication_drain(generation)
+                    .then_some(())
+                    .ok_or("publication drain busy")
+            },
+            |_state, _result| {},
+        ) {
+            Ok(_) => Ok(()),
+            Err(
+                crate::terminal_session::mailbox::AdmissionError::Busy
+                | crate::terminal_session::mailbox::AdmissionError::Full
+                | crate::terminal_session::mailbox::AdmissionError::Build(_),
+            ) => Ok(()),
+            Err(error) => Err(test_error(&format!("publication drain failed: {error:?}"))),
+        }
+    }
+
     pub(super) fn admit_context_selection(&mut self) -> TestResult<u64> {
         let clock = self.clock.clone();
         let deadlines = OperationDeadlines::from_sample(clock.now()).unwrap();
@@ -1379,17 +1417,11 @@ impl UiDriver {
                     }
                 }
             }
-            WorkerEvent::PollResult {
-                poll_key,
-                record,
-                publication_hint,
-            } => {
+            WorkerEvent::PollResult { poll_key, record } => {
                 if wait_key.is_some() {
                     return Err(test_error("PollResult must use the causal slot"));
                 }
-                if publication_hint {
-                    let _generation = self.admit_refresh()?;
-                }
+                self.drain_publication_hint()?;
                 self.settle_poll(poll_key, record, frame_cut)
             }
             WorkerEvent::FeedbackAccepted { key, frame } => {

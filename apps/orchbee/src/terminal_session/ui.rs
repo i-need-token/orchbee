@@ -330,6 +330,8 @@ mod location_labels_tests;
 mod membership_tests;
 #[cfg(all(test, unix))]
 mod move_membership_tests;
+#[cfg(all(test, unix))]
+mod publication_hint_tests;
 #[cfg(test)]
 mod rename_membership_tests;
 #[cfg(all(test, target_os = "linux"))]
@@ -543,6 +545,8 @@ impl NativeUi {
             None => false,
         };
         if self.retirement_failure.is_none() {
+            self.reconcile_ordinary_poll(&mailbox);
+            self.drain_publication_refresh(&mailbox);
             self.schedule_close_reconciliation(&mailbox);
             self.schedule_close_read(&mailbox);
             self.schedule_poll(&mailbox);
@@ -642,6 +646,7 @@ impl NativeUi {
             Err(AdmissionError::Closed(closed)) => self.retire(closed.failure()),
             Err(
                 AdmissionError::BootstrapPending
+                | AdmissionError::Busy
                 | AdmissionError::StaleAttachment
                 | AdmissionError::AttachmentGenerationExhausted
                 | AdmissionError::RefreshGenerationExhausted
@@ -682,6 +687,7 @@ impl NativeUi {
             }
             Err(
                 AdmissionError::BootstrapPending
+                | AdmissionError::Busy
                 | AdmissionError::StaleAttachment
                 | AdmissionError::AttachmentGenerationExhausted
                 | AdmissionError::RefreshGenerationExhausted
@@ -1000,6 +1006,7 @@ impl NativeUi {
                 self.retire(CarrierFailure::Protocol);
             }
             AdmissionError::BootstrapPending
+            | AdmissionError::Busy
             | AdmissionError::Full
             | AdmissionError::StaleAttachment
             | AdmissionError::Build(
@@ -1015,16 +1022,14 @@ impl NativeUi {
     ) -> bool {
         let (wait_key, event) = taken.into_parts();
         if let WorkerEvent::PollResult {
-            poll_key,
-            record,
-            publication_hint,
+            poll_key, record, ..
         } = event
         {
             if wait_key.is_some() {
                 self.retire(CarrierFailure::Protocol);
                 return true;
             }
-            return self.apply_poll_result(mailbox, poll_key, record, publication_hint);
+            return self.apply_poll_result(mailbox, poll_key, record);
         }
         let Some(wait_key) = wait_key else {
             self.retire(CarrierFailure::Protocol);
@@ -1387,16 +1392,14 @@ impl NativeUi {
         }
     }
 
+    /// Applies a Worker poll result. A committed publication hint is owned by the mailbox
+    /// ingress latch, so consuming the event here must not produce refresh debt again.
     fn apply_poll_result(
         &mut self,
         mailbox: &Arc<CommandMailbox>,
         poll_key: super::mailbox::PollKey,
         record: Option<Vec<u8>>,
-        publication_hint: bool,
     ) -> bool {
-        if publication_hint {
-            self.enqueue_publication_refresh(mailbox);
-        }
         let ordinary = self.ordinary_poll_serial == Some(poll_key.serial());
         let Some(record) = record else {
             if ordinary {
@@ -1478,27 +1481,54 @@ impl NativeUi {
         true
     }
 
-    /// Queues a silent Workbench refresh after the Worker reported committed peer publications.
-    /// Admission failures stay silent: the next hint retries, and explicit user actions keep their
-    /// own notices.
-    fn enqueue_publication_refresh(&mut self, mailbox: &Arc<CommandMailbox>) {
-        let (Some(deadline), Some(state)) = (
-            self.clock.now().checked_add(super::state::OPERATION_TOTAL),
-            self.state.as_mut(),
-        ) else {
+    /// Reconciles the ordinary-Poll observation against the canonical mailbox: the UI
+    /// serial is only bookkeeping, so it is cleared exactly when that serial is neither
+    /// queued nor executing. A dropped or finished lease never blocks the next fair poll.
+    fn reconcile_ordinary_poll(&mut self, mailbox: &Arc<CommandMailbox>) {
+        let Some(serial) = self.ordinary_poll_serial else {
             return;
         };
-        let _ = mailbox.try_enqueue_refresh_for(
+        match mailbox.ordinary_poll_continues(serial) {
+            Ok(true) => {}
+            Ok(false) => self.ordinary_poll_serial = None,
+            Err(closed) => self.retire(closed.failure()),
+        }
+    }
+
+    /// Atomically captures a queued peer-publication hint into canonical refresh debt and
+    /// drains one pending demand into a refresh flight. Busy/Full refusal is a local
+    /// no-op: the debt stays pending and a later fair tick retries admission.
+    fn drain_publication_refresh(&mut self, mailbox: &Arc<CommandMailbox>) {
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        if let Err(closed) =
+            mailbox.capture_publication_hint_for(state, NativeSessionState::note_publication_hint)
+        {
+            self.retire(closed.failure());
+            return;
+        }
+        if !state.publication_debt_pending() {
+            return;
+        }
+        let Some(deadline) = self.clock.now().checked_add(super::state::OPERATION_TOTAL) else {
+            self.retire(CarrierFailure::Deadline);
+            return;
+        };
+        let result = mailbox.try_enqueue_refresh_for(
             state,
             deadline,
             |state, generation| {
                 state
-                    .start_pending_refresh(generation)
+                    .start_publication_drain(generation)
                     .then_some(())
                     .ok_or(ActionBuildError::Busy)
             },
             |_state, _result| {},
         );
+        if let Err(error) = result {
+            self.retire_for_admission(&error);
+        }
     }
 
     fn schedule_poll(&mut self, mailbox: &Arc<CommandMailbox>) {
@@ -1525,7 +1555,9 @@ impl NativeUi {
         }
         match mailbox.try_enqueue(QueuedCommand::Poll(Tagged::new(key, ()))) {
             Ok(serial) => self.ordinary_poll_serial = Some(serial),
-            Err(AdmissionError::Full) => {}
+            // Full and Busy are local no-ops: a canonical ordinary Poll may still be
+            // queued or active even when the UI observation was cleared.
+            Err(AdmissionError::Full | AdmissionError::Busy) => {}
             Err(AdmissionError::Closed(closed)) => self.retire(closed.failure()),
             Err(
                 AdmissionError::BootstrapPending
@@ -1718,6 +1750,7 @@ fn finish_action<Value>(
         }
         Err(
             AdmissionError::BootstrapPending
+            | AdmissionError::Busy
             | AdmissionError::Full
             | AdmissionError::StaleAttachment
             | AdmissionError::Build(ActionBuildError::Busy),

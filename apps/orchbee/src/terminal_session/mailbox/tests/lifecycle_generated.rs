@@ -700,7 +700,6 @@ impl Trace {
             matches!(event, WorkerEvent::PollResult {
                 poll_key: actual_key,
                 record: actual_record,
-                publication_hint: false,
             } if actual_key == poll_key && actual_record == record),
             "Poll payload or identity changed",
         )?;

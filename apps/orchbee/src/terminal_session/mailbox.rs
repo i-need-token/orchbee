@@ -360,6 +360,10 @@ impl CommandLease {
             key: tagged.key.clone(),
         })
     }
+
+    fn active_lease(&self) -> ActiveLease {
+        ActiveLease::of(self.serial, &self.record)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -568,7 +572,6 @@ pub(super) enum WorkerEvent {
     PollResult {
         poll_key: PollKey,
         record: Option<Vec<u8>>,
-        publication_hint: bool,
     },
 }
 
@@ -881,6 +884,9 @@ impl EventError {
 pub(super) enum AdmissionError<BuildError> {
     Closed(MailboxClosed),
     BootstrapPending,
+    /// An obligation of the same kind is already queued or executing. Refusal is a local
+    /// no-op: it does not retire the session and a later fair admission may succeed.
+    Busy,
     Full,
     StaleAttachment,
     AttachmentGenerationExhausted,
@@ -902,6 +908,18 @@ pub(super) enum MoveAdmissionError<BuildError> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ActiveLease {
     serial: u64,
+    /// Derived from the received `QueuedCommand`: exactly one ordinary Poll may be queued
+    /// or active per Session, so the canonical lease must remember whether it owns one.
+    ordinary_poll: bool,
+}
+
+impl ActiveLease {
+    fn of(serial: u64, command: &QueuedCommand) -> Self {
+        Self {
+            serial,
+            ordinary_poll: matches!(command, QueuedCommand::Poll(_)),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -955,6 +973,11 @@ struct MailboxState {
     close_acknowledgement: Option<CloseLeaseAcknowledgement>,
     close_queued_key: Option<CloseFlightKey>,
     close_deposited_result: Option<super::state::PendingCloseResult>,
+    /// Coalescing ingress latch: the Worker executor sets it once a committed peer
+    /// publication has been folded into the baseline, before any stale/wait branch can
+    /// drop the hint. The native UI captures it into canonical refresh debt; it is never
+    /// cleared by event, causal, or selection bookkeeping.
+    publication_hint_pending: bool,
     closed: Option<CarrierFailure>,
 }
 
@@ -1062,6 +1085,7 @@ impl CommandMailbox {
                 close_acknowledgement: None,
                 close_queued_key: None,
                 close_deposited_result: None,
+                publication_hint_pending: false,
                 closed: None,
             }),
             changed: Condvar::new(),
@@ -1134,10 +1158,57 @@ impl CommandMailbox {
         if state.desired.key() != Some(tagged_key) {
             return Err(AdmissionError::StaleAttachment);
         }
+        if matches!(command, QueuedCommand::Poll(_))
+            && Self::ordinary_poll_outstanding_locked(&state)
+        {
+            return Err(AdmissionError::Busy);
+        }
         state.next_command_serial = serial;
         state.queue.push_back(QueuedRecord { serial, command });
         self.changed.notify_all();
         Ok(serial)
+    }
+
+    /// Whether an ordinary Poll is queued or executing. Setup and bootstrap polls never
+    /// enter the command queue, so this is the canonical ordinary-Poll occupancy check.
+    fn ordinary_poll_outstanding_locked(state: &MailboxState) -> bool {
+        state
+            .queue
+            .iter()
+            .any(|record| matches!(record.command, QueuedCommand::Poll(_)))
+            || state.active_lease.is_some_and(|lease| lease.ordinary_poll)
+    }
+
+    /// Whether the exact ordinary Poll obligation the UI observed still exists in the
+    /// canonical queue or active lease. UI bookkeeping (`ordinary_poll_serial`) may only
+    /// be cleared when this reports `false`; any other serial, leaf, or Session state is
+    /// never consulted.
+    pub(super) fn ordinary_poll_continues(&self, serial: u64) -> Result<bool, MailboxClosed> {
+        let state = self.lock();
+        Self::ensure_open(&state)?;
+        Ok(state.queue.iter().any(|record| {
+            record.serial == serial && matches!(record.command, QueuedCommand::Poll(_))
+        }) || state
+            .active_lease
+            .is_some_and(|lease| lease.serial == serial && lease.ordinary_poll))
+    }
+
+    /// Atomically captures a queued peer-publication hint into canonical session debt.
+    /// Returns whether a hint was pending. The latch is only consumed while this Session
+    /// still owns a live canonical state to receive it.
+    pub(super) fn capture_publication_hint_for<Canonical>(
+        &self,
+        canonical: &mut Canonical,
+        apply: impl FnOnce(&mut Canonical),
+    ) -> Result<bool, MailboxClosed> {
+        let mut state = self.lock();
+        Self::ensure_open(&state)?;
+        if !state.publication_hint_pending {
+            return Ok(false);
+        }
+        state.publication_hint_pending = false;
+        apply(canonical);
+        Ok(true)
     }
 
     pub(super) fn apply_local_for<Canonical, Output>(
@@ -1536,9 +1607,7 @@ impl CommandMailbox {
             if state.active_lease.is_none()
                 && let Some(record) = state.queue.pop_front()
             {
-                state.active_lease = Some(ActiveLease {
-                    serial: record.serial,
-                });
+                state.active_lease = Some(ActiveLease::of(record.serial, &record.command));
                 return Ok(CommandLease {
                     serial: record.serial,
                     record: record.command,
@@ -1561,9 +1630,7 @@ impl CommandMailbox {
         let Some(record) = state.queue.pop_front() else {
             return Ok(None);
         };
-        state.active_lease = Some(ActiveLease {
-            serial: record.serial,
-        });
+        state.active_lease = Some(ActiveLease::of(record.serial, &record.command));
         Ok(Some(CommandLease {
             serial: record.serial,
             record: record.command,
@@ -1573,11 +1640,7 @@ impl CommandMailbox {
     pub(super) fn finish_lease(&self, lease: CommandLease) -> Result<(), MailboxClosed> {
         let mut state = self.lock();
         Self::ensure_open(&state)?;
-        if state.active_lease
-            != Some(ActiveLease {
-                serial: lease.serial,
-            })
-        {
+        if state.active_lease != Some(lease.active_lease()) {
             return Err(self.close_locked(&mut state, CarrierFailure::Protocol));
         }
         let close_ack = match lease.record() {
@@ -1633,12 +1696,7 @@ impl CommandMailbox {
                 | QueuedCommand::Rename(_)
                 | QueuedCommand::WorkspaceSetup(_)
         );
-        if !marker_parent
-            || state.active_lease
-                != Some(ActiveLease {
-                    serial: parent.serial,
-                })
-        {
+        if !marker_parent || state.active_lease != Some(parent.active_lease()) {
             return Err(self.close_locked(&mut state, CarrierFailure::Protocol));
         }
         if state.desired.key() != Some(key) {
@@ -1927,6 +1985,18 @@ impl CommandMailbox {
         self.publish_poll_result_with_hint_using(poll_key, record, false, cutoff, clock)
     }
 
+    #[cfg(test)]
+    fn publish_poll_result_hint_before_using(
+        &self,
+        poll_key: PollKey,
+        record: Option<Vec<u8>>,
+        publication_hint: bool,
+        cutoff: Instant,
+        clock: &dyn MailboxClock,
+    ) -> Result<MutationResult, EventError> {
+        self.publish_poll_result_with_hint_using(poll_key, record, publication_hint, cutoff, clock)
+    }
+
     fn publish_poll_result_with_hint_using(
         &self,
         poll_key: PollKey,
@@ -1936,6 +2006,12 @@ impl CommandMailbox {
         clock: &dyn MailboxClock,
     ) -> Result<MutationResult, EventError> {
         let (mut state, mut observed_at) = self.lock_with_fresh_sample(clock);
+        Self::ensure_open(&state).map_err(EventError::Closed)?;
+        if publication_hint {
+            // The executor already folded the publication into its baseline; register the
+            // hint once, before stale/wait branches, so it survives every later drop.
+            state.publication_hint_pending = true;
+        }
         loop {
             Self::ensure_open(&state).map_err(EventError::Closed)?;
             if state.desired.key() != Some(poll_key.attachment()) {
@@ -1968,11 +2044,7 @@ impl CommandMailbox {
         state.event_deadline = deadline;
         state.event_anchor_serial = Some(poll_key.serial);
         state.causal = CausalCell::Awaiting(poll_key.clone());
-        state.event = EventCell::Event(Box::new(WorkerEvent::PollResult {
-            poll_key,
-            record,
-            publication_hint,
-        }));
+        state.event = EventCell::Event(Box::new(WorkerEvent::PollResult { poll_key, record }));
         self.changed.notify_all();
         Ok(MutationResult::Applied)
     }
@@ -2689,10 +2761,7 @@ impl CommandMailbox {
     }
 
     fn execution_fence_locked(state: &MailboxState, lease: &CommandLease) -> ExecutionFence {
-        let lease_current = state.active_lease
-            == Some(ActiveLease {
-                serial: lease.serial,
-            });
+        let lease_current = state.active_lease == Some(lease.active_lease());
         let barrier = state
             .queue
             .iter()

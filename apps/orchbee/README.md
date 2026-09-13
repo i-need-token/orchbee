@@ -69,8 +69,8 @@ platform with public startup process evidence; release performance budgets remai
 ## Native Tab interactions
 
 The native Session renders the active context's ordered Tabs and canonical labels. Each Client
-owns its own active selection, navigator and viewport; another Client's new Tabs become visible on
-explicit refresh. These controls use the existing `Ctrl+B` prefix:
+owns its own active selection, navigator and viewport; another Client's committed Tabs become
+visible through the automatic publication probe, and explicit refresh remains available. These controls use the existing `Ctrl+B` prefix:
 
 | Key                   | Connected native behavior                                                                          |
 | --------------------- | -------------------------------------------------------------------------------------------------- |
@@ -95,7 +95,8 @@ accepted directory. [Workspace setup](docs/native-workspace-setup.md) provides c
 absolute-path input. Each step requires a complete first draw; cancellation preserves earlier
 committed objects. Directory acceptance never starts a terminal.
 [Location labels](docs/native-location-labels.md) use a prefilled editor and shared Server commands;
-renaming preserves the running terminal and becomes visible to peers on explicit refresh.
+renaming preserves the running terminal and becomes visible to peers through the publication
+probe or explicit refresh.
 
 Creation drains earlier accepted work and preserves known commit facts through deadline and Client
 retirement. Switching releases the old viewer before attaching the selected binding; it does not

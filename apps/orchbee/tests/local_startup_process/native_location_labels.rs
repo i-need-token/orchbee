@@ -280,9 +280,11 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         ),
         (Target::Project, "Renamed project", "project-label-changed"),
     ] {
-        let previous_header = header(project, workspace);
         open_editor(&mut client, target, project, workspace);
         edit_label(&mut client, target, project, workspace, label);
+        // The peer checkpoint precedes the commit so its auto-installed frame always lands
+        // after it, however the publication/refresh interleaves with the renamer's draw.
+        let peer_checkpoint = peer.checkpoint();
         let checkpoint = client.checkpoint();
         client.send(b"\r");
         match target {
@@ -309,10 +311,15 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
             renamed, expected,
             "only the requested canonical label may change"
         );
-        peer.collect();
-        assert!(
-            peer.contains(&previous_header),
-            "peer keeps its previous label until explicit refresh"
+        // The peer installs the committed rename through the publication probe itself —
+        // no navigator, no `w` — replacing the previous header on its own.
+        peer.wait_frame_text_after(
+            peer_checkpoint,
+            Instant::now() + OBSERVATION_TIMEOUT,
+            &[&renamed_header],
+            &[],
+            &[],
+            &mut [&mut client],
         );
         finish_modal_handoff(&mut client, &[&renamed_header, "[*1 1]"]);
         assert_shell_survives(&fixture, &mut client, &identity, checkpoint_name);

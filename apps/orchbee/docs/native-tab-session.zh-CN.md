@@ -506,7 +506,16 @@ Resize 可继续。恢复仅提交 Snapshot，绝不提交 Open、Create、Start
 选择 B，已有 Client 保留活动 ID。失败/unavailable/unknown 锚结果在 Snapshot 前失败；Started
 锚配不可挂接的新首项时，在该首项 AttachBinding 失败。不得回退选择或扫描。其他活动 Client 通过
 就绪循环的 `workbench.publication.read` 探测获知已提交变更，探测将一个刷新提示送入与
-`Ctrl+B w` 相同的准入路径；无推送或终端切换。
+`Ctrl+B w` 相同的准入路径；无推送或终端切换。`published` 结果在任何过时结果/因果等待
+处理之前，于仍开放的邮箱内置位一个可合并的 ingress 闩锁，因此被丢弃或过时的 Poll 回复
+无法抹除该需求。在下一个稳定点，UI 将该闩锁恰好一次捕获为 canonical 会话状态中的有界
+publication 债务（`Clean`/`Pending`/`InFlight { late }`/`Parked`）。`Busy` 或 `Full` 的刷新
+准入会让债务留待后续公平 tick 重试而非丢弃；明确的准入失败把债务停驻（Parked），不做热
+循环重试，直到新接受的提示或显式手动刷新重新武装。活动刷新在途期间到达的提示会把该
+flight 标记为 late，并恰好结算为一个后续需求。普通 Poll 准入依据实际排队/租约中的命令
+而非 UI 观察簿记，因此消费 Poll 结果或清除其观察序号既不会提前放行第二个普通 Poll，也
+不会永久阻塞下一次探测；setup/bootstrap Poll key 不占用该名额。
+`NativeClientPublicationRefresh` 拥有这一组合的已检查有界模型。
 
 Move 成员关系消费者已实现共用清理和安装细化。`NativeClientMoveBarrier` 继续负责无移除的传输/FIFO/
 提交保留切片；已检查 `NativeClientMembershipRemoval` 的 move 起点负责后续活动目标移除、
@@ -1241,9 +1250,10 @@ Input/Resize 会排在该读取操作之后等待。工作线程发出带刷新�
 投影——在无基线时落到 `workbench.snapshot.read`，有基线时落到 `workbench.publication.read`。
 `current` 结果直接返回保留基线；`published` 将有序 publication 折叠进基线并保存结果。无法推进
 基线的 publication 视为权威分歧并使载体退役，绝不覆盖先前缓存。就绪阶段的轮询还会以每 250 毫秒
-至多一次的频率探测 `workbench.publication.read`；`published` 结果发出一个布尔提示进入普通刷新
-准入路径，因此已有待处理刷新时会静默丢弃该提示，由后续探测重试。`current`、denied 与
-unavailable 探测保持静默。
+至多一次的频率探测 `workbench.publication.read`；`published` 结果置位上文所述的邮箱
+ingress 闩锁而非直接进入准入路径，因此已有刷新在途时不再丢弃该需求：UI 在下一个稳定点
+把它捕获为 canonical publication 债务，由后续公平 tick 重试准入。`current`、denied 与
+unavailable 探测保持静默，不置位闩锁。
 
 `RefreshMarker` 有意不携带请求 ID。因果在途请求排空完成、它到达 FIFO 头部后，工作线程锁住
 同一个邮箱身份游标，恰好分配一个 SnapshotRead ID，解锁，然后执行 I/O。本地身份耗尽发生在
@@ -1589,6 +1599,7 @@ Started，还要求精确的请求尺寸。它返回明确的 `DefinitelyNotSubm
 | 提交后先验证/暂存 Snapshot 候选，再精确清理旧目标并原子选择；只有存活的 Started 才挂接 | Create 模型已检查；实际 UI 双 plan 安装、candidate-first carrier 和 generated mailbox traces      | 每个阻塞响应处的模拟载体                              | 载体退役清理不等同于声称 Detach 成功或候选已安装。                 |
 | 快速切换的清理/代次/首帧/尺寸门                                                        | `NativeTabSwitch.tla` 加确定性核心轨迹                                                            | 真实 PTY 活动标记与 Ready 检查点                      | 该模型与 Create/刷新分离，并抽象真实像素。                         |
 | 刷新的单一待处理代次栅栏/身份/活动项保留与导航器开关                                   | `NativeClientRefreshFence.tla` 加确定性过时事件测试                                               | 双 Client/进程刷新见证                                | 不声明推送或读取之间的新鲜度。                                     |
+| 对等 publication 需求在 Busy/Full 准入下保留，且无需手动刷新或第二次变更即可安装       | `NativeClientPublicationRefresh.tla` 加确定性邮箱/UI 债务测试                                     | 真实双 Client PTY/Server/Worker/Host publication 见证 | 一个观察者 Client 与一次已提交变更；不声明推送或并发 publication。 |
 | Move 保留所选终端及精确已知提交                                                        | `NativeClientMoveBarrier.tla`、邮箱/状态、worker 及真实 NativeUi/外层退役轨迹                     | 两项 Linux cohort Move 场景                           | PTY shell 连续性本身不证明查看器未重新附着。                       |
 | 整个建立流程终止                                                                       | 在 Empty/NeedSnapshot/Blocked/Busy 和清理预留边界使用模拟单调时钟                                 | PTY 使用具名的 Ready/unavailable 检查点，绝不休眠等待 | 不证明 Host 最终会成功响应。                                       |
 | 安全且精确的标签渲染                                                                   | 纯净化器/布局/后端字节测试                                                                        | PTY 数字标签与活动标记                                | 不包含操作系统字体/像素保真度。                                    |
@@ -1653,6 +1664,14 @@ Old/New，并不证明连续 Create 的重新进入、任意成员移除、显�
 保留有缓存支撑的活动项、防御性隐藏过时完成结果，以及一条抽象的已接受 Input/Resize 记录；该
 记录在 UI 语义结算期间保持排队，且只能在其后执行。该抽象控制检查执行器栅栏；确定性归约器与
 脚本化载体测试会区分 Input 与 Resize，并覆盖其具体 FIFO 结果。
+`NativeClientPublicationRefresh.tla/.cfg` 检查对等 publication 刷新组合：仍开放邮箱内
+一个可合并的 ingress 闩锁，过时 Poll 结果、事件消费或因果清理都不能抹除；canonical
+publication 债务有界于 `Clean`/`Pending`/`InFlight { late }`/`Parked`；`Busy`/`Full` 刷新
+准入把债务留待后续公平 tick；明确准入拒绝将其停驻且不做热循环重试；在途 flight 期间一个
+迟到提示恰好结算为一个后续需求；普通 Poll 至多一个排队或在途，setup/bootstrap Poll key
+不占用该名额。弱公平覆盖执行器、邮箱消费、UI tick 与结算转换；已检查的进展声明是最终安装
+或如实停驻/退役，而非任何远端保证。该模型不声明真实传输、字节校验或并发多次
+publication。
 
 这些模型不声明 JSON/关联验证、精确标签或像素值、真实时间、渲染器安全、操作系统调度或 OBCS
 Busy 重试时序；这些边界分别由确定性适配器、归约器、模拟时钟、渲染器和 PTY 测试负责。每个
@@ -1808,6 +1827,14 @@ node scripts/tla/run-models.mjs --models native-client-create-barrier,native-cli
 | `selected-no-attach` | 470,349 / 113,340 / 28     | `eb5fe3b64033cfbceb44fceaaa688cc31817b314aa4ebabf5553ebf3cf390b6a` |
 | `retryable`          | 470,349 / 113,340 / 28     | `144f9a7b682c4ada75a2089dac158aa8ac945071f1ff5e06f72ecf860be0dd3d` |
 | `singleton`          | 1,056,290 / 147,508 / 20   | `4699f37d9ce6bcb6d030a29f13b6837c7c938fab2b1ce817d2ab809d7b3c73f3` |
+
+使用固定 TLA+ tools 1.7.4、一个 worker 运行
+`node scripts/tla/run-models.mjs --models native-client-publication-refresh --jobs 1`。
+该单一配置完成时序检查，状态队列为空，且覆盖全部要求的语义动作。
+
+| 模型                             | 有限边界                                             | 生成状态 / 不同状态 / 深度 | 模型/配置 SHA-256                                                  |
+| -------------------------------- | ---------------------------------------------------- | -------------------------- | ------------------------------------------------------------------ |
+| `NativeClientPublicationRefresh` | `MaxQueue = 2`、`MaxSerial = 8`、`MaxGeneration = 2` | 4,345,534 / 599,060 / 66   | `0241034472ee2208e18161ce41946fc08144ef8373c150f549ceb2a98f029466` |
 
 ## 退役对等客户端的成员恢复
 

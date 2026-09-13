@@ -49,7 +49,7 @@ fn move_admission_refusals_preserve_identity_and_attachment() {
 
     let mailbox = bootstrapped_mailbox(1, 5);
     for _ in 0..COMMAND_CAPACITY {
-        mailbox.try_enqueue(poll(&mailbox)).unwrap();
+        mailbox.try_enqueue(input(&mailbox, 0)).unwrap();
     }
     let before = mailbox.cursors();
     assert!(matches!(

@@ -257,6 +257,7 @@ impl NativeSessionState {
         self.setup.draft = None;
         self.setup.deadlines = Some(operation.deadlines);
         self.pending_refresh_generation = Some(operation.generation);
+        self.adopt_publication_debt();
         self.refresh_status = Some(NavigatorRefreshStatus::Refreshing);
         self.setup.pending = Some(operation);
     }

@@ -110,6 +110,7 @@ impl NativeSessionState {
             deadlines,
         });
         self.pending_refresh_generation = Some(generation);
+        self.adopt_publication_debt();
         self.refresh_status = Some(super::NavigatorRefreshStatus::Refreshing);
         self.notice = None;
         true

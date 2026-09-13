@@ -118,6 +118,7 @@ impl PreparedMembershipInstall<'_> {
         }
         if self.refresh_generation.is_some() {
             self.state.pending_refresh_generation = None;
+            self.state.install_publication_debt();
             self.state.refresh_status = Some(super::NavigatorRefreshStatus::Success(
                 self.prepared.candidate.revision(),
             ));

@@ -21,7 +21,7 @@ fn rename_real_admission_refuses_unseen_and_full_without_burning_identity_or_dra
     assert_eq!(state.rename_draft().unwrap().text(), " exact 雪 ");
     state.acknowledge_rename_draw(Some(token));
     for _ in 0..COMMAND_CAPACITY {
-        mailbox.try_enqueue(poll(&mailbox)).unwrap();
+        mailbox.try_enqueue(input(&mailbox, 0)).unwrap();
     }
     let before = mailbox.cursors();
     assert!(

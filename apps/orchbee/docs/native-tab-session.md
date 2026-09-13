@@ -614,7 +614,18 @@ active ID. Failed/unavailable/unknown anchor outcome fails before Snapshot; a St
 nonattachable moved head fails at that head's AttachBinding. No fallback or scan is allowed.
 Other live Clients learn committed changes through the ready-loop `workbench.publication.read`
 probe, which routes one refresh hint through the same `Ctrl+B w` admission; there is no push or
-terminal switch.
+terminal switch. A `published` probe sets one coalescing ingress latch inside the still-open
+mailbox before any stale-result or causal-wait handling, so a dropped or stale Poll reply cannot
+erase the demand. At the next stable point the UI captures that latch into canonical session
+state as bounded publication debt (`Clean`/`Pending`/`InFlight { late }`/`Parked`) exactly once.
+`Busy` or `Full` refresh admission leaves the debt pending for a later fair tick rather than
+dropping it; a definite admission failure parks the debt with no hot-loop retry until a new
+accepted hint or an explicit manual refresh re-arms it. A hint arriving during an active refresh
+marks that flight late and settles into exactly one follow-up demand. Ordinary Poll admission is
+keyed on the actual queued/leased command rather than UI observation bookkeeping, so consuming a
+Poll result or clearing its observed serial never permits a second ordinary Poll early nor
+permanently blocks the next probe; setup and bootstrap Poll keys stay outside this occupancy.
+`NativeClientPublicationRefresh` owns the checked bounded model of this composition.
 
 The Move membership consumer implements the common cleanup and installation refinement. `NativeClientMoveBarrier` continues
 to own the no-removal transport/FIFO/commit-preservation slice; the checked move origin of
@@ -1506,9 +1517,11 @@ while no baseline exists and to `workbench.publication.read` once one does. A `c
 returns the retained baseline; `published` folds the ordered publications into it and stores the
 result. A publication that cannot advance the baseline is authority divergence and retires the
 carrier, never overwriting the prior cache. Ready-phase polling additionally probes
-`workbench.publication.read` at most once every 250 ms; a `published` outcome emits one boolean
-hint that enters the ordinary refresh admission path, so an occupied pending refresh silently
-drops the hint and a later probe retries. `current`, denied and unavailable probes stay silent.
+`workbench.publication.read` at most once every 250 ms; a `published` outcome sets the mailbox
+ingress latch described above instead of entering admission directly, so an occupied refresh no
+longer drops the demand: the UI captures it into canonical publication debt at the next stable
+point and a later fair tick retries admission. `current`, denied and unavailable probes stay
+silent and set no latch.
 
 `RefreshMarker` intentionally carries no request ID. When it reaches the FIFO head after the causal
 flight drain, the worker locks the same mailbox identity cursor, allocates exactly one SnapshotRead
@@ -1906,20 +1919,21 @@ The matrix summarizes the current Client evidence. The Move-specific record abov
 checks below extend the original Create/selection/Refresh models; append-only checks alone do not
 establish reorder preservation.
 
-| Claim                                                                                                                       | Lowest evidence                                                                                                     | Additional witness                                                              | Limits                                                                             |
-| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Strict 0..256 projection and identity-preserving refresh                                                                    | exhaustive partition/unit cases and corpus-derived fixtures                                                         | generated create/rename/move histories and exact commit-permutation tests       | Higher revisions may reorder and rename Tabs; immutable member facts survive.      |
-| Canonical split-tree projection preserves leaf/split/slot identity and orientation                                          | `projects_split_tree_and_directional_leaf_neighbors` plus strict structural-ID checks                               | canonical snapshot projection through the real `NativeTabView`                  | Only ungrouped, unpinned Tabs with bound primary leaf Presentations are accepted.  |
-| Local Panel focus keeps the Tab and switches to the exact selected leaf binding                                             | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` plus NativeUi switch admission             | existing Switch cleanup/Attach lifecycle and renderer tree traversal            | One viewer is attached at a time; inactive leaves do not show a second live frame. |
-| Selection wrap/bounds/same/retry and atomic refusal                                                                         | pure selection table tests                                                                                          | generated mailbox traces with stable seeds, semantic shrinking, and replay text | Finite generated trace sizes are reported, not universal proof.                    |
-| Create drains old Poll/Feedback before submit and precommit restores                                                        | `NativeClientCreateBarrier.tla` plus fake-carrier traces                                                            | deterministic old-frame/draw/feedback checkpoint trace                          | TLA abstracts bytes, clock, geometry, and rendering.                               |
-| Commit validates/stages a Snapshot candidate before exact old cleanup and atomic selection; only surviving Started attaches | Checked Create model; actual UI dual-plan installation, candidate-first carrier and generated mailbox traces        | fake carrier at each blocking response                                          | Carrier retirement cleanup is not a successful Detach or candidate-install claim.  |
-| Rapid switch cleanup/generation/first-frame/geometry gate                                                                   | `NativeTabSwitch.tla` plus deterministic core traces                                                                | real PTY active-token + Ready checkpoints                                       | This model is separate from Create/refresh and abstracts real pixels.              |
-| Refresh single-pending generation fence/identity/active preservation and navigator toggle                                   | `NativeClientRefreshFence.tla` plus deterministic stale-event tests                                                 | two-Client/process refresh witness                                              | No push or inter-read freshness.                                                   |
-| Move preserves the selected terminal and exact known commit                                                                 | `NativeClientMoveBarrier.tla`, mailbox/state, worker and actual NativeUi/outer retirement traces                    | two Linux cohort Move scenarios                                                 | PTY shell continuity does not independently prove absence of viewer reattachment.  |
-| Total setup termination                                                                                                     | fake monotonic clock at Empty/NeedSnapshot/Blocked/Busy and cleanup reserve boundaries                              | PTY uses named Ready/unavailable checkpoints, never sleep                       | Does not prove Host eventually responds successfully.                              |
-| Safe exact label rendering                                                                                                  | pure sanitizer/layout/backend byte tests                                                                            | PTY numeric labels and active marker                                            | OS font/pixel fidelity is excluded.                                                |
-| Platform dependency boundary                                                                                                | Windows target `check/test` for help/version/unavailability plus Cargo metadata assertion; Unix build/tests for TUI | Linux real PTY                                                                  | No Windows TUI claim.                                                              |
+| Claim                                                                                                                       | Lowest evidence                                                                                                     | Additional witness                                                              | Limits                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Strict 0..256 projection and identity-preserving refresh                                                                    | exhaustive partition/unit cases and corpus-derived fixtures                                                         | generated create/rename/move histories and exact commit-permutation tests       | Higher revisions may reorder and rename Tabs; immutable member facts survive.          |
+| Canonical split-tree projection preserves leaf/split/slot identity and orientation                                          | `projects_split_tree_and_directional_leaf_neighbors` plus strict structural-ID checks                               | canonical snapshot projection through the real `NativeTabView`                  | Only ungrouped, unpinned Tabs with bound primary leaf Presentations are accepted.      |
+| Local Panel focus keeps the Tab and switches to the exact selected leaf binding                                             | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` plus NativeUi switch admission             | existing Switch cleanup/Attach lifecycle and renderer tree traversal            | One viewer is attached at a time; inactive leaves do not show a second live frame.     |
+| Selection wrap/bounds/same/retry and atomic refusal                                                                         | pure selection table tests                                                                                          | generated mailbox traces with stable seeds, semantic shrinking, and replay text | Finite generated trace sizes are reported, not universal proof.                        |
+| Create drains old Poll/Feedback before submit and precommit restores                                                        | `NativeClientCreateBarrier.tla` plus fake-carrier traces                                                            | deterministic old-frame/draw/feedback checkpoint trace                          | TLA abstracts bytes, clock, geometry, and rendering.                                   |
+| Commit validates/stages a Snapshot candidate before exact old cleanup and atomic selection; only surviving Started attaches | Checked Create model; actual UI dual-plan installation, candidate-first carrier and generated mailbox traces        | fake carrier at each blocking response                                          | Carrier retirement cleanup is not a successful Detach or candidate-install claim.      |
+| Rapid switch cleanup/generation/first-frame/geometry gate                                                                   | `NativeTabSwitch.tla` plus deterministic core traces                                                                | real PTY active-token + Ready checkpoints                                       | This model is separate from Create/refresh and abstracts real pixels.                  |
+| Refresh single-pending generation fence/identity/active preservation and navigator toggle                                   | `NativeClientRefreshFence.tla` plus deterministic stale-event tests                                                 | two-Client/process refresh witness                                              | No push or inter-read freshness.                                                       |
+| Peer publication demand retained through Busy/Full admission and installed without manual refresh or a second mutation      | `NativeClientPublicationRefresh.tla` plus deterministic mailbox/UI debt tests                                       | real two-Client PTY/Server/Worker/Host publication witness                      | One observer Client and one committed change; no push or concurrent-publication claim. |
+| Move preserves the selected terminal and exact known commit                                                                 | `NativeClientMoveBarrier.tla`, mailbox/state, worker and actual NativeUi/outer retirement traces                    | two Linux cohort Move scenarios                                                 | PTY shell continuity does not independently prove absence of viewer reattachment.      |
+| Total setup termination                                                                                                     | fake monotonic clock at Empty/NeedSnapshot/Blocked/Busy and cleanup reserve boundaries                              | PTY uses named Ready/unavailable checkpoints, never sleep                       | Does not prove Host eventually responds successfully.                                  |
+| Safe exact label rendering                                                                                                  | pure sanitizer/layout/backend byte tests                                                                            | PTY numeric labels and active marker                                            | OS font/pixel fidelity is excluded.                                                    |
+| Platform dependency boundary                                                                                                | Windows target `check/test` for help/version/unavailability plus Cargo metadata assertion; Unix build/tests for TUI | Linux real PTY                                                                  | No Windows TUI claim.                                                                  |
 
 Stateful generated tests use an in-package deterministic generator rather than a new runtime
 dependency. Stable seed corpus, maximum trace length, action/outcome coverage counters, and a
@@ -1997,6 +2011,17 @@ replacement, cache-backed active preservation, defensive stale-completion invisi
 abstract accepted Input/Resize record that remains queued through UI semantic settlement and may
 execute only afterward. That abstract control checks the executor fence; deterministic reducer and
 scripted-carrier tests distinguish Input from Resize and cover their concrete FIFO results.
+`NativeClientPublicationRefresh.tla/.cfg` checks the peer-publication refresh composition: one
+coalescing ingress latch inside the still-open mailbox that a stale Poll result, event
+consumption or causal cleanup cannot erase; canonical publication debt bounded to
+`Clean`/`Pending`/`InFlight { late }`/`Parked`; `Busy`/`Full` refresh admission retaining the
+debt for a later fair tick; a definite admission refusal parking it without hot-loop retry; one
+late hint during a flight settling to exactly one follow-up demand; and at most one ordinary
+Poll queued or active while setup/bootstrap Poll keys stay outside that occupancy. Weak fairness
+covers the executor, mailbox consumption, UI tick and settlement transitions; the checked
+progress claim is eventual installation or truthful parking/retirement, not any remote
+guarantee. The model does not claim real transport, byte validation or multiple concurrent
+publications.
 
 These models do not claim JSON/correlation validation, exact label or pixel values, real time,
 renderer safety, OS scheduling, or OBCS Busy retry timing; deterministic adapter, reducer,
@@ -2177,6 +2202,14 @@ all 41 required semantic actions covered across the family:
 | `selected-no-attach` | 470,349 / 113,340 / 28       | `eb5fe3b64033cfbceb44fceaaa688cc31817b314aa4ebabf5553ebf3cf390b6a` |
 | `retryable`          | 470,349 / 113,340 / 28       | `144f9a7b682c4ada75a2089dac158aa8ac945071f1ff5e06f72ecf860be0dd3d` |
 | `singleton`          | 1,056,290 / 147,508 / 20     | `4699f37d9ce6bcb6d030a29f13b6837c7c938fab2b1ce817d2ab809d7b3c73f3` |
+
+Run `node scripts/tla/run-models.mjs --models native-client-publication-refresh --jobs 1` with
+pinned TLA+ tools 1.7.4 and one worker. The single configuration completed temporal checking
+with an empty state queue and all required semantic actions covered.
+
+| Model                            | Finite bounds                                        | Generated / distinct / depth | Model/configuration SHA-256                                        |
+| -------------------------------- | ---------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------ |
+| `NativeClientPublicationRefresh` | `MaxQueue = 2`, `MaxSerial = 8`, `MaxGeneration = 2` | 4,345,534 / 599,060 / 66     | `0241034472ee2208e18161ce41946fc08144ef8373c150f549ceb2a98f029466` |
 
 ## Retired peer membership recovery
 

@@ -344,6 +344,9 @@ fn moved_order_refresh_preserves_peer_selection_and_reopen_selects_new_canonical
     );
     assert_shell_survives(&fixture, &mut peer, &identities[0], "peer-before-move");
 
+    // The peer checkpoint precedes the move so the auto-installed frame always lands
+    // after it, however the publication/refresh interleaves with the mover's draw.
+    let peer_checkpoint = peer.checkpoint();
     let checkpoint = mover.checkpoint();
     let move_deadline = Instant::now() + SWITCH_TIMEOUT;
     mover.send(b"\x02>");
@@ -356,9 +359,18 @@ fn moved_order_refresh_preserves_peer_selection_and_reopen_selects_new_canonical
     );
     assert_shell_survives(&fixture, &mut mover, &identities[2], "mover-after-wrap");
 
-    // Another Client learns order only through explicit refresh, keeping its selected A by ID.
-    let stale_row = peer.current_row_containing("[*1 1]");
-    assert!(stale_row.contains("[*1 1] [ 2 2] [ 3 3]"), "{stale_row:?}");
+    // The peer installs the committed move through the publication probe itself — no
+    // navigator, no `w` — keeping its selected A by ID at the moved position.
+    peer.wait_ordered_ready_after(
+        peer_checkpoint,
+        Instant::now() + OBSERVATION_TIMEOUT,
+        &["3", "1", "2"],
+        2,
+        ReadyMode::Controlling,
+    );
+    assert_shell_survives(&fixture, &mut peer, &identities[0], "peer-after-move");
+
+    // Explicit refresh still exercises the navigator round trip after the auto-install.
     let checkpoint = peer.checkpoint();
     let refresh_deadline = Instant::now() + OBSERVATION_TIMEOUT;
     peer.send(b"\x02w");

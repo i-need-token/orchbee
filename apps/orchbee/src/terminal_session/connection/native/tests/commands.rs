@@ -641,12 +641,27 @@ fn historical_ready_allows_create_after_blocked_frame_and_drains_a_second_blocke
 
     // Keep a second old-target Poll in flight across the marker. Historical Ready must admit the
     // Create immediately after the prior no-frame redraw; it must not wait for another full frame.
-    harness
-        .mailbox
-        .try_enqueue(QueuedCommand::Poll(Tagged::new(old_key.clone(), ())))
-        .map_err(|error| {
-            test_error(&format!("failed to enqueue second blocked Poll: {error:?}"))
-        })?;
+    // Canonical admission now keeps a single ordinary-Poll obligation, so the second Poll is only
+    // admissible once the executor has finished the first lease.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    loop {
+        match harness
+            .mailbox
+            .try_enqueue(QueuedCommand::Poll(Tagged::new(old_key.clone(), ())))
+        {
+            Ok(_) => break,
+            Err(crate::terminal_session::mailbox::AdmissionError::Busy)
+                if std::time::Instant::now() < deadline =>
+            {
+                std::thread::yield_now();
+            }
+            Err(error) => {
+                return Err(test_error(&format!(
+                    "failed to enqueue second blocked Poll: {error:?}"
+                )));
+            }
+        }
+    }
     let ClientMessage::TerminalViewer(second_poll) = harness.carrier.take_obcs()? else {
         return Err(test_error("second ordinary Poll must reach the carrier"));
     };

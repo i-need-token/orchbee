@@ -628,6 +628,24 @@ enum PendingMutation {
     Rename(tab_rename::RenameOperation),
 }
 
+/// Bounded refresh debt owed by committed peer publications that the executor folded
+/// into its baseline but the native UI has not yet installed. `Pending` survives Busy
+/// and Full refresh admission so a later fair tick retries; `InFlight` tracks the
+/// refresh flight that adopted the demand (its generation lives in
+/// `pending_refresh_generation`) plus whether a later hint arrived during that flight;
+/// `Parked` holds demand after a definite refusal until an accepted hint or an explicit
+/// refresh re-arms it.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) enum PublicationDebt {
+    #[default]
+    Clean,
+    Pending,
+    InFlight {
+        late: bool,
+    },
+    Parked,
+}
+
 pub(super) struct NativeSessionState {
     cache: NativeContextTabs,
     context_selection: Option<context_selection::ContextSelection>,
@@ -644,6 +662,7 @@ pub(super) struct NativeSessionState {
     last_accepted_geometry: Option<(AttachmentKey, Geometry)>,
     notice: Option<SessionNotice>,
     pending_refresh_generation: Option<u64>,
+    publication_debt: PublicationDebt,
     refresh_status: Option<NavigatorRefreshStatus>,
     pending_mutation: Option<PendingMutation>,
     move_recovery: Option<PendingMoveCommit>,
@@ -695,6 +714,7 @@ impl NativeSessionState {
             last_accepted_geometry: None,
             notice: None,
             pending_refresh_generation: None,
+            publication_debt: PublicationDebt::Clean,
             refresh_status: None,
             pending_mutation: None,
             move_recovery: None,
@@ -1474,11 +1494,71 @@ impl NativeSessionState {
         Some(CleanupContinuation::Stable)
     }
 
+    /// Registers a peer-publication hint captured from the mailbox ingress latch. The
+    /// transfer is the only consumer of that latch: coalescing keeps the debt bounded,
+    /// and a hint during a live flight only marks late demand for one follow-up flight.
+    /// A parked demand re-arms here because a new accepted hint is itself new evidence.
+    pub(super) fn note_publication_hint(&mut self) {
+        self.publication_debt = match self.publication_debt {
+            PublicationDebt::Clean | PublicationDebt::Parked => PublicationDebt::Pending,
+            PublicationDebt::Pending => PublicationDebt::Pending,
+            PublicationDebt::InFlight { .. } => PublicationDebt::InFlight { late: true },
+        };
+    }
+
+    /// Whether a captured publication demand is waiting for refresh admission.
+    pub(super) const fn publication_debt_pending(&self) -> bool {
+        matches!(self.publication_debt, PublicationDebt::Pending)
+    }
+
+    #[cfg(test)]
+    pub(super) const fn publication_debt_kind(&self) -> PublicationDebt {
+        self.publication_debt
+    }
+
+    /// Admits one pending publication demand into a fresh refresh flight. The flight
+    /// adopts the demand, so its outcome settles exactly this debt and nothing else.
+    pub(super) fn start_publication_drain(&mut self, generation: u64) -> bool {
+        self.publication_debt_pending() && self.start_pending_refresh(generation)
+    }
+
+    /// A refresh flight that starts while demand is outstanding adopts it; a parked
+    /// demand is re-armed because this admission is itself an explicit refresh.
+    fn adopt_publication_debt(&mut self) {
+        if matches!(
+            self.publication_debt,
+            PublicationDebt::Pending | PublicationDebt::Parked
+        ) {
+            self.publication_debt = PublicationDebt::InFlight { late: false };
+        }
+    }
+
+    /// The adopted flight installed a candidate: the demand is settled, unless a late
+    /// hint during the flight keeps exactly one follow-up demand pending.
+    fn install_publication_debt(&mut self) {
+        if let PublicationDebt::InFlight { late } = self.publication_debt {
+            self.publication_debt = if late {
+                PublicationDebt::Pending
+            } else {
+                PublicationDebt::Clean
+            };
+        }
+    }
+
+    /// The adopted flight was definitely refused: the demand parks until an accepted
+    /// hint or an explicit refresh re-arms it.
+    fn park_publication_debt(&mut self) {
+        if matches!(self.publication_debt, PublicationDebt::InFlight { .. }) {
+            self.publication_debt = PublicationDebt::Parked;
+        }
+    }
+
     pub(super) fn start_pending_refresh(&mut self, generation: u64) -> bool {
         if self.pending_refresh_generation.is_some() || !self.phase_allows_refresh() {
             return false;
         }
         self.pending_refresh_generation = Some(generation);
+        self.adopt_publication_debt();
         self.refresh_status = Some(NavigatorRefreshStatus::Refreshing);
         true
     }
@@ -1609,6 +1689,7 @@ impl NativeSessionState {
                     self.retire(CarrierFailure::Protocol);
                     RefreshDecision::Retire
                 } else {
+                    self.park_publication_debt();
                     self.refresh_status = Some(NavigatorRefreshStatus::Failure(baseline_revision));
                     RefreshDecision::Continue
                 }
@@ -1627,6 +1708,7 @@ impl NativeSessionState {
                     self.retire(CarrierFailure::Protocol);
                     RefreshDecision::Retire
                 } else if self.merge_projection(candidate) {
+                    self.install_publication_debt();
                     self.move_recovery = None;
                     self.rename_recovery = None;
                     self.refresh_status =
@@ -1896,6 +1978,7 @@ impl NativeSessionState {
         self.staged_frame = None;
         self.accepted_frame = None;
         self.pending_refresh_generation = None;
+        self.publication_debt = PublicationDebt::Clean;
         self.context_selection = None;
         self.pending_membership = None;
         self.refresh_status = None;
@@ -1906,6 +1989,11 @@ impl NativeSessionState {
     }
 
     pub(super) fn invariant_holds(&self) -> bool {
+        if matches!(self.publication_debt, PublicationDebt::InFlight { .. })
+            && self.pending_refresh_generation.is_none()
+        {
+            return false;
+        }
         if !self.membership_invariant_holds() || !self.context_invariant_holds() {
             return false;
         }

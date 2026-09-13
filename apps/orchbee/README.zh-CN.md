@@ -63,7 +63,7 @@ Linux 是唯一已有公共启动进程证据的平台；尚不承诺发布性�
 ## 原生 Tab 交互
 
 原生 Session 呈现当前上下文的有序 Tab 和 canonical 标签。每个 Client 独立拥有活动选择、
-navigator 与 viewport；另一 Client 新建的 Tab 在显式刷新后可见。以下操作沿用 `Ctrl+B` 前缀：
+navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication 探测可见，显式刷新仍可用。以下操作沿用 `Ctrl+B` 前缀：
 
 | 按键                  | 已连接原生行为                                                      |
 | --------------------- | ------------------------------------------------------------------- |
@@ -87,7 +87,7 @@ navigator 与 viewport；另一 Client 新建的 Tab 在显式刷新后可见。
 提供创建及字面绝对路径输入。每一步要求首次完整绘制；取消保留更早已提交的对象。
 目录接受绝不启动终端。
 [位置标签](docs/native-location-labels.zh-CN.md) 使用预填编辑器与共享 Server 命令；
-重命名保留运行中终端，peer 通过显式刷新看到变化。
+重命名保留运行中终端，peer 通过 publication 探测或显式刷新看到变化。
 
 创建会排空此前已接受的工作，并在截止时间或 Client 退役时保留已知提交事实。
 切换先释放旧 viewer，再附着所选 binding；不会停止或重建任一终端。

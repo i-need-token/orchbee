@@ -1397,6 +1397,7 @@ fn admission_was_full<T, BuildError>(
         Err(
             AdmissionError::Closed(_)
             | AdmissionError::BootstrapPending
+            | AdmissionError::Busy
             | AdmissionError::StaleAttachment
             | AdmissionError::AttachmentGenerationExhausted
             | AdmissionError::RefreshGenerationExhausted
