@@ -1,0 +1,280 @@
+mod completion;
+mod config;
+pub(crate) mod escape;
+mod output;
+mod present;
+mod query;
+pub(crate) mod results;
+mod schema;
+mod text;
+
+use serde_json::{Map, Value, json};
+
+use crate::invocation::{
+    CompletionShell, HelpTopic, OutputFormat, ParseFailure, ParseFailureKind, QueryCommand,
+};
+use crate::localization::Locale;
+use crate::presentation::ProcessResult;
+
+/// One fully prepared process answer: status code plus already-encoded streams.
+pub(crate) struct Output {
+    pub(crate) status: u8,
+    pub(crate) stdout: Vec<u8>,
+    pub(crate) stderr: String,
+}
+
+impl From<ProcessResult> for Output {
+    fn from(result: ProcessResult) -> Self {
+        Self {
+            status: result.status,
+            stdout: result.stdout.as_bytes().to_vec(),
+            stderr: result.stderr.to_owned(),
+        }
+    }
+}
+
+impl Output {
+    fn text(status: u8, stdout: String, stderr: String) -> Self {
+        Self {
+            status,
+            stdout: stdout.into_bytes(),
+            stderr,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FailureKind {
+    Ambiguous,
+    CheckFailed,
+    Denied,
+    Incompatible,
+    InternalFailure,
+    InvalidIdentifier,
+    InvalidUsage,
+    NotFound,
+    OutputTooLarge,
+    ProtocolInvalid,
+    ServiceUnavailable,
+    SessionCapacity,
+    TransportLoss,
+}
+
+impl FailureKind {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ambiguous => "ambiguous",
+            Self::CheckFailed => "check-failed",
+            Self::Denied => "denied",
+            Self::Incompatible => "incompatible",
+            Self::InternalFailure => "internal-failure",
+            Self::InvalidIdentifier => "invalid-identifier",
+            Self::InvalidUsage => "invalid-usage",
+            Self::NotFound => "not-found",
+            Self::OutputTooLarge => "output-too-large",
+            Self::ProtocolInvalid => "protocol-invalid",
+            Self::ServiceUnavailable => "service-unavailable",
+            Self::SessionCapacity => "session-capacity",
+            Self::TransportLoss => "transport-loss",
+        }
+    }
+
+    pub(crate) const fn exit_code(self) -> u8 {
+        match self {
+            Self::InvalidUsage | Self::InvalidIdentifier => 2,
+            Self::NotFound | Self::Ambiguous | Self::Denied => 3,
+            Self::ServiceUnavailable | Self::SessionCapacity => 4,
+            Self::TransportLoss | Self::ProtocolInvalid => 5,
+            Self::Incompatible => 6,
+            Self::CheckFailed | Self::InternalFailure | Self::OutputTooLarge => 1,
+        }
+    }
+}
+
+/// One typed CLI failure; `details` stays absent when the matrix omits it.
+pub(crate) struct Failure {
+    pub(crate) kind: FailureKind,
+    pub(crate) details: Option<Map<String, Value>>,
+    /// An authoritative source only when one genuinely exists.
+    pub(crate) source: Option<Value>,
+}
+
+impl Failure {
+    pub(crate) const fn new(kind: FailureKind) -> Self {
+        Self {
+            kind,
+            details: None,
+            source: None,
+        }
+    }
+
+    pub(crate) fn details(mut self, details: Map<String, Value>) -> Self {
+        self.details = Some(details);
+        self
+    }
+
+    pub(crate) fn source(mut self, source: Value) -> Self {
+        self.source = Some(source);
+        self
+    }
+}
+
+fn target_details(resource: crate::invocation::Resource, target: &str) -> Map<String, Value> {
+    Map::from_iter([
+        ("resource".to_owned(), json!(resource.as_str())),
+        ("target".to_owned(), json!(target)),
+    ])
+}
+
+fn stage_details(stage: &str) -> Map<String, Value> {
+    Map::from_iter([("stage".to_owned(), json!(stage))])
+}
+
+fn stage_reason_details(stage: &str, reason: &str) -> Map<String, Value> {
+    Map::from_iter([
+        ("stage".to_owned(), json!(stage)),
+        ("reason".to_owned(), json!(reason)),
+    ])
+}
+
+/// Encode a failure into its process answer. `format` is the format selected by
+/// a valid selector before the failure; `None` keeps stdout empty.
+fn failure_output(failure: Failure, format: Option<OutputFormat>, locale: Locale) -> Output {
+    let status = failure.kind.exit_code();
+    let stderr = locale.cli_failure(&failure);
+    match format {
+        Some(OutputFormat::Json) => {
+            let mut document = Map::from_iter([
+                ("schema".to_owned(), json!(schema::FAILURE_ID)),
+                ("version".to_owned(), json!(1)),
+            ]);
+            let mut failure_object =
+                Map::from_iter([("kind".to_owned(), json!(failure.kind.as_str()))]);
+            if let Some(details) = failure.details {
+                failure_object.insert("details".to_owned(), Value::Object(details));
+            }
+            document.insert("failure".to_owned(), Value::Object(failure_object));
+            if let Some(source) = failure.source {
+                document.insert("source".to_owned(), source);
+            }
+            // Failure documents are small and bounded well below the output cap.
+            let stdout =
+                output::encode_document(&Value::Object(document)).unwrap_or_else(|_| Vec::new());
+            Output {
+                status,
+                stdout,
+                stderr,
+            }
+        }
+        Some(OutputFormat::Text) | None => Output {
+            status,
+            stdout: Vec::new(),
+            stderr,
+        },
+    }
+}
+
+/// Parse failures answer before any runtime work; envelope rules come from the
+/// parser's recorded selection.
+pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
+    let (kind, details) = match &failure.kind {
+        ParseFailureKind::InvalidUsage => (FailureKind::InvalidUsage, None),
+        ParseFailureKind::InvalidIdentifier { resource, target } => (
+            FailureKind::InvalidIdentifier,
+            Some(target_details(*resource, target)),
+        ),
+    };
+    let record = Failure {
+        kind,
+        details,
+        source: None,
+    };
+    let format = match failure.envelope {
+        crate::invocation::FailureEnvelope::Json => Some(OutputFormat::Json),
+        crate::invocation::FailureEnvelope::Text | crate::invocation::FailureEnvelope::Silent => {
+            None
+        }
+    };
+    failure_output(record, format, locale)
+}
+
+pub(crate) fn help(topic: HelpTopic, locale: Locale) -> Output {
+    Output::text(0, text::help(topic, locale).to_owned(), String::new())
+}
+
+pub(crate) fn completion(shell: CompletionShell) -> Output {
+    Output::text(0, completion::render(shell), String::new())
+}
+
+pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
+    match &command {
+        QueryCommand::ApiSchema { schema_id } => {
+            schema::answer(schema_id.as_deref(), format, locale)
+        }
+        QueryCommand::ConfigCheck => config::check(format, locale),
+        _ => network_query(&command, format, locale),
+    }
+}
+
+fn network_query(command: &QueryCommand, format: OutputFormat, locale: Locale) -> Output {
+    match query::read_snapshot() {
+        Err(failure) => failure_output(failure, Some(format), locale),
+        Ok(snapshot) => {
+            let source = results::snapshot_source(&snapshot);
+            match results::project(command, &snapshot) {
+                Err(failure) => failure_output(failure.source(source), Some(format), locale),
+                Ok(projection) => success_output(projection, source, command, format, locale),
+            }
+        }
+    }
+}
+
+fn success_output(
+    projection: results::Projection,
+    source: Value,
+    command: &QueryCommand,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    let schema_id = results::schema_id(command);
+    // The api commands answer machine documents in every format.
+    let format = match command {
+        QueryCommand::ApiSnapshot => OutputFormat::Json,
+        _ => format,
+    };
+    match format {
+        OutputFormat::Json => {
+            let document = json!({
+                "schema": schema_id,
+                "version": 1,
+                "source": source,
+                "result": projection.result(),
+            });
+            match output::encode_document(&document) {
+                Ok(stdout) => Output {
+                    status: 0,
+                    stdout,
+                    stderr: String::new(),
+                },
+                Err(output::TooLarge) => failure_output(
+                    Failure::new(FailureKind::OutputTooLarge)
+                        .details(Map::from_iter([(
+                            "limitBytes".to_owned(),
+                            json!(output::LIMIT),
+                        )]))
+                        .source(source),
+                    Some(OutputFormat::Json),
+                    locale,
+                ),
+            }
+        }
+        OutputFormat::Text => {
+            let stdout = present::render(&projection, command, locale);
+            Output {
+                status: 0,
+                stdout: stdout.into_bytes(),
+                stderr: String::new(),
+            }
+        }
+    }
+}

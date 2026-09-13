@@ -1,7 +1,7 @@
 use std::{error::Error, ffi::OsStr, process::Command};
 
-const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee --help\n  orchbee --version\n\nModes:\n  orchbee            Open the local terminal (Linux development cohort)\n  orchbee tui        Open the same local terminal explicitly\n  orchbee --help     Show this help\n  orchbee --version  Show the version\n";
-const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee --help\n  orchbee --version\n\n模式：\n  orchbee            打开本地终端（Linux 开发 cohort）\n  orchbee tui        显式打开同一本地终端\n  orchbee --help     显示此帮助\n  orchbee --version  显示版本\n";
+const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> list|get [filters] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee <family>     Query projects, workspaces, tabs, panels, terminals\n  orchbee api          Machine snapshot and embedded schema documents\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee --help       Show this help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules.\n";
+const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> list|get [filters] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee <family>     查询 project、workspace、tab、panel、terminal\n  orchbee api          机器快照与内嵌 schema 文档\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee --help       显示此帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则。\n";
 
 #[test]
 fn emits_exact_help_in_both_locales() -> Result<(), Box<dyn Error>> {
@@ -60,12 +60,24 @@ fn bare_non_tty_invocation_fails_before_startup() -> Result<(), Box<dyn Error>> 
 }
 
 #[test]
+fn suffix_help_on_a_complete_path_succeeds() -> Result<(), Box<dyn Error>> {
+    let output = run(["tui", "--help"], "en_US.UTF-8")?;
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(output.stdout)?,
+        "orchbee tui\n\nOpen the local terminal interface (Linux development cohort).\nA bare 'orchbee' invocation does the same.\n"
+    );
+    assert!(output.stderr.is_empty());
+    Ok(())
+}
+
+#[test]
 fn rejects_unknown_short_and_additional_arguments_before_output() -> Result<(), Box<dyn Error>> {
     for arguments in [
         vec!["-h"],
         vec!["workbench"],
-        vec!["tui", "--help"],
         vec!["--help", "--version"],
+        vec!["status", "--bogus"],
     ] {
         let output = run(arguments, "en_US.UTF-8")?;
         assert_eq!(output.status.code(), Some(2));

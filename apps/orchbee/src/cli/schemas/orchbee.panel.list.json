@@ -1,0 +1,58 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.panel.list",
+	"title": "orchbee panel list envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.panel.list" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/snapshotSource" },
+		"result": {
+			"type": "object",
+			"required": ["panels"],
+			"additionalProperties": false,
+			"properties": {
+				"panels": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": [
+							"panelId",
+							"tabId",
+							"terminalContextId",
+							"primaryPresentationId",
+							"presentationCount",
+							"primaryTerminalId"
+						],
+						"additionalProperties": false,
+						"properties": {
+							"panelId": { "$ref": "#/$defs/id" },
+							"tabId": { "$ref": "#/$defs/id" },
+							"terminalContextId": { "$ref": "#/$defs/id" },
+							"primaryPresentationId": { "$ref": "#/$defs/id" },
+							"presentationCount": { "type": "integer", "minimum": 1 },
+							"primaryTerminalId": {
+								"anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench-snapshot" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+			}
+		}
+	}
+}

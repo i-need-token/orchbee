@@ -1,0 +1,123 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.tab.get",
+	"title": "orchbee tab get envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.tab.get" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/snapshotSource" },
+		"result": {
+			"type": "object",
+			"required": ["tab"],
+			"additionalProperties": false,
+			"properties": {
+				"tab": {
+					"type": "object",
+					"required": ["tabId", "label", "pinned", "groupId", "context", "root"],
+					"additionalProperties": false,
+					"properties": {
+						"tabId": { "$ref": "#/$defs/id" },
+						"label": { "type": "string" },
+						"pinned": { "type": "boolean" },
+						"groupId": {
+							"anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+						},
+						"context": { "$ref": "#/$defs/context" },
+						"root": { "$ref": "#/$defs/panelNode" }
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"context": {
+			"type": "object",
+			"required": ["kind", "terminalContextId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "enum": ["standalone", "workspace"] },
+				"terminalContextId": { "$ref": "#/$defs/id" },
+				"workspaceId": { "$ref": "#/$defs/id" }
+			}
+		},
+		"presentation": {
+			"type": "object",
+			"required": ["presentationId", "label", "binding"],
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": { "$ref": "#/$defs/id" },
+				"label": { "type": "string" },
+				"binding": {
+					"anyOf": [
+						{
+							"type": "object",
+							"required": ["terminalId", "workerId"],
+							"additionalProperties": false,
+							"properties": {
+								"terminalId": { "$ref": "#/$defs/id" },
+								"workerId": { "$ref": "#/$defs/id" }
+							}
+						},
+						{ "type": "null" }
+					]
+				}
+			}
+		},
+		"panelNode": {
+			"type": "object",
+			"required": ["kind"],
+			"oneOf": [
+				{
+					"properties": {
+						"kind": { "const": "panel" },
+						"panelId": { "$ref": "#/$defs/id" },
+						"primaryPresentation": { "$ref": "#/$defs/presentation" },
+						"childPresentations": {
+							"type": "array",
+							"items": { "$ref": "#/$defs/presentation" }
+						}
+					},
+					"required": ["panelId", "primaryPresentation", "childPresentations"],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"kind": { "const": "split" },
+						"splitId": { "$ref": "#/$defs/id" },
+						"orientation": { "enum": ["horizontal", "vertical"] },
+						"children": {
+							"type": "array",
+							"minItems": 2,
+							"maxItems": 2,
+							"items": {
+								"type": "object",
+								"required": ["slotId", "node"],
+								"additionalProperties": false,
+								"properties": {
+									"slotId": { "$ref": "#/$defs/id" },
+									"node": { "$ref": "#/$defs/panelNode" }
+								}
+							}
+						}
+					},
+					"required": ["splitId", "orientation", "children"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench-snapshot" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+			}
+		}
+	}
+}

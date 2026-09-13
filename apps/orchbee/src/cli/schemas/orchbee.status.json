@@ -1,0 +1,64 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.status",
+	"title": "orchbee status envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.status" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/snapshotSource" },
+		"result": {
+			"type": "object",
+			"required": ["site", "counts", "worker"],
+			"additionalProperties": false,
+			"properties": {
+				"site": {
+					"type": "object",
+					"required": ["reachable", "siteId", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"reachable": { "const": true },
+						"siteId": { "$ref": "#/$defs/id" },
+						"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+					}
+				},
+				"counts": {
+					"type": "object",
+					"required": ["projects", "workspaces", "tabs", "panels", "boundTerminals"],
+					"additionalProperties": false,
+					"properties": {
+						"projects": { "type": "integer", "minimum": 0 },
+						"workspaces": { "type": "integer", "minimum": 0 },
+						"tabs": { "type": "integer", "minimum": 0 },
+						"panels": { "type": "integer", "minimum": 0 },
+						"boundTerminals": { "type": "integer", "minimum": 0 }
+					}
+				},
+				"worker": {
+					"type": "object",
+					"required": ["status", "reason"],
+					"additionalProperties": false,
+					"properties": {
+						"status": { "const": "unknown" },
+						"reason": { "const": "not-in-workbench-snapshot" }
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench-snapshot" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+			}
+		}
+	}
+}

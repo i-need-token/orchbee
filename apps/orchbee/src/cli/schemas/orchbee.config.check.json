@@ -1,0 +1,43 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.config.check",
+	"title": "orchbee config check envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.config.check" },
+		"version": { "const": 1 },
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "local-runtime" }
+			}
+		},
+		"result": {
+			"type": "object",
+			"required": ["ok", "checks"],
+			"additionalProperties": false,
+			"properties": {
+				"ok": { "type": "boolean" },
+				"checks": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["name", "status", "details"],
+						"additionalProperties": false,
+						"properties": {
+							"name": {
+								"enum": ["runtime-base", "runtime-directory", "cohort", "locale", "sockets"]
+							},
+							"status": { "enum": ["pass", "fail", "not-applicable"] },
+							"details": { "type": "object" }
+						}
+					}
+				}
+			}
+		}
+	}
+}

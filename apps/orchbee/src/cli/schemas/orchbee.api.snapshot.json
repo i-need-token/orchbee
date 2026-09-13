@@ -1,0 +1,225 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.api.snapshot",
+	"title": "orchbee api snapshot envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.api.snapshot" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/snapshotSource" },
+		"result": {
+			"type": "object",
+			"required": ["snapshot"],
+			"additionalProperties": false,
+			"properties": {
+				"snapshot": { "$ref": "#/$defs/snapshot" }
+			}
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench-snapshot" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"revision": { "$ref": "#/$defs/revision" }
+			}
+		},
+		"presentation": {
+			"type": "object",
+			"required": ["presentationId", "label", "binding"],
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": { "$ref": "#/$defs/id" },
+				"label": { "type": "string" },
+				"binding": {
+					"anyOf": [
+						{
+							"type": "object",
+							"required": ["terminalId", "workerId"],
+							"additionalProperties": false,
+							"properties": {
+								"terminalId": { "$ref": "#/$defs/id" },
+								"workerId": { "$ref": "#/$defs/id" }
+							}
+						},
+						{ "type": "null" }
+					]
+				}
+			}
+		},
+		"panelNode": {
+			"type": "object",
+			"required": ["kind"],
+			"oneOf": [
+				{
+					"properties": {
+						"kind": { "const": "panel" },
+						"panelId": { "$ref": "#/$defs/id" },
+						"primaryPresentation": { "$ref": "#/$defs/presentation" },
+						"childPresentations": {
+							"type": "array",
+							"items": { "$ref": "#/$defs/presentation" }
+						}
+					},
+					"required": ["panelId", "primaryPresentation", "childPresentations"],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"kind": { "const": "split" },
+						"splitId": { "$ref": "#/$defs/id" },
+						"orientation": { "enum": ["horizontal", "vertical"] },
+						"children": {
+							"type": "array",
+							"minItems": 2,
+							"maxItems": 2,
+							"items": {
+								"type": "object",
+								"required": ["slotId", "node"],
+								"additionalProperties": false,
+								"properties": {
+									"slotId": { "$ref": "#/$defs/id" },
+									"node": { "$ref": "#/$defs/panelNode" }
+								}
+							}
+						}
+					},
+					"required": ["splitId", "orientation", "children"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"snapshot": {
+			"type": "object",
+			"required": [
+				"kind",
+				"navigation",
+				"protocolVersion",
+				"revision",
+				"siteId",
+				"terminalContexts"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench.snapshot" },
+				"navigation": {
+					"type": "object",
+					"required": ["projects", "standaloneTerminalContextId"],
+					"additionalProperties": false,
+					"properties": {
+						"projects": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"required": ["directories", "label", "projectId", "workspaces"],
+								"additionalProperties": false,
+								"properties": {
+									"directories": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"required": ["directoryId", "workerId", "path"],
+											"additionalProperties": false,
+											"properties": {
+												"directoryId": { "$ref": "#/$defs/id" },
+												"workerId": { "$ref": "#/$defs/id" },
+												"path": { "type": "string" }
+											}
+										}
+									},
+									"label": { "type": "string" },
+									"projectId": { "$ref": "#/$defs/id" },
+									"workspaces": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"required": [
+												"label",
+												"primaryDirectoryId",
+												"terminalContextId",
+												"workspaceId"
+											],
+											"additionalProperties": false,
+											"properties": {
+												"label": { "type": "string" },
+												"primaryDirectoryId": {
+													"anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+												},
+												"terminalContextId": { "$ref": "#/$defs/id" },
+												"workspaceId": { "$ref": "#/$defs/id" }
+											}
+										}
+									}
+								}
+							}
+						},
+						"standaloneTerminalContextId": { "$ref": "#/$defs/id" }
+					}
+				},
+				"protocolVersion": { "const": 1 },
+				"revision": { "$ref": "#/$defs/revision" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"terminalContexts": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["groups", "tabs", "terminalContextId"],
+						"additionalProperties": false,
+						"properties": {
+							"groups": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["color", "groupId", "label"],
+									"additionalProperties": false,
+									"properties": {
+										"color": {
+											"enum": [
+												"blue",
+												"cyan",
+												"green",
+												"grey",
+												"orange",
+												"pink",
+												"purple",
+												"red",
+												"yellow"
+											]
+										},
+										"groupId": { "$ref": "#/$defs/id" },
+										"label": { "type": "string" }
+									}
+								}
+							},
+							"tabs": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["groupId", "label", "pinned", "root", "tabId"],
+									"additionalProperties": false,
+									"properties": {
+										"groupId": {
+											"anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+										},
+										"label": { "type": "string" },
+										"pinned": { "type": "boolean" },
+										"root": { "$ref": "#/$defs/panelNode" },
+										"tabId": { "$ref": "#/$defs/id" }
+									}
+								}
+							},
+							"terminalContextId": { "$ref": "#/$defs/id" }
+						}
+					}
+				}
+			}
+		}
+	}
+}

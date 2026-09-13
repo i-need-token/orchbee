@@ -1,0 +1,283 @@
+# 原生 CLI 查询
+
+状态：首批原生 `orchbee` 命令行查询面已接受的实现与正确性契约。下列命令是对已在运行的本地
+Site 的只读观察：绝不创建、修复、锁定或激活 Site；不创建终端、viewer 或控制授权；不猜测
+Agent、Worker、进程或 PTY 状态；不要求 TTY。这是未发布的本地开发面；`apps/cli` 仍是已交付的
+TypeScript CLI 权威；安装、发布、远端连接与 Site 生命周期操作不在范围内。
+
+归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果 envelope、失败矩阵、
+预算、单请求只读状态机与输出副作用。它落实已接受的 CLI-Q 设计与两轮挑战裁决；文字与代码不一致
+时，行为是要修的缺陷，不是要保留的分叉。
+
+## 输入与信任边界
+
+- `argv`：有界敌意输入。全部参数的 UTF-8 总字节不超过 64 KiB（65,536）。任一非 UTF-8 参数或
+  超限即 `invalid-usage`、stdout 为空——即使另一个参数写着 `--format=json`。不隐式读取 stdin
+  或文件输入。
+- 环境：`ORCHBEE_RUNTIME_BASE`（可选，默认 `/tmp`）选择运行基座；`LC_ALL`/`LC_MESSAGES`/`LANG`
+  选择诊断 locale。不读取其他任何环境变量。
+- 文件系统：解析出的运行基座、Site scope 目录 `orchbee-native-<euid>` 及其
+  `client.sock`/`worker.sock`、activation 标记、当前可执行文件同目录的 `cohort.json` 与四个
+  artifact 只被观察、绝不写入。所有目录遍历使用既有 no-follow、属主/模式校验的 rendezvous 归属
+  方（`ModeCheckedLocalSiteRendezvous::validate_mode_checked`，仅 `ExistingOnly` 策略）。
+- Socket 对端：`client.sock` 可能属于真实 Server、残留 socket 或脚本 peer。CLI 信任类型化
+  transport 与协议层（OBLC 准入、OBWP 相关性与契约校验），绝不从 `Display` 文本、`ErrorKind`
+  猜测或字节计数重新推导结论。
+- 快照数据：用户可控的 label 与目录路径是任意 Unicode，终端输出按敌意文本处理（见转义规则）；
+  JSON 输出无损保留。
+
+## 公共语法
+
+选项扫描在 `--` 之前自左向右进行；`--` 仅终止选项识别。
+
+- `--format text|json` 或 `--format=text|json`：至多一次选择，`--` 前任意位置。
+  `--format` 缺值、空值、未知值或重复选择都是格式失败：`invalid-usage`、退出 2、stdout 为空。
+- `--project <target>`、`--workspace <target>`、`--tab <target>`：带值的具名过滤参数，各只能
+  用一次。下一个 token 即作为值被消费，即使以减号开头；裸 `--` 永不被当作值（缺值 →
+  `invalid-usage`）。被消费的过滤值不再充当 format 选择器。每个过滤器只在其声明的命令上合法
+  （`--project` 仅 `workspace list`，`--workspace` 仅 `tab list`，`--tab` 仅 `panel list`），
+  出现在任何其他位置（包括 `get` 命令）都是 `invalid-usage`。
+- `--standalone`：无值布尔 flag，单次使用，仅 `tab list`；与 `--workspace` 互斥。
+- `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
+- `--help`：根级独占 token，或完整命令路径的单一后缀。
+- `--` 之后的位置参数：`--` 之后的 token 只作位置参数，故 `orchbee -- status` 查询 status，
+  `orchbee project get -- --help` 解析的是字面 label `--help`。
+
+命令路径（固定词，无缩写、无别名）：
+
+```
+orchbee                         # 裸调用 → TUI（不变）
+orchbee tui                     # TUI（不变）
+orchbee --version               # 版本行（不变）
+orchbee --help | orchbee help   # 根帮助
+orchbee status
+orchbee project list | project get <target>
+orchbee workspace list [--project <target>] | workspace get <target>
+orchbee tab list [--workspace <target> | --standalone] | tab get <target>
+orchbee panel list [--tab <target>] | panel get <target>
+orchbee terminal list | terminal get <target>
+orchbee api snapshot
+orchbee api schema [<schema-id>]
+orchbee config check
+orchbee completion bash|zsh|fish
+orchbee help <recognized path>
+orchbee <complete command path> --help
+```
+
+帮助主题：根级；`project`、`workspace`、`tab`、`panel`、`terminal`、`api`、`config`、
+`completion` 七个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
+过滤器、不带 format）。族名单独出现时不是后缀形式的完整命令路径：`project --help` 是 usage，
+而 `help project` 给出族概览。后缀 help 优先于缺失的业务参数（`project get --help` 描述
+`project get`），但不优先于已给出的业务参数或多余 token（`project get x --help`、
+`status extra --help` 都是 usage）。未列出的目标如 `help help`、`help version`、`help --version`
+按未知路径 → usage。Help、`--version`、`completion` 与 `api schema` 绝不触碰平台、运行、
+cohort 或 Site 状态。
+
+`help`、`completion`、`tui`、`--version` 与裸调用是固定文本输出，不接受 `--format`；一个合法
+`--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
+保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`api snapshot`、`api schema`、
+`config check`）接受 `--format`；`api snapshot` 与 `api schema` 在两种 format 下输出同一份
+JSON 文档。
+
+### 目标与过滤器
+
+`project`/`workspace`/`tab` 的 `<target>` 先按完整 typed ID 解析（恰好 32 位小写十六进制、
+非零）。合法 ID 只按身份匹配。其他 token 视为精确、区分大小写的 label 候选，要求 1–512 个
+Unicode scalar；空或过长的 token 与全零 ID 形值都是 `invalid-identifier`（退出 2）。本身恰为
+合法 ID 形的 label 永远无法按 label 命中——ID 天然优先；该实体仍可通过其真实 ID 访问。
+`panel` 与 `terminal` 只接受完整 typed ID，其余一律 `invalid-identifier`。过滤器
+（`--project`、`--workspace`、`--tab`）使用各自资源相同的 target 规则。`api schema` 接受非空
+schema ID；空串是 `invalid-identifier`（`resource="schema"`），无匹配是 `not-found`。
+
+读取成功后的解析：零匹配 → `not-found`（3）；多个精确 label 匹配 → `ambiguous`（3），按
+canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount`。命名不存在实体的过滤器是
+`not-found`；实体存在但结果为空是成功的空表。
+
+## 查询状态机与预算
+
+每个网络查询（`status`、`list`/`get`、`api snapshot`）在 Linux 上严格按下列顺序执行；第一个
+失败阶段即决定失败：
+
+1. **Cohort** —— `NativeCohort::current` 在一个 checked 5 秒单调 deadline 下运行
+   （`Instant::now().checked_add(5s)`；`checked_add` 失败为 `internal-failure`、退出 1）。
+   任何 cohort 错误（缺失、非法、不安全、散列不符、协作式 deadline）都是 `check-failed`、
+   stage `cohort`。
+2. **Discovery** —— 解析 `ORCHBEE_RUNTIME_BASE`/默认值，然后
+   `ModeCheckedLocalSiteRendezvous::validate_mode_checked`（`ExistingOnly`，不 mkdir、不取锁）。
+   分类使用 `RendezvousError` 的 typed path 与已解析 `runtime_base`/`runtime_base.join(scope)`
+   比较：scope 目录上 source 为 `NotFound` 的 `System` 错误是 `service-unavailable`、stage
+   `discovery`；其余一切 rendezvous 或文件系统校验失败都是 `check-failed`——typed path 属于
+   基座或基座组件时 stage `runtime-base`，属于 scope 目录时 stage `runtime-directory`。
+   前置观测不宣称与后续 open 原子。
+3. **Socket** —— `client_socket_exists()` 复用既有 类型+属主+`0600`+no-follow 校验：不存在 →
+   `service-unavailable`、stage `discovery`；无效/出错 → `check-failed`、stage `socket`。
+4. **Admission** —— 紧邻 `LocalClient::connect_before` 之前建立一个新的 checked 5 秒单调
+   deadline；同一 `Instant` 原样沿用到快照读取，绝不续期，绝不回退到 50 秒请求默认值。
+5. **Read** —— 恰好一次 `submit_workbench_snapshot_read_before`，使用全新
+   `WorkbenchRequestId`，受同一 deadline 约束。一次 OBLC 准入加一次 OBWP 请求；无重连、重试、
+   publication 追赶或第二次读取。
+6. **Release** —— 在任何映射、格式化、输出之前 RAII 释放全部自有 `LocalClient`/socket 句柄；
+   慢 stdout 因此绝不持有 Session。不存在也不宣称 shutdown 交换；Server 可异步观察到 EOF。
+7. **Map** —— 把已验证快照纯函数式地投影为命令结果。
+
+`config check` 纯本地：不 connect socket、不取锁、不 mkdir/chmod；其 cohort 检查使用单独的
+checked 5 秒预算。非 Linux 平台对网络查询产出 `service-unavailable`
+`{stage:"platform",reason:"unsupported-platform"}`，对 `config check` 产出同 details 的
+`check-failed`；不存在向无界连接 API 的回退。
+
+## Canonical 数据与结果
+
+Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspaces` 顺序；
+`terminalContexts` 顺序接 `tabs` 顺序；panels 深度优先且 `children[0]` 先于 `children[1]`；
+terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
+过滤后的列表与 `ambiguous` 候选都保持该次序。
+
+成功 envelope 为 `{schema, version:1, source, result}`：
+
+- `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
+  `revision`——仅在完整有效读取之后出现。
+- `source.kind="embedded"`：随二进制编译内嵌的 schema 字典（`api schema` 结果及其
+  `not-found` 失败）。
+- `source.kind="local-runtime"`：已产出的 `config check` 结果。
+- 不存在 freshness 字段；一次一致读取不等于持续活性保证。
+
+结果载荷（schema ID 为稳定机器名）：
+
+- `orchbee.status` → `{site:{reachable:true,siteId,revision},
+counts:{projects,workspaces,tabs,panels,boundTerminals},
+worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`。`boundTerminals` 统计带
+  `binding` 的 presentation；快照校验已保证 terminalId 全局唯一，故每个绑定恰命名一个不同
+  终端。`reachable` 只证明本次读取成功。
+- `orchbee.project.list` → `{projects:[{projectId,label,directoryCount,workspaceCount}]}`；
+  `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
+workspaces:[{workspaceId,label}]}}`。
+- `orchbee.workspace.list` → `{workspaces:[{workspaceId,label,projectId,
+primaryDirectoryId|null,terminalContextId}]}`，跨 project 展平；`workspace get` 增加经
+  `terminalContextId` 反查的 `tabs:[{tabId,label}]`。
+- `orchbee.tab.list` → `{tabs:[{tabId,label,pinned,groupId|null,
+context:{kind:"standalone",terminalContextId}|{kind:"workspace",terminalContextId,
+workspaceId}}]}`；standalone 上 `workspaceId` 键不存在而非 null。`tab get` 增加 `root`——
+  typed `PanelNode` 子树的语义化重编码，不丢字段。
+- `orchbee.panel.list` → `{panels:[{panelId,tabId,terminalContextId,primaryPresentationId,
+presentationCount,primaryTerminalId|null}]}`，`primaryTerminalId` 仅反映
+  `primaryPresentation.binding`；`panel get` → `{panel:{panelId,tabId,context,slotPath,
+primaryPresentation,childPresentations}}`，`slotPath` 为自 root 至该叶子的 `PanelSlot` ID
+  链（root 本身即 panel 时为 `[]`），每个 presentation 为 `{presentationId,label,
+binding:{terminalId,workerId}|null}`。
+- `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
+tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身份事实。只有被
+  presentation 绑定的终端可见；绑定存在不证明进程存活。任何位置都没有 lifecycle/process/agent
+  字段。
+- `orchbee.api.snapshot` → `{snapshot}`：完整 `WorkbenchProtocolDocument::Snapshot` 的语义化
+  重编码，含 `kind:"workbench.snapshot"`；envelope 的 `siteId`/`revision` 与内部文档一致。
+- `orchbee.api.schema` → 带参 `{schema:{schemaId,document}}`；无参
+  `{schemas:{schemaId:document,…}}` 列出全部已交付字典（draft 2020-12）。
+- `orchbee.config.check` → `{ok,checks:[{name,status,details}]}`，固定次序
+  `runtime-base`、`runtime-directory`、`cohort`、`locale`、`sockets`；五项永远齐全。存在失败
+  项时仍产出该成功 schema（`ok:false`）并以 1 退出。
+- `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
+source?}`；不存在英文 `message` 字段。`source` 只取自已可信来源（读取后失败用已验证快照；
+  `api schema` not-found 用 `embedded`）；denied/transport 失败没有 source。
+
+### Config 检查
+
+| 检查项              | 规则                                                                                                                                                                                                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runtime-base`      | 解析并观测 `ORCHBEE_RUNTIME_BASE`/默认值：存在且为目录则 pass；路径非法、缺失、不安全项或 I/O 错误则 fail。                                                                                                                                                                 |
+| `runtime-directory` | 基座失败、或合法基座下 scope 目录不存在时为 `not-applicable`（Site 未运行不是配置错误）；既有目录通过校验为 pass；属主/模式/类型不安全或 I/O 错误为 fail。                                                                                                                  |
+| `cohort`            | `NativeCohort::current` 在其 5 秒预算内验证通过则 pass（`verified:true`）；缺失、非法、散列不符（`invalid-cohort`）或超时（`deadline`）为 fail。                                                                                                                            |
+| `locale`            | 信息性 pass，携带 `locale`（`en-US`/`zh-CN`）与 `source`（`LC_ALL`/`LC_MESSAGES`/`LANG`/`default`）。                                                                                                                                                                       |
+| `sockets`           | 仅在运行目录可安全检查后；`client`/`worker` 各自报告 `presence` 为 `present`/`absent`/`unchecked`，沿用既有 类型+属主+`0600`+no-follow 规则。任一已检查 socket 无效即 fail；否则至少一个合规存在即 pass；全部缺失/未检为 `not-applicable`。存在绝不宣称服务或 Worker 活性。 |
+
+details 一律类型化：`runtime-base`/`runtime-directory` 携带 `path`（UTF-8）或 `pathBytesHex`
+（非 UTF-8，绝不用替换字符）与已确立时的 `exists`，可加 `reason` ∈ `{invalid-path,absent,unsafe,io-error}`；`sockets` 的 reasons 为 `{unsafe,io-error,
+runtime-unavailable}`。不作跨文件
+原子健康快照声明。
+
+## 失败矩阵
+
+退出码：0 成功（含空表）；1 本地配置/输出/内部确定失败；2 usage/非法 target；3
+not-found/ambiguous/denied；4 service-unavailable（含 `session-capacity`）；5
+transport-loss/protocol-invalid；6 incompatible；130 默认 SIGINT 语义。7/8 保留且在本只读
+切片内不可达。
+
+| 来源                                                              | `failure.kind`                                          | 退出               | `details`                                          |
+| ----------------------------------------------------------------- | ------------------------------------------------------- | ------------------ | -------------------------------------------------- |
+| argv 封装/语法/format/target 形状错误                             | `invalid-usage`                                         | 2                  | 省略                                               |
+| 全零 ID/空/超长 label、非法 panel/terminal ID                     | `invalid-identifier`                                    | 2                  | `{resource,target}`                                |
+| 合法 target 或 schema ID 无匹配                                   | `not-found`                                             | 3                  | `{resource,target}`                                |
+| 多个精确 label 匹配                                               | `ambiguous`                                             | 3                  | `{resource,target,candidates≤8,totalCount}`        |
+| `NativeCohort::current` 出错                                      | `check-failed`                                          | 1                  | `{stage:"cohort"}`                                 |
+| 基座非法/缺失/非目录、不安全 runtime/socket、其他校验             | `check-failed`                                          | 1                  | `{stage:"runtime-base"                             | "runtime-directory"   | "socket"}` |
+| 合法基座下 scope 目录或 `client.sock` 不存在                      | `service-unavailable`                                   | 4                  | `{stage:"discovery"}`                              |
+| `ConnectClientError::ConnectFailed`                               | `service-unavailable`                                   | 4                  | `{stage:"admission"}`                              |
+| `ConnectClientError::Io`                                          | `transport-loss`                                        | 5                  | `{stage:"admission"}`                              |
+| OBLC `Rejected(CapacityExceeded)`                                 | `session-capacity`                                      | 4                  | `{stage:"admission"}`                              |
+| OBLC `Rejected(HandshakeTimeout)`                                 | `service-unavailable`                                   | 4                  | `{stage:"admission"}`                              |
+| `Rejected(IncompatibleProtocol                                    | IncompatibleCohort)`、`Protocol(IncompatibleVersion)`   | `incompatible`     | 6                                                  | `{stage:"admission"}` |
+| `Rejected(WrongMessage                                            | MalformedFrame)`、`UnexpectedResponse`、其余 `Protocol` | `protocol-invalid` | 5                                                  | `{stage:"admission"}` |
+| `RequestIoConfiguration`、`SessionUnavailable`、`RequestEncoding` | `internal-failure`                                      | 1                  | 省略                                               |
+| `SnapshotReadError::RequestNotSubmitted`（任何原因）              | `transport-loss`                                        | 5                  | `{stage:"snapshot"}`                               |
+| `Failed(Write                                                     | ResponseDeadline)`、`Failed(Response(Io))`              | `transport-loss`   | 5                                                  | `{stage:"snapshot"}`  |
+| `Failed(Response(InvalidHeader                                    | Contract))`、`UnexpectedResponse`                       | `protocol-invalid` | 5                                                  | `{stage:"snapshot"}`  |
+| `Failed(CorrelationMismatch)`                                     | `protocol-invalid`                                      | 5                  | `{stage:"snapshot",reason:"correlation-mismatch"}` |
+| outcome `Denied`                                                  | `denied`                                                | 3                  | 省略                                               |
+| outcome `Unavailable`                                             | `service-unavailable`                                   | 4                  | `{stage:"snapshot"}`                               |
+| 预备输出超 8 MiB                                                  | `output-too-large`                                      | 1                  | `{limitBytes:8388608}`                             |
+| stdout 写/flush 失败                                              | `output-failed`                                         | 1                  | 不追加第二份 stdout 文档                           |
+| `config check` 完成但存在失败项                                   | 成功 schema `ok:false`                                  | 1                  | 五项全部保留                                       |
+| 非 Linux 网络查询 / `config check`                                | `service-unavailable`/`check-failed`                    | 4/1                | `{stage:"platform",reason:"unsupported-platform"}` |
+
+`resource` ∈ `project|workspace|tab|panel|terminal|schema`。stage 与 reason 是有限 schema 值；
+任何异常文本都不进入机器字段。读路径错误永不归类为 outcome-unknown/failed-effect：只读请求
+不可能产生未知副作用。
+
+## 输出契约与副作用
+
+- stdout 只承载契约文档：`--format json` 下为一份带 2 空格缩进、以 `\n` 结尾的 JSON（`api`
+  命令恒为 JSON），text/默认下为本地化人类文档。stderr 承载本地化人类诊断；查询路径不打印
+  进度。
+- 文本把用户可控字符串渲染为带引号的转义值：反斜杠与引号用 `\\`/`\"`；C0/C1 控制字符（含
+  ESC）、U+2028/U+2029 与双向格式控制符用无歧义 `\uXXXX` 转义；其余 Unicode 原样保留。列表
+  表格只把 label 显示截到 80 显示列并加省略号，转义序列与收尾引号保持完整；ID 绝不截断；
+  `get` 字段值完整呈现。JSON 用标准无损编码保留源数据——绝不用 TUI 的替换字符清洗器。
+- 完整输出在首次 stdout 写入前于有界缓冲区内构造；预备超过 8 MiB 即 `output-too-large`，
+  stdout 不被触碰。真实 OS 写失败可能留下部分字节，但绝不追加第二份文档；stderr 仍报告且
+  退出码非零。
+- 机器输出与 locale 无关且不含英文 `message`；stderr 诊断按 en-US/zh-CN 本地化。机器 `kind`、
+  字段名与枚举值绝不本地化；用户 label/path 数据按数据原样保留。
+
+## 不变量
+
+- 语法非法的调用绝不触碰文件系统、cohort 或 socket。
+- 离线命令（`help`、`--version`、`completion`、`api schema`）绝不执行平台、运行、cohort 或
+  Site 发现。
+- 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求；至多持有
+  一个短暂 Client Session，且绝不带入输出阶段。
+- 每次调用至多一次快照读取、一次准入，且两者共用一个网络 deadline。
+- 没有可信来源的字段不存在；`null` 表示来源确定地表达"无"，`"unknown"` 表示来源无法回答——
+  两者绝不混用。
+- 失败 envelope 绝不虚构 `source`：siteId/revision 只来自已验证快照。
+- Ambiguous 绝不猜测：报告有界候选与真实总数。
+- `api schema`、help 与 completion 只枚举同一次构建中真实交付的命令。
+- 两个 5 秒预算都是 CLI 自有的 checked deadline；其构造失败是 `internal-failure`，而 transport
+  内部 `RequestNotSubmitted` 一律保持 `transport-loss`。
+
+## 场景矩阵与证据
+
+| 场景                                                                              | 预期                                        | 证据                                                      |
+| --------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------- |
+| 穷举语法：format、位置、`--`、help 形式、重复、非法                               | 精确 parse/失败类别                         | `src/invocation` 测试                                     |
+| 目标规则：ID/label/全零/超长/歧义优先                                             | resolver 判定                               | `src/cli` resolver 测试                                   |
+| 已验证快照 → 各结果形状、空集合、null                                             | 精确 JSON/text fixture                      | `src/cli` 输出测试 + JSON Schema 校验（dev `jsonschema`） |
+| Schema 字典 ↔ 实际 envelope                                                       | 每个成功/失败 fixture 通过校验              | schema fixture 测试                                       |
+| 无 Site 磁盘状态                                                                  | `service-unavailable`，零 fs/进程/锁变更    | `tests/query_process.rs`                                  |
+| 真实 staged-cohort Server：status/list/get/api snapshot、容量 16、与活跃 TUI 共存 | 成功/`session-capacity`/结构不变            | `tests/local_startup_process` + `tests/query_process.rs`  |
+| 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连    | 按矩阵 typed kind；绝不冒称真实 Server 证据 | `tests/query_process.rs`                                  |
+| 非 TTY 调用；慢 stdout 下会话已释放；预备 >8 MiB；真实写失败                      | 文档化退出；阻塞前已 drop                   | `tests/query_process.rs` + writer 注入单元测试            |
+| `config check` 矩阵：每项 pass/fail/not-applicable，基座 vs scope ENOENT 判别     | 五项 typed 检查齐全                         | `tests/query_process.rs`                                  |
+| 双语文本/失败输出                                                                 | 精确 en-US/zh-CN 字符串                     | `tests/process.rs` + `tests/query_process.rs`             |
+
+模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/Client 模型，故
+不需要新的 TLA+ 模型。触发范围覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试
+路径的已注册模型仍须真实运行；inventory 输出不替代执行。

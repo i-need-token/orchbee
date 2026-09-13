@@ -1,0 +1,47 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.project.list",
+	"title": "orchbee project list envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.project.list" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/snapshotSource" },
+		"result": {
+			"type": "object",
+			"required": ["projects"],
+			"additionalProperties": false,
+			"properties": {
+				"projects": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["projectId", "label", "directoryCount", "workspaceCount"],
+						"additionalProperties": false,
+						"properties": {
+							"projectId": { "$ref": "#/$defs/id" },
+							"label": { "type": "string" },
+							"directoryCount": { "type": "integer", "minimum": 0 },
+							"workspaceCount": { "type": "integer", "minimum": 0 }
+						}
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench-snapshot" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+			}
+		}
+	}
+}

@@ -1,0 +1,41 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.api.schema",
+	"title": "orchbee api schema envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.api.schema" },
+		"version": { "const": 1 },
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "embedded" }
+			}
+		},
+		"result": {
+			"type": "object",
+			"minProperties": 1,
+			"maxProperties": 1,
+			"properties": {
+				"schemas": {
+					"type": "object",
+					"propertyNames": { "pattern": "^orchbee\\.[0-9a-z.-]+$" },
+					"additionalProperties": { "type": "object" }
+				},
+				"schema": {
+					"type": "object",
+					"required": ["schemaId", "document"],
+					"additionalProperties": false,
+					"properties": {
+						"schemaId": { "type": "string" },
+						"document": { "type": "object" }
+					}
+				}
+			}
+		}
+	}
+}

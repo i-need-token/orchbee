@@ -1,0 +1,59 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.tab.list",
+	"title": "orchbee tab list envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.tab.list" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/snapshotSource" },
+		"result": {
+			"type": "object",
+			"required": ["tabs"],
+			"additionalProperties": false,
+			"properties": {
+				"tabs": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/tab" }
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"context": {
+			"type": "object",
+			"required": ["kind", "terminalContextId"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "enum": ["standalone", "workspace"] },
+				"terminalContextId": { "$ref": "#/$defs/id" },
+				"workspaceId": { "$ref": "#/$defs/id" }
+			}
+		},
+		"tab": {
+			"type": "object",
+			"required": ["tabId", "label", "pinned", "groupId", "context"],
+			"additionalProperties": false,
+			"properties": {
+				"tabId": { "$ref": "#/$defs/id" },
+				"label": { "type": "string" },
+				"pinned": { "type": "boolean" },
+				"groupId": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+				"context": { "$ref": "#/$defs/context" }
+			}
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench-snapshot" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+			}
+		}
+	}
+}

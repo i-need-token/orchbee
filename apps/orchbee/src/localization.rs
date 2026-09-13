@@ -2,6 +2,8 @@ use std::ffi::OsString;
 
 use crate::client_view::{BackendAction, Notice};
 
+mod cli;
+pub(crate) use cli::CliLabels;
 #[cfg(unix)]
 mod location_labels;
 #[cfg(unix)]
@@ -11,8 +13,8 @@ mod tab_rename;
 #[cfg(unix)]
 mod workspace_setup;
 
-const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee --help\n  orchbee --version\n\nModes:\n  orchbee            Open the local terminal (Linux development cohort)\n  orchbee tui        Open the same local terminal explicitly\n  orchbee --help     Show this help\n  orchbee --version  Show the version\n";
-const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee --help\n  orchbee --version\n\n模式：\n  orchbee            打开本地终端（Linux 开发 cohort）\n  orchbee tui        显式打开同一本地终端\n  orchbee --help     显示此帮助\n  orchbee --version  显示版本\n";
+const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> list|get [filters] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee <family>     Query projects, workspaces, tabs, panels, terminals\n  orchbee api          Machine snapshot and embedded schema documents\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee --help       Show this help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules.\n";
+const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> list|get [filters] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee <family>     查询 project、workspace、tab、panel、terminal\n  orchbee api          机器快照与内嵌 schema 文档\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee --help       显示此帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则。\n";
 const EN_US_TUI_UNAVAILABLE: &str = "The Orchbee TUI is unavailable in this development slice.\n";
 const ZH_CN_TUI_UNAVAILABLE: &str = "Orchbee TUI 在本开发切片中尚不可用。\n";
 const EN_US_USAGE_FAILURE: &str = "Invalid invocation. Run 'orchbee --help'.\n";
@@ -281,6 +283,28 @@ pub(crate) fn select_locale(mut read_environment: impl FnMut(&str) -> Option<OsS
         return locale_from_value(&value);
     }
     Locale::EnUs
+}
+
+/// Effective locale plus the variable that selected it (`default` when none),
+/// reading only LC_ALL/LC_MESSAGES/LANG.
+pub(crate) fn locale_source() -> (&'static str, &'static str) {
+    for name in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+        let Some(value) = std::env::var_os(name) else {
+            continue;
+        };
+        if value.is_empty() {
+            continue;
+        }
+        return (locale_name(locale_from_value(&value)), name);
+    }
+    ("en-US", "default")
+}
+
+pub(crate) const fn locale_name(locale: Locale) -> &'static str {
+    match locale {
+        Locale::EnUs => "en-US",
+        Locale::ZhCn => "zh-CN",
+    }
 }
 
 fn locale_from_value(value: &OsString) -> Locale {

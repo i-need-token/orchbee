@@ -1,0 +1,47 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.cli.failure",
+	"title": "orchbee cli failure envelope",
+	"type": "object",
+	"required": ["schema", "version", "failure"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.cli.failure" },
+		"version": { "const": 1 },
+		"failure": {
+			"type": "object",
+			"required": ["kind"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"ambiguous",
+						"check-failed",
+						"denied",
+						"incompatible",
+						"internal-failure",
+						"invalid-identifier",
+						"invalid-usage",
+						"not-found",
+						"output-failed",
+						"output-too-large",
+						"protocol-invalid",
+						"service-unavailable",
+						"session-capacity",
+						"transport-loss"
+					]
+				},
+				"details": { "type": "object" }
+			}
+		},
+		"source": {
+			"type": "object",
+			"required": ["kind"],
+			"properties": {
+				"kind": {
+					"enum": ["workbench-snapshot", "embedded", "local-runtime"]
+				}
+			}
+		}
+	}
+}

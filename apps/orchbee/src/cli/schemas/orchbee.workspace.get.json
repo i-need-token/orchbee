@@ -1,0 +1,66 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.workspace.get",
+	"title": "orchbee workspace get envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.workspace.get" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/snapshotSource" },
+		"result": {
+			"type": "object",
+			"required": ["workspace"],
+			"additionalProperties": false,
+			"properties": {
+				"workspace": {
+					"type": "object",
+					"required": [
+						"workspaceId",
+						"label",
+						"projectId",
+						"primaryDirectoryId",
+						"terminalContextId",
+						"tabs"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"workspaceId": { "$ref": "#/$defs/id" },
+						"label": { "type": "string" },
+						"projectId": { "$ref": "#/$defs/id" },
+						"primaryDirectoryId": {
+							"anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+						},
+						"terminalContextId": { "$ref": "#/$defs/id" },
+						"tabs": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"required": ["tabId", "label"],
+								"additionalProperties": false,
+								"properties": {
+									"tabId": { "$ref": "#/$defs/id" },
+									"label": { "type": "string" }
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench-snapshot" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+			}
+		}
+	}
+}

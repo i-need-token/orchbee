@@ -3,10 +3,10 @@
 	"domain": "orchbee",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Experimental native Rust Client with Linux connect-first local Site startup from a verified four-artifact development cohort, a shared absolute startup deadline through terminal-projection first-frame readiness, and a localized retained-terminal TUI using shared Workbench bindings; strict multi-Tab projection, classified tab.create submission, and staged Session state and mailbox kernels provide the foundations for native Tab Session interaction.",
+	"responsibility": "Experimental native Rust Client with Linux connect-first local Site startup from a verified four-artifact development cohort, a shared absolute startup deadline through terminal-projection first-frame readiness, and a localized retained-terminal TUI using shared Workbench bindings; strict multi-Tab projection, classified tab.create submission, and staged Session state and mailbox kernels provide the foundations for native Tab Session interaction. It also owns a versioned, read-only native CLI query/config/description surface (status, resource list/get, api snapshot/schema, config check, help, completion) that observes an existing local Site without creating, activating, or mutating it.",
 	"nonGoals": [
 		"Providing remote connections, ambiguous effect replay, automatic recovery/restart, full Workbench operations, full terminal interaction-mode parity, or non-Linux public startup.",
 		"Replacing, packaging, migrating, or deleting the delivered TypeScript CLI or Desktop launcher.",
-		"Defining stable public command/output/exit contracts, service installation, signing, distribution, updates, or rollback."
+		"Service installation, signing, distribution, updates, or rollback."
 	]
 }
