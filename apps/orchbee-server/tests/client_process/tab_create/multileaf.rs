@@ -280,6 +280,10 @@ fn never_split_observer_wait_terminates_at_the_shared_deadline() -> TestResult {
         is_process_deadline(&*error),
         "never-split wait ended on a non-deadline error: {error}"
     );
+    eprintln!(
+        "never-split wait: successful_replies={successful_replies} elapsed={elapsed:?} \
+         error={error}"
+    );
     assert!(
         successful_replies >= 2,
         "deadline evidence needs at least two successful snapshot replies, got {successful_replies}"
@@ -300,17 +304,25 @@ fn renewed_deadline_wait_outlives_the_shared_cap_under_an_outer_bound() -> TestR
     // Expected-negative control for the original renewal bug shape: every
     // successful snapshot read starts a fresh PROCESS_TIMEOUT deadline, so a
     // never-split server keeps this copy alive past the point where the
-    // shared-cap path already ended. An independent outer bound caps every
-    // read and the loop itself, making the diagnostic bounded; surviving the
-    // shared cap and then reaching the outer bound while still waiting is the
-    // expected outcome.
+    // shared-cap path already ended. `shared_cap` is sampled once and `outer`
+    // bounds every read and the loop. The oracle only accepts the outcome as
+    // the bounded negative result once the wait actually reached outer — via
+    // the loop check or a deadline-marker error at-or-past outer — and it
+    // requires at least one successful, still-unsplit reply after shared_cap.
+    // Substituting one shared read cap for the renewed per-read caps fails
+    // both assertions instead of passing this control.
     let (_server, _worker, _first_client, mut observer, first_tuple) = never_split_fixture()?;
 
-    let outer = deadline() + Duration::from_secs(3);
     let start = Instant::now();
+    let shared_cap = start + PROCESS_TIMEOUT;
+    let outer = shared_cap + Duration::from_secs(3);
     let mut successful_replies = 0u32;
+    let mut post_cap_replies = 0u32;
     let mut snapshot = read_snapshot(&mut observer, 321, deadline().min(outer))?;
     successful_replies += 1;
+    if Instant::now() >= shared_cap {
+        post_cap_replies += 1;
+    }
     loop {
         let source = standalone_context(&snapshot)?
             .tabs
@@ -325,32 +337,48 @@ fn renewed_deadline_wait_outlives_the_shared_cap_under_an_outer_bound() -> TestR
         }
         thread::yield_now();
         // The renewed per-read deadline reproduces the bug under observation;
-        // the outer bound still caps each socket read so nothing can hang. A
-        // read in flight across the outer bound returns the deadline error —
-        // that is still the bounded end state, so it exits the loop here.
+        // the outer bound still caps each socket read so nothing can hang.
         let read_cap = deadline().min(outer);
         match read_snapshot(&mut observer, 321, read_cap) {
             Ok(next) => {
                 snapshot = next;
                 successful_replies += 1;
+                if Instant::now() >= shared_cap {
+                    post_cap_replies += 1;
+                }
             }
             Err(error) => {
+                // A read in flight across the outer bound returns the deadline
+                // marker; an earlier io/deadline error is not the outer end
+                // state and fails this oracle.
                 assert!(
                     is_process_deadline(&*error),
                     "renewal-form wait ended on a non-deadline error: {error}"
+                );
+                assert!(
+                    Instant::now() >= outer,
+                    "deadline fired before the outer bound — not the outer end state"
                 );
                 break;
             }
         }
     }
     let elapsed = start.elapsed();
+    eprintln!(
+        "renewed wait: successful_replies={successful_replies} \
+         post_cap_replies={post_cap_replies} elapsed={elapsed:?}"
+    );
     assert!(
         successful_replies >= 2,
         "renewal evidence needs at least two successful snapshot replies, got {successful_replies}"
     );
     assert!(
-        elapsed >= PROCESS_TIMEOUT,
-        "renewal-form wait ended inside one shared cap: {elapsed:?}"
+        post_cap_replies >= 1,
+        "no successful unsplit snapshot arrived after the shared cap"
+    );
+    assert!(
+        elapsed >= PROCESS_TIMEOUT + Duration::from_secs(3),
+        "renewal-form wait ended before the outer bound: {elapsed:?}"
     );
     assert!(
         elapsed <= PROCESS_TIMEOUT + Duration::from_secs(3) + Duration::from_secs(2),
