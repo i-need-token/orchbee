@@ -1,0 +1,405 @@
+//! Real-Site witnesses for the CLI query surface: every invocation runs the
+//! source-pinned staged `orchbee` binary against a real `orchbee-server`
+//! (and, where content matters, a real Worker/Host behind a live TUI client).
+//! The query path must read shared state without creating, mutating, or
+//! leaking anything on the Site.
+
+use super::*;
+use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
+use std::collections::BTreeMap;
+use std::os::fd::AsFd;
+use std::path::PathBuf;
+use std::process::{Child, Output};
+
+const SLOT_RELEASE_DEADLINE: Duration = Duration::from_secs(15);
+const BLOCKED_STDOUT_DEADLINE: Duration = Duration::from_secs(25);
+
+/// A spawned child that is always reaped: any `?` early return still kills
+/// and waits it instead of leaking a zombie.
+struct Reap(Child);
+
+impl Reap {
+    fn spawn(command: &mut Command) -> io::Result<Self> {
+        command.spawn().map(Self)
+    }
+}
+
+impl std::ops::Deref for Reap {
+    type Target = Child;
+
+    fn deref(&self) -> &Child {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Reap {
+    fn deref_mut(&mut self) -> &mut Child {
+        &mut self.0
+    }
+}
+
+impl Drop for Reap {
+    fn drop(&mut self) {
+        if self.0.try_wait().is_ok_and(|status| status.is_none()) {
+            let _result = self.0.kill();
+        }
+        let _result = self.0.wait();
+    }
+}
+
+/// Run one query invocation of the staged `orchbee` binary. stdin is null and
+/// both streams are pipes: every witness here is non-TTY.
+fn run_cli(fixture: &Fixture, arguments: &[&str]) -> Output {
+    Command::new(fixture.cohort.join("orchbee"))
+        .args(arguments)
+        .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+        .env("LANG", "en_US.UTF-8")
+        .env_remove("LC_ALL")
+        .env_remove("LC_MESSAGES")
+        .stdin(Stdio::null())
+        .output()
+        .unwrap_or_else(|error| panic!("spawn query CLI {arguments:?}: {error}"))
+}
+
+fn run_json(fixture: &Fixture, arguments: &[&str]) -> (Output, serde_json::Value) {
+    let output = run_cli(fixture, arguments);
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| panic!("{arguments:?} JSON document: {error}"));
+    (output, document)
+}
+
+/// One `api schema` call returns every embedded schema; compile them all once.
+fn validators(fixture: &Fixture) -> BTreeMap<String, jsonschema::Validator> {
+    let (output, document) = run_json(fixture, &["api", "schema", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    document["result"]["schemas"]
+        .as_object()
+        .expect("schemas map")
+        .iter()
+        .map(|(id, schema)| {
+            (
+                id.clone(),
+                jsonschema::draft202012::new(schema).expect("embedded schema compiles"),
+            )
+        })
+        .collect()
+}
+
+fn validate(validators: &BTreeMap<String, jsonschema::Validator>, id: &str, output: &Output) {
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(
+        validators[id].is_valid(&document),
+        "{id} rejected {document}"
+    );
+}
+
+/// Start a real managed Server on the fixture scope and wait for its client
+/// socket. No Worker or Host: a query only needs the Server surface.
+fn spawn_real_server(fixture: &Fixture) -> Reap {
+    let site = fixture.site();
+    site.commit_activation().expect("fixture activation");
+    let mut server = Reap(
+        Command::new(fixture.cohort.join("orchbee-server"))
+            .arg("--local-site")
+            .arg(fixture.runtime())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn orchbee-server"),
+    );
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        if site.client_socket_exists().unwrap_or(false) {
+            break;
+        }
+        assert!(server.try_wait().unwrap().is_none(), "server exited early");
+        assert!(Instant::now() < deadline, "server socket deadline");
+        thread::yield_now();
+    }
+    server
+}
+
+/// Admit one real OBLC Client Session against the live Server and hold it.
+fn hold_session(fixture: &Fixture, deadline: Instant) -> ClientSessionConnection {
+    let cohort = NativeCohort::load(&fixture.cohort, deadline)
+        .unwrap_or_else(|error| panic!("cohort identity: {error}"));
+    ClientSessionConnection::connect_before(
+        fixture.site().client_socket_path(),
+        cohort.identity(),
+        deadline,
+    )
+    .unwrap_or_else(|error| panic!("admit held session: {error}"))
+}
+
+/// The Site query surface coexists with a live controlling TUI and reports
+/// real state: reads, empty and filtered results, label resolution, local
+/// commands, failure envelopes, and schema-validated documents.
+#[test]
+fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+    let mut client = Client::spawn(&fixture, "en_US.UTF-8");
+    client.wait_ready_after(
+        0,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::Controlling,
+    );
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02c");
+    client.wait_ordered_ready_after(
+        checkpoint,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        &["1", "2"],
+        2,
+        ReadyMode::Controlling,
+    );
+
+    let validators = validators(&fixture);
+
+    // status: text and JSON both read the real snapshot.
+    let output = run_cli(&fixture, &["status"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout)?;
+    assert!(text.contains("revision"), "{text}");
+    let (output, document) = run_json(&fixture, &["status", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(document["schema"], "orchbee.status");
+    validate(&validators, "orchbee.status", &output);
+
+    // The live TUI's tabs are visible: two standalone-context tabs.
+    let (output, tabs) = run_json(&fixture, &["tab", "list", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    validate(&validators, "orchbee.tab.list", &output);
+    let items = tabs["result"]["tabs"].as_array().expect("tab list items");
+    assert_eq!(items.len(), 2, "real tabs: {items:?}");
+
+    // Real filter behavior: a fresh Site's tabs all live in the standalone
+    // context, so `--standalone` selects exactly the same two rows and every
+    // row reports the standalone context shape.
+    let (output, standalone) = run_json(
+        &fixture,
+        &["tab", "list", "--standalone", "--format", "json"],
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let standalone_items = standalone["result"]["tabs"].as_array().unwrap();
+    assert_eq!(standalone_items.len(), 2);
+    for row in standalone_items {
+        assert_eq!(row["context"]["kind"], "standalone", "{row}");
+    }
+
+    // Empty result: no projects exist on a fresh Site.
+    let (output, projects) = run_json(&fixture, &["project", "list", "--format=json"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(projects["result"]["projects"].as_array().unwrap().len(), 0);
+    validate(&validators, "orchbee.project.list", &output);
+
+    // Label resolution against the real state.
+    let (output, tab) = run_json(&fixture, &["tab", "get", "2", "--format=json"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(tab["result"]["tab"]["label"], "2");
+    validate(&validators, "orchbee.tab.get", &output);
+
+    // Bound terminals from the two live shells.
+    let (output, terminals) = run_json(&fixture, &["terminal", "list", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        terminals["result"]["terminals"].as_array().unwrap().len(),
+        2
+    );
+    validate(&validators, "orchbee.terminal.list", &output);
+
+    // The machine surface: raw snapshot + embedded schema + config.
+    let (output, snapshot) = run_json(&fixture, &["api", "snapshot", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(snapshot["result"]["snapshot"]["kind"], "workbench.snapshot");
+    validate(&validators, "orchbee.api.snapshot", &output);
+    let (output, _) = run_json(&fixture, &["api", "schema", "orchbee.status"]);
+    assert_eq!(output.status.code(), Some(0));
+    validate(&validators, "orchbee.api.schema", &output);
+    let (output, _) = run_json(&fixture, &["config", "check", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    validate(&validators, "orchbee.config.check", &output);
+
+    // Real failure envelopes against live state.
+    let (output, failure) = run_json(
+        &fixture,
+        &["project", "get", "no-such-project", "--format", "json"],
+    );
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(failure["failure"]["kind"], "not-found");
+    validate(&validators, "orchbee.cli.failure", &output);
+
+    // A text failure keeps stdout empty on the real path too.
+    let output = run_cli(&fixture, &["project", "get", "no-such-project"]);
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+
+    // Fresh post-query observation: a tab creation issued only after all the
+    // query traffic must land in a newly observed ordered frame — never a
+    // stale frame collected before the queries ran.
+    let checkpoint = client.checkpoint();
+    client.send(b"\x02c");
+    client.wait_ordered_ready_after(
+        checkpoint,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        &["1", "2", "3"],
+        3,
+        ReadyMode::Controlling,
+    );
+    client.close_before(Instant::now() + EXIT_TIMEOUT);
+    Ok(())
+}
+
+/// Eight real admitted Client Sessions saturate the Server; the ninth query
+/// is refused with `session-capacity`, and a released slot is usable again
+/// without assuming synchronous EOF teardown.
+#[test]
+fn cli_query_session_capacity_and_release_on_a_real_server() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+    let _server = spawn_real_server(&fixture);
+    let admission_deadline = Instant::now() + Duration::from_secs(40);
+    let mut held = Vec::new();
+    for index in 0..8 {
+        held.push(hold_session(&fixture, admission_deadline));
+        eprintln!("held session {index}");
+    }
+
+    // The ninth session request — a real query — is refused at admission.
+    let (output, failure) = run_json(&fixture, &["status", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(4));
+    assert_eq!(failure["failure"]["kind"], "session-capacity");
+    assert_eq!(failure["failure"]["details"]["stage"], "admission");
+
+    // Release one slot: the Server notices the disconnect on its own schedule
+    // (not a synchronous EOF guarantee), so availability is polled within a
+    // bounded window rather than assumed immediate.
+    drop(held.pop());
+    let release_deadline = Instant::now() + SLOT_RELEASE_DEADLINE;
+    let mut code = run_cli(&fixture, &["status", "--format", "json"])
+        .status
+        .code();
+    while code != Some(0) && Instant::now() < release_deadline {
+        thread::sleep(Duration::from_millis(150));
+        code = run_cli(&fixture, &["status", "--format", "json"])
+            .status
+            .code();
+    }
+    assert_eq!(code, Some(0), "released slot must admit a new session");
+    // The query path itself leaks nothing: back-to-back invocations each get
+    // a fresh transient session and succeed.
+    for _ in 0..2 {
+        let output = run_cli(&fixture, &["status", "--format", "json"]);
+        assert_eq!(output.status.code(), Some(0), "query sessions do not leak");
+    }
+
+    drop(held);
+    Ok(())
+}
+
+/// A blocked stdout does not keep the transport alive: while the CLI is
+/// parked mid-write against a full pipe, its /proc descriptor set holds no
+/// socket — the session was dropped before output — and the Server admits a
+/// fresh query afterwards.
+#[test]
+fn blocked_stdout_keeps_no_transport_and_releases_the_real_server() -> TestResult {
+    let _process_witness = process_witness_guard();
+    let fixture = Fixture::new();
+    // Real content: a TUI with eight tabs makes the machine snapshot exceed a
+    // minimal pipe, so the emit boundary genuinely blocks.
+    let mut client = Client::spawn(&fixture, "en_US.UTF-8");
+    client.wait_ready_after(
+        0,
+        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        1,
+        "1",
+        ReadyMode::Controlling,
+    );
+    for index in 1..8 {
+        let checkpoint = client.checkpoint();
+        client.send(b"\x02c");
+        let labels: Vec<String> = (1..=index + 1).map(|value| value.to_string()).collect();
+        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+        client.wait_ordered_ready_after(
+            checkpoint,
+            Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+            &labels,
+            index + 1,
+            ReadyMode::Controlling,
+        );
+    }
+
+    use nix::fcntl::{FcntlArg, fcntl};
+    let (read_end, write_end) = nix::unistd::pipe()?;
+    // Minimum legal pipe capacity keeps the witness small and deterministic.
+    fcntl(&read_end, FcntlArg::F_SETPIPE_SZ(4096))?;
+    let mut child = Reap::spawn(
+        Command::new(fixture.cohort.join("orchbee"))
+            .args(["api", "snapshot", "--format", "json"])
+            .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
+            .env("LANG", "en_US.UTF-8")
+            .stdin(Stdio::null())
+            .stdout(Stdio::from(fs::File::from(write_end)))
+            .stderr(Stdio::piped()),
+    )?;
+    let child_id = child.id() as i32;
+
+    // Wait until the child has produced bytes and is still alive: with the
+    // document fully prepared before the first write, alive + pipe-full means
+    // parked inside the emit boundary.
+    let deadline = Instant::now() + BLOCKED_STDOUT_DEADLINE;
+    loop {
+        assert!(
+            child.try_wait()?.is_none(),
+            "CLI exited before backpressure"
+        );
+        let mut descriptors = [PollFd::new(read_end.as_fd(), PollFlags::POLLIN)];
+        if poll(
+            &mut descriptors,
+            PollTimeout::try_from(Duration::from_millis(200)).unwrap(),
+        )
+        .is_ok_and(|count| count > 0)
+        {
+            // Bytes reached the pipe while the process stays alive: with the
+            // document fully prepared before the first write, the remaining
+            // work can only be the blocked write itself.
+            thread::sleep(Duration::from_millis(400));
+            assert!(child.try_wait()?.is_none(), "CLI must block on stdout");
+            break;
+        }
+        assert!(Instant::now() < deadline, "CLI never reached blocked emit");
+    }
+
+    // /proc witness: while stdout blocks, the descriptor table holds no
+    // socket — transport owners were dropped before projection/output.
+    let fd_dir = PathBuf::from(format!("/proc/{child_id}/fd"));
+    let mut socket_fds = 0;
+    for entry in fs::read_dir(&fd_dir)? {
+        let entry = entry?;
+        if let Ok(target) = fs::read_link(entry.path())
+            && target.to_string_lossy().contains("socket:")
+        {
+            socket_fds += 1;
+        }
+    }
+    assert_eq!(socket_fds, 0, "blocked CLI still owns transport sockets");
+
+    // Drain the pipe; the prepared document completes and the process exits 0.
+    let mut reader = fs::File::from(read_end);
+    let mut stdout = Vec::new();
+    io::Read::read_to_end(&mut reader, &mut stdout)?;
+    let status = child.wait()?;
+    assert_eq!(status.code(), Some(0));
+    let document: serde_json::Value = serde_json::from_slice(&stdout)?;
+    assert_eq!(document["result"]["snapshot"]["kind"], "workbench.snapshot");
+
+    // The real Server released the transient session: a fresh query admits.
+    let output = run_cli(&fixture, &["status", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0), "server slot released");
+
+    client.close_before(Instant::now() + EXIT_TIMEOUT);
+    Ok(())
+}

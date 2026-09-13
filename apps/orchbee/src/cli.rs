@@ -8,6 +8,9 @@ pub(crate) mod results;
 mod schema;
 mod text;
 
+#[cfg(test)]
+mod tests;
+
 use serde_json::{Map, Value, json};
 
 use crate::invocation::{
@@ -23,23 +26,25 @@ pub(crate) struct Output {
     pub(crate) stderr: String,
 }
 
-impl From<ProcessResult> for Output {
-    fn from(result: ProcessResult) -> Self {
-        Self {
+/// Legacy process results (TUI launch, version, root help) also finish
+/// through the preparation bound; their `&'static` bodies are far under it, so
+/// the overflow arm is unreachable — but if it ever ran it still reports a
+/// localized failure, never a hardcoded English string.
+pub(crate) fn process_result(result: ProcessResult, locale: Locale) -> Output {
+    match output::encode_text(result.stdout) {
+        Ok(stdout) => Output {
             status: result.status,
-            stdout: result.stdout.as_bytes().to_vec(),
+            stdout,
             stderr: result.stderr.to_owned(),
-        }
-    }
-}
-
-impl Output {
-    fn text(status: u8, stdout: String, stderr: String) -> Self {
-        Self {
-            status,
-            stdout: stdout.into_bytes(),
-            stderr,
-        }
+        },
+        Err(output::TooLarge) => failure_output(
+            Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
+                "limitBytes".to_owned(),
+                json!(output::LIMIT),
+            )])),
+            None,
+            locale,
+        ),
     }
 }
 
@@ -198,12 +203,32 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
     failure_output(record, format, locale)
 }
 
-pub(crate) fn help(topic: HelpTopic, locale: Locale) -> Output {
-    Output::text(0, text::help(topic, locale).to_owned(), String::new())
+/// Fixed text outputs (help, completion scripts) still finish through the
+/// preparation bound; their size is a small constant asserted by tests.
+fn fixed_text(body: &str, locale: Locale) -> Output {
+    match output::encode_text(body) {
+        Ok(stdout) => Output {
+            status: 0,
+            stdout,
+            stderr: String::new(),
+        },
+        Err(output::TooLarge) => failure_output(
+            Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
+                "limitBytes".to_owned(),
+                json!(output::LIMIT),
+            )])),
+            None,
+            locale,
+        ),
+    }
 }
 
-pub(crate) fn completion(shell: CompletionShell) -> Output {
-    Output::text(0, completion::render(shell), String::new())
+pub(crate) fn help(topic: HelpTopic, locale: Locale) -> Output {
+    fixed_text(text::help(topic, locale), locale)
+}
+
+pub(crate) fn completion(shell: CompletionShell, locale: Locale) -> Output {
+    fixed_text(&completion::render(shell), locale)
 }
 
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
@@ -237,12 +262,26 @@ fn success_output(
     locale: Locale,
 ) -> Output {
     let schema_id = results::schema_id(command);
+    // A preparation overflow keeps the caller's selected format, and a text
+    // failure never writes a stdout document.
+    let too_large = |source: &Value| {
+        failure_output(
+            Failure::new(FailureKind::OutputTooLarge)
+                .details(Map::from_iter([(
+                    "limitBytes".to_owned(),
+                    json!(output::LIMIT),
+                )]))
+                .source(source.clone()),
+            Some(format),
+            locale,
+        )
+    };
     // The api commands answer machine documents in every format.
-    let format = match command {
+    let document_format = match command {
         QueryCommand::ApiSnapshot => OutputFormat::Json,
         _ => format,
     };
-    match format {
+    match document_format {
         OutputFormat::Json => {
             let document = json!({
                 "schema": schema_id,
@@ -256,24 +295,17 @@ fn success_output(
                     stdout,
                     stderr: String::new(),
                 },
-                Err(output::TooLarge) => failure_output(
-                    Failure::new(FailureKind::OutputTooLarge)
-                        .details(Map::from_iter([(
-                            "limitBytes".to_owned(),
-                            json!(output::LIMIT),
-                        )]))
-                        .source(source),
-                    Some(OutputFormat::Json),
-                    locale,
-                ),
+                Err(output::TooLarge) => too_large(&source),
             }
         }
         OutputFormat::Text => {
-            let stdout = present::render(&projection, command, locale);
-            Output {
-                status: 0,
-                stdout: stdout.into_bytes(),
-                stderr: String::new(),
+            match output::render_text(|out| present::render(out, &projection, command, locale)) {
+                Ok(stdout) => Output {
+                    status: 0,
+                    stdout,
+                    stderr: String::new(),
+                },
+                Err(output::TooLarge) => too_large(&source),
             }
         }
     }

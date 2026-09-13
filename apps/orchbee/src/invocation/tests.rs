@@ -171,6 +171,17 @@ fn format_failures_never_emit_stdout() {
         &["status", "--format=json", "--format", "json"],
         // Even an earlier valid json selection does not rescue a bad selector.
         &["--format", "json", "--format", "yaml", "status"],
+        // A format defect anywhere in the envelope is silent, even when the
+        // grammar error sits before it or a filter legally consumed a token
+        // that merely resembles a selector.
+        &["--bogus", "--format="],
+        &["status", "extra", "--format", "yaml"],
+        &["status", "extra", "--format="],
+        &["--bogus", "--format", "yaml"],
+        // A filter owns exactly one token; a real selector after its value is
+        // still evaluated and fails the whole envelope.
+        &["workspace", "list", "--project", "x", "--format", "yaml"],
+        &["workspace", "list", "--project", "x", "--format="],
     ];
     for arguments in cases {
         assert_eq!(
@@ -195,6 +206,15 @@ fn valid_json_selection_turns_later_syntax_failure_into_json() {
         &["--format=json", "--bogus"],
         &["project", "--format=json"],
         &["--format=json", "get"],
+        // A unique valid selection controls the envelope no matter where the
+        // grammar failure sits relative to it.
+        &["--bogus", "--format", "json"],
+        &["status", "--unknown", "--format", "json"],
+        &["status", "--unknown", "--format=json"],
+        // A selector-like token after `--` is positional, not a format defect:
+        // the earlier valid selection still shapes the failure.
+        &["--format=json", "--", "status", "--format=yaml"],
+        &["--format=json", "--", "bogus"],
     ];
     for arguments in cases {
         assert_eq!(
@@ -216,7 +236,6 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["-h"],
         &["--unknown"],
         &["status", "--unknown"],
-        &["status", "--unknown", "--format", "json"],
         &["--help", "status"],
         &["status", "--help", "extra"],
         &["help", "--help"],
@@ -291,11 +310,26 @@ fn filters_have_declared_scope_single_use_and_values() {
         &["project", "get", "x", "--project", "y"],
         &["status", "--workspace", "x"],
         &["terminal", "list", "--standalone"],
+        &["terminal", "list", "--project", "x"],
         &["api", "snapshot", "--tab", "x"],
+        &["api", "schema", "--workspace", "x"],
         &["config", "check", "--standalone"],
         &["help", "status", "--project", "x"],
         &["completion", "bash", "--format", "text"],
         &["--project", "x", "status"],
+        // `workspace list` declares only --project: no other filter may slip
+        // through silently.
+        &["workspace", "list", "--workspace", "x"],
+        &["workspace", "list", "--tab", "x"],
+        &["workspace", "list", "--standalone"],
+        &["workspace", "list", "--project", "x", "--workspace", "y"],
+        // `tab list` declares only --workspace/--standalone.
+        &["tab", "list", "--project", "x"],
+        &["tab", "list", "--tab", "x"],
+        // `panel list` declares only --tab.
+        &["panel", "list", "--project", "x"],
+        &["panel", "list", "--workspace", "x"],
+        &["panel", "list", "--standalone"],
         // Mutual exclusion and duplication.
         &["tab", "list", "--workspace", "x", "--standalone"],
         &["tab", "list", "--standalone", "--workspace", "x"],

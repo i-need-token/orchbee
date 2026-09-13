@@ -81,9 +81,11 @@ fn document(schema_id: &str) -> Option<&'static str> {
         .map(|(_id, document)| *document)
 }
 
-/// `api schema` always answers a machine document in either format.
+/// `api schema` always answers a machine document on success, in either
+/// format. Its failures keep the caller's selected format like every other
+/// command: text/default keeps stdout empty, json emits the failure envelope.
 pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Locale) -> Output {
-    let _ = format;
+    let caller = Some(format);
     let result = match schema_id {
         Some(schema_id) => {
             let Some(document) = document(schema_id) else {
@@ -91,7 +93,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
                     Failure::new(FailureKind::NotFound)
                         .details(target_details(Resource::Schema, schema_id))
                         .source(embedded_source()),
-                    Some(OutputFormat::Json),
+                    caller,
                     locale,
                 );
             };
@@ -100,7 +102,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
                 Err(_) => {
                     return failure_output(
                         Failure::new(FailureKind::InternalFailure),
-                        Some(OutputFormat::Json),
+                        caller,
                         locale,
                     );
                 }
@@ -122,7 +124,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
                     Err(_) => {
                         return failure_output(
                             Failure::new(FailureKind::InternalFailure),
-                            Some(OutputFormat::Json),
+                            caller,
                             locale,
                         );
                     }
@@ -148,7 +150,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
                 "limitBytes".to_owned(),
                 json!(output::LIMIT),
             )])),
-            Some(OutputFormat::Json),
+            caller,
             locale,
         ),
     }

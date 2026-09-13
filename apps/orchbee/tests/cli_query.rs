@@ -197,6 +197,11 @@ fn failure_kind(output: &Output) -> serde_json::Value {
     serde_json::from_slice(&output.stdout).expect("failure envelope is JSON")
 }
 
+/// A canonical typed id for schema fixtures.
+fn id(n: u8) -> String {
+    format!("{n:032x}")
+}
+
 // ---- scripted outcome matrix ----------------------------------------------
 
 #[test]
@@ -667,5 +672,933 @@ fn refused_connect_is_service_unavailable() -> TestResult {
         code == Some(4) || code == Some(5),
         "refused connect is unavailable or transport loss, got {code:?}"
     );
+    Ok(())
+}
+
+// ---- format-envelope ordering (B3) ------------------------------------------
+//
+// The parser validates the complete argv envelope before the grammar: a
+// unique valid `--format json` controls the failure envelope no matter where
+// the grammar error sits, while any invalid/duplicate/missing selector — even
+// after the error position — forces a silent stdout.
+
+#[test]
+fn format_envelope_is_whole_argv() -> TestResult {
+    let base = base_dir("envelope");
+    // Valid json selection anywhere → typed JSON usage envelope.
+    for arguments in [
+        vec!["status", "--unknown", "--format", "json"],
+        vec!["--bogus", "--format=json"],
+        vec!["--format=json", "--", "bogus", "--format=yaml"],
+        vec!["workspace", "list", "--workspace", "x", "--format=json"],
+    ] {
+        let output = run(&base, &arguments);
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{arguments:?} stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            failure_kind(&output)["failure"]["kind"],
+            "invalid-usage",
+            "{arguments:?}"
+        );
+    }
+    // Any format defect anywhere → silent stdout.
+    for arguments in [
+        vec!["status", "--unknown", "--format="],
+        vec!["--bogus", "--format", "yaml"],
+        vec!["--format", "json", "status", "--format", "text"],
+        vec!["status", "extra", "--format"],
+        vec!["workspace", "list", "--project", "x", "--format", "yaml"],
+    ] {
+        let output = run(&base, &arguments);
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(
+            output.stdout.is_empty(),
+            "{arguments:?} must not write a stdout document"
+        );
+        assert!(
+            !output.stderr.is_empty(),
+            "{arguments:?} keeps a stderr diagnostic"
+        );
+    }
+    Ok(())
+}
+
+// ---- filter scope (B2) -------------------------------------------------------
+//
+// A supplied filter outside the declared scope is a usage failure, never a
+// silently dropped condition. These cases must fail before any Site access.
+
+#[test]
+fn out_of_scope_filters_fail_before_runtime_access() -> TestResult {
+    // A runtime base that does not even exist proves the rejection precedes
+    // discovery: a service-unavailable answer would mean runtime was touched.
+    let base = base_dir("filters").join("never-created");
+    let cases: &[(&[&str], &str)] = &[
+        (&["workspace", "list", "--workspace", "x"], "invalid-usage"),
+        (&["workspace", "list", "--tab", "x"], "invalid-usage"),
+        (&["workspace", "list", "--standalone"], "invalid-usage"),
+        (&["project", "list", "--project", "x"], "invalid-usage"),
+        (&["project", "get", "x", "--project", "y"], "invalid-usage"),
+        (&["terminal", "list", "--project", "x"], "invalid-usage"),
+        (&["terminal", "list", "--standalone"], "invalid-usage"),
+        (&["tab", "list", "--project", "x"], "invalid-usage"),
+        (&["panel", "list", "--workspace", "x"], "invalid-usage"),
+        (&["panel", "list", "--standalone"], "invalid-usage"),
+        (
+            &["tab", "list", "--workspace", "x", "--standalone"],
+            "invalid-usage",
+        ),
+        (
+            &["tab", "list", "--workspace", "x", "--workspace", "y"],
+            "invalid-usage",
+        ),
+        (&["api", "snapshot", "--project", "x"], "invalid-usage"),
+        (&["status", "--workspace", "x"], "invalid-usage"),
+        (&["config", "check", "--standalone"], "invalid-usage"),
+    ];
+    for (arguments, kind) in cases {
+        let mut argv: Vec<&str> = arguments.to_vec();
+        argv.extend(["--format", "json"]);
+        let output = run(&base, &argv);
+        assert_eq!(output.status.code(), Some(2), "{argv:?}");
+        assert_eq!(failure_kind(&output)["failure"]["kind"], *kind, "{argv:?}");
+    }
+    // The runtime base was never created: rejections happen before discovery.
+    assert!(
+        !base.exists(),
+        "rejected filters must not touch the runtime"
+    );
+    Ok(())
+}
+
+// ---- API failure formats (B1) -------------------------------------------------
+//
+// `api` success documents are always machine JSON; failures follow the
+// caller-selected envelope format instead.
+
+#[test]
+fn api_failures_follow_the_caller_format() -> TestResult {
+    let base = base_dir("api-fail");
+    // Unknown schema id: default/text leaves stdout empty, explicit json
+    // emits one typed envelope — both carry a stderr diagnostic.
+    let text = run(&base, &["api", "schema", "orchbee.nope"]);
+    assert_eq!(text.status.code(), Some(3));
+    assert!(text.stdout.is_empty(), "text failure writes no document");
+    assert!(!text.stderr.is_empty());
+
+    let json = run(
+        &base,
+        &["api", "schema", "--format", "json", "orchbee.nope"],
+    );
+    assert_eq!(json.status.code(), Some(3));
+    let envelope = failure_kind(&json);
+    assert_eq!(envelope["failure"]["kind"], "not-found");
+    assert_eq!(envelope["failure"]["details"]["resource"], "schema");
+    assert_eq!(envelope["source"]["kind"], "embedded");
+    assert!(!json.stderr.is_empty());
+
+    // `api snapshot` is a Site query: with no Site it fails in the caller's
+    // format as well.
+    let text = run(&base, &["api", "snapshot"]);
+    assert_eq!(text.status.code(), Some(4));
+    assert!(text.stdout.is_empty());
+    let json = run(&base, &["api", "snapshot", "--format=json"]);
+    assert_eq!(json.status.code(), Some(4));
+    assert_eq!(
+        failure_kind(&json)["failure"]["kind"],
+        "service-unavailable"
+    );
+    Ok(())
+}
+
+// ---- schema contrast (R2) -----------------------------------------------------
+//
+// Every emitted document must validate against the tightened schemas, and
+// rejected contract variants — wrong kinds, extra fields, mismatched details
+// — must be refused, not just the happy path re-stated.
+
+fn compiled_schema(base: &Path, id: &str) -> jsonschema::Validator {
+    let output = run(base, &["api", "schema", id]);
+    assert_eq!(output.status.code(), Some(0), "schema {id}");
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    jsonschema::draft202012::new(&document["result"]["schema"]["document"])
+        .expect("schema compiles")
+}
+
+#[test]
+fn emitted_documents_validate_and_rejected_variants_fail() -> TestResult {
+    let base = base_dir("schemas");
+    let failure_schema = compiled_schema(&base, "orchbee.cli.failure");
+    let config_schema = compiled_schema(&base, "orchbee.config.check");
+    let api_schema = compiled_schema(&base, "orchbee.api.schema");
+
+    // Real failure envelopes validate.
+    let denied = run(&base, &["project", "get", "x", "--format", "json"]);
+    // (no Site → service-unavailable, still a real envelope)
+    assert!(
+        failure_schema.is_valid(&serde_json::from_slice::<serde_json::Value>(
+            &denied.stdout
+        )?)
+    );
+
+    // Rejected failure variants: wrong kind, unknown field, mismatched or
+    // absent details for the kind's pinned shape.
+    for variant in [
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"bogus"},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"denied","details":{"unexpected":1}},"source":{"kind":"embedded"},"extra":true}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"not-found","details":{"resource":"bogus","target":"x"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"output-too-large","details":{"limitBytes":4096}},"source":{"kind":"local-runtime"}}),
+        // Per-kind pinning: details forbidden on detail-less kinds…
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"denied","details":{}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"invalid-usage","details":{"resource":"tab"}},"source":{"kind":"local-runtime"}}),
+        // …required with the right stage domain elsewhere…
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"service-unavailable"},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"service-unavailable","details":{"stage":"socket"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"service-unavailable","details":{"stage":"admission","reason":"unsupported-platform"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"discovery"}},"source":{"kind":"local-runtime"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"platform"}},"source":{"kind":"local-runtime"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"runtime-base","reason":"x"}},"source":{"kind":"local-runtime"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"session-capacity","details":{"stage":"discovery"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"incompatible","details":{"stage":"snapshot"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"protocol-invalid","details":{"stage":"snapshot","reason":"correlation-mismatch","extra":1}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"invalid-identifier","details":{"resource":"schema","target":"x","extra":1}},"source":{"kind":"embedded"}}),
+        // …and ambiguity stays in its own domain: resource is the ambiguous
+        // kind, candidates are typed ids only, bounded at 8.
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"ambiguous","details":{"resource":"panel","target":"x","candidates":[id(1),id(2)],"totalCount":2}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"ambiguous","details":{"resource":"tab","target":"x","candidates":["label-a","label-b"],"totalCount":2}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"ambiguous","details":{"resource":"tab","target":"x","candidates":[id(1),id(2),id(3),id(4),id(5),id(6),id(7),id(8),id(9)],"totalCount":9}},"source":{"kind":"embedded"}}),
+    ] {
+        assert!(
+            !failure_schema.is_valid(&variant),
+            "rejected variant must fail: {variant}"
+        );
+    }
+    // Valid counterparts for each pinned branch validate.
+    for variant in [
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"denied"},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"runtime-base"}},"source":{"kind":"local-runtime"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"check-failed","details":{"stage":"platform","reason":"unsupported-platform"}},"source":{"kind":"local-runtime"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"service-unavailable","details":{"stage":"discovery"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"service-unavailable","details":{"stage":"platform","reason":"unsupported-platform"}},"source":{"kind":"local-runtime"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"session-capacity","details":{"stage":"admission"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"protocol-invalid","details":{"stage":"snapshot","reason":"correlation-mismatch"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"protocol-invalid","details":{"stage":"admission"}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"ambiguous","details":{"resource":"tab","target":"x","candidates":[id(1),id(2)],"totalCount":2}},"source":{"kind":"embedded"}}),
+        serde_json::json!({"schema":"orchbee.cli.failure","version":1,"failure":{"kind":"output-too-large","details":{"limitBytes":8388608}},"source":{"kind":"local-runtime"}}),
+    ] {
+        assert!(
+            failure_schema.is_valid(&variant),
+            "valid counterpart must pass: {variant}"
+        );
+    }
+
+    // Real config.check document validates.
+    let config = run(&base, &["config", "check", "--format", "json"]);
+    let config_document: serde_json::Value = serde_json::from_slice(&config.stdout)?;
+    assert!(
+        config_schema.is_valid(&config_document),
+        "config.check document: {config_document}"
+    );
+
+    // Rejected config variants: a sixth check, a bad path fact, an
+    // out-of-order check list, reason/exists mismatches, socket-entry shapes
+    // outside the four legal combinations, an aggregate status that does not
+    // follow its entries, and an `ok` that contradicts the checks.
+    let mut extra_check = config_document.clone();
+    extra_check["result"]["checks"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({"name":"extra","status":"pass","details":{}}));
+    assert!(!config_schema.is_valid(&extra_check));
+    let mut bad_fact = config_document.clone();
+    bad_fact["result"]["checks"][0]["details"] = serde_json::json!({"path": true, "exists": "yes"});
+    assert!(!config_schema.is_valid(&bad_fact));
+    let mut reordered = config_document.clone();
+    reordered["result"]["checks"]
+        .as_array_mut()
+        .unwrap()
+        .swap(0, 1);
+    assert!(!config_schema.is_valid(&reordered));
+    // reason↔exists pinning: io-error must not carry `exists`, absent must
+    // carry `exists: false`. `ok` is kept consistent so only the details
+    // binding can reject these.
+    let mut wrong_exists = config_document.clone();
+    wrong_exists["result"]["checks"][0] = serde_json::json!({
+        "name": "runtime-base",
+        "status": "fail",
+        "details": {"path": "/x", "reason": "io-error", "exists": true}
+    });
+    wrong_exists["result"]["ok"] = serde_json::json!(false);
+    assert!(!config_schema.is_valid(&wrong_exists));
+    let mut missing_exists = config_document.clone();
+    missing_exists["result"]["checks"][0] = serde_json::json!({
+        "name": "runtime-base",
+        "status": "fail",
+        "details": {"path": "/x", "reason": "absent"}
+    });
+    missing_exists["result"]["ok"] = serde_json::json!(false);
+    assert!(!config_schema.is_valid(&missing_exists));
+    // The valid counterparts validate — each at its pinned position.
+    for (index, check) in [
+        (
+            0usize,
+            serde_json::json!({"name":"runtime-base","status":"fail","details":{"path":"/x","reason":"absent","exists":false}}),
+        ),
+        (
+            0usize,
+            serde_json::json!({"name":"runtime-base","status":"fail","details":{"path":"/x","reason":"io-error"}}),
+        ),
+        (
+            0usize,
+            serde_json::json!({"name":"runtime-base","status":"fail","details":{"pathBytesHex":"2f78","reason":"unsafe","exists":true}}),
+        ),
+        (
+            1usize,
+            serde_json::json!({"name":"runtime-directory","status":"fail","details":{"path":"/x","reason":"unsafe","exists":true}}),
+        ),
+        (
+            1usize,
+            serde_json::json!({"name":"runtime-directory","status":"not-applicable","details":{"path":"/x","reason":"absent","exists":false}}),
+        ),
+    ] {
+        let mut document = config_document.clone();
+        document["result"]["checks"][index] = check.clone();
+        let any_fail = document["result"]["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["status"] == "fail");
+        document["result"]["ok"] = serde_json::json!(!any_fail);
+        assert!(
+            config_schema.is_valid(&document),
+            "valid check variant at {index}: {check}"
+        );
+    }
+    // socketEntry: exactly the four (presence,status,reason) combinations.
+    // Both entries and the aggregate status are set together so the aggregate
+    // binding stays honest and only the entry shape is under test.
+    for (entry, valid) in [
+        (
+            serde_json::json!({"presence":"present","status":"pass"}),
+            true,
+        ),
+        (
+            serde_json::json!({"presence":"present","status":"fail","reason":"unsafe"}),
+            true,
+        ),
+        (
+            serde_json::json!({"presence":"absent","status":"not-applicable"}),
+            true,
+        ),
+        (
+            serde_json::json!({"presence":"unchecked","status":"not-applicable","reason":"runtime-unavailable"}),
+            true,
+        ),
+        (
+            serde_json::json!({"presence":"present","status":"pass","reason":"unsafe"}),
+            false,
+        ),
+        (
+            serde_json::json!({"presence":"present","status":"fail"}),
+            false,
+        ),
+        (
+            serde_json::json!({"presence":"absent","status":"pass"}),
+            false,
+        ),
+        (
+            serde_json::json!({"presence":"unchecked","status":"not-applicable"}),
+            false,
+        ),
+        (
+            serde_json::json!({"presence":"unchecked","status":"pass","reason":"runtime-unavailable"}),
+            false,
+        ),
+    ] {
+        let mut document = config_document.clone();
+        document["result"]["checks"][4]["details"]["client"] = entry.clone();
+        document["result"]["checks"][4]["details"]["worker"] = entry.clone();
+        document["result"]["checks"][4]["status"] = entry["status"].clone();
+        let any_fail = document["result"]["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["status"] == "fail");
+        document["result"]["ok"] = serde_json::json!(!any_fail);
+        assert_eq!(
+            config_schema.is_valid(&document),
+            valid,
+            "socketEntry {entry}"
+        );
+    }
+    // Aggregate binding: a failed entry forces status fail — and `ok` — while
+    // keeping status "pass" (or ok true) is rejected; the consistent failed
+    // counterpart validates.
+    let mut failed_entry = config_document.clone();
+    failed_entry["result"]["checks"][4]["details"]["worker"] =
+        serde_json::json!({"presence":"present","status":"fail","reason":"io-error"});
+    failed_entry["result"]["checks"][4]["status"] = serde_json::json!("pass");
+    assert!(!config_schema.is_valid(&failed_entry));
+    failed_entry["result"]["checks"][4]["status"] = serde_json::json!("fail");
+    failed_entry["result"]["ok"] = serde_json::json!(false);
+    assert!(config_schema.is_valid(&failed_entry));
+    let mut wrong_ok = config_document.clone();
+    wrong_ok["result"]["ok"] = serde_json::json!(
+        !config_document["result"]["ok"]
+            .as_bool()
+            .expect("ok is boolean")
+    );
+    assert!(!config_schema.is_valid(&wrong_ok));
+
+    // Rejected api.schema variants: unknown id, both result arms, extra key.
+    let listed = run(&base, &["api", "schema", "--format", "json"]);
+    let listed_document: serde_json::Value = serde_json::from_slice(&listed.stdout)?;
+    assert!(api_schema.is_valid(&listed_document));
+    let mut both = listed_document.clone();
+    both["result"]["schema"] = serde_json::json!({"schemaId":"orchbee.status"});
+    assert!(!api_schema.is_valid(&both));
+    let mut unknown_id = listed_document.clone();
+    unknown_id["result"]["schemas"]["orchbee.bogus"] = serde_json::json!({});
+    assert!(!api_schema.is_valid(&unknown_id));
+    Ok(())
+}
+
+// ---- config path facts (R3) ----------------------------------------------------
+//
+// `exists` is a filesystem fact: `false` only for an established absence,
+// `true` for an observed entry, omitted when inspection could not establish
+// either (permission or I/O failure, invalid path).
+
+#[test]
+fn config_check_reports_established_path_facts() -> TestResult {
+    // Absent base: runtime-base fails with exists:false.
+    let base = base_dir("cfg-absent").join("missing");
+    let output = run(&base, &["config", "check", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(1));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let checks = document["result"]["checks"].as_array().unwrap();
+    let runtime_base = checks
+        .iter()
+        .find(|check| check["name"] == "runtime-base")
+        .unwrap();
+    assert_eq!(runtime_base["status"], "fail");
+    assert_eq!(runtime_base["details"]["exists"], false);
+    assert_eq!(runtime_base["details"]["reason"], "absent");
+    let runtime_directory = checks
+        .iter()
+        .find(|check| check["name"] == "runtime-directory")
+        .unwrap();
+    assert_eq!(runtime_directory["status"], "not-applicable");
+    assert_eq!(runtime_directory["details"], serde_json::json!({}));
+
+    // Healthy base without a Site scope: runtime-directory is not-applicable
+    // with an established absence, not a guess.
+    let base = base_dir("cfg-scope");
+    let output = run(&base, &["config", "check", "--format", "json"]);
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let checks = document["result"]["checks"].as_array().unwrap();
+    let runtime_base = checks
+        .iter()
+        .find(|check| check["name"] == "runtime-base")
+        .unwrap();
+    assert_eq!(runtime_base["status"], "pass");
+    assert_eq!(runtime_base["details"]["exists"], true);
+    let runtime_directory = checks
+        .iter()
+        .find(|check| check["name"] == "runtime-directory")
+        .unwrap();
+    assert_eq!(runtime_directory["status"], "not-applicable");
+    assert_eq!(runtime_directory["details"]["exists"], false);
+    assert_eq!(runtime_directory["details"]["reason"], "absent");
+    Ok(())
+}
+
+// ---- real emit-boundary write failure ------------------------------------------
+//
+// A controlled writer failure at the real stdout boundary must surface as a
+// process failure with a stderr diagnostic, never a truncated silent output.
+
+#[test]
+fn stdout_write_failure_is_reported() -> TestResult {
+    let base = base_dir("devfull");
+    // /dev/full fails every write: the real emit boundary, not an injected
+    // earlier stage.
+    let dev_full = fs::File::options().write(true).open("/dev/full")?;
+    let output = Command::new(cohort().join("orchbee"))
+        .args(["api", "schema", "orchbee.status", "--format", "json"])
+        .env("ORCHBEE_RUNTIME_BASE", &base)
+        .env("LANG", "en_US.UTF-8")
+        .stdout(std::process::Stdio::from(dev_full))
+        .stderr(std::process::Stdio::piped())
+        .spawn()?
+        .wait_with_output()?;
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        !output.stderr.is_empty(),
+        "a write failure reports a diagnostic"
+    );
+    Ok(())
+}
+
+// ---- generated completion scripts execute in real shells (B4) -------------------
+//
+// The emitted scripts are the contract surface: run them in real bash and zsh
+// (fake compadd harness) against positive and negative contexts. fish is not
+// installed on this host, so its script gets structural assertions only.
+
+fn bash_complete(script: &Path, words: &[&str]) -> Vec<String> {
+    // words = argv after `orchbee`, last element is the token being completed.
+    let harness = format!(
+        "source {}\nCOMP_WORDS=(orchbee {})\nCOMP_CWORD={}\n_orchbee\nif ((${{#COMPREPLY[@]}})); then printf '%s\\n' \"${{COMPREPLY[@]}}\"; fi\n",
+        script.display(),
+        words
+            .iter()
+            .map(|w| format!("'{}'", w.replace('\'', "'\\''")))
+            .collect::<Vec<_>>()
+            .join(" "),
+        words.len()
+    );
+    let output = Command::new("bash")
+        .args(["-c", &harness])
+        .output()
+        .expect("bash runs");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "bash harness: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).expect("utf8");
+    stdout.lines().map(str::to_owned).collect()
+}
+
+fn zsh_complete(script: &Path, words: &[&str]) -> Vec<String> {
+    // The real completion system filters `compadd` results by the word being
+    // completed; the fake harness emulates that prefix filter.
+    let harness = format!(
+        "compadd() {{ local a; shift; for a in \"$@\"; do [[ $a == ${{words[CURRENT]}}* ]] && print -l -- $a; done }}\ncompdef() {{ : }}\nsource {}\nwords=(orchbee {})\nCURRENT={}\n_orchbee\n",
+        script.display(),
+        words
+            .iter()
+            .map(|w| format!("'{}'", w.replace('\'', "'\\''")))
+            .collect::<Vec<_>>()
+            .join(" "),
+        words.len() + 1
+    );
+    let output = Command::new("zsh")
+        .args(["-f", "-c", &harness])
+        .output()
+        .expect("zsh runs");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "zsh harness: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).expect("utf8");
+    stdout.lines().map(str::to_owned).collect()
+}
+
+/// The same context battery against one engine's completer.
+fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &str) {
+    let sorted = |candidates: Vec<String>| {
+        let mut candidates = candidates;
+        candidates.sort();
+        candidates
+    };
+    // Root position: every business word plus root flags and format flags.
+    let root = sorted(complete(&[""]));
+    for word in [
+        "api",
+        "completion",
+        "config",
+        "help",
+        "panel",
+        "project",
+        "status",
+        "tab",
+        "terminal",
+        "tui",
+        "workspace",
+        "--help",
+        "--version",
+        "--format",
+        "--format=",
+    ] {
+        assert!(
+            root.contains(&word.to_owned()),
+            "{engine} root lacks {word}"
+        );
+    }
+    // Prefix filtering is the engine's job; still witness it once.
+    assert_eq!(
+        sorted(complete(&["w"])),
+        vec!["workspace".to_owned()],
+        "{engine}"
+    );
+
+    // Family verb position: verbs + format flags, nothing else.
+    assert_eq!(
+        sorted(complete(&["workspace", ""])),
+        sorted(
+            ["get", "list", "--format", "--format="]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} workspace verbs"
+    );
+    // After `workspace list`: format flags + --help + the scoped filter only.
+    let after_list = sorted(complete(&["workspace", "list", ""]));
+    assert_eq!(
+        after_list,
+        sorted(
+            ["--format", "--format=", "--help", "--project"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} workspace list"
+    );
+    // A supplied filter consumes its value: no completions inside it.
+    assert_eq!(
+        complete(&["workspace", "list", "--project", ""]).len(),
+        0,
+        "{engine} must not invent resource names"
+    );
+    // A declared filter already supplied is not offered again.
+    let again = sorted(complete(&["workspace", "list", "--project", "x", ""]));
+    assert!(
+        !again.contains(&"--project".to_owned()),
+        "{engine} re-offers a consumed filter: {again:?}"
+    );
+    // tab list mutual exclusion: --standalone consumed → no filters offered.
+    let standalone = sorted(complete(&["tab", "list", "--standalone", ""]));
+    assert!(
+        !standalone.contains(&"--workspace".to_owned())
+            && !standalone.contains(&"--standalone".to_owned()),
+        "{engine} offers excluded filters: {standalone:?}"
+    );
+    // get operand position offers no business verbs.
+    let operand = sorted(complete(&["workspace", "get", "x", ""]));
+    assert!(
+        operand.iter().all(|c| c.starts_with("--")),
+        "{engine} operand leaks verbs: {operand:?}"
+    );
+    // format value contexts.
+    assert_eq!(
+        sorted(complete(&["status", "--format", ""])),
+        sorted(vec!["json".to_owned(), "text".to_owned()]),
+        "{engine} format values"
+    );
+    assert_eq!(
+        sorted(complete(&["status", "--format="])),
+        sorted(vec!["--format=json".to_owned(), "--format=text".to_owned()]),
+        "{engine} format= values"
+    );
+    // The `--format=` spelling at root is a format-value context, never a
+    // resurrection of root candidates.
+    assert_eq!(
+        sorted(complete(&["--format="])),
+        sorted(vec!["--format=json".to_owned(), "--format=text".to_owned()]),
+        "{engine} root --format= context"
+    );
+    // A consumed `--format` ends the selector: no duplicate `--format`
+    // candidate, and `--help` is illegal once any option was consumed.
+    assert_eq!(
+        complete(&["status", "--format", "json", ""]).len(),
+        0,
+        "{engine} offers candidates after a consumed selector"
+    );
+    assert_eq!(
+        complete(&["status", "--format=json", ""]).len(),
+        0,
+        "{engine} offers candidates after a consumed --format="
+    );
+    // `--help` after a consumed option is usage — never a candidate.
+    assert_eq!(
+        sorted(complete(&["tab", "list", "--standalone", ""])),
+        sorted(
+            ["--format", "--format="]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} standalone consumed: only format flags remain"
+    );
+    // `get` verbs still owe their operand, yet a suffix `--help` is a legal
+    // complete-path help (`workspace get --help` describes `workspace get`).
+    // All five get paths offer it while no option was consumed.
+    for family in ["project", "workspace", "tab", "panel", "terminal"] {
+        assert_eq!(
+            sorted(complete(&[family, "get", ""])),
+            sorted(
+                ["--format", "--format=", "--help"]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            ),
+            "{engine} {family} get operand position"
+        );
+    }
+    // Once any option was consumed — or the operand landed — `--help` is
+    // usage again.
+    assert_eq!(
+        sorted(complete(&["workspace", "get", "--format", "json", ""])),
+        Vec::<String>::new(),
+        "{engine} get --help suppressed after a consumed option"
+    );
+    assert_eq!(
+        sorted(complete(&["workspace", "get", "x", ""])),
+        sorted(
+            ["--format", "--format="]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} post-operand position"
+    );
+    // `api schema` is complete without its id: `--help` is legal there.
+    let schema_help = sorted(complete(&["api", "schema", ""]));
+    assert!(
+        schema_help.contains(&"--help".to_owned()),
+        "{engine} api schema lacks --help: {schema_help:?}"
+    );
+    // help paths.
+    let topics = sorted(complete(&["help", ""]));
+    for topic in [
+        "api",
+        "completion",
+        "config",
+        "panel",
+        "project",
+        "status",
+        "tab",
+        "terminal",
+        "tui",
+        "workspace",
+    ] {
+        assert!(
+            topics.contains(&topic.to_owned()),
+            "{engine} help lacks {topic}"
+        );
+    }
+    assert_eq!(
+        sorted(complete(&["help", "project", ""])),
+        sorted(vec!["get".to_owned(), "list".to_owned()]),
+        "{engine} help children"
+    );
+    assert_eq!(
+        complete(&["help", "project", "get", ""]).len(),
+        0,
+        "{engine} leaf help path must end"
+    );
+    // completion shell names.
+    assert_eq!(
+        sorted(complete(&["completion", ""])),
+        sorted(
+            ["bash", "fish", "zsh", "--help"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} shells"
+    );
+    // Negative contexts: unknown words and `--` end the grammar.
+    assert_eq!(complete(&["bogus", ""]).len(), 0, "{engine} unknown word");
+    assert_eq!(
+        complete(&["workspace", "bogus", ""]).len(),
+        0,
+        "{engine} unknown verb"
+    );
+    assert_eq!(complete(&["--", ""]).len(), 0, "{engine} -- termination");
+    assert_eq!(
+        complete(&["status", "--", ""]).len(),
+        0,
+        "{engine} -- after leaf"
+    );
+    // A failed or terminal parse state must not resurrect `--format=`
+    // candidates.
+    assert_eq!(
+        complete(&["bogus", "--format="]).len(),
+        0,
+        "{engine} --format= after an invalid command"
+    );
+    assert_eq!(
+        complete(&["tui", "--format="]).len(),
+        0,
+        "{engine} tui rejects format selectors"
+    );
+    assert_eq!(
+        complete(&["help", "status", "--format="]).len(),
+        0,
+        "{engine} help rejects options"
+    );
+    assert_eq!(
+        complete(&["completion", "--format="]).len(),
+        0,
+        "{engine} completion rejects options"
+    );
+    // A pending filter owns the next token whole: `--format=` typed there is
+    // a value, not a selector context.
+    assert_eq!(
+        complete(&["workspace", "list", "--project", "--format="]).len(),
+        0,
+        "{engine} --format= inside a filter value"
+    );
+    // `--` is option termination, never a flag value: the pending filter gets
+    // no value and the position is dead.
+    assert_eq!(
+        complete(&["workspace", "list", "--project", "--", ""]).len(),
+        0,
+        "{engine} -- is not a filter value"
+    );
+    assert_eq!(
+        complete(&["workspace", "list", "--project", "--"]).len(),
+        0,
+        "{engine} completing `--` itself yields nothing"
+    );
+    // Invalid selector values and duplicates are usage, not contexts.
+    assert_eq!(
+        complete(&["status", "--format", "bogus", ""]).len(),
+        0,
+        "{engine} invalid format value"
+    );
+    assert_eq!(
+        complete(&["status", "--format", "json", "--format="]).len(),
+        0,
+        "{engine} duplicate selector"
+    );
+    // Out-of-scope filters, mutual exclusion, unknown flags, stray operands,
+    // and consumed help all kill the position.
+    assert_eq!(
+        complete(&["workspace", "list", "--workspace", "w", ""]).len(),
+        0,
+        "{engine} out-of-scope filter"
+    );
+    assert_eq!(
+        complete(&["tab", "list", "--workspace", "w", "--standalone", ""]).len(),
+        0,
+        "{engine} workspace and standalone are exclusive"
+    );
+    assert_eq!(
+        complete(&["status", "--bogus", ""]).len(),
+        0,
+        "{engine} unknown flag"
+    );
+    assert_eq!(
+        complete(&["workspace", "list", "x", ""]).len(),
+        0,
+        "{engine} list takes no operand"
+    );
+    assert_eq!(
+        complete(&["status", "--help", ""]).len(),
+        0,
+        "{engine} consumed --help is terminal"
+    );
+    // Doomed consumed prefixes suppress every candidate — including a pending
+    // format value, the `--format=` override, and flag offers. Root-scope
+    // contradiction: no command accepts both --workspace and --standalone.
+    for cur in ["", "--format="] {
+        assert_eq!(
+            complete(&["--workspace", "x", "--standalone", cur]).len(),
+            0,
+            "{engine} root contradiction at {cur:?}"
+        );
+        assert_eq!(
+            complete(&["--project", "x", "--tab", "y", cur]).len(),
+            0,
+            "{engine} disjoint filter scopes at {cur:?}"
+        );
+    }
+    // Known-family contradiction: `--project` leaves `terminal` no legal verb.
+    for cur in ["", "--format="] {
+        assert_eq!(
+            complete(&["--project", "x", "terminal", cur]).len(),
+            0,
+            "{engine} family contradiction at {cur:?}"
+        );
+        assert_eq!(
+            complete(&["--workspace", "x", "--standalone", "tab", cur]).len(),
+            0,
+            "{engine} exclusive scopes inside family at {cur:?}"
+        );
+    }
+    // Legal constrained prefixes still complete normally.
+    assert_eq!(
+        sorted(complete(&["--project", "x", ""])),
+        sorted(
+            ["workspace", "--format", "--format="]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} valid scoped root prefix"
+    );
+    assert_eq!(
+        sorted(complete(&["--workspace", "x", "tab", ""])),
+        sorted(
+            ["list", "--format", "--format="]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} valid scoped family prefix"
+    );
+    assert_eq!(
+        sorted(complete(&["--project", "x", "--format="])),
+        sorted(
+            ["--format=text", "--format=json"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} valid prefix keeps --format= override"
+    );
+    // A pending format value on a doomed prefix stays dead, too.
+    assert_eq!(
+        complete(&["--workspace", "x", "--standalone", "--format", ""]).len(),
+        0,
+        "{engine} pending format value on a dead prefix"
+    );
+}
+
+#[test]
+fn completion_scripts_execute_in_bash_and_zsh() -> TestResult {
+    let base = base_dir("completion-exec");
+    let bash_script = run(&base, &["completion", "bash"]);
+    assert_eq!(bash_script.status.code(), Some(0));
+    let zsh_script = run(&base, &["completion", "zsh"]);
+    assert_eq!(zsh_script.status.code(), Some(0));
+
+    let dir = base_dir("completion-scripts");
+    let bash_path = dir.join("orchbee.bash");
+    let zsh_path = dir.join("_orchbee");
+    fs::write(&bash_path, &bash_script.stdout)?;
+    fs::write(&zsh_path, &zsh_script.stdout)?;
+
+    assert_completion_shape(|words| bash_complete(&bash_path, words), "bash");
+    assert_completion_shape(|words| zsh_complete(&zsh_path, words), "zsh");
+
+    // fish is absent on this host: its script still gets structural checks.
+    let fish_script = run(&base, &["completion", "fish"]);
+    assert_eq!(fish_script.status.code(), Some(0));
+    let fish = String::from_utf8(fish_script.stdout)?;
+    for needle in [
+        "__orchbee_candidates",
+        "commandline -opc",
+        "--format=text",
+        "--format=json",
+        "set ended 1",
+        "workspace:list",
+        "tab:list",
+        "panel:list",
+    ] {
+        assert!(fish.contains(needle), "fish script lacks {needle}");
+    }
     Ok(())
 }

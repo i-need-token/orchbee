@@ -266,8 +266,68 @@ pub(crate) fn parse_request(
     scan(tokens)
 }
 
+/// Phase A: scan the complete pre-`--` format envelope before any grammar
+/// work. A missing, unknown, empty, or repeated selection anywhere in the
+/// envelope is a silent format failure, and one valid unique selection shapes
+/// every later grammar failure regardless of its position. Filter flags own
+/// the next token even when it resembles a selector, so this walk applies the
+/// same left-to-right ownership as the option scan below; a bare `--` is never
+/// consumed as a value.
+fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailure> {
+    let silent = || ParseFailure {
+        kind: ParseFailureKind::InvalidUsage,
+        envelope: FailureEnvelope::Silent,
+    };
+    let mut format = None;
+    let mut index = 0;
+    while index < tokens.len() {
+        let token = tokens[index].as_str();
+        match token {
+            "--" => break,
+            "--format" => {
+                let Some(value) = tokens.get(index + 1).filter(|value| value.as_str() != "--")
+                else {
+                    return Err(silent());
+                };
+                let selected = match value.as_str() {
+                    "text" => OutputFormat::Text,
+                    "json" => OutputFormat::Json,
+                    _ => return Err(silent()),
+                };
+                if format.replace(selected).is_some() {
+                    return Err(silent());
+                }
+                index += 2;
+            }
+            _ if token.starts_with("--format=") => {
+                let selected = match &token["--format=".len()..] {
+                    "text" => OutputFormat::Text,
+                    "json" => OutputFormat::Json,
+                    _ => return Err(silent()),
+                };
+                if format.replace(selected).is_some() {
+                    return Err(silent());
+                }
+                index += 1;
+            }
+            "--project" | "--workspace" | "--tab" => {
+                index += match tokens.get(index + 1) {
+                    Some(value) if value != "--" => 2,
+                    _ => 1,
+                };
+            }
+            _ => index += 1,
+        }
+    }
+    Ok(format)
+}
+
 fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
-    let mut options = Options::default();
+    let mut options = Options {
+        format: format_envelope(&tokens)?,
+        ..Options::default()
+    };
+    let envelope = selection_envelope(options.format);
     let mut positionals: Vec<Token> = Vec::new();
     let mut ended = false;
     let mut index = 0;
@@ -283,55 +343,11 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 ended = true;
                 index += 1;
             }
-            "--format" => {
-                let value = match tokens.get(index + 1) {
-                    Some(value) if value != "--" => value,
-                    _ => {
-                        return Err(ParseFailure {
-                            kind: ParseFailureKind::InvalidUsage,
-                            envelope: FailureEnvelope::Silent,
-                        });
-                    }
-                };
-                let format = match value.as_str() {
-                    "text" => OutputFormat::Text,
-                    "json" => OutputFormat::Json,
-                    _ => {
-                        return Err(ParseFailure {
-                            kind: ParseFailureKind::InvalidUsage,
-                            envelope: FailureEnvelope::Silent,
-                        });
-                    }
-                };
-                if options.format.replace(format).is_some() {
-                    return Err(ParseFailure {
-                        kind: ParseFailureKind::InvalidUsage,
-                        envelope: FailureEnvelope::Silent,
-                    });
-                }
-                index += 2;
-            }
-            _ if token.starts_with("--format=") => {
-                let format = match &token["--format=".len()..] {
-                    "text" => OutputFormat::Text,
-                    "json" => OutputFormat::Json,
-                    _ => {
-                        return Err(ParseFailure {
-                            kind: ParseFailureKind::InvalidUsage,
-                            envelope: FailureEnvelope::Silent,
-                        });
-                    }
-                };
-                if options.format.replace(format).is_some() {
-                    return Err(ParseFailure {
-                        kind: ParseFailureKind::InvalidUsage,
-                        envelope: FailureEnvelope::Silent,
-                    });
-                }
-                index += 1;
-            }
+            // The envelope phase already proved every selector is valid and
+            // unique; the option walk only applies token ownership.
+            "--format" => index += 2,
+            _ if token.starts_with("--format=") => index += 1,
             "--project" | "--workspace" | "--tab" => {
-                let envelope = selection_envelope(options.format);
                 let value = match tokens.get(index + 1) {
                     Some(value) if value != "--" => value.clone(),
                     _ => return Err(usage(envelope)),
@@ -347,7 +363,6 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 index += 2;
             }
             "--standalone" => {
-                let envelope = selection_envelope(options.format);
                 if options.standalone {
                     return Err(usage(envelope));
                 }
@@ -363,7 +378,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 index += 1;
             }
             _ if token.starts_with('-') && token.len() > 1 => {
-                return Err(usage(selection_envelope(options.format)));
+                return Err(usage(envelope));
             }
             _ => {
                 positionals.push(Token::Word(token.clone()));
@@ -485,7 +500,10 @@ fn resolve_words(
             ))
         }
         ["workspace", "list"] => {
-            reject(options.tab.is_some() || options.standalone, envelope)?;
+            reject(
+                options.workspace.is_some() || options.tab.is_some() || options.standalone,
+                envelope,
+            )?;
             let project = options
                 .project
                 .clone()

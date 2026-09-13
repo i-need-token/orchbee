@@ -109,6 +109,18 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
             } else {
                 String::new()
             };
+            // A preparation overflow answers in the caller's format, never
+            // with a second stdout document.
+            let too_large = || {
+                failure_output(
+                    Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
+                        "limitBytes".to_owned(),
+                        json!(output::LIMIT),
+                    )])),
+                    Some(format),
+                    locale,
+                )
+            };
             match format {
                 OutputFormat::Json => {
                     let document = json!({
@@ -123,21 +135,21 @@ pub(crate) fn check(format: OutputFormat, locale: Locale) -> Output {
                             stdout,
                             stderr,
                         },
-                        Err(output::TooLarge) => failure_output(
-                            Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
-                                "limitBytes".to_owned(),
-                                json!(output::LIMIT),
-                            )])),
-                            Some(OutputFormat::Json),
-                            locale,
-                        ),
+                        Err(output::TooLarge) => too_large(),
                     }
                 }
-                OutputFormat::Text => Output {
-                    status: if failed { 1 } else { 0 },
-                    stdout: super::present::config_checks(&checks, locale).into(),
-                    stderr,
-                },
+                OutputFormat::Text => {
+                    match output::render_text(|out| {
+                        super::present::config_checks(out, &checks, locale)
+                    }) {
+                        Ok(stdout) => Output {
+                            status: if failed { 1 } else { 0 },
+                            stdout,
+                            stderr,
+                        },
+                        Err(output::TooLarge) => too_large(),
+                    }
+                }
             }
         }
     }
@@ -225,14 +237,57 @@ fn classify_paths(
                 RendezvousError::System { source, .. }
                     if source.kind() == std::io::ErrorKind::NotFound
             );
+            // `exists` appears only when inspection established the path
+            // state: `false` for an established absence, `true` for an
+            // observed entry. A permission or I/O failure — or a path that is
+            // not even valid — omits the field instead of guessing.
+            let established = match error {
+                RendezvousError::System { source, .. }
+                    if source.kind() == std::io::ErrorKind::NotFound =>
+                {
+                    Some(false)
+                }
+                RendezvousError::System { .. }
+                | RendezvousError::RuntimeBaseNotAbsolute { .. }
+                | RendezvousError::RuntimeBaseNotNormalized { .. }
+                | RendezvousError::InvalidSiteScope => None,
+                _ => Some(true),
+            };
+            let invalid_path = matches!(
+                error,
+                RendezvousError::RuntimeBaseNotAbsolute { .. }
+                    | RendezvousError::RuntimeBaseNotNormalized { .. }
+                    | RendezvousError::InvalidSiteScope
+            );
+            let reason = if invalid_path {
+                "invalid-path"
+            } else if absent {
+                "absent"
+            } else if matches!(error, RendezvousError::System { .. }) {
+                "io-error"
+            } else {
+                "unsafe"
+            };
+            let base_pass = || {
+                pass(
+                    "runtime-base",
+                    detail([path_detail(base), ("exists".to_owned(), json!(true))]),
+                )
+            };
+            let path_failure = |name: &'static str, target: &Path| {
+                let mut details = detail([("reason".to_owned(), json!(reason))]);
+                if let Some(exists) = established {
+                    details.insert("exists".to_owned(), json!(exists));
+                }
+                let (key, value) = path_detail(target);
+                details.insert(key, value);
+                fail(name, details)
+            };
             match (scoped, absent) {
                 // A missing Site scope under a healthy base is not-applicable:
                 // no running Site is a legal state, not a configuration fault.
                 (true, true) => (
-                    pass(
-                        "runtime-base",
-                        detail([path_detail(base), ("exists".to_owned(), json!(true))]),
-                    ),
+                    base_pass(),
                     not_applicable(
                         "runtime-directory",
                         detail([
@@ -243,53 +298,13 @@ fn classify_paths(
                     ),
                 ),
                 (true, false) => (
-                    pass(
-                        "runtime-base",
-                        detail([path_detail(base), ("exists".to_owned(), json!(true))]),
-                    ),
-                    fail(
-                        "runtime-directory",
-                        detail([
-                            path_detail(scope_directory),
-                            ("exists".to_owned(), json!(true)),
-                            (
-                                "reason".to_owned(),
-                                json!(if matches!(error, RendezvousError::System { .. }) {
-                                    "io-error"
-                                } else {
-                                    "unsafe"
-                                }),
-                            ),
-                        ]),
-                    ),
+                    base_pass(),
+                    path_failure("runtime-directory", scope_directory),
                 ),
-                (false, _) => {
-                    let invalid_path = matches!(
-                        error,
-                        RendezvousError::RuntimeBaseNotAbsolute { .. }
-                            | RendezvousError::RuntimeBaseNotNormalized { .. }
-                            | RendezvousError::InvalidSiteScope
-                    );
-                    let reason = if invalid_path {
-                        "invalid-path"
-                    } else if absent {
-                        "absent"
-                    } else if matches!(error, RendezvousError::System { .. }) {
-                        "io-error"
-                    } else {
-                        "unsafe"
-                    };
-                    let mut details = detail([
-                        ("exists".to_owned(), json!(!invalid_path)),
-                        ("reason".to_owned(), json!(reason)),
-                    ]);
-                    let (key, value) = path_detail(base);
-                    details.insert(key, value);
-                    (
-                        fail("runtime-base", details),
-                        not_applicable("runtime-directory", Map::new()),
-                    )
-                }
+                (false, _) => (
+                    path_failure("runtime-base", base),
+                    not_applicable("runtime-directory", Map::new()),
+                ),
             }
         }
     }

@@ -59,12 +59,14 @@ fn main() -> ExitCode {
         return match local_startup::run(locale) {
             Ok(()) => ExitCode::SUCCESS,
             Err(failure) => emit(
-                ProcessResult {
-                    status: 1,
-                    stdout: "",
-                    stderr: locale.startup_failure(failure),
-                }
-                .into(),
+                cli::process_result(
+                    ProcessResult {
+                        status: 1,
+                        stdout: "",
+                        stderr: locale.startup_failure(failure),
+                    },
+                    locale,
+                ),
                 locale,
             ),
         };
@@ -72,11 +74,17 @@ fn main() -> ExitCode {
     emit(
         match parsed {
             Err(failure) => cli::parse_failure(failure, locale),
-            Ok(invocation::Request::Tui) => present(Ok(Invocation::Tui), locale).into(),
-            Ok(invocation::Request::Version) => present(Ok(Invocation::Version), locale).into(),
-            Ok(invocation::Request::RootHelp) => present(Ok(Invocation::Help), locale).into(),
+            Ok(invocation::Request::Tui) => {
+                cli::process_result(present(Ok(Invocation::Tui), locale), locale)
+            }
+            Ok(invocation::Request::Version) => {
+                cli::process_result(present(Ok(Invocation::Version), locale), locale)
+            }
+            Ok(invocation::Request::RootHelp) => {
+                cli::process_result(present(Ok(Invocation::Help), locale), locale)
+            }
             Ok(invocation::Request::Help(topic)) => cli::help(topic, locale),
-            Ok(invocation::Request::Completion(shell)) => cli::completion(shell),
+            Ok(invocation::Request::Completion(shell)) => cli::completion(shell, locale),
             Ok(invocation::Request::Query { command, format }) => {
                 cli::query(command, format, locale)
             }

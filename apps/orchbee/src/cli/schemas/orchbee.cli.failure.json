@@ -23,7 +23,6 @@
 						"invalid-identifier",
 						"invalid-usage",
 						"not-found",
-						"output-failed",
 						"output-too-large",
 						"protocol-invalid",
 						"service-unavailable",
@@ -34,14 +33,324 @@
 				"details": { "type": "object" }
 			}
 		},
-		"source": {
-			"type": "object",
-			"required": ["kind"],
-			"properties": {
-				"kind": {
-					"enum": ["workbench-snapshot", "embedded", "local-runtime"]
+		"source": { "$ref": "#/$defs/source" }
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "ambiguous" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/ambiguousDetails" } }
+					}
 				}
 			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "check-failed" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{ "$ref": "#/$defs/checkStageDetails" },
+									{ "$ref": "#/$defs/platformDetails" }
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "service-unavailable" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{ "$ref": "#/$defs/unavailableStageDetails" },
+									{ "$ref": "#/$defs/platformDetails" }
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "transport-loss" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": { "$ref": "#/$defs/transportStageDetails" }
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": { "enum": ["incompatible", "session-capacity"] }
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": { "$ref": "#/$defs/admissionDetails" }
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "protocol-invalid" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": {
+								"oneOf": [
+									{ "$ref": "#/$defs/protocolStageDetails" },
+									{ "$ref": "#/$defs/correlationDetails" }
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": { "enum": ["invalid-identifier", "not-found"] }
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/identifierDetails" } }
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "output-too-large" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/limitDetails" } }
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": {
+							"kind": {
+								"enum": ["denied", "internal-failure", "invalid-usage"]
+							}
+						},
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": { "not": { "required": ["details"] } }
+				}
+			}
+		}
+	],
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"resource": {
+			"enum": ["panel", "project", "schema", "tab", "terminal", "workspace"]
+		},
+		"ambiguityResource": { "enum": ["project", "tab", "workspace"] },
+		"identifierDetails": {
+			"type": "object",
+			"required": ["resource", "target"],
+			"additionalProperties": false,
+			"properties": {
+				"resource": { "$ref": "#/$defs/resource" },
+				"target": { "type": "string" }
+			}
+		},
+		"ambiguousDetails": {
+			"type": "object",
+			"required": ["resource", "target", "candidates", "totalCount"],
+			"additionalProperties": false,
+			"properties": {
+				"resource": { "$ref": "#/$defs/ambiguityResource" },
+				"target": { "type": "string" },
+				"candidates": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/id" },
+					"minItems": 2,
+					"maxItems": 8
+				},
+				"totalCount": { "type": "integer", "minimum": 2 }
+			}
+		},
+		"checkStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"enum": ["cohort", "runtime-base", "runtime-directory", "socket"]
+				}
+			}
+		},
+		"unavailableStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "enum": ["admission", "discovery", "snapshot"] }
+			}
+		},
+		"transportStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "enum": ["admission", "snapshot"] }
+			}
+		},
+		"admissionDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "admission" }
+			}
+		},
+		"protocolStageDetails": {
+			"type": "object",
+			"required": ["stage"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "enum": ["admission", "snapshot"] }
+			}
+		},
+		"correlationDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "snapshot" },
+				"reason": { "const": "correlation-mismatch" }
+			}
+		},
+		"platformDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "platform" },
+				"reason": { "const": "unsupported-platform" }
+			}
+		},
+		"limitDetails": {
+			"type": "object",
+			"required": ["limitBytes"],
+			"additionalProperties": false,
+			"properties": { "limitBytes": { "const": 8388608 } }
+		},
+		"source": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "revision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": { "const": "workbench-snapshot" },
+						"siteId": { "$ref": "#/$defs/id" },
+						"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "embedded" } }
+				},
+				{
+					"type": "object",
+					"required": ["kind"],
+					"additionalProperties": false,
+					"properties": { "kind": { "const": "local-runtime" } }
+				}
+			]
 		}
 	}
 }

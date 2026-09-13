@@ -18,24 +18,62 @@
 		},
 		"result": {
 			"type": "object",
-			"minProperties": 1,
-			"maxProperties": 1,
+			"additionalProperties": false,
+			"oneOf": [{ "required": ["schema"] }, { "required": ["schemas"] }],
 			"properties": {
-				"schemas": {
-					"type": "object",
-					"propertyNames": { "pattern": "^orchbee\\.[0-9a-z.-]+$" },
-					"additionalProperties": { "type": "object" }
-				},
 				"schema": {
 					"type": "object",
 					"required": ["schemaId", "document"],
 					"additionalProperties": false,
 					"properties": {
-						"schemaId": { "type": "string" },
+						"schemaId": { "$ref": "#/$defs/schemaId" },
 						"document": { "type": "object" }
 					}
+				},
+				"schemas": {
+					"type": "object",
+					"required": [
+						"orchbee.api.schema",
+						"orchbee.api.snapshot",
+						"orchbee.cli.failure",
+						"orchbee.config.check",
+						"orchbee.panel.get",
+						"orchbee.panel.list",
+						"orchbee.project.get",
+						"orchbee.project.list",
+						"orchbee.status",
+						"orchbee.tab.get",
+						"orchbee.tab.list",
+						"orchbee.terminal.get",
+						"orchbee.terminal.list",
+						"orchbee.workspace.get",
+						"orchbee.workspace.list"
+					],
+					"propertyNames": { "$ref": "#/$defs/schemaId" },
+					"additionalProperties": { "type": "object" }
 				}
 			}
+		}
+	},
+	"$defs": {
+		"schemaId": {
+			"enum": [
+				"orchbee.api.schema",
+				"orchbee.api.snapshot",
+				"orchbee.cli.failure",
+				"orchbee.config.check",
+				"orchbee.panel.get",
+				"orchbee.panel.list",
+				"orchbee.project.get",
+				"orchbee.project.list",
+				"orchbee.status",
+				"orchbee.tab.get",
+				"orchbee.tab.list",
+				"orchbee.terminal.get",
+				"orchbee.terminal.list",
+				"orchbee.workspace.get",
+				"orchbee.workspace.list"
+			]
 		}
 	}
 }

@@ -32,11 +32,15 @@ TypeScript CLI 权威；安装、发布、远端连接与 Site 生命周期操�
 
 - `--format text|json` 或 `--format=text|json`：至多一次选择，`--` 前任意位置。
   `--format` 缺值、空值、未知值或重复选择都是格式失败：`invalid-usage`、退出 2、stdout 为空。
+  完整的 `--` 前 format envelope 先于普通语法校验整体扫描：envelope 内任何位置的格式缺陷都以
+  空 stdout 作答；唯一合法的选择无论位于何处都决定其后一切语法失败的 envelope。
 - `--project <target>`、`--workspace <target>`、`--tab <target>`：带值的具名过滤参数，各只能
   用一次。下一个 token 即作为值被消费，即使以减号开头；裸 `--` 永不被当作值（缺值 →
   `invalid-usage`）。被消费的过滤值不再充当 format 选择器。每个过滤器只在其声明的命令上合法
   （`--project` 仅 `workspace list`，`--workspace` 仅 `tab list`，`--tab` 仅 `panel list`），
-  出现在任何其他位置（包括 `get` 命令）都是 `invalid-usage`。
+  出现在任何其他位置（包括 `get` 命令）都是 `invalid-usage`。过滤器绝不静默丢弃：出现在未
+  声明的命令上即在任何运行时访问之前报 `invalid-usage`，故 `workspace list` 拒绝
+  `--workspace`、`--tab` 与 `--standalone`。
 - `--standalone`：无值布尔 flag，单次使用，仅 `tab list`；与 `--workspace` 互斥。
 - `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
 - `--help`：根级独占 token，或完整命令路径的单一后缀。
@@ -76,8 +80,13 @@ cohort 或 Site 状态。
 `help`、`completion`、`tui`、`--version` 与裸调用是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
 保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`api snapshot`、`api schema`、
-`config check`）接受 `--format`；`api snapshot` 与 `api schema` 在两种 format 下输出同一份
-JSON 文档。
+`config check`）接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
+两种 format 下输出同一份 JSON 文档；`api` 失败则与其他命令一样跟随所选 format——text/默认下
+只写 stderr、stdout 为空，只有 `--format json` 才产出失败 envelope。
+
+`orchbee completion` 打印本语法的静态投影：动词、完整帮助路径、每条命令已声明的 flag、
+`--format` 的两种拼写及其 `text`/`json` 值、`--` 终止与 flag 值消费上下文。不枚举任何 Site
+状态、资源名或运行时数据。
 
 ### 目标与过滤器
 
@@ -190,9 +199,10 @@ source?}`；不存在英文 `message` 字段。`source` 只取自已可信来源
 | `sockets`           | 仅在运行目录可安全检查后；`client`/`worker` 各自报告 `presence` 为 `present`/`absent`/`unchecked`，沿用既有 类型+属主+`0600`+no-follow 规则。任一已检查 socket 无效即 fail；否则至少一个合规存在即 pass；全部缺失/未检为 `not-applicable`。存在绝不宣称服务或 Worker 活性。 |
 
 details 一律类型化：`runtime-base`/`runtime-directory` 携带 `path`（UTF-8）或 `pathBytesHex`
-（非 UTF-8，绝不用替换字符）与已确立时的 `exists`，可加 `reason` ∈ `{invalid-path,absent,unsafe,io-error}`；`sockets` 的 reasons 为 `{unsafe,io-error,
-runtime-unavailable}`。不作跨文件
-原子健康快照声明。
+（非 UTF-8，绝不用替换字符）；`exists` 仅在路径状态已确立时出现——已确立的缺失为 `false`、
+观测到条目为 `true`，检查本身失败（权限、路径或 I/O 错误）时该字段整体省略——另可加 `reason`
+∈ `{invalid-path,absent,unsafe,io-error}`；`sockets` 的 reasons 为 `{unsafe,io-error,
+runtime-unavailable}`。不作跨文件原子健康快照声明。
 
 ## 失败矩阵
 
@@ -229,7 +239,9 @@ transport-loss/protocol-invalid；6 incompatible；130 默认 SIGINT 语义。7/
 | 非 Linux 网络查询 / `config check`                                | `service-unavailable`/`check-failed`                    | 4/1                | `{stage:"platform",reason:"unsupported-platform"}` |
 
 `resource` ∈ `project|workspace|tab|panel|terminal|schema`。stage 与 reason 是有限 schema 值；
-任何异常文本都不进入机器字段。读路径错误永不归类为 outcome-unknown/failed-effect：只读请求
+任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
+`{resource,target,candidates≤8,totalCount}`、`{stage[,reason]}` 或 `{limitBytes}`——内嵌
+schema 拒绝超出这些形状的文档。读路径错误永不归类为 outcome-unknown/failed-effect：只读请求
 不可能产生未知副作用。
 
 ## 输出契约与副作用
@@ -265,18 +277,22 @@ transport-loss/protocol-invalid；6 incompatible；130 默认 SIGINT 语义。7/
 
 ## 场景矩阵与证据
 
-| 场景                                                                              | 预期                                        | 证据                                                      |
-| --------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------- |
-| 穷举语法：format、位置、`--`、help 形式、重复、非法                               | 精确 parse/失败类别                         | `src/invocation` 测试                                     |
-| 目标规则：ID/label/全零/超长/歧义优先                                             | resolver 判定                               | `src/cli` resolver 测试                                   |
-| 已验证快照 → 各结果形状、空集合、null                                             | 精确 JSON/text fixture                      | `src/cli` 输出测试 + JSON Schema 校验（dev `jsonschema`） |
-| Schema 字典 ↔ 实际 envelope                                                       | 每个成功/失败 fixture 通过校验              | schema fixture 测试                                       |
-| 无 Site 磁盘状态                                                                  | `service-unavailable`，零 fs/进程/锁变更    | `tests/query_process.rs`                                  |
-| 真实 staged-cohort Server：status/list/get/api snapshot、容量 16、与活跃 TUI 共存 | 成功/`session-capacity`/结构不变            | `tests/local_startup_process` + `tests/query_process.rs`  |
-| 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连    | 按矩阵 typed kind；绝不冒称真实 Server 证据 | `tests/query_process.rs`                                  |
-| 非 TTY 调用；慢 stdout 下会话已释放；预备 >8 MiB；真实写失败                      | 文档化退出；阻塞前已 drop                   | `tests/query_process.rs` + writer 注入单元测试            |
-| `config check` 矩阵：每项 pass/fail/not-applicable，基座 vs scope ENOENT 判别     | 五项 typed 检查齐全                         | `tests/query_process.rs`                                  |
-| 双语文本/失败输出                                                                 | 精确 en-US/zh-CN 字符串                     | `tests/process.rs` + `tests/query_process.rs`             |
+| 场景                                                                                           | 预期                                              | 证据                                                      |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- |
+| 穷举语法：format、位置、`--`、help 形式、重复、非法                                            | 精确 parse/失败类别                               | `src/invocation` 测试                                     |
+| format envelope 次序：任何位置的缺陷即空 stdout；任何位置的合法 json 决定其后失败的 envelope   | envelope 优先于语法错误                           | `src/invocation` 测试 + `tests/cli_query.rs`              |
+| 过滤器范围：`workspace list` 只接受 `--project`；越界过滤器在任何运行时访问之前即 usage        | 完整矩阵，过滤器绝不静默丢弃                      | `src/invocation` 测试 + `tests/cli_query.rs`              |
+| 目标规则：ID/label/全零/超长/歧义优先                                                          | resolver 判定                                     | `src/cli` resolver 测试                                   |
+| 已验证快照 → 各结果形状、空集合、null                                                          | 精确 JSON/text fixture                            | `src/cli` 输出测试 + JSON Schema 校验（dev `jsonschema`） |
+| Schema 字典 ↔ 实际 envelope                                                                    | 每个成功/失败 fixture 通过校验；被拒变体不通过    | schema 对比测试                                           |
+| API 失败格式：text/默认失败保持 stdout 为空，`--format json` 产出 envelope                     | `api schema`/`api snapshot` 失败遵守调用方 format | `tests/cli_query.rs` + `src/cli` 测试                     |
+| 无 Site 磁盘状态                                                                               | `service-unavailable`，零 fs/进程/锁变更          | `tests/cli_query.rs`                                      |
+| 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI | 成功/`session-capacity`/结构不变                  | `tests/local_startup_process`                             |
+| 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                 | 按矩阵 typed kind；绝不冒称真实 Server 证据       | `tests/cli_query.rs`                                      |
+| 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                        | 文档化退出；阻塞前 transport 句柄已 drop          | `tests/local_startup_process` + emit 单元测试             |
+| `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                              | 五项 typed 检查齐全                               | `tests/cli_query.rs` + `src/cli/config` 测试              |
+| 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                             | 正/负上下文；无运行时枚举                         | `tests/cli_query.rs`                                      |
+| 双语文本/失败输出                                                                              | 精确 en-US/zh-CN 字符串                           | `tests/process.rs` + `tests/cli_query.rs`                 |
 
 模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/Client 模型，故
 不需要新的 TLA+ 模型。触发范围覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试

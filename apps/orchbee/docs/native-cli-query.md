@@ -39,13 +39,18 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
 
 - `--format text|json` or `--format=text|json`: at most one selection, any position before `--`.
   `--format` with a missing, empty, or unknown value, or a repeated selection, is a format
-  failure: `invalid-usage`, exit 2, empty stdout.
+  failure: `invalid-usage`, exit 2, empty stdout. The complete pre-`--` format envelope is
+  scanned before ordinary grammar validation: a format defect anywhere in that envelope answers
+  with empty stdout, and one valid unique selection shapes every later grammar failure's
+  envelope regardless of where it sits.
 - `--project <target>`, `--workspace <target>`, `--tab <target>`: named value filters, single
   use each. The next token is consumed as the value even when it begins with a dash; a bare `--`
   is never consumed as a value (missing value → `invalid-usage`). A consumed filter value is not
   a format selector. Each filter is valid only on its declared command (`--project` on
   `workspace list`, `--workspace` on `tab list`, `--tab` on `panel list`); anywhere else,
-  including `get` commands, is `invalid-usage`.
+  including `get` commands, is `invalid-usage`. Filters are never silently dropped: a filter
+  flag on a command that does not declare it is `invalid-usage` before any runtime access, so
+  `workspace list` rejects `--workspace`, `--tab`, and `--standalone`.
 - `--standalone`: valueless boolean flag, single use, only on `tab list`; mutually exclusive
   with `--workspace`.
 - `--version`: legal only as the sole root invocation; any other position or company is usage.
@@ -88,7 +93,15 @@ cohort, or Site state.
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
 commands (`status`, all `list`/`get`, `api snapshot`, `api schema`, `config check`) accept
-`--format`; `api snapshot` and `api schema` emit the identical JSON document under both formats.
+`--format`. The `api` commands are the machine surface: a successful `api snapshot` or
+`api schema` emits the identical JSON document under both formats, while an `api` failure
+follows the selected format like any other command — under text/default it reports on stderr
+with empty stdout, and only `--format json` produces a failure envelope.
+
+`orchbee completion` prints a static projection of this grammar: verbs, complete help paths,
+each command's declared flags, both `--format` spellings and its `text`/`json` values, `--`
+termination, and flag-value consumption contexts. It enumerates no Site state, resource names,
+or runtime data.
 
 ### Targets and filters
 
@@ -210,7 +223,9 @@ source?}`; no English `message` field exists. `source` is attached only from an 
 | `sockets`           | only after a safely inspected runtime directory; each of `client`/`worker` reports `presence` `present`/`absent`/`unchecked` with the existing type+owner+`0600`+no-follow rule. Any inspected invalidity fails the check; otherwise at least one compliant present socket passes; all absent/unchecked is `not-applicable`. Presence never claims service or Worker liveness. |
 
 Typed details only: `runtime-base`/`runtime-directory` carry `path` (UTF-8) or `pathBytesHex`
-(non-UTF-8, never replacement characters) and `exists` when established, plus `reason` in
+(non-UTF-8, never replacement characters), `exists` only when the path state was established —
+`false` for an established absence, `true` for an observed entry, and the field is omitted when
+inspection itself failed (permission, path, or I/O error) — plus `reason` in
 `{invalid-path,absent,unsafe,io-error}`; `sockets` reasons are `{unsafe,io-error,
 runtime-unavailable}`. No cross-file atomic health claim is made.
 
@@ -249,8 +264,11 @@ semantics. 7/8 stay reserved and unreachable in this read-only slice.
 | non-Linux network query / `config check`                                      | `service-unavailable`/`check-failed`                     | 4/1                | `{stage:"platform",reason:"unsupported-platform"}` |
 
 `resource` is `project|workspace|tab|panel|terminal|schema`. Stages and reasons are finite schema
-values; no exception text becomes a machine field. Read-path errors never become
-outcome-unknown/failed-effect: a read-only request cannot produce an unknown side effect.
+values; no exception text becomes a machine field. `details` is a closed per-kind vocabulary —
+`{resource,target}`, `{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`, or
+`{limitBytes}` — and the embedded schemas reject documents outside those shapes. Read-path errors
+never become outcome-unknown/failed-effect: a read-only request cannot produce an unknown side
+effect.
 
 ## Output contract and side effects
 
@@ -290,18 +308,22 @@ outcome-unknown/failed-effect: a read-only request cannot produce an unknown sid
 
 ## Scenario matrix and evidence
 
-| Scenario                                                                                            | Expected                                                   | Evidence                                                           |
-| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------ |
-| Exhaustive grammar: formats, positions, `--`, help forms, duplicates, invalids                      | exact parse/failure kinds                                  | `src/invocation` tests                                             |
-| Target rules: ID/label/zero/overlong/ambiguous precedence                                           | resolver verdicts                                          | `src/cli` resolver tests                                           |
-| Validated snapshot → every result shape, empty collections, nulls                                   | exact JSON/text fixtures                                   | `src/cli` output tests + JSON Schema validation (dev `jsonschema`) |
-| Schema dictionary ↔ emitted envelopes                                                               | every success/failure fixture validates                    | schema fixture tests                                               |
-| No Site on disk                                                                                     | `service-unavailable`, zero fs/process/lock mutation       | `tests/query_process.rs`                                           |
-| Real staged-cohort Server: status/list/get/api snapshot, capacity 16, coexistence with a live TUI   | success/`session-capacity`/unchanged structure             | `tests/local_startup_process` + `tests/query_process.rs`           |
-| Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect    | typed kinds per matrix; never labeled real-Server evidence | `tests/query_process.rs`                                           |
-| Non-TTY invocation; slow stdout with a released session; >8 MiB prepared output; real write failure | documented exits; session dropped before blocking          | `tests/query_process.rs` + writer-injection unit tests             |
-| `config check` matrix: pass/fail/not-applicable per check, ENOENT base-vs-scope typing              | five typed checks always reported                          | `tests/query_process.rs`                                           |
-| Bilingual text/failure output                                                                       | exact en-US/zh-CN strings                                  | `tests/process.rs` + `tests/query_process.rs`                      |
+| Scenario                                                                                                      | Expected                                                        | Evidence                                                           |
+| ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Exhaustive grammar: formats, positions, `--`, help forms, duplicates, invalids                                | exact parse/failure kinds                                       | `src/invocation` tests                                             |
+| Format envelope ordering: a defect anywhere leaves stdout empty; a valid json anywhere shapes later failures  | envelope precedence over grammar errors                         | `src/invocation` tests + `tests/cli_query.rs`                      |
+| Filter scope: `workspace list` accepts only `--project`; wrong-command filters are usage before runtime       | complete matrix, no silently dropped filter                     | `src/invocation` tests + `tests/cli_query.rs`                      |
+| Target rules: ID/label/zero/overlong/ambiguous precedence                                                     | resolver verdicts                                               | `src/cli` resolver tests                                           |
+| Validated snapshot → every result shape, empty collections, nulls                                             | exact JSON/text fixtures                                        | `src/cli` output tests + JSON Schema validation (dev `jsonschema`) |
+| Schema dictionary ↔ emitted envelopes                                                                         | every success/failure fixture validates; rejected variants fail | schema contrast tests                                              |
+| API failure format: text/default failures keep stdout empty, `--format json` yields the envelope              | caller-selected failure format on `api schema`/`api snapshot`   | `tests/cli_query.rs` + `src/cli` tests                             |
+| No Site on disk                                                                                               | `service-unavailable`, zero fs/process/lock mutation            | `tests/cli_query.rs`                                               |
+| Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI      | success/`session-capacity`/unchanged structure                  | `tests/local_startup_process`                                      |
+| Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect              | typed kinds per matrix; never labeled real-Server evidence      | `tests/cli_query.rs`                                               |
+| Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure | documented exits; transport owners dropped before blocking      | `tests/local_startup_process` + emit unit tests                    |
+| `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                 | five typed checks always reported                               | `tests/cli_query.rs` + `src/cli/config` tests                      |
+| Completion scripts project the grammar (bash/zsh executed, fish structural parity)                            | positive and negative contexts; no runtime enumeration          | `tests/cli_query.rs`                                               |
+| Bilingual text/failure output                                                                                 | exact en-US/zh-CN strings                                       | `tests/process.rs` + `tests/cli_query.rs`                          |
 
 Model obligations: this slice adds no new Server state machine, persistence, or retry and reuses
 the registered OBLC/OBWP/Client models, so no new TLA+ model is required. Registered models whose
