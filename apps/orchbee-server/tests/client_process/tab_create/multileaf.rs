@@ -105,23 +105,14 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
     // shares it, so a server that keeps answering snapshots without ever
     // committing the split cannot renew the deadline per successful read.
     let split_wait_deadline = deadline();
-    let mut multileaf = read_snapshot(&mut observer, 306, split_wait_deadline)?;
-    loop {
-        let source = standalone_context(&multileaf)?
-            .tabs
-            .iter()
-            .find(|tab| tab.tab_id == first_tuple.tab_id)
-            .ok_or("split source Tab missing")?;
-        if matches!(&source.root, PanelNode::Split { children, .. } if children.len() == 2) {
-            break;
-        }
-        assert!(
-            Instant::now() < split_wait_deadline,
-            "split did not commit while create was parked"
-        );
-        thread::yield_now();
-        multileaf = read_snapshot(&mut observer, 306, split_wait_deadline)?;
-    }
+    let mut split_wait_replies = 0u32;
+    wait_for_split_commit(
+        &mut observer,
+        306,
+        &first_tuple.tab_id,
+        split_wait_deadline,
+        &mut split_wait_replies,
+    )?;
 
     // Releasing the parked completion must settle against tree membership: the context
     // is multileaf now, and a one-leaf re-check would have retired this authority.
@@ -181,11 +172,57 @@ fn parked_tab_create_completion_survives_an_interleaved_split_on_one_connection(
     Ok(())
 }
 
-#[test]
-fn never_split_observer_wait_terminates_at_the_shared_deadline() -> TestResult {
-    // Bounded negative diagnostic: the server keeps answering observer
-    // snapshots, but the split is never sent. The shared-cap wait must end in
-    // the deadline failure instead of living forever on per-read deadlines.
+// The single wait path shared by the positive witness and the negative
+// diagnostic. The absolute deadline bounds every snapshot read and the
+// in-loop check, so a responsive-but-never-split server ends this wait in
+// the deadline error instead of renewing it per successful reply.
+// `successful_replies` makes the number of answered snapshots observable to
+// the caller even when the wait fails.
+fn wait_for_split_commit(
+    observer: &mut UnixStream,
+    request_value: u128,
+    tab_id: &WorkbenchTabId,
+    deadline: Instant,
+    successful_replies: &mut u32,
+) -> TestResult<Snapshot> {
+    let mut snapshot = read_snapshot(observer, request_value, deadline)?;
+    *successful_replies += 1;
+    loop {
+        let source = standalone_context(&snapshot)?
+            .tabs
+            .iter()
+            .find(|tab| tab.tab_id == *tab_id)
+            .ok_or("split source Tab missing")?;
+        if matches!(&source.root, PanelNode::Split { children, .. } if children.len() == 2) {
+            return Ok(snapshot);
+        }
+        check_deadline(deadline)?;
+        thread::yield_now();
+        snapshot = read_snapshot(observer, request_value, deadline)?;
+        *successful_replies += 1;
+    }
+}
+
+// The absolute-deadline criterion: "process witness deadline" is emitted only
+// by `remaining`/`check_deadline` once Instant::now() >= deadline. It reaches
+// the caller either as a bare io::Error (deadline check before/inside the
+// loop) or wrapped in the wire protocol's Io(...) variant (a read was in
+// flight when the bound passed), so matching the marker is the criterion —
+// not the wrapping type.
+fn is_process_deadline(error: &(dyn std::error::Error + 'static)) -> bool {
+    error.to_string().contains("process witness deadline")
+}
+
+// Shared fixture for the never-split diagnostics: one real Server, one
+// controlled Worker connection, one commanding Client and a dedicated
+// observer Client, with a single settled standalone Tab as the split source.
+fn never_split_fixture() -> TestResult<(
+    RunningServer,
+    UnixStream,
+    UnixStream,
+    UnixStream,
+    CommittedTab,
+)> {
     let server = RunningServer::start()?;
     let mut worker = connect_worker(server.worker_endpoint(), FIRST_WORKER)?;
     let (mut first_client, _) = connect_bounded_client(server.client_endpoint())?;
@@ -212,58 +249,112 @@ fn never_split_observer_wait_terminates_at_the_shared_deadline() -> TestResult {
     accept_launch(&mut worker, &first_launch, 11, deadline())?;
     let first_result = read_command_result(&mut first_client, &first_id, deadline())?;
     let first_tuple = final_tab(&first_result.outcome)?;
+    Ok((server, worker, first_client, observer, first_tuple))
+}
+
+#[test]
+fn never_split_observer_wait_terminates_at_the_shared_deadline() -> TestResult {
+    // Bounded negative diagnostic over the same wait path as the positive
+    // witness: the server keeps answering observer snapshots, but the split
+    // is never sent. The wait must end in the absolute-deadline error after
+    // at least two successful replies — successful responses must not renew
+    // the shared cap, and termination must be the deadline criterion itself,
+    // not any arbitrary error.
+    let (_server, _worker, _first_client, mut observer, first_tuple) = never_split_fixture()?;
 
     let cap = deadline();
     let start = Instant::now();
-    let wait = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> TestResult {
-        let mut snapshot = read_snapshot(&mut observer, 313, cap)?;
-        loop {
-            let source = standalone_context(&snapshot)?
-                .tabs
-                .iter()
-                .find(|tab| tab.tab_id == first_tuple.tab_id)
-                .ok_or("split source Tab missing")?;
-            if matches!(&source.root, PanelNode::Split { children, .. } if children.len() == 2) {
-                break;
-            }
-            assert!(
-                Instant::now() < cap,
-                "split did not commit while create was parked"
-            );
-            thread::yield_now();
-            snapshot = read_snapshot(&mut observer, 313, cap)?;
-        }
-        Ok(())
-    }));
+    let mut successful_replies = 0u32;
+    let outcome = wait_for_split_commit(
+        &mut observer,
+        313,
+        &first_tuple.tab_id,
+        cap,
+        &mut successful_replies,
+    );
     let elapsed = start.elapsed();
-    match wait {
-        Err(payload) => {
-            let message = payload
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| {
-                    payload
-                        .downcast_ref::<&str>()
-                        .map(|text| (*text).to_string())
-                })
-                .unwrap_or_default();
-            assert!(
-                message.contains("split did not commit"),
-                "unexpected panic payload: {message}"
-            );
-        }
-        // The shared cap may surface through the bounded read itself as a
-        // socket timeout instead of the in-loop assertion.
-        Ok(Err(_)) => {}
-        Ok(Ok(())) => return Err("never-split wait returned success".into()),
-    }
+    let Err(error) = outcome else {
+        return Err("never-split wait returned success".into());
+    };
     assert!(
-        elapsed >= PROCESS_TIMEOUT - std::time::Duration::from_millis(500),
+        is_process_deadline(&*error),
+        "never-split wait ended on a non-deadline error: {error}"
+    );
+    assert!(
+        successful_replies >= 2,
+        "deadline evidence needs at least two successful snapshot replies, got {successful_replies}"
+    );
+    assert!(
+        elapsed >= PROCESS_TIMEOUT - Duration::from_millis(500),
         "wait terminated before the shared cap: {elapsed:?}"
     );
     assert!(
-        elapsed <= PROCESS_TIMEOUT + std::time::Duration::from_secs(2),
+        elapsed <= PROCESS_TIMEOUT + Duration::from_secs(2),
         "fixed-cap wait overran its bound: {elapsed:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn renewed_deadline_wait_outlives_the_shared_cap_under_an_outer_bound() -> TestResult {
+    // Expected-negative control for the original renewal bug shape: every
+    // successful snapshot read starts a fresh PROCESS_TIMEOUT deadline, so a
+    // never-split server keeps this copy alive past the point where the
+    // shared-cap path already ended. An independent outer bound caps every
+    // read and the loop itself, making the diagnostic bounded; surviving the
+    // shared cap and then reaching the outer bound while still waiting is the
+    // expected outcome.
+    let (_server, _worker, _first_client, mut observer, first_tuple) = never_split_fixture()?;
+
+    let outer = deadline() + Duration::from_secs(3);
+    let start = Instant::now();
+    let mut successful_replies = 0u32;
+    let mut snapshot = read_snapshot(&mut observer, 321, deadline().min(outer))?;
+    successful_replies += 1;
+    loop {
+        let source = standalone_context(&snapshot)?
+            .tabs
+            .iter()
+            .find(|tab| tab.tab_id == first_tuple.tab_id)
+            .ok_or("split source Tab missing")?;
+        if matches!(&source.root, PanelNode::Split { children, .. } if children.len() == 2) {
+            return Err("renewal-form diagnostic unexpectedly committed a split".into());
+        }
+        if Instant::now() >= outer {
+            break;
+        }
+        thread::yield_now();
+        // The renewed per-read deadline reproduces the bug under observation;
+        // the outer bound still caps each socket read so nothing can hang. A
+        // read in flight across the outer bound returns the deadline error —
+        // that is still the bounded end state, so it exits the loop here.
+        let read_cap = deadline().min(outer);
+        match read_snapshot(&mut observer, 321, read_cap) {
+            Ok(next) => {
+                snapshot = next;
+                successful_replies += 1;
+            }
+            Err(error) => {
+                assert!(
+                    is_process_deadline(&*error),
+                    "renewal-form wait ended on a non-deadline error: {error}"
+                );
+                break;
+            }
+        }
+    }
+    let elapsed = start.elapsed();
+    assert!(
+        successful_replies >= 2,
+        "renewal evidence needs at least two successful snapshot replies, got {successful_replies}"
+    );
+    assert!(
+        elapsed >= PROCESS_TIMEOUT,
+        "renewal-form wait ended inside one shared cap: {elapsed:?}"
+    );
+    assert!(
+        elapsed <= PROCESS_TIMEOUT + Duration::from_secs(3) + Duration::from_secs(2),
+        "outer-bound diagnostic overran its bound: {elapsed:?}"
     );
     Ok(())
 }
