@@ -1037,9 +1037,12 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
 ///   * UI-first — the tick takes and deposits while the worker is parked, so the deposit
 ///     marks the cell `ForwardExpired` and the tick returns `false`; releasing the worker
 ///     lets it consume the mark and retire the mailbox with `Deadline`.
-///   * worker-first — the tick's deposit parks at its clock sample until the worker's
-///     expiry retires the session and closes the mailbox with `Deadline`; the resumed
-///     deposit observes `Closed` and the same tick returns `true`.
+///   * worker-first — the worker is parked at its reply-sample pause before the tick;
+///     the tick's deposit parks at its clock sample outside the mailbox mutex, a scoped
+///     controller then releases the worker, whose expiry retires the session and closes
+///     the mailbox with `Deadline`; the resumed deposit observes `Closed` and the same
+///     tick returns `true`.
+///
 /// An unsynchronized `assert!(!session.tick())` oracle is not a correctness boundary:
 /// `tick() == true` only reports that a UI state change happened — here the worker-first
 /// order retires inside the same tick — so both orders must be driven and judged
@@ -1210,6 +1213,17 @@ fn run_taken_forward_expiry_ui_first() -> TestResult {
     Ok(())
 }
 
+/// Worker-first ordering: the worker is physically parked at its reply-sample pause —
+/// outside the mailbox mutex — before `clock_phase` is armed and before the UI thread's
+/// `session.tick` begins, so the tick's `take_event_before` cannot hit `WouldBlock`,
+/// re-sample into the expired phase, and expire the untaken event. A scoped controller
+/// owns both release guards, waits (atomics only, never the mailbox mutex) for the
+/// tick's deposit to reach its sample checkpoint — which also proves the initial take
+/// already completed — then releases the worker; the worker's own expiry retires the
+/// session and closes the mailbox with `Deadline`, which resumes the parked deposit and
+/// retires the session view inside this same tick. Every controller exit path drops both
+/// guards before the scope joins, so a failing or early tick still unblocks both waits
+/// within their wall bounds.
 fn run_taken_forward_expiry_worker_first() -> TestResult {
     let TakenForwardExpiryFixture {
         server,
@@ -1218,21 +1232,34 @@ fn run_taken_forward_expiry_worker_first() -> TestResult {
         clock_phase,
     } = taken_forward_expiry_fixture()?;
 
+    let worker_pause = mailbox.pause_next_ui_reply_await_sample_for_test();
+    assert!(
+        worker_pause.await_reached_before(Instant::now() + Duration::from_secs(2)),
+        "worker did not reach the armed reply-sample pause"
+    );
     let deposit_gate = mailbox.pause_next_ui_reply_deposit_for_test();
     clock_phase.store(1, Ordering::SeqCst);
-    // The same `session.tick` takes the event, then its deposit parks at the clock sample
-    // outside the mailbox mutex until the worker's own expiry retires the session and
-    // closes the mailbox with `Deadline` — the worker-originated close resumes the parked
-    // deposit, which observes `Closed` and retires the session view inside this tick.
-    assert!(session.tick());
-    assert!(
-        deposit_gate.await_reached_before(Instant::now()),
-        "the tick's deposit never reached the armed sample gate"
-    );
+    thread::scope(|scope| {
+        let controller_mailbox = Arc::clone(&mailbox);
+        scope.spawn(move || {
+            assert!(
+                deposit_gate.await_reached_before(Instant::now() + Duration::from_secs(2)),
+                "the tick's deposit never reached the armed sample gate"
+            );
+            drop(worker_pause);
+            let close_deadline = Instant::now() + Duration::from_secs(2);
+            while controller_mailbox.is_closed() != Some(CarrierFailure::Deadline)
+                && Instant::now() < close_deadline
+            {
+                thread::yield_now();
+            }
+            drop(deposit_gate);
+        });
+        assert!(session.tick());
+    });
     assert_eq!(clock_phase.load(Ordering::SeqCst), 3);
     assert_eq!(mailbox.is_closed(), Some(CarrierFailure::Deadline));
     assert_eq!(session.status(), TerminalStatus::Unavailable);
-    drop(deposit_gate);
     drop(session);
     server.finish()?;
     Ok(())

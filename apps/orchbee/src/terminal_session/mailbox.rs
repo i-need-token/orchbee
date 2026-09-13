@@ -1041,9 +1041,11 @@ pub(super) struct CommandMailbox {
     //     guard lets the worker consume the mark and retire.
     //   worker-first: `ui_reply_deposit_sample_checkpoint` parks the UI inside
     //     `deposit_ui_reply_before` at its clock sample (mailbox mutex released) until the
-    //     guard is dropped, the worker closes the mailbox, or a wall bound elapses, so the
-    //     worker's expiry runs first; the resumed same-tick deposit then observes `Closed`
-    //     or `Stale` rather than `ForwardExpired`.
+    //     guard is dropped, the worker closes the mailbox, or a wall bound elapses; the
+    //     owning test additionally parks the worker at `ui_reply_await_sample_checkpoint`
+    //     until that deposit checkpoint is reached, so the worker's expiry runs first and
+    //     the resumed same-tick deposit then observes `Closed` or `Stale` rather than
+    //     `ForwardExpired`.
     #[cfg(test)]
     ui_reply_await_sample_checkpoint: AtomicUsize,
     #[cfg(test)]
