@@ -77,6 +77,7 @@ fn tag(message: &ServerMessage) -> String {
             ControlOutcome::Acquired { .. } => "acquired".into(),
             ControlOutcome::InputAccepted {} => "input".into(),
             ControlOutcome::Resized { .. } => "resize".into(),
+            ControlOutcome::Pasted { .. } => "pasted".into(),
             ControlOutcome::Rejected { reason } => format!("control:{reason:?}"),
             ControlOutcome::Unavailable { reason } => format!("unavailable:{reason:?}"),
             ControlOutcome::OutcomeUnknown {} => "unknown".into(),
@@ -627,6 +628,7 @@ fn effect_kind(effect: &Effect) -> &'static str {
         Effect::Acquire(..) => "acquire",
         Effect::Input(..) => "input",
         Effect::Resize(..) => "resize",
+        Effect::Paste(..) => "paste",
         Effect::Release(..) => "release",
         Effect::Dispose(..) => "dispose",
     }

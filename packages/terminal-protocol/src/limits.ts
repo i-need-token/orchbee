@@ -45,6 +45,8 @@ export const PROTOCOL_LIMITS = {
 	maxStringBytes: 16 * 1024,
 	maxTransportRecordBytes: 44 * 1024 * 1024 + 64,
 	maxRawPayloadBytes: 32 + 1024 * 1024,
+	maxPasteAutoInputBytes: 256 * 1024,
+	maxPasteAutoInputPayloadBytes: 32 + 256 * 1024,
 	maxSemanticInputPayloadBytes: 32 + 1024 * 1024,
 	maxWriteInputPayloadBytes: 24 + 1024 * 1024,
 } as const;

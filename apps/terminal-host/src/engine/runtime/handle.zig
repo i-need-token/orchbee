@@ -148,6 +148,7 @@ pub const TerminalRuntime = opaque {
     pub const enqueuePasteInput = InputHandle.enqueuePasteInput;
     pub const enqueuePasteInputWithLimit = InputHandle.enqueuePasteInputWithLimit;
     pub const preparePasteInput = InputHandle.preparePasteInput;
+    pub const preparePasteAutoInput = InputHandle.preparePasteAutoInput;
     pub const prepareSemanticInput = InputHandle.prepareSemanticInput;
     pub const prepareAttachmentSemanticInput = InputHandle.prepareAttachmentSemanticInput;
     pub const prepareAttachmentInputRepair = InputHandle.prepareAttachmentInputRepair;

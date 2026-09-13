@@ -85,6 +85,7 @@ const textInputPath = path.join(fixturesDirectory, `text-input-v${protocolVersio
 const mouseInputPath = path.join(fixturesDirectory, `mouse-input-v${protocolVersion}.bin`);
 const focusInputPath = path.join(fixturesDirectory, `focus-input-v${protocolVersion}.bin`);
 const pasteInputPath = path.join(fixturesDirectory, `paste-input-v${protocolVersion}.bin`);
+const pasteAutoInputPath = path.join(fixturesDirectory, `paste-auto-input-v${protocolVersion}.bin`);
 const selectionExportChunkPath = path.join(
 	fixturesDirectory,
 	`selection-export-chunk-v${protocolVersion}.bin`,
@@ -1785,6 +1786,14 @@ const pasteInputBytes = encodeOrThrow(
 	encodeInputRequest(MessageKind.pasteInput, canonical.pasteInput),
 	'paste input',
 );
+const pasteAutoInputBytes = encodeOrThrow(
+	encodeInputRequest(MessageKind.pasteAutoInput, {
+		attachmentId: canonical.pasteAutoInput.attachmentId,
+		capabilityRevision: canonical.pasteAutoInput.capabilityRevision,
+		content: bytesFromBase64(canonical.pasteAutoInput.contentBase64),
+	}),
+	'paste auto input',
+);
 const selectionExportChunkBytes = encodeOrThrow(
 	encodeSelectionExportChunk({
 		attachmentId: canonical.selectionExportChunk.attachmentId,
@@ -1831,6 +1840,7 @@ if (checkOnly) {
 	await compareFile(mouseInputPath, mouseInputBytes);
 	await compareFile(focusInputPath, focusInputBytes);
 	await compareFile(pasteInputPath, pasteInputBytes);
+	await compareFile(pasteAutoInputPath, pasteAutoInputBytes);
 	await compareFile(selectionExportChunkPath, selectionExportChunkBytes);
 	await compareFile(terminalFailedPath, terminalFailedBytes);
 	await compareFile(controlConformancePath, controlConformanceBytes);
@@ -1849,6 +1859,7 @@ if (checkOnly) {
 	await writeFile(mouseInputPath, mouseInputBytes);
 	await writeFile(focusInputPath, focusInputBytes);
 	await writeFile(pasteInputPath, pasteInputBytes);
+	await writeFile(pasteAutoInputPath, pasteAutoInputBytes);
 	await writeFile(selectionExportChunkPath, selectionExportChunkBytes);
 	await writeFile(terminalFailedPath, terminalFailedBytes);
 	await writeFile(controlConformancePath, controlConformanceBytes);

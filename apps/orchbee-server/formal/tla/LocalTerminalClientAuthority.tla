@@ -22,7 +22,8 @@ Actions == {
   "init", "open-initial-session", "reconnect-session",
   "attach-first-viewer", "attach-additional-viewer",
   "acquire-unowned-controller", "accept-controller-input",
-  "reject-non-controller-input", "accept-controller-resize",
+  "reject-non-controller-input", "accept-controller-paste",
+  "reject-non-controller-paste", "accept-controller-resize",
   "reject-non-controller-resize", "detach-controller",
   "detach-viewer", "disconnect-controller",
   "disconnect-viewer", "disconnect-unattached-session",
@@ -271,6 +272,34 @@ RejectNonControllerResize(client) ==
        /\ RecordPreservingViewers("reject-non-controller-resize", session)
   /\ UNCHANGED DomainVars
 
+\* Semantic paste shares the controller admission sequence with ordinary
+\* input: one accepted paste consumes exactly one sequence value under the
+\* same grant, and a definite rejection never hands the grant to another
+\* session. Payload bytes, capability revision, and Host-side preparation
+\* are refined by SemanticPasteAdmission and TerminalModeEffects.
+AcceptControllerPaste(client) ==
+  /\ TerminalPathAvailable
+  /\ sessionOpen[client]
+  /\ inputSequence < MaxInputSequence
+  /\ LET session == CurrentSession(client)
+     IN
+       /\ session = controller
+       /\ inputSequence' = inputSequence + 1
+       /\ RecordPreservingViewers("accept-controller-paste", session)
+  /\ UNCHANGED <<serverUp, workerUp, hostUp, terminalState, sessionOpen,
+       sessionGeneration, viewers, controller, pendingCleanup,
+       geometryRevision>>
+
+RejectNonControllerPaste(client) ==
+  /\ TerminalPathAvailable
+  /\ sessionOpen[client]
+  /\ LET session == CurrentSession(client)
+     IN
+       /\ session \in viewers
+       /\ session # controller
+       /\ RecordPreservingViewers("reject-non-controller-paste", session)
+  /\ UNCHANGED DomainVars
+
 DetachControllerAttachment(client) ==
   /\ serverUp
   /\ sessionOpen[client]
@@ -455,6 +484,8 @@ Next ==
   \/ \E client \in Clients: AcquireUnownedController(client)
   \/ \E client \in Clients: AcceptControllerInput(client)
   \/ \E client \in Clients: RejectNonControllerInput(client)
+  \/ \E client \in Clients: AcceptControllerPaste(client)
+  \/ \E client \in Clients: RejectNonControllerPaste(client)
   \/ \E client \in Clients: AcceptControllerResize(client)
   \/ \E client \in Clients: RejectNonControllerResize(client)
   \/ \E client \in Clients: DetachControllerAttachment(client)
@@ -534,6 +565,12 @@ ControllerInputIsExact ==
     /\ priorController # NoController
     /\ inputSequence = priorInputSequence + 1
 
+ControllerPasteIsExact ==
+  lastAction = "accept-controller-paste" =>
+    /\ priorController = lastSession
+    /\ priorController # NoController
+    /\ inputSequence = priorInputSequence + 1
+
 ControllerResizeIsExact ==
   lastAction = "accept-controller-resize" =>
     /\ priorController = lastSession
@@ -545,6 +582,11 @@ NonControllerInputPreservesTerminalInput ==
     /\ lastSession # priorController
     /\ inputSequence = priorInputSequence
 
+NonControllerPastePreservesTerminalInput ==
+  lastAction = "reject-non-controller-paste" =>
+    /\ lastSession # priorController
+    /\ inputSequence = priorInputSequence
+
 NonControllerResizePreservesGeometry ==
   lastAction = "reject-non-controller-resize" =>
     /\ lastSession # priorController
@@ -552,7 +594,7 @@ NonControllerResizePreservesGeometry ==
 
 OnlyControllerInputAdvances ==
   inputSequence # priorInputSequence =>
-    lastAction = "accept-controller-input"
+    lastAction \in {"accept-controller-input", "accept-controller-paste"}
 
 OnlyControllerResizeAdvances ==
   geometryRevision # priorGeometryRevision =>

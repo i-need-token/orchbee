@@ -310,3 +310,133 @@ impl Write for ChunkedWriter {
         Ok(())
     }
 }
+
+#[test]
+fn paste_request_encodes_as_obcq_record_and_round_trips_opaque_bytes()
+-> Result<(), Box<dyn std::error::Error>> {
+    use crate::{
+        ControllerId, PasteContent, TerminalControlAction, TerminalControlRequest, ViewerId,
+    };
+    use std::num::NonZeroU64;
+
+    let mut content: Vec<u8> = (0..8200_u32).map(|index| (index % 253) as u8).collect();
+    content.extend_from_slice(&[0x00, 0x02, 0x1b, 0x80, 0xff]);
+    let message = ClientMessage::TerminalControl(TerminalControlRequest::new(
+        RequestId::parse("11111111111111111111111111111111")?,
+        TerminalControlAction::Paste {
+            attachment_id: ViewerId::parse("33333333333333333333333333333333")?,
+            controller_id: ControllerId::parse("22222222222222222222222222222222")?,
+            sequence: NonZeroU64::new(9).ok_or(ProtocolError::InvalidPayload)?,
+            content: PasteContent::new(content)?,
+        },
+    ));
+
+    let record = encode_client_frame(&message)?;
+    assert_eq!(record.get(..8), Some(b"OBCQ\0\x01\0\0".as_slice()));
+    assert_eq!(record.len(), 12 + 56 + 8200 + 5);
+    assert_eq!(decode_client_frame(&record)?, message);
+
+    let mut reader = ChunkedReader::new(record.clone(), 5);
+    assert_eq!(read_client_message(&mut reader)?, message);
+
+    let mut adjacent = record;
+    adjacent.extend_from_slice(&encode_client_frame(&deferred_create()?)?);
+    let mut stream = ChunkedReader::new(adjacent, 3);
+    assert_eq!(read_client_message(&mut stream)?, message);
+    assert_eq!(read_client_message(&mut stream)?, deferred_create()?);
+    Ok(())
+}
+
+#[test]
+fn obcq_record_rejects_malformed_headers_bodies_and_truncation()
+-> Result<(), Box<dyn std::error::Error>> {
+    use crate::{
+        ControllerId, PasteContent, TerminalControlAction, TerminalControlRequest, ViewerId,
+    };
+    use std::num::NonZeroU64;
+
+    let message = ClientMessage::TerminalControl(TerminalControlRequest::new(
+        RequestId::parse("11111111111111111111111111111111")?,
+        TerminalControlAction::Paste {
+            attachment_id: ViewerId::parse("33333333333333333333333333333333")?,
+            controller_id: ControllerId::parse("22222222222222222222222222222222")?,
+            sequence: NonZeroU64::new(9).ok_or(ProtocolError::InvalidPayload)?,
+            content: PasteContent::new(b"raw".to_vec())?,
+        },
+    ));
+    let record = encode_client_frame(&message)?;
+
+    let mut wrong_version = record.clone();
+    wrong_version[4..6].copy_from_slice(&2_u16.to_be_bytes());
+    assert!(matches!(
+        decode_client_frame(&wrong_version),
+        Err(ProtocolError::IncompatibleFrameVersion { received: 2 })
+    ));
+
+    let mut reserved = record.clone();
+    reserved[7] = 1;
+    assert_eq!(
+        decode_client_frame(&reserved),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut wrong_direction = record.clone();
+    wrong_direction[3] = b'R';
+    assert_eq!(
+        decode_client_frame(&wrong_direction),
+        Err(ProtocolError::InvalidMagic)
+    );
+
+    for body_length in [0_u32, 55, 56] {
+        let mut undersized = record.clone();
+        undersized[8..12].copy_from_slice(&body_length.to_be_bytes());
+        assert_eq!(
+            decode_client_frame(&undersized),
+            Err(ProtocolError::InvalidPayload)
+        );
+    }
+
+    let mut oversized = record.clone();
+    oversized[8..12].copy_from_slice(&262_201_u32.to_be_bytes());
+    assert!(matches!(
+        decode_client_frame(&oversized),
+        Err(ProtocolError::PayloadTooLarge {
+            maximum: 262_200,
+            ..
+        })
+    ));
+    assert!(matches!(
+        read_client_message(&mut Cursor::new(oversized)),
+        Err(ReadMessageError::Protocol(ProtocolError::PayloadTooLarge {
+            maximum: 262_200,
+            ..
+        }))
+    ));
+
+    let mut trailing = record.clone();
+    trailing.push(0);
+    assert_eq!(
+        decode_client_frame(&trailing),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    assert!(matches!(
+        read_client_message(&mut Cursor::new(&record[..record.len() - 1])),
+        Err(ReadMessageError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof
+    ));
+
+    let mut zero_sequence = record.clone();
+    zero_sequence[12 + 48..12 + 56].copy_from_slice(&0_u64.to_be_bytes());
+    assert_eq!(
+        decode_client_frame(&zero_sequence),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut bad_viewer = record.clone();
+    bad_viewer[12 + 16..12 + 32].fill(0);
+    assert_eq!(
+        decode_client_frame(&bad_viewer),
+        Err(ProtocolError::InvalidPayload)
+    );
+    Ok(())
+}

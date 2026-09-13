@@ -3,12 +3,16 @@ use std::num::NonZeroU64;
 use crate::{
     AttachmentId, ProtocolError, ProtocolErrorCode,
     input_authority::{InputAuthority, append_input_authority, decode_input_authority},
-    limits::{MAXIMUM_INPUT_BYTES, MAXIMUM_KEY_TEXT_BYTES, MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES},
+    limits::{
+        MAXIMUM_INPUT_BYTES, MAXIMUM_KEY_TEXT_BYTES, MAXIMUM_PASTE_AUTO_INPUT_BYTES,
+        MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES,
+    },
 };
 
 pub const KEY_INPUT_HEADER_BYTES: usize = 40;
 pub const TEXT_INPUT_HEADER_BYTES: usize = 28;
 pub const PASTE_INPUT_HEADER_BYTES: usize = 32;
+pub const PASTE_AUTO_INPUT_HEADER_BYTES: usize = 32;
 pub const MOUSE_INPUT_BYTES: usize = 40;
 pub const FOCUS_INPUT_BYTES: usize = 28;
 
@@ -94,6 +98,17 @@ pub struct PasteInput {
     pub bracketed: bool,
     pub capability_revision: NonZeroU64,
     pub text: String,
+}
+
+/// Raw-byte semantic paste. Unlike [`PasteInput`], the content is opaque:
+/// it is not UTF-8 validated and the Host decides whether to add the
+/// bracketed-paste markers from the terminal's own mode under the terminal
+/// mutex. The flags byte and the three reserved bytes must be zero.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PasteAutoInput {
+    pub attachment_id: AttachmentId,
+    pub capability_revision: NonZeroU64,
+    pub content: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -290,6 +305,62 @@ pub(crate) fn encode_paste_input(value: &PasteInput) -> Result<Vec<u8>, Protocol
         PASTE_INPUT_HEADER_BYTES,
         Some(value.bracketed),
     )
+}
+
+pub(crate) fn decode_paste_auto_input(payload: &[u8]) -> Result<PasteAutoInput, ProtocolError> {
+    if payload.len() < PASTE_AUTO_INPUT_HEADER_BYTES {
+        return Err(truncated("PasteAutoInput header is truncated"));
+    }
+    if payload.len() > PASTE_AUTO_INPUT_HEADER_BYTES + MAXIMUM_PASTE_AUTO_INPUT_BYTES {
+        return Err(limit_exceeded("PasteAutoInput payload exceeds its limit"));
+    }
+    let authority = decode_input_authority(payload)?;
+    let flags = read_u8(payload, 24)?;
+    let reserved = bytes_at(payload, 25, 3)?;
+    if flags != 0 || reserved.iter().any(|byte| *byte != 0) {
+        return Err(unknown_required_flag(
+            "PasteAutoInput has unknown flags or reserved bytes",
+        ));
+    }
+    let content_length = usize::try_from(read_u32(payload, 28)?)
+        .map_err(|_error| length_mismatch("PasteAutoInput length cannot fit this target"))?;
+    if content_length != payload.len() - PASTE_AUTO_INPUT_HEADER_BYTES {
+        return Err(length_mismatch(
+            "PasteAutoInput length does not match payload",
+        ));
+    }
+    let content = payload
+        .get(PASTE_AUTO_INPUT_HEADER_BYTES..)
+        .ok_or_else(|| truncated("PasteAutoInput content range is truncated"))?
+        .to_vec();
+    validate_paste_auto_content(&content)?;
+    Ok(PasteAutoInput {
+        attachment_id: authority.attachment_id,
+        capability_revision: authority.capability_revision,
+        content,
+    })
+}
+
+pub(crate) fn encode_paste_auto_input(value: &PasteAutoInput) -> Result<Vec<u8>, ProtocolError> {
+    validate_paste_auto_content(&value.content)?;
+    let content_length = u32::try_from(value.content.len())
+        .map_err(|_error| invalid_field("PasteAutoInput content exceeds its wire length field"))?;
+    let mut payload = Vec::with_capacity(PASTE_AUTO_INPUT_HEADER_BYTES + value.content.len());
+    append_authority(&mut payload, value.attachment_id, value.capability_revision);
+    payload.push(0);
+    payload.extend_from_slice(&[0; 3]);
+    append_u32(&mut payload, content_length);
+    payload.extend_from_slice(&value.content);
+    Ok(payload)
+}
+
+fn validate_paste_auto_content(content: &[u8]) -> Result<(), ProtocolError> {
+    if content.is_empty() || content.len() > MAXIMUM_PASTE_AUTO_INPUT_BYTES {
+        return Err(invalid_field(
+            "semantic paste content must contain one byte through the paste maximum",
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn decode_mouse_input(payload: &[u8]) -> Result<MouseInput, ProtocolError> {

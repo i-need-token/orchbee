@@ -6,6 +6,7 @@ mod identity;
 mod model;
 mod number;
 mod open;
+mod paste_record;
 mod viewer;
 mod viewer_record;
 mod wire;
@@ -20,7 +21,8 @@ pub use codec::{
 };
 pub use control::{
     ControlInput, ControlRejectedReason, ControlUnavailableReason, MAXIMUM_CONTROL_INPUT_BYTES,
-    TerminalControlAction, TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
+    MAXIMUM_PASTE_CONTENT_BYTES, PasteAcceptedBytes, PasteContent, TerminalControlAction,
+    TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
 };
 pub use error::{ProtocolError, ReadMessageError, WriteMessageError};
 pub use geometry::{
@@ -37,6 +39,7 @@ pub use model::{
     TerminalCreateRequest, TerminalCreateResult, TerminalStartRequest, TerminalStartResult,
     WorkerConstraint,
 };
+pub use paste_record::PASTE_RECORD_MAGIC;
 pub use viewer::{
     MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, TerminalViewerResult, ViewerRejectedReason, ViewerSnapshotReason,

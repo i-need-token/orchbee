@@ -11,10 +11,10 @@ use crate::{
     },
     limits::MAXIMUM_INPUT_BYTES,
     semantic_input::{
-        FocusInput, KeyInput, MouseInput, PasteInput, TextInput, decode_focus_input,
-        decode_key_input, decode_mouse_input, decode_paste_input, decode_text_input,
-        encode_focus_input, encode_key_input, encode_mouse_input, encode_paste_input,
-        encode_text_input,
+        FocusInput, KeyInput, MouseInput, PasteAutoInput, PasteInput, TextInput,
+        decode_focus_input, decode_key_input, decode_mouse_input, decode_paste_auto_input,
+        decode_paste_input, decode_text_input, encode_focus_input, encode_key_input,
+        encode_mouse_input, encode_paste_auto_input, encode_paste_input, encode_text_input,
     },
     terminal_fact::{bounded_u32, canonical_u64},
 };
@@ -26,6 +26,7 @@ const TEXT_INPUT_KIND: u16 = 35;
 const MOUSE_INPUT_KIND: u16 = 36;
 const FOCUS_INPUT_KIND: u16 = 37;
 const PASTE_INPUT_KIND: u16 = 38;
+const PASTE_AUTO_INPUT_KIND: u16 = 39;
 pub const WRITE_INPUT_HEADER_BYTES: usize = INPUT_AUTHORITY_HEADER_BYTES;
 pub const MAXIMUM_WRITE_INPUT_PAYLOAD_BYTES: usize = WRITE_INPUT_HEADER_BYTES + MAXIMUM_INPUT_BYTES;
 
@@ -52,6 +53,7 @@ pub enum InputMessage {
     MouseInput(MouseInput),
     FocusInput(FocusInput),
     PasteInput(PasteInput),
+    PasteAutoInput(PasteAutoInput),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -90,6 +92,9 @@ pub fn decode_input_message(
         }
         (PASTE_INPUT_KIND, MessageRole::Request) => {
             decode_paste_input(payload).map(InputMessage::PasteInput)
+        }
+        (PASTE_AUTO_INPUT_KIND, MessageRole::Request) => {
+            decode_paste_auto_input(payload).map(InputMessage::PasteAutoInput)
         }
         _ => Err(invalid_field(
             "message kind and role do not select an input payload",
@@ -131,6 +136,11 @@ pub fn encode_input_message(value: &InputMessage) -> Result<EncodedInputMessage,
             PASTE_INPUT_KIND,
             MessageRole::Request,
             encode_paste_input(paste)?,
+        ),
+        InputMessage::PasteAutoInput(paste) => (
+            PASTE_AUTO_INPUT_KIND,
+            MessageRole::Request,
+            encode_paste_auto_input(paste)?,
         ),
     };
     Ok(EncodedInputMessage {

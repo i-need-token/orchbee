@@ -3,6 +3,54 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use std::num::NonZeroU64;
 
 pub const MAXIMUM_CONTROL_INPUT_BYTES: usize = 4096;
+pub const MAXIMUM_PASTE_CONTENT_BYTES: usize = 256 * 1024;
+
+/// Bounded raw content for one semantic `Paste` action, carried only by the
+/// dedicated `OBCQ` record and never by the `OBCS` JSON control envelope.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PasteContent(Vec<u8>);
+impl PasteContent {
+    pub fn new(bytes: Vec<u8>) -> Result<Self, ProtocolError> {
+        if bytes.is_empty() || bytes.len() > MAXIMUM_PASTE_CONTENT_BYTES {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self(bytes))
+    }
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// Encoded byte count the host admitted into its bounded input queue for one
+/// paste operation; always positive and capped by `Self::MAXIMUM`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct PasteAcceptedBytes(u32);
+impl PasteAcceptedBytes {
+    pub const MAXIMUM: u32 = 1024 * 1024;
+
+    pub fn new(value: u32) -> Result<Self, ProtocolError> {
+        if value == 0 || value > Self::MAXIMUM {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self(value))
+    }
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+impl Serialize for PasteAcceptedBytes {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(u64::from(self.0))
+    }
+}
+impl<'de> Deserialize<'de> for PasteAcceptedBytes {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = u64::deserialize(deserializer)?;
+        Self::new(u32::try_from(value).map_err(de::Error::custom)?).map_err(de::Error::custom)
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ControlInput(Vec<u8>);
@@ -48,14 +96,41 @@ impl<'de> Deserialize<'de> for ControlInput {
         Self::new(bytes).map_err(de::Error::custom)
     }
 }
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TerminalControlAction {
+    Acquire {
+        attachment_id: ViewerId,
+    },
+    Input {
+        attachment_id: ViewerId,
+        controller_id: ControllerId,
+        sequence: NonZeroU64,
+        bytes: ControlInput,
+    },
+    Resize {
+        attachment_id: ViewerId,
+        controller_id: ControllerId,
+        sequence: NonZeroU64,
+        geometry: Geometry,
+    },
+    /// Semantic auto-mode paste; only decodable from the `OBCQ` record
+    /// encoding, never from `OBCS` JSON.
+    Paste {
+        attachment_id: ViewerId,
+        controller_id: ControllerId,
+        sequence: NonZeroU64,
+        content: PasteContent,
+    },
+}
+
+#[derive(Serialize, Deserialize)]
 #[serde(
     tag = "kind",
     rename_all = "kebab-case",
     rename_all_fields = "camelCase",
     deny_unknown_fields
 )]
-pub enum TerminalControlAction {
+enum WireControlAction {
     Acquire {
         attachment_id: ViewerId,
     },
@@ -75,13 +150,81 @@ pub enum TerminalControlAction {
     },
 }
 
+impl Serialize for TerminalControlAction {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Acquire { attachment_id } => WireControlAction::Acquire {
+                attachment_id: attachment_id.clone(),
+            },
+            Self::Input {
+                attachment_id,
+                controller_id,
+                sequence,
+                bytes,
+            } => WireControlAction::Input {
+                attachment_id: attachment_id.clone(),
+                controller_id: controller_id.clone(),
+                sequence: *sequence,
+                bytes: bytes.clone(),
+            },
+            Self::Resize {
+                attachment_id,
+                controller_id,
+                sequence,
+                geometry,
+            } => WireControlAction::Resize {
+                attachment_id: attachment_id.clone(),
+                controller_id: controller_id.clone(),
+                sequence: *sequence,
+                geometry: *geometry,
+            },
+            Self::Paste { .. } => {
+                return Err(serde::ser::Error::custom(
+                    "paste actions require the OBCQ record encoding",
+                ));
+            }
+        }
+        .serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for TerminalControlAction {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match WireControlAction::deserialize(deserializer)? {
+            WireControlAction::Acquire { attachment_id } => Self::Acquire { attachment_id },
+            WireControlAction::Input {
+                attachment_id,
+                controller_id,
+                sequence,
+                bytes,
+            } => Self::Input {
+                attachment_id,
+                controller_id,
+                sequence,
+                bytes,
+            },
+            WireControlAction::Resize {
+                attachment_id,
+                controller_id,
+                sequence,
+                geometry,
+            } => Self::Resize {
+                attachment_id,
+                controller_id,
+                sequence,
+                geometry,
+            },
+        })
+    }
+}
+
 impl TerminalControlAction {
     #[must_use]
     pub const fn attachment_id(&self) -> &ViewerId {
         match self {
             Self::Acquire { attachment_id }
             | Self::Input { attachment_id, .. }
-            | Self::Resize { attachment_id, .. } => attachment_id,
+            | Self::Resize { attachment_id, .. }
+            | Self::Paste { attachment_id, .. } => attachment_id,
         }
     }
 }
@@ -97,6 +240,10 @@ pub enum ControlRejectedReason {
     NotController,
     SequenceMismatch,
     HostRejected,
+    HostInputInvalid,
+    HostInputLimitExceeded,
+    HostInputBackpressure,
+    HostInputUnavailable,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -115,6 +262,7 @@ pub enum TerminalControlOutcome {
     Acquired { controller_id: ControllerId },
     InputAccepted {},
     Resized { geometry: Geometry },
+    Pasted { accepted_bytes: PasteAcceptedBytes },
     Rejected { reason: ControlRejectedReason },
     Unavailable { reason: ControlUnavailableReason },
     OutcomeUnknown {},

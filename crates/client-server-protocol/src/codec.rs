@@ -13,10 +13,18 @@ pub const FRAME_HEADER_BYTES: usize = 8;
 pub const MAXIMUM_FRAME_PAYLOAD_BYTES: usize = 32 * 1024;
 
 pub fn encode_client_frame(message: &ClientMessage) -> Result<Vec<u8>, ProtocolError> {
+    if let ClientMessage::TerminalControl(request) = message
+        && let crate::TerminalControlAction::Paste { .. } = request.action()
+    {
+        return crate::paste_record::encode(request);
+    }
     encode_frame(&encode_client_payload(message)?)
 }
 
 pub fn decode_client_frame(frame: &[u8]) -> Result<ClientMessage, ProtocolError> {
+    if frame.starts_with(b"OBCQ") {
+        return crate::paste_record::decode(frame);
+    }
     decode_frame(frame).and_then(decode_client_payload)
 }
 
@@ -37,7 +45,12 @@ pub fn decode_server_frame(frame: &[u8]) -> Result<ServerMessage, ProtocolError>
 }
 
 pub fn read_client_message(reader: &mut impl Read) -> Result<ClientMessage, ReadMessageError> {
-    let payload = read_payload(reader)?;
+    let mut header = [0; FRAME_HEADER_BYTES];
+    reader.read_exact(&mut header)?;
+    if header.starts_with(b"OBCQ") {
+        return crate::paste_record::read(reader, header);
+    }
+    let payload = read_payload_after_header(reader, header)?;
     decode_client_payload(&payload).map_err(Into::into)
 }
 
@@ -108,12 +121,6 @@ fn decode_frame(frame: &[u8]) -> Result<&[u8], ProtocolError> {
             expected: expected_length,
             actual: frame.len(),
         })
-}
-
-fn read_payload(reader: &mut impl Read) -> Result<Vec<u8>, ReadMessageError> {
-    let mut header = [0_u8; FRAME_HEADER_BYTES];
-    reader.read_exact(&mut header)?;
-    read_payload_after_header(reader, header)
 }
 
 fn read_payload_after_header(

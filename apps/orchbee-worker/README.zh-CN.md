@@ -89,7 +89,8 @@ bell、clipboard 与 application-signal effect 不经此只读投影路径对外
 
 ## Controller grant 与副作用
 
-`terminal_control_operation` 消费 Server 签发的 OBCN 获取、输入、调整尺寸和内部释放请求。
+`terminal_control_operation` 消费 Server 签发的 OBCN 获取、输入、调整尺寸、粘贴和内部释放
+请求；粘贴以专用 `OBNQ` record 在同一流上到达。
 `host_connection::controllers` 拥有有界纯 grant 状态：每个 Host terminal 一个 controller、精确
 viewer 和 controller 身份、待定或已接受的 Host capability revision，以及已消耗的最高 sequence。
 Grant state borrow 不跨 Host I/O。查看和控制 adapter 均使用 `host_connection` 所属的精确关联、
@@ -98,7 +99,10 @@ Grant state borrow 不跨 Host I/O。查看和控制 adapter 均使用 `host_con
 获取要求存活的只读 viewer，并创建独立 Host 附件，禁用 read、启用 input 和 resize，并申请
 resize lease。它保留该 viewer 的 projection baseline。只有精确 capability acknowledgement 才
 提交 grant。Input 保留 1 至 4,096 个原始字节并使用已接受的 capability revision；Host 必须确认
-完整 byte count。Resize 必须确认完整 geometry。两个 action 均在 Host I/O 前拒绝错误的
+完整 byte count。Resize 必须确认完整 geometry。Paste 以 kind-39 `PasteAutoInput` 保留 1 至
+262,144 个不透明字节；Host 必须确认正的 `accepted_bytes`，且不超过
+`min(2 × content + 12, negotiated input limit)`；其类型化失败映射为四个 `HostInput*` 拒绝。
+这些 action 均在 Host I/O 前拒绝错误的
 viewer/grant 或非递增 sequence。已知 Host rejection 消耗 sequence；含糊或矛盾的副作用结果
 关闭 broker 且不重放。
 

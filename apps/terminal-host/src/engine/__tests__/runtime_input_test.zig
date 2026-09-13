@@ -1076,6 +1076,45 @@ test "paste encoding requires the reviewed bracketed mode under the terminal loc
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try runtime.forceTerminate();
 }
+test "auto paste keeps opaque bytes, applies ghostty transforms, and snapshots the authoritative bracketed mode" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    // Ctrl-B is not in the Ghostty strip list; ESC and NUL are replaced by
+    // spaces, and an unbracketed paste maps LF to CR.
+    const content = "\x02\x80\xff\x1b\r\nraw\x00paste";
+
+    var plain = try runtime.preparePasteAutoInput(content, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, "\x02\x80\xff \r\rraw paste", plain.bytes.?);
+    plain.deinit();
+
+    parseTerminalInput(runtime, "\x1b[?2004h");
+    var wrapped = try runtime.preparePasteAutoInput(content, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(
+        u8,
+        "\x1b[200~\x02\x80\xff \r\nraw paste\x1b[201~",
+        wrapped.bytes.?,
+    );
+
+    parseTerminalInput(runtime, "\x1b[?2004l");
+    try std.testing.expectEqualSlices(
+        u8,
+        "\x1b[200~\x02\x80\xff \r\nraw paste\x1b[201~",
+        wrapped.bytes.?,
+    );
+    wrapped.deinit();
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+
+    try std.testing.expectError(
+        error.InputLimitExceeded,
+        runtime.preparePasteAutoInput(content, 3),
+    );
+    try std.testing.expectError(
+        error.EmptyInput,
+        runtime.preparePasteAutoInput("", std.math.maxInt(usize)),
+    );
+    try runtime.forceTerminate();
+}
 test "attachment detach repairs only its accepted key and mouse ownership" {
     const runtime = try createIdleRuntime(.{
         .cell_pixel_height = 16,

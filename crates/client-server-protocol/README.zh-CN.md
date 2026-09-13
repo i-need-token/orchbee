@@ -61,8 +61,21 @@ renderer 分别负责路由与呈现验证。大记录测试覆盖字节相等�
 读取。这是尚未发布的 OBCS v1 必需字段变更；Client/Server/Worker 必须使用精确匹配的开发 cohort，
 不提供隐式 viewer fallback。
 `ControlInput` 验证 1 至 `MAXIMUM_CONTROL_INPUT_BYTES`（4,096）byte，并序列化为规范小写 hex。
-共用 number adapter 验证正十进制 u64 sequence。这些控制使用既有 32 KiB OBCS JSON framing；
-不增加二进制 input carrier 或 Host 依赖。Schema owner 的 corpus 检查每个 action/outcome/reason
+共用 number adapter 验证正十进制 u64 sequence。Acquire、Input 与 Resize 使用既有 32 KiB OBCS
+JSON framing。
+
+`Paste` 是语义自动模式粘贴 action。它携带 `PasteContent`——1 至
+`MAXIMUM_PASTE_CONTENT_BYTES`（262,144）byte 的不透明正文——且从不出现在 OBCS JSON 中：
+client frame codec 将其编码为专用 `OBCQ` record——4-byte magic、big-endian version 1（`u16`）、
+零 reserved 字段（`u16`）、big-endian body 长度（`u32`），随后是 request ID（16）、attachment
+ID（16）、controller ID（16）、sequence（8）与内容。完整 `OBCQ` record 为 68 至 262,212 byte。
+codec 在分配 payload 前验证完整 12-byte header 与界限，恰好消费一条 record，并保留后续 frame
+边界；server 方向 reader 分发 OBCS JSON 或 `OBCQ`，client 方向 reader 拒绝 `OBCQ`。
+`Pasted` outcome 回显 Host 报告的正 `accepted_bytes` 计数。除共享拒绝原因外，paste 还映射
+Host 类型化失败 `host-input-invalid`、`host-input-limit-exceeded`、`host-input-backpressure`
+与 `host-input-unavailable`。
+
+Schema owner 的 corpus 检查每个 action/outcome/reason
 以及畸形、最大和超限 input。本 binding 不授予 controller 权限，绝不重试未知副作用。
 
 ## Request boundary

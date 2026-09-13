@@ -205,7 +205,8 @@ stream. The private service grants its single local effective-user subject defau
 Start, plus viewing and explicit acquisition of an exclusive input/resize controller for those terminals. It reads one request, invokes the Server-owned service, and writes the complete
 correlated result before reading another request from that Session. The result is committed before
 Client output; a stalled writer holds only its Session handler, never a coordinator or Worker lock.
-Idle reads have no deadline until the first byte; thereafter the whole record has two seconds. Each
+Idle reads have no deadline until the first byte; thereafter the whole record has two seconds,
+including large `OBCQ` paste records. Each
 complete Client write also has two seconds, including large OBSR records. Expiry retires that Session.
 
 Create selects the current local Worker and validates any exact Worker constraint. Start resolves

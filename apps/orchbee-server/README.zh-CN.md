@@ -178,7 +178,8 @@ registration 都由 lifetime-owned guard 持有，因此正常完成、fault 与
 stream 上读取严格 OBCS 或 OBWP。私有服务向其单一本机有效用户主体授予默认 shell 的 Create、Start
 及这些终端的查看和显式获取独占 input/resize controller 权限。它读取一个请求、调用 Server 服务、完整写回关联结果，然后才读取该 Session 的下一
 个请求。结果在 Client 输出前提交；写入停滞只占用自身 Session handler，不持有协调器或 Worker 锁。
-读取在首个字节前没有截止时间；此后整条记录限时两秒。每次完整 Client write（包括大 OBSR
+读取在首个字节前没有截止时间；此后整条记录限时两秒，包括大 `OBCQ` 粘贴记录。
+每次完整 Client write（包括大 OBSR
 记录）也限时两秒。超时只退役对应 Session。
 
 Create 选择当前本机 Worker，并验证显式精确 Worker 约束。Start 通过 request ID 跨同一主体的

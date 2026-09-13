@@ -8,7 +8,7 @@ use orchbee_terminal_protocol::{
 use serde_json::{Map, Value};
 
 const CONTROL_FIXTURE: &str =
-    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.23.json");
+    include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.24.json");
 
 #[test]
 fn every_canonical_attachment_payload_decodes_and_reencodes_byte_for_byte()

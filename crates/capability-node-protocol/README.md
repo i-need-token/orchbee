@@ -221,15 +221,26 @@ u16 geometry fields in the existing columns/rows/cell-width/cell-height order. O
 field. Integers use big-endian encoding; all IDs are nonzero. Input and resize share a strictly
 increasing per-grant sequence; admission consumes it even on a definite Host rejection.
 
+`Paste` requests use the dedicated `OBNQ` record instead of a kind-7 frame: four-byte magic,
+big-endian version 1 (`u16`), zero reserved field (`u16`), and big-endian body length (`u32`), then
+request ID (16), Worker ID (16), Worker generation (u64), viewer ID (16), controller ID (16),
+positive u64 sequence (8), and 1 through 262,144 opaque content bytes. A complete `OBNQ` record is
+92 through 262,236 bytes. The codec validates the complete 12-byte header and bound before
+allocating payload, consumes exactly one record, and preserves the following frame boundary.
+
 A result contains request, viewer, and controller IDs (16 bytes each), then outcome: 1 Acquired,
-2 Released, 3 InputAccepted, 4 Resized with the same complete geometry, or 5 Rejected with a reason
+2 Released, 3 InputAccepted, 4 Resized with the same complete geometry, 5 Rejected with a reason
 byte: 1 WrongWorker, 2 StaleWorkerGeneration, 3 ViewerUnavailable, 4 ControllerBusy, 5 NotController,
-6 SequenceMismatch, 7 HostRejected. Exact IDs and action/outcome compatibility are required; Resize
-must echo geometry. Release is internal cleanup and is idempotent if that viewer has no controller;
+6 SequenceMismatch, 7 HostRejected, 8 HostInputInvalid, 9 HostInputLimitExceeded,
+10 HostInputBackpressure, 11 HostInputUnavailable — or 6 Pasted with the positive u32
+`accepted_bytes` count the Host reported. Exact IDs and action/outcome compatibility are required;
+Resize must echo geometry, and the Server carrier also rejects a `Pasted` result whose
+`accepted_bytes` exceeds `min(2 × content + 12, negotiated input limit)`. Release is internal cleanup and is idempotent if that viewer has no controller;
 a different current grant rejects. An ambiguous Host exchange closes the Worker carrier instead
 of fabricating acceptance, and Server classifies complete delivery without a result as unknown.
 
-The 8 KiB OBCN limit, exact-length decoding, and direction rules remain unchanged. Codec tests cover
+The 8 KiB OBCN frame limit, exact-length decoding, and direction rules remain unchanged; `OBNQ`
+is a raw record alongside the frame stream, like `OBNR`. Codec tests cover
 all actions/outcomes/reasons, raw byte preservation, maximum input and invalid scope bounds. The
 Server and Worker guides own single-controller reservation, cleanup and real PTY evidence.
 

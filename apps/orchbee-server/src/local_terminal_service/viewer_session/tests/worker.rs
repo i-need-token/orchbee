@@ -17,6 +17,7 @@ pub(in crate::local_terminal_service::viewer_session::tests) enum Effect {
     Acquire([u8; 16], [u8; 16]),
     Input([u8; 16], [u8; 16], u64),
     Resize([u8; 16], [u8; 16], u64),
+    Paste([u8; 16], [u8; 16], u64),
     Release([u8; 16], [u8; 16]),
     Dispose(usize),
 }
@@ -85,6 +86,14 @@ pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
                     TerminalControlAction::Resize { sequence, geometry } => (
                         Effect::Resize(v, c, sequence.get()),
                         TerminalControlOutcome::Resized(geometry),
+                    ),
+                    TerminalControlAction::Paste { sequence, .. } => (
+                        Effect::Paste(v, c, sequence.get()),
+                        TerminalControlOutcome::Pasted {
+                            accepted_bytes:
+                                orchbee_capability_node_protocol::PasteAcceptedBytes::new(1)
+                                    .expect("bounded"),
+                        },
                     ),
                     TerminalControlAction::Release => {
                         (Effect::Release(v, c), TerminalControlOutcome::Released)

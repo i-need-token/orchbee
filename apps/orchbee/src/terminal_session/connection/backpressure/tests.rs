@@ -166,6 +166,10 @@ fn control_busy_uses_fresh_ids_and_consumes_each_effect_sequence_once() -> TestR
                         },
                         Control::Input { .. } => ControlOutcome::InputAccepted {},
                         Control::Resize { geometry, .. } => ControlOutcome::Resized { geometry },
+                        Control::Paste { .. } => ControlOutcome::Pasted {
+                            accepted_bytes:
+                                orchbee_client_server_protocol::PasteAcceptedBytes::new(1).unwrap(),
+                        },
                     }
                 };
                 write_server_message(

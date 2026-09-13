@@ -777,6 +777,21 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
+					"required": ["kind", "acceptedBytes"],
+					"properties": {
+						"kind": {
+							"const": "pasted"
+						},
+						"acceptedBytes": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 1048576
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
 					"required": ["kind", "reason"],
 					"properties": {
 						"kind": {
@@ -788,7 +803,11 @@
 								"controller-busy",
 								"not-controller",
 								"sequence-mismatch",
-								"host-rejected"
+								"host-rejected",
+								"host-input-invalid",
+								"host-input-limit-exceeded",
+								"host-input-backpressure",
+								"host-input-unavailable"
 							]
 						}
 					}

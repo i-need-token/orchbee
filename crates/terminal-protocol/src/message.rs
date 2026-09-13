@@ -308,6 +308,13 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         None
     ),
     contract!(
+        39,
+        "PasteAutoInput",
+        None,
+        Some(request(PayloadEncoding::RawBytes, 31)),
+        None
+    ),
+    contract!(
         41,
         "SnapshotFrame",
         Some(PayloadEncoding::TerminalFrame),

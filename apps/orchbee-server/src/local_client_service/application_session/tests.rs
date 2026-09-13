@@ -202,6 +202,118 @@ fn start() -> Result<ClientMessage, Box<dyn std::error::Error>> {
     )?))
 }
 
+#[test]
+fn routes_paste_records_through_the_control_executor() -> Result<(), Box<dyn std::error::Error>> {
+    use orchbee_client_server_protocol::{
+        ControllerId, PasteAcceptedBytes, PasteContent, TerminalControlAction,
+        TerminalControlOutcome, TerminalControlRequest, TerminalControlResult, ViewerId,
+    };
+    use std::num::NonZeroU64;
+
+    let request = ClientMessage::TerminalControl(TerminalControlRequest::new(
+        RequestId::parse(FIRST_REQUEST_ID)?,
+        TerminalControlAction::Paste {
+            attachment_id: ViewerId::parse("33333333333333333333333333333333")?,
+            controller_id: ControllerId::parse("44444444444444444444444444444444")?,
+            sequence: NonZeroU64::MIN,
+            content: PasteContent::new(vec![0, 0x1b, 0xff])?,
+        },
+    ));
+    let result = ServerMessage::TerminalControlResult(TerminalControlResult::new(
+        RequestId::parse(FIRST_REQUEST_ID)?,
+        TerminalControlOutcome::Pasted {
+            accepted_bytes: PasteAcceptedBytes::new(15)?,
+        },
+    ));
+    let mut stream = MemoryStream::new(encode_client_frame(&request)?);
+    let error = super::run(
+        &mut stream,
+        |message| {
+            assert!(matches!(
+                message,
+                ClientMessage::TerminalControl(request)
+                    if matches!(
+                        request.action(),
+                        TerminalControlAction::Paste { content, .. }
+                            if content.as_bytes() == [0, 0x1b, 0xff]
+                    )
+            ));
+            result.clone()
+        },
+        |_request| panic!("unexpected Workbench request"),
+    )
+    .expect_err("EOF must end the OBCS Session");
+    assert!(matches!(
+        error,
+        ApplicationSessionError::Read(ReadMessageError::Io(error)) | ApplicationSessionError::Prefix(error)
+            if error.kind() == io::ErrorKind::UnexpectedEof
+    ));
+    assert_eq!(stream.output, encode_server_frame(&result)?);
+    Ok(())
+}
+
+#[test]
+fn rejects_malformed_paste_records_without_reaching_the_executor()
+-> Result<(), Box<dyn std::error::Error>> {
+    use orchbee_client_server_protocol::{
+        ControllerId, MAXIMUM_PASTE_CONTENT_BYTES, PasteContent, TerminalControlAction,
+        TerminalControlRequest, ViewerId,
+    };
+    use std::num::NonZeroU64;
+
+    let request = ClientMessage::TerminalControl(TerminalControlRequest::new(
+        RequestId::parse(FIRST_REQUEST_ID)?,
+        TerminalControlAction::Paste {
+            attachment_id: ViewerId::parse("33333333333333333333333333333333")?,
+            controller_id: ControllerId::parse("44444444444444444444444444444444")?,
+            sequence: NonZeroU64::MIN,
+            content: PasteContent::new(b"content".to_vec())?,
+        },
+    ));
+    let executor = |_message: ClientMessage| -> ServerMessage {
+        unreachable!("malformed records must not execute")
+    };
+    let record = encode_client_frame(&request)?;
+    assert!(record.starts_with(b"OBCQ"));
+
+    for mutated in [
+        {
+            let mut record = record.clone();
+            record[5] = 2;
+            record
+        },
+        {
+            let mut record = record.clone();
+            record[7] = 1;
+            record
+        },
+        record[..record.len() - 1].to_vec(),
+    ] {
+        let mut stream = MemoryStream::new(mutated);
+        assert!(
+            super::run(&mut stream, executor, |_request| {
+                panic!("unexpected Workbench request")
+            })
+            .is_err()
+        );
+        assert!(stream.output.is_empty());
+    }
+
+    let mut oversized = Vec::from(&b"OBCQ\0\x01\0\0"[..]);
+    oversized.extend_from_slice(&(MAXIMUM_PASTE_CONTENT_BYTES as u32 + 57).to_be_bytes());
+    let mut stream = MemoryStream::new(oversized);
+    assert!(matches!(
+        super::run(&mut stream, executor, |_request| {
+            panic!("unexpected Workbench request")
+        }),
+        Err(ApplicationSessionError::Read(ReadMessageError::Protocol(
+            ProtocolError::PayloadTooLarge { .. }
+        )))
+    ));
+    assert!(stream.output.is_empty());
+    Ok(())
+}
+
 fn denied_result(request: &ClientMessage) -> ServerMessage {
     match request {
         ClientMessage::TerminalOpen(_)

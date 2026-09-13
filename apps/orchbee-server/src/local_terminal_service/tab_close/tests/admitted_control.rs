@@ -92,6 +92,17 @@ fn preadmitted_input_and_resize_keep_success_while_new_effects_are_fenced_withou
                                 released.recv_timeout(Duration::from_secs(3)).unwrap();
                                 WorkerControlOutcome::Resized(geometry)
                             }
+                            WorkerControlAction::Paste { sequence, .. } => {
+                                assert_eq!(sequence, NonZeroU64::MIN);
+                                events.push("paste");
+                                parked_send.send(request.viewer_id).unwrap();
+                                released.recv_timeout(Duration::from_secs(3)).unwrap();
+                                WorkerControlOutcome::Pasted {
+                                    accepted_bytes:
+                                        orchbee_capability_node_protocol::PasteAcceptedBytes::new(1)
+                                            .expect("bounded"),
+                                }
+                            }
                             WorkerControlAction::Release => {
                                 panic!("session must remain owned until the marker")
                             }

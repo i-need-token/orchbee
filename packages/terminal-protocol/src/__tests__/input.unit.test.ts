@@ -4,6 +4,7 @@ import {
 	decodeFocusInput,
 	decodeKeyInput,
 	decodeMouseInput,
+	decodePasteAutoInput,
 	decodePasteInput,
 	decodeTextInput,
 	decodeWriteInput,
@@ -11,12 +12,14 @@ import {
 	encodeFocusInput,
 	encodeKeyInput,
 	encodeMouseInput,
+	encodePasteAutoInput,
 	encodePasteInput,
 	encodeTextInput,
 	encodeWriteInput,
 	FocusInputSchema,
 	KEY_INPUT_HEADER_BYTES,
 	KeyAction,
+	PASTE_AUTO_INPUT_HEADER_BYTES,
 	MouseAction,
 	MouseButton,
 	WRITE_INPUT_HEADER_BYTES,
@@ -264,6 +267,68 @@ describe('semantic terminal input payloads', () => {
 		expect(paste.value.subarray(-3)).toEqual(new Uint8Array([0xef, 0xbb, 0xbf]));
 		expect(decodeTextInput(text.value)).toEqual({ ok: true, value });
 		expect(decodePasteInput(paste.value)).toEqual({ ok: true, value: pasteValue });
+	});
+
+	it('round-trips opaque paste bytes, including control and invalid UTF-8 bytes', () => {
+		const content = new Uint8Array([
+			0x02, 0x80, 0xff, 0x1b, 0x0d, 0x0a, 0x72, 0x61, 0x77, 0x2d, 0x70, 0x61, 0x73, 0x74, 0x65,
+		]);
+		const value = { attachmentId, capabilityRevision, content };
+		const encoded = encodePasteAutoInput(value);
+		if (!encoded.ok) throw new Error(encoded.detail);
+		expect(encoded.value).toHaveLength(PASTE_AUTO_INPUT_HEADER_BYTES + content.byteLength);
+		expect(encoded.value.subarray(PASTE_AUTO_INPUT_HEADER_BYTES)).toEqual(content);
+		expect(decodePasteAutoInput(encoded.value)).toEqual({ ok: true, value });
+
+		const dispatched = encodeInputRequest(MessageKind.pasteAutoInput, value);
+		if (!dispatched.ok) throw new Error(dispatched.detail);
+		expect(dispatched.value).toEqual(encoded.value);
+	});
+
+	it('rejects paste-auto payloads that violate flags, length, or size bounds', () => {
+		const value = {
+			attachmentId,
+			capabilityRevision,
+			content: new Uint8Array([0x61]),
+		};
+		const encoded = encodePasteAutoInput(value);
+		if (!encoded.ok) throw new Error(encoded.detail);
+
+		expect(decodePasteAutoInput(new Uint8Array(PASTE_AUTO_INPUT_HEADER_BYTES - 1))).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.truncated, ok: false }),
+		);
+
+		const flagged = encoded.value.slice();
+		flagged[24] = 1;
+		expect(decodePasteAutoInput(flagged)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
+		);
+		const reserved = encoded.value.slice();
+		reserved[27] = 1;
+		expect(decodePasteAutoInput(reserved)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
+		);
+
+		const zeroLength = encoded.value.slice();
+		new DataView(zeroLength.buffer).setUint32(28, 0, true);
+		expect(decodePasteAutoInput(zeroLength)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
+		);
+
+		expect(encodePasteAutoInput({ ...value, content: new Uint8Array(0) })).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+		expect(
+			encodePasteAutoInput({
+				...value,
+				content: new Uint8Array(PROTOCOL_LIMITS.maxPasteAutoInputBytes + 1),
+			}),
+		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
+		expect(
+			decodePasteAutoInput(
+				new Uint8Array(PASTE_AUTO_INPUT_HEADER_BYTES + PROTOCOL_LIMITS.maxPasteAutoInputBytes + 1),
+			),
+		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.limitExceeded, ok: false }));
 	});
 
 	it('round-trips finite terminal-space mouse coordinates and pressed-button state', () => {

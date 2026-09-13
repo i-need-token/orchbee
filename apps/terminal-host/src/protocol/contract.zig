@@ -33,7 +33,7 @@ pub const terminal_row_window_format_patch: u8 = 3;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 23;
+pub const current_protocol_patch: u16 = 24;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -64,6 +64,7 @@ pub const Limits = struct {
     pub const environment_overlay_value_bytes: usize = 4 * 1024;
     pub const optional_feature_name_bytes: usize = 64;
     pub const optional_features = 64;
+    pub const paste_auto_input_bytes: usize = 256 * 1024;
     pub const pending_input_bytes: usize = 4 * 1024 * 1024;
     pub const pty_read_batch_bytes: usize = 256 * 1024;
     pub const row_window_bytes: usize = 44 * 1024 * 1024;
@@ -81,6 +82,7 @@ pub const Limits = struct {
     pub const transport_record_bytes: usize = row_window_bytes + transport_envelope_header_bytes;
     pub const raw_payload_bytes: usize = semantic_input_payload_bytes;
     pub const semantic_input_payload_bytes: usize = 32 + input_bytes;
+    pub const paste_auto_input_payload_bytes: usize = 32 + paste_auto_input_bytes;
     pub const write_input_payload_bytes: usize = 24 + input_bytes;
 };
 
@@ -312,6 +314,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
         M.mouse_input => requestOnly("MouseInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.focus_input => requestOnly("FocusInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.paste_input => requestOnly("PasteInput", .semantic_input, .raw_bytes, M.input_accepted),
+        M.paste_auto_input => requestOnly("PasteAutoInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.snapshot_frame => eventOnly("SnapshotFrame", .terminal_frame),
         M.delta_frame => eventOnly("DeltaFrame", .terminal_frame),
         M.frame_applied => requestAndResponse(

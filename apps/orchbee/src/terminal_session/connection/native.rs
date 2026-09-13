@@ -446,7 +446,9 @@ impl NativeExecutor {
             | TerminalControlOutcome::Unavailable { .. } => {
                 return Err(CarrierFailure::Deadline);
             }
-            TerminalControlOutcome::InputAccepted {} | TerminalControlOutcome::Resized { .. } => {
+            TerminalControlOutcome::InputAccepted {}
+            | TerminalControlOutcome::Resized { .. }
+            | TerminalControlOutcome::Pasted { .. } => {
                 return Err(CarrierFailure::Protocol);
             }
             TerminalControlOutcome::OutcomeUnknown {} => {
@@ -695,6 +697,7 @@ impl NativeExecutor {
             }
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::Resized { .. }
+            | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::Rejected { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
@@ -735,6 +738,7 @@ impl NativeExecutor {
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
+            | TerminalControlOutcome::Pasted { .. }
             | TerminalControlOutcome::Rejected { .. }
             | TerminalControlOutcome::Unavailable { .. } => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
@@ -1608,7 +1612,8 @@ impl NativeExecutor {
             | TerminalControlOutcome::Unavailable { .. } => return Ok(false),
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::InputAccepted {}
-            | TerminalControlOutcome::Resized { .. } => {
+            | TerminalControlOutcome::Resized { .. }
+            | TerminalControlOutcome::Pasted { .. } => {
                 return Err(CarrierFailure::Protocol);
             }
             TerminalControlOutcome::OutcomeUnknown {} => {
@@ -2086,6 +2091,17 @@ impl NativeExecutor {
                 controller_id,
                 sequence: self.next_control_sequence(key)?,
                 geometry,
+            }),
+            TerminalControlAction::Paste {
+                attachment_id,
+                controller_id,
+                content,
+                ..
+            } => Ok(TerminalControlAction::Paste {
+                attachment_id,
+                controller_id,
+                sequence: self.next_control_sequence(key)?,
+                content,
             }),
             action @ TerminalControlAction::Acquire { .. } => Ok(action),
         }

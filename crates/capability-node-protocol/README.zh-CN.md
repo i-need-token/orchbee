@@ -201,14 +201,26 @@ u16 geometry 字段，沿用 columns/rows/cell-width/cell-height 顺序。其他
 整数使用 big-endian 编码，所有 ID 非零。Input 与 resize 共用每 grant 严格递增 sequence；
 即使 Host 明确拒绝，admission 也会消费该 sequence。
 
+`Paste` request 使用专用 `OBNQ` record 而非 kind-7 frame：4-byte magic、big-endian version 1
+（`u16`）、零 reserved 字段（`u16`）、big-endian body 长度（`u32`），随后是 request ID（16）、
+Worker ID（16）、Worker generation（u64）、viewer ID（16）、controller ID（16）、正 u64
+sequence（8）以及 1 至 262,144 byte 的不透明内容。完整 `OBNQ` record 为 92 至 262,236 byte。
+Codec 在分配 payload 前验证完整 12-byte header 与界限，恰好消费一条 record，并保留后续
+frame 边界。
+
 Result 包含 request、viewer、controller ID（各 16 byte），然后是 outcome：1 Acquired、2 Released、
-3 InputAccepted、4 Resized 并带相同完整 geometry，或 5 Rejected 并带 reason byte：1 WrongWorker、
+3 InputAccepted、4 Resized 并带相同完整 geometry，5 Rejected 并带 reason byte：1 WrongWorker、
 2 StaleWorkerGeneration、3 ViewerUnavailable、4 ControllerBusy、5 NotController、6 SequenceMismatch、
-7 HostRejected。必须精确匹配 ID 与 action/outcome；Resize 必须回显 geometry。Release 是内部
+7 HostRejected、8 HostInputInvalid、9 HostInputLimitExceeded、10 HostInputBackpressure、
+11 HostInputUnavailable——或 6 Pasted 并带 Host 报告的正 u32 `accepted_bytes` 计数。
+必须精确匹配 ID 与 action/outcome；Resize 必须回显 geometry，且 Server carrier 还会拒绝
+`accepted_bytes` 超过 `min(2 × content + 12, negotiated input limit)` 的 `Pasted` 结果。
+Release 是内部
 cleanup；对应 viewer 没有 controller 时幂等，存在不同 current grant 时拒绝。Host exchange
 含糊时关闭 Worker carrier，不伪造接受；Server 将完整交付后无结果归类为 unknown。
 
-8 KiB OBCN 限制、精确长度解码和方向规则保持不变。Codec test 覆盖全部 action/outcome/reason、
+8 KiB OBCN frame 限制、精确长度解码和方向规则保持不变；`OBNQ` 与 `OBNR` 一样是 frame 流旁
+的原始 record。Codec test 覆盖全部 action/outcome/reason、
 原始字节保留、最大 input 和非法 scope bound。Server 与 Worker 指南拥有单 controller 预留、
 cleanup 和真实 PTY 证据。
 

@@ -101,6 +101,11 @@ pub(super) fn execute<'service>(
             controller_id,
             sequence,
             ..
+        }
+        | Action::Paste {
+            controller_id,
+            sequence,
+            ..
         } => (controller_id, *sequence),
         Action::Acquire { .. } => unreachable!("acquisition handled"),
     };
@@ -130,6 +135,12 @@ pub(super) fn execute<'service>(
                 geometry.cell_pixel_height(),
             ) {
                 Ok(geometry) => WorkerAction::Resize { sequence, geometry },
+                Err(_) => return rejected(Rejected::HostRejected),
+            }
+        }
+        Action::Paste { content, .. } => {
+            match orchbee_capability_node_protocol::PasteContent::new(content.as_bytes().to_vec()) {
+                Ok(content) => WorkerAction::Paste { sequence, content },
                 Err(_) => return rejected(Rejected::HostRejected),
             }
         }
@@ -193,6 +204,16 @@ pub(super) fn execute<'service>(
                 }
             }
             WorkerOutcome::Rejected(reason) => rejected(worker_rejection(reason)),
+            WorkerOutcome::Pasted { accepted_bytes } => {
+                match orchbee_client_server_protocol::PasteAcceptedBytes::new(accepted_bytes.get())
+                {
+                    Ok(accepted_bytes) => Outcome::Pasted { accepted_bytes },
+                    Err(_) => {
+                        viewer.controller.take();
+                        Outcome::OutcomeUnknown {}
+                    }
+                }
+            }
             _ => {
                 viewer.controller.take();
                 Outcome::OutcomeUnknown {}
@@ -410,6 +431,10 @@ fn worker_rejection(reason: ControlRejection) -> Rejected {
         ControlRejection::NotController => Rejected::NotController,
         ControlRejection::SequenceMismatch => Rejected::SequenceMismatch,
         ControlRejection::HostRejected => Rejected::HostRejected,
+        ControlRejection::HostInputInvalid => Rejected::HostInputInvalid,
+        ControlRejection::HostInputLimitExceeded => Rejected::HostInputLimitExceeded,
+        ControlRejection::HostInputBackpressure => Rejected::HostInputBackpressure,
+        ControlRejection::HostInputUnavailable => Rejected::HostInputUnavailable,
         ControlRejection::ViewerUnavailable
         | ControlRejection::WrongWorker
         | ControlRejection::StaleWorkerGeneration => Rejected::ViewerUnavailable,

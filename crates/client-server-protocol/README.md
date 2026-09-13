@@ -65,8 +65,21 @@ all three actions require `attachment_id: ViewerId`, exposed by
 `TerminalControlAction::attachment_id()`. This is a required unpublished OBCS v1 shape change;
 Client/Server/Worker must use an exact development cohort with no implicit-viewer fallback.
 `ControlInput` validates 1 through `MAXIMUM_CONTROL_INPUT_BYTES` (4,096) bytes and serializes canonical
-lowercase hex. Shared number adapters validate positive decimal u64 sequences. These controls use
-the existing 32 KiB OBCS JSON framing; they introduce no binary input carrier or Host dependency.
+lowercase hex. Shared number adapters validate positive decimal u64 sequences. Acquire, Input, and
+Resize use the existing 32 KiB OBCS JSON framing.
+
+`Paste` is the semantic auto-mode paste action. It carries `PasteContent`, an opaque 1 through
+`MAXIMUM_PASTE_CONTENT_BYTES` (262,144) byte body, and never appears in OBCS JSON: the client frame
+codec encodes it as the dedicated `OBCQ` record — four-byte magic, big-endian version 1 (`u16`),
+zero reserved field (`u16`), and big-endian body length (`u32`), then request ID (16), attachment
+ID (16), controller ID (16), sequence (8), and the content. A complete `OBCQ` record is 68 through
+262,212 bytes. The codec validates the complete 12-byte header and bound before allocating payload,
+consumes exactly one record, and preserves the following frame boundary; server-direction readers
+dispatch either OBCS JSON or `OBCQ`, while client-direction readers reject `OBCQ`. A `Pasted`
+outcome echoes the positive `accepted_bytes` count the Host reported. In addition to the shared
+rejection reasons, paste maps the Host typed failures `host-input-invalid`,
+`host-input-limit-exceeded`, `host-input-backpressure`, and `host-input-unavailable`.
+
 The schema-owner's corpus checks each action/outcome/reason and malformed, maximum, and excessive
 inputs. This binding grants no controller authority and never retries an unknown effect.
 

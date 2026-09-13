@@ -1000,3 +1000,177 @@ impl Write for ChunkedWriter {
         Ok(())
     }
 }
+
+fn paste_request(content: Vec<u8>) -> Result<CapabilityNodeMessage, Box<dyn std::error::Error>> {
+    Ok(CapabilityNodeMessage::TerminalControlRequest(
+        crate::TerminalControlRequest {
+            request_id: OperationId::from_bytes([11; 16])?,
+            worker_id: WorkerId::from_bytes([12; 16])?,
+            worker_generation: WorkerGeneration::new(
+                NonZeroU64::new(7).ok_or(ProtocolError::InvalidPayload)?,
+            ),
+            viewer_id: OperationId::from_bytes([13; 16])?,
+            controller_id: OperationId::from_bytes([14; 16])?,
+            action: crate::TerminalControlAction::Paste {
+                sequence: NonZeroU64::new(41).ok_or(ProtocolError::InvalidPayload)?,
+                content: crate::PasteContent::new(content)?,
+            },
+        },
+    ))
+}
+
+#[test]
+fn paste_record_round_trips_opaque_content_as_obnq() -> Result<(), Box<dyn std::error::Error>> {
+    let mut content = Vec::new();
+    for index in 0..8192_u32 {
+        content.push((index % 251) as u8);
+    }
+    content.extend_from_slice(&[0x00, 0x02, 0x1b, 0x80, 0xff, b'\n']);
+    let request = paste_request(content)?;
+
+    let record = encode_message(&request)?;
+    assert!(record.starts_with(b"OBNQ\0\x01\0\0"));
+    assert_eq!(record.len(), 12 + 80 + 8192 + 6);
+    assert_eq!(decode_message(&record)?, request);
+
+    let mut reader = ChunkedReader::new(record.clone(), 5);
+    assert_eq!(read_message(&mut reader)?, request);
+
+    let mut adjacent = record.clone();
+    adjacent.extend_from_slice(&record);
+    let mut stream = ChunkedReader::new(adjacent, 7);
+    assert_eq!(read_message(&mut stream)?, request);
+    assert_eq!(read_message(&mut stream)?, request);
+    Ok(())
+}
+
+#[test]
+fn paste_record_rejects_malformed_headers_and_bodies() -> Result<(), Box<dyn std::error::Error>> {
+    let request = paste_request(b"payload".to_vec())?;
+    let record = encode_message(&request)?;
+
+    let mut wrong_version = record.clone();
+    wrong_version[4..6].copy_from_slice(&2_u16.to_be_bytes());
+    assert_eq!(
+        decode_message(&wrong_version),
+        Err(ProtocolError::IncompatibleVersion { received: 2 })
+    );
+
+    let mut reserved = record.clone();
+    reserved[6] = 1;
+    assert_eq!(
+        decode_message(&reserved),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut wrong_magic = record.clone();
+    wrong_magic[3] = b'X';
+    assert_eq!(
+        decode_message(&wrong_magic),
+        Err(ProtocolError::InvalidMagic)
+    );
+
+    for body_length in [0_usize, 79, 80] {
+        let mut undersized = record.clone();
+        undersized[8..12].copy_from_slice(&(body_length as u32).to_be_bytes());
+        assert_eq!(
+            decode_message(&undersized),
+            Err(ProtocolError::InvalidPayload)
+        );
+    }
+
+    let mut oversized = record.clone();
+    oversized[8..12].copy_from_slice(&(262_225_u32).to_be_bytes());
+    assert!(matches!(
+        decode_message(&oversized),
+        Err(ProtocolError::PayloadTooLarge {
+            maximum: 262_224,
+            ..
+        })
+    ));
+    assert!(matches!(
+        read_message(&mut Cursor::new(oversized)),
+        Err(ReadMessageError::Protocol(ProtocolError::PayloadTooLarge {
+            maximum: 262_224,
+            ..
+        }))
+    ));
+
+    let mut trailing = record.clone();
+    trailing.push(0);
+    assert_eq!(
+        decode_message(&trailing),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let truncated = &record[..record.len() - 1];
+    assert!(matches!(
+        read_message(&mut Cursor::new(truncated)),
+        Err(ReadMessageError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof
+    ));
+
+    let mut zero_sequence = record.clone();
+    zero_sequence[12 + 72..12 + 80].copy_from_slice(&0_u64.to_be_bytes());
+    assert_eq!(
+        decode_message(&zero_sequence),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut zero_generation = record.clone();
+    zero_generation[12 + 32..12 + 40].copy_from_slice(&0_u64.to_be_bytes());
+    assert_eq!(
+        decode_message(&zero_generation),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut zero_operation = record.clone();
+    zero_operation[12..12 + 16].fill(0);
+    assert_eq!(
+        decode_message(&zero_operation),
+        Err(ProtocolError::InvalidIdentity)
+    );
+    Ok(())
+}
+
+#[test]
+fn paste_record_supports_maximum_content() -> Result<(), Box<dyn std::error::Error>> {
+    let request = paste_request(vec![0xab; 262_144])?;
+    let record = encode_message(&request)?;
+    assert_eq!(record.len(), 262_236);
+    assert_eq!(decode_message(&record)?, request);
+    assert!(crate::PasteContent::new(vec![0; 262_145]).is_err());
+    assert!(crate::PasteContent::new(Vec::new()).is_err());
+    Ok(())
+}
+
+#[test]
+fn pasted_result_and_paste_rejections_round_trip() -> Result<(), Box<dyn std::error::Error>> {
+    let result = CapabilityNodeMessage::TerminalControlResult(crate::TerminalControlResult {
+        request_id: OperationId::from_bytes([11; 16])?,
+        viewer_id: OperationId::from_bytes([13; 16])?,
+        controller_id: OperationId::from_bytes([14; 16])?,
+        outcome: crate::TerminalControlOutcome::Pasted {
+            accepted_bytes: crate::PasteAcceptedBytes::new(16_777)?,
+        },
+    });
+    assert_eq!(decode_message(&encode(&result)?)?, result);
+    assert!(crate::PasteAcceptedBytes::new(0).is_err());
+    assert!(crate::PasteAcceptedBytes::new(1_048_576).is_ok());
+    assert!(crate::PasteAcceptedBytes::new(1_048_577).is_err());
+
+    for reason in [
+        crate::ControlRejection::HostInputInvalid,
+        crate::ControlRejection::HostInputLimitExceeded,
+        crate::ControlRejection::HostInputBackpressure,
+        crate::ControlRejection::HostInputUnavailable,
+    ] {
+        let rejected = CapabilityNodeMessage::TerminalControlResult(crate::TerminalControlResult {
+            request_id: OperationId::from_bytes([11; 16])?,
+            viewer_id: OperationId::from_bytes([13; 16])?,
+            controller_id: OperationId::from_bytes([14; 16])?,
+            outcome: crate::TerminalControlOutcome::Rejected(reason),
+        });
+        assert_eq!(decode_message(&encode(&rejected)?)?, rejected);
+    }
+    Ok(())
+}

@@ -303,6 +303,31 @@
 		},
 		{
 			"direction": "server-to-client",
+			"name": "control-pasted",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"pasted\",\"acceptedBytes\":16777}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-rejected-host-input-invalid",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-input-invalid\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-rejected-host-input-limit-exceeded",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-input-limit-exceeded\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-rejected-host-input-backpressure",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-input-backpressure\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-rejected-host-input-unavailable",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-input-unavailable\"}}"
+		},
+		{
+			"direction": "server-to-client",
 			"name": "control-unavailable-server-busy",
 			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\"}}"
 		},
@@ -972,6 +997,30 @@
 			"direction": "client-to-server",
 			"name": "control-resize-missing-attachment",
 			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"resize\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"1\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":8,\"cellPixelHeight\":16}}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "control-paste-not-json",
+			"payload": "{\"kind\":\"terminal.control\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"paste\",\"attachmentId\":\"33333333333333333333333333333333\",\"controllerId\":\"22222222222222222222222222222222\",\"sequence\":\"3\",\"content\":\"00ff\"}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-pasted-zero-accepted",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"pasted\",\"acceptedBytes\":0}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-pasted-overflow-accepted",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"pasted\",\"acceptedBytes\":1048577}}",
+			"boundary": "schema"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "control-pasted-fractional-accepted",
+			"payload": "{\"kind\":\"terminal.control.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"pasted\",\"acceptedBytes\":12.5}}",
 			"boundary": "schema"
 		},
 		{

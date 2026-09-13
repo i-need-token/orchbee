@@ -103,8 +103,9 @@ opaque byte preservation. The current-context challenge pass is not independent 
 
 ## Controller grant and effects
 
-`terminal_control_operation` consumes Server-issued OBCN acquisition, input, resize, and internal
-release requests. `host_connection::controllers` owns bounded pure grant state: one controller per
+`terminal_control_operation` consumes Server-issued OBCN acquisition, input, resize, paste, and
+internal release requests; paste arrives as the dedicated `OBNQ` record on the same stream.
+`host_connection::controllers` owns bounded pure grant state: one controller per
 Host terminal, the exact viewer and controller identities, pending or accepted Host capability
 revision, and the highest consumed sequence. No grant-state borrow spans Host I/O. Both viewer and
 controller adapters use the correlated, deadline-bounded exchange owned by `host_connection`.
@@ -113,7 +114,10 @@ Acquisition requires a live read-only viewer and creates a separate Host attachm
 disabled, input and resize enabled, and the resize lease requested. It preserves that viewer's
 projection baseline. Only an exact capability acknowledgement commits the grant. Input preserves
 1 through 4,096 raw bytes and uses the accepted capability revision; the Host must acknowledge the
-entire byte count. Resize must acknowledge the complete geometry. Both actions reject a wrong
+entire byte count. Resize must acknowledge the complete geometry. Paste preserves 1 through
+262,144 opaque bytes as kind-39 `PasteAutoInput`; the Host must acknowledge a positive
+`accepted_bytes` no greater than `min(2 × content + 12, negotiated input limit)`, and its typed
+failures map to the four `HostInput*` rejections. These actions reject a wrong
 viewer/grant or non-increasing sequence before Host I/O. Known Host rejection consumes the sequence;
 ambiguous or contradictory effects close the broker without replay.
 

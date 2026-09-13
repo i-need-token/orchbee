@@ -46,6 +46,7 @@ mod tests;
 
 mod terminal_control;
 pub use terminal_control::{
-    ControlInput, ControlRejection, MAXIMUM_CONTROL_INPUT_BYTES, TerminalControlAction,
-    TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
+    ControlInput, ControlRejection, MAXIMUM_CONTROL_INPUT_BYTES, MAXIMUM_PASTE_CONTENT_BYTES,
+    PasteAcceptedBytes, PasteContent, TerminalControlAction, TerminalControlOutcome,
+    TerminalControlRequest, TerminalControlResult,
 };

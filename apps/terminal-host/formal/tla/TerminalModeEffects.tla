@@ -18,17 +18,23 @@ EXTENDS Naturals, TLC
 CONSTANTS Scenario, MaxInputBytes, MaxReplies, MaxTime, MaxGeometryRevision, MaxProjections
 
 NoDeadline == MaxTime + 1
+\* Byte charge added once by the bracketed-paste open and close markers; the
+\* production encoder wraps exactly six bytes on each side.
+PasteWrapperBytes == 12
 Scenarios == {"input-focus", "geometry"}
 GeometryValues == {"a", "b"}
 GeometryActions == {"none", "viewport", "deccolm", "mode40"}
 
 VARIABLES
   linefeedMode,
+  bracketedPaste,
   inputPrepared,
   preparedSourceBytes,
   preparedCarriageReturns,
   preparedLinefeedMode,
   preparedCharge,
+  preparedIsPaste,
+  preparedBracketed,
   clientInputBytes,
   focusMode,
   focused,
@@ -53,8 +59,8 @@ VARIABLES
   failureFenced
 
 vars ==
-  <<linefeedMode, inputPrepared, preparedSourceBytes,
-    preparedCarriageReturns, preparedLinefeedMode, preparedCharge,
+  <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
+    preparedCarriageReturns, preparedLinefeedMode, preparedCharge, preparedIsPaste, preparedBracketed,
     clientInputBytes, focusMode, focused, focusPrepared, preparedFocusMode,
     preparedFocusTarget, syncMode, syncDeadline, time, sizeMode,
     mode40, viewportGeometry, canonicalGeometry, lastGeometryAction,
@@ -69,11 +75,14 @@ UnchangedGeometry ==
 Init ==
   /\ Scenario \in Scenarios
   /\ linefeedMode = FALSE
+  /\ bracketedPaste = FALSE
   /\ inputPrepared = FALSE
   /\ preparedSourceBytes = 0
   /\ preparedCarriageReturns = 0
   /\ preparedLinefeedMode = FALSE
   /\ preparedCharge = 0
+  /\ preparedIsPaste = FALSE
+  /\ preparedBracketed = FALSE
   /\ clientInputBytes = 0
   /\ focusMode = FALSE
   /\ focused = FALSE
@@ -101,6 +110,24 @@ Init ==
   /\ unsafeProjection = FALSE
   /\ failureFenced = FALSE
 
+\* The host reads the terminal's real bracketed-paste mode while holding the
+\* terminal mutex; the request carries no mode claim for the auto path.
+SetBracketedPaste(enabled) ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
+  /\ ~failureFenced
+  /\ enabled \in BOOLEAN
+  /\ enabled # bracketedPaste
+  /\ bracketedPaste' = enabled
+  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+                  preparedCarriageReturns, preparedLinefeedMode,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
+                  focusPrepared, preparedFocusMode, preparedFocusTarget,
+                  syncMode, syncDeadline, time, sizeMode, geometryRevision,
+                  replyCount, lastFocusReply, lastFocusSnapshot,
+                  lastSizeReplyRevision, projectionCount, unsafeProjection,
+                  failureFenced>>
+
 SetLinefeedMode(enabled) ==
   /\ Scenario = "input-focus"
   /\ UnchangedGeometry
@@ -108,9 +135,9 @@ SetLinefeedMode(enabled) ==
   /\ enabled \in BOOLEAN
   /\ enabled # linefeedMode
   /\ linefeedMode' = enabled
-  /\ UNCHANGED <<inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
@@ -133,7 +160,39 @@ PrepareClientInput(sourceBytes, carriageReturns) ==
   /\ preparedSourceBytes' = sourceBytes
   /\ preparedCarriageReturns' = carriageReturns
   /\ preparedLinefeedMode' = linefeedMode
-  /\ UNCHANGED <<linefeedMode, clientInputBytes, focusMode, focused,
+  /\ preparedIsPaste' = FALSE
+  /\ preparedBracketed' = FALSE
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, clientInputBytes, focusMode, focused,
+                  focusPrepared, preparedFocusMode, preparedFocusTarget,
+                  syncMode, syncDeadline, time, sizeMode, geometryRevision,
+                  replyCount, lastFocusReply, lastFocusSnapshot,
+                  lastSizeReplyRevision, projectionCount, unsafeProjection,
+                  failureFenced>>
+
+\* Semantic paste prepares the entire payload once under the terminal mutex:
+\* the bracketed-paste mode observed here is the mode that encodes the
+\* reserved bytes. A later mode flip updates bracketedPaste only and never
+\* re-encodes this preparation; commit still uses the snapshot.
+PreparePaste(sourceBytes, carriageReturns) ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
+  /\ ~failureFenced
+  /\ ~inputPrepared
+  /\ sourceBytes \in 1..MaxInputBytes
+  /\ carriageReturns \in 0..sourceBytes
+  /\ LET charged == sourceBytes +
+         (IF linefeedMode THEN carriageReturns ELSE 0) +
+         (IF bracketedPaste THEN PasteWrapperBytes ELSE 0)
+     IN
+       /\ charged <= MaxInputBytes - clientInputBytes
+       /\ preparedCharge' = charged
+  /\ inputPrepared' = TRUE
+  /\ preparedSourceBytes' = sourceBytes
+  /\ preparedCarriageReturns' = carriageReturns
+  /\ preparedLinefeedMode' = linefeedMode
+  /\ preparedIsPaste' = TRUE
+  /\ preparedBracketed' = bracketedPaste
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
@@ -151,7 +210,9 @@ CommitPreparedInput ==
   /\ preparedCarriageReturns' = 0
   /\ preparedLinefeedMode' = FALSE
   /\ preparedCharge' = 0
-  /\ UNCHANGED <<linefeedMode, focusMode, focused, focusPrepared,
+  /\ preparedIsPaste' = FALSE
+  /\ preparedBracketed' = FALSE
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, focusMode, focused, focusPrepared,
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
@@ -167,7 +228,9 @@ CancelPreparedInput ==
   /\ preparedCarriageReturns' = 0
   /\ preparedLinefeedMode' = FALSE
   /\ preparedCharge' = 0
-  /\ UNCHANGED <<linefeedMode, clientInputBytes, focusMode, focused,
+  /\ preparedIsPaste' = FALSE
+  /\ preparedBracketed' = FALSE
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
@@ -179,9 +242,9 @@ DrainClientInput ==
   /\ UnchangedGeometry
   /\ clientInputBytes > 0
   /\ clientInputBytes' = 0
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, focusMode, focused, focusPrepared,
+                  preparedCharge, preparedIsPaste, preparedBracketed, focusMode, focused, focusPrepared,
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
@@ -197,9 +260,9 @@ PrepareFocus(target) ==
   /\ focusPrepared' = TRUE
   /\ preparedFocusMode' = focusMode
   /\ preparedFocusTarget' = target
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
                   lastSizeReplyRevision, projectionCount, unsafeProjection,
@@ -215,9 +278,9 @@ CommitPreparedFocus ==
   /\ focusPrepared' = FALSE
   /\ preparedFocusMode' = FALSE
   /\ preparedFocusTarget' = FALSE
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, syncMode,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
                   projectionCount,
@@ -231,9 +294,9 @@ RejectStalePreparedFocus ==
   /\ focusPrepared' = FALSE
   /\ preparedFocusMode' = FALSE
   /\ preparedFocusTarget' = FALSE
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
                   lastSizeReplyRevision, projectionCount, unsafeProjection,
@@ -249,9 +312,9 @@ EnableFocusReporting ==
   /\ replyCount' = replyCount + 1
   /\ lastFocusReply' = IF focused THEN "in" ELSE "out"
   /\ lastFocusSnapshot' = focused
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focused, focusPrepared,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focused, focusPrepared,
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision,
                   lastSizeReplyRevision, projectionCount, unsafeProjection,
@@ -265,9 +328,9 @@ FailFocusEnableReply ==
   /\ replyCount = MaxReplies
   /\ focusMode' = TRUE
   /\ failureFenced' = TRUE
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focused, focusPrepared,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focused, focusPrepared,
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
@@ -280,9 +343,9 @@ DisableFocusReporting ==
   /\ ~failureFenced
   /\ focusMode
   /\ focusMode' = FALSE
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focused, focusPrepared,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focused, focusPrepared,
                   preparedFocusMode, preparedFocusTarget, syncMode,
                   syncDeadline, time, sizeMode, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
@@ -296,9 +359,9 @@ EnableSynchronizedOutput ==
   /\ time < MaxTime
   /\ syncMode' = TRUE
   /\ syncDeadline' = time + 1
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, geometryRevision, replyCount, lastFocusReply,
                   lastFocusSnapshot, lastSizeReplyRevision, projectionCount, unsafeProjection,
@@ -311,9 +374,9 @@ DisableSynchronizedOutput ==
   /\ syncMode
   /\ syncMode' = FALSE
   /\ syncDeadline' = NoDeadline
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, geometryRevision, replyCount, lastFocusReply,
                   lastFocusSnapshot, lastSizeReplyRevision, projectionCount, unsafeProjection,
@@ -324,9 +387,9 @@ AdvanceTime ==
   /\ UnchangedGeometry
   /\ time < MaxTime
   /\ time' = time + 1
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
@@ -339,9 +402,9 @@ SuppressProjection ==
   /\ ~failureFenced
   /\ syncMode
   /\ time < syncDeadline
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
@@ -358,9 +421,9 @@ ExpireSynchronizedOutput ==
   /\ syncMode' = FALSE
   /\ syncDeadline' = NoDeadline
   /\ projectionCount' = projectionCount + 1
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, geometryRevision, replyCount, lastFocusReply,
                   lastFocusSnapshot, lastSizeReplyRevision, unsafeProjection,
@@ -374,9 +437,9 @@ CaptureProjection ==
   /\ projectionCount < MaxProjections
   /\ projectionCount' = projectionCount + 1
   /\ unsafeProjection' = unsafeProjection \/ syncMode
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   replyCount, lastFocusReply, lastFocusSnapshot,
@@ -392,9 +455,9 @@ EnableInBandSizeReports ==
   /\ sizeMode' = TRUE
   /\ replyCount' = replyCount + 1
   /\ lastSizeReplyRevision' = geometryRevision
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, geometryRevision,
                   lastFocusReply, lastFocusSnapshot, projectionCount, unsafeProjection,
@@ -408,9 +471,9 @@ FailInBandSizeEnableReply ==
   /\ replyCount = MaxReplies
   /\ sizeMode' = TRUE
   /\ failureFenced' = TRUE
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
@@ -423,9 +486,9 @@ DisableInBandSizeReports ==
   /\ ~failureFenced
   /\ sizeMode
   /\ sizeMode' = FALSE
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, geometryRevision, replyCount,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
@@ -449,9 +512,9 @@ CommitGeometry(target, nextViewport, nextMode40, source) ==
   /\ replyCount' = IF sizeMode THEN replyCount + 1 ELSE replyCount
   /\ lastSizeReplyRevision' =
        IF sizeMode THEN geometryRevision + 1 ELSE lastSizeReplyRevision
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, lastFocusReply, lastFocusSnapshot,
                   projectionCount,
@@ -473,9 +536,9 @@ FailGeometryReply(target, nextViewport, nextMode40, source) ==
   /\ syncMode' = FALSE
   /\ syncDeadline' = NoDeadline
   /\ failureFenced' = TRUE
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget, time,
                   sizeMode, replyCount, lastFocusReply, lastFocusSnapshot,
                   lastSizeReplyRevision, projectionCount, unsafeProjection>>
@@ -502,9 +565,9 @@ RefreshViewportGeometry(target) ==
   /\ target # viewportGeometry
   /\ viewportGeometry' = target
   /\ lastGeometryAction' = "viewport"
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, mode40,
                   canonicalGeometry, geometryRevision, replyCount,
@@ -535,9 +598,9 @@ SetMode40AtViewport(enabled) ==
   /\ canonicalGeometry = viewportGeometry
   /\ mode40' = enabled
   /\ lastGeometryAction' = "mode40"
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, viewportGeometry,
                   canonicalGeometry, geometryRevision, replyCount,
@@ -561,8 +624,10 @@ FailMode40SizeReply(enabled) ==
 
 ResetModes ==
   /\ ~failureFenced
-  /\ linefeedMode \/ focusMode \/ syncMode \/ sizeMode \/ mode40
+  /\ linefeedMode \/ bracketedPaste \/ focusMode \/ syncMode \/ sizeMode \/
+    mode40
   /\ linefeedMode' = FALSE
+  /\ bracketedPaste' = FALSE
   /\ focusMode' = FALSE
   /\ syncMode' = FALSE
   /\ syncDeadline' = NoDeadline
@@ -570,7 +635,7 @@ ResetModes ==
   /\ mode40' = FALSE
   /\ UNCHANGED <<inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focused, focusPrepared,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focused, focusPrepared,
                   preparedFocusMode, preparedFocusTarget, time,
                   viewportGeometry, canonicalGeometry, lastGeometryAction,
                   geometryRevision, replyCount, lastFocusReply,
@@ -581,9 +646,9 @@ DrainReply ==
   /\ UnchangedGeometry
   /\ replyCount > 0
   /\ replyCount' = replyCount - 1
-  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+  /\ UNCHANGED <<linefeedMode, bracketedPaste, inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
-                  preparedCharge, clientInputBytes, focusMode, focused,
+                  preparedCharge, preparedIsPaste, preparedBracketed, clientInputBytes, focusMode, focused,
                   focusPrepared, preparedFocusMode, preparedFocusTarget,
                   syncMode, syncDeadline, time, sizeMode, geometryRevision,
                   lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
@@ -592,9 +657,13 @@ DrainReply ==
 
 Next ==
   \/ \E enabled \in BOOLEAN: SetLinefeedMode(enabled)
+  \/ \E enabled \in BOOLEAN: SetBracketedPaste(enabled)
   \/ \E sourceBytes \in 1..MaxInputBytes:
        \E carriageReturns \in 0..sourceBytes:
          PrepareClientInput(sourceBytes, carriageReturns)
+  \/ \E sourceBytes \in 1..MaxInputBytes:
+       \E carriageReturns \in 0..sourceBytes:
+         PreparePaste(sourceBytes, carriageReturns)
   \/ CommitPreparedInput
   \/ CancelPreparedInput
   \/ DrainClientInput
@@ -630,11 +699,14 @@ Spec ==
 
 TypeOK ==
   /\ linefeedMode \in BOOLEAN
+  /\ bracketedPaste \in BOOLEAN
   /\ inputPrepared \in BOOLEAN
   /\ preparedSourceBytes \in 0..MaxInputBytes
   /\ preparedCarriageReturns \in 0..MaxInputBytes
   /\ preparedLinefeedMode \in BOOLEAN
   /\ preparedCharge \in 0..MaxInputBytes
+  /\ preparedIsPaste \in BOOLEAN
+  /\ preparedBracketed \in BOOLEAN
   /\ clientInputBytes \in 0..MaxInputBytes
   /\ focusMode \in BOOLEAN
   /\ focused \in BOOLEAN
@@ -661,7 +733,15 @@ TypeOK ==
 PreparedInputIsChargedAfterExpansion ==
   inputPrepared =>
     preparedCharge = preparedSourceBytes +
-      (IF preparedLinefeedMode THEN preparedCarriageReturns ELSE 0)
+      (IF preparedLinefeedMode THEN preparedCarriageReturns ELSE 0) +
+      (IF preparedIsPaste /\ preparedBracketed THEN PasteWrapperBytes ELSE 0)
+
+\* The committed charge of a held paste preparation is a pure function of the
+\* prepared snapshot: bracketedPaste may flip freely, but only
+\* preparedBracketed decides whether the reserved bytes carry the wrapper.
+PreparedPasteChargeTracksSnapshot ==
+  (inputPrepared /\ preparedIsPaste /\ preparedBracketed) =>
+    preparedCharge >= preparedSourceBytes + PasteWrapperBytes
 
 PreparedInputFitsClientBudget ==
   inputPrepared => preparedCharge <= MaxInputBytes - clientInputBytes
@@ -669,7 +749,8 @@ PreparedInputFitsClientBudget ==
 NoPreparedInputHasResidualFields ==
   ~inputPrepared =>
     preparedSourceBytes = 0 /\ preparedCarriageReturns = 0 /\
-      preparedCharge = 0
+      preparedCharge = 0 /\ preparedIsPaste = FALSE /\
+      preparedBracketed = FALSE
 
 FocusEnableReplyMatchesAggregateSnapshot ==
   /\ (lastFocusReply = "in" => lastFocusSnapshot)

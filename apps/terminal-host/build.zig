@@ -564,6 +564,7 @@ pub fn build(builder: *std.Build) void {
         .{ "mouse_input_fixture", "mouse-input-fixture", "Canonical MouseInput fixture path" },
         .{ "focus_input_fixture", "focus-input-fixture", "Canonical FocusInput fixture path" },
         .{ "paste_input_fixture", "paste-input-fixture", "Canonical PasteInput fixture path" },
+        .{ "paste_auto_input_fixture", "paste-auto-input-fixture", "Canonical PasteAutoInput fixture path" },
     }) |fixture| {
         conformance_options.addOption([]const u8, fixture[0], readFixture(
             builder,

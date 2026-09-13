@@ -209,13 +209,29 @@ string. Gaps are allowed; an accepted submission consumes the sequence even if d
 fails or is rejected. Grant mismatch or stale sequence has no terminal effect. A new grant starts
 with no consumed sequence; an old grant never regains authority by resetting its sequence.
 
+The `paste` action is a semantic whole-envelope operation: it submits 1 through 262,144 opaque
+content bytes under the same attachment, controller, and strictly increasing sequence, and Host
+encodes them once under its current bracketed-paste mode. It is never carried by OBCS JSON: a
+`"kind": "paste"` action inside `terminal.control` is invalid in both directions. The sole request
+encoding is a binary `OBCQ` record on the Client-to-Server stream: four magic bytes, big-endian u16
+version 1, two zero reserved bytes, then big-endian u32 body length. The body is the exact request
+ID as 16 big-endian bytes, the attachment ID as 16 bytes, the controller ID as 16 bytes, the
+positive sequence as big-endian u64, then the raw content bytes — 57 through 262,200 bytes in total.
+The 12-byte header and bound are checked before body allocation; stream readers consume one record,
+and in-memory decoders reject truncation or trailing bytes. OBCQ has no JSON `paste` action and does
+not enlarge the 32 KiB OBCS JSON limit; a small paste uses the same record encoding.
+
 `terminal.control.result` uses the ordinary correlated JSON envelope. Outcomes are `acquired`
-with `controllerId`, fieldless `input-accepted`, `resized` with exact accepted `geometry`, fieldless
-`outcome-unknown`, `rejected` with reason `viewer-unavailable`, `controller-busy`, `not-controller`,
-`sequence-mismatch`, or `host-rejected`, and `unavailable` with reason `server-busy` or
-`terminal-runtime-unavailable`. InputAccepted means complete admission to Host's bounded input queue,
-not that the shell has executed it. Rejected, Unavailable and OutcomeUnknown may answer any action;
-other outcomes must match the submitted action, and Resize must match its geometry.
+with `controllerId`, fieldless `input-accepted`, `resized` with exact accepted `geometry`, `pasted`
+with `acceptedBytes` (an integer from 1 through 1,048,576 counting the encoded bytes Host admitted
+to its bounded input queue), fieldless `outcome-unknown`, `rejected` with reason
+`viewer-unavailable`, `controller-busy`, `not-controller`, `sequence-mismatch`, `host-rejected`,
+`host-input-invalid`, `host-input-limit-exceeded`, `host-input-backpressure`, or
+`host-input-unavailable`, and `unavailable` with reason `server-busy` or
+`terminal-runtime-unavailable`. InputAccepted and Pasted mean complete admission to Host's bounded
+input queue, not that the shell has executed it. Rejected, Unavailable and OutcomeUnknown may answer
+any action; other outcomes must match the submitted action, and Resize must match its geometry. A
+`pasted` result never answers a non-paste action, and `input-accepted` never answers `paste`.
 
 Detach or Session loss releases the combined grant before retiring the viewer. There is no separate
 Client release action in this slice. Pending acquisition and cleanup exclude competing grants;

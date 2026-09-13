@@ -9,8 +9,8 @@ use orchbee_capability_node_protocol::{
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
-    ConnectionControl, CorrelationId, InputMessage, PayloadEncoding, ResizeControl, ResizeTerminal,
-    TerminalId, WriteInput, decode_attachment_control, decode_connection_control,
+    ConnectionControl, CorrelationId, InputMessage, PasteAutoInput, PayloadEncoding, ResizeControl,
+    ResizeTerminal, TerminalId, WriteInput, decode_attachment_control, decode_connection_control,
     decode_input_message, decode_resize_control, decode_transport_envelope,
     encode_attachment_control, encode_input_message, encode_resize_control,
 };
@@ -121,7 +121,9 @@ fn apply(
         return Ok(Outcome::Acquired);
     }
     let sequence = match &request.action {
-        Action::Input { sequence, .. } | Action::Resize { sequence, .. } => *sequence,
+        Action::Input { sequence, .. }
+        | Action::Resize { sequence, .. }
+        | Action::Paste { sequence, .. } => *sequence,
         _ => unreachable!("acquisition and release handled"),
     };
     let grant = match host.controllers.borrow_mut().admit(
@@ -154,15 +156,32 @@ fn apply(
             }))?;
             (command.kind, command.payload, PayloadEncoding::ControlJson)
         }
+        Action::Paste { content, .. } => {
+            let command = encode_input_message(&InputMessage::PasteAutoInput(PasteAutoInput {
+                attachment_id: id,
+                capability_revision: revision,
+                content: content.as_bytes().to_vec(),
+            }))?;
+            (command.kind, command.payload, PayloadEncoding::RawBytes)
+        }
         _ => unreachable!("effect action matched"),
     };
     let response = exchange(host, server, correlation, kind, &payload, encoding)?;
     let envelope = decode_transport_envelope(&response)?;
-    if matches!(
-        decode_connection_control(envelope.kind, envelope.role, envelope.payload),
-        Ok(ConnectionControl::TypedFailure(_))
-    ) {
-        return Ok(Outcome::Rejected(Rejection::HostRejected));
+    if let Ok(ConnectionControl::TypedFailure(failure)) =
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload)
+    {
+        let rejection = match &request.action {
+            Action::Paste { .. } => match failure.code.as_str() {
+                "invalid-field" => Rejection::HostInputInvalid,
+                "limit-exceeded" => Rejection::HostInputLimitExceeded,
+                "input-backpressure" => Rejection::HostInputBackpressure,
+                "invalid-phase" => Rejection::HostInputUnavailable,
+                _ => Rejection::HostRejected,
+            },
+            _ => Rejection::HostRejected,
+        };
+        return Ok(Outcome::Rejected(rejection));
     }
     match &request.action {
         Action::Input { bytes, .. } => {
@@ -189,6 +208,31 @@ fn apply(
                 return Err(invalid("Host resize acknowledgement disagrees"));
             }
             Ok(Outcome::Resized(*geometry))
+        }
+        Action::Paste { content, .. } => {
+            let InputMessage::InputAccepted(accepted) =
+                decode_input_message(envelope.kind, envelope.role, envelope.payload)?
+            else {
+                return Err(invalid("Host did not acknowledge paste"));
+            };
+            let content_length = content.as_bytes().len();
+            let bound = content_length
+                .checked_mul(2)
+                .and_then(|value| value.checked_add(12))
+                .ok_or_else(|| invalid("paste response bound overflowed"))?
+                .min(usize::try_from(host.negotiated_limits().input_bytes)?);
+            if accepted.attachment_id != id
+                || accepted.capability_revision != revision
+                || accepted.accepted_bytes == 0
+                || usize::try_from(accepted.accepted_bytes)? > bound
+            {
+                return Err(invalid("Host paste acknowledgement disagrees"));
+            }
+            Ok(Outcome::Pasted {
+                accepted_bytes: orchbee_capability_node_protocol::PasteAcceptedBytes::new(
+                    accepted.accepted_bytes,
+                )?,
+            })
         }
         _ => unreachable!("effect action matched"),
     }

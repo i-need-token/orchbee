@@ -31,6 +31,7 @@ pub fn semanticInputMessage(kind: u16) []const u8 {
         MessageKind.key_input => "KeyInput payload is invalid",
         MessageKind.mouse_input => "MouseInput payload is invalid",
         MessageKind.paste_input => "PasteInput payload is invalid",
+        MessageKind.paste_auto_input => "PasteAutoInput payload is invalid",
         MessageKind.text_input => "TextInput payload is invalid",
         else => "semantic input payload is invalid",
     };

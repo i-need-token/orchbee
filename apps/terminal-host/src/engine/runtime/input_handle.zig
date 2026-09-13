@@ -138,6 +138,14 @@ pub fn Type(comptime Runtime: type, comptime PreparedInput: type) type {
             return exposePreparedInput(try input_admission_ops.preparePasteInput(stateFrom(self), text, bracketed, max_output_bytes));
         }
 
+        pub fn preparePasteAutoInput(
+            self: *Runtime,
+            content: []const u8,
+            max_output_bytes: usize,
+        ) !PreparedInput {
+            return exposePreparedInput(try input_admission_ops.preparePasteAutoInput(stateFrom(self), content, max_output_bytes));
+        }
+
         pub fn prepareSemanticInput(
             self: *Runtime,
             input: terminal_input.SemanticInput,

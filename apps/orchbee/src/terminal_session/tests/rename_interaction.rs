@@ -251,6 +251,15 @@ impl RenameServer {
                                         geometry: *geometry,
                                     }
                                 }
+                                TerminalControlAction::Paste { .. } => {
+                                    TerminalControlOutcome::Pasted {
+                                        accepted_bytes:
+                                            orchbee_client_server_protocol::PasteAcceptedBytes::new(
+                                                1,
+                                            )
+                                            .map_err(io::Error::other)?,
+                                    }
+                                }
                             };
                             ServerMessage::TerminalControlResult(TerminalControlResult::new(
                                 request.request_id().clone(),

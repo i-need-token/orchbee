@@ -133,6 +133,10 @@ pub const PasteInput = struct {
     text: []const u8,
 };
 
+pub const PasteAutoInput = struct {
+    content: []const u8,
+};
+
 pub const TextInput = struct {
     text: []const u8,
 };
@@ -142,5 +146,6 @@ pub const SemanticInput = union(enum) {
     key: KeyInput,
     mouse: MouseInput,
     paste: PasteInput,
+    paste_auto: PasteAutoInput,
     text: TextInput,
 };

@@ -17,6 +17,7 @@ const text_input_fixture = options.text_input_fixture;
 const mouse_input_fixture = options.mouse_input_fixture;
 const focus_input_fixture = options.focus_input_fixture;
 const paste_input_fixture = options.paste_input_fixture;
+const paste_auto_input_fixture = options.paste_auto_input_fixture;
 const row_window_fixture = options.row_window_fixture;
 const terminal_failed_fixture = options.terminal_failed_fixture;
 const control_fixture = options.control_fixture;
@@ -497,6 +498,8 @@ const ProtocolLimitsFixture = struct {
     launch_environment_entries: u64,
     optional_feature_name_bytes: u64,
     optional_features: u64,
+    paste_auto_input_bytes: u64,
+    paste_auto_input_payload_bytes: u64,
     pending_input_bytes: u64,
     pty_read_batch_bytes: u64,
     raw_payload_bytes: u64,
@@ -2013,6 +2016,20 @@ test "canonical TypeScript semantic-input fixtures conform in Zig" {
     };
     try std.testing.expect(paste.bracketed);
     try std.testing.expectEqualStrings("line 1\nline 2", paste.text);
+
+    const decoded_paste_auto = try protocol.validateSemanticInput(
+        protocol.MessageKind.paste_auto_input,
+        paste_auto_input_fixture,
+    );
+    const paste_auto = switch (decoded_paste_auto.input) {
+        .paste_auto => |value| value,
+        else => return error.TestUnexpectedResult,
+    };
+    try std.testing.expectEqualSlices(
+        u8,
+        "\x02\x80\xff\x1b\r\nraw-paste",
+        paste_auto.content,
+    );
 
     const decoded_mouse = try protocol.validateSemanticInput(
         protocol.MessageKind.mouse_input,

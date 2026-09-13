@@ -4,8 +4,8 @@ use std::{
 };
 
 use orchbee_client_server_protocol::{
-    ClientMessage, FRAME_MAGIC, ReadMessageError, ServerMessage, WriteMessageError,
-    read_client_message, write_server_message,
+    ClientMessage, FRAME_MAGIC, PASTE_RECORD_MAGIC, ReadMessageError, ServerMessage,
+    WriteMessageError, read_client_message, write_server_message,
 };
 use orchbee_workbench_protocol::{
     WORKBENCH_MAGIC, WorkbenchRequest, WorkbenchWireError, read_workbench_request,
@@ -28,7 +28,7 @@ where
             .read_exact(&mut prefix)
             .map_err(ApplicationSessionError::Prefix)?;
         match prefix {
-            FRAME_MAGIC => {
+            FRAME_MAGIC | PASTE_RECORD_MAGIC => {
                 let request = read_client_message(&mut Cursor::new(prefix).chain(&mut *stream))
                     .map_err(ApplicationSessionError::Read)?;
                 let result = execute(request);

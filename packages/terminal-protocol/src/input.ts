@@ -23,6 +23,7 @@ export const WRITE_INPUT_HEADER_BYTES = INPUT_AUTHORITY_HEADER_BYTES;
 export const KEY_INPUT_HEADER_BYTES = 40;
 export const TEXT_INPUT_HEADER_BYTES = 28;
 export const PASTE_INPUT_HEADER_BYTES = 32;
+export const PASTE_AUTO_INPUT_HEADER_BYTES = 32;
 export const MOUSE_INPUT_BYTES = 40;
 export const FOCUS_INPUT_BYTES = 28;
 
@@ -389,6 +390,18 @@ export const PasteInputSchema = z.strictObject({
 	bracketed: z.boolean(),
 });
 
+export const PasteAutoInputSchema = z.strictObject({
+	attachmentId: AttachmentIdSchema,
+	capabilityRevision: capabilityRevisionSchema,
+	content: z
+		.instanceof(Uint8Array)
+		.refine(
+			(value) =>
+				value.byteLength >= 1 && value.byteLength <= PROTOCOL_LIMITS.maxPasteAutoInputBytes,
+			`Paste content must contain 1 to ${PROTOCOL_LIMITS.maxPasteAutoInputBytes} bytes`,
+		),
+});
+
 export const MouseInputSchema = z
 	.strictObject({
 		action: mouseActionSchema,
@@ -440,6 +453,7 @@ export type KeyInput = z.infer<typeof KeyInputSchema>;
 export type MouseAction = (typeof MouseAction)[keyof typeof MouseAction];
 export type MouseButton = (typeof MouseButton)[keyof typeof MouseButton];
 export type MouseInput = z.infer<typeof MouseInputSchema>;
+export type PasteAutoInput = z.infer<typeof PasteAutoInputSchema>;
 export type PasteInput = z.infer<typeof PasteInputSchema>;
 export type TerminalKeyCode = (typeof TerminalKeyCode)[number];
 export type TerminalModifiers = z.infer<typeof TerminalModifiersSchema>;
@@ -608,6 +622,8 @@ export function encodeInputRequest(
 			return encodeFocusInput(value);
 		case MessageKind.pasteInput:
 			return encodePasteInput(value);
+		case MessageKind.pasteAutoInput:
+			return encodePasteAutoInput(value);
 	}
 	return missingInputRequestCodec(kind);
 }
@@ -837,6 +853,63 @@ export function decodePasteInput(payload: Uint8Array): ProtocolResult<PasteInput
 		text: text.value,
 	});
 	if (!parsed.success) return validationFailure('PasteInput', parsed.error.issues);
+	return protocolSuccess(parsed.data);
+}
+
+export function encodePasteAutoInput(value: unknown): ProtocolResult<Uint8Array> {
+	const parsed = PasteAutoInputSchema.safeParse(value);
+	if (!parsed.success) return validationFailure('PasteAutoInput', parsed.error.issues);
+	const writer = new BinaryWriter(PASTE_AUTO_INPUT_HEADER_BYTES + parsed.data.content.byteLength);
+	writer.writeBytes(identifierBytes(parsed.data.attachmentId));
+	writer.writeUint64(BigInt(parsed.data.capabilityRevision));
+	writer.writeUint8(0);
+	writer.writeUint8(0);
+	writer.writeUint16(0);
+	writer.writeUint32(parsed.data.content.byteLength);
+	writer.writeBytes(parsed.data.content);
+	return protocolSuccess(writer.bytes());
+}
+
+export function decodePasteAutoInput(payload: Uint8Array): ProtocolResult<PasteAutoInput> {
+	if (payload.byteLength < PASTE_AUTO_INPUT_HEADER_BYTES) {
+		return protocolFailure(ProtocolErrorCode.truncated, 'PasteAutoInput header is truncated');
+	}
+	if (payload.byteLength > PASTE_AUTO_INPUT_HEADER_BYTES + PROTOCOL_LIMITS.maxPasteAutoInputBytes) {
+		return protocolFailure(
+			ProtocolErrorCode.limitExceeded,
+			'PasteAutoInput payload exceeds its limit',
+		);
+	}
+	const reader = new BinaryReader(payload);
+	const attachmentId = decodeAttachmentId(reader.readBytes(IDENTIFIER_BYTE_LENGTH));
+	if (!attachmentId.ok) return attachmentId;
+	const capabilityRevision = decodeCapabilityRevision(reader);
+	if (!capabilityRevision.ok) return capabilityRevision;
+	const flags = reader.readUint8();
+	const reservedByte = reader.readUint8();
+	const reservedWord = reader.readUint16();
+	const contentLength = reader.readUint32();
+	if (reader.failure) return reader.failure;
+	if (flags !== 0 || reservedByte !== 0 || reservedWord !== 0) {
+		return protocolFailure(
+			ProtocolErrorCode.unknownRequiredFlag,
+			'PasteAutoInput has unknown flags or reserved bytes',
+		);
+	}
+	if (contentLength !== payload.byteLength - PASTE_AUTO_INPUT_HEADER_BYTES) {
+		return protocolFailure(
+			ProtocolErrorCode.lengthMismatch,
+			'PasteAutoInput length does not match payload',
+		);
+	}
+	const content = reader.readBytes(contentLength);
+	if (reader.failure) return reader.failure;
+	const parsed = PasteAutoInputSchema.safeParse({
+		attachmentId: attachmentId.value,
+		capabilityRevision: capabilityRevision.value,
+		content,
+	});
+	if (!parsed.success) return validationFailure('PasteAutoInput', parsed.error.issues);
 	return protocolSuccess(parsed.data);
 }
 

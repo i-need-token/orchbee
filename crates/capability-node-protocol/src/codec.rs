@@ -66,6 +66,11 @@ pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoc
     {
         return viewer::encode_record(message);
     }
+    if let CapabilityNodeMessage::TerminalControlRequest(request) = message
+        && let crate::TerminalControlAction::Paste { .. } = request.action
+    {
+        return control::encode_paste_record(request);
+    }
     let payload = encode_payload(message);
     if payload.len() > MAXIMUM_FRAME_PAYLOAD_BYTES {
         return Err(ProtocolError::PayloadTooLarge {
@@ -90,6 +95,9 @@ pub fn decode_message(frame: &[u8]) -> Result<CapabilityNodeMessage, ProtocolErr
     if frame.starts_with(b"OBNR") {
         return viewer::decode_record(frame);
     }
+    if frame.starts_with(b"OBNQ") {
+        return control::decode_paste_record(frame);
+    }
     let header: &[u8; FRAME_HEADER_BYTES] = frame
         .get(..FRAME_HEADER_BYTES)
         .ok_or(ProtocolError::InvalidPayload)?
@@ -110,6 +118,9 @@ pub fn read_message(reader: &mut impl Read) -> Result<CapabilityNodeMessage, Rea
     reader.read_exact(&mut header)?;
     if header.starts_with(b"OBNR") {
         return viewer::read_record(reader, header);
+    }
+    if header.starts_with(b"OBNQ") {
+        return control::read_paste_record(reader, header);
     }
     let payload_length = decode_header(&header)?;
     let mut payload = vec![0_u8; payload_length];

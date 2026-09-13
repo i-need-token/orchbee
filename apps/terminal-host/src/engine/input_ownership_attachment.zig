@@ -156,7 +156,7 @@ pub fn mutationForInput(
             } };
         },
         .mouse => |value| .{ .mouse = value },
-        .focus, .paste, .text => null,
+        .focus, .paste, .paste_auto, .text => null,
     };
 }
 

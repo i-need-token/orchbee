@@ -31,6 +31,7 @@ pub const MessageKind = struct {
     pub const mouse_input: u16 = 36;
     pub const focus_input: u16 = 37;
     pub const paste_input: u16 = 38;
+    pub const paste_auto_input: u16 = 39;
     pub const snapshot_frame: u16 = 41;
     pub const delta_frame: u16 = 42;
     pub const frame_applied: u16 = 43;

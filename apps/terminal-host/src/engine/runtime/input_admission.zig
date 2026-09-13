@@ -237,6 +237,25 @@ pub fn preparePasteInput(
     return prepareOwnedInputLocked(self, encoded, true, max_output_bytes);
 }
 
+pub fn preparePasteAutoInput(
+    self: *state.State,
+    content: []const u8,
+    max_output_bytes: usize,
+) !prepared_input.Internal {
+    if (content.len == 0) return error.EmptyInput;
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    const encoded = try terminal_input_encoding.encodePaste(
+        self.allocator,
+        &self.terminal,
+        content,
+        max_output_bytes,
+    );
+    return prepareOwnedInputLocked(self, encoded, true, max_output_bytes);
+}
+
 pub fn prepareSemanticInput(
     self: *state.State,
     input: terminal_input.SemanticInput,
@@ -247,6 +266,7 @@ pub fn prepareSemanticInput(
         .key => |value| prepareKeyInput(self, value, maximum_bytes),
         .mouse => |value| prepareMouseInput(self, value, maximum_bytes),
         .paste => |value| preparePasteInput(self, value.text, value.bracketed, maximum_bytes),
+        .paste_auto => |value| preparePasteAutoInput(self, value.content, maximum_bytes),
         .text => |value| prepareTextInput(self, value.text, maximum_bytes),
     };
 }

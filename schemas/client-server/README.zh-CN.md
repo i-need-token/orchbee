@@ -198,13 +198,27 @@ sequence，以规范十进制字符串编码。允许跳号；有效提交即消
 拒绝。Grant 不匹配或过时 sequence 不产生终端副作用。新 grant 没有已消费的 sequence；旧 grant
 不能通过重置 sequence 重新获得权限。
 
+`paste` action 是语义级整 envelope 操作：在同一 attachment、controller 与严格递增
+sequence 下提交 1 至 262,144 个不透明内容 byte，由 Host 按其当前 bracketed-paste mode 编码
+一次。它绝不由 OBCS JSON 承载：`terminal.control` 内的 `"kind": "paste"` action 在两个方向
+均非法。唯一的请求编码是 Client→Server 流上的二进制 `OBCQ` record：四个 magic byte、大端
+u16 version 1、两个零保留 byte，再大端 u32 body 长度。Body 依次为 16 个大端 byte 的精确
+request ID、16 byte 的 attachment ID、16 byte 的 controller ID、大端 u64 正 sequence，然后
+是原始内容 byte——总计 57 至 262,200 byte。分配 body 前先校验 12-byte header 与界限；流
+reader 每次消费一个 record，内存 decoder 拒绝截断或尾随 byte。OBCQ 没有对应的 JSON `paste`
+action，也不扩大 32 KiB OBCS JSON 上限；小粘贴同样使用该 record 编码。
+
 `terminal.control.result` 使用普通关联 JSON envelope。Outcome 包括：带 `controllerId` 的
-`acquired`、无其他字段的 `input-accepted`、带精确接受 `geometry` 的 `resized`、无其他字段的
-`outcome-unknown`；reason 为 `viewer-unavailable`、`controller-busy`、`not-controller`、
-`sequence-mismatch` 或 `host-rejected` 的 `rejected`；reason 为 `server-busy` 或
-`terminal-runtime-unavailable` 的 `unavailable`。InputAccepted 表示完整进入 Host 有界输入
-queue，不表示 shell 已执行。Rejected、Unavailable 和 OutcomeUnknown 可回答任意 action；
-其他 outcome 必须匹配所提交 action，Resize 还必须匹配其 geometry。
+`acquired`、无其他字段的 `input-accepted`、带精确接受 `geometry` 的 `resized`、带
+`acceptedBytes`（1 至 1,048,576 的整数，表示 Host 接纳进有界输入 queue 的编码后 byte 数）的
+`pasted`、无其他字段的 `outcome-unknown`；reason 为 `viewer-unavailable`、`controller-busy`、
+`not-controller`、`sequence-mismatch`、`host-rejected`、`host-input-invalid`、
+`host-input-limit-exceeded`、`host-input-backpressure` 或 `host-input-unavailable` 的
+`rejected`；reason 为 `server-busy` 或 `terminal-runtime-unavailable` 的 `unavailable`。
+InputAccepted 与 Pasted 表示完整进入 Host 有界输入 queue，不表示 shell 已执行。Rejected、
+Unavailable 和 OutcomeUnknown 可回答任意 action；其他 outcome 必须匹配所提交 action，Resize
+还必须匹配其 geometry。`pasted` 结果绝不回答非 paste action，`input-accepted` 也绝不回答
+`paste`。
 
 Detach 或 Session 丢失在退役 viewer 前释放共用 grant。本切片没有独立 Client release action。
 待定 acquisition 与 cleanup 排斥竞争 grant；cleanup 可以超过 Client submission deadline。

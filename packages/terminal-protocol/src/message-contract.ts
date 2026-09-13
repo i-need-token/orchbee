@@ -21,6 +21,7 @@ export const MessageKind = {
 	keyInput: 34,
 	mouseInput: 36,
 	pasteInput: 38,
+	pasteAutoInput: 39,
 	ping: 4,
 	projectionDemandAccepted: 48,
 	projectionBlocked: 49,
@@ -295,6 +296,12 @@ export const MESSAGE_CONTRACTS = {
 	[MessageKind.pasteInput]: {
 		eventEncoding: null,
 		name: 'PasteInput',
+		request: { payloadEncoding: raw, successKind: MessageKind.inputAccepted },
+		responseEncoding: null,
+	},
+	[MessageKind.pasteAutoInput]: {
+		eventEncoding: null,
+		name: 'PasteAutoInput',
 		request: { payloadEncoding: raw, successKind: MessageKind.inputAccepted },
 		responseEncoding: null,
 	},

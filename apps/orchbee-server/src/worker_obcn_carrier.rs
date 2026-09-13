@@ -790,6 +790,14 @@ fn validate_response(
                 | (Action::Release, Outcome::Released)
                 | (Action::Input { .. }, Outcome::InputAccepted) => true,
                 (Action::Resize { geometry, .. }, Outcome::Resized(actual)) => *geometry == actual,
+                (Action::Paste { content, .. }, Outcome::Pasted { accepted_bytes }) => content
+                    .as_bytes()
+                    .len()
+                    .checked_mul(2)
+                    .and_then(|bound| bound.checked_add(12))
+                    .is_some_and(|bound| {
+                        usize::try_from(accepted_bytes.get()).is_ok_and(|v| v <= bound)
+                    }),
                 _ => false,
             };
             if !compatible {

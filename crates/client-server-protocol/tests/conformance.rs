@@ -185,12 +185,17 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "control-acquired",
         "control-input-accepted",
         "control-resized",
+        "control-pasted",
         "control-outcome-unknown",
         "control-rejected-viewer-unavailable",
         "control-rejected-controller-busy",
         "control-rejected-not-controller",
         "control-rejected-sequence-mismatch",
         "control-rejected-host-rejected",
+        "control-rejected-host-input-invalid",
+        "control-rejected-host-input-limit-exceeded",
+        "control-rejected-host-input-backpressure",
+        "control-rejected-host-input-unavailable",
         "control-unavailable-server-busy",
         "control-unavailable-terminal-runtime-unavailable",
         "viewer-attach",
@@ -513,6 +518,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 Action::Acquire { .. } => "control-acquire",
                 Action::Input { .. } => "control-input",
                 Action::Resize { .. } => "control-resize",
+                Action::Paste { .. } => "control-paste",
             });
         }
         DecodedMessage::Server(ServerMessage::TerminalControlResult(result)) => {
@@ -524,6 +530,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 Outcome::Acquired { .. } => "control-acquired",
                 Outcome::InputAccepted {} => "control-input-accepted",
                 Outcome::Resized { .. } => "control-resized",
+                Outcome::Pasted { .. } => "control-pasted",
                 Outcome::OutcomeUnknown {} => "control-outcome-unknown",
                 Outcome::Rejected { reason } => match reason {
                     Rejected::ViewerUnavailable => "control-rejected-viewer-unavailable",
@@ -531,6 +538,12 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                     Rejected::NotController => "control-rejected-not-controller",
                     Rejected::SequenceMismatch => "control-rejected-sequence-mismatch",
                     Rejected::HostRejected => "control-rejected-host-rejected",
+                    Rejected::HostInputInvalid => "control-rejected-host-input-invalid",
+                    Rejected::HostInputLimitExceeded => {
+                        "control-rejected-host-input-limit-exceeded"
+                    }
+                    Rejected::HostInputBackpressure => "control-rejected-host-input-backpressure",
+                    Rejected::HostInputUnavailable => "control-rejected-host-input-unavailable",
                 },
                 Outcome::Unavailable { reason } => match reason {
                     Unavailable::ServerBusy => "control-unavailable-server-busy",

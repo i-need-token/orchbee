@@ -2,23 +2,26 @@ use std::{error::Error, io, num::NonZeroU64};
 
 use orchbee_terminal_protocol::{
     EncodedInputMessage, Envelope, FOCUS_INPUT_BYTES, InputMessage, KEY_INPUT_HEADER_BYTES,
-    KeyAction, MAXIMUM_INPUT_BYTES, MAXIMUM_KEY_TEXT_BYTES, MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES,
-    MOUSE_INPUT_BYTES, MessageRole, MouseAction, MouseButton, PASTE_INPUT_HEADER_BYTES, PasteInput,
-    PayloadEncoding, ProtocolError, ProtocolErrorCode, TEXT_INPUT_HEADER_BYTES, TerminalKeyCode,
-    TextInput, decode_input_message, decode_transport_envelope, encode_input_message,
-    encode_transport_envelope,
+    KeyAction, MAXIMUM_INPUT_BYTES, MAXIMUM_KEY_TEXT_BYTES, MAXIMUM_PASTE_AUTO_INPUT_BYTES,
+    MAXIMUM_PASTE_AUTO_INPUT_PAYLOAD_BYTES, MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES,
+    MOUSE_INPUT_BYTES, MessageRole, MouseAction, MouseButton, PASTE_AUTO_INPUT_HEADER_BYTES,
+    PASTE_INPUT_HEADER_BYTES, PasteAutoInput, PasteInput, PayloadEncoding, ProtocolError,
+    ProtocolErrorCode, TEXT_INPUT_HEADER_BYTES, TerminalKeyCode, TextInput, decode_input_message,
+    decode_transport_envelope, encode_input_message, encode_transport_envelope,
 };
 
 const KEY_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/key-input-v0.0.23.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/key-input-v0.0.24.bin");
 const TEXT_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/text-input-v0.0.23.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/text-input-v0.0.24.bin");
 const MOUSE_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/mouse-input-v0.0.23.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/mouse-input-v0.0.24.bin");
 const FOCUS_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/focus-input-v0.0.23.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/focus-input-v0.0.24.bin");
 const PASTE_FIXTURE: &[u8] =
-    include_bytes!("../../../packages/terminal-protocol/fixtures/paste-input-v0.0.23.bin");
+    include_bytes!("../../../packages/terminal-protocol/fixtures/paste-input-v0.0.24.bin");
+const PASTE_AUTO_FIXTURE: &[u8] =
+    include_bytes!("../../../packages/terminal-protocol/fixtures/paste-auto-input-v0.0.24.bin");
 
 #[test]
 fn every_canonical_semantic_input_decodes_and_reencodes_byte_for_byte() -> Result<(), Box<dyn Error>>
@@ -88,6 +91,14 @@ fn canonical_payloads_retain_complete_semantic_input_facts() -> Result<(), Box<d
     assert_authority(paste.attachment_id.to_text(), paste.capability_revision);
     assert!(paste.bracketed);
     assert_eq!(paste.text, "line 1\nline 2");
+
+    let InputMessage::PasteAutoInput(paste) =
+        decode_input_message(39, MessageRole::Request, PASTE_AUTO_FIXTURE)?
+    else {
+        return Err(fixture_error("paste-auto fixture decoded to the wrong variant").into());
+    };
+    assert_authority(paste.attachment_id.to_text(), paste.capability_revision);
+    assert_eq!(paste.content, b"\x02\x80\xff\x1b\r\nraw-paste".as_slice());
     Ok(())
 }
 
@@ -368,11 +379,16 @@ fn focus_and_all_semantic_kinds_have_exact_physical_boundaries() -> Result<(), B
     assert_eq!(KEY_INPUT_HEADER_BYTES, 40);
     assert_eq!(TEXT_INPUT_HEADER_BYTES, 28);
     assert_eq!(PASTE_INPUT_HEADER_BYTES, 32);
+    assert_eq!(PASTE_AUTO_INPUT_HEADER_BYTES, 32);
     assert_eq!(MOUSE_INPUT_BYTES, 40);
     assert_eq!(FOCUS_INPUT_BYTES, 28);
     assert_eq!(
         MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES,
         PASTE_INPUT_HEADER_BYTES + MAXIMUM_INPUT_BYTES
+    );
+    assert_eq!(
+        MAXIMUM_PASTE_AUTO_INPUT_PAYLOAD_BYTES,
+        PASTE_AUTO_INPUT_HEADER_BYTES + MAXIMUM_PASTE_AUTO_INPUT_BYTES
     );
 
     assert_code(
@@ -399,6 +415,7 @@ fn focus_and_all_semantic_kinds_have_exact_physical_boundaries() -> Result<(), B
     let oversized = vec![0; MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES + 1];
     assert_payload_code(34, &oversized, ProtocolErrorCode::LimitExceeded);
     assert_payload_code(38, &oversized, ProtocolErrorCode::LimitExceeded);
+    assert_payload_code(39, &oversized, ProtocolErrorCode::LimitExceeded);
 
     for (kind, role) in [
         (34, MessageRole::Response),
@@ -407,10 +424,74 @@ fn focus_and_all_semantic_kinds_have_exact_physical_boundaries() -> Result<(), B
         (36, MessageRole::Event),
         (37, MessageRole::Response),
         (38, MessageRole::Event),
-        (39, MessageRole::Request),
+        (39, MessageRole::Response),
+        (39, MessageRole::Event),
     ] {
         assert_code(
             decode_input_message(kind, role, KEY_FIXTURE),
+            ProtocolErrorCode::InvalidField,
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn paste_auto_input_carries_opaque_bytes_with_exact_bounds() -> Result<(), Box<dyn Error>> {
+    let decoded = decode_input_message(39, MessageRole::Request, PASTE_AUTO_FIXTURE)?;
+    let encoded = encode_input_message(&decoded)?;
+    assert_eq!(encoded.kind, 39);
+    assert_eq!(encoded.role, MessageRole::Request);
+    assert_eq!(encoded.payload, PASTE_AUTO_FIXTURE);
+
+    for offset in 24..28 {
+        let mut invalid = PASTE_AUTO_FIXTURE.to_vec();
+        invalid[offset] = 1;
+        assert_payload_code(39, &invalid, ProtocolErrorCode::UnknownRequiredFlag);
+    }
+
+    let mut mismatched = PASTE_AUTO_FIXTURE.to_vec();
+    write_u32(&mut mismatched, 28, 0)?;
+    assert_payload_code(39, &mismatched, ProtocolErrorCode::LengthMismatch);
+
+    let header_only = authority_payload(PASTE_AUTO_INPUT_HEADER_BYTES, 7)?;
+    assert_payload_code(39, &header_only, ProtocolErrorCode::InvalidField);
+
+    assert_code(
+        decode_input_message(39, MessageRole::Request, &PASTE_AUTO_FIXTURE[..31]),
+        ProtocolErrorCode::Truncated,
+    );
+
+    let attachment_id = fixture_attachment_id()?;
+    let capability_revision =
+        NonZeroU64::new(7).ok_or_else(|| fixture_error("fixture revision is zero"))?;
+    for length in [1, MAXIMUM_PASTE_AUTO_INPUT_BYTES] {
+        let content = vec![0xff; length];
+        let encoded = encode_input_message(&InputMessage::PasteAutoInput(PasteAutoInput {
+            attachment_id,
+            capability_revision,
+            content: content.clone(),
+        }))?;
+        assert_eq!(
+            encoded.payload.len(),
+            PASTE_AUTO_INPUT_HEADER_BYTES + length
+        );
+        let decoded = decode_input_message(39, MessageRole::Request, &encoded.payload)?;
+        assert_eq!(
+            decoded,
+            InputMessage::PasteAutoInput(PasteAutoInput {
+                attachment_id,
+                capability_revision,
+                content,
+            })
+        );
+    }
+    for length in [0, MAXIMUM_PASTE_AUTO_INPUT_BYTES + 1] {
+        assert_code(
+            encode_input_message(&InputMessage::PasteAutoInput(PasteAutoInput {
+                attachment_id,
+                capability_revision,
+                content: vec![0x61; length],
+            })),
             ProtocolErrorCode::InvalidField,
         );
     }
@@ -446,13 +527,14 @@ fn semantic_input_composes_with_the_transport_envelope() -> Result<(), Box<dyn E
     Ok(())
 }
 
-fn fixture_cases() -> [(u16, &'static [u8]); 5] {
+fn fixture_cases() -> [(u16, &'static [u8]); 6] {
     [
         (34, KEY_FIXTURE),
         (35, TEXT_FIXTURE),
         (36, MOUSE_FIXTURE),
         (37, FOCUS_FIXTURE),
         (38, PASTE_FIXTURE),
+        (39, PASTE_AUTO_FIXTURE),
     ]
 }
 
