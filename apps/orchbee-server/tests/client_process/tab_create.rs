@@ -24,7 +24,7 @@ use orchbee_workbench_protocol::{
     WorkbenchTerminalGeometry, read_workbench_response, write_workbench_request,
 };
 use std::{
-    io::{self, Read, Write},
+    io::{self, Read},
     os::unix::net::UnixStream,
     time::{Duration, Instant},
 };
@@ -44,64 +44,10 @@ fn deadline() -> Instant {
     Instant::now() + PROCESS_TIMEOUT
 }
 
-fn remaining(deadline: Instant) -> io::Result<Duration> {
-    deadline
-        .checked_duration_since(Instant::now())
-        .filter(|remaining| !remaining.is_zero())
-        .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "process witness deadline"))
-}
+#[path = "tab_create/deadline_stream.rs"]
+mod deadline_stream;
 
-fn check_deadline(deadline: Instant) -> io::Result<()> {
-    if Instant::now() >= deadline {
-        return Err(io::Error::new(
-            io::ErrorKind::TimedOut,
-            "process witness deadline",
-        ));
-    }
-    Ok(())
-}
-
-struct DeadlineStream<'a> {
-    stream: &'a mut UnixStream,
-    deadline: Instant,
-}
-
-impl<'a> DeadlineStream<'a> {
-    fn new(stream: &'a mut UnixStream, deadline: Instant) -> io::Result<Self> {
-        check_deadline(deadline)?;
-        Ok(Self { stream, deadline })
-    }
-
-    fn finish<T>(&self, result: io::Result<T>) -> io::Result<T> {
-        check_deadline(self.deadline)?;
-        result
-    }
-}
-
-impl Read for DeadlineStream<'_> {
-    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
-        self.stream
-            .set_read_timeout(Some(remaining(self.deadline)?))?;
-        let result = self.stream.read(buffer);
-        self.finish(result)
-    }
-}
-
-impl Write for DeadlineStream<'_> {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        self.stream
-            .set_write_timeout(Some(remaining(self.deadline)?))?;
-        let result = self.stream.write(buffer);
-        self.finish(result)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.stream
-            .set_write_timeout(Some(remaining(self.deadline)?))?;
-        let result = self.stream.flush();
-        self.finish(result)
-    }
-}
+use deadline_stream::{DeadlineStream, check_deadline};
 
 fn require_before(deadline: Instant) -> TestResult {
     check_deadline(deadline)?;
