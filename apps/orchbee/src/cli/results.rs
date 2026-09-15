@@ -161,6 +161,7 @@ pub(crate) struct TerminalRow {
     pub(crate) terminal_context_id: String,
 }
 
+#[derive(Debug)]
 pub(crate) enum Projection {
     Status(StatusDoc),
     ProjectList(Vec<ProjectRow>),
@@ -933,5 +934,397 @@ fn collect_terminal_rows(
                 collect_terminal_rows(&slot.node, context, tab, rows);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Resolver verdicts over real validated snapshots: bounded ambiguity with
+    //! the true total, traversal-order candidates, per-resource ambiguity, and
+    //! filter-target hit/miss/ambiguity for every filter arm.
+
+    use super::*;
+    use orchbee_workbench_protocol::parse_snapshot;
+
+    fn hex(n: u8) -> String {
+        format!("{n:032x}")
+    }
+
+    const WORKER: &str = "6f7263686265652d6c6f63616c2d7631";
+
+    /// Deliberately unsorted document order: candidate ordering must follow
+    /// canonical traversal order, never id sort.
+    const DUP_TABS: [u8; 9] = [0x29, 0x25, 0x27, 0x22, 0x28, 0x24, 0x26, 0x23, 0x21];
+
+    fn presentation(id: u8, terminal: Option<u8>) -> Value {
+        json!({
+            "presentationId": hex(id),
+            "label": "p",
+            "binding": terminal.map(|terminal| json!({
+                "terminalId": hex(terminal),
+                "workerId": WORKER,
+            })),
+        })
+    }
+
+    fn panel(id: u8, primary: u8, children: &[u8], terminal: Option<u8>) -> Value {
+        json!({
+            "kind": "panel",
+            "panelId": hex(id),
+            "primaryPresentation": presentation(primary, terminal),
+            "childPresentations": children
+                .iter()
+                .map(|&child| presentation(child, None))
+                .collect::<Vec<_>>(),
+        })
+    }
+
+    fn tab(id: u8, label: &str, root: Value) -> Value {
+        json!({
+            "tabId": hex(id),
+            "label": label,
+            "pinned": false,
+            "groupId": null,
+            "root": root,
+        })
+    }
+
+    /// Two same-label projects (`alpha`), each owning one same-label
+    /// workspace (`ws`) on its own context; nine same-label `dup` tabs in
+    /// scrambled id order under the standalone context; one `main` tab under
+    /// each workspace context (a split root under the first).
+    fn snapshot() -> Snapshot {
+        let document = json!({
+            "kind": "workbench.snapshot",
+            "protocolVersion": 1,
+            "revision": "9",
+            "siteId": hex(0xaa),
+            "navigation": {
+                "projects": [
+                    {
+                        "projectId": hex(0x10),
+                        "label": "alpha",
+                        "directories": [{
+                            "directoryId": hex(0x30),
+                            "workerId": WORKER,
+                            "path": "/a",
+                        }],
+                        "workspaces": [{
+                            "workspaceId": hex(0x40),
+                            "label": "ws",
+                            "primaryDirectoryId": hex(0x30),
+                            "terminalContextId": hex(0x50),
+                        }],
+                    },
+                    {
+                        "projectId": hex(0x11),
+                        "label": "alpha",
+                        "directories": [{
+                            "directoryId": hex(0x31),
+                            "workerId": WORKER,
+                            "path": "/b",
+                        }],
+                        "workspaces": [{
+                            "workspaceId": hex(0x41),
+                            "label": "ws",
+                            "primaryDirectoryId": hex(0x31),
+                            "terminalContextId": hex(0x51),
+                        }],
+                    },
+                ],
+                "standaloneTerminalContextId": hex(0x01),
+            },
+            "terminalContexts": [
+                {
+                    "terminalContextId": hex(0x01),
+                    "groups": [],
+                    "tabs": DUP_TABS
+                        .iter()
+                        .map(|&n| tab(n, "dup", panel(0x80 + n, 0xa0 + n, &[], None)))
+                        .collect::<Vec<_>>(),
+                },
+                {
+                    "terminalContextId": hex(0x50),
+                    "groups": [],
+                    "tabs": [tab(0x52, "main", json!({
+                        "kind": "split",
+                        "splitId": hex(0x53),
+                        "orientation": "horizontal",
+                        "children": [
+                            {"slotId": hex(0x54), "node": panel(0x55, 0x56, &[], None)},
+                            {"slotId": hex(0x57), "node": panel(0x58, 0x59, &[0x5b], Some(0x5a))},
+                        ],
+                    }))],
+                },
+                {
+                    "terminalContextId": hex(0x51),
+                    "groups": [],
+                    "tabs": [tab(0x62, "main", panel(0x63, 0x64, &[], None))],
+                },
+            ],
+        });
+        parse_snapshot(&serde_json::to_vec(&document).expect("fixture encodes"))
+            .expect("fixture snapshot validates")
+    }
+
+    fn failure(command: &QueryCommand) -> Failure {
+        project(command, &snapshot()).expect_err("resolver failure expected")
+    }
+
+    fn details(failure: &Failure) -> &Map<String, Value> {
+        failure.details.as_ref().expect("typed failure details")
+    }
+
+    fn candidates(failure: &Failure) -> Vec<String> {
+        details(failure)["candidates"]
+            .as_array()
+            .expect("candidate list")
+            .iter()
+            .map(|id| id.as_str().expect("typed candidate id").to_owned())
+            .collect()
+    }
+
+    #[test]
+    fn ambiguity_truncates_candidates_but_keeps_the_true_total() {
+        let failure = failure(&QueryCommand::TabGet(Target::Label("dup".into())));
+        assert_eq!(failure.kind, FailureKind::Ambiguous);
+        let details = details(&failure);
+        assert_eq!(details["resource"], json!("tab"));
+        assert_eq!(details["target"], json!("dup"));
+        assert_eq!(details["totalCount"], json!(DUP_TABS.len()));
+        // At most the first eight candidate typed ids, in canonical traversal
+        // order — context order then tab order — not sorted identity order.
+        assert_eq!(
+            candidates(&failure),
+            DUP_TABS[..8].iter().map(|&n| hex(n)).collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn label_lookup_is_ambiguous_per_resource() {
+        for (command, resource, expected) in [
+            (
+                QueryCommand::ProjectGet(Target::Label("alpha".into())),
+                "project",
+                vec![hex(0x10), hex(0x11)],
+            ),
+            (
+                QueryCommand::WorkspaceGet(Target::Label("ws".into())),
+                "workspace",
+                vec![hex(0x40), hex(0x41)],
+            ),
+        ] {
+            let failure = failure(&command);
+            assert_eq!(failure.kind, FailureKind::Ambiguous, "{resource}");
+            let details = details(&failure);
+            assert_eq!(details["resource"], json!(resource));
+            assert_eq!(details["totalCount"], json!(expected.len()));
+            assert_eq!(candidates(&failure), expected, "{resource}");
+        }
+    }
+
+    #[test]
+    fn unmatched_targets_are_not_found_without_candidates() {
+        let missing = hex(0x7f);
+        for (command, resource, target) in [
+            (
+                QueryCommand::TabGet(Target::Label("ghost".into())),
+                "tab",
+                "ghost".to_owned(),
+            ),
+            (
+                QueryCommand::TabGet(Target::Id(missing.clone())),
+                "tab",
+                missing.clone(),
+            ),
+            (
+                QueryCommand::WorkspaceGet(Target::Label("ghost".into())),
+                "workspace",
+                "ghost".to_owned(),
+            ),
+        ] {
+            let failure = failure(&command);
+            assert_eq!(failure.kind, FailureKind::NotFound, "{resource}");
+            let details = details(&failure);
+            assert_eq!(details["resource"], json!(resource));
+            assert_eq!(details["target"], json!(target));
+            assert!(details.get("candidates").is_none(), "{resource}");
+        }
+    }
+
+    #[test]
+    fn project_filter_hit_miss_and_ambiguity() {
+        // Hit: only the resolved project's workspaces survive the filter.
+        let projection = project(
+            &QueryCommand::WorkspaceList {
+                project: Some(Target::Id(hex(0x10))),
+            },
+            &snapshot(),
+        )
+        .expect("resolved project filter");
+        let Projection::WorkspaceList(rows) = projection else {
+            panic!("workspace list projection");
+        };
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].workspace_id, hex(0x40));
+        assert_eq!(rows[0].project_id, hex(0x10));
+        assert_eq!(rows[0].terminal_context_id, hex(0x50));
+
+        // Ambiguous filter target: the list itself is never built.
+        let ambiguous = failure(&QueryCommand::WorkspaceList {
+            project: Some(Target::Label("alpha".into())),
+        });
+        assert_eq!(ambiguous.kind, FailureKind::Ambiguous);
+        assert_eq!(details(&ambiguous)["resource"], json!("project"));
+        assert_eq!(candidates(&ambiguous), vec![hex(0x10), hex(0x11)]);
+
+        // Miss: a typed not-found, never an empty list.
+        let missed = failure(&QueryCommand::WorkspaceList {
+            project: Some(Target::Label("ghost".into())),
+        });
+        assert_eq!(missed.kind, FailureKind::NotFound);
+        assert_eq!(details(&missed)["resource"], json!("project"));
+        assert_eq!(details(&missed)["target"], json!("ghost"));
+    }
+
+    #[test]
+    fn workspace_filter_hit_miss_and_ambiguity() {
+        // Hit: tabs from exactly the resolved workspace's own context, each
+        // carrying the workspace context reference.
+        let projection = project(
+            &QueryCommand::TabList {
+                workspace: Some(Target::Id(hex(0x41))),
+                standalone: false,
+            },
+            &snapshot(),
+        )
+        .expect("resolved workspace filter");
+        let Projection::TabList(rows) = projection else {
+            panic!("tab list projection");
+        };
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].tab_id, hex(0x62));
+        assert!(!rows[0].context.standalone);
+        assert_eq!(rows[0].context.terminal_context_id, hex(0x51));
+        assert_eq!(rows[0].context.workspace_id, Some(hex(0x41)));
+
+        // Ambiguous: two workspaces share the label across projects.
+        let ambiguous = failure(&QueryCommand::TabList {
+            workspace: Some(Target::Label("ws".into())),
+            standalone: false,
+        });
+        assert_eq!(ambiguous.kind, FailureKind::Ambiguous);
+        assert_eq!(details(&ambiguous)["resource"], json!("workspace"));
+        assert_eq!(candidates(&ambiguous), vec![hex(0x40), hex(0x41)]);
+
+        // Miss.
+        let missed = failure(&QueryCommand::TabList {
+            workspace: Some(Target::Label("ghost".into())),
+            standalone: false,
+        });
+        assert_eq!(missed.kind, FailureKind::NotFound);
+        assert_eq!(details(&missed)["resource"], json!("workspace"));
+    }
+
+    #[test]
+    fn tab_filter_hit_miss_and_ambiguity() {
+        // Hit: panels under exactly the resolved tab, in traversal order.
+        let projection = project(
+            &QueryCommand::PanelList {
+                tab: Some(Target::Id(hex(0x52))),
+            },
+            &snapshot(),
+        )
+        .expect("resolved tab filter");
+        let Projection::PanelList(rows) = projection else {
+            panic!("panel list projection");
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.panel_id.clone())
+                .collect::<Vec<_>>(),
+            vec![hex(0x55), hex(0x58)],
+        );
+        assert!(rows.iter().all(|row| row.tab_id == hex(0x52)));
+        assert!(rows.iter().all(|row| row.terminal_context_id == hex(0x50)));
+
+        // Ambiguous: "main" names a tab in each workspace context.
+        let ambiguous = failure(&QueryCommand::PanelList {
+            tab: Some(Target::Label("main".into())),
+        });
+        assert_eq!(ambiguous.kind, FailureKind::Ambiguous);
+        assert_eq!(details(&ambiguous)["resource"], json!("tab"));
+        assert_eq!(candidates(&ambiguous), vec![hex(0x52), hex(0x62)]);
+
+        // Miss.
+        let missed = failure(&QueryCommand::PanelList {
+            tab: Some(Target::Label("ghost".into())),
+        });
+        assert_eq!(missed.kind, FailureKind::NotFound);
+        assert_eq!(details(&missed)["resource"], json!("tab"));
+    }
+
+    #[test]
+    fn unfiltered_lists_follow_canonical_traversal_order() {
+        // Workspaces flatten across projects in project/workspace order.
+        let projection = project(&QueryCommand::WorkspaceList { project: None }, &snapshot())
+            .expect("workspace list");
+        let Projection::WorkspaceList(rows) = projection else {
+            panic!("workspace list projection");
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.workspace_id.clone())
+                .collect::<Vec<_>>(),
+            vec![hex(0x40), hex(0x41)],
+        );
+
+        // Tabs concatenate contexts in context order, then document order:
+        // the scrambled standalone ids lead, then each workspace's tab.
+        let projection = project(
+            &QueryCommand::TabList {
+                workspace: None,
+                standalone: false,
+            },
+            &snapshot(),
+        )
+        .expect("tab list");
+        let Projection::TabList(rows) = projection else {
+            panic!("tab list projection");
+        };
+        assert_eq!(rows.len(), DUP_TABS.len() + 2);
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.tab_id.clone())
+                .collect::<Vec<_>>(),
+            DUP_TABS
+                .iter()
+                .chain([0x52, 0x62].iter())
+                .map(|&n| hex(n))
+                .collect::<Vec<_>>(),
+        );
+        // Context references pin the owning workspace only where one exists.
+        assert!(
+            rows[..9]
+                .iter()
+                .all(|row| row.context.standalone && row.context.workspace_id.is_none())
+        );
+        assert_eq!(rows[9].context.workspace_id, Some(hex(0x40)));
+        assert_eq!(rows[10].context.workspace_id, Some(hex(0x41)));
+
+        // `--standalone` selects exactly the standalone context's tabs.
+        let projection = project(
+            &QueryCommand::TabList {
+                workspace: None,
+                standalone: true,
+            },
+            &snapshot(),
+        )
+        .expect("standalone tab list");
+        let Projection::TabList(rows) = projection else {
+            panic!("tab list projection");
+        };
+        assert_eq!(rows.len(), DUP_TABS.len());
+        assert!(rows.iter().all(|row| row.context.standalone));
     }
 }

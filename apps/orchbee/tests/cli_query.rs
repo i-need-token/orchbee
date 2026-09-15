@@ -73,11 +73,16 @@ fn cohort() -> &'static Path {
                 let digest = Sha256::digest(fs::read(&target).expect("read artifact"));
                 artifacts.insert((*name).to_owned(), format!("{digest:x}").into());
             }
+            let manifest = directory.join("cohort.json");
             fs::write(
-                directory.join("cohort.json"),
+                &manifest,
                 serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
             )
             .expect("write cohort manifest");
+            // NativeCohort rejects a group/other-accessible manifest; the
+            // process umask is not guaranteed to be 022.
+            fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600))
+                .expect("chmod cohort manifest");
             directory
         })
         .as_path()
@@ -124,6 +129,11 @@ fn spawn_peer(
     spawn_peer_n(scope, 1, script)
 }
 
+/// Every peer-side wait is bounded so a CLI that dies before connecting — or
+/// stops answering mid-exchange — fails the test quickly instead of hanging
+/// the whole suite on `accept()`/`join()`.
+const PEER_IO_DEADLINE: Duration = Duration::from_secs(30);
+
 /// Same as `spawn_peer`, but serves `connections` sequential query sessions:
 /// each CLI invocation admits its own Client Session on the shared socket.
 fn spawn_peer_n(
@@ -135,12 +145,42 @@ fn spawn_peer_n(
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     // The rendezvous validator admits only owner-private sockets.
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
+    listener
+        .set_nonblocking(true)
+        .expect("peer listener nonblocking");
     thread::spawn(move || {
         for _ in 0..connections {
-            let (stream, _) = listener.accept().expect("peer accept");
+            let stream = accept_bounded(&listener);
+            // Accepted streams are blocking; per-call timeouts cap the script's
+            // own reads and writes so `join` stays bounded as well.
+            stream
+                .set_read_timeout(Some(PEER_IO_DEADLINE))
+                .expect("peer read timeout");
+            stream
+                .set_write_timeout(Some(PEER_IO_DEADLINE))
+                .expect("peer write timeout");
             script(stream);
         }
     })
+}
+
+/// Accept the next connection within `PEER_IO_DEADLINE`; a CLI that never
+/// arrives is a test failure, not an infinite block.
+fn accept_bounded(listener: &UnixListener) -> UnixStream {
+    let deadline = Instant::now() + PEER_IO_DEADLINE;
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => return stream,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(
+                    Instant::now() < deadline,
+                    "peer accept timed out waiting for the CLI to connect"
+                );
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("peer accept: {error}"),
+        }
+    }
 }
 
 /// OBLC admission: read the hello, answer `ClientAccepted`, return the stream.
@@ -414,7 +454,10 @@ fn cohort_rejection_maps_to_exit_six() -> TestResult {
 
 // ---- scripted success surface ---------------------------------------------
 
-/// One context, two tabs sharing the label "dup", one bound terminal.
+/// One standalone context with two tabs sharing the label "dup" plus one
+/// project ("proj") whose workspace ("ws") owns a second context holding a
+/// split-root "ws-main" tab — every result shape emits at least one non-empty
+/// row from this fixture, including the workspace-context variants.
 fn fixture_document() -> &'static [u8] {
     br#"{
   "kind": "workbench.snapshot",
@@ -422,7 +465,27 @@ fn fixture_document() -> &'static [u8] {
   "revision": "7",
   "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "navigation": {
-    "projects": [],
+    "projects": [
+      {
+        "projectId": "00000000000000000000000000000010",
+        "label": "proj",
+        "directories": [
+          {
+            "directoryId": "00000000000000000000000000000011",
+            "workerId": "6f7263686265652d6c6f63616c2d7631",
+            "path": "/repo"
+          }
+        ],
+        "workspaces": [
+          {
+            "workspaceId": "00000000000000000000000000000012",
+            "label": "ws",
+            "primaryDirectoryId": "00000000000000000000000000000011",
+            "terminalContextId": "00000000000000000000000000000020"
+          }
+        ]
+      }
+    ],
     "standaloneTerminalContextId": "00000000000000000000000000000001"
   },
   "terminalContexts": [
@@ -466,6 +529,60 @@ fn fixture_document() -> &'static [u8] {
           }
         }
       ]
+    },
+    {
+      "terminalContextId": "00000000000000000000000000000020",
+      "groups": [],
+      "tabs": [
+        {
+          "tabId": "00000000000000000000000000000021",
+          "label": "ws-main",
+          "pinned": false,
+          "groupId": null,
+          "root": {
+            "kind": "split",
+            "splitId": "00000000000000000000000000000022",
+            "orientation": "horizontal",
+            "children": [
+              {
+                "slotId": "00000000000000000000000000000023",
+                "node": {
+                  "kind": "panel",
+                  "panelId": "00000000000000000000000000000024",
+                  "primaryPresentation": {
+                    "presentationId": "00000000000000000000000000000025",
+                    "label": "left",
+                    "binding": null
+                  },
+                  "childPresentations": []
+                }
+              },
+              {
+                "slotId": "00000000000000000000000000000026",
+                "node": {
+                  "kind": "panel",
+                  "panelId": "00000000000000000000000000000027",
+                  "primaryPresentation": {
+                    "presentationId": "00000000000000000000000000000028",
+                    "label": "right",
+                    "binding": {
+                      "terminalId": "00000000000000000000000000000030",
+                      "workerId": "6f7263686265652d6c6f63616c2d7631"
+                    }
+                  },
+                  "childPresentations": [
+                    {
+                      "presentationId": "00000000000000000000000000000029",
+                      "label": "aux",
+                      "binding": null
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }"#
@@ -498,7 +615,7 @@ fn available_snapshot_projects_every_resource() -> TestResult {
     );
     let text = String::from_utf8(output.stdout)?;
     assert!(text.contains("revision 7"), "{text}");
-    assert!(text.contains("bound terminals 1"), "{text}");
+    assert!(text.contains("bound terminals 2"), "{text}");
 
     // both duplicated labels are listed
     let output = run(&base, &["tab", "list"]);
@@ -535,6 +652,256 @@ fn duplicate_label_is_ambiguous_not_arbitrary() -> TestResult {
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(3));
     assert_eq!(failure_kind(&output)["failure"]["kind"], "ambiguous");
+    Ok(())
+}
+
+/// The whole snapshot-derived surface over the extended fixture: every
+/// emitted document validates against its own embedded schema and carries
+/// real rows — non-empty project/workspace, workspace-context tab, split
+/// panel structure — not just shapes the empty fixture happened to cover.
+#[test]
+fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
+    let base = base_dir("derived-schemas");
+    let scope = stage_scope(&base);
+    // Each query admits one fresh Client Session on the shared scripted
+    // socket; `api schema` lookups are local and consume no connection.
+    let queries: &[(&[&str], &str)] = &[
+        (
+            &["project", "list", "--format", "json"],
+            "orchbee.project.list",
+        ),
+        (
+            &["project", "get", "proj", "--format", "json"],
+            "orchbee.project.get",
+        ),
+        (
+            &["workspace", "list", "--format", "json"],
+            "orchbee.workspace.list",
+        ),
+        (
+            &["workspace", "get", "ws", "--format", "json"],
+            "orchbee.workspace.get",
+        ),
+        (&["tab", "list", "--format", "json"], "orchbee.tab.list"),
+        (
+            &["tab", "list", "--workspace", "ws", "--format", "json"],
+            "orchbee.tab.list",
+        ),
+        (
+            &["tab", "get", "ws-main", "--format", "json"],
+            "orchbee.tab.get",
+        ),
+        (&["panel", "list", "--format", "json"], "orchbee.panel.list"),
+        (
+            &["panel", "list", "--tab", "ws-main", "--format", "json"],
+            "orchbee.panel.list",
+        ),
+        (
+            &[
+                "panel",
+                "get",
+                "00000000000000000000000000000024",
+                "--format",
+                "json",
+            ],
+            "orchbee.panel.get",
+        ),
+        (
+            &[
+                "panel",
+                "get",
+                "00000000000000000000000000000027",
+                "--format",
+                "json",
+            ],
+            "orchbee.panel.get",
+        ),
+        (
+            &["terminal", "list", "--format", "json"],
+            "orchbee.terminal.list",
+        ),
+        (
+            &[
+                "terminal",
+                "get",
+                "00000000000000000000000000000030",
+                "--format",
+                "json",
+            ],
+            "orchbee.terminal.get",
+        ),
+    ];
+    let peer = spawn_peer_n(&scope, queries.len(), |stream| {
+        admit(&stream);
+        let request_id = read_snapshot_request(&stream);
+        snapshot_response(
+            &stream,
+            request_id,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: parse_snapshot(fixture_document()).expect("fixture"),
+            },
+        );
+    });
+
+    let mut documents = Vec::new();
+    for (arguments, schema_id) in queries {
+        let output = run(&base, arguments);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+        assert_eq!(
+            document["schema"],
+            serde_json::json!(schema_id),
+            "{arguments:?}"
+        );
+        let schema = compiled_schema(&base, schema_id);
+        assert!(
+            schema.is_valid(&document),
+            "{schema_id} rejected {document}"
+        );
+        documents.push(document);
+    }
+    peer.join().expect("peer finished");
+
+    // Content witnesses: every surface produced real fixture rows, not just a
+    // valid envelope.
+    let projects = documents[0]["result"]["projects"].as_array().unwrap();
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0]["projectId"], id(0x10));
+    assert_eq!(projects[0]["label"], "proj");
+    assert_eq!(projects[0]["directoryCount"], 1);
+    assert_eq!(projects[0]["workspaceCount"], 1);
+
+    let project = &documents[1]["result"]["project"];
+    assert_eq!(project["projectId"], id(0x10));
+    assert_eq!(
+        project["directories"],
+        serde_json::json!([{"directoryId": id(0x11), "workerId": "6f7263686265652d6c6f63616c2d7631", "path": "/repo"}])
+    );
+    assert_eq!(
+        project["workspaces"],
+        serde_json::json!([{"workspaceId": id(0x12), "label": "ws"}])
+    );
+
+    let workspaces = documents[2]["result"]["workspaces"].as_array().unwrap();
+    assert_eq!(workspaces.len(), 1);
+    assert_eq!(workspaces[0]["workspaceId"], id(0x12));
+    assert_eq!(workspaces[0]["projectId"], id(0x10));
+    assert_eq!(workspaces[0]["primaryDirectoryId"], id(0x11));
+    assert_eq!(workspaces[0]["terminalContextId"], id(0x20));
+
+    let workspace = &documents[3]["result"]["workspace"];
+    assert_eq!(workspace["workspaceId"], id(0x12));
+    assert_eq!(
+        workspace["tabs"],
+        serde_json::json!([{"tabId": id(0x21), "label": "ws-main"}])
+    );
+
+    // Unfiltered tab list: the workspace-context row carries the tightened
+    // context shape ({kind:"workspace", workspaceId}) while standalone rows
+    // never carry workspaceId.
+    let tabs = documents[4]["result"]["tabs"].as_array().unwrap();
+    assert_eq!(tabs.len(), 3);
+    let ws_row = tabs
+        .iter()
+        .find(|row| row["tabId"] == id(0x21))
+        .expect("workspace tab row");
+    assert_eq!(
+        ws_row["context"],
+        serde_json::json!({
+            "kind": "workspace",
+            "terminalContextId": id(0x20),
+            "workspaceId": id(0x12),
+        })
+    );
+    for row in tabs.iter().filter(|row| row["tabId"] != id(0x21)) {
+        assert_eq!(row["context"]["kind"], "standalone", "{row}");
+        assert!(
+            row["context"].get("workspaceId").is_none(),
+            "standalone context carries no workspaceId: {row}"
+        );
+    }
+
+    // `--workspace` by label resolves to exactly the workspace context's tab.
+    let filtered = documents[5]["result"]["tabs"].as_array().unwrap();
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0]["tabId"], id(0x21));
+
+    // `tab get` re-encodes the split PanelNode subtree without semantic loss.
+    let root = &documents[6]["result"]["tab"]["root"];
+    assert_eq!(root["kind"], "split");
+    assert_eq!(root["splitId"], id(0x22));
+    assert_eq!(root["children"].as_array().unwrap().len(), 2);
+
+    // Panels flatten across contexts; the filter keeps only the resolved tab.
+    let panels = documents[7]["result"]["panels"].as_array().unwrap();
+    assert_eq!(panels.len(), 4);
+    let scoped = documents[8]["result"]["panels"].as_array().unwrap();
+    assert_eq!(
+        scoped
+            .iter()
+            .map(|row| row["panelId"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>(),
+        vec![id(0x24), id(0x27)],
+    );
+    assert!(scoped.iter().all(|row| row["tabId"] == id(0x21)));
+
+    // `panel get` walks the split: slotPath is the slot ids root→leaf and the
+    // context pins the owning workspace.
+    let left = &documents[9]["result"]["panel"];
+    assert_eq!(left["panelId"], id(0x24));
+    assert_eq!(left["slotPath"], serde_json::json!([id(0x23)]));
+    assert_eq!(
+        left["context"],
+        serde_json::json!({
+            "kind": "workspace",
+            "terminalContextId": id(0x20),
+            "workspaceId": id(0x12),
+        })
+    );
+    assert_eq!(left["primaryPresentation"]["presentationId"], id(0x25));
+    assert_eq!(
+        left["primaryPresentation"]["binding"],
+        serde_json::Value::Null
+    );
+    assert_eq!(left["childPresentations"], serde_json::json!([]));
+    let right = &documents[10]["result"]["panel"];
+    assert_eq!(right["panelId"], id(0x27));
+    assert_eq!(right["slotPath"], serde_json::json!([id(0x26)]));
+    assert_eq!(
+        right["primaryPresentation"]["binding"]["terminalId"],
+        id(0x30)
+    );
+    assert_eq!(
+        right["childPresentations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["presentationId"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>(),
+        vec![id(0x29)],
+    );
+
+    // Terminals: both bound ids are listed; `terminal get` resolves its
+    // binding path through the split.
+    let terminals = documents[11]["result"]["terminals"].as_array().unwrap();
+    assert_eq!(terminals.len(), 2);
+    let terminal = &documents[12]["result"]["terminal"];
+    assert_eq!(terminal["terminalId"], id(0x30));
+    assert_eq!(terminal["workerId"], "6f7263686265652d6c6f63616c2d7631");
+    assert_eq!(
+        terminal["boundTo"],
+        serde_json::json!({
+            "presentationId": id(0x28),
+            "panelId": id(0x27),
+            "tabId": id(0x21),
+            "terminalContextId": id(0x20),
+        })
+    );
     Ok(())
 }
 

@@ -146,10 +146,12 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
             stderr: String::new(),
         },
         Err(output::TooLarge) => failure_output(
-            Failure::new(FailureKind::OutputTooLarge).details(Map::from_iter([(
-                "limitBytes".to_owned(),
-                json!(output::LIMIT),
-            )])),
+            Failure::new(FailureKind::OutputTooLarge)
+                .details(Map::from_iter([(
+                    "limitBytes".to_owned(),
+                    json!(output::LIMIT),
+                )]))
+                .source(embedded_source()),
             caller,
             locale,
         ),

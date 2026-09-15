@@ -186,23 +186,7 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     let deadline = Instant::now()
         .checked_add(CHECK_BUDGET)
         .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-    checks.push(match NativeCohort::current(deadline) {
-        Ok(_) => pass("cohort", detail([("verified".to_owned(), json!(true))])),
-        Err(error) => {
-            let reason = if error.kind() == std::io::ErrorKind::TimedOut {
-                "deadline"
-            } else {
-                "invalid-cohort"
-            };
-            fail(
-                "cohort",
-                detail([
-                    ("verified".to_owned(), json!(false)),
-                    ("reason".to_owned(), json!(reason)),
-                ]),
-            )
-        }
-    });
+    checks.push(cohort_report(NativeCohort::current(deadline)));
 
     checks.push(locale_check());
     checks.push(socket_checks(&site));
@@ -328,6 +312,29 @@ fn rendezvous_path(error: &RendezvousError) -> Option<&Path> {
     }
 }
 
+/// The cohort check reports only what the verifier established: `verified`
+/// plus `reason` `deadline`/`invalid-cohort` on failure.
+#[cfg(target_os = "linux")]
+fn cohort_report(result: std::io::Result<NativeCohort>) -> CheckReport {
+    match result {
+        Ok(_) => pass("cohort", detail([("verified".to_owned(), json!(true))])),
+        Err(error) => {
+            let reason = if error.kind() == std::io::ErrorKind::TimedOut {
+                "deadline"
+            } else {
+                "invalid-cohort"
+            };
+            fail(
+                "cohort",
+                detail([
+                    ("verified".to_owned(), json!(false)),
+                    ("reason".to_owned(), json!(reason)),
+                ]),
+            )
+        }
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn locale_check() -> CheckReport {
     let (locale, source) = crate::localization::locale_source();
@@ -356,37 +363,9 @@ fn socket_checks(site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>)
             site.as_ref().ok().map(|site| site.worker_socket_exists()),
         ),
     ] {
-        let entry = match exists {
-            Some(Ok(true)) => {
-                any_present = true;
-                detail([
-                    ("presence".to_owned(), json!("present")),
-                    ("status".to_owned(), json!("pass")),
-                ])
-            }
-            Some(Ok(false)) => detail([
-                ("presence".to_owned(), json!("absent")),
-                ("status".to_owned(), json!("not-applicable")),
-            ]),
-            Some(Err(error)) => {
-                any_fail = true;
-                let reason = if error.kind() == std::io::ErrorKind::PermissionDenied {
-                    "unsafe"
-                } else {
-                    "io-error"
-                };
-                detail([
-                    ("presence".to_owned(), json!("present")),
-                    ("status".to_owned(), json!("fail")),
-                    ("reason".to_owned(), json!(reason)),
-                ])
-            }
-            None => detail([
-                ("presence".to_owned(), json!("unchecked")),
-                ("status".to_owned(), json!("not-applicable")),
-                ("reason".to_owned(), json!("runtime-unavailable")),
-            ]),
-        };
+        let (entry, present, fail) = socket_entry(exists.as_ref());
+        any_present |= present;
+        any_fail |= fail;
         details.insert(name.to_owned(), Value::Object(entry));
     }
     let status = if any_fail {
@@ -400,5 +379,401 @@ fn socket_checks(site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>)
         name: "sockets",
         status,
         details,
+    }
+}
+
+/// One socket's inspection result → its typed entry plus the aggregate
+/// (`compliant present`, `failed`) bits. `PermissionDenied` is the inspector's
+/// synthesized verdict for an entry that exists but is not a compliant
+/// socket — presence was established, so the entry is `present`+`fail`. Any
+/// other `fstatat` error means presence itself was never established, so the
+/// entry is honestly `unchecked`; no field invents a definitive state.
+#[cfg(target_os = "linux")]
+fn socket_entry(exists: Option<&std::io::Result<bool>>) -> (Map<String, Value>, bool, bool) {
+    match exists {
+        Some(Ok(true)) => (
+            detail([
+                ("presence".to_owned(), json!("present")),
+                ("status".to_owned(), json!("pass")),
+            ]),
+            true,
+            false,
+        ),
+        Some(Ok(false)) => (
+            detail([
+                ("presence".to_owned(), json!("absent")),
+                ("status".to_owned(), json!("not-applicable")),
+            ]),
+            false,
+            false,
+        ),
+        Some(Err(error)) if error.kind() == std::io::ErrorKind::PermissionDenied => (
+            detail([
+                ("presence".to_owned(), json!("present")),
+                ("status".to_owned(), json!("fail")),
+                ("reason".to_owned(), json!("unsafe")),
+            ]),
+            false,
+            true,
+        ),
+        Some(Err(_)) => (
+            detail([
+                ("presence".to_owned(), json!("unchecked")),
+                ("status".to_owned(), json!("not-applicable")),
+                ("reason".to_owned(), json!("io-error")),
+            ]),
+            false,
+            false,
+        ),
+        None => (
+            detail([
+                ("presence".to_owned(), json!("unchecked")),
+                ("status".to_owned(), json!("not-applicable")),
+                ("reason".to_owned(), json!("runtime-unavailable")),
+            ]),
+            false,
+            false,
+        ),
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    //! `config check` coverage at the function boundary: every RendezvousError
+    //! class, every socket inspection outcome, the cohort report, and the
+    //! locale row — real filesystem only inside each test's scratch directory.
+
+    use super::*;
+    use sha2::{Digest, Sha256};
+    use std::fs;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::net::UnixListener;
+
+    fn scratch(tag: &str) -> PathBuf {
+        let directory = std::env::temp_dir().join(format!(
+            "obcli-config-check-{}-{tag}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        fs::create_dir(&directory).expect("create scratch base");
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))
+            .expect("chmod scratch base");
+        directory
+    }
+
+    const BASE: &str = "/ob-config-test-base";
+    const SCOPE_DIR: &str = "/ob-config-test-base/orchbee-native-1000";
+
+    fn classify(error: RendezvousError) -> (CheckReport, CheckReport) {
+        classify_paths(&Err(error), Path::new(BASE), Path::new(SCOPE_DIR))
+    }
+
+    #[test]
+    fn unsafe_owner_mode_and_type_fail_with_established_presence() {
+        // Inspected invalid entries prove presence: exists:true + unsafe.
+        for error in [
+            RendezvousError::UnexpectedOwner {
+                path: BASE.into(),
+                expected: 1000,
+                actual: 0,
+            },
+            RendezvousError::UnexpectedMode {
+                path: BASE.into(),
+                expected: 0o700,
+                actual: 0o777,
+            },
+            RendezvousError::NotDirectory { path: BASE.into() },
+            RendezvousError::DirectorySymlink { path: BASE.into() },
+        ] {
+            let repr = format!("{error:?}");
+            let (base, directory) = classify(error);
+            assert_eq!(base.status, "fail", "{repr}");
+            assert_eq!(base.details["reason"], json!("unsafe"), "{repr}");
+            assert_eq!(base.details["exists"], json!(true), "{repr}");
+            assert_eq!(base.details["path"], json!(BASE), "{repr}");
+            assert_eq!(directory.status, "not-applicable", "{repr}");
+            assert!(directory.details.is_empty(), "{repr}");
+        }
+
+        // The same verdict at the scope directory flips which check fails.
+        let (base, directory) = classify(RendezvousError::UnexpectedMode {
+            path: SCOPE_DIR.into(),
+            expected: 0o700,
+            actual: 0o750,
+        });
+        assert_eq!(base.status, "pass");
+        assert_eq!(base.details["exists"], json!(true));
+        assert_eq!(directory.status, "fail");
+        assert_eq!(directory.details["reason"], json!("unsafe"));
+        assert_eq!(directory.details["exists"], json!(true));
+        assert_eq!(directory.details["path"], json!(SCOPE_DIR));
+    }
+
+    #[test]
+    fn invalid_paths_fail_without_an_established_exists() {
+        for error in [
+            RendezvousError::RuntimeBaseNotAbsolute {
+                path: "relative".into(),
+            },
+            RendezvousError::RuntimeBaseNotNormalized {
+                path: "/tmp/../tmp".into(),
+            },
+            RendezvousError::InvalidSiteScope,
+        ] {
+            let repr = format!("{error:?}");
+            let (base, directory) = classify(error);
+            assert_eq!(base.status, "fail", "{repr}");
+            assert_eq!(base.details["reason"], json!("invalid-path"), "{repr}");
+            // `exists` appears only when the path state was established.
+            assert!(base.details.get("exists").is_none(), "{repr}");
+            assert_eq!(directory.status, "not-applicable", "{repr}");
+            assert!(directory.details.is_empty(), "{repr}");
+        }
+    }
+
+    #[test]
+    fn absent_paths_report_exists_false_io_errors_omit_it() {
+        // An established absence is a fact: exists:false + reason absent.
+        let (base, _) = classify(RendezvousError::System {
+            operation: "test",
+            path: BASE.into(),
+            source: std::io::Error::from(std::io::ErrorKind::NotFound),
+        });
+        assert_eq!(base.status, "fail");
+        assert_eq!(base.details["reason"], json!("absent"));
+        assert_eq!(base.details["exists"], json!(false));
+
+        // The same absence at the scope directory is not-applicable, not a
+        // fault — but the established fact is still reported.
+        let (base, directory) = classify(RendezvousError::System {
+            operation: "test",
+            path: SCOPE_DIR.into(),
+            source: std::io::Error::from(std::io::ErrorKind::NotFound),
+        });
+        assert_eq!(base.status, "pass");
+        assert_eq!(directory.status, "not-applicable");
+        assert_eq!(directory.details["reason"], json!("absent"));
+        assert_eq!(directory.details["exists"], json!(false));
+
+        // A genuine I/O failure establishes nothing: `exists` is omitted.
+        for source in [
+            std::io::Error::from(std::io::ErrorKind::PermissionDenied),
+            std::io::Error::from_raw_os_error(5), // EIO
+        ] {
+            let (base, directory) = classify(RendezvousError::System {
+                operation: "test",
+                path: BASE.into(),
+                source,
+            });
+            assert_eq!(base.status, "fail");
+            assert_eq!(base.details["reason"], json!("io-error"));
+            assert!(base.details.get("exists").is_none());
+            assert_eq!(directory.status, "not-applicable");
+            assert!(directory.details.is_empty());
+        }
+    }
+
+    #[test]
+    fn non_utf8_paths_encode_as_path_bytes_hex() {
+        // The machine field is exact bytes, never a lossy display string.
+        let (key, value) = path_detail(Path::new("/tmp/utf8"));
+        assert_eq!(key, "path");
+        assert_eq!(value, json!("/tmp/utf8"));
+        let raw = std::ffi::OsStr::from_bytes(b"/tmp/\xff\xfe");
+        let (key, value) = path_detail(Path::new(raw));
+        assert_eq!(key, "pathBytesHex");
+        let hex: String = raw
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        assert_eq!(value, json!(hex));
+
+        // The same field lands in check details when the base itself is
+        // non-UTF-8.
+        let weird = PathBuf::from(raw);
+        let (base, _) = classify_paths(
+            &Err(RendezvousError::UnexpectedOwner {
+                path: weird.clone(),
+                expected: 1000,
+                actual: 0,
+            }),
+            &weird,
+            Path::new(SCOPE_DIR),
+        );
+        assert_eq!(base.status, "fail");
+        assert_eq!(base.details["pathBytesHex"], json!(hex));
+        assert!(base.details.get("path").is_none());
+    }
+
+    #[test]
+    fn cohort_report_maps_verifier_outcomes() {
+        // Pass requires a real validated cohort: stage the four artifacts
+        // plus a hash-true manifest, all owner-private.
+        let cohort = scratch("cohort-pass");
+        let mut artifacts = serde_json::Map::new();
+        for name in [
+            "orchbee",
+            "orchbee-server",
+            "orchbee-worker",
+            "orchbee-terminal-host",
+        ] {
+            let path = cohort.join(name);
+            fs::write(&path, format!("stand-in for {name}\n")).unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+            let digest = Sha256::digest(fs::read(&path).unwrap());
+            artifacts.insert(name.into(), format!("{digest:x}").into());
+        }
+        let manifest = cohort.join("cohort.json");
+        fs::write(
+            &manifest,
+            serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
+        )
+        .unwrap();
+        fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let report = cohort_report(NativeCohort::load(&cohort, deadline));
+        assert_eq!(report.status, "pass");
+        assert_eq!(report.details["verified"], json!(true));
+        fs::remove_dir_all(&cohort).ok();
+
+        // A missing manifest is an invalid-cohort failure, not a crash.
+        let empty = scratch("cohort-empty");
+        let report = cohort_report(NativeCohort::load(&empty, deadline));
+        assert_eq!(report.status, "fail");
+        assert_eq!(report.details["verified"], json!(false));
+        assert_eq!(report.details["reason"], json!("invalid-cohort"));
+        fs::remove_dir_all(&empty).ok();
+
+        // An already-spent deadline reports `deadline` before any I/O.
+        let report = cohort_report(NativeCohort::load(
+            Path::new("/nonexistent"),
+            Instant::now(),
+        ));
+        assert_eq!(report.status, "fail");
+        assert_eq!(report.details["reason"], json!("deadline"));
+    }
+
+    #[test]
+    fn locale_check_reports_the_selected_locale() {
+        let report = locale_check();
+        assert_eq!(report.status, "pass");
+        assert!(
+            ["en-US", "zh-CN"].contains(&report.details["locale"].as_str().unwrap()),
+            "locale: {}",
+            report.details["locale"]
+        );
+        assert!(
+            ["LC_ALL", "LC_MESSAGES", "LANG", "default"]
+                .contains(&report.details["source"].as_str().unwrap()),
+            "source: {}",
+            report.details["source"]
+        );
+    }
+
+    #[test]
+    fn socket_entry_maps_every_inspection_outcome() {
+        // Compliant socket: present + pass, aggregate pass bit.
+        let (entry, present, fail) = socket_entry(Some(&Ok(true)));
+        assert_eq!(entry["presence"], json!("present"));
+        assert_eq!(entry["status"], json!("pass"));
+        assert!(!entry.contains_key("reason"));
+        assert!(present && !fail);
+
+        // Established absence: absent + not-applicable.
+        let (entry, present, fail) = socket_entry(Some(&Ok(false)));
+        assert_eq!(entry["presence"], json!("absent"));
+        assert_eq!(entry["status"], json!("not-applicable"));
+        assert!(!present && !fail);
+
+        // The synthesized invalid-entry verdict stays present + fail + unsafe.
+        let (entry, present, fail) = socket_entry(Some(&Err(std::io::Error::from(
+            std::io::ErrorKind::PermissionDenied,
+        ))));
+        assert_eq!(entry["presence"], json!("present"));
+        assert_eq!(entry["status"], json!("fail"));
+        assert_eq!(entry["reason"], json!("unsafe"));
+        assert!(!present && fail);
+
+        // A real fstatat failure establishes nothing: presence is honestly
+        // unchecked, never a fabricated definitive field.
+        let (entry, present, fail) = socket_entry(Some(&Err(std::io::Error::from_raw_os_error(5))));
+        assert_eq!(entry["presence"], json!("unchecked"));
+        assert_eq!(entry["status"], json!("not-applicable"));
+        assert_eq!(entry["reason"], json!("io-error"));
+        assert!(!present && !fail);
+
+        // No runtime directory at all: unchecked + runtime-unavailable.
+        let (entry, present, fail) = socket_entry(None);
+        assert_eq!(entry["presence"], json!("unchecked"));
+        assert_eq!(entry["status"], json!("not-applicable"));
+        assert_eq!(entry["reason"], json!("runtime-unavailable"));
+        assert!(!present && !fail);
+    }
+
+    #[test]
+    fn socket_checks_aggregate_real_states() {
+        // No valid runtime directory: both entries unchecked.
+        let report = socket_checks(&Err(RendezvousError::System {
+            operation: "test",
+            path: BASE.into(),
+            source: std::io::Error::from(std::io::ErrorKind::NotFound),
+        }));
+        assert_eq!(report.status, "not-applicable");
+        for name in ["client", "worker"] {
+            assert_eq!(report.details[name]["presence"], json!("unchecked"));
+            assert_eq!(report.details[name]["reason"], json!("runtime-unavailable"));
+        }
+
+        // A real prepared scope without sockets: absent + not-applicable.
+        let base = scratch("sockets");
+        let site = || {
+            ModeCheckedLocalSiteRendezvous::validate_mode_checked(
+                &base,
+                SiteScope::parse("ob-test-sockets").unwrap(),
+            )
+            .expect("validated scope")
+        };
+        let scope_directory = ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
+            &base,
+            SiteScope::parse("ob-test-sockets").unwrap(),
+        )
+        .expect("prepared scope")
+        .runtime_directory()
+        .to_owned();
+        let report = socket_checks(&Ok(site()));
+        assert_eq!(report.status, "not-applicable");
+        assert_eq!(report.details["client"]["presence"], json!("absent"));
+        assert_eq!(report.details["worker"]["presence"], json!("absent"));
+
+        // One compliant socket passes the check.
+        let listener = UnixListener::bind(scope_directory.join("client.sock")).unwrap();
+        fs::set_permissions(
+            scope_directory.join("client.sock"),
+            fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+        let report = socket_checks(&Ok(site()));
+        assert_eq!(report.status, "pass");
+        assert_eq!(report.details["client"]["presence"], json!("present"));
+        assert_eq!(report.details["client"]["status"], json!("pass"));
+        assert_eq!(report.details["worker"]["presence"], json!("absent"));
+        drop(listener);
+
+        // An inspected invalid entry fails: a regular file is not a socket.
+        fs::remove_file(scope_directory.join("client.sock")).unwrap();
+        fs::write(scope_directory.join("client.sock"), b"not a socket").unwrap();
+        let report = socket_checks(&Ok(site()));
+        assert_eq!(report.status, "fail");
+        assert_eq!(report.details["client"]["presence"], json!("present"));
+        assert_eq!(report.details["client"]["status"], json!("fail"));
+        assert_eq!(report.details["client"]["reason"], json!("unsafe"));
+        assert_eq!(report.details["worker"]["presence"], json!("absent"));
+        fs::remove_dir_all(&base).ok();
     }
 }

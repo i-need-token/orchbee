@@ -97,6 +97,7 @@ impl FailureKind {
 }
 
 /// One typed CLI failure; `details` stays absent when the matrix omits it.
+#[derive(Debug)]
 pub(crate) struct Failure {
     pub(crate) kind: FailureKind,
     pub(crate) details: Option<Map<String, Value>>,

@@ -180,12 +180,16 @@ impl Fixture {
                 )),
             );
         }
+        let manifest = self.cohort.join("cohort.json");
         fs::write(
-            self.cohort.join("cohort.json"),
+            &manifest,
             serde_json::to_vec(&serde_json::json!({"schemaVersion":1,"artifacts":artifacts}))
                 .unwrap(),
         )
         .unwrap();
+        // NativeCohort rejects a group/other-accessible manifest; the process
+        // umask is not guaranteed to be 022.
+        fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600)).unwrap();
     }
 
     pub(super) fn runtime(&self) -> PathBuf {
