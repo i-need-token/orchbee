@@ -603,12 +603,12 @@ fn target_rules_follow_each_resource() {
         (&["panel", "get", ""][..], Resource::Panel, ""),
         (&["terminal", "get", "X234"][..], Resource::Terminal, "X234"),
         (&["terminal", "get", ZERO][..], Resource::Terminal, ZERO),
-        (&["terminal", "read", "label"][..], Resource::Terminal, "label"),
         (
-            &["terminal", "read", ""][..],
+            &["terminal", "read", "label"][..],
             Resource::Terminal,
-            "",
+            "label",
         ),
+        (&["terminal", "read", ""][..], Resource::Terminal, ""),
     ] {
         assert_eq!(
             parse(arguments),

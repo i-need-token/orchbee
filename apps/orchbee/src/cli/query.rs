@@ -20,22 +20,22 @@ use orchbee_local_site_runtime::{
     ModeCheckedLocalSiteRendezvous, NativeCohort, RendezvousError, SiteScope,
 };
 #[cfg(target_os = "linux")]
-use orchbee_terminal_protocol::{AttachmentId, HostEpoch};
+use orchbee_terminal_protocol::{AttachmentId, HostEpoch, TerminalTextFrame};
 #[cfg(target_os = "linux")]
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchRequestId, WorkbenchSnapshotOutcome,
 };
 
 #[cfg(target_os = "linux")]
-use super::results::{Projection, TerminalReadDoc};
+use super::results::Projection;
 #[cfg(target_os = "linux")]
 use super::{Failure, FailureKind, stage_details, stage_reason_details, target_details};
 #[cfg(target_os = "linux")]
 use crate::invocation::{Resource, Target};
 #[cfg(target_os = "linux")]
-use crate::local_client::{LocalClient, OutcomeUnknownReason, SubmissionError};
-#[cfg(target_os = "linux")]
 use crate::local_client::workbench::{SnapshotReadError, SnapshotReadFailure};
+#[cfg(target_os = "linux")]
+use crate::local_client::{LocalClient, OutcomeUnknownReason, SubmissionError};
 #[cfg(target_os = "linux")]
 use crate::terminal_projection::TerminalProjection;
 
@@ -65,10 +65,14 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
 pub(crate) fn read_terminal(target: &Target) -> Result<(serde_json::Value, Projection), Failure> {
     let (mut client, deadline, snapshot) = snapshot_session()?;
     let source = super::results::snapshot_source(&snapshot);
-    let outcome = read_terminal_doc(&mut client, deadline, &snapshot, target);
+    let outcome = read_terminal_frame(&mut client, deadline, &snapshot, target);
+    // The Client Session is fully dropped before the applied frame is mapped
+    // into the bounded document or any output is prepared.
     drop(client);
     match outcome {
-        Ok(doc) => Ok((source, Projection::TerminalRead(doc))),
+        Ok((row, frame)) => super::results::terminal_read_doc(row, &frame)
+            .map(|doc| (source.clone(), Projection::TerminalRead(doc)))
+            .map_err(|failure| failure.source(source)),
         // Every failure after this point had a validated snapshot: the
         // failure envelope may honestly cite it as the source.
         Err(failure) => Err(failure.source(source)),
@@ -130,16 +134,16 @@ fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Failure> {
 
 /// Resolve the typed binding from the snapshot, attach a read-only viewer to
 /// it, and drive attach → poll → feedback → detach inside the same deadline.
-/// The returned frame is projected into the bounded document; nothing here
-/// creates terminals, controllers, processes, or viewer state beyond this
-/// explicit read observation.
+/// The applied frame leaves the session so the caller can map it only after
+/// the transport is dropped; nothing here creates terminals, controllers,
+/// processes, or viewer state beyond this explicit read observation.
 #[cfg(target_os = "linux")]
-fn read_terminal_doc(
+fn read_terminal_frame(
     client: &mut LocalClient,
     deadline: Instant,
     snapshot: &Snapshot,
     target: &Target,
-) -> Result<TerminalReadDoc, Failure> {
+) -> Result<(super::results::TerminalRow, TerminalTextFrame), Failure> {
     let identity = match target {
         Target::Id(identity) => identity.as_str(),
         // The parser admits only typed IDs for terminal targets.
@@ -182,7 +186,7 @@ fn read_terminal_doc(
         TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
         _ => return Err(viewer_protocol_invalid()),
     };
-    let outcome = poll_terminal_frame(client, deadline, &viewer_id, projection, row);
+    let outcome = poll_terminal_frame(client, deadline, &viewer_id, projection);
     // The read observation is released no matter how polling ended; the
     // detach is best-effort because the session drop that follows already
     // guarantees teardown.
@@ -197,7 +201,7 @@ fn read_terminal_doc(
             deadline,
         );
     }
-    outcome
+    outcome.map(|frame| (row, frame))
 }
 
 /// Poll until one record applies to the projection, acknowledging a rejected
@@ -211,8 +215,7 @@ fn poll_terminal_frame(
     deadline: Instant,
     viewer_id: &ViewerId,
     mut projection: TerminalProjection,
-    row: super::results::TerminalRow,
-) -> Result<TerminalReadDoc, Failure> {
+) -> Result<TerminalTextFrame, Failure> {
     loop {
         let poll = TerminalViewerRequest::new(
             obcs_request_id()?,
@@ -230,14 +233,10 @@ fn poll_terminal_frame(
                     Ok(Some(feedback)) => {
                         if matches!(feedback, TerminalViewerAction::FrameApplied { .. }) {
                             return projection
-                                .frame()
-                                .ok_or_else(|| Failure::new(FailureKind::InternalFailure))
-                                .and_then(|frame| {
-                                    super::results::terminal_read_doc(row, frame)
-                                });
+                                .take_frame()
+                                .ok_or_else(|| Failure::new(FailureKind::InternalFailure));
                         }
-                        let request =
-                            TerminalViewerRequest::new(obcs_request_id()?, feedback);
+                        let request = TerminalViewerRequest::new(obcs_request_id()?, feedback);
                         let result = client
                             .submit_terminal_viewer_before(request, deadline)
                             .map_err(classify_viewer)?;

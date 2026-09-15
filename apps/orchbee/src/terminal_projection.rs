@@ -30,6 +30,11 @@ impl TerminalProjection {
     pub(crate) const fn frame(&self) -> Option<&TerminalTextFrame> {
         self.frame.as_ref()
     }
+    /// Hand the applied frame to a consumer that must outlive the
+    /// projection — the CLI read path maps it after the session drops.
+    pub(crate) fn take_frame(&mut self) -> Option<TerminalTextFrame> {
+        self.frame.take()
+    }
     #[cfg(test)]
     pub(crate) const fn blocked(&self) -> bool {
         self.frame.is_none()

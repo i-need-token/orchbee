@@ -58,16 +58,12 @@ impl Locale {
                         "The connection to the local Site was lost during the terminal read.\n"
                             .to_owned()
                     }
-                    (Self::ZhCn, true) => {
-                        "与本地 Site 的连接在终端读取期间中断。\n".to_owned()
-                    }
+                    (Self::ZhCn, true) => "与本地 Site 的连接在终端读取期间中断。\n".to_owned(),
                     (Self::EnUs, false) => {
                         "The connection to the local Site was lost before a snapshot arrived.\n"
                             .to_owned()
                     }
-                    (Self::ZhCn, false) => {
-                        "与本地 Site 的连接在快照返回前中断。\n".to_owned()
-                    }
+                    (Self::ZhCn, false) => "与本地 Site 的连接在快照返回前中断。\n".to_owned(),
                 }
             }
             FailureKind::ProtocolInvalid => match self {

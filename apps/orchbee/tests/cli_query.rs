@@ -20,14 +20,15 @@ use std::{
 use orchbee_client_server_protocol::{
     ClientMessage, HostEpoch, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerRequest, TerminalViewerResult, ViewerId, ViewerRejectedReason,
-    ViewerUnavailableReason, read_client_message, write_server_message,
+    ViewerSnapshotReason, ViewerUnavailableReason, read_client_message, write_server_message,
 };
 use orchbee_local_client_protocol::{
     LocalClientMessage, RejectionReason, read_message, write_message,
 };
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, Envelope, MessageRole, PayloadEncoding,
-    decode_terminal_text_frame, encode_transport_envelope, inspect_terminal_frame_route,
+    CURRENT_PROTOCOL_VERSION, Envelope, MessageRole, PayloadEncoding, ProjectionBlockReason,
+    ProjectionBlocked, ProjectionDemandControl, decode_terminal_text_frame,
+    encode_projection_demand_control, encode_transport_envelope, inspect_terminal_frame_route,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome,
@@ -1992,23 +1993,58 @@ fn completion_scripts_execute_in_bash_and_zsh() -> TestResult {
 const OBTF: &[u8] =
     include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin");
 
+const OBTF_ALT: &[u8] = include_bytes!(
+    "../../../packages/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin"
+);
+
 const TERMINAL_ID: &str = "00000000000000000000000000000001";
 
 /// The OBTF snapshot re-wrapped in its transport envelope — the byte payload a
 /// `terminal.viewer` `record` outcome carries on the wire.
 fn obtf_record() -> Vec<u8> {
-    let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
+    frame_record(OBTF)
+}
+
+/// Wrap any terminal-frame fixture in its transport envelope for a `record`
+/// outcome; both surface fixtures share the attachment/epoch identities.
+fn frame_record(obtf: &[u8]) -> Vec<u8> {
+    let route = inspect_terminal_frame_route(obtf).expect("fixture route");
     encode_transport_envelope(&Envelope {
         protocol: CURRENT_PROTOCOL_VERSION,
         role: MessageRole::Event,
-        kind: if OBTF[6] == 1 { 41 } else { 42 },
+        kind: if obtf[6] == 1 { 41 } else { 42 },
         payload_encoding: PayloadEncoding::TerminalFrame,
         host_epoch: Some(route.host_epoch),
         correlation_id: None,
         optional_message: false,
-        payload: OBTF,
+        payload: obtf,
     })
     .expect("fixture record")
+}
+
+/// A `ProjectionBlocked` control record (kind 49) for the fixture attachment:
+/// the host's signal that projection state below `revision` is unusable.
+fn blocked_record(revision: u64) -> Vec<u8> {
+    let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
+    let blocked = encode_projection_demand_control(&ProjectionDemandControl::ProjectionBlocked(
+        ProjectionBlocked {
+            attachment_id: route.attachment_id,
+            reason: ProjectionBlockReason::ProjectionTooLarge,
+            revision,
+        },
+    ))
+    .expect("encode blocked");
+    encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Event,
+        kind: blocked.kind,
+        payload_encoding: PayloadEncoding::ControlJson,
+        host_epoch: Some(route.host_epoch),
+        correlation_id: None,
+        optional_message: false,
+        payload: &blocked.payload,
+    })
+    .expect("blocked record")
 }
 
 /// The attach identity the fixture frame carries: the viewer outcome must
@@ -2028,7 +2064,11 @@ fn viewer_request(stream: &UnixStream) -> TerminalViewerRequest {
     }
 }
 
-fn viewer_reply(stream: &UnixStream, request: &TerminalViewerRequest, outcome: TerminalViewerOutcome) {
+fn viewer_reply(
+    stream: &UnixStream,
+    request: &TerminalViewerRequest,
+    outcome: TerminalViewerOutcome,
+) {
     write_server_message(
         &mut &*stream,
         &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
@@ -2041,7 +2081,10 @@ fn viewer_reply(stream: &UnixStream, request: &TerminalViewerRequest, outcome: T
 
 /// Answer the admission and snapshot stages, then hand the stream to `script`
 /// for the viewer stage of a `terminal read` run.
-fn read_peer(scope: &Path, script: impl Fn(&UnixStream) + Send + 'static) -> thread::JoinHandle<()> {
+fn read_peer(
+    scope: &Path,
+    script: impl Fn(&UnixStream) + Send + 'static,
+) -> thread::JoinHandle<()> {
     spawn_peer(scope, move |stream| {
         admit(&stream);
         let request_id = read_snapshot_request(&stream);
@@ -2115,7 +2158,11 @@ fn terminal_read_observes_a_bound_terminal() -> TestResult {
         let request = take_poll(stream, &attachment);
         viewer_reply(stream, &request, TerminalViewerOutcome::Empty {});
         let request = take_poll(stream, &attachment);
-        viewer_reply(stream, &request, TerminalViewerOutcome::Record(record.clone()));
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
         answer_detach(stream, &attachment);
     });
     let output = run(
@@ -2136,10 +2183,7 @@ fn terminal_read_observes_a_bound_terminal() -> TestResult {
     assert_eq!(document["source"]["revision"], "7");
     let route = inspect_terminal_frame_route(OBTF)?;
     let frame = &document["result"]["frame"];
-    assert_eq!(
-        document["result"]["terminal"]["terminalId"],
-        TERMINAL_ID
-    );
+    assert_eq!(document["result"]["terminal"]["terminalId"], TERMINAL_ID);
     assert_eq!(frame["sequence"], route.sequence.get().to_string());
     assert_eq!(frame["generation"], route.generation.get().to_string());
     assert_eq!(frame["revision"], route.revision.to_string());
@@ -2149,16 +2193,41 @@ fn terminal_read_observes_a_bound_terminal() -> TestResult {
     let content = &document["result"]["content"];
     assert_eq!(content["truncated"], false);
     assert_eq!(content["omittedRows"], 0);
-    assert_eq!(content["rowCount"], content["rows"].as_array().unwrap().len());
-    assert!(
-        !content["rows"].as_array().unwrap().is_empty(),
-        "the fixture grid emits rows"
-    );
+    // The fixture grid is known exactly: joined cell text, wide-cell spacer
+    // collapse, trailing-padding trim, and the row0↔row1 wrap pair — bit 0 is
+    // intoNext on row 0, bit 1 is fromPrevious on row 1.
+    let expected_rows: [(u64, &str, bool, bool); 6] = [
+        (0, "A中e\u{301}👩🏽\u{200d}💻x", false, true),
+        (1, "界", true, false),
+        (2, "H", false, false),
+        (3, "FBITVKOS", false, false),
+        (4, "12345UDE", false, false),
+        (5, "^P.", false, false),
+    ];
+    let emitted = content["rows"].as_array().unwrap();
+    assert_eq!(content["rowCount"], emitted.len());
+    assert_eq!(emitted.len(), expected_rows.len());
+    for (row, (index, text, from_previous, into_next)) in emitted.iter().zip(expected_rows.iter()) {
+        assert_eq!(row["index"], *index, "row index");
+        assert_eq!(row["text"], *text, "row {index} text");
+        assert_eq!(
+            row["continuation"]["fromPrevious"], *from_previous,
+            "row {index} fromPrevious"
+        );
+        assert_eq!(
+            row["continuation"]["intoNext"], *into_next,
+            "row {index} intoNext"
+        );
+    }
     // The emitted envelope validates against its own advertised schema.
     let schema = compiled_schema(&base, "orchbee.terminal.read");
     assert!(schema.is_valid(&document), "read document: {document}");
     // Nothing but the peer's socket may exist inside the scope afterward.
-    assert_eq!(scope.read_dir()?.count(), 1, "read must not write the scope");
+    assert_eq!(
+        scope.read_dir()?.count(),
+        1,
+        "read must not write the scope"
+    );
     Ok(())
 }
 
@@ -2170,7 +2239,11 @@ fn terminal_read_text_output_escapes_grid_content() -> TestResult {
     let peer = read_peer(&scope, move |stream| {
         let attachment = attach_with_fixture(stream);
         let request = take_poll(stream, &attachment);
-        viewer_reply(stream, &request, TerminalViewerOutcome::Record(record.clone()));
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
         answer_detach(stream, &attachment);
     });
     let output = run(&base, &["terminal", "read", TERMINAL_ID]);
@@ -2276,10 +2349,9 @@ fn terminal_read_correlation_mismatch_is_protocol_invalid() -> TestResult {
     let scope = stage_scope(&base);
     let peer = read_peer(&scope, |stream| {
         let request = viewer_request(stream);
-        let wrong = orchbee_client_server_protocol::RequestId::parse(
-            "0000000000000000000000000000000f",
-        )
-        .expect("valid request id");
+        let wrong =
+            orchbee_client_server_protocol::RequestId::parse("0000000000000000000000000000000f")
+                .expect("valid request id");
         let (attachment, epoch) = attached_identity();
         write_server_message(
             &mut &*stream,
@@ -2355,5 +2427,77 @@ fn terminal_read_malformed_record_is_protocol_invalid() -> TestResult {
     let failure = failure_kind(&output);
     assert_eq!(failure["failure"]["kind"], "protocol-invalid");
     assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+#[test]
+fn terminal_read_recovers_through_need_snapshot_feedback() -> TestResult {
+    let base = base_dir("tread-needsnap");
+    let scope = stage_scope(&base);
+    let blocked = blocked_record(1);
+    let stale = obtf_record();
+    let recovery = frame_record(OBTF_ALT);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        // A blocked control record is consumed without feedback.
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(blocked.clone()),
+        );
+        // A frame at/below the blocked revision decodes but cannot apply:
+        // the projection must answer with NeedSnapshot recovery feedback.
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(stale.clone()),
+        );
+        let request = viewer_request(stream);
+        match request.action() {
+            TerminalViewerAction::NeedSnapshot {
+                attachment_id,
+                sequence,
+                reason,
+            } => {
+                assert_eq!(attachment_id, &attachment);
+                assert_eq!(sequence.get(), 1);
+                assert_eq!(*reason, ViewerSnapshotReason::BaseMismatch);
+            }
+            action => panic!("peer expected need-snapshot feedback, got {action:?}"),
+        }
+        viewer_reply(stream, &request, TerminalViewerOutcome::FeedbackAccepted {});
+        // Recovery: a fresh snapshot at a newer sequence applies cleanly.
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(recovery.clone()),
+        );
+        answer_detach(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    // The applied frame is the recovery snapshot: the alternate fixture's
+    // routing counters (sequence 2, generation 2, revision 2).
+    let route = inspect_terminal_frame_route(OBTF_ALT)?;
+    let frame = &document["result"]["frame"];
+    assert_eq!(frame["sequence"], route.sequence.get().to_string());
+    assert_eq!(frame["generation"], route.generation.get().to_string());
+    assert_eq!(frame["revision"], route.revision.to_string());
+    let schema = compiled_schema(&base, "orchbee.terminal.read");
+    assert!(schema.is_valid(&document), "read document: {document}");
     Ok(())
 }

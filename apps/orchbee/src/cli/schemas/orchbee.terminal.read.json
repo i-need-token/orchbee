@@ -93,7 +93,7 @@
 				},
 				"rowCount": { "type": "integer", "minimum": 1, "maximum": 4096 },
 				"truncated": { "type": "boolean" },
-				"omittedRows": { "type": "integer", "minimum": 0, "maximum": 4095 },
+				"omittedRows": { "type": "integer", "minimum": 0, "maximum": 4096 },
 				"limits": {
 					"type": "object",
 					"required": ["rows", "textBytes"],

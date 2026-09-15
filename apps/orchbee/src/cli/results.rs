@@ -233,8 +233,8 @@ pub(crate) fn terminal_read_doc(
         while text.ends_with(' ') {
             text.pop();
         }
-        let encoded = serde_json::to_string(&text)
-            .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+        let encoded =
+            serde_json::to_string(&text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
         if encoded.len() > budget {
             break;
         }
@@ -242,8 +242,11 @@ pub(crate) fn terminal_read_doc(
         rows.push(TerminalContentRow {
             index: row.index,
             text,
-            from_previous: row.flags & 1 != 0,
-            into_next: row.flags & 2 != 0,
+            // Wire bits: bit 0 is `wrap` (this row continues into the next),
+            // bit 1 is `wrap_continuation` (this row continues from the
+            // previous); the decoder pairs them across adjacent rows.
+            from_previous: row.flags & 2 != 0,
+            into_next: row.flags & 1 != 0,
         });
     }
     let doc = TerminalFrameDoc {
