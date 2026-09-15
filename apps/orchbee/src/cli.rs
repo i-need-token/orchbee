@@ -95,8 +95,9 @@ impl FailureKind {
             Self::InvalidUsage | Self::InvalidIdentifier => 2,
             Self::NotFound | Self::Ambiguous | Self::Denied | Self::Rejected => 3,
             Self::ServiceUnavailable | Self::SessionCapacity => 4,
-            Self::TransportLoss | Self::ProtocolInvalid | Self::OutcomeUnknown => 5,
+            Self::TransportLoss | Self::ProtocolInvalid => 5,
             Self::Incompatible => 6,
+            Self::OutcomeUnknown => 8,
             Self::CheckFailed | Self::InternalFailure | Self::OutputTooLarge => 1,
         }
     }

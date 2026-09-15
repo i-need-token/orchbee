@@ -449,13 +449,13 @@
 				},
 				{
 					"type": "object",
-					"required": ["kind", "siteId", "requestId", "baseRevision"],
+					"required": ["kind", "siteId", "requestId", "expectedRevision"],
 					"additionalProperties": false,
 					"properties": {
 						"kind": { "const": "workbench-command" },
 						"siteId": { "$ref": "#/$defs/id" },
 						"requestId": { "$ref": "#/$defs/id" },
-						"baseRevision": { "$ref": "#/$defs/revision" }
+						"expectedRevision": { "$ref": "#/$defs/revision" }
 					}
 				},
 				{

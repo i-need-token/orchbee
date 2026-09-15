@@ -197,7 +197,7 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
 - `source.kind="workbench-command"`：带 `siteId`、`requestId` 与十进制字符串
-  `baseRevision`——已产出的 mutation 结果，以及有效读取之后 command 阶段的失败。
+  `expectedRevision`——已产出的 mutation 结果，以及有效读取之后 command 阶段的失败。
 - `source.kind="embedded"`：随二进制编译内嵌的 schema 字典（`api schema` 结果及其
   `not-found` 失败）。
 - `source.kind="local-runtime"`：已产出的 `config check` 结果。
@@ -299,7 +299,7 @@ revision 比对，不符即拒绝且不应用任何效果，故"读取一次并�
 - **Server 持有 revision。** `expectedRevision` 永远来自解析出全部 target 的同一份已验证
   快照——绝不猜测、绝不由客户端自增、绝不复用。
 - **绝不自动重放。** 提交后结果不可判定的情形——写丢失、响应丢失/畸形/correlation 不符、
-  或答案未通过校验——会 retire 该 session 并以 `outcome-unknown`（退出 5）呈现。命令可能
+  或答案未通过校验——会 retire 该 session 并以 `outcome-unknown`（退出 8）呈现。命令可能
   已应用也可能未应用；绝不重发。本地化诊断会明确说明这一点，并指示操作员先检查
   Workbench 状态（`status`、`tab list`、`panel list` 等）再决定是否重复该命令。
 - **关闭确认。** `tab close` 与 `panel close` 是破坏性操作；解析器要求显式 `--confirm`
@@ -316,7 +316,7 @@ move——报告当前 revision；`accepted`——两条 close——报告 `acce
 维度都是 `u16`，并在任何运行时访问之前经协议 `WorkbenchTerminalGeometry` 校验。
 
 Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:1`，
-`source:{kind:"workbench-command",siteId,requestId,baseRevision}`，`result` 携带 `action`
+`source:{kind:"workbench-command",siteId,requestId,expectedRevision}`，`result` 携带 `action`
 （点分命令名）、`outcome`、该结果的 revision 字段、已解析 typed ID，以及命令具备时的
 `direction`/`label`/`terminal`。文本输出按与查询相同的转义规则逐行渲染同样字段。
 
@@ -327,8 +327,8 @@ Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:1`，
 
 退出码：0 成功（含空表）；1 本地配置/输出/内部确定失败；2 usage/非法 target；3
 not-found/ambiguous/denied/rejected；4 service-unavailable（含 `session-capacity`）；5
-transport-loss/protocol-invalid/outcome-unknown；6 incompatible；130 默认 SIGINT 语义。
-7/8 保留且在本切片内不可达。
+transport-loss/protocol-invalid；6 incompatible；8 outcome-unknown；130 默认 SIGINT 语义。
+7 保留且在本切片内不可达。
 
 | 来源                                                              | `failure.kind`                                          | 退出               | `details`                                          |
 | ----------------------------------------------------------------- | ------------------------------------------------------- | ------------------ | -------------------------------------------------- |
@@ -362,7 +362,7 @@ transport-loss/protocol-invalid/outcome-unknown；6 incompatible；130 默认 SI
 | command `Rejected` precommit                                      | `rejected`                                              | 3                  | `{stage:"command",reason,revision}`                |
 | command `Denied` precommit                                        | `denied`                                                | 3                  | 省略                                               |
 | command `Unavailable` precommit                                   | `service-unavailable`                                   | 4                  | `{stage:"command",reason}`                         |
-| `OutcomeUnknown`（任意原因）                                      | `outcome-unknown`                                       | 5                  | `{stage:"command",requestId,reason}`               |
+| `OutcomeUnknown`（任意原因）                                      | `outcome-unknown`                                       | 8                  | `{stage:"command",requestId,reason}`               |
 | 预备输出超 8 MiB                                                  | `output-too-large`                                      | 1                  | `{limitBytes:8388608}`                             |
 | stdout 写/flush 失败                                              | `output-failed`                                         | 1                  | 不追加第二份 stdout 文档                           |
 | `config check` 完成但存在失败项                                   | 成功 schema `ok:false`                                  | 1                  | 五项全部保留                                       |

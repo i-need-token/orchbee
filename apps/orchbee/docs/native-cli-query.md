@@ -227,7 +227,8 @@ Success envelopes are `{schema, version:1, source, result}`:
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
 - `source.kind="workbench-command"` with `siteId`, `requestId`, and decimal-string
-  `baseRevision` — produced mutation results, and command-stage failures after a valid read.
+  `expectedRevision` — produced mutation results, and command-stage failures after a valid
+  read.
 - `source.kind="embedded"` — the compiled-in schema dictionary (`api schema` results and its
   `not-found` failure).
 - `source.kind="local-runtime"` — produced `config check` results.
@@ -339,7 +340,7 @@ Safety contract:
   snapshot that resolved the targets — never guessed, incremented client-side, or reused.
 - **No automatic replay.** An ambiguous post-submission outcome — lost write, lost,
   malformed, or miscorrelated response, or an answer that fails validation — retires the
-  session and surfaces as `outcome-unknown` (exit 5). The command may or may not have been
+  session and surfaces as `outcome-unknown` (exit 8). The command may or may not have been
   applied; it is never resent. The localized diagnostic says so and directs the operator to
   inspect Workbench state (`status`, `tab list`, `panel list`, …) before deciding whether
   to repeat the command.
@@ -360,7 +361,7 @@ Geometry is always explicit: a non-TTY invocation cannot inherit terminal dimens
 bounded by the protocol `WorkbenchTerminalGeometry` validation before any runtime access.
 
 Mutation results use `schema:"orchbee.mutation.result"`, `version:1`, with
-`source:{kind:"workbench-command",siteId,requestId,baseRevision}` and a `result` carrying
+`source:{kind:"workbench-command",siteId,requestId,expectedRevision}` and a `result` carrying
 `action` (the dotted command name), `outcome`, the outcome's revision fields, the resolved
 typed IDs, and `direction`/`label`/`terminal` where the command has them. Text output
 renders the same fields one per line under the same escaping rules as queries.
@@ -373,8 +374,8 @@ every remote operation.
 
 Exit codes: 0 success (empty lists included); 1 local config/output/internal determinate failure;
 2 usage/invalid target; 3 not-found/ambiguous/denied/rejected; 4 service-unavailable (including
-`session-capacity`); 5 transport-loss/protocol-invalid/outcome-unknown; 6 incompatible; 130
-default SIGINT semantics. 7/8 stay reserved and unreachable in this slice.
+`session-capacity`); 5 transport-loss/protocol-invalid; 6 incompatible; 8 outcome-unknown; 130
+default SIGINT semantics. 7 stays reserved and unreachable in this slice.
 
 | Source                                                                        | `failure.kind`                                           | exit               | `details`                                          |
 | ----------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------ | -------------------------------------------------- |
@@ -408,7 +409,7 @@ default SIGINT semantics. 7/8 stay reserved and unreachable in this slice.
 | command `Rejected` precommit                                                  | `rejected`                                               | 3                  | `{stage:"command",reason,revision}`                |
 | command `Denied` precommit                                                    | `denied`                                                 | 3                  | omitted                                            |
 | command `Unavailable` precommit                                               | `service-unavailable`                                    | 4                  | `{stage:"command",reason}`                         |
-| `OutcomeUnknown` (any reason)                                                 | `outcome-unknown`                                        | 5                  | `{stage:"command",requestId,reason}`               |
+| `OutcomeUnknown` (any reason)                                                 | `outcome-unknown`                                        | 8                  | `{stage:"command",requestId,reason}`               |
 | prepared output over 8 MiB                                                    | `output-too-large`                                       | 1                  | `{limitBytes:8388608}`                             |
 | stdout write/flush failure                                                    | `output-failed`                                          | 1                  | no second stdout document                          |
 | `config check` finishes with failures                                         | success schema `ok:false`                                | 1                  | all five checks preserved                          |

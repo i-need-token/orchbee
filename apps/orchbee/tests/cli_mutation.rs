@@ -475,7 +475,7 @@ fn workspace_create_commits_under_a_fresh_request() -> TestResult {
     assert_eq!(document["version"], 1);
     assert_eq!(document["source"]["kind"], "workbench-command");
     assert_eq!(document["source"]["siteId"], SITE);
-    assert_eq!(document["source"]["baseRevision"], "7");
+    assert_eq!(document["source"]["expectedRevision"], "7");
     assert_eq!(document["result"]["action"], "workspace.create");
     assert_eq!(document["result"]["outcome"], "committed");
     assert_eq!(document["result"]["revision"], "8");
@@ -1000,6 +1000,72 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
     Ok(())
 }
 
+/// A move that lands where the target already is comes back `unchanged` with
+/// the Server's own revision — the same definite arm `workspace rename`
+/// already covers.
+#[test]
+fn tab_and_panel_move_report_unchanged() -> TestResult {
+    let base = base_dir("move-unchanged");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer_n(&scope, 2, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        match &command.action {
+            WorkbenchAction::TabMove { direction, .. } => assert_eq!(
+                *direction,
+                orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next
+            ),
+            WorkbenchAction::PanelMove { direction, .. } => assert_eq!(
+                *direction,
+                orchbee_workbench_protocol::WorkbenchPanelSplitDirection::Above
+            ),
+            other => panic!("unexpected action {other:?}"),
+        }
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Unchanged {
+                revision: revision(7),
+            },
+        );
+    });
+
+    let tab_moved = run(
+        &base,
+        &["tab", "move", "ops", "--direction", "next", "--format=json"],
+    );
+    assert_eq!(tab_moved.status.code(), Some(0));
+    let document = envelope(&tab_moved);
+    assert_eq!(document["result"]["action"], "tab.move");
+    assert_eq!(document["result"]["outcome"], "unchanged");
+    assert_eq!(document["result"]["revision"], "7");
+    assert_eq!(document["result"]["direction"], "next");
+    assert_eq!(document["result"]["tabId"], OPS_TAB);
+    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+
+    let panel_moved = run(
+        &base,
+        &[
+            "panel",
+            "move",
+            LEFT_PANEL,
+            "--target-panel",
+            RIGHT_PANEL,
+            "--direction",
+            "above",
+            "--format=json",
+        ],
+    );
+    assert_eq!(panel_moved.status.code(), Some(0));
+    let document = envelope(&panel_moved);
+    assert_eq!(document["result"]["action"], "panel.move");
+    assert_eq!(document["result"]["outcome"], "unchanged");
+    assert_eq!(document["result"]["revision"], "7");
+    assert_eq!(document["result"]["direction"], "above");
+    peer.join().expect("peer finished");
+    Ok(())
+}
+
 // ---- definite negative outcomes ---------------------------------------------
 
 #[test]
@@ -1137,7 +1203,7 @@ fn dropped_response_is_outcome_unknown_without_replay() -> TestResult {
         &["tab", "rename", "ops", "--label", "x", "--format=json"],
     );
     peer.join().expect("peer finished");
-    assert_eq!(output.status.code(), Some(5));
+    assert_eq!(output.status.code(), Some(8));
     let document = envelope(&output);
     assert_eq!(document["failure"]["kind"], "outcome-unknown");
     assert_eq!(document["failure"]["details"]["stage"], "command");
@@ -1175,7 +1241,7 @@ fn malformed_and_miscorrelated_responses_are_outcome_unknown() -> TestResult {
     });
     let output = run(&base, &["tab", "move", "ops", "--direction", "next", "--format=json"]);
     malformed_peer.join().expect("peer finished");
-    assert_eq!(output.status.code(), Some(5));
+    assert_eq!(output.status.code(), Some(8));
     let document = envelope(&output);
     assert_eq!(document["failure"]["kind"], "outcome-unknown");
     assert_eq!(document["failure"]["details"]["reason"], "response-invalid");
@@ -1188,7 +1254,7 @@ fn malformed_and_miscorrelated_responses_are_outcome_unknown() -> TestResult {
     });
     let output = run(&base, &["tab", "move", "ops", "--direction", "next", "--format=json"]);
     mismatch_peer.join().expect("peer finished");
-    assert_eq!(output.status.code(), Some(5));
+    assert_eq!(output.status.code(), Some(8));
     let document = envelope(&output);
     assert_eq!(document["failure"]["kind"], "outcome-unknown");
     assert_eq!(
@@ -1217,7 +1283,7 @@ fn wrong_response_kind_is_outcome_unknown() -> TestResult {
         &["workspace", "rename", "main", "--label", "x", "--format=json"],
     );
     peer.join().expect("peer finished");
-    assert_eq!(output.status.code(), Some(5));
+    assert_eq!(output.status.code(), Some(8));
     let document = envelope(&output);
     assert_eq!(document["failure"]["kind"], "outcome-unknown");
     assert_eq!(
@@ -1251,7 +1317,7 @@ fn incompatible_outcome_is_outcome_unknown() -> TestResult {
         &["tab", "rename", "ops", "--label", "x", "--format=json"],
     );
     peer.join().expect("peer finished");
-    assert_eq!(output.status.code(), Some(5));
+    assert_eq!(output.status.code(), Some(8));
     let document = envelope(&output);
     assert_eq!(document["failure"]["kind"], "outcome-unknown");
     assert_eq!(

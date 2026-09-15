@@ -189,7 +189,7 @@ fn command_source(site_id: &str, request_id: &str, base: WorkbenchRevision) -> V
         "kind": "workbench-command",
         "siteId": site_id,
         "requestId": request_id,
-        "baseRevision": base,
+        "expectedRevision": base,
     })
 }
 
@@ -553,6 +553,8 @@ mod linux {
         snapshot: &'a Snapshot,
         target: &Target,
     ) -> Result<(&'a TerminalContext, &'a Tab, WorkbenchPanelId), Failure> {
+        // The grammar admits only typed IDs for `Resource::Panel` targets, so
+        // a non-`Id` target cannot arrive here; keep the arm defensive anyway.
         let Target::Id(identity) = target else {
             return Err(Failure::new(FailureKind::InternalFailure));
         };
@@ -567,6 +569,8 @@ mod linux {
     }
 
     fn resolve_panel_in(tab: &Tab, target: &Target) -> Result<WorkbenchPanelId, Failure> {
+        // Same typed-ID-only invariant as `resolve_panel`: unreachable unless
+        // the parser's panel target rule ever widens.
         let Target::Id(identity) = target else {
             return Err(Failure::new(FailureKind::InternalFailure));
         };
@@ -1152,6 +1156,217 @@ mod linux {
                     },
                     Err(output::TooLarge) => too_large(),
                 }
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        //! Table-driven witnesses for the mapping arms a scripted peer cannot
+        //! stage deterministically: pre-handoff refusals, the per-variant
+        //! unknown-reason tokens, and every terminal outcome arm.
+
+        use std::io;
+
+        use orchbee_workbench_protocol::{
+            WorkbenchTabCloseAttemptGeneration, WorkbenchTabId,
+            WorkbenchTerminalContextId, WorkbenchTerminalGeometry,
+        };
+
+        use super::*;
+
+        fn io_error() -> io::Error {
+            io::Error::new(io::ErrorKind::ConnectionReset, "scripted")
+        }
+
+        fn id32(value: u64) -> String {
+            format!("{value:032x}")
+        }
+
+        fn request(value: u64) -> WorkbenchRequestId {
+            WorkbenchRequestId::parse(&id32(value)).unwrap()
+        }
+
+        #[test]
+        fn not_submitted_maps_only_request_to_transport_loss() {
+            let cases = [
+                (NotSubmitted::SessionUnavailable, FailureKind::InternalFailure),
+                (NotSubmitted::RequestEncoding, FailureKind::InternalFailure),
+                (NotSubmitted::Request, FailureKind::TransportLoss),
+            ];
+            for (reason, kind) in cases {
+                let failure = not_submitted_failure(reason);
+                assert_eq!(failure.kind, kind);
+                match kind {
+                    FailureKind::TransportLoss => {
+                        assert_eq!(
+                            failure.details.as_ref().unwrap()["stage"],
+                            json!("command")
+                        );
+                    }
+                    _ => assert!(failure.details.is_none()),
+                }
+            }
+        }
+
+        #[test]
+        fn unknown_failure_carries_stage_request_and_reason() {
+            let request = request(0x77);
+            let failure = unknown_failure(request.clone(), "response-loss");
+            assert_eq!(failure.kind, FailureKind::OutcomeUnknown);
+            let details = failure.details.unwrap();
+            assert_eq!(details["stage"], json!("command"));
+            assert_eq!(details["requestId"], json!(request.as_str()));
+            assert_eq!(details["reason"], json!("response-loss"));
+        }
+
+        /// Every `reason()` arm on one full reason enum plus the close
+        /// families' extra verdict-mismatch variants: the tokens are the same
+        /// closed vocabulary the failure schema enumerates.
+        #[test]
+        fn unknown_reason_tokens_cover_every_classification_arm() {
+            let cases: Vec<(WorkbenchTabMoveOutcomeUnknownReason, &str)> = vec![
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::Write(io_error()),
+                    "write-failure",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::Response(WorkbenchWireError::Io(
+                        io_error(),
+                    )),
+                    "response-loss",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::ResponseDeadline(io_error()),
+                    "response-loss",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::Response(
+                        WorkbenchWireError::InvalidHeader,
+                    ),
+                    "response-invalid",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::UnexpectedResponse,
+                    "response-invalid",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::CorrelationMismatch {
+                        expected: request(0x42),
+                        received: request(0x99),
+                    },
+                    "correlation-mismatch",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::ActionIncompatible,
+                    "action-incompatible",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::ExpectedRevisionOverflow {
+                        expected: WorkbenchRevision::new(u64::MAX),
+                    },
+                    "validation-failed",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::RevisionMismatch {
+                        expected: WorkbenchRevision::new(1),
+                        received: WorkbenchRevision::new(2),
+                    },
+                    "validation-failed",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::TerminalContextMismatch {
+                        expected: WorkbenchTerminalContextId::parse(&id32(1)).unwrap(),
+                        received: WorkbenchTerminalContextId::parse(&id32(2)).unwrap(),
+                    },
+                    "validation-failed",
+                ),
+                (
+                    WorkbenchTabMoveOutcomeUnknownReason::TabMismatch {
+                        expected: WorkbenchTabId::parse(&id32(3)).unwrap(),
+                        received: WorkbenchTabId::parse(&id32(4)).unwrap(),
+                    },
+                    "validation-failed",
+                ),
+            ];
+            for (reason, expected) in cases {
+                assert_eq!(reason.reason(), expected, "{reason}");
+            }
+
+            // The close families' extra verdict-mismatch variants all land in
+            // the same catch-all bucket.
+            let close_cases: Vec<(WorkbenchTabCloseFailure, &str)> = vec![
+                (WorkbenchTabCloseFailure::Write(io_error()), "write-failure"),
+                (
+                    WorkbenchTabCloseFailure::SiteMismatch {
+                        expected: SiteId::parse(&id32(5)).unwrap(),
+                        received: SiteId::parse(&id32(6)).unwrap(),
+                    },
+                    "validation-failed",
+                ),
+                (
+                    WorkbenchTabCloseFailure::OperationMismatch {
+                        expected: request(0x11),
+                        received: request(0x22),
+                    },
+                    "validation-failed",
+                ),
+                (
+                    WorkbenchTabCloseFailure::AcceptedRevisionMismatch {
+                        admitted: WorkbenchRevision::new(4),
+                        received: WorkbenchRevision::new(5),
+                    },
+                    "validation-failed",
+                ),
+                (
+                    WorkbenchTabCloseFailure::AttemptGenerationMismatch {
+                        expected: WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+                        received: WorkbenchTabCloseAttemptGeneration::new(2).unwrap(),
+                    },
+                    "validation-failed",
+                ),
+            ];
+            for (reason, expected) in close_cases {
+                assert_eq!(reason.reason(), expected, "{reason}");
+            }
+        }
+
+        #[test]
+        fn terminal_fact_covers_every_outcome_arm() {
+            let geometry = WorkbenchTerminalGeometry::new(80, 24, 9, 18).unwrap();
+            let cases = vec![
+                (
+                    WorkbenchTerminalOutcome::Started { geometry },
+                    ("started", None, true),
+                ),
+                (
+                    WorkbenchTerminalOutcome::Unavailable {
+                        reason: WorkbenchTerminalUnavailableReason::TerminalRuntimeUnavailable,
+                    },
+                    ("unavailable", Some("terminal-runtime-unavailable"), false),
+                ),
+                (
+                    WorkbenchTerminalOutcome::Unavailable {
+                        reason: WorkbenchTerminalUnavailableReason::ServerBusy,
+                    },
+                    ("unavailable", Some("server-busy"), false),
+                ),
+                (
+                    WorkbenchTerminalOutcome::Failed {
+                        reason: WorkbenchTerminalFailureReason::TerminalCreateFailed,
+                    },
+                    ("failed", Some("terminal-create-failed"), false),
+                ),
+                (
+                    WorkbenchTerminalOutcome::OutcomeUnknown {},
+                    ("unknown", None, false),
+                ),
+            ];
+            for (outcome, (expected_outcome, expected_reason, has_geometry)) in cases {
+                let fact = terminal_fact(&outcome);
+                assert_eq!(fact.outcome, expected_outcome, "{outcome:?}");
+                assert_eq!(fact.reason, expected_reason, "{outcome:?}");
+                assert_eq!(fact.geometry.is_some(), has_geometry, "{outcome:?}");
             }
         }
     }
