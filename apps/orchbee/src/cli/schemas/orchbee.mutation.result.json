@@ -1,0 +1,121 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.mutation.result",
+	"title": "orchbee workbench mutation result envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.mutation.result" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/commandSource" },
+		"result": {
+			"type": "object",
+			"required": ["action", "outcome"],
+			"additionalProperties": false,
+			"properties": {
+				"action": {
+					"enum": [
+						"panel.close",
+						"panel.move",
+						"panel.split",
+						"tab.close",
+						"tab.create",
+						"tab.move",
+						"tab.rename",
+						"workspace.create",
+						"workspace.rename"
+					]
+				},
+				"outcome": { "enum": ["accepted", "committed", "unchanged"] },
+				"revision": { "$ref": "#/$defs/revision" },
+				"acceptedRevision": { "$ref": "#/$defs/revision" },
+				"closeRequestId": { "$ref": "#/$defs/id" },
+				"projectId": { "$ref": "#/$defs/id" },
+				"workspaceId": { "$ref": "#/$defs/id" },
+				"terminalContextId": { "$ref": "#/$defs/id" },
+				"tabId": { "$ref": "#/$defs/id" },
+				"panelId": { "$ref": "#/$defs/id" },
+				"newPanelId": { "$ref": "#/$defs/id" },
+				"targetPanelId": { "$ref": "#/$defs/id" },
+				"splitId": { "$ref": "#/$defs/id" },
+				"firstSlotId": { "$ref": "#/$defs/id" },
+				"secondSlotId": { "$ref": "#/$defs/id" },
+				"presentationId": { "$ref": "#/$defs/id" },
+				"direction": {
+					"enum": [
+						"above",
+						"below",
+						"first",
+						"last",
+						"left",
+						"next",
+						"previous",
+						"right"
+					]
+				},
+				"label": { "type": "string" },
+				"terminal": {
+					"type": "object",
+					"required": ["outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"outcome": {
+							"enum": ["failed", "pending", "started", "unavailable", "unknown"]
+						},
+						"reason": {
+							"enum": [
+								"server-busy",
+								"terminal-create-failed",
+								"terminal-runtime-unavailable"
+							]
+						},
+						"geometry": { "$ref": "#/$defs/geometry" }
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": { "outcome": { "enum": ["committed", "unchanged"] } },
+						"required": ["outcome"]
+					},
+					"then": { "required": ["revision"] }
+				},
+				{
+					"if": {
+						"properties": { "outcome": { "const": "accepted" } },
+						"required": ["outcome"]
+					},
+					"then": { "required": ["acceptedRevision", "closeRequestId"] }
+				}
+			]
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+		"geometry": {
+			"type": "object",
+			"required": ["columns", "rows", "cellPixelWidth", "cellPixelHeight"],
+			"additionalProperties": false,
+			"properties": {
+				"columns": { "type": "integer", "minimum": 1 },
+				"rows": { "type": "integer", "minimum": 1 },
+				"cellPixelWidth": { "type": "integer", "minimum": 1 },
+				"cellPixelHeight": { "type": "integer", "minimum": 1 }
+			}
+		},
+		"commandSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "requestId", "baseRevision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "workbench-command" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"requestId": { "$ref": "#/$defs/id" },
+				"baseRevision": { "$ref": "#/$defs/revision" }
+			}
+		}
+	}
+}

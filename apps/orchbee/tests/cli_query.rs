@@ -1622,7 +1622,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert_eq!(
         sorted(complete(&["workspace", ""])),
         sorted(
-            ["get", "list", "--format", "--format="]
+            ["create", "get", "list", "rename", "--format", "--format="]
                 .iter()
                 .map(|s| s.to_string())
                 .collect()
@@ -1665,6 +1665,115 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert!(
         operand.iter().all(|c| c.starts_with("--")),
         "{engine} operand leaks verbs: {operand:?}"
+    );
+    // Mutation verb flag positions: each command offers exactly its declared
+    // options plus the orthogonal format flags and a fresh-path --help.
+    assert_eq!(
+        sorted(complete(&["workspace", "create", ""])),
+        sorted(
+            ["--project", "--label", "--format", "--format=", "--help"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} workspace create flags"
+    );
+    assert_eq!(
+        sorted(complete(&["tab", "create", ""])),
+        sorted(
+            [
+                "--workspace",
+                "--standalone",
+                "--label",
+                "--cols",
+                "--rows",
+                "--cell-width",
+                "--cell-height",
+                "--format",
+                "--format=",
+                "--help",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} tab create flags"
+    );
+    assert_eq!(
+        sorted(complete(&["tab", "close", ""])),
+        sorted(
+            ["--confirm", "--format", "--format=", "--help"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} tab close flags"
+    );
+    assert_eq!(
+        sorted(complete(&["panel", "move", "p", ""])),
+        sorted(
+            [
+                "--target-panel",
+                "--direction",
+                "--format",
+                "--format=",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        ),
+        "{engine} panel move flags"
+    );
+    // Direction values are family-scoped enums, not free text.
+    assert_eq!(
+        sorted(complete(&["tab", "move", "t", "--direction", ""])),
+        sorted(
+            ["first", "last", "next", "previous"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} tab move direction values"
+    );
+    assert_eq!(
+        sorted(complete(&["panel", "split", "p", "--direction", ""])),
+        sorted(
+            ["above", "below", "left", "right"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} panel split direction values"
+    );
+    // Cross-family direction words are dead positions, not fuzzy matches.
+    assert_eq!(
+        complete(&["tab", "move", "t", "--direction", "above"]).len(),
+        0,
+        "{engine} offers a panel direction on tab move"
+    );
+    // Once every required option is consumed only format flags remain.
+    assert_eq!(
+        sorted(complete(&[
+            "workspace", "create", "--project", "p", "--label", "l", ""
+        ])),
+        sorted(
+            ["--format", "--format="]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        ),
+        "{engine} fully supplied create keeps only format flags"
+    );
+    // Mutation flags on query commands are dead positions.
+    assert_eq!(
+        complete(&["tab", "list", "--direction", "next", ""]).len(),
+        0,
+        "{engine} mutation flag on a query"
+    );
+    assert_eq!(
+        complete(&["status", "--confirm", ""]).len(),
+        0,
+        "{engine} confirm on a query"
     );
     // format value contexts.
     assert_eq!(
@@ -1919,7 +2028,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert_eq!(
         sorted(complete(&["--workspace", "x", "tab", ""])),
         sorted(
-            ["list", "--format", "--format="]
+            ["create", "list", "--format", "--format="]
                 .iter()
                 .map(|s| s.to_string())
                 .collect()

@@ -1,19 +1,22 @@
 # Native CLI Query
 
-Status: accepted implementation and correctness contract for the first native `orchbee`
-command-line query surface. The commands below are read-only observations of an already running
-local Site. They never create, repair, lock, or activate a Site; never create terminals, viewers,
-or control grants — the single exception is `terminal read`, which holds one short-lived
-read-only viewer attachment against an already bound terminal and releases it before output.
-They never guess Agent, Worker, process, or PTY state; and never require a TTY.
-This is an unpublished local development surface; `apps/cli` remains the delivered TypeScript CLI
-authority, and installation, distribution, remote connections, and Site lifecycle operations stay
-out of scope.
+Status: accepted implementation and correctness contract for the native `orchbee`
+command-line surface: the read-only query cohort plus the first bounded Workbench mutation
+cohort. Query commands are read-only observations of an already running local Site; mutation
+commands each submit at most one effectful `workbench.command` under the safety contract in
+[Mutations](#mutations). The surface never creates, repairs, locks, or activates a Site;
+queries never create terminals, viewers, or control grants — the single exception is
+`terminal read`, which holds one short-lived read-only viewer attachment against an already
+bound terminal and releases it before output. Nothing guesses Agent, Worker, process, or PTY
+state; and no command requires a TTY. This is an unpublished local development surface;
+`apps/cli` remains the delivered TypeScript CLI authority, and installation, distribution,
+remote connections, and Site lifecycle operations stay out of scope.
 
 Authority: this record owns the public grammar, result envelopes, failure matrix, budgets,
-single-request read-only state machine, and output side effects implemented under
-`src/invocation.rs` and `src/cli/**`. It implements the accepted CLI-Q design and both challenge
-dispositions; where prose and code disagree, the behavior is a bug to fix, not a fork to keep.
+single-request read-only state machine, single-command mutation state machine, and output
+side effects implemented under `src/invocation.rs` and `src/cli/**`. It implements the
+accepted CLI-Q design and both challenge dispositions; where prose and code disagree, the
+behavior is a bug to fix, not a fork to keep.
 
 ## Inputs and trust boundary
 
@@ -45,16 +48,35 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   scanned before ordinary grammar validation: a format defect anywhere in that envelope answers
   with empty stdout, and one valid unique selection shapes every later grammar failure's
   envelope regardless of where it sits.
-- `--project <target>`, `--workspace <target>`, `--tab <target>`: named value filters, single
-  use each. The next token is consumed as the value even when it begins with a dash; a bare `--`
-  is never consumed as a value (missing value → `invalid-usage`). A consumed filter value is not
-  a format selector. Each filter is valid only on its declared command (`--project` on
-  `workspace list`, `--workspace` on `tab list`, `--tab` on `panel list`); anywhere else,
+- `--project <target>`, `--workspace <target>`, `--tab <target>`: named value filters and
+  context operands, single use each. The next token is consumed as the value even when it
+  begins with a dash; a bare `--` is never consumed as a value (missing value →
+  `invalid-usage`). A consumed filter value is not a format selector. Each flag is valid only
+  on a command that declares it (`--project` on `workspace list`/`workspace create`,
+  `--workspace` on `tab list`/`tab create`, `--tab` on `panel list`); anywhere else,
   including `get` commands, is `invalid-usage`. Filters are never silently dropped: a filter
   flag on a command that does not declare it is `invalid-usage` before any runtime access, so
   `workspace list` rejects `--workspace`, `--tab`, and `--standalone`.
-- `--standalone`: valueless boolean flag, single use, only on `tab list`; mutually exclusive
-  with `--workspace`.
+- `--standalone`: valueless boolean flag, single use, only on `tab list` and `tab create`;
+  mutually exclusive with `--workspace` on both.
+- `--label <label>`: single-use value flag, required on `workspace create`,
+  `workspace rename`, `tab create`, `tab rename`, and `panel split`. The value is a Workbench
+  label under protocol validation (nonempty, within the protocol label bound); a missing,
+  empty, or overlong label is `invalid-usage`.
+- `--direction <word>`: single-use value flag, required on `tab move`
+  (`previous|next|first|last`), `panel split`, and `panel move` (`above|below|left|right`).
+  Each word set is closed; a panel word on `tab move` or a missing/unknown word is
+  `invalid-usage`.
+- `--cols <n>`, `--rows <n>`, `--cell-width <n>`, `--cell-height <n>`: the explicit terminal
+  geometry set; all four are required together on `tab create` and `panel split`, and each
+  takes one decimal `u16`. The combined grid cells and pixel extents must satisfy the
+  protocol `WorkbenchTerminalGeometry` bounds; a partial, repeated, non-numeric, or
+  out-of-range set is `invalid-usage` before any runtime access.
+- `--confirm`: valueless boolean, required on `tab close` and `panel close`; absent there or
+  present on any other command is `invalid-usage`.
+- `--target-panel <target>`: single-use value flag, required on `panel move`; parsed with
+  the `panel` target rule (a complete typed ID only) and resolved inside the moved panel's
+  own tab.
 - `--version`: legal only as the sole root invocation; any other position or company is usage.
 - `--help`: root sole token, or the single suffix of a complete command path.
 - `--` positionals: tokens after `--` are positional only, so `orchbee -- status` queries
@@ -70,8 +92,17 @@ orchbee --help | orchbee help   # root help
 orchbee status
 orchbee project list | project get <target>
 orchbee workspace list [--project <target>] | workspace get <target>
+orchbee workspace create --project <target> --label <label>
+orchbee workspace rename <target> --label <label>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
+orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry>
+orchbee tab rename <target> --label <label>
+orchbee tab move <target> --direction previous|next|first|last
+orchbee tab close <target> --confirm
 orchbee panel list [--tab <target>] | panel get <target>
+orchbee panel split <target> --direction above|below|left|right --label <label> <geometry>
+orchbee panel close <target> --confirm
+orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target>
 orchbee api snapshot
 orchbee api schema [<schema-id>]
@@ -91,11 +122,14 @@ are usage). Unlisted targets such as `help help`, `help version`, `help --versio
 paths → usage. Help, `--version`, `completion`, and `api schema` never touch platform, runtime,
 cohort, or Site state.
 
+`<geometry>` stands for the four required flags `--cols <n> --rows <n> --cell-width <n>
+--cell-height <n>`.
+
 `help`, `completion`, `tui`, `--version`, and the bare invocation are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
-commands (`status`, all `list`/`get`, `api snapshot`, `api schema`, `config check`) accept
-`--format`. The `api` commands are the machine surface: a successful `api snapshot` or
+commands (`status`, all `list`/`get`, `api snapshot`, `api schema`, `config check`) and every
+mutation command accept `--format`. The `api` commands are the machine surface: a successful `api snapshot` or
 `api schema` emits the identical JSON document under both formats, while an `api` failure
 follows the selected format like any other command — under text/default it reports on stderr
 with empty stdout, and only `--format json` produces a failure envelope.
@@ -114,7 +148,9 @@ tokens and the all-zero ID shape are `invalid-identifier` (exit 2). A label that
 ID shape can never be reached by label matching — IDs take precedence by construction; the entity
 remains reachable through its real ID. `panel` and `terminal` accept only complete typed IDs;
 anything else is `invalid-identifier`. Filters (`--project`, `--workspace`, `--tab`) use the same
-per-resource target rules. `api schema` takes a nonempty schema ID; an empty one is
+per-resource target rules, and so do every mutation operand and `--target-panel` (the `panel`
+rule: typed IDs only, resolved inside the moved panel's own tab). `api schema` takes a nonempty
+schema ID; an empty one is
 `invalid-identifier` with `resource="schema"`, an unmatched one is `not-found`.
 
 Resolution after a successful read: zero matches → `not-found` (3); multiple exact label matches
@@ -155,8 +191,9 @@ sequence on Linux; the first failing stage wins and determines the failure:
 
 `config check` is purely local: no socket connect, no lock, no mkdir/chmod, one separate checked
 5-second cohort budget for its cohort check. Non-Linux platforms produce `service-unavailable`
-`{stage:"platform",reason:"unsupported-platform"}` for network queries and `check-failed` with the
-same details for `config check`; there is no fallback to unbounded connection APIs.
+`{stage:"platform",reason:"unsupported-platform"}` for network queries and mutations and
+`check-failed` with the same details for `config check`; there is no fallback to unbounded
+connection APIs.
 
 `terminal read` shares steps 1–5 unchanged, then keeps the admitted session alive inside the
 same deadline — never a second admission — for one read-only viewer observation:
@@ -189,6 +226,8 @@ Success envelopes are `{schema, version:1, source, result}`:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
+- `source.kind="workbench-command"` with `siteId`, `requestId`, and decimal-string
+  `baseRevision` — produced mutation results, and command-stage failures after a valid read.
 - `source.kind="embedded"` — the compiled-in schema dictionary (`api schema` results and its
   `not-found` failure).
 - `source.kind="local-runtime"` — produced `config check` results.
@@ -238,13 +277,17 @@ tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts und
   with the inner document.
 - `orchbee.api.schema` → `{schema:{schemaId,document}}` for a named schema, or
   `{schemas:{schemaId:document,…}}` listing the whole delivered dictionary (draft 2020-12).
+- `orchbee.mutation.result` → `{action,outcome,revision?,acceptedRevision?,closeRequestId?,
+  <resolved typed IDs>,direction?,label?,terminal?}` per the mutation matrix above:
+  `revision` on `committed`/`unchanged`, `acceptedRevision`+`closeRequestId` on `accepted`,
+  and `terminal:{outcome,reason?,geometry?}` on `tab create`/`panel split`.
 - `orchbee.config.check` → `{ok,checks:[{name,status,details}]}` in fixed order
   `runtime-base`, `runtime-directory`, `cohort`, `locale`, `sockets`; all five always report.
   A failed check still produces this success schema with `ok:false` and exit 1.
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
 source?}`; no English `message` field exists. `source` is attached only from an already trusted
-  source (a validated snapshot for post-read failures, `embedded` for `api schema` not-found);
-  denied/transport failures have none.
+  source (a validated snapshot for post-read failures, `embedded` for `api schema` not-found,
+  `workbench-command` for every command-stage mutation failure); pre-read failures have none.
 
 ### Config checks
 
@@ -263,12 +306,75 @@ inspection itself failed (permission, path, or I/O error) — plus `reason` in
 `{invalid-path,absent,unsafe,io-error}`; `sockets` reasons are `{unsafe,io-error,
 runtime-unavailable}`. No cross-file atomic health claim is made.
 
+## Mutations
+
+Nine commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
+`workspace create`/`rename`, `tab create`/`rename`/`move`/`close`, and
+`panel split`/`close`/`move`. Each invocation runs the query state machine's stages 1–5
+unchanged — one cohort check, one discovery and admission, one bounded snapshot read — then
+performs two further stages under the same 5-second deadline:
+
+6. **Resolve** — a pure projection of the validated snapshot into the wire action: every
+   target resolves with the query resolver's exact semantics (`not-found`/`ambiguous`
+   possible, zero commands submitted), the snapshot supplies `siteId` and
+   `expectedRevision`, and one fresh `WorkbenchRequestId` is generated.
+7. **Command** — exactly one `workbench.command` submission on the admitted session. The
+   Client Session is then fully released before the outcome is mapped or output prepared.
+
+The `expectedRevision` choice is the protocol's optimistic-concurrency contract: the Server
+compares the command's base revision to its current revision and rejects a mismatch without
+applying anything, so reading once and submitting at that revision is the admitted
+interaction sequence — the CLI never re-reads to chase a moving base and never submits
+without a base.
+
+Safety contract:
+
+- **At most one effect.** Exactly one command is submitted per invocation; all argument and
+  target validation completes before the command is built, so a parse defect or unresolved
+  target submits nothing.
+- **Fresh identity.** Each invocation generates one new globally unique
+  `WorkbenchRequestId`; receipts and `outcome-unknown` failures report it for operator
+  reconciliation.
+- **Server-owned revision.** `expectedRevision` always comes from the same validated
+  snapshot that resolved the targets — never guessed, incremented client-side, or reused.
+- **No automatic replay.** An ambiguous post-submission outcome — lost write, lost,
+  malformed, or miscorrelated response, or an answer that fails validation — retires the
+  session and surfaces as `outcome-unknown` (exit 5). The command may or may not have been
+  applied; it is never resent. The localized diagnostic says so and directs the operator to
+  inspect Workbench state (`status`, `tab list`, `panel list`, …) before deciding whether
+  to repeat the command.
+- **Close confirmation.** `tab close` and `panel close` are destructive; the parser
+  requires the explicit `--confirm` flag so a noninteractive invocation can never close
+  by default.
+
+Outcomes: `committed` reports the new `revision` (base + 1); `unchanged` — a rename or move
+that changed nothing — reports the current revision; `accepted` — both closes — reports
+`acceptedRevision` plus the Server's `closeRequestId` for the asynchronous close.
+`tab create` and `panel split` additionally carry `terminal`: `pending` while the Server
+still owes a spawn, or the typed spawn outcome (`started` with the echoed `geometry`,
+`unavailable`/`failed` with a reason, `unknown`).
+
+Geometry is always explicit: a non-TTY invocation cannot inherit terminal dimensions, so
+`tab create` and `panel split` require all four flags. `--cols`/`--rows` are grid cells and
+`--cell-width`/`--cell-height` are per-cell pixel extents; every dimension is a `u16`
+bounded by the protocol `WorkbenchTerminalGeometry` validation before any runtime access.
+
+Mutation results use `schema:"orchbee.mutation.result"`, `version:1`, with
+`source:{kind:"workbench-command",siteId,requestId,baseRevision}` and a `result` carrying
+`action` (the dotted command name), `outcome`, the outcome's revision fields, the resolved
+typed IDs, and `direction`/`label`/`terminal` where the command has them. Text output
+renders the same fields one per line under the same escaping rules as queries.
+
+Deliberately not delivered: `workspace close`/`workspace focus`, `tab focus`,
+`panel resize`/`panel focus`, terminal open/send operations, Site lifecycle commands, and
+every remote operation.
+
 ## Failure matrix
 
 Exit codes: 0 success (empty lists included); 1 local config/output/internal determinate failure;
-2 usage/invalid target; 3 not-found/ambiguous/denied; 4 service-unavailable (including
-`session-capacity`); 5 transport-loss/protocol-invalid; 6 incompatible; 130 default SIGINT
-semantics. 7/8 stay reserved and unreachable in this read-only slice.
+2 usage/invalid target; 3 not-found/ambiguous/denied/rejected; 4 service-unavailable (including
+`session-capacity`); 5 transport-loss/protocol-invalid/outcome-unknown; 6 incompatible; 130
+default SIGINT semantics. 7/8 stay reserved and unreachable in this slice.
 
 | Source                                                                        | `failure.kind`                                           | exit               | `details`                                          |
 | ----------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------ | -------------------------------------------------- |
@@ -297,18 +403,26 @@ semantics. 7/8 stay reserved and unreachable in this read-only slice.
 | viewer `OutcomeUnknown(CorrelationMismatch)`                                  | `protocol-invalid`                                       | 5                  | `{stage:"viewer",reason:"correlation-mismatch"}`   |
 | viewer outcome `Rejected(AlreadyAttached|TerminalUnavailable)` or `Unavailable` | `service-unavailable`                                  | 4                  | `{stage:"viewer"}`                                 |
 | viewer outcome `Rejected(FeedbackMismatch)`, record rejected by the projection | `protocol-invalid`                                      | 5                  | `{stage:"viewer"}`                                 |
+| `DefinitelyNotSubmitted::RequestNotSubmitted` (command)                       | `transport-loss`                                         | 5                  | `{stage:"command"}`                                |
+| `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`                | `internal-failure`                                       | 1                  | omitted                                            |
+| command `Rejected` precommit                                                  | `rejected`                                               | 3                  | `{stage:"command",reason,revision}`                |
+| command `Denied` precommit                                                    | `denied`                                                 | 3                  | omitted                                            |
+| command `Unavailable` precommit                                               | `service-unavailable`                                    | 4                  | `{stage:"command",reason}`                         |
+| `OutcomeUnknown` (any reason)                                                 | `outcome-unknown`                                        | 5                  | `{stage:"command",requestId,reason}`               |
 | prepared output over 8 MiB                                                    | `output-too-large`                                       | 1                  | `{limitBytes:8388608}`                             |
 | stdout write/flush failure                                                    | `output-failed`                                          | 1                  | no second stdout document                          |
 | `config check` finishes with failures                                         | success schema `ok:false`                                | 1                  | all five checks preserved                          |
-| non-Linux network query / `config check`                                      | `service-unavailable`/`check-failed`                     | 4/1                | `{stage:"platform",reason:"unsupported-platform"}` |
+| non-Linux network query, mutation, or `config check`                          | `service-unavailable`/`check-failed`                     | 4/1                | `{stage:"platform",reason:"unsupported-platform"}` |
 
 `resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|platform`.
-Stages and reasons are finite schema values; no exception text becomes a machine field. `details` is a closed per-kind vocabulary —
-`{resource,target}`, `{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`, or
-`{limitBytes}` — and the embedded schemas reject documents outside those shapes. Read-path errors
-never become outcome-unknown/failed-effect: a read-only request cannot produce an unknown side
-effect.
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|platform`.
+Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
+is a closed per-kind vocabulary — `{resource,target}`,
+`{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`,
+`{stage:"command",reason,revision}`, `{stage:"command",requestId,reason}`, or `{limitBytes}` —
+and the embedded schemas reject documents outside those shapes. Read-path errors never become
+outcome-unknown/failed-effect: only the command stage can produce an undetermined effect, and
+`rejected`/`denied`/`unavailable` precommit answers are definite — the Server applied nothing.
 
 ## Output contract and side effects
 
@@ -335,11 +449,14 @@ effect.
   runtime, cohort, or Site discovery.
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
   or second request — except `terminal read`, whose read-capability viewer attachment is the
-  single sanctioned side effect, held minimally and released before output. At most one
-  short-lived Client Session is held, and none survives into output.
+  single sanctioned read-path side effect, held minimally and released before output. At most
+  one short-lived Client Session is held, and none survives into output.
+- A mutation submits at most one `workbench.command` per invocation under a fresh
+  `WorkbenchRequestId`; it is never retried or replayed, and an ambiguous outcome is reported
+  as `outcome-unknown`, not guessed.
 - There is at most one snapshot read per invocation, one admission per invocation, and one
-  network deadline covering both; `terminal read`'s viewer exchanges ride on that same session
-  and deadline — never a second admission or a renewed budget.
+  network deadline covering read and command; `terminal read`'s viewer exchanges ride on that
+  same session and deadline — never a second admission or a renewed budget.
 - No result field exists without a trusted source; `null` means the source says "none" and
   `"unknown"` means the source cannot say — the two never mix.
 - Failure envelopes never invent `source`: siteId/revision appear only from a validated snapshot.
@@ -364,6 +481,8 @@ effect.
 | Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect              | typed kinds per matrix; never labeled real-Server evidence      | `tests/cli_query.rs`                                               |
 | Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect | `terminal read` success + typed viewer-stage failures | `tests/cli_query.rs`                                  |
 | Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates          | real read-only observation coexisting with the TUI's own viewer | `tests/local_startup_process`                                      |
+| Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                       | exact parse/failure kinds before runtime access                 | `src/invocation` tests                                             |
+| Mutation scripted peers: all nine commands, precommit verdicts, ambiguous and unapplied outcomes               | one command per call; `outcome-unknown` never replayed          | `tests/cli_mutation.rs`                                            |
 | Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure | documented exits; transport owners dropped before blocking      | `tests/local_startup_process` + emit unit tests                    |
 | `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                 | five typed checks always reported                               | `tests/cli_query.rs` + `src/cli/config` tests                      |
 | Completion scripts project the grammar (bash/zsh executed, fish structural parity)                            | positive and negative contexts; no runtime enumeration          | `tests/cli_query.rs`                                               |

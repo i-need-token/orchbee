@@ -35,9 +35,49 @@ impl Locale {
                 let (resource, target) = failure_target(failure);
                 self.cli_ambiguous(resource, &target)
             }
-            FailureKind::Denied => match self {
-                Self::EnUs => "The local Site denied the read request.\n".to_owned(),
-                Self::ZhCn => "本地 Site 拒绝了读取请求。\n".to_owned(),
+            FailureKind::Denied => {
+                let command = failure
+                    .source
+                    .as_ref()
+                    .and_then(|source| source.get("kind"))
+                    .and_then(|value| value.as_str())
+                    == Some("workbench-command");
+                match (self, command) {
+                    (Self::EnUs, true) => {
+                        "The local Site denied the command; nothing was applied.\n".to_owned()
+                    }
+                    (Self::EnUs, false) => {
+                        "The local Site denied the read request.\n".to_owned()
+                    }
+                    (Self::ZhCn, true) => {
+                        "本地 Site 拒绝了该命令；未应用任何修改。\n".to_owned()
+                    }
+                    (Self::ZhCn, false) => "本地 Site 拒绝了读取请求。\n".to_owned(),
+                }
+            }
+            FailureKind::Rejected => {
+                let reason = failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("reason"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("");
+                match self {
+                    Self::EnUs => {
+                        format!("The local Site rejected the command ({reason}); nothing was applied.\n")
+                    }
+                    Self::ZhCn => {
+                        format!("本地 Site 拒绝了该命令（{reason}）；未应用任何修改。\n")
+                    }
+                }
+            }
+            FailureKind::OutcomeUnknown => match self {
+                Self::EnUs => {
+                    "The command's outcome is unknown: the request may or may not have been applied.\nIt was not retried — inspect the Workbench state before deciding whether to repeat it.\n".to_owned()
+                }
+                Self::ZhCn => {
+                    "命令结果未知：请求可能已应用，也可能未应用。\n该命令未被重试——请先检查 Workbench 状态，再决定是否重复执行。\n".to_owned()
+                }
             },
             FailureKind::ServiceUnavailable => self.cli_service_unavailable(failure),
             FailureKind::SessionCapacity => match self {
@@ -47,23 +87,29 @@ impl Locale {
                 Self::ZhCn => "本地 Site 没有可接纳本次查询的 Client Session 容量。\n".to_owned(),
             },
             FailureKind::TransportLoss => {
-                let viewer = failure
+                let stage = failure
                     .details
                     .as_ref()
                     .and_then(|details| details.get("stage"))
                     .and_then(|value| value.as_str())
-                    == Some("viewer");
-                match (self, viewer) {
-                    (Self::EnUs, true) => {
+                    .unwrap_or("");
+                match (self, stage) {
+                    (Self::EnUs, "command") => {
+                        "The connection to the local Site failed before the command could be submitted; nothing was sent.\n".to_owned()
+                    }
+                    (Self::ZhCn, "command") => {
+                        "与本地 Site 的连接在命令提交前失败；未发送任何内容。\n".to_owned()
+                    }
+                    (Self::EnUs, "viewer") => {
                         "The connection to the local Site was lost during the terminal read.\n"
                             .to_owned()
                     }
-                    (Self::ZhCn, true) => "与本地 Site 的连接在终端读取期间中断。\n".to_owned(),
-                    (Self::EnUs, false) => {
+                    (Self::ZhCn, "viewer") => "与本地 Site 的连接在终端读取期间中断。\n".to_owned(),
+                    (Self::EnUs, _) => {
                         "The connection to the local Site was lost before a snapshot arrived.\n"
                             .to_owned()
                     }
-                    (Self::ZhCn, false) => "与本地 Site 的连接在快照返回前中断。\n".to_owned(),
+                    (Self::ZhCn, _) => "与本地 Site 的连接在快照返回前中断。\n".to_owned(),
                 }
             }
             FailureKind::ProtocolInvalid => match self {
@@ -145,6 +191,13 @@ impl Locale {
                 "The terminal could not be observed for reading right now.\n".to_owned()
             }
             (Self::ZhCn, "viewer") => "该终端当前无法进行读取观察。\n".to_owned(),
+            (Self::EnUs, "command") => {
+                "The local Site could not execute the command right now; nothing was applied.\n"
+                    .to_owned()
+            }
+            (Self::ZhCn, "command") => {
+                "本地 Site 当前无法执行该命令；未应用任何修改。\n".to_owned()
+            }
             (Self::EnUs, _) => "The local Site could not admit this query connection.\n".to_owned(),
             (Self::ZhCn, _) => "本地 Site 无法接纳本次查询连接。\n".to_owned(),
         }
@@ -282,14 +335,32 @@ impl Locale {
             (Self::ZhCn, CommandPath::WorkspaceList) => HELP_WORKSPACE_LIST_ZH,
             (Self::EnUs, CommandPath::WorkspaceGet) => HELP_WORKSPACE_GET_EN,
             (Self::ZhCn, CommandPath::WorkspaceGet) => HELP_WORKSPACE_GET_ZH,
+            (Self::EnUs, CommandPath::WorkspaceCreate) => HELP_WORKSPACE_CREATE_EN,
+            (Self::ZhCn, CommandPath::WorkspaceCreate) => HELP_WORKSPACE_CREATE_ZH,
+            (Self::EnUs, CommandPath::WorkspaceRename) => HELP_WORKSPACE_RENAME_EN,
+            (Self::ZhCn, CommandPath::WorkspaceRename) => HELP_WORKSPACE_RENAME_ZH,
             (Self::EnUs, CommandPath::TabList) => HELP_TAB_LIST_EN,
             (Self::ZhCn, CommandPath::TabList) => HELP_TAB_LIST_ZH,
             (Self::EnUs, CommandPath::TabGet) => HELP_TAB_GET_EN,
             (Self::ZhCn, CommandPath::TabGet) => HELP_TAB_GET_ZH,
+            (Self::EnUs, CommandPath::TabCreate) => HELP_TAB_CREATE_EN,
+            (Self::ZhCn, CommandPath::TabCreate) => HELP_TAB_CREATE_ZH,
+            (Self::EnUs, CommandPath::TabRename) => HELP_TAB_RENAME_EN,
+            (Self::ZhCn, CommandPath::TabRename) => HELP_TAB_RENAME_ZH,
+            (Self::EnUs, CommandPath::TabMove) => HELP_TAB_MOVE_EN,
+            (Self::ZhCn, CommandPath::TabMove) => HELP_TAB_MOVE_ZH,
+            (Self::EnUs, CommandPath::TabClose) => HELP_TAB_CLOSE_EN,
+            (Self::ZhCn, CommandPath::TabClose) => HELP_TAB_CLOSE_ZH,
             (Self::EnUs, CommandPath::PanelList) => HELP_PANEL_LIST_EN,
             (Self::ZhCn, CommandPath::PanelList) => HELP_PANEL_LIST_ZH,
             (Self::EnUs, CommandPath::PanelGet) => HELP_PANEL_GET_EN,
             (Self::ZhCn, CommandPath::PanelGet) => HELP_PANEL_GET_ZH,
+            (Self::EnUs, CommandPath::PanelSplit) => HELP_PANEL_SPLIT_EN,
+            (Self::ZhCn, CommandPath::PanelSplit) => HELP_PANEL_SPLIT_ZH,
+            (Self::EnUs, CommandPath::PanelClose) => HELP_PANEL_CLOSE_EN,
+            (Self::ZhCn, CommandPath::PanelClose) => HELP_PANEL_CLOSE_ZH,
+            (Self::EnUs, CommandPath::PanelMove) => HELP_PANEL_MOVE_EN,
+            (Self::ZhCn, CommandPath::PanelMove) => HELP_PANEL_MOVE_ZH,
             (Self::EnUs, CommandPath::TerminalList) => HELP_TERMINAL_LIST_EN,
             (Self::ZhCn, CommandPath::TerminalList) => HELP_TERMINAL_LIST_ZH,
             (Self::EnUs, CommandPath::TerminalGet) => HELP_TERMINAL_GET_EN,
@@ -318,14 +389,14 @@ const HELP_STATUS_ZH: &str = "orchbee status\n\n从正在运行的本地 Site �
 const HELP_PROJECT_EN: &str = "orchbee project list|get\n\nQuery Project resources in the running local Site.\n  project list            List every Project\n  project get <target>    Show one Project by exact ID or exact label\nTargets are case-sensitive; ambiguous labels are rejected, never guessed.\n";
 const HELP_PROJECT_ZH: &str = "orchbee project list|get\n\n查询本地 Site 中的 Project 资源。\n  project list            列出所有 Project\n  project get <target>    按精确 ID 或精确 label 显示一个 Project\ntarget 区分大小写；歧义 label 会被拒绝而非猜测。\n";
 
-const HELP_WORKSPACE_EN: &str = "orchbee workspace list|get\n\nQuery Workspace resources in the running local Site.\n  workspace list [--project <t>]  List Workspaces, optionally inside one Project\n  workspace get <target>          Show one Workspace by exact ID or exact label\n";
-const HELP_WORKSPACE_ZH: &str = "orchbee workspace list|get\n\n查询本地 Site 中的 Workspace 资源。\n  workspace list [--project <t>]  列出 Workspace，可按某个 Project 过滤\n  workspace get <target>          按精确 ID 或精确 label 显示一个 Workspace\n";
+const HELP_WORKSPACE_EN: &str = "orchbee workspace list|get|create|rename\n\nQuery and mutate Workspace resources in the running local Site.\n  workspace list [--project <t>]                    List Workspaces, optionally inside one Project\n  workspace get <target>                            Show one Workspace by exact ID or exact label\n  workspace create --project <t> --label <l>        Create one Workspace inside a Project\n  workspace rename <target> --label <l>             Rename one Workspace\nEvery mutation reads one snapshot, then submits exactly one command.\n";
+const HELP_WORKSPACE_ZH: &str = "orchbee workspace list|get|create|rename\n\n查询并修改本地 Site 中的 Workspace 资源。\n  workspace list [--project <t>]                    列出 Workspace，可按某个 Project 过滤\n  workspace get <target>                            按精确 ID 或精确 label 显示一个 Workspace\n  workspace create --project <t> --label <l>        在某个 Project 内创建一个 Workspace\n  workspace rename <target> --label <l>             重命名一个 Workspace\n每个修改命令先读取一次快照，然后只提交一个命令。\n";
 
-const HELP_TAB_EN: &str = "orchbee tab list|get\n\nQuery Tab resources in the running local Site.\n  tab list [--workspace <t> | --standalone]  List Tabs, optionally filtered\n  tab get <target>                           Show one Tab by exact ID or label\n'--workspace' and '--standalone' are mutually exclusive single-use filters.\n";
-const HELP_TAB_ZH: &str = "orchbee tab list|get\n\n查询本地 Site 中的 Tab 资源。\n  tab list [--workspace <t> | --standalone]  列出 Tab，可按 Workspace 或独立上下文过滤\n  tab get <target>                           按精确 ID 或 label 显示一个 Tab\n'--workspace' 与 '--standalone' 互斥且各只能用一次。\n";
+const HELP_TAB_EN: &str = "orchbee tab list|get|create|rename|move|close\n\nQuery and mutate Tab resources in the running local Site.\n  tab list [--workspace <t> | --standalone]  List Tabs, optionally filtered\n  tab get <target>                           Show one Tab by exact ID or label\n  tab create (--workspace <t>|--standalone) --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                             Create one Tab in one context\n  tab rename <target> --label <l>            Rename one Tab\n  tab move <target> --direction <d>          Move one Tab within its strip\n  tab close <target> --confirm               Close one Tab\n'--workspace' and '--standalone' are mutually exclusive single-use selectors.\n";
+const HELP_TAB_ZH: &str = "orchbee tab list|get|create|rename|move|close\n\n查询并修改本地 Site 中的 Tab 资源。\n  tab list [--workspace <t> | --standalone]  列出 Tab，可按 Workspace 或独立上下文过滤\n  tab get <target>                           按精确 ID 或 label 显示一个 Tab\n  tab create (--workspace <t>|--standalone) --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                             在某个上下文内创建一个 Tab\n  tab rename <target> --label <l>            重命名一个 Tab\n  tab move <target> --direction <d>          在标签条内移动一个 Tab\n  tab close <target> --confirm               关闭一个 Tab\n'--workspace' 与 '--standalone' 互斥且各只能用一次。\n";
 
-const HELP_PANEL_EN: &str = "orchbee panel list|get\n\nQuery Panel resources in the running local Site.\n  panel list [--tab <t>]   List Panels, optionally inside one Tab\n  panel get <panel-id>     Show one Panel by its complete typed ID\nPanels have no independent label; only complete 32-hex IDs are accepted.\n";
-const HELP_PANEL_ZH: &str = "orchbee panel list|get\n\n查询本地 Site 中的 Panel 资源。\n  panel list [--tab <t>]   列出 Panel，可按某个 Tab 过滤\n  panel get <panel-id>     按完整类型化 ID 显示一个 Panel\nPanel 没有独立 label；只接受完整 32 位小写十六进制 ID。\n";
+const HELP_PANEL_EN: &str = "orchbee panel list|get|split|close|move\n\nQuery and mutate Panel resources in the running local Site.\n  panel list [--tab <t>]                   List Panels, optionally inside one Tab\n  panel get <panel-id>                     Show one Panel by its complete typed ID\n  panel split <panel-id> --direction <d> --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                           Split one Panel, creating a sibling\n  panel close <panel-id> --confirm         Close one Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           Move one Panel next to a sibling\nPanels have no independent label; only complete 32-hex IDs are accepted.\n";
+const HELP_PANEL_ZH: &str = "orchbee panel list|get|split|close|move\n\n查询并修改本地 Site 中的 Panel 资源。\n  panel list [--tab <t>]                   列出 Panel，可按某个 Tab 过滤\n  panel get <panel-id>                     按完整类型化 ID 显示一个 Panel\n  panel split <panel-id> --direction <d> --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                           分裂一个 Panel，创建一个相邻 Panel\n  panel close <panel-id> --confirm         关闭一个 Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           将一个 Panel 移动到某个相邻 Panel 旁\nPanel 没有独立 label；只接受完整 32 位小写十六进制 ID。\n";
 
 const HELP_TERMINAL_EN: &str = "orchbee terminal list|get|read\n\nQuery terminals bound by Workbench Presentations in the running local Site.\n  terminal list                List every bound terminal\n  terminal get <terminal-id>   Show one terminal by its complete typed ID\n  terminal read <terminal-id>  Read the terminal's current visible content\nA terminal invisible to any Presentation binding cannot be listed or read; a\nbinding proves structure only, not that a process is alive.\n";
 const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端。\n  terminal list                列出所有已绑定终端\n  terminal get <terminal-id>   按完整类型化 ID 显示一个终端\n  terminal read <terminal-id>  读取终端当前可见内容\n未被任何 Presentation 引用的终端不可见也不可读；绑定只证明结构，不证明进程存活。\n";
@@ -351,17 +422,44 @@ const HELP_WORKSPACE_LIST_ZH: &str = "orchbee workspace list [--project <t>] [--
 const HELP_WORKSPACE_GET_EN: &str = "orchbee workspace get <target> [--format text|json]\n\nShow one Workspace plus the Tabs that live in its terminal context.\n";
 const HELP_WORKSPACE_GET_ZH: &str = "orchbee workspace get <target> [--format text|json]\n\n显示一个 Workspace 及其终端上下文中存在的 Tab。\n";
 
+const HELP_WORKSPACE_CREATE_EN: &str = "orchbee workspace create --project <target> --label <label> [--format text|json]\n\nCreate one Workspace inside the Project selected by --project (exact ID or\nexact label). The command reads one snapshot, resolves the target, then\nsubmits exactly one command under a fresh request id. The result carries\nthe committed revision and the new workspace and terminal context ids.\n";
+const HELP_WORKSPACE_CREATE_ZH: &str = "orchbee workspace create --project <target> --label <label> [--format text|json]\n\n在 --project（精确 ID 或精确 label）所选 Project 内创建一个 Workspace。\n命令先读取一次快照、解析目标，然后以全新请求 ID 只提交一个命令。结果\n携带已提交修订以及新的 workspace 与终端上下文 ID。\n";
+
+const HELP_WORKSPACE_RENAME_EN: &str = "orchbee workspace rename <target> --label <label> [--format text|json]\n\nRename one Workspace selected by exact ID or exact label. The command\nreads one snapshot, then submits exactly one command. A committed result\ncarries the new revision; an unchanged one means the label already\nmatched.\n";
+const HELP_WORKSPACE_RENAME_ZH: &str = "orchbee workspace rename <target> --label <label> [--format text|json]\n\n重命名一个由精确 ID 或精确 label 选择的 Workspace。命令先读取一次快\n照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。\n";
+
 const HELP_TAB_LIST_EN: &str = "orchbee tab list [--workspace <t> | --standalone] [--format text|json]\n\nList Tabs. Filters select one Workspace's context (exact ID or label) or\nthe standalone context. Fields: ids, label, pinned flag, group, and owning\ncontext kind.\n";
 const HELP_TAB_LIST_ZH: &str = "orchbee tab list [--workspace <t> | --standalone] [--format text|json]\n\n列出 Tab。过滤参数可选择一个 Workspace 的上下文（精确 ID 或 label）或\n独立上下文。字段：各 ID、label、置顶标记、分组与所属上下文类型。\n";
 
 const HELP_TAB_GET_EN: &str = "orchbee tab get <target> [--format text|json]\n\nShow one Tab including its complete PanelNode root subtree.\n";
 const HELP_TAB_GET_ZH: &str = "orchbee tab get <target> [--format text|json]\n\n显示一个 Tab，包括其完整 PanelNode 根子树。\n";
 
+const HELP_TAB_CREATE_EN: &str = "orchbee tab create (--workspace <target> | --standalone) --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--format text|json]\n\nCreate one Tab in the selected terminal context: a Workspace chosen by\nexact ID or exact label, or the standalone context. All four geometry\nflags are required. The result carries the committed revision, the new\ntab, panel, and presentation ids, and the terminal spawn outcome.\n";
+const HELP_TAB_CREATE_ZH: &str = "orchbee tab create (--workspace <target> | --standalone) --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--format text|json]\n\n在所选终端上下文内创建一个 Tab：由精确 ID 或精确 label 选择的\nWorkspace，或独立上下文。四个几何参数均为必填。结果携带已提交修订、\n新的 tab、panel、presentation ID 及终端拉起结果。\n";
+
+const HELP_TAB_RENAME_EN: &str = "orchbee tab rename <target> --label <label> [--format text|json]\n\nRename one Tab selected by exact ID or exact label. A committed result\ncarries the new revision; unchanged means the label already matched.\n";
+const HELP_TAB_RENAME_ZH: &str = "orchbee tab rename <target> --label <label> [--format text|json]\n\n重命名一个由精确 ID 或精确 label 选择的 Tab。committed 结果携带新修\n订；unchanged 表示 label 本已相同。\n";
+
+const HELP_TAB_MOVE_EN: &str = "orchbee tab move <target> --direction <previous|next|first|last> [--format text|json]\n\nMove one Tab within its strip. A committed result carries the new\nrevision; unchanged means the tab was already in position.\n";
+const HELP_TAB_MOVE_ZH: &str = "orchbee tab move <target> --direction <previous|next|first|last> [--format text|json]\n\n在标签条内移动一个 Tab。committed 结果携带新修订；unchanged 表示 Tab\n本已在目标位置。\n";
+
+const HELP_TAB_CLOSE_EN: &str = "orchbee tab close <target> --confirm [--format text|json]\n\nClose one Tab selected by exact ID or exact label. '--confirm' is\nrequired. An accepted result carries the accepted revision and the close\nrequest id; the Site finishes the close asynchronously.\n";
+const HELP_TAB_CLOSE_ZH: &str = "orchbee tab close <target> --confirm [--format text|json]\n\n关闭一个由精确 ID 或精确 label 选择的 Tab。'--confirm' 为必填。\naccepted 结果携带已接受修订与关闭请求 ID；Site 异步完成关闭。\n";
+
 const HELP_PANEL_LIST_EN: &str = "orchbee panel list [--tab <t>] [--format text|json]\n\nList Panels, optionally inside the Tab selected by --tab (exact ID or\nlabel). Panels carry no label; presentation labels are not panel names.\n";
 const HELP_PANEL_LIST_ZH: &str = "orchbee panel list [--tab <t>] [--format text|json]\n\n列出 Panel，或仅列 --tab（精确 ID 或 label）所选 Tab 内的。Panel 无\nlabel；Presentation 的 label 不是 Panel 名。\n";
 
 const HELP_PANEL_GET_EN: &str = "orchbee panel get <panel-id> [--format text|json]\n\nShow one Panel by complete typed ID: owning tab, context, slot path, and\nits primary and child Presentations.\n";
 const HELP_PANEL_GET_ZH: &str = "orchbee panel get <panel-id> [--format text|json]\n\n按完整类型化 ID 显示一个 Panel：所属 Tab、上下文、slot 路径及其主与\n子 Presentation。\n";
+
+const HELP_PANEL_SPLIT_EN: &str = "orchbee panel split <panel-id> --direction <above|below|left|right> --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--format text|json]\n\nSplit one Panel, creating a sibling panel on the selected side. All four\ngeometry flags are required. The result carries the committed revision,\nthe new panel, split, slot, and presentation ids, and the terminal spawn\noutcome.\n";
+const HELP_PANEL_SPLIT_ZH: &str = "orchbee panel split <panel-id> --direction <above|below|left|right> --label <label> --cols <n> --rows <n> --cell-width <px> --cell-height <px> [--format text|json]\n\n分裂一个 Panel，在所选侧创建相邻 Panel。四个几何参数均为必填。结果携\n带已提交修订、新的 panel、split、slot、presentation ID 及终端拉起\n结果。\n";
+
+const HELP_PANEL_CLOSE_EN: &str = "orchbee panel close <panel-id> --confirm [--format text|json]\n\nClose one Panel selected by complete typed ID. '--confirm' is required.\nAn accepted result carries the accepted revision and the close request\nid; the Site finishes the close asynchronously.\n";
+const HELP_PANEL_CLOSE_ZH: &str = "orchbee panel close <panel-id> --confirm [--format text|json]\n\n关闭一个由完整类型化 ID 选择的 Panel。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；Site 异步完成关闭。\n";
+
+const HELP_PANEL_MOVE_EN: &str = "orchbee panel move <panel-id> --target-panel <panel-id> --direction <above|below|left|right> [--format text|json]\n\nMove one Panel next to another panel inside the same tab. Both panels\nare complete typed IDs. A committed result carries the new revision;\nunchanged means the layout already matched.\n";
+const HELP_PANEL_MOVE_ZH: &str = "orchbee panel move <panel-id> --target-panel <panel-id> --direction <above|below|left|right> [--format text|json]\n\n将一个 Panel 移动到同一 Tab 内另一个 Panel 的所选侧。两个 Panel 均为\n完整类型化 ID。committed 结果携带新修订；unchanged 表示布局本已相同。\n";
 
 const HELP_TERMINAL_LIST_EN: &str = "orchbee terminal list [--format text|json]\n\nList every terminal bound by a Presentation. Unbound terminals are not\nvisible; a binding is structural evidence, not proof a process is alive.\n";
 const HELP_TERMINAL_LIST_ZH: &str = "orchbee terminal list [--format text|json]\n\n列出所有被 Presentation 绑定的终端。未绑定终端不可见；绑定是结构证据，\n不是进程存活的证明。\n";

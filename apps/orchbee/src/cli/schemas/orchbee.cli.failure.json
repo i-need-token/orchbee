@@ -23,8 +23,10 @@
 						"invalid-identifier",
 						"invalid-usage",
 						"not-found",
+						"outcome-unknown",
 						"output-too-large",
 						"protocol-invalid",
+						"rejected",
 						"service-unavailable",
 						"session-capacity",
 						"transport-loss"
@@ -96,6 +98,7 @@
 							"details": {
 								"oneOf": [
 									{ "$ref": "#/$defs/unavailableStageDetails" },
+									{ "$ref": "#/$defs/commandUnavailableDetails" },
 									{ "$ref": "#/$defs/platformDetails" }
 								]
 							}
@@ -195,6 +198,44 @@
 			"if": {
 				"properties": {
 					"failure": {
+						"properties": { "kind": { "const": "outcome-unknown" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": {
+							"details": { "$ref": "#/$defs/outcomeUnknownDetails" }
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
+						"properties": { "kind": { "const": "rejected" } },
+						"required": ["kind"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"failure": {
+						"required": ["details"],
+						"properties": { "details": { "$ref": "#/$defs/rejectedDetails" } }
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"failure": {
 						"properties": { "kind": { "const": "output-too-large" } },
 						"required": ["kind"]
 					}
@@ -278,13 +319,80 @@
 				"stage": { "enum": ["admission", "discovery", "snapshot", "viewer"] }
 			}
 		},
+		"commandUnavailableDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "command" },
+				"reason": { "$ref": "#/$defs/unavailableReason" }
+			}
+		},
 		"transportStageDetails": {
 			"type": "object",
 			"required": ["stage"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "enum": ["admission", "snapshot", "viewer"] }
+				"stage": { "enum": ["admission", "command", "snapshot", "viewer"] }
 			}
+		},
+		"rejectedDetails": {
+			"type": "object",
+			"required": ["stage", "reason", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "command" },
+				"reason": { "$ref": "#/$defs/rejectionReason" },
+				"revision": { "$ref": "#/$defs/revision" }
+			}
+		},
+		"outcomeUnknownDetails": {
+			"type": "object",
+			"required": ["stage", "requestId", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "command" },
+				"requestId": { "$ref": "#/$defs/id" },
+				"reason": { "$ref": "#/$defs/outcomeUnknownReason" }
+			}
+		},
+		"unavailableReason": {
+			"enum": [
+				"directory-unavailable",
+				"no-compatible-worker",
+				"request-ledger-full",
+				"server-busy",
+				"service-unavailable",
+				"terminal-busy",
+				"terminal-runtime-unavailable"
+			]
+		},
+		"rejectionReason": {
+			"enum": [
+				"identity-exhausted",
+				"panel-unavailable",
+				"project-unavailable",
+				"request-identity-conflict",
+				"resource-limit",
+				"revision-exhausted",
+				"revision-mismatch",
+				"site-mismatch",
+				"tab-unavailable",
+				"terminal-context-unavailable",
+				"workspace-directory-conflict",
+				"workspace-directory-unavailable",
+				"workspace-unavailable"
+			]
+		},
+		"outcomeUnknownReason": {
+			"enum": [
+				"action-incompatible",
+				"correlation-mismatch",
+				"response-invalid",
+				"response-loss",
+				"validation-failed",
+				"write-failure"
+			]
 		},
 		"admissionDetails": {
 			"type": "object",
@@ -311,6 +419,7 @@
 				"reason": { "const": "correlation-mismatch" }
 			}
 		},
+		"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
 		"platformDetails": {
 			"type": "object",
 			"required": ["stage", "reason"],
@@ -335,7 +444,18 @@
 					"properties": {
 						"kind": { "const": "workbench-snapshot" },
 						"siteId": { "$ref": "#/$defs/id" },
-						"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+						"revision": { "$ref": "#/$defs/revision" }
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "requestId", "baseRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": { "const": "workbench-command" },
+						"siteId": { "$ref": "#/$defs/id" },
+						"requestId": { "$ref": "#/$defs/id" },
+						"baseRevision": { "$ref": "#/$defs/revision" }
 					}
 				},
 				{

@@ -595,7 +595,7 @@ fn resolve<'a, Item>(
     }
 }
 
-fn not_found(resource: Resource, target: &Target) -> Failure {
+pub(crate) fn not_found(resource: Resource, target: &Target) -> Failure {
     Failure::new(FailureKind::NotFound).details(target_details(resource, target.text()))
 }
 
@@ -610,7 +610,7 @@ fn ambiguous(resource: Resource, target: &Target, mut candidates: Vec<String>) -
     ]))
 }
 
-fn resolve_or_fail<'a, Item>(
+pub(crate) fn resolve_or_fail<'a, Item>(
     items: impl Iterator<Item = (&'a str, &'a str, Item)>,
     target: &Target,
     resource: Resource,

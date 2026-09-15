@@ -1,5 +1,10 @@
 use std::ffi::OsString;
 
+use orchbee_workbench_protocol::{
+    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchTabMoveDirection,
+    WorkbenchTerminalGeometry,
+};
+
 /// Legacy three-variant invocation consumed by `presentation::present`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Invocation {
@@ -91,10 +96,19 @@ pub(crate) enum CommandPath {
     ProjectGet,
     WorkspaceList,
     WorkspaceGet,
+    WorkspaceCreate,
+    WorkspaceRename,
     TabList,
     TabGet,
+    TabCreate,
+    TabRename,
+    TabMove,
+    TabClose,
     PanelList,
     PanelGet,
+    PanelSplit,
+    PanelClose,
+    PanelMove,
     TerminalList,
     TerminalGet,
     TerminalRead,
@@ -132,6 +146,59 @@ pub(crate) enum QueryCommand {
     ConfigCheck,
 }
 
+/// The `tab create` context selector: exactly one Workspace context or the
+/// standalone Terminal Context.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum TabContext {
+    Workspace(Target),
+    Standalone,
+}
+
+/// One effectful Workbench command admitted by the grammar. Every field is a
+/// wire-ready value already checked against protocol bounds, so the executor
+/// never re-validates argv.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum MutationCommand {
+    WorkspaceCreate {
+        project: Target,
+        label: WorkbenchLabel,
+    },
+    WorkspaceRename {
+        target: Target,
+        label: WorkbenchLabel,
+    },
+    TabCreate {
+        context: TabContext,
+        label: WorkbenchLabel,
+        geometry: WorkbenchTerminalGeometry,
+    },
+    TabRename {
+        target: Target,
+        label: WorkbenchLabel,
+    },
+    TabMove {
+        target: Target,
+        direction: WorkbenchTabMoveDirection,
+    },
+    TabClose {
+        target: Target,
+    },
+    PanelSplit {
+        target: Target,
+        direction: WorkbenchPanelSplitDirection,
+        label: WorkbenchLabel,
+        geometry: WorkbenchTerminalGeometry,
+    },
+    PanelClose {
+        target: Target,
+    },
+    PanelMove {
+        target: Target,
+        into: Target,
+        direction: WorkbenchPanelSplitDirection,
+    },
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
     Tui,
@@ -141,6 +208,10 @@ pub(crate) enum Request {
     Completion(CompletionShell),
     Query {
         command: QueryCommand,
+        format: OutputFormat,
+    },
+    Mutation {
+        command: MutationCommand,
         format: OutputFormat,
     },
 }
@@ -182,7 +253,31 @@ struct Options {
     workspace: Option<String>,
     tab: Option<String>,
     standalone: bool,
+    label: Option<String>,
+    direction: Option<String>,
+    cols: Option<String>,
+    rows: Option<String>,
+    cell_width: Option<String>,
+    cell_height: Option<String>,
+    confirm: bool,
+    target_panel: Option<String>,
 }
+
+/// Every named option that owns the next argv token as its value, used by
+/// both the format-envelope walk and the option scan so ownership is decided
+/// identically in the two passes.
+const VALUE_FLAGS: &[&str] = &[
+    "--cell-height",
+    "--cell-width",
+    "--cols",
+    "--direction",
+    "--label",
+    "--project",
+    "--rows",
+    "--tab",
+    "--target-panel",
+    "--workspace",
+];
 
 const MAXIMUM_LABEL_SCALARS: usize = 512;
 const ZERO_IDENTITY: &str = "00000000000000000000000000000000";
@@ -312,7 +407,7 @@ fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailu
                 }
                 index += 1;
             }
-            "--project" | "--workspace" | "--tab" => {
+            _ if VALUE_FLAGS.contains(&token) => {
                 index += match tokens.get(index + 1) {
                     Some(value) if value != "--" => 2,
                     _ => 1,
@@ -349,7 +444,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             // unique; the option walk only applies token ownership.
             "--format" => index += 2,
             _ if token.starts_with("--format=") => index += 1,
-            "--project" | "--workspace" | "--tab" => {
+            _ if VALUE_FLAGS.contains(&token.as_str()) => {
                 let value = match tokens.get(index + 1) {
                     Some(value) if value != "--" => value.clone(),
                     _ => return Err(usage(envelope)),
@@ -357,18 +452,30 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 let slot = match token.as_str() {
                     "--project" => &mut options.project,
                     "--workspace" => &mut options.workspace,
-                    _ => &mut options.tab,
+                    "--tab" => &mut options.tab,
+                    "--label" => &mut options.label,
+                    "--direction" => &mut options.direction,
+                    "--cols" => &mut options.cols,
+                    "--rows" => &mut options.rows,
+                    "--cell-width" => &mut options.cell_width,
+                    "--cell-height" => &mut options.cell_height,
+                    _ => &mut options.target_panel,
                 };
                 if slot.replace(value).is_some() {
                     return Err(usage(envelope));
                 }
                 index += 2;
             }
-            "--standalone" => {
-                if options.standalone {
+            "--standalone" | "--confirm" => {
+                let seen = if token == "--standalone" {
+                    &mut options.standalone
+                } else {
+                    &mut options.confirm
+                };
+                if *seen {
                     return Err(usage(envelope));
                 }
-                options.standalone = true;
+                *seen = true;
                 index += 1;
             }
             "--help" => {
@@ -451,10 +558,19 @@ fn resolve_help_suffix(
         ["project", "get"] => HelpTopic::Command(CommandPath::ProjectGet),
         ["workspace", "list"] => HelpTopic::Command(CommandPath::WorkspaceList),
         ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
+        ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
+        ["workspace", "rename"] => HelpTopic::Command(CommandPath::WorkspaceRename),
         ["tab", "list"] => HelpTopic::Command(CommandPath::TabList),
         ["tab", "get"] => HelpTopic::Command(CommandPath::TabGet),
+        ["tab", "create"] => HelpTopic::Command(CommandPath::TabCreate),
+        ["tab", "rename"] => HelpTopic::Command(CommandPath::TabRename),
+        ["tab", "move"] => HelpTopic::Command(CommandPath::TabMove),
+        ["tab", "close"] => HelpTopic::Command(CommandPath::TabClose),
         ["panel", "list"] => HelpTopic::Command(CommandPath::PanelList),
         ["panel", "get"] => HelpTopic::Command(CommandPath::PanelGet),
+        ["panel", "split"] => HelpTopic::Command(CommandPath::PanelSplit),
+        ["panel", "close"] => HelpTopic::Command(CommandPath::PanelClose),
+        ["panel", "move"] => HelpTopic::Command(CommandPath::PanelMove),
         ["terminal", "list"] => HelpTopic::Command(CommandPath::TerminalList),
         ["terminal", "get"] => HelpTopic::Command(CommandPath::TerminalGet),
         ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
@@ -474,12 +590,13 @@ fn resolve_words(
 ) -> Result<Request, ParseFailure> {
     match words {
         [] => {
-            // Bare invocation keeps TUI; a selected format or any filter is usage.
+            // Bare invocation keeps TUI; a selected format or any option is usage.
             if options.format.is_some()
                 || options.project.is_some()
                 || options.workspace.is_some()
                 || options.tab.is_some()
                 || options.standalone
+                || business_options(options)
             {
                 return Err(usage(envelope));
             }
@@ -504,7 +621,10 @@ fn resolve_words(
         }
         ["workspace", "list"] => {
             reject(
-                options.workspace.is_some() || options.tab.is_some() || options.standalone,
+                options.workspace.is_some()
+                    || options.tab.is_some()
+                    || options.standalone
+                    || business_options(options),
                 envelope,
             )?;
             let project = options
@@ -525,8 +645,35 @@ fn resolve_words(
                 options,
             ))
         }
+        ["workspace", "create"] => {
+            check_scope(options, WORKSPACE_CREATE_SCOPE, envelope)?;
+            Ok(mutation(
+                MutationCommand::WorkspaceCreate {
+                    project: target(
+                        required(&options.project, envelope)?,
+                        Resource::Project,
+                        envelope,
+                    )?,
+                    label: label_option(options, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["workspace", "rename", value] => {
+            check_scope(options, LABEL_SCOPE, envelope)?;
+            Ok(mutation(
+                MutationCommand::WorkspaceRename {
+                    target: target((*value).to_owned(), Resource::Workspace, envelope)?,
+                    label: label_option(options, envelope)?,
+                },
+                options,
+            ))
+        }
         ["tab", "list"] => {
-            reject(options.project.is_some() || options.tab.is_some(), envelope)?;
+            reject(
+                options.project.is_some() || options.tab.is_some() || business_options(options),
+                envelope,
+            )?;
             reject(options.standalone && options.workspace.is_some(), envelope)?;
             let workspace = options
                 .workspace
@@ -548,9 +695,63 @@ fn resolve_words(
                 options,
             ))
         }
+        ["tab", "create"] => {
+            check_scope(options, TAB_CREATE_SCOPE, envelope)?;
+            reject(options.standalone && options.workspace.is_some(), envelope)?;
+            let context = if options.standalone {
+                TabContext::Standalone
+            } else {
+                TabContext::Workspace(target(
+                    required(&options.workspace, envelope)?,
+                    Resource::Workspace,
+                    envelope,
+                )?)
+            };
+            Ok(mutation(
+                MutationCommand::TabCreate {
+                    context,
+                    label: label_option(options, envelope)?,
+                    geometry: geometry_option(options, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["tab", "rename", value] => {
+            check_scope(options, LABEL_SCOPE, envelope)?;
+            Ok(mutation(
+                MutationCommand::TabRename {
+                    target: target((*value).to_owned(), Resource::Tab, envelope)?,
+                    label: label_option(options, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["tab", "move", value] => {
+            check_scope(options, TAB_MOVE_SCOPE, envelope)?;
+            Ok(mutation(
+                MutationCommand::TabMove {
+                    target: target((*value).to_owned(), Resource::Tab, envelope)?,
+                    direction: tab_direction(options, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["tab", "close", value] => {
+            check_scope(options, CONFIRM_SCOPE, envelope)?;
+            reject(!options.confirm, envelope)?;
+            Ok(mutation(
+                MutationCommand::TabClose {
+                    target: target((*value).to_owned(), Resource::Tab, envelope)?,
+                },
+                options,
+            ))
+        }
         ["panel", "list"] => {
             reject(
-                options.project.is_some() || options.workspace.is_some() || options.standalone,
+                options.project.is_some()
+                    || options.workspace.is_some()
+                    || options.standalone
+                    || business_options(options),
                 envelope,
             )?;
             let tab = options
@@ -564,6 +765,43 @@ fn resolve_words(
             reject_filters(options, envelope)?;
             Ok(query(
                 QueryCommand::PanelGet(target((*value).to_owned(), Resource::Panel, envelope)?),
+                options,
+            ))
+        }
+        ["panel", "split", value] => {
+            check_scope(options, PANEL_SPLIT_SCOPE, envelope)?;
+            Ok(mutation(
+                MutationCommand::PanelSplit {
+                    target: target((*value).to_owned(), Resource::Panel, envelope)?,
+                    direction: panel_direction(options, envelope)?,
+                    label: label_option(options, envelope)?,
+                    geometry: geometry_option(options, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["panel", "close", value] => {
+            check_scope(options, CONFIRM_SCOPE, envelope)?;
+            reject(!options.confirm, envelope)?;
+            Ok(mutation(
+                MutationCommand::PanelClose {
+                    target: target((*value).to_owned(), Resource::Panel, envelope)?,
+                },
+                options,
+            ))
+        }
+        ["panel", "move", value] => {
+            check_scope(options, PANEL_MOVE_SCOPE, envelope)?;
+            Ok(mutation(
+                MutationCommand::PanelMove {
+                    target: target((*value).to_owned(), Resource::Panel, envelope)?,
+                    into: target(
+                        required(&options.target_panel, envelope)?,
+                        Resource::Panel,
+                        envelope,
+                    )?,
+                    direction: panel_direction(options, envelope)?,
+                },
                 options,
             ))
         }
@@ -653,10 +891,19 @@ fn resolve_help_path(
         ["project", "get"] => HelpTopic::Command(CommandPath::ProjectGet),
         ["workspace", "list"] => HelpTopic::Command(CommandPath::WorkspaceList),
         ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
+        ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
+        ["workspace", "rename"] => HelpTopic::Command(CommandPath::WorkspaceRename),
         ["tab", "list"] => HelpTopic::Command(CommandPath::TabList),
         ["tab", "get"] => HelpTopic::Command(CommandPath::TabGet),
+        ["tab", "create"] => HelpTopic::Command(CommandPath::TabCreate),
+        ["tab", "rename"] => HelpTopic::Command(CommandPath::TabRename),
+        ["tab", "move"] => HelpTopic::Command(CommandPath::TabMove),
+        ["tab", "close"] => HelpTopic::Command(CommandPath::TabClose),
         ["panel", "list"] => HelpTopic::Command(CommandPath::PanelList),
         ["panel", "get"] => HelpTopic::Command(CommandPath::PanelGet),
+        ["panel", "split"] => HelpTopic::Command(CommandPath::PanelSplit),
+        ["panel", "close"] => HelpTopic::Command(CommandPath::PanelClose),
+        ["panel", "move"] => HelpTopic::Command(CommandPath::PanelMove),
         ["terminal", "list"] => HelpTopic::Command(CommandPath::TerminalList),
         ["terminal", "get"] => HelpTopic::Command(CommandPath::TerminalGet),
         ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
@@ -675,6 +922,176 @@ fn query(command: QueryCommand, options: &Options) -> Request {
     }
 }
 
+fn mutation(command: MutationCommand, options: &Options) -> Request {
+    Request::Mutation {
+        command,
+        format: options.format.unwrap_or(OutputFormat::Text),
+    }
+}
+
+/// The named-option set one command admits; anything seen outside it is usage.
+/// `geometry` covers all four dimension flags together: a terminal geometry
+/// is only meaningful whole.
+#[derive(Clone, Copy)]
+struct Scope {
+    project: bool,
+    workspace: bool,
+    tab: bool,
+    standalone: bool,
+    label: bool,
+    direction: bool,
+    geometry: bool,
+    confirm: bool,
+    target_panel: bool,
+}
+
+const NO_OPTIONS: Scope = Scope {
+    project: false,
+    workspace: false,
+    tab: false,
+    standalone: false,
+    label: false,
+    direction: false,
+    geometry: false,
+    confirm: false,
+    target_panel: false,
+};
+
+const WORKSPACE_CREATE_SCOPE: Scope = Scope {
+    project: true,
+    label: true,
+    ..NO_OPTIONS
+};
+
+const LABEL_SCOPE: Scope = Scope {
+    label: true,
+    ..NO_OPTIONS
+};
+
+const TAB_CREATE_SCOPE: Scope = Scope {
+    workspace: true,
+    standalone: true,
+    label: true,
+    geometry: true,
+    ..NO_OPTIONS
+};
+
+const TAB_MOVE_SCOPE: Scope = Scope {
+    direction: true,
+    ..NO_OPTIONS
+};
+
+const CONFIRM_SCOPE: Scope = Scope {
+    confirm: true,
+    ..NO_OPTIONS
+};
+
+const PANEL_SPLIT_SCOPE: Scope = Scope {
+    label: true,
+    direction: true,
+    geometry: true,
+    ..NO_OPTIONS
+};
+
+const PANEL_MOVE_SCOPE: Scope = Scope {
+    direction: true,
+    target_panel: true,
+    ..NO_OPTIONS
+};
+
+/// Any mutation-only option seen outside a mutation command.
+fn business_options(options: &Options) -> bool {
+    options.label.is_some()
+        || options.direction.is_some()
+        || options.cols.is_some()
+        || options.rows.is_some()
+        || options.cell_width.is_some()
+        || options.cell_height.is_some()
+        || options.confirm
+        || options.target_panel.is_some()
+}
+
+/// Reject every named option outside the command's admitted set. `--format`
+/// is orthogonal and never scope-checked.
+fn check_scope(options: &Options, scope: Scope, envelope: FailureEnvelope) -> Result<(), ParseFailure> {
+    reject(
+        (options.project.is_some() && !scope.project)
+            || (options.workspace.is_some() && !scope.workspace)
+            || (options.tab.is_some() && !scope.tab)
+            || (options.standalone && !scope.standalone)
+            || (options.label.is_some() && !scope.label)
+            || (options.direction.is_some() && !scope.direction)
+            || ((options.cols.is_some()
+                || options.rows.is_some()
+                || options.cell_width.is_some()
+                || options.cell_height.is_some())
+                && !scope.geometry)
+            || (options.confirm && !scope.confirm)
+            || (options.target_panel.is_some() && !scope.target_panel),
+        envelope,
+    )
+}
+
+fn required(slot: &Option<String>, envelope: FailureEnvelope) -> Result<String, ParseFailure> {
+    slot.clone().ok_or_else(|| usage(envelope))
+}
+
+/// `--label` carries a wire-ready Workbench label: non-empty and at most the
+/// protocol's 512-scalar bound.
+fn label_option(
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchLabel, ParseFailure> {
+    WorkbenchLabel::parse(&required(&options.label, envelope)?).map_err(|_| usage(envelope))
+}
+
+/// The four geometry flags parse as u16 dimensions and must satisfy the
+/// protocol geometry bounds (each dimension 1..=4096, grid ≤ 262144 cells,
+/// pixel extents ≤ 65535).
+fn geometry_option(
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchTerminalGeometry, ParseFailure> {
+    let dimension = |slot: &Option<String>| -> Result<u16, ParseFailure> {
+        required(slot, envelope)?
+            .parse::<u16>()
+            .map_err(|_| usage(envelope))
+    };
+    WorkbenchTerminalGeometry::new(
+        dimension(&options.cols)?,
+        dimension(&options.rows)?,
+        dimension(&options.cell_width)?,
+        dimension(&options.cell_height)?,
+    )
+    .map_err(|_| usage(envelope))
+}
+
+fn tab_direction(
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchTabMoveDirection, ParseFailure> {
+    match required(&options.direction, envelope)?.as_str() {
+        "previous" => Ok(WorkbenchTabMoveDirection::Previous),
+        "next" => Ok(WorkbenchTabMoveDirection::Next),
+        "first" => Ok(WorkbenchTabMoveDirection::First),
+        "last" => Ok(WorkbenchTabMoveDirection::Last),
+        _ => Err(usage(envelope)),
+    }
+}
+
+fn panel_direction(
+    options: &Options,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchPanelSplitDirection, ParseFailure> {
+    match required(&options.direction, envelope)?.as_str() {
+        "above" => Ok(WorkbenchPanelSplitDirection::Above),
+        "below" => Ok(WorkbenchPanelSplitDirection::Below),
+        "left" => Ok(WorkbenchPanelSplitDirection::Left),
+        "right" => Ok(WorkbenchPanelSplitDirection::Right),
+        _ => Err(usage(envelope)),
+    }
+}
+
 fn reject(condition: bool, envelope: FailureEnvelope) -> Result<(), ParseFailure> {
     if condition {
         Err(usage(envelope))
@@ -690,7 +1107,8 @@ fn reject_extras(options: &Options, envelope: FailureEnvelope) -> Result<(), Par
             || options.project.is_some()
             || options.workspace.is_some()
             || options.tab.is_some()
-            || options.standalone,
+            || options.standalone
+            || business_options(options),
         envelope,
     )
 }
@@ -701,7 +1119,8 @@ fn reject_filters(options: &Options, envelope: FailureEnvelope) -> Result<(), Pa
         options.project.is_some()
             || options.workspace.is_some()
             || options.tab.is_some()
-            || options.standalone,
+            || options.standalone
+            || business_options(options),
         envelope,
     )
 }

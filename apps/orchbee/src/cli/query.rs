@@ -48,6 +48,8 @@ const NETWORK_BUDGET: Duration = Duration::from_secs(5);
 #[cfg(target_os = "linux")]
 const EMPTY_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
+/// One admitted Client Session plus the shared network deadline every
+/// request on it must finish before. The caller owns the session's drop.
 #[cfg(target_os = "linux")]
 pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
     let (client, _deadline, snapshot) = snapshot_session()?;
@@ -79,12 +81,12 @@ pub(crate) fn read_terminal(target: &Target) -> Result<(serde_json::Value, Proje
     }
 }
 
-/// The shared preamble for every network query: cohort, existing-only
-/// rendezvous, socket validation, one admission, one snapshot read — all
-/// under the single network deadline. On success the caller owns the still
-/// admitted session; on any failure the session is already dropped.
+/// The shared preamble for every network query and mutation: cohort,
+/// existing-only rendezvous, socket validation, one admission, one snapshot
+/// read — all under the single network deadline. On success the caller owns
+/// the still admitted session; on any failure the session is already dropped.
 #[cfg(target_os = "linux")]
-fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Failure> {
+pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let cohort_deadline = Instant::now()
         .checked_add(COHORT_BUDGET)
         .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
@@ -448,7 +450,7 @@ fn fresh_request_id() -> Result<String, Failure> {
 }
 
 #[cfg(target_os = "linux")]
-fn request_id() -> Result<WorkbenchRequestId, Failure> {
+pub(crate) fn request_id() -> Result<WorkbenchRequestId, Failure> {
     WorkbenchRequestId::parse(&fresh_request_id()?)
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
 }

@@ -1,14 +1,16 @@
 # 原生 CLI 查询
 
-状态：首批原生 `orchbee` 命令行查询面已接受的实现与正确性契约。下列命令是对已在运行的本地
-Site 的只读观察：绝不创建、修复、锁定或激活 Site；不创建终端、viewer 或控制授权——唯一
-例外是 `terminal read`，它对已绑定终端持有一个短暂的只读 viewer attachment 并在输出前释放。
-不猜测 Agent、Worker、进程或 PTY 状态；不要求 TTY。这是未发布的本地开发面；`apps/cli` 仍是已交付的
-TypeScript CLI 权威；安装、发布、远端连接与 Site 生命周期操作不在范围内。
+状态：原生 `orchbee` 命令行面已接受的实现与正确性契约，覆盖只读查询批与首个有界
+Workbench mutation 批。查询命令是对已在运行的本地 Site 的只读观察；mutation 命令各自在
+[Mutations](#mutations) 安全契约下至多提交一次 effectful `workbench.command`。本面绝不创建、
+修复、锁定或激活 Site；查询不创建终端、viewer 或控制授权——唯一例外是 `terminal read`，
+它对已绑定终端持有一个短暂的只读 viewer attachment 并在输出前释放。任何命令都不猜测
+Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本地开发面；`apps/cli` 仍是
+已交付的 TypeScript CLI 权威；安装、发布、远端连接与 Site 生命周期操作不在范围内。
 
 归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果 envelope、失败矩阵、
-预算、单请求只读状态机与输出副作用。它落实已接受的 CLI-Q 设计与两轮挑战裁决；文字与代码不一致
-时，行为是要修的缺陷，不是要保留的分叉。
+预算、单请求只读状态机、单命令 mutation 状态机与输出副作用。它落实已接受的 CLI-Q 设计与两轮
+挑战裁决；文字与代码不一致时，行为是要修的缺陷，不是要保留的分叉。
 
 ## 输入与信任边界
 
@@ -35,14 +37,31 @@ TypeScript CLI 权威；安装、发布、远端连接与 Site 生命周期操�
   `--format` 缺值、空值、未知值或重复选择都是格式失败：`invalid-usage`、退出 2、stdout 为空。
   完整的 `--` 前 format envelope 先于普通语法校验整体扫描：envelope 内任何位置的格式缺陷都以
   空 stdout 作答；唯一合法的选择无论位于何处都决定其后一切语法失败的 envelope。
-- `--project <target>`、`--workspace <target>`、`--tab <target>`：带值的具名过滤参数，各只能
-  用一次。下一个 token 即作为值被消费，即使以减号开头；裸 `--` 永不被当作值（缺值 →
-  `invalid-usage`）。被消费的过滤值不再充当 format 选择器。每个过滤器只在其声明的命令上合法
-  （`--project` 仅 `workspace list`，`--workspace` 仅 `tab list`，`--tab` 仅 `panel list`），
-  出现在任何其他位置（包括 `get` 命令）都是 `invalid-usage`。过滤器绝不静默丢弃：出现在未
-  声明的命令上即在任何运行时访问之前报 `invalid-usage`，故 `workspace list` 拒绝
-  `--workspace`、`--tab` 与 `--standalone`。
-- `--standalone`：无值布尔 flag，单次使用，仅 `tab list`；与 `--workspace` 互斥。
+- `--project <target>`、`--workspace <target>`、`--tab <target>`：带值的具名过滤器与上下文
+  操作数，各只能用一次。下一个 token 即作为值被消费，即使以减号开头；裸 `--` 永不被当作值
+  （缺值 → `invalid-usage`）。被消费的过滤值不再充当 format 选择器。每个 flag 只在声明它
+  的命令上合法（`--project` 仅 `workspace list`/`workspace create`，`--workspace` 仅
+  `tab list`/`tab create`，`--tab` 仅 `panel list`），出现在任何其他位置（包括 `get`
+  命令）都是 `invalid-usage`。过滤器绝不静默丢弃：出现在未声明的命令上即在任何运行时访问
+  之前报 `invalid-usage`，故 `workspace list` 拒绝 `--workspace`、`--tab` 与
+  `--standalone`。
+- `--standalone`：无值布尔 flag，单次使用，仅 `tab list` 与 `tab create`；两处均与
+  `--workspace` 互斥。
+- `--label <label>`：带值 flag，单次使用，`workspace create`、`workspace rename`、
+  `tab create`、`tab rename` 与 `panel split` 上必填。值为经协议校验的 Workbench label
+  （非空且在协议 label 上限内）；缺失、空串或超长均为 `invalid-usage`。
+- `--direction <word>`：带值 flag，单次使用，`tab move`
+  （`previous|next|first|last`）、`panel split` 与 `panel move`
+  （`above|below|left|right`）上必填。词集各自封闭；`tab move` 上出现 panel 方向词或
+  缺失/未知词均为 `invalid-usage`。
+- `--cols <n>`、`--rows <n>`、`--cell-width <n>`、`--cell-height <n>`：显式终端几何组；
+  四者在 `tab create` 与 `panel split` 上必须同时给出，各取一个十进制 `u16`。组合后的
+  格数与像素范围必须满足协议 `WorkbenchTerminalGeometry` 界限；缺项、重复、非数值或越界
+  均在任何运行时访问之前报 `invalid-usage`。
+- `--confirm`：无值布尔 flag，`tab close` 与 `panel close` 上必填；该处缺失或出现在任何
+  其他命令上均为 `invalid-usage`。
+- `--target-panel <target>`：带值 flag，单次使用，`panel move` 上必填；按 `panel` 的
+  target 规则解析（仅完整 typed ID），并在被移动 panel 自身所在 tab 内解析。
 - `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
 - `--help`：根级独占 token，或完整命令路径的单一后缀。
 - `--` 之后的位置参数：`--` 之后的 token 只作位置参数，故 `orchbee -- status` 查询 status，
@@ -58,8 +77,17 @@ orchbee --help | orchbee help   # 根帮助
 orchbee status
 orchbee project list | project get <target>
 orchbee workspace list [--project <target>] | workspace get <target>
+orchbee workspace create --project <target> --label <label>
+orchbee workspace rename <target> --label <label>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
+orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry>
+orchbee tab rename <target> --label <label>
+orchbee tab move <target> --direction previous|next|first|last
+orchbee tab close <target> --confirm
 orchbee panel list [--tab <target>] | panel get <target>
+orchbee panel split <target> --direction above|below|left|right --label <label> <geometry>
+orchbee panel close <target> --confirm
+orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target>
 orchbee api snapshot
 orchbee api schema [<schema-id>]
@@ -78,10 +106,13 @@ orchbee <complete command path> --help
 按未知路径 → usage。Help、`--version`、`completion` 与 `api schema` 绝不触碰平台、运行、
 cohort 或 Site 状态。
 
+`<geometry>` 代表四个必填 flag：`--cols <n> --rows <n> --cell-width <n>
+--cell-height <n>`。
+
 `help`、`completion`、`tui`、`--version` 与裸调用是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
 保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`api snapshot`、`api schema`、
-`config check`）接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
+`config check`）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
 两种 format 下输出同一份 JSON 文档；`api` 失败则与其他命令一样跟随所选 format——text/默认下
 只写 stderr、stdout 为空，只有 `--format json` 才产出失败 envelope。
 
@@ -96,7 +127,9 @@ cohort 或 Site 状态。
 Unicode scalar；空或过长的 token 与全零 ID 形值都是 `invalid-identifier`（退出 2）。本身恰为
 合法 ID 形的 label 永远无法按 label 命中——ID 天然优先；该实体仍可通过其真实 ID 访问。
 `panel` 与 `terminal` 只接受完整 typed ID，其余一律 `invalid-identifier`。过滤器
-（`--project`、`--workspace`、`--tab`）使用各自资源相同的 target 规则。`api schema` 接受非空
+（`--project`、`--workspace`、`--tab`）使用各自资源相同的 target 规则；所有 mutation 位置
+操作数与 `--target-panel` 同样遵守（`panel` 规则：仅 typed ID，并在被移动 panel 自身所在
+tab 内解析）。`api schema` 接受非空
 schema ID；空串是 `invalid-identifier`（`resource="schema"`），无匹配是 `not-found`。
 
 读取成功后的解析：零匹配 → `not-found`（3）；多个精确 label 匹配 → `ambiguous`（3），按
@@ -131,7 +164,7 @@ canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount
 7. **Map** —— 把已验证快照纯函数式地投影为命令结果。
 
 `config check` 纯本地：不 connect socket、不取锁、不 mkdir/chmod；其 cohort 检查使用单独的
-checked 5 秒预算。非 Linux 平台对网络查询产出 `service-unavailable`
+checked 5 秒预算。非 Linux 平台对网络查询与 mutation 产出 `service-unavailable`
 `{stage:"platform",reason:"unsupported-platform"}`，对 `config check` 产出同 details 的
 `check-failed`；不存在向无界连接 API 的回退。
 
@@ -163,6 +196,8 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
+- `source.kind="workbench-command"`：带 `siteId`、`requestId` 与十进制字符串
+  `baseRevision`——已产出的 mutation 结果，以及有效读取之后 command 阶段的失败。
 - `source.kind="embedded"`：随二进制编译内嵌的 schema 字典（`api schema` 结果及其
   `not-found` 失败）。
 - `source.kind="local-runtime"`：已产出的 `config check` 结果。
@@ -210,12 +245,17 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   重编码，含 `kind:"workbench.snapshot"`；envelope 的 `siteId`/`revision` 与内部文档一致。
 - `orchbee.api.schema` → 带参 `{schema:{schemaId,document}}`；无参
   `{schemas:{schemaId:document,…}}` 列出全部已交付字典（draft 2020-12）。
+- `orchbee.mutation.result` → `{action,outcome,revision?,acceptedRevision?,closeRequestId?,
+  <resolved typed IDs>,direction?,label?,terminal?}`，按上文 mutation 矩阵：`committed`/
+  `unchanged` 带 `revision`，`accepted` 带 `acceptedRevision`+`closeRequestId`，
+  `tab create`/`panel split` 带 `terminal:{outcome,reason?,geometry?}`。
 - `orchbee.config.check` → `{ok,checks:[{name,status,details}]}`，固定次序
   `runtime-base`、`runtime-directory`、`cohort`、`locale`、`sockets`；五项永远齐全。存在失败
   项时仍产出该成功 schema（`ok:false`）并以 1 退出。
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
 source?}`；不存在英文 `message` 字段。`source` 只取自已可信来源（读取后失败用已验证快照；
-  `api schema` not-found 用 `embedded`）；denied/transport 失败没有 source。
+  `api schema` not-found 用 `embedded`；mutation command 阶段失败一律用
+  `workbench-command`）；读取之前的失败没有 source。
 
 ### Config 检查
 
@@ -233,12 +273,62 @@ details 一律类型化：`runtime-base`/`runtime-directory` 携带 `path`（UTF
 ∈ `{invalid-path,absent,unsafe,io-error}`；`sockets` 的 reasons 为 `{unsafe,io-error,
 runtime-unavailable}`。不作跨文件原子健康快照声明。
 
+## Mutations
+
+九条命令经已 admitted 的 OBWP `workbench.command` 通道修改 Workbench 状态：
+`workspace create`/`rename`、`tab create`/`rename`/`move`/`close`、
+`panel split`/`close`/`move`。每次调用原样执行查询状态机的第 1–5 阶段——一次 cohort 检查、
+一次 discovery 与 admission、一次有界快照读取——然后在同一 5 秒 deadline 下再执行两个阶段：
+
+6. **Resolve** —— 把已验证快照纯函数式地投影为 wire action：每个 target 以查询 resolver
+   完全相同的语义解析（可能 `not-found`/`ambiguous`，此时提交零条命令），快照提供 `siteId`
+   与 `expectedRevision`，并生成一个全新的 `WorkbenchRequestId`。
+7. **Command** —— 在已准入 session 上恰好提交一次 `workbench.command`。随后在任何结果
+   映射与输出准备之前完全释放 Client Session。
+
+`expectedRevision` 的选择是协议的乐观并发契约：Server 将命令的 base revision 与当前
+revision 比对，不符即拒绝且不应用任何效果，故"读取一次并按该 revision 提交"就是被 admitted
+的交互序列——CLI 绝不为追赶变动的 base 而重复读取，也绝不在无 base 的情况下提交。
+
+安全契约：
+
+- **至多一次 effect。** 每次调用恰好提交一条命令；全部参数与 target 校验在命令构造之前
+  完成，故解析缺陷或未解析 target 不提交任何命令。
+- **全新身份。** 每次调用生成一个全新的全局唯一 `WorkbenchRequestId`；receipt 与
+  `outcome-unknown` 失败都会报告它以便操作员对账。
+- **Server 持有 revision。** `expectedRevision` 永远来自解析出全部 target 的同一份已验证
+  快照——绝不猜测、绝不由客户端自增、绝不复用。
+- **绝不自动重放。** 提交后结果不可判定的情形——写丢失、响应丢失/畸形/correlation 不符、
+  或答案未通过校验——会 retire 该 session 并以 `outcome-unknown`（退出 5）呈现。命令可能
+  已应用也可能未应用；绝不重发。本地化诊断会明确说明这一点，并指示操作员先检查
+  Workbench 状态（`status`、`tab list`、`panel list` 等）再决定是否重复该命令。
+- **关闭确认。** `tab close` 与 `panel close` 是破坏性操作；解析器要求显式 `--confirm`
+  flag，故非交互调用绝不会默认执行关闭。
+
+结果：`committed` 报告新 `revision`（base + 1）；`unchanged`——未造成变化的 rename 或
+move——报告当前 revision；`accepted`——两条 close——报告 `acceptedRevision` 及 Server 为
+异步关闭给出的 `closeRequestId`。`tab create` 与 `panel split` 另携带 `terminal`：Server
+仍欠 spawn 时为 `pending`，否则为类型化 spawn 结果（`started` 带回显的 `geometry`，
+`unavailable`/`failed` 带 reason，`unknown`）。
+
+几何永远显式：非 TTY 调用无法继承终端尺寸，故 `tab create` 与 `panel split` 要求四个 flag
+全部给出。`--cols`/`--rows` 为格数，`--cell-width`/`--cell-height` 为每格像素尺寸；每个
+维度都是 `u16`，并在任何运行时访问之前经协议 `WorkbenchTerminalGeometry` 校验。
+
+Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:1`，
+`source:{kind:"workbench-command",siteId,requestId,baseRevision}`，`result` 携带 `action`
+（点分命令名）、`outcome`、该结果的 revision 字段、已解析 typed ID，以及命令具备时的
+`direction`/`label`/`terminal`。文本输出按与查询相同的转义规则逐行渲染同样字段。
+
+明确不交付：`workspace close`/`workspace focus`、`tab focus`、`panel resize`/`panel focus`、
+终端 open/send 操作、Site 生命周期命令，以及一切远端操作。
+
 ## 失败矩阵
 
 退出码：0 成功（含空表）；1 本地配置/输出/内部确定失败；2 usage/非法 target；3
-not-found/ambiguous/denied；4 service-unavailable（含 `session-capacity`）；5
-transport-loss/protocol-invalid；6 incompatible；130 默认 SIGINT 语义。7/8 保留且在本只读
-切片内不可达。
+not-found/ambiguous/denied/rejected；4 service-unavailable（含 `session-capacity`）；5
+transport-loss/protocol-invalid/outcome-unknown；6 incompatible；130 默认 SIGINT 语义。
+7/8 保留且在本切片内不可达。
 
 | 来源                                                              | `failure.kind`                                          | 退出               | `details`                                          |
 | ----------------------------------------------------------------- | ------------------------------------------------------- | ------------------ | -------------------------------------------------- |
@@ -267,17 +357,25 @@ transport-loss/protocol-invalid；6 incompatible；130 默认 SIGINT 语义。7/
 | viewer `OutcomeUnknown(CorrelationMismatch)`                      | `protocol-invalid`                                      | 5                  | `{stage:"viewer",reason:"correlation-mismatch"}`   |
 | viewer outcome `Rejected(AlreadyAttached|TerminalUnavailable)` 或 `Unavailable` | `service-unavailable`                     | 4                  | `{stage:"viewer"}`                                 |
 | viewer outcome `Rejected(FeedbackMismatch)`、record 被投影拒绝     | `protocol-invalid`                                      | 5                  | `{stage:"viewer"}`                                 |
+| `DefinitelyNotSubmitted::RequestNotSubmitted`（command）          | `transport-loss`                                        | 5                  | `{stage:"command"}`                                |
+| `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`    | `internal-failure`                                      | 1                  | 省略                                               |
+| command `Rejected` precommit                                      | `rejected`                                              | 3                  | `{stage:"command",reason,revision}`                |
+| command `Denied` precommit                                        | `denied`                                                | 3                  | 省略                                               |
+| command `Unavailable` precommit                                   | `service-unavailable`                                   | 4                  | `{stage:"command",reason}`                         |
+| `OutcomeUnknown`（任意原因）                                      | `outcome-unknown`                                       | 5                  | `{stage:"command",requestId,reason}`               |
 | 预备输出超 8 MiB                                                  | `output-too-large`                                      | 1                  | `{limitBytes:8388608}`                             |
 | stdout 写/flush 失败                                              | `output-failed`                                         | 1                  | 不追加第二份 stdout 文档                           |
 | `config check` 完成但存在失败项                                   | 成功 schema `ok:false`                                  | 1                  | 五项全部保留                                       |
-| 非 Linux 网络查询 / `config check`                                | `service-unavailable`/`check-failed`                    | 4/1                | `{stage:"platform",reason:"unsupported-platform"}` |
+| 非 Linux 网络查询、mutation 或 `config check`                   | `service-unavailable`/`check-failed`                    | 4/1                | `{stage:"platform",reason:"unsupported-platform"}` |
 
 `resource` ∈ `project|workspace|tab|panel|terminal|schema`；`stage` ∈
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|platform`。
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|platform`。
 stage 与 reason 是有限 schema 值；任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
-`{resource,target,candidates≤8,totalCount}`、`{stage[,reason]}` 或 `{limitBytes}`——内嵌
-schema 拒绝超出这些形状的文档。读路径错误永不归类为 outcome-unknown/failed-effect：只读请求
-不可能产生未知副作用。
+`{resource,target,candidates≤8,totalCount}`、`{stage[,reason]}`、
+`{stage:"command",reason,revision}`、`{stage:"command",requestId,reason}` 或
+`{limitBytes}`——内嵌 schema 拒绝超出这些形状的文档。读路径错误永不归类为
+outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效果；
+`rejected`/`denied`/`unavailable` precommit 答案都是确定的——Server 未应用任何效果。
 
 ## 输出契约与副作用
 
@@ -300,10 +398,12 @@ schema 拒绝超出这些形状的文档。读路径错误永不归类为 outcom
 - 离线命令（`help`、`--version`、`completion`、`api schema`）绝不执行平台、运行、cohort 或
   Site 发现。
 - 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求——唯一
-  例外是 `terminal read`，其只读能力 viewer attachment 是唯一被认可的副作用，最小化持有并
-  在输出前释放。至多持有一个短暂 Client Session，且绝不带入输出阶段。
-- 每次调用至多一次快照读取、一次准入，且两者共用一个网络 deadline；`terminal read` 的
-  viewer 交换复用同一 session 与同一 deadline——绝无第二次准入或续期预算。
+  例外是 `terminal read`，其只读能力 viewer attachment 是唯一被认可的读路径副作用，最小化
+  持有并在输出前释放。至多持有一个短暂 Client Session，且绝不带入输出阶段。
+- Mutation 每次调用在全新 `WorkbenchRequestId` 下至多提交一次 `workbench.command`；绝不
+  重试或重放，结果不可判定时报告 `outcome-unknown` 而非猜测。
+- 每次调用至多一次快照读取、一次准入，且读取与命令共用一个网络 deadline；`terminal read`
+  的 viewer 交换复用同一 session 与同一 deadline——绝无第二次准入或续期预算。
 - 没有可信来源的字段不存在；`null` 表示来源确定地表达"无"，`"unknown"` 表示来源无法回答——
   两者绝不混用。
 - 失败 envelope 绝不虚构 `source`：siteId/revision 只来自已验证快照。
@@ -328,6 +428,8 @@ schema 拒绝超出这些形状的文档。读路径错误永不归类为 outcom
 | 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                 | 按矩阵 typed kind；绝不冒称真实 Server 证据       | `tests/cli_query.rs`                                      |
 | 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连 | `terminal read` 成功 + typed viewer-stage 失败 | `tests/cli_query.rs`                                      |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验        | 真实只读观察与 TUI 自身 viewer 共存              | `tests/local_startup_process`                             |
+| Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                          | 运行时访问前的精确 parse/失败类别                 | `src/invocation` 测试                                     |
+| Mutation 脚本化 peer：全部九条命令、precommit 判定、不可判定与未提交结果                        | 每次调用一条命令；`outcome-unknown` 绝不重放      | `tests/cli_mutation.rs`                                   |
 | 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                        | 文档化退出；阻塞前 transport 句柄已 drop          | `tests/local_startup_process` + emit 单元测试             |
 | `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                              | 五项 typed 检查齐全                               | `tests/cli_query.rs` + `src/cli/config` 测试              |
 | 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                             | 正/负上下文；无运行时枚举                         | `tests/cli_query.rs`                                      |

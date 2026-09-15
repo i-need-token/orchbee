@@ -1,6 +1,7 @@
 mod completion;
 mod config;
 pub(crate) mod escape;
+mod mutation;
 mod output;
 mod present;
 mod query;
@@ -14,7 +15,8 @@ mod tests;
 use serde_json::{Map, Value, json};
 
 use crate::invocation::{
-    CompletionShell, HelpTopic, OutputFormat, ParseFailure, ParseFailureKind, QueryCommand,
+    CompletionShell, HelpTopic, MutationCommand, OutputFormat, ParseFailure, ParseFailureKind,
+    QueryCommand,
 };
 use crate::localization::Locale;
 use crate::presentation::ProcessResult;
@@ -58,8 +60,10 @@ pub(crate) enum FailureKind {
     InvalidIdentifier,
     InvalidUsage,
     NotFound,
+    OutcomeUnknown,
     OutputTooLarge,
     ProtocolInvalid,
+    Rejected,
     ServiceUnavailable,
     SessionCapacity,
     TransportLoss,
@@ -76,8 +80,10 @@ impl FailureKind {
             Self::InvalidIdentifier => "invalid-identifier",
             Self::InvalidUsage => "invalid-usage",
             Self::NotFound => "not-found",
+            Self::OutcomeUnknown => "outcome-unknown",
             Self::OutputTooLarge => "output-too-large",
             Self::ProtocolInvalid => "protocol-invalid",
+            Self::Rejected => "rejected",
             Self::ServiceUnavailable => "service-unavailable",
             Self::SessionCapacity => "session-capacity",
             Self::TransportLoss => "transport-loss",
@@ -87,9 +93,9 @@ impl FailureKind {
     pub(crate) const fn exit_code(self) -> u8 {
         match self {
             Self::InvalidUsage | Self::InvalidIdentifier => 2,
-            Self::NotFound | Self::Ambiguous | Self::Denied => 3,
+            Self::NotFound | Self::Ambiguous | Self::Denied | Self::Rejected => 3,
             Self::ServiceUnavailable | Self::SessionCapacity => 4,
-            Self::TransportLoss | Self::ProtocolInvalid => 5,
+            Self::TransportLoss | Self::ProtocolInvalid | Self::OutcomeUnknown => 5,
             Self::Incompatible => 6,
             Self::CheckFailed | Self::InternalFailure | Self::OutputTooLarge => 1,
         }
@@ -230,6 +236,13 @@ pub(crate) fn help(topic: HelpTopic, locale: Locale) -> Output {
 
 pub(crate) fn completion(shell: CompletionShell, locale: Locale) -> Output {
     fixed_text(&completion::render(shell), locale)
+}
+
+/// One effectful Workbench command: the mutation executor owns the admitted
+/// session, the snapshot read, the single command submission, and every
+/// receipt/failure mapping.
+pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: Locale) -> Output {
+    mutation::run(&command, format, locale)
 }
 
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {

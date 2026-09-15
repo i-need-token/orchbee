@@ -8,6 +8,7 @@ use crate::invocation::{OutputFormat, Resource};
 use crate::localization::Locale;
 
 pub(crate) const FAILURE_ID: &str = "orchbee.cli.failure";
+pub(crate) const MUTATION_RESULT_ID: &str = "orchbee.mutation.result";
 
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
@@ -23,6 +24,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
     (
         "orchbee.config.check",
         include_str!("schemas/orchbee.config.check.json"),
+    ),
+    (
+        MUTATION_RESULT_ID,
+        include_str!("schemas/orchbee.mutation.result.json"),
     ),
     (
         "orchbee.panel.get",
