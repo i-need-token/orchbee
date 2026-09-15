@@ -477,6 +477,10 @@
 			"englishSha256": "81da8c2ea7dc46af0035c5e2bf538719ff521fbeaf110474a4ed592324d2b05f",
 			"zhCnSha256": "bb2af1cd6e9f464856fbe1dd595183a7d966420838d641fd4b29d7929f7535fc"
 		},
+		"proposals/agent/native-agent-projection.md": {
+			"englishSha256": "377cbf78016b03f6e7f7c3cc6b136d5c4e1ccf50fb4a534fd84833fbc873521f",
+			"zhCnSha256": "e385819d07e79ab0689143e16578d32850757b0376012553a98e7c8c08bb5734"
+		},
 		"proposals/cli/native-command-surface.md": {
 			"englishSha256": "1a747a510bc58097ab4870fc6e50370662dc3d9fc24d270b06f45f0b9bf6484e",
 			"zhCnSha256": "0d8fdad25efe0661e1e78af7f0240c02725a692d41adef9b5b098b1c5b5578d7"
