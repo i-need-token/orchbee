@@ -86,6 +86,10 @@ fn accepts_every_query_path_with_default_text() {
             &["terminal", "get", ID],
             QueryCommand::TerminalGet(Target::Id(ID.into())),
         ),
+        (
+            &["terminal", "read", ID],
+            QueryCommand::TerminalRead(Target::Id(ID.into())),
+        ),
         (&["api", "snapshot"], QueryCommand::ApiSnapshot),
         (
             &["api", "schema"],
@@ -252,6 +256,10 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["api", "snapshot", "extra"],
         &["config"],
         &["config", "check", "extra"],
+        // `terminal read` takes exactly one typed-id operand.
+        &["terminal", "read"],
+        &["terminal", "read", ID, "extra"],
+        &["terminal", "read", ID, "--standalone"],
     ];
     for arguments in cases {
         assert_eq!(
@@ -422,6 +430,10 @@ fn suffix_help_requires_an_exact_complete_command_path() {
             HelpTopic::Command(CommandPath::TerminalGet),
         ),
         (
+            &["terminal", "read", "--help"],
+            HelpTopic::Command(CommandPath::TerminalRead),
+        ),
+        (
             &["api", "snapshot", "--help"],
             HelpTopic::Command(CommandPath::ApiSnapshot),
         ),
@@ -527,6 +539,10 @@ fn help_command_accepts_recognized_paths_only() {
             HelpTopic::Command(CommandPath::TerminalGet),
         ),
         (
+            &["help", "terminal", "read"],
+            HelpTopic::Command(CommandPath::TerminalRead),
+        ),
+        (
             &["help", "api", "snapshot"],
             HelpTopic::Command(CommandPath::ApiSnapshot),
         ),
@@ -571,6 +587,7 @@ fn target_rules_follow_each_resource() {
         &["tab", "get", ZERO][..],
         &["panel", "get", ZERO][..],
         &["terminal", "get", ZERO][..],
+        &["terminal", "read", ZERO][..],
     ] {
         assert!(matches!(
             parse(arguments),
@@ -586,6 +603,12 @@ fn target_rules_follow_each_resource() {
         (&["panel", "get", ""][..], Resource::Panel, ""),
         (&["terminal", "get", "X234"][..], Resource::Terminal, "X234"),
         (&["terminal", "get", ZERO][..], Resource::Terminal, ZERO),
+        (&["terminal", "read", "label"][..], Resource::Terminal, "label"),
+        (
+            &["terminal", "read", ""][..],
+            Resource::Terminal,
+            "",
+        ),
     ] {
         assert_eq!(
             parse(arguments),

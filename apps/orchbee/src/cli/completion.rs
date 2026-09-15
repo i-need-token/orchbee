@@ -103,7 +103,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("panel", &["get", "list"]),
     ("project", &["get", "list"]),
     ("tab", &["get", "list"]),
-    ("terminal", &["get", "list"]),
+    ("terminal", &["get", "list", "read"]),
     ("workspace", &["get", "list"]),
 ];
 
@@ -121,6 +121,7 @@ const OPERAND_PATHS: &[&str] = &[
     "project:get",
     "tab:get",
     "terminal:get",
+    "terminal:read",
     "workspace:get",
 ];
 
@@ -146,7 +147,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("panel", &["get", "list"]),
     ("project", &["get", "list"]),
     ("tab", &["get", "list"]),
-    ("terminal", &["get", "list"]),
+    ("terminal", &["get", "list", "read"]),
     ("workspace", &["get", "list"]),
 ];
 
@@ -331,8 +332,10 @@ fn bash() -> String {
             "            panel)\n",
             "                ((seen_project || seen_workspace || seen_standalone)) || verbs=\" list\"\n",
             "                ((seen_project || seen_workspace || seen_tab || seen_standalone)) || verbs=\"$verbs get\" ;;\n",
-            "            project|terminal)\n",
+            "            project)\n",
             "                ((seen_project || seen_workspace || seen_tab || seen_standalone)) || verbs=\" get list\" ;;\n",
+            "            terminal)\n",
+            "                ((seen_project || seen_workspace || seen_tab || seen_standalone)) || verbs=\" get list read\" ;;\n",
             "            api)\n",
             "                ((seen_project || seen_workspace || seen_tab || seen_standalone)) || verbs=\" schema snapshot\" ;;\n",
             "            config)\n",
@@ -594,8 +597,10 @@ fn zsh() -> String {
             "            panel)\n",
             "                ((seen_project || seen_workspace || seen_standalone)) || verbs=\" list\"\n",
             "                ((seen_project || seen_workspace || seen_tab || seen_standalone)) || verbs=\"$verbs get\" ;;\n",
-            "            project|terminal)\n",
+            "            project)\n",
             "                ((seen_project || seen_workspace || seen_tab || seen_standalone)) || verbs=\" get list\" ;;\n",
+            "            terminal)\n",
+            "                ((seen_project || seen_workspace || seen_tab || seen_standalone)) || verbs=\" get list read\" ;;\n",
             "            api)\n",
             "                ((seen_project || seen_workspace || seen_tab || seen_standalone)) || verbs=\" schema snapshot\" ;;\n",
             "            config)\n",
@@ -862,8 +867,10 @@ fn fish() -> String {
             "            case panel\n",
             "                if test $seen_project -eq 0 -a $seen_workspace -eq 0 -a $seen_standalone -eq 0; set -a verbs list; end\n",
             "                if test $seen_project -eq 0 -a $seen_workspace -eq 0 -a $seen_tab -eq 0 -a $seen_standalone -eq 0; set -a verbs get; end\n",
-            "            case project terminal\n",
+            "            case project\n",
             "                if test $seen_project -eq 0 -a $seen_workspace -eq 0 -a $seen_tab -eq 0 -a $seen_standalone -eq 0; set verbs get list; end\n",
+            "            case terminal\n",
+            "                if test $seen_project -eq 0 -a $seen_workspace -eq 0 -a $seen_tab -eq 0 -a $seen_standalone -eq 0; set verbs get list read; end\n",
             "            case api\n",
             "                if test $seen_project -eq 0 -a $seen_workspace -eq 0 -a $seen_tab -eq 0 -a $seen_standalone -eq 0; set verbs schema snapshot; end\n",
             "            case config\n",

@@ -238,6 +238,14 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             schema::answer(schema_id.as_deref(), format, locale)
         }
         QueryCommand::ConfigCheck => config::check(format, locale),
+        // `terminal read` couples the snapshot to one viewer observation on
+        // the same session; its answer arrives already projected.
+        QueryCommand::TerminalRead(target) => match query::read_terminal(target) {
+            Err(failure) => failure_output(failure, Some(format), locale),
+            Ok((source, projection)) => {
+                success_output(projection, source, &command, format, locale)
+            }
+        },
         _ => network_query(&command, format, locale),
     }
 }

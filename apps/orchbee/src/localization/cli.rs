@@ -46,13 +46,30 @@ impl Locale {
                 }
                 Self::ZhCn => "本地 Site 没有可接纳本次查询的 Client Session 容量。\n".to_owned(),
             },
-            FailureKind::TransportLoss => match self {
-                Self::EnUs => {
-                    "The connection to the local Site was lost before a snapshot arrived.\n"
-                        .to_owned()
+            FailureKind::TransportLoss => {
+                let viewer = failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("stage"))
+                    .and_then(|value| value.as_str())
+                    == Some("viewer");
+                match (self, viewer) {
+                    (Self::EnUs, true) => {
+                        "The connection to the local Site was lost during the terminal read.\n"
+                            .to_owned()
+                    }
+                    (Self::ZhCn, true) => {
+                        "与本地 Site 的连接在终端读取期间中断。\n".to_owned()
+                    }
+                    (Self::EnUs, false) => {
+                        "The connection to the local Site was lost before a snapshot arrived.\n"
+                            .to_owned()
+                    }
+                    (Self::ZhCn, false) => {
+                        "与本地 Site 的连接在快照返回前中断。\n".to_owned()
+                    }
                 }
-                Self::ZhCn => "与本地 Site 的连接在快照返回前中断。\n".to_owned(),
-            },
+            }
             FailureKind::ProtocolInvalid => match self {
                 Self::EnUs => {
                     "The local Site answered with an invalid protocol response.\n".to_owned()
@@ -128,6 +145,10 @@ impl Locale {
                 "The local Site could not produce a snapshot right now.\n".to_owned()
             }
             (Self::ZhCn, "snapshot") => "本地 Site 当前无法产出快照。\n".to_owned(),
+            (Self::EnUs, "viewer") => {
+                "The terminal could not be observed for reading right now.\n".to_owned()
+            }
+            (Self::ZhCn, "viewer") => "该终端当前无法进行读取观察。\n".to_owned(),
             (Self::EnUs, _) => "The local Site could not admit this query connection.\n".to_owned(),
             (Self::ZhCn, _) => "本地 Site 无法接纳本次查询连接。\n".to_owned(),
         }
@@ -171,6 +192,14 @@ impl Locale {
         match self {
             Self::EnUs => "One or more configuration checks failed.\n",
             Self::ZhCn => "一项或多项配置检查失败。\n",
+        }
+    }
+
+    /// The text-output marker appended when the read budget omitted frame rows.
+    pub(crate) fn cli_read_truncated(self, omitted: usize) -> String {
+        match self {
+            Self::EnUs => format!("… {omitted} more rows truncated at the read limit\n"),
+            Self::ZhCn => format!("… 因读取上限省略了 {omitted} 行\n"),
         }
     }
 }
@@ -269,6 +298,8 @@ impl Locale {
             (Self::ZhCn, CommandPath::TerminalList) => HELP_TERMINAL_LIST_ZH,
             (Self::EnUs, CommandPath::TerminalGet) => HELP_TERMINAL_GET_EN,
             (Self::ZhCn, CommandPath::TerminalGet) => HELP_TERMINAL_GET_ZH,
+            (Self::EnUs, CommandPath::TerminalRead) => HELP_TERMINAL_READ_EN,
+            (Self::ZhCn, CommandPath::TerminalRead) => HELP_TERMINAL_READ_ZH,
             (Self::EnUs, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_EN,
             (Self::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Self::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,
@@ -300,8 +331,8 @@ const HELP_TAB_ZH: &str = "orchbee tab list|get\n\n查询本地 Site 中的 Tab 
 const HELP_PANEL_EN: &str = "orchbee panel list|get\n\nQuery Panel resources in the running local Site.\n  panel list [--tab <t>]   List Panels, optionally inside one Tab\n  panel get <panel-id>     Show one Panel by its complete typed ID\nPanels have no independent label; only complete 32-hex IDs are accepted.\n";
 const HELP_PANEL_ZH: &str = "orchbee panel list|get\n\n查询本地 Site 中的 Panel 资源。\n  panel list [--tab <t>]   列出 Panel，可按某个 Tab 过滤\n  panel get <panel-id>     按完整类型化 ID 显示一个 Panel\nPanel 没有独立 label；只接受完整 32 位小写十六进制 ID。\n";
 
-const HELP_TERMINAL_EN: &str = "orchbee terminal list|get\n\nQuery terminals bound by Workbench Presentations in the running local Site.\n  terminal list               List every bound terminal\n  terminal get <terminal-id>  Show one terminal by its complete typed ID\nA terminal invisible to any Presentation binding cannot be listed; a binding\nproves structure only, not that a process is alive.\n";
-const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端。\n  terminal list               列出所有已绑定终端\n  terminal get <terminal-id>  按完整类型化 ID 显示一个终端\n未被任何 Presentation 引用的终端不可见；绑定只证明结构，不证明进程存活。\n";
+const HELP_TERMINAL_EN: &str = "orchbee terminal list|get|read\n\nQuery terminals bound by Workbench Presentations in the running local Site.\n  terminal list                List every bound terminal\n  terminal get <terminal-id>   Show one terminal by its complete typed ID\n  terminal read <terminal-id>  Read the terminal's current visible content\nA terminal invisible to any Presentation binding cannot be listed or read; a\nbinding proves structure only, not that a process is alive.\n";
+const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端。\n  terminal list                列出所有已绑定终端\n  terminal get <terminal-id>   按完整类型化 ID 显示一个终端\n  terminal read <terminal-id>  读取终端当前可见内容\n未被任何 Presentation 引用的终端不可见也不可读；绑定只证明结构，不证明进程存活。\n";
 
 const HELP_API_EN: &str = "orchbee api snapshot|schema\n\nMachine introspection of the local Workbench surface.\n  api snapshot           Emit the complete workbench.snapshot document\n  api schema [<id>]      List embedded JSON Schemas, or one schema by ID\nBoth always answer JSON, whatever '--format' was selected.\n";
 const HELP_API_ZH: &str = "orchbee api snapshot|schema\n\n本地 Workbench 面的机器自省。\n  api snapshot           输出完整 workbench.snapshot 文档\n  api schema [<id>]      列出内嵌 JSON Schema，或按 ID 取单个 schema\n两者无论 '--format' 选择如何都输出 JSON。\n";
@@ -341,6 +372,9 @@ const HELP_TERMINAL_LIST_ZH: &str = "orchbee terminal list [--format text|json]\
 
 const HELP_TERMINAL_GET_EN: &str = "orchbee terminal get <terminal-id> [--format text|json]\n\nShow one bound terminal by complete typed ID: worker id and its single\nboundTo location (presentation, panel, tab, context).\n";
 const HELP_TERMINAL_GET_ZH: &str = "orchbee terminal get <terminal-id> [--format text|json]\n\n按完整类型化 ID 显示一个已绑定终端：worker id 及其唯一 boundTo 位置\n（presentation、panel、tab、context）。\n";
+
+const HELP_TERMINAL_READ_EN: &str = "orchbee terminal read <terminal-id> [--format text|json]\n\nRead the current visible content of one bound terminal. The terminal is\nresolved from the Workbench snapshot, then observed once through a short-\nlived read-only viewer on the same session; nothing is created, activated,\nor mutated. Text output prints the grid rows; '--format json' emits the\norchbee.terminal.read envelope with frame metadata and row content.\n";
+const HELP_TERMINAL_READ_ZH: &str = "orchbee terminal read <terminal-id> [--format text|json]\n\n读取一个已绑定终端的当前可见内容。终端经 Workbench 快照解析后，通过同\n一会话上短暂存活的只读 viewer 观察一次；不创建、不激活、不修改任何\n状态。文本输出逐行打印网格内容；'--format json' 输出带帧元数据与行内\n容的 orchbee.terminal.read 封套。\n";
 
 const HELP_API_SNAPSHOT_EN: &str = "orchbee api snapshot [--format text|json]\n\nEmit the complete validated workbench.snapshot document inside the\norchbee.api.snapshot envelope. Always JSON, even under '--format text'.\n";
 const HELP_API_SNAPSHOT_ZH: &str = "orchbee api snapshot [--format text|json]\n\n在 orchbee.api.snapshot 封套内输出完整已验证 workbench.snapshot 文档。\n即使 '--format text' 也始终输出 JSON。\n";

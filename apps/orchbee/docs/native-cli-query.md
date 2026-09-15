@@ -3,7 +3,9 @@
 Status: accepted implementation and correctness contract for the first native `orchbee`
 command-line query surface. The commands below are read-only observations of an already running
 local Site. They never create, repair, lock, or activate a Site; never create terminals, viewers,
-or control grants; never guess Agent, Worker, process, or PTY state; and never require a TTY.
+or control grants — the single exception is `terminal read`, which holds one short-lived
+read-only viewer attachment against an already bound terminal and releases it before output.
+They never guess Agent, Worker, process, or PTY state; and never require a TTY.
 This is an unpublished local development surface; `apps/cli` remains the delivered TypeScript CLI
 authority, and installation, distribution, remote connections, and Site lifecycle operations stay
 out of scope.
@@ -70,7 +72,7 @@ orchbee project list | project get <target>
 orchbee workspace list [--project <target>] | workspace get <target>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee panel list [--tab <target>] | panel get <target>
-orchbee terminal list | terminal get <target>
+orchbee terminal list | terminal get <target> | terminal read <target>
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee config check
@@ -156,6 +158,26 @@ sequence on Linux; the first failing stage wins and determines the failure:
 `{stage:"platform",reason:"unsupported-platform"}` for network queries and `check-failed` with the
 same details for `config check`; there is no fallback to unbounded connection APIs.
 
+`terminal read` shares steps 1–5 unchanged, then keeps the admitted session alive inside the
+same deadline — never a second admission — for one read-only viewer observation:
+
+1. **Resolve** — the typed terminal ID is looked up in the validated snapshot's presentation
+   bindings; absent → `not-found` (3) with `{resource:"terminal",target}` and the session drops.
+   Labels are never consulted.
+2. **Attach** — one `terminal.viewer` `AttachBinding{siteId,workerId,terminalId}` from the
+   snapshot's own facts. `Attached{attachmentId,hostEpoch}` seeds a `TerminalProjection` scoped
+   to that attachment and epoch; any other outcome class maps through the failure matrix.
+3. **Poll** — `Poll{attachmentId}` repeats inside the same deadline: an `Empty` outcome waits
+   10 ms and retries; a `record` outcome feeds the projection. A record that fails transport or
+   frame validation is `protocol-invalid` stage `viewer`; a record the projection answers with
+   `NeedSnapshot` sends that feedback once and polling continues (a `FeedbackAccepted` answer);
+   a consumed `ProjectionBlocked` is ignored. The first record the projection accepts ends the
+   observation — the applied frame is the answer; `FrameApplied` feedback is never sent for a
+   one-shot read.
+4. **Release** — a best-effort `Detach{attachmentId}` precedes the unconditional session drop;
+   both complete before any mapping, formatting, or output. The viewer attachment is never
+   retained into output, and the session drop is itself the teardown guarantee.
+
 ## Canonical data and results
 
 Canonical traversal order: `navigation.projects` order; each project's `workspaces` order;
@@ -199,6 +221,18 @@ binding:{terminalId,workerId}|null}`.
 tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts under
   `terminal`. Only presentation-bound terminals are visible; a binding does not prove the process
   lives. No lifecycle/process/agent fields exist anywhere.
+- `orchbee.terminal.read` → `{terminal,frame,content}`: `terminal` carries the same
+  `{terminalId,workerId,boundTo}` identity facts; `frame` carries the applied projection's
+  `{revision,generation,sequence}` as decimal strings (u64-safe), `alternateScreen`, `geometry`
+  `{columns,rows}`, and `cursor` `{row,column,visible}`; `content` carries `rows` (the emitted
+  grid rows as `{index,text,continuation:{fromPrevious,intoNext}}` — `text` joins the row's
+  cells, dropping wide-cell spacer tails and trimming grid padding), `rowCount` (every row the
+  applied frame held), `truncated`/`omittedRows`, and `limits` `{rows:4096,textBytes:4194304}`.
+  Emitted rows are bounded by a 4 MiB summed JSON-encoded-text budget; rows past the budget are
+  counted in `omittedRows` and `truncated` is true. Under text output each emitted row prints as
+  one escaped line followed by a localized truncation marker when `omittedRows>0`. The read is a
+  single point-in-time frame: `revision`/`generation`/`sequence` are the host's counters at that
+  observation, not a CLI freshness claim.
 - `orchbee.api.snapshot` → `{snapshot}`: the complete `WorkbenchProtocolDocument::Snapshot`
   semantic re-encode including `kind:"workbench.snapshot"`; envelope `siteId`/`revision` agree
   with the inner document.
@@ -258,13 +292,19 @@ semantics. 7/8 stay reserved and unreachable in this read-only slice.
 | `Failed(CorrelationMismatch)`                                                 | `protocol-invalid`                                       | 5                  | `{stage:"snapshot",reason:"correlation-mismatch"}` |
 | outcome `Denied`                                                              | `denied`                                                 | 3                  | omitted                                            |
 | outcome `Unavailable`                                                         | `service-unavailable`                                    | 4                  | `{stage:"snapshot"}`                               |
+| viewer `RequestNotSubmitted`, `OutcomeUnknown(Write|Read)`                    | `transport-loss`                                         | 5                  | `{stage:"viewer"}`                                 |
+| viewer `OutcomeUnknown(InvalidResult|UnexpectedResult)`, wrong outcome kind   | `protocol-invalid`                                       | 5                  | `{stage:"viewer"}`                                 |
+| viewer `OutcomeUnknown(CorrelationMismatch)`                                  | `protocol-invalid`                                       | 5                  | `{stage:"viewer",reason:"correlation-mismatch"}`   |
+| viewer outcome `Rejected(AlreadyAttached|TerminalUnavailable)` or `Unavailable` | `service-unavailable`                                  | 4                  | `{stage:"viewer"}`                                 |
+| viewer outcome `Rejected(FeedbackMismatch)`, record rejected by the projection | `protocol-invalid`                                      | 5                  | `{stage:"viewer"}`                                 |
 | prepared output over 8 MiB                                                    | `output-too-large`                                       | 1                  | `{limitBytes:8388608}`                             |
 | stdout write/flush failure                                                    | `output-failed`                                          | 1                  | no second stdout document                          |
 | `config check` finishes with failures                                         | success schema `ok:false`                                | 1                  | all five checks preserved                          |
 | non-Linux network query / `config check`                                      | `service-unavailable`/`check-failed`                     | 4/1                | `{stage:"platform",reason:"unsupported-platform"}` |
 
-`resource` is `project|workspace|tab|panel|terminal|schema`. Stages and reasons are finite schema
-values; no exception text becomes a machine field. `details` is a closed per-kind vocabulary —
+`resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|platform`.
+Stages and reasons are finite schema values; no exception text becomes a machine field. `details` is a closed per-kind vocabulary —
 `{resource,target}`, `{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`, or
 `{limitBytes}` — and the embedded schemas reject documents outside those shapes. Read-path errors
 never become outcome-unknown/failed-effect: a read-only request cannot produce an unknown side
@@ -294,10 +334,12 @@ effect.
 - Offline commands (`help`, `--version`, `completion`, `api schema`) never perform platform,
   runtime, cohort, or Site discovery.
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
-  or second request; at most one short-lived Client Session is held, and none survives into
-  output.
+  or second request — except `terminal read`, whose read-capability viewer attachment is the
+  single sanctioned side effect, held minimally and released before output. At most one
+  short-lived Client Session is held, and none survives into output.
 - There is at most one snapshot read per invocation, one admission per invocation, and one
-  network deadline covering both.
+  network deadline covering both; `terminal read`'s viewer exchanges ride on that same session
+  and deadline — never a second admission or a renewed budget.
 - No result field exists without a trusted source; `null` means the source says "none" and
   `"unknown"` means the source cannot say — the two never mix.
 - Failure envelopes never invent `source`: siteId/revision appear only from a validated snapshot.
@@ -320,12 +362,15 @@ effect.
 | No Site on disk                                                                                               | `service-unavailable`, zero fs/process/lock mutation            | `tests/cli_query.rs`                                               |
 | Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI      | success/`session-capacity`/unchanged structure                  | `tests/local_startup_process`                                      |
 | Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect              | typed kinds per matrix; never labeled real-Server evidence      | `tests/cli_query.rs`                                               |
+| Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect | `terminal read` success + typed viewer-stage failures | `tests/cli_query.rs`                                  |
+| Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates          | real read-only observation coexisting with the TUI's own viewer | `tests/local_startup_process`                                      |
 | Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure | documented exits; transport owners dropped before blocking      | `tests/local_startup_process` + emit unit tests                    |
 | `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                 | five typed checks always reported                               | `tests/cli_query.rs` + `src/cli/config` tests                      |
 | Completion scripts project the grammar (bash/zsh executed, fish structural parity)                            | positive and negative contexts; no runtime enumeration          | `tests/cli_query.rs`                                               |
 | Bilingual text/failure output                                                                                 | exact en-US/zh-CN strings                                       | `tests/process.rs` + `tests/cli_query.rs`                          |
 
 Model obligations: this slice adds no new Server state machine, persistence, or retry and reuses
-the registered OBLC/OBWP/Client models, so no new TLA+ model is required. Registered models whose
-triggers cover `apps/orchbee` source, manifest, project scope, README, and test paths must still
-actually run; the inventory output is not a substitute.
+the registered OBLC/OBWP/OBCS/Client models — `terminal read` rides the existing
+`terminal.viewer` attach/poll/detach protocol unchanged — so no new TLA+ model is required.
+Registered models whose triggers cover `apps/orchbee` source, manifest, project scope, README,
+and test paths must still actually run; the inventory output is not a substitute.

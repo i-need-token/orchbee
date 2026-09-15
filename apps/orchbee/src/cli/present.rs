@@ -6,7 +6,7 @@
 use serde_json::Value;
 
 use super::config::CheckReport;
-use super::escape::{display_width, quoted, table_label};
+use super::escape::{display_width, escape, quoted, table_label};
 use super::output::{Bounded, TooLarge};
 use super::results::{ContextRef, PanelDoc, PresentationRow, Projection, StatusDoc, TerminalRow};
 use crate::invocation::QueryCommand;
@@ -214,6 +214,20 @@ pub(crate) fn render(
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
         Projection::TerminalList(rows) => terminal_table(out, text, rows),
+        // `terminal read` emits the observed content itself: one output line
+        // per emitted grid row, each escaped the same way as every other
+        // user-controlled value, then a localized marker when the read
+        // budget omitted rows.
+        Projection::TerminalRead(doc) => {
+            for row in &doc.rows {
+                out.push(&escape(&row.text))?;
+                out.push("\n")?;
+            }
+            if doc.omitted_rows > 0 {
+                out.push(&locale.cli_read_truncated(doc.omitted_rows))?;
+            }
+            Ok(())
+        }
         Projection::TerminalGet(row) => {
             field(out, text.terminal, &row.terminal_id)?;
             field(out, text.worker, &row.worker_id)?;

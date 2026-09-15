@@ -1,8 +1,9 @@
 # 原生 CLI 查询
 
 状态：首批原生 `orchbee` 命令行查询面已接受的实现与正确性契约。下列命令是对已在运行的本地
-Site 的只读观察：绝不创建、修复、锁定或激活 Site；不创建终端、viewer 或控制授权；不猜测
-Agent、Worker、进程或 PTY 状态；不要求 TTY。这是未发布的本地开发面；`apps/cli` 仍是已交付的
+Site 的只读观察：绝不创建、修复、锁定或激活 Site；不创建终端、viewer 或控制授权——唯一
+例外是 `terminal read`，它对已绑定终端持有一个短暂的只读 viewer attachment 并在输出前释放。
+不猜测 Agent、Worker、进程或 PTY 状态；不要求 TTY。这是未发布的本地开发面；`apps/cli` 仍是已交付的
 TypeScript CLI 权威；安装、发布、远端连接与 Site 生命周期操作不在范围内。
 
 归属：本记录拥有 `src/invocation.rs` 与 `src/cli/**` 实现的公共语法、结果 envelope、失败矩阵、
@@ -59,7 +60,7 @@ orchbee project list | project get <target>
 orchbee workspace list [--project <target>] | workspace get <target>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee panel list [--tab <target>] | panel get <target>
-orchbee terminal list | terminal get <target>
+orchbee terminal list | terminal get <target> | terminal read <target>
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee config check
@@ -134,6 +135,23 @@ checked 5 秒预算。非 Linux 平台对网络查询产出 `service-unavailable
 `{stage:"platform",reason:"unsupported-platform"}`，对 `config check` 产出同 details 的
 `check-failed`；不存在向无界连接 API 的回退。
 
+`terminal read` 沿用第 1–5 步原样不变，然后在同一 deadline 内让已准入的 session 保持存活
+——绝无第二次准入——完成一次只读 viewer 观察：
+
+1. **解析** —— 在已验证快照的 presentation 绑定中查找 typed terminal ID；不存在 →
+   `not-found`（3）带 `{resource:"terminal",target}`，session 随之释放。绝不咨询 label。
+2. **Attach** —— 以快照自身的事实发起一次 `terminal.viewer`
+   `AttachBinding{siteId,workerId,terminalId}`。`Attached{attachmentId,hostEpoch}` 用于构造
+   限定该 attachment 与 epoch 的 `TerminalProjection`；其他 outcome 类别按失败矩阵映射。
+3. **Poll** —— `Poll{attachmentId}` 在同一 deadline 内重复：`Empty` outcome 等待 10 ms 后
+   重试；`record` outcome 送入投影。record 未通过 transport 或帧校验是 `protocol-invalid`、
+   stage `viewer`；投影以 `NeedSnapshot` 回应的 record 会发送一次该反馈（得到
+   `FeedbackAccepted` 应答）并继续轮询；已消费的 `ProjectionBlocked` 被忽略。投影接受的第一条
+   record 即结束观察——被应用的帧就是答案；一次性读取绝不发送 `FrameApplied` 反馈。
+4. **释放** —— 尽最大努力 `Detach{attachmentId}` 先于无条件的 session drop；两者都完成于
+   任何映射、格式化或输出之前。viewer attachment 绝不保留到输出阶段，session drop 本身就是
+   拆除保证。
+
 ## Canonical 数据与结果
 
 Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspaces` 顺序；
@@ -177,6 +195,17 @@ binding:{terminalId,workerId}|null}`。
 tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身份事实。只有被
   presentation 绑定的终端可见；绑定存在不证明进程存活。任何位置都没有 lifecycle/process/agent
   字段。
+- `orchbee.terminal.read` → `{terminal,frame,content}`：`terminal` 携带同样的
+  `{terminalId,workerId,boundTo}` 身份事实；`frame` 携带已应用投影的
+  `{revision,generation,sequence}`（十进制字符串，u64 无损）、`alternateScreen`、`geometry`
+  `{columns,rows}` 与 `cursor` `{row,column,visible}`；`content` 携带 `rows`（发出的网格行，
+  形如 `{index,text,continuation:{fromPrevious,intoNext}}`——`text` 拼接该行各 cell，
+  丢弃宽字符占位尾并裁剪网格填充）、`rowCount`（已应用帧持有的全部行数）、
+  `truncated`/`omittedRows` 与 `limits` `{rows:4096,textBytes:4194304}`。发出的行受累计 4 MiB
+  JSON 编码文本预算约束；超出预算的行计入 `omittedRows` 且 `truncated` 为 true。text 输出下每
+  个发出的行渲染为一行转义文本，`omittedRows>0` 时末尾追加本地化截断标记。本次读取是单一
+  时间点帧：`revision`/`generation`/`sequence` 是宿主在该观察时刻的计数器，不是 CLI 的
+  freshness 声明。
 - `orchbee.api.snapshot` → `{snapshot}`：完整 `WorkbenchProtocolDocument::Snapshot` 的语义化
   重编码，含 `kind:"workbench.snapshot"`；envelope 的 `siteId`/`revision` 与内部文档一致。
 - `orchbee.api.schema` → 带参 `{schema:{schemaId,document}}`；无参
@@ -233,13 +262,19 @@ transport-loss/protocol-invalid；6 incompatible；130 默认 SIGINT 语义。7/
 | `Failed(CorrelationMismatch)`                                     | `protocol-invalid`                                      | 5                  | `{stage:"snapshot",reason:"correlation-mismatch"}` |
 | outcome `Denied`                                                  | `denied`                                                | 3                  | 省略                                               |
 | outcome `Unavailable`                                             | `service-unavailable`                                   | 4                  | `{stage:"snapshot"}`                               |
+| viewer `RequestNotSubmitted`、`OutcomeUnknown(Write|Read)`        | `transport-loss`                                        | 5                  | `{stage:"viewer"}`                                 |
+| viewer `OutcomeUnknown(InvalidResult|UnexpectedResult)`、错误 outcome 类别 | `protocol-invalid`                              | 5                  | `{stage:"viewer"}`                                 |
+| viewer `OutcomeUnknown(CorrelationMismatch)`                      | `protocol-invalid`                                      | 5                  | `{stage:"viewer",reason:"correlation-mismatch"}`   |
+| viewer outcome `Rejected(AlreadyAttached|TerminalUnavailable)` 或 `Unavailable` | `service-unavailable`                     | 4                  | `{stage:"viewer"}`                                 |
+| viewer outcome `Rejected(FeedbackMismatch)`、record 被投影拒绝     | `protocol-invalid`                                      | 5                  | `{stage:"viewer"}`                                 |
 | 预备输出超 8 MiB                                                  | `output-too-large`                                      | 1                  | `{limitBytes:8388608}`                             |
 | stdout 写/flush 失败                                              | `output-failed`                                         | 1                  | 不追加第二份 stdout 文档                           |
 | `config check` 完成但存在失败项                                   | 成功 schema `ok:false`                                  | 1                  | 五项全部保留                                       |
 | 非 Linux 网络查询 / `config check`                                | `service-unavailable`/`check-failed`                    | 4/1                | `{stage:"platform",reason:"unsupported-platform"}` |
 
-`resource` ∈ `project|workspace|tab|panel|terminal|schema`。stage 与 reason 是有限 schema 值；
-任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
+`resource` ∈ `project|workspace|tab|panel|terminal|schema`；`stage` ∈
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|platform`。
+stage 与 reason 是有限 schema 值；任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
 `{resource,target,candidates≤8,totalCount}`、`{stage[,reason]}` 或 `{limitBytes}`——内嵌
 schema 拒绝超出这些形状的文档。读路径错误永不归类为 outcome-unknown/failed-effect：只读请求
 不可能产生未知副作用。
@@ -264,9 +299,11 @@ schema 拒绝超出这些形状的文档。读路径错误永不归类为 outcom
 - 语法非法的调用绝不触碰文件系统、cohort 或 socket。
 - 离线命令（`help`、`--version`、`completion`、`api schema`）绝不执行平台、运行、cohort 或
   Site 发现。
-- 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求；至多持有
-  一个短暂 Client Session，且绝不带入输出阶段。
-- 每次调用至多一次快照读取、一次准入，且两者共用一个网络 deadline。
+- 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求——唯一
+  例外是 `terminal read`，其只读能力 viewer attachment 是唯一被认可的副作用，最小化持有并
+  在输出前释放。至多持有一个短暂 Client Session，且绝不带入输出阶段。
+- 每次调用至多一次快照读取、一次准入，且两者共用一个网络 deadline；`terminal read` 的
+  viewer 交换复用同一 session 与同一 deadline——绝无第二次准入或续期预算。
 - 没有可信来源的字段不存在；`null` 表示来源确定地表达"无"，`"unknown"` 表示来源无法回答——
   两者绝不混用。
 - 失败 envelope 绝不虚构 `source`：siteId/revision 只来自已验证快照。
@@ -289,11 +326,14 @@ schema 拒绝超出这些形状的文档。读路径错误永不归类为 outcom
 | 无 Site 磁盘状态                                                                               | `service-unavailable`，零 fs/进程/锁变更          | `tests/cli_query.rs`                                      |
 | 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI | 成功/`session-capacity`/结构不变                  | `tests/local_startup_process`                             |
 | 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                 | 按矩阵 typed kind；绝不冒称真实 Server 证据       | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连 | `terminal read` 成功 + typed viewer-stage 失败 | `tests/cli_query.rs`                                      |
+| 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验        | 真实只读观察与 TUI 自身 viewer 共存              | `tests/local_startup_process`                             |
 | 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                        | 文档化退出；阻塞前 transport 句柄已 drop          | `tests/local_startup_process` + emit 单元测试             |
 | `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                              | 五项 typed 检查齐全                               | `tests/cli_query.rs` + `src/cli/config` 测试              |
 | 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                             | 正/负上下文；无运行时枚举                         | `tests/cli_query.rs`                                      |
 | 双语文本/失败输出                                                                              | 精确 en-US/zh-CN 字符串                           | `tests/process.rs` + `tests/cli_query.rs`                 |
 
-模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/Client 模型，故
-不需要新的 TLA+ 模型。触发范围覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试
-路径的已注册模型仍须真实运行；inventory 输出不替代执行。
+模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/OBCS/Client
+模型——`terminal read` 原样复用既有 `terminal.viewer` attach/poll/detach 协议——故不需要新的
+TLA+ 模型。触发范围覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试路径的
+已注册模型仍须真实运行；inventory 输出不替代执行。

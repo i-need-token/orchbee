@@ -275,7 +275,7 @@
 			"required": ["stage"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "enum": ["admission", "discovery", "snapshot"] }
+				"stage": { "enum": ["admission", "discovery", "snapshot", "viewer"] }
 			}
 		},
 		"transportStageDetails": {
@@ -283,7 +283,7 @@
 			"required": ["stage"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "enum": ["admission", "snapshot"] }
+				"stage": { "enum": ["admission", "snapshot", "viewer"] }
 			}
 		},
 		"admissionDetails": {
@@ -299,7 +299,7 @@
 			"required": ["stage"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "enum": ["admission", "snapshot"] }
+				"stage": { "enum": ["admission", "snapshot", "viewer"] }
 			}
 		},
 		"correlationDetails": {
@@ -307,7 +307,7 @@
 			"required": ["stage", "reason"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "snapshot" },
+				"stage": { "enum": ["snapshot", "viewer"] },
 				"reason": { "const": "correlation-mismatch" }
 			}
 		},

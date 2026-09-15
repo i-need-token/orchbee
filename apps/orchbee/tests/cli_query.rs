@@ -17,8 +17,17 @@ use std::{
     time::{Duration, Instant},
 };
 
+use orchbee_client_server_protocol::{
+    ClientMessage, HostEpoch, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerRequest, TerminalViewerResult, ViewerId, ViewerRejectedReason,
+    ViewerUnavailableReason, read_client_message, write_server_message,
+};
 use orchbee_local_client_protocol::{
     LocalClientMessage, RejectionReason, read_message, write_message,
+};
+use orchbee_terminal_protocol::{
+    CURRENT_PROTOCOL_VERSION, Envelope, MessageRole, PayloadEncoding,
+    decode_terminal_text_frame, encode_transport_envelope, inspect_terminal_frame_route,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome,
@@ -1964,8 +1973,387 @@ fn completion_scripts_execute_in_bash_and_zsh() -> TestResult {
         "workspace:list",
         "tab:list",
         "panel:list",
+        "terminal:read",
     ] {
         assert!(fish.contains(needle), "fish script lacks {needle}");
     }
+    Ok(())
+}
+
+// ---- terminal read viewer surface -------------------------------------------
+//
+// `terminal read` keeps the admitted session past the snapshot answer: a
+// read-capability viewer attaches to the snapshot-resolved binding, polls
+// until one record applies to the projection, detaches, and only then is the
+// session dropped for output preparation. These peers speak the real OBCS
+// viewer protocol on the same socket, so attach, poll, feedback, detach,
+// rejection, and disconnect paths all run against production code.
+
+const OBTF: &[u8] =
+    include_bytes!("../../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin");
+
+const TERMINAL_ID: &str = "00000000000000000000000000000001";
+
+/// The OBTF snapshot re-wrapped in its transport envelope — the byte payload a
+/// `terminal.viewer` `record` outcome carries on the wire.
+fn obtf_record() -> Vec<u8> {
+    let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
+    encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Event,
+        kind: if OBTF[6] == 1 { 41 } else { 42 },
+        payload_encoding: PayloadEncoding::TerminalFrame,
+        host_epoch: Some(route.host_epoch),
+        correlation_id: None,
+        optional_message: false,
+        payload: OBTF,
+    })
+    .expect("fixture record")
+}
+
+/// The attach identity the fixture frame carries: the viewer outcome must
+/// present the same attachment and epoch or the projection refuses records.
+fn attached_identity() -> (ViewerId, HostEpoch) {
+    let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
+    (
+        ViewerId::parse(&route.attachment_id.to_text()).expect("fixture attachment id"),
+        HostEpoch::parse(&route.host_epoch.to_text()).expect("fixture host epoch"),
+    )
+}
+
+fn viewer_request(stream: &UnixStream) -> TerminalViewerRequest {
+    match read_client_message(&mut &*stream) {
+        Ok(ClientMessage::TerminalViewer(request)) => request,
+        other => panic!("peer expected a terminal.viewer request, got {other:?}"),
+    }
+}
+
+fn viewer_reply(stream: &UnixStream, request: &TerminalViewerRequest, outcome: TerminalViewerOutcome) {
+    write_server_message(
+        &mut &*stream,
+        &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+            request.request_id().clone(),
+            outcome,
+        )),
+    )
+    .expect("peer writes viewer result");
+}
+
+/// Answer the admission and snapshot stages, then hand the stream to `script`
+/// for the viewer stage of a `terminal read` run.
+fn read_peer(scope: &Path, script: impl Fn(&UnixStream) + Send + 'static) -> thread::JoinHandle<()> {
+    spawn_peer(scope, move |stream| {
+        admit(&stream);
+        let request_id = read_snapshot_request(&stream);
+        snapshot_response(
+            &stream,
+            request_id,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: parse_snapshot(fixture_document()).expect("fixture"),
+            },
+        );
+        script(&stream);
+    })
+}
+
+/// Assert the request is an `AttachBinding` for the fixture's binding and
+/// reply `Attached` with the fixture's own attachment identity.
+fn attach_with_fixture(stream: &UnixStream) -> ViewerId {
+    let request = viewer_request(stream);
+    match request.action() {
+        TerminalViewerAction::AttachBinding {
+            site_id,
+            worker_id,
+            terminal_id,
+        } => {
+            assert_eq!(site_id.as_str(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            assert_eq!(worker_id.as_str(), "6f7263686265652d6c6f63616c2d7631");
+            assert_eq!(terminal_id.as_str(), TERMINAL_ID);
+        }
+        action => panic!("peer expected attach-binding, got {action:?}"),
+    }
+    let (attachment, epoch) = attached_identity();
+    viewer_reply(
+        stream,
+        &request,
+        TerminalViewerOutcome::Attached {
+            attachment_id: attachment.clone(),
+            host_epoch: epoch,
+        },
+    );
+    attachment
+}
+
+/// Consume the CLI's best-effort `Detach` for `attachment` and answer it.
+fn answer_detach(stream: &UnixStream, attachment: &ViewerId) {
+    let request = viewer_request(stream);
+    match request.action() {
+        TerminalViewerAction::Detach { attachment_id } if attachment_id == attachment => {}
+        action => panic!("peer expected detach, got {action:?}"),
+    }
+    viewer_reply(stream, &request, TerminalViewerOutcome::Detached {});
+}
+
+/// Consume one request, asserting it is a `Poll` for `attachment`.
+fn take_poll(stream: &UnixStream, attachment: &ViewerId) -> TerminalViewerRequest {
+    let request = viewer_request(stream);
+    match request.action() {
+        TerminalViewerAction::Poll { attachment_id } if attachment_id == attachment => {}
+        action => panic!("peer expected poll, got {action:?}"),
+    }
+    request
+}
+
+#[test]
+fn terminal_read_observes_a_bound_terminal() -> TestResult {
+    let base = base_dir("tread");
+    let scope = stage_scope(&base);
+    let record = obtf_record();
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        // One Empty answer, then the frame record, then the released attach.
+        let request = take_poll(stream, &attachment);
+        viewer_reply(stream, &request, TerminalViewerOutcome::Empty {});
+        let request = take_poll(stream, &attachment);
+        viewer_reply(stream, &request, TerminalViewerOutcome::Record(record.clone()));
+        answer_detach(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["schema"], "orchbee.terminal.read");
+    assert_eq!(document["source"]["kind"], "workbench-snapshot");
+    assert_eq!(document["source"]["revision"], "7");
+    let route = inspect_terminal_frame_route(OBTF)?;
+    let frame = &document["result"]["frame"];
+    assert_eq!(
+        document["result"]["terminal"]["terminalId"],
+        TERMINAL_ID
+    );
+    assert_eq!(frame["sequence"], route.sequence.get().to_string());
+    assert_eq!(frame["generation"], route.generation.get().to_string());
+    assert_eq!(frame["revision"], route.revision.to_string());
+    let geometry = decode_terminal_text_frame(OBTF)?.geometry;
+    assert_eq!(frame["geometry"]["columns"], geometry.columns);
+    assert_eq!(frame["geometry"]["rows"], geometry.rows);
+    let content = &document["result"]["content"];
+    assert_eq!(content["truncated"], false);
+    assert_eq!(content["omittedRows"], 0);
+    assert_eq!(content["rowCount"], content["rows"].as_array().unwrap().len());
+    assert!(
+        !content["rows"].as_array().unwrap().is_empty(),
+        "the fixture grid emits rows"
+    );
+    // The emitted envelope validates against its own advertised schema.
+    let schema = compiled_schema(&base, "orchbee.terminal.read");
+    assert!(schema.is_valid(&document), "read document: {document}");
+    // Nothing but the peer's socket may exist inside the scope afterward.
+    assert_eq!(scope.read_dir()?.count(), 1, "read must not write the scope");
+    Ok(())
+}
+
+#[test]
+fn terminal_read_text_output_escapes_grid_content() -> TestResult {
+    let base = base_dir("tread-text");
+    let scope = stage_scope(&base);
+    let record = obtf_record();
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(stream, &request, TerminalViewerOutcome::Record(record.clone()));
+        answer_detach(stream, &attachment);
+    });
+    let output = run(&base, &["terminal", "read", TERMINAL_ID]);
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!output.stdout.is_empty(), "grid content is emitted");
+    assert!(
+        !output.stdout.contains(&0x1b),
+        "raw escape bytes never reach stdout"
+    );
+    Ok(())
+}
+
+#[test]
+fn terminal_read_unknown_target_is_not_found() -> TestResult {
+    let base = base_dir("tread-miss");
+    let scope = stage_scope(&base);
+    // The peer serves only the snapshot: no binding means no viewer request
+    // may ever arrive.
+    let peer = read_peer(&scope, |_| {});
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            "ffffffffffffffffffffffffffffffff",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(3));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "not-found");
+    assert_eq!(failure["failure"]["details"]["resource"], "terminal");
+    assert_eq!(
+        failure["failure"]["details"]["target"],
+        "ffffffffffffffffffffffffffffffff"
+    );
+    Ok(())
+}
+
+#[test]
+fn terminal_read_attach_rejected_is_service_unavailable() -> TestResult {
+    let base = base_dir("tread-reject");
+    let scope = stage_scope(&base);
+    let peer = read_peer(&scope, |stream| {
+        let request = viewer_request(stream);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Rejected {
+                reason: ViewerRejectedReason::TerminalUnavailable,
+            },
+        );
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(4));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "service-unavailable");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+#[test]
+fn terminal_read_attach_unavailable_is_service_unavailable() -> TestResult {
+    let base = base_dir("tread-unavailable");
+    let scope = stage_scope(&base);
+    let peer = read_peer(&scope, |stream| {
+        let request = viewer_request(stream);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::ServerBusy,
+            },
+        );
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(4));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "service-unavailable");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+#[test]
+fn terminal_read_correlation_mismatch_is_protocol_invalid() -> TestResult {
+    let base = base_dir("tread-correlation");
+    let scope = stage_scope(&base);
+    let peer = read_peer(&scope, |stream| {
+        let request = viewer_request(stream);
+        let wrong = orchbee_client_server_protocol::RequestId::parse(
+            "0000000000000000000000000000000f",
+        )
+        .expect("valid request id");
+        let (attachment, epoch) = attached_identity();
+        write_server_message(
+            &mut &*stream,
+            &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                wrong,
+                TerminalViewerOutcome::Attached {
+                    attachment_id: attachment,
+                    host_epoch: epoch,
+                },
+            )),
+        )
+        .expect("peer writes mismatched result");
+        let _ = request;
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "protocol-invalid");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    assert_eq!(
+        failure["failure"]["details"]["reason"],
+        "correlation-mismatch"
+    );
+    Ok(())
+}
+
+#[test]
+fn terminal_read_disconnect_mid_poll_is_transport_loss() -> TestResult {
+    let base = base_dir("tread-drop");
+    let scope = stage_scope(&base);
+    let peer = read_peer(&scope, |stream| {
+        let _ = attach_with_fixture(stream);
+        // Returning here drops the stream mid-poll and retires the session.
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "transport-loss");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+#[test]
+fn terminal_read_malformed_record_is_protocol_invalid() -> TestResult {
+    let base = base_dir("tread-malformed");
+    let scope = stage_scope(&base);
+    let peer = read_peer(&scope, |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(vec![0xAA; 128]),
+        );
+        // The failed projection is reported, then the CLI still releases the
+        // attachment before preparing output.
+        answer_detach(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "protocol-invalid");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
     Ok(())
 }

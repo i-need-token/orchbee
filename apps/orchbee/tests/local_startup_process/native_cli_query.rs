@@ -211,6 +211,47 @@ fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
     );
     validate(&validators, "orchbee.terminal.list", &output);
 
+    // `terminal read` observes one live grid through a short-lived read
+    // viewer while the controlling TUI keeps its own attachment.
+    let terminal_id = terminals["result"]["terminals"][0]["terminalId"]
+        .as_str()
+        .expect("bound terminal id");
+    let (output, read) = run_json(
+        &fixture,
+        &["terminal", "read", terminal_id, "--format", "json"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "terminal read: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(read["result"]["terminal"]["terminalId"], terminal_id);
+    assert_eq!(read["result"]["content"]["truncated"], false);
+    assert!(
+        !read["result"]["content"]["rows"]
+            .as_array()
+            .expect("rows")
+            .is_empty(),
+        "a live terminal emits grid rows"
+    );
+    validate(&validators, "orchbee.terminal.read", &output);
+
+    // An absent typed id is not-found even while the Site is live.
+    let (output, failure) = run_json(
+        &fixture,
+        &[
+            "terminal",
+            "read",
+            "ffffffffffffffffffffffffffffffff",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(failure["failure"]["kind"], "not-found");
+    validate(&validators, "orchbee.cli.failure", &output);
+
     // The machine surface: raw snapshot + embedded schema + config.
     let (output, snapshot) = run_json(&fixture, &["api", "snapshot", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));

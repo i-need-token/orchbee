@@ -97,6 +97,7 @@ pub(crate) enum CommandPath {
     PanelGet,
     TerminalList,
     TerminalGet,
+    TerminalRead,
     ApiSnapshot,
     ApiSchema,
     ConfigCheck,
@@ -123,6 +124,7 @@ pub(crate) enum QueryCommand {
     PanelGet(Target),
     TerminalList,
     TerminalGet(Target),
+    TerminalRead(Target),
     ApiSnapshot,
     ApiSchema {
         schema_id: Option<String>,
@@ -455,6 +457,7 @@ fn resolve_help_suffix(
         ["panel", "get"] => HelpTopic::Command(CommandPath::PanelGet),
         ["terminal", "list"] => HelpTopic::Command(CommandPath::TerminalList),
         ["terminal", "get"] => HelpTopic::Command(CommandPath::TerminalGet),
+        ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
         ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
@@ -579,6 +582,17 @@ fn resolve_words(
                 options,
             ))
         }
+        ["terminal", "read", value] => {
+            reject_filters(options, envelope)?;
+            Ok(query(
+                QueryCommand::TerminalRead(target(
+                    (*value).to_owned(),
+                    Resource::Terminal,
+                    envelope,
+                )?),
+                options,
+            ))
+        }
         ["api", "snapshot"] => {
             reject_filters(options, envelope)?;
             Ok(query(QueryCommand::ApiSnapshot, options))
@@ -645,6 +659,7 @@ fn resolve_help_path(
         ["panel", "get"] => HelpTopic::Command(CommandPath::PanelGet),
         ["terminal", "list"] => HelpTopic::Command(CommandPath::TerminalList),
         ["terminal", "get"] => HelpTopic::Command(CommandPath::TerminalGet),
+        ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
         ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),

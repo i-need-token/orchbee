@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
 use orchbee_workbench_protocol::{
     PanelNode, PanelSlot, Presentation, Project, Snapshot, Tab, TerminalContext,
     WorkbenchProtocolDocument, Workspace,
@@ -26,6 +27,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::PanelGet(_) => "orchbee.panel.get",
         QueryCommand::TerminalList => "orchbee.terminal.list",
         QueryCommand::TerminalGet(_) => "orchbee.terminal.get",
+        QueryCommand::TerminalRead(_) => "orchbee.terminal.read",
         QueryCommand::ApiSnapshot => "orchbee.api.snapshot",
         QueryCommand::ApiSchema { .. } => "orchbee.api.schema",
         QueryCommand::ConfigCheck => "orchbee.config.check",
@@ -161,6 +163,117 @@ pub(crate) struct TerminalRow {
     pub(crate) terminal_context_id: String,
 }
 
+/// Routing metadata of the applied projection, re-encoded as decimal strings
+/// so no u64 ever loses precision inside a machine document.
+#[derive(Clone, Debug)]
+pub(crate) struct TerminalFrameDoc {
+    pub(crate) revision: u64,
+    pub(crate) generation: u64,
+    pub(crate) sequence: u64,
+    pub(crate) alternate_screen: bool,
+    pub(crate) columns: u16,
+    pub(crate) rows: u16,
+    pub(crate) cursor_row: u16,
+    pub(crate) cursor_column: u16,
+    pub(crate) cursor_visible: bool,
+}
+
+/// One grid row emitted in the answer: absolute index, joined cell text, and
+/// the soft-wrap continuation flags the frame carried.
+#[derive(Clone, Debug)]
+pub(crate) struct TerminalContentRow {
+    pub(crate) index: u16,
+    pub(crate) text: String,
+    pub(crate) from_previous: bool,
+    pub(crate) into_next: bool,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TerminalReadDoc {
+    pub(crate) terminal: TerminalRow,
+    pub(crate) frame: TerminalFrameDoc,
+    /// Emitted rows only; `row_count` counts every row in the applied frame.
+    pub(crate) rows: Vec<TerminalContentRow>,
+    pub(crate) row_count: usize,
+    pub(crate) omitted_rows: usize,
+}
+
+/// The read bound: the summed JSON-encoded `text` member length of emitted
+/// rows never exceeds this budget, so every format stays far under the
+/// 8 MiB preparation cap even on hostile cell content.
+pub(crate) const READ_TEXT_BYTES: usize = 4 * 1024 * 1024;
+
+/// Project the applied frame into the bounded answer: rows are emitted in
+/// frame order until the encoded-text budget would overflow, and every
+/// omitted row is counted honestly.
+#[cfg(unix)]
+pub(crate) fn terminal_read_doc(
+    terminal: TerminalRow,
+    frame: &orchbee_terminal_protocol::TerminalTextFrame,
+) -> Result<TerminalReadDoc, Failure> {
+    let row_count = frame.rows.len();
+    let mut budget = READ_TEXT_BYTES;
+    let mut rows = Vec::new();
+    for row in &frame.rows {
+        let mut text = String::new();
+        for cell in &row.cells {
+            // A spacer tail is already covered by its wide cell; a spacer
+            // head or an empty cell renders as one space.
+            if cell.width == 2 {
+                continue;
+            }
+            if cell.width == 3 || cell.text.is_empty() {
+                text.push(' ');
+            } else {
+                text.push_str(&cell.text);
+            }
+        }
+        // Trailing cells are grid padding, never content: a blank-only row
+        // emits an empty line.
+        while text.ends_with(' ') {
+            text.pop();
+        }
+        let encoded = serde_json::to_string(&text)
+            .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+        if encoded.len() > budget {
+            break;
+        }
+        budget -= encoded.len();
+        rows.push(TerminalContentRow {
+            index: row.index,
+            text,
+            from_previous: row.flags & 1 != 0,
+            into_next: row.flags & 2 != 0,
+        });
+    }
+    let doc = TerminalFrameDoc {
+        revision: frame.route.revision,
+        generation: frame.route.generation.get(),
+        sequence: frame.route.sequence.get(),
+        alternate_screen: frame.alternate_screen,
+        columns: frame.geometry.columns,
+        rows: frame.geometry.rows,
+        cursor_row: frame.cursor.row,
+        cursor_column: frame.cursor.column,
+        cursor_visible: frame.cursor.visible,
+    };
+    Ok(TerminalReadDoc {
+        terminal,
+        frame: doc,
+        omitted_rows: row_count - rows.len(),
+        rows,
+        row_count,
+    })
+}
+
+/// The bound terminal row for a typed identity, or `None` when no
+/// presentation binds it — the same visibility rule as `terminal get`.
+pub(crate) fn terminal_binding(snapshot: &Snapshot, identity: &str) -> Option<TerminalRow> {
+    terminal_rows(snapshot)
+        .into_iter()
+        .find(|row| row.terminal_id == identity)
+}
+
 #[derive(Debug)]
 pub(crate) enum Projection {
     Status(StatusDoc),
@@ -174,6 +287,7 @@ pub(crate) enum Projection {
     PanelGet(PanelDoc),
     TerminalList(Vec<TerminalRow>),
     TerminalGet(TerminalRow),
+    TerminalRead(TerminalReadDoc),
     ApiSnapshot(Value),
 }
 
@@ -307,6 +421,47 @@ impl Projection {
                 "terminals": rows.iter().map(terminal_row_json).collect::<Vec<_>>(),
             }),
             Self::TerminalGet(row) => json!({ "terminal": terminal_row_json(row) }),
+            Self::TerminalRead(doc) => json!({
+                "terminal": terminal_row_json(&doc.terminal),
+                "frame": {
+                    "revision": doc.frame.revision.to_string(),
+                    "generation": doc.frame.generation.to_string(),
+                    "sequence": doc.frame.sequence.to_string(),
+                    "alternateScreen": doc.frame.alternate_screen,
+                    "geometry": {
+                        "columns": doc.frame.columns,
+                        "rows": doc.frame.rows,
+                    },
+                    "cursor": {
+                        "row": doc.frame.cursor_row,
+                        "column": doc.frame.cursor_column,
+                        "visible": doc.frame.cursor_visible,
+                    },
+                },
+                "content": {
+                    "rows": doc
+                        .rows
+                        .iter()
+                        .map(|row| {
+                            json!({
+                                "index": row.index,
+                                "text": row.text,
+                                "continuation": {
+                                    "fromPrevious": row.from_previous,
+                                    "intoNext": row.into_next,
+                                },
+                            })
+                        })
+                        .collect::<Vec<_>>(),
+                    "rowCount": doc.row_count,
+                    "truncated": doc.omitted_rows > 0,
+                    "omittedRows": doc.omitted_rows,
+                    "limits": {
+                        "rows": MAXIMUM_FRAME_ROWS,
+                        "textBytes": READ_TEXT_BYTES,
+                    },
+                },
+            }),
             Self::ApiSnapshot(document) => json!({ "snapshot": document }),
         }
     }
@@ -674,9 +829,12 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             serde_json::to_value(WorkbenchProtocolDocument::Snapshot(snapshot.clone()))
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
         )),
-        QueryCommand::ApiSchema { .. } | QueryCommand::ConfigCheck => {
-            Err(Failure::new(FailureKind::InternalFailure))
-        }
+        // `terminal read` projects a live frame, not snapshot data alone; its
+        // answer is built by the query layer. `api schema`/`config check`
+        // never reach a snapshot projection.
+        QueryCommand::TerminalRead(_)
+        | QueryCommand::ApiSchema { .. }
+        | QueryCommand::ConfigCheck => Err(Failure::new(FailureKind::InternalFailure)),
     }
 }
 

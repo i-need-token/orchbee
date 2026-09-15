@@ -232,6 +232,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::TabList,
         CommandPath::TerminalGet,
         CommandPath::TerminalList,
+        CommandPath::TerminalRead,
         CommandPath::Tui,
         CommandPath::WorkspaceGet,
         CommandPath::WorkspaceList,
