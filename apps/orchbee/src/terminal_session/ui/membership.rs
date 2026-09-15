@@ -125,7 +125,8 @@ impl NativeUi {
             Ok(match cleanup.result() {
                 MembershipResultKey::Refresh(_)
                 | MembershipResultKey::Create(_)
-                | MembershipResultKey::Move(_) => UiReply::Membership(settlement),
+                | MembershipResultKey::Move(_)
+                | MembershipResultKey::Panel(_) => UiReply::Membership(settlement),
                 MembershipResultKey::Switch(_) => UiReply::Switch(settlement),
                 MembershipResultKey::Rename(id) => {
                     UiReply::Rename(super::super::mailbox::RenameSettlement::new(

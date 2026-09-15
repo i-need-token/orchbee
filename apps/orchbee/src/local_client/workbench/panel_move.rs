@@ -342,6 +342,7 @@ fn classify_outcome(
             if matches!(
                 reason,
                 WorkbenchCommandUnavailableReason::RequestLedgerFull
+                    | WorkbenchCommandUnavailableReason::TerminalBusy
                     | WorkbenchCommandUnavailableReason::ServiceUnavailable
             ) =>
         {

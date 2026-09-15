@@ -16,7 +16,12 @@ impl TerminalSession {
         {
             let Some(deadline) = clock.now().checked_add(state::OPERATION_TOTAL) else {
                 native.close(state::CarrierFailure::Deadline);
-                native.finalize_retirement(None, None, state::CloseWorkerReturn::Returned(None));
+                native.finalize_retirement(
+                    None,
+                    None,
+                    None,
+                    state::CloseWorkerReturn::Returned(None),
+                );
                 native.release_mailbox();
                 return true;
             };
@@ -49,7 +54,12 @@ impl TerminalSession {
                 shutdown.close();
                 native.finish_retired_peer_join(None, true);
                 native.close(state::CarrierFailure::WorkerExited);
-                native.finalize_retirement(None, None, state::CloseWorkerReturn::Returned(None));
+                native.finalize_retirement(
+                    None,
+                    None,
+                    None,
+                    state::CloseWorkerReturn::Returned(None),
+                );
                 native.release_mailbox();
             }
         }

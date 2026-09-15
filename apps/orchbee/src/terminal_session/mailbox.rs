@@ -54,6 +54,9 @@ mod membership;
 pub(super) use membership::DesiredInstall;
 #[cfg(test)]
 pub(super) use membership::PreparedDesiredInstall;
+mod panel;
+use panel::PanelFlight;
+pub(super) use panel::{PanelMarker, PanelSettlement};
 mod switch_membership;
 pub(super) use switch_membership::{SwitchAdmissionFacts, SwitchExpiryPermit};
 use switch_membership::{SwitchAnchorInvalidation, SwitchHandoffRecord};
@@ -184,6 +187,7 @@ pub(super) enum QueuedCommand {
     Create(CreateMarker),
     Refresh(RefreshMarker),
     Move(MoveMarker),
+    Panel(PanelMarker),
     Rename(RenameMarker),
     WorkspaceSetup(WorkspaceSetupMarker),
     Close(CloseMarker),
@@ -218,6 +222,7 @@ impl QueuedCommand {
             Self::Create(marker) => Some(marker.barrier()),
             Self::Refresh(marker) => Some(marker.barrier()),
             Self::Move(marker) => Some(marker.barrier()),
+            Self::Panel(marker) => Some(marker.barrier()),
             Self::Rename(marker) => Some(marker.barrier()),
             Self::WorkspaceSetup(marker) => Some(marker.barrier()),
             Self::Close(marker) => Some(marker.barrier()),
@@ -243,6 +248,7 @@ pub(super) enum BarrierKind {
     Create,
     Refresh,
     Move,
+    Panel,
     Rename,
     Close,
 }
@@ -436,6 +442,7 @@ enum UiCorrelation {
     Create(CreateOperationKey),
     Refresh(u64),
     Move(WorkbenchRequestId),
+    Panel(WorkbenchRequestId),
     Rename(WorkbenchRequestId),
     Close(CloseFlightKey),
     CloseReconciliation(CloseFlightKey, WorkbenchRequestId),
@@ -455,6 +462,7 @@ enum UiReplyKind {
     CreateProjection,
     Refresh,
     Move,
+    Panel,
     Rename,
     Close,
     CloseReconciliation,
@@ -516,6 +524,10 @@ pub(super) enum WorkerEvent {
     MoveResult {
         operation: MoveOperation,
         outcome: MoveResult,
+    },
+    PanelResult {
+        operation: super::state::PanelOperation,
+        outcome: super::state::PanelResult,
     },
     Bootstrap {
         cache: NativeContextTabs,
@@ -627,7 +639,8 @@ impl WorkerEvent {
                     MembershipResultKey::Close(_) => UiReplyKind::CloseReconciliation,
                     MembershipResultKey::Refresh(_)
                     | MembershipResultKey::Create(_)
-                    | MembershipResultKey::Move(_) => UiReplyKind::Membership,
+                    | MembershipResultKey::Move(_)
+                    | MembershipResultKey::Panel(_) => UiReplyKind::Membership,
                     MembershipResultKey::Switch(_) => UiReplyKind::Switch,
                     MembershipResultKey::Rename(_) => UiReplyKind::Rename,
                 },
@@ -639,6 +652,10 @@ impl WorkerEvent {
             Self::MoveResult { operation, .. } => (
                 UiCorrelation::Move(operation.request_id().clone()),
                 UiReplyKind::Move,
+            ),
+            Self::PanelResult { operation, .. } => (
+                UiCorrelation::Panel(operation.request_id().clone()),
+                UiReplyKind::Panel,
             ),
             Self::WorkspaceSetupResult { operation, .. } => (
                 UiCorrelation::Refresh(operation.generation),
@@ -710,6 +727,7 @@ pub(super) enum UiReply {
     Membership(RefreshSettlement),
     Close(CloseFlightKey),
     Move(MoveSettlement),
+    Panel(PanelSettlement),
     BootstrapApplied(BootstrapTarget),
     SetupConfigurationSettled(SetupEventDisposition),
     SwitchEntryExpiredApplied(CleanupContinuation),
@@ -780,6 +798,7 @@ impl UiReply {
             Self::Membership(_) => UiReplyKind::Membership,
             Self::Close(_) => UiReplyKind::Close,
             Self::Move(_) => UiReplyKind::Move,
+            Self::Panel(_) => UiReplyKind::Panel,
             Self::Rename(_) => UiReplyKind::Rename,
             Self::BootstrapApplied(_) => UiReplyKind::BootstrapApplied,
             Self::SetupConfigurationSettled(_) => UiReplyKind::SetupConfigurationSettled,
@@ -938,6 +957,7 @@ struct MoveFlight {
 
 enum StructuralMutationFlight {
     Move(Box<MoveFlight>),
+    Panel(Box<PanelFlight>),
     Rename(Box<RenameFlight>),
     Setup(Box<SetupFlight>),
 }
@@ -946,7 +966,7 @@ impl StructuralMutationFlight {
     fn as_move(&self) -> Option<&MoveFlight> {
         match self {
             Self::Move(flight) => Some(flight),
-            Self::Rename(_) | Self::Setup(_) => None,
+            Self::Panel(_) | Self::Rename(_) | Self::Setup(_) => None,
         }
     }
 }
@@ -1171,6 +1191,7 @@ impl CommandMailbox {
             | QueuedCommand::Create(_)
             | QueuedCommand::Refresh(_)
             | QueuedCommand::Move(_)
+            | QueuedCommand::Panel(_)
             | QueuedCommand::Rename(_)
             | QueuedCommand::WorkspaceSetup(_)
             | QueuedCommand::Close(_)
@@ -1716,6 +1737,7 @@ impl CommandMailbox {
                 | QueuedCommand::Refresh(_)
                 | QueuedCommand::ReconcileClose(_)
                 | QueuedCommand::Move(_)
+                | QueuedCommand::Panel(_)
                 | QueuedCommand::Rename(_)
                 | QueuedCommand::WorkspaceSetup(_)
         );
@@ -1933,6 +1955,11 @@ impl CommandMailbox {
             {
                 flight.stage = PendingRefreshStage::AwaitingUi;
             }
+        }
+        if let WorkerEvent::PanelResult { operation, .. } = &event
+            && !state.place_panel_result(operation, deadline, event_anchor_serial)
+        {
+            return Err(self.close_protocol(&mut state));
         }
         if let WorkerEvent::CloseReconciliationSnapshot { marker, .. } = &event
             && !state.place_close_reconciliation(marker, deadline, event_anchor_serial)
@@ -2252,6 +2279,7 @@ impl CommandMailbox {
         }
         if !state.rename_reply_current(&wait_key.correlation)
             || !state.setup_reply_current(&wait_key.correlation)
+            || !state.panel_reply_current(&wait_key.correlation)
         {
             return Err(self.close_protocol(state));
         }
@@ -2307,6 +2335,21 @@ impl CommandMailbox {
                     state.structural_mutation_pending = None;
                 }
             }
+            UiReply::Panel(settlement) => {
+                let valid = matches!(&wait_key.correlation, UiCorrelation::Panel(request_id)
+                if matches!(&state.structural_mutation_pending, Some(StructuralMutationFlight::Panel(flight))
+                    if flight.operation.request_id() == request_id
+                        && flight.stage == PendingRefreshStage::AwaitingUi));
+                if !valid || state.desired.key() != settlement.desired() {
+                    return Err(self.close_protocol(state));
+                }
+                if !matches!(
+                    settlement.decision(),
+                    crate::terminal_session::state::PanelDecision::Cleanup(_)
+                ) {
+                    state.structural_mutation_pending = None;
+                }
+            }
             UiReply::Membership(settlement)
                 if matches!(
                     &wait_key.correlation,
@@ -2330,6 +2373,7 @@ impl CommandMailbox {
                         Some(*generation)
                     }
                     UiCorrelation::Membership(MembershipResultKey::Move(_), _) => None,
+                    UiCorrelation::Membership(MembershipResultKey::Panel(_), _) => None,
                     _ => {
                         return Err(self.close_protocol(state));
                     }

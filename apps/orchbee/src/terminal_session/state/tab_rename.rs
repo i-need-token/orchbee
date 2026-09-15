@@ -88,6 +88,7 @@ impl super::NativeSessionState {
         self.setup_blocks_structure()
             || self.pending_mutation.is_some()
             || self.move_recovery.is_some()
+            || self.panel_recovery.is_some()
             || self.rename_recovery.is_some()
     }
 

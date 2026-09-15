@@ -20,6 +20,7 @@ pub(crate) use context_selection::NativeContextView;
 mod create_membership;
 mod membership;
 mod move_tab;
+mod panel;
 pub(super) mod rename_draft;
 pub(super) mod rename_text;
 #[cfg(target_os = "linux")]
@@ -35,6 +36,12 @@ pub(super) use membership::{
     MembershipCleanup, MembershipInstallDecision, MembershipResultKey, PreparedMembershipCandidate,
 };
 pub(super) use move_tab::{MoveDecision, MoveOperation, MoveResult, PendingMoveCommit};
+#[cfg(test)]
+pub(super) use panel::PanelPrecommit;
+pub(super) use panel::{
+    PanelCommit, PanelDecision, PanelIntent, PanelOperation, PanelRequestKind, PanelResult,
+    PendingPanelCommit,
+};
 use switch_membership::SwitchMembership;
 pub(super) use switch_membership::SwitchRestoreKey;
 pub(crate) use tab_close::{
@@ -145,6 +152,7 @@ pub(super) enum SessionPhaseKind {
     CreateCommittedNeedDetach,
     ProjectionUnavailable,
     MoveProjectionUnavailable,
+    PanelProjectionUnavailable,
     RenameProjectionUnavailable,
     Switching,
     SelectedWithoutAttachment,
@@ -160,6 +168,7 @@ pub(super) enum SessionNotice {
     MoveNotMoved,
     RenameNotRenamed,
     CloseRequestNotApplied,
+    PanelNotApplied,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -625,6 +634,7 @@ pub(super) enum SelectionPlan {
 
 enum PendingMutation {
     Move(MoveOperation),
+    Panel(PanelOperation),
     Rename(tab_rename::RenameOperation),
 }
 
@@ -667,6 +677,8 @@ pub(super) struct NativeSessionState {
     pending_mutation: Option<PendingMutation>,
     move_recovery: Option<PendingMoveCommit>,
     settled_move: Option<PendingMoveCommit>,
+    panel_recovery: Option<PendingPanelCommit>,
+    settled_panel: Option<PendingPanelCommit>,
     settled_rename: Option<tab_rename::PendingRenameCommit>,
     rename_recovery: Option<tab_rename::PendingRenameCommit>,
     rename_uncertain: Option<tab_rename::RenameOperation>,
@@ -719,6 +731,8 @@ impl NativeSessionState {
             pending_mutation: None,
             move_recovery: None,
             settled_move: None,
+            panel_recovery: None,
+            settled_panel: None,
             settled_rename: None,
             rename_recovery: None,
             rename_uncertain: None,
@@ -737,6 +751,9 @@ impl NativeSessionState {
         }
         if self.move_recovery.is_some() && !matches!(&self.phase, SessionPhase::Retired(_)) {
             return SessionPhaseKind::MoveProjectionUnavailable;
+        }
+        if self.panel_recovery.is_some() && !matches!(&self.phase, SessionPhase::Retired(_)) {
+            return SessionPhaseKind::PanelProjectionUnavailable;
         }
         match &self.phase {
             SessionPhase::Empty => SessionPhaseKind::Empty,
@@ -1610,6 +1627,8 @@ impl NativeSessionState {
         let active = self.active().cloned();
         let validated = if let Some(pending) = &self.move_recovery {
             pending.validate_projection(candidate)
+        } else if let Some(pending) = &self.panel_recovery {
+            pending.validate_projection(candidate)
         } else if let Some(pending) = &self.rename_recovery {
             pending
                 .validate_projection(candidate)
@@ -1620,9 +1639,27 @@ impl NativeSessionState {
         let Ok(candidate) = validated else {
             return PreparedRefresh::Divergent { generation };
         };
+        // The Tab survives but the selected leaf vanished (for example after our own panel.close):
+        // repair the selection to a surviving leaf through the membership path instead of retiring.
+        let leaf_repair = active.as_ref().and_then(|active| {
+            let index = candidate.tab_index(active.key.tab_id())?;
+            let panel_id = self
+                .cache
+                .tabs()
+                .get(active.index)
+                .and_then(|tab| tab.panel(active.panel_index()))
+                .map(|panel| panel.panel_id())?;
+            let tab = candidate.tabs().get(index)?;
+            tab.panel_index(panel_id).is_none().then(|| {
+                active
+                    .panel_index()
+                    .min(tab.panel_count().saturating_sub(1))
+            })
+        });
         if active
             .as_ref()
             .is_none_or(|active| candidate.tab_index(active.key.tab_id()).is_none())
+            || leaf_repair.is_some()
         {
             return match self.prepare_membership_candidate(
                 candidate,
@@ -1630,10 +1667,15 @@ impl NativeSessionState {
                 active.as_ref().map(|active| active.index),
                 None,
             ) {
-                Ok(prepared) => PreparedRefresh::Membership {
-                    generation,
-                    prepared,
-                },
+                Ok(mut prepared) => {
+                    if let Some(panel_index) = leaf_repair {
+                        prepared.retarget_selected_panel(panel_index);
+                    }
+                    PreparedRefresh::Membership {
+                        generation,
+                        prepared,
+                    }
+                }
                 Err(_) => PreparedRefresh::Divergent { generation },
             };
         }
@@ -1647,6 +1689,7 @@ impl NativeSessionState {
         match baseline_phase {
             SessionPhaseKind::Ready
             | SessionPhaseKind::MoveProjectionUnavailable
+            | SessionPhaseKind::PanelProjectionUnavailable
             | SessionPhaseKind::RenameProjectionUnavailable
             | SessionPhaseKind::SelectedWithoutAttachment
             | SessionPhaseKind::RetryableAttachUnavailable => PreparedRefresh::Append {
@@ -1710,6 +1753,7 @@ impl NativeSessionState {
                 } else if self.merge_projection(candidate) {
                     self.install_publication_debt();
                     self.move_recovery = None;
+                    self.panel_recovery = None;
                     self.rename_recovery = None;
                     self.refresh_status =
                         Some(NavigatorRefreshStatus::Success(self.cache.revision()));
@@ -1998,6 +2042,7 @@ impl NativeSessionState {
             return false;
         }
         if !self.move_invariant_holds()
+            || !self.panel_invariant_holds()
             || !self.rename_invariant_holds()
             || !self.setup_invariant_holds()
         {

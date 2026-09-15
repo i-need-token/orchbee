@@ -52,7 +52,7 @@ fn ready(
 fn retire(ui: &mut NativeUi, evidence: Option<UnavailablePoll>, clean: bool) {
     ui.retire(CarrierFailure::Protocol);
     ui.finish_retired_peer_join(evidence, clean);
-    ui.finalize_retirement(None, None, CloseWorkerReturn::Returned(None));
+    ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
     ui.release_mailbox();
 }
 
@@ -221,7 +221,7 @@ fn unavailable_present_and_invalid_candidates_preserve_origin_for_fresh_explicit
         assert_eq!(ui.state.as_ref().unwrap().cache(), &baseline);
         assert!(mailbox.execution_fence(&lease).desired().key().is_none());
         ui.finish_retired_peer_join(None, true);
-        ui.finalize_retirement(None, None, CloseWorkerReturn::Returned(None));
+        ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
         ui.release_mailbox();
         let (retry, clock, deadline) = ui.begin_retired_membership_recovery().unwrap();
         let retry_lease = retry.try_recv().unwrap().unwrap();
@@ -271,7 +271,7 @@ fn cancelled_old_reply_cannot_install_into_a_later_explicit_attempt() {
     let stale = first.take_event_before(&clock).unwrap().unwrap();
     ui.retire(CarrierFailure::Closed);
     ui.finish_retired_peer_join(None, true);
-    ui.finalize_retirement(None, None, CloseWorkerReturn::Returned(None));
+    ui.finalize_retirement(None, None, None, CloseWorkerReturn::Returned(None));
     ui.release_mailbox();
     let (second, _, _) = ui.begin_retired_membership_recovery().unwrap();
     let cursor = second.cursors();

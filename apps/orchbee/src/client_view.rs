@@ -47,6 +47,9 @@ pub(crate) enum BackendAction {
     SelectTab(u8),
     SelectPreviousContext,
     SelectNextContext,
+    SplitPanel,
+    ClosePanel,
+    MovePanel,
 }
 
 // This value is shared with the native Session reducer while remaining protocol-free.
@@ -73,6 +76,9 @@ pub(crate) enum ClientAction {
     SelectPreviousContext,
     SelectNextContext,
     MovePanelFocus(PanelDirection),
+    SplitPanel(PanelDirection),
+    ClosePanel,
+    MovePanel(PanelDirection),
     ForwardLiteralPrefix,
     DismissPrefix,
     UnknownPrefix,
@@ -147,6 +153,9 @@ impl ClientAction {
             Self::SelectPreviousContext => Some(BackendAction::SelectPreviousContext),
             Self::SelectNextContext => Some(BackendAction::SelectNextContext),
             Self::MovePanelFocus(_) => None,
+            Self::SplitPanel(_) => Some(BackendAction::SplitPanel),
+            Self::ClosePanel => Some(BackendAction::ClosePanel),
+            Self::MovePanel(_) => Some(BackendAction::MovePanel),
             Self::ToggleBusinessSidebar
             | Self::ConfirmClose
             | Self::CancelClose
@@ -330,6 +339,32 @@ impl ClientView {
             ),
             ClientKey::Plain('l') => (
                 ClientAction::MovePanelFocus(PanelDirection::Right),
+                ShellCommand::None,
+            ),
+            // Provisional panel-operation bindings; see the README shortcut table.
+            ClientKey::Plain('-') => (
+                ClientAction::SplitPanel(PanelDirection::Down),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('|') => (
+                ClientAction::SplitPanel(PanelDirection::Right),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('X') => (ClientAction::ClosePanel, ShellCommand::None),
+            ClientKey::Plain('H') => (
+                ClientAction::MovePanel(PanelDirection::Left),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('J') => (
+                ClientAction::MovePanel(PanelDirection::Down),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('K') => (
+                ClientAction::MovePanel(PanelDirection::Up),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('L') => (
+                ClientAction::MovePanel(PanelDirection::Right),
                 ShellCommand::None,
             ),
             ClientKey::Other | ClientKey::Plain(_) => {

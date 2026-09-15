@@ -4,7 +4,9 @@ use super::workbench_projection::NativeTerminalBinding;
 use super::{Identities, LegacyCommand, LegacyEvent, LegacyIntent};
 use crate::{
     local_client::LocalClient,
-    terminal_session::state::{PendingCloseResult, PendingCreateCommit, PendingMoveCommit},
+    terminal_session::state::{
+        PendingCloseResult, PendingCreateCommit, PendingMoveCommit, PendingPanelCommit,
+    },
 };
 #[cfg(test)]
 use crate::{local_client::SubmissionError, terminal_projection::TerminalProjection};
@@ -52,6 +54,7 @@ pub(super) struct NativeWorkerExit {
     unavailable_poll: Option<super::state::retired_membership::UnavailablePoll>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
+    pending_panel: Option<PendingPanelCommit>,
     pending_close: Option<PendingCloseResult>,
     pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
     pending_setup: Option<super::state::workspace_setup::SetupWorkerEvidence>,
@@ -88,6 +91,7 @@ impl NativeWorkerExit {
     const fn new(
         pending_create: Option<PendingCreateCommit>,
         pending_move: Option<PendingMoveCommit>,
+        pending_panel: Option<PendingPanelCommit>,
         pending_close: Option<PendingCloseResult>,
         pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
     ) -> Self {
@@ -96,6 +100,7 @@ impl NativeWorkerExit {
             unavailable_poll: None,
             pending_create,
             pending_move,
+            pending_panel,
             pending_close,
             pending_rename,
             pending_setup: None,
@@ -119,21 +124,23 @@ impl NativeWorkerExit {
         self.pending_close
     }
 
-    pub(super) fn into_pending_results(
-        self,
-    ) -> (
-        Option<PendingCreateCommit>,
-        Option<PendingMoveCommit>,
-        Option<PendingCloseResult>,
-        Option<super::state::tab_rename::RenameWorkerEvidence>,
-    ) {
-        (
-            self.pending_create,
-            self.pending_move,
-            self.pending_close,
-            self.pending_rename,
-        )
+    pub(super) fn into_pending_results(self) -> PendingWorkerResults {
+        PendingWorkerResults {
+            create: self.pending_create,
+            moved: self.pending_move,
+            panel: self.pending_panel,
+            close: self.pending_close,
+            renamed: self.pending_rename,
+        }
     }
+}
+
+pub(super) struct PendingWorkerResults {
+    pub(super) create: Option<PendingCreateCommit>,
+    pub(super) moved: Option<PendingMoveCommit>,
+    pub(super) panel: Option<PendingPanelCommit>,
+    pub(super) close: Option<PendingCloseResult>,
+    pub(super) renamed: Option<super::state::tab_rename::RenameWorkerEvidence>,
 }
 
 #[cfg(test)]

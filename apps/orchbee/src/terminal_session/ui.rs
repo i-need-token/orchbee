@@ -8,8 +8,9 @@ use super::{
         AttachmentKey, CarrierFailure, ControllerMode, CreateOperation, CreateOperationKey,
         CreateProjectionDecision, CreateTerminalProvenance, FrameIdentity, NativeSessionState,
         NativeSessionView as StateSessionView, NativeTabView as StateTabView,
-        NavigatorRefreshStatus, OperationDeadlines, PendingCreateCommit, PendingMoveCommit,
-        RefreshDecision, SelectionPlan, SessionNotice, SessionPhaseKind, SetupEventDisposition,
+        NavigatorRefreshStatus, OperationDeadlines, PanelRequestKind, PendingCreateCommit,
+        PendingMoveCommit, PendingPanelCommit, RefreshDecision, SelectionPlan, SessionNotice,
+        SessionPhaseKind, SetupEventDisposition,
     },
 };
 use crate::{
@@ -30,6 +31,7 @@ use std::sync::Arc;
 mod close_reconciliation;
 mod membership;
 mod move_membership;
+mod panel;
 #[cfg(target_os = "linux")]
 mod retired_membership;
 mod tab_close;
@@ -58,6 +60,7 @@ pub(crate) enum NativeDisplayPhase {
     CreateCommittedNeedDetach,
     ProjectionUnavailable,
     MoveProjectionUnavailable,
+    PanelProjectionUnavailable,
     RenameProjectionUnavailable,
     Switching,
     SelectedWithoutAttachment,
@@ -87,6 +90,7 @@ pub(crate) enum NativeSessionNotice {
     NoTabAtPosition(u8),
     CreateNotCreated,
     MoveNotMoved,
+    PanelNotApplied,
     RenameNotRenamed,
     CloseRequestNotApplied,
 }
@@ -185,6 +189,9 @@ impl<'a> NativeSessionView<'a> {
             SessionPhaseKind::MoveProjectionUnavailable => {
                 NativeDisplayPhase::MoveProjectionUnavailable
             }
+            SessionPhaseKind::PanelProjectionUnavailable => {
+                NativeDisplayPhase::PanelProjectionUnavailable
+            }
             SessionPhaseKind::RenameProjectionUnavailable => {
                 NativeDisplayPhase::RenameProjectionUnavailable
             }
@@ -246,6 +253,7 @@ impl<'a> NativeSessionView<'a> {
             }
             SessionNotice::CreateNotCreated => NativeSessionNotice::CreateNotCreated,
             SessionNotice::MoveNotMoved => NativeSessionNotice::MoveNotMoved,
+            SessionNotice::PanelNotApplied => NativeSessionNotice::PanelNotApplied,
             SessionNotice::RenameNotRenamed => NativeSessionNotice::RenameNotRenamed,
             SessionNotice::CloseRequestNotApplied => NativeSessionNotice::CloseRequestNotApplied,
         })
@@ -467,11 +475,13 @@ impl NativeUi {
         &mut self,
         pending_create: Option<PendingCreateCommit>,
         pending_move: Option<PendingMoveCommit>,
+        pending_panel: Option<PendingPanelCommit>,
         close_return: super::state::CloseWorkerReturn,
     ) -> bool {
         if self.retirement_finalized {
             return pending_create.is_none()
                 && pending_move.is_none()
+                && pending_panel.is_none()
                 && matches!(
                     close_return,
                     super::state::CloseWorkerReturn::Returned(None)
@@ -489,13 +499,16 @@ impl NativeUi {
             Some(state) => {
                 let move_accepted =
                     pending_move.is_none_or(|pending| state.retain_pending_move(pending));
+                let panel_accepted =
+                    pending_panel.is_none_or(|pending| state.retain_pending_panel(pending));
                 let close_accepted = state.finalize_close_worker(close_return).is_ok();
                 state.release_joined_close_references();
                 state.finalize_retirement(failure, pending_create)
                     && move_accepted
+                    && panel_accepted
                     && close_accepted
             }
-            None => pending_create.is_none() && pending_move.is_none(),
+            None => pending_create.is_none() && pending_move.is_none() && pending_panel.is_none(),
         };
         let failure = self
             .state
@@ -744,6 +757,13 @@ impl NativeUi {
             | ClientAction::SelectPreviousTab
             | ClientAction::SelectTab(_) => self.select_tab(action),
             ClientAction::MovePanelFocus(direction) => self.move_panel_focus(direction),
+            ClientAction::SplitPanel(direction) => {
+                self.panel_operation(PanelRequestKind::Split { direction })
+            }
+            ClientAction::ClosePanel => self.panel_operation(PanelRequestKind::Close),
+            ClientAction::MovePanel(direction) => {
+                self.panel_operation(PanelRequestKind::Move { direction })
+            }
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
             ClientAction::ToggleBusinessSidebar
             | ClientAction::OpenShortcutHelp
@@ -889,6 +909,42 @@ impl NativeUi {
             }
             // A deadline refusal can return while another thread still holds the mailbox.
             // Preserve local state and do not reacquire that lock to update a notice.
+            Err(_) => SessionActionDisposition::KeepNavigator,
+        }
+    }
+
+    fn panel_operation(&mut self, kind: PanelRequestKind) -> SessionActionDisposition {
+        // Capture the entire transport budget before attempting the admission mutex.
+        let Some(deadline) = self.clock.now().checked_add(super::state::OPERATION_TOTAL) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let (Some(mailbox), Some(state)) =
+            (self.mailbox.as_ref().map(Arc::clone), self.state.as_mut())
+        else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let result = mailbox.try_enqueue_panel_for(
+            state,
+            deadline,
+            &self.clock,
+            |state, request_id| {
+                state
+                    .plan_panel(request_id, kind, deadline)
+                    .ok_or(ActionBuildError::Busy)
+            },
+            |state, operation| {
+                state
+                    .begin_panel(operation.clone())
+                    .then_some(())
+                    .ok_or(ActionBuildError::Busy)
+            },
+        );
+        match result {
+            Ok(_) => SessionActionDisposition::DismissNavigator,
+            Err(MoveAdmissionError::Closed(closed)) => {
+                self.retire(closed.failure());
+                SessionActionDisposition::KeepNavigator
+            }
             Err(_) => SessionActionDisposition::KeepNavigator,
         }
     }
@@ -1097,6 +1153,9 @@ impl NativeUi {
             WorkerEvent::MoveResult { operation, outcome } => {
                 return self.apply_move_event(mailbox, wait_key, operation, outcome);
             }
+            WorkerEvent::PanelResult { operation, outcome } => {
+                return self.apply_panel_event(mailbox, wait_key, operation, outcome);
+            }
             WorkerEvent::WorkspaceSetupResult { operation, outcome } => {
                 return self.apply_workspace_setup_event(mailbox, wait_key, operation, outcome);
             }
@@ -1120,6 +1179,7 @@ impl NativeUi {
                 WorkerEvent::WorkspaceSetupResult { .. }
                 | WorkerEvent::RenameResult { .. }
                 | WorkerEvent::MoveResult { .. }
+                | WorkerEvent::PanelResult { .. }
                 | WorkerEvent::CloseReconciliationSnapshot { .. }
                 | WorkerEvent::MembershipGone { .. }
                 | WorkerEvent::MembershipDetached { .. }

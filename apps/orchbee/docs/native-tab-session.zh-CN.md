@@ -751,13 +751,28 @@ split、close 与 move 的总和；同一基线到最终快照的比较即可接
 
 在已连接 Native Session 中，`Ctrl+B h`、`j`、`k` 和 `l` 是 Client 本地焦点操作。当方向上存在
 相邻叶子时，Client 为同一个 Tab 分配新的挂接代次，选择该叶子的精确 binding 与保留的来源状态，
-并运行既有的 Switch 清理和 Attach 生命周期。它绝不写入 Workbench 修订，也绝不提交 `panel.split`、
-`panel.close` 或 `panel.move`。
+并运行既有的 Switch 清理和 Attach 生命周期。焦点操作绝不写入 Workbench 修订，也绝不提交
+`panel.split`、`panel.close` 或 `panel.move`。
 单个 Panel 或边界处没有相邻叶子时，本地空操作。渲染器按规范树划分区域、标记所选叶子，并只在
 该处绘制当前实时帧；非活动叶子保留标签、身份和几何，但在获得焦点前不显示第二个实时帧。
 一个 Client 内的同时多 viewer 组合仍不在本切片范围内。对端创建的单叶子 split 会被普通刷新路径
 接受；Session 按身份保留所选 Panel，同时重排缓存树和保留的来源记录
 （`peer_panel_split_refresh_preserves_active_panel_identity`）。
+
+临时 `Ctrl+B -`、`|`、`X` 与 `H`/`J`/`K`/`L` 键位经由与 Tab 操作相同的 mailbox 变更准入、
+typed 结算、pending-commit 保留及 publication 刷新恢复路径，提交三个结构性 panel 命令；
+键位为临时绑定，待输入设计裁决后可能重绑。`-` 与 `|` 对焦点叶子按 Below / Right 方向提交
+`panel.split`，沿用叶子现有 presentation label，并使用 Client 真实的控制 cell/pixel 几何，
+绝不伪造尺寸。`X` 对焦点叶子提交叶子作用域的 `panel.close`，无单独确认步骤；被接受的
+close 经普通 publication 路径提交。`H`、`J`、`K`、`L` 对焦点叶子提交 `panel.move`，以方向
+邻居作为 `target_panel_id`；单个 Panel 或边界处没有方向邻居时在准入前即为本地空操作。
+三个操作仅从已结算的 Ready、SelectedWithoutAttachment 或 RetryableAttachUnavailable 阶段准入，
+保持精确请求关联，并将明确的 rejected/denied/unavailable 结果——包括重叠的聚合 Close 对同
+Tab split/move 产生的 terminal-busy 拒绝——分类为保留载体的未应用结果。已提交的 split 或
+move 保留其 pending commit，直到快照验证出精确的预期候选；若经验证的候选移除了原选叶子而
+其 Tab 仍存活，则进入通用的 membership 清理/安装路径并附着同一 Tab 的存活叶子。快照不可用
+时保留 commit 等待后续刷新；分歧或含糊的结果在不重放的情况下退役载体；commit 之后执行器
+退出时，保留的 commit 交由普通恢复处理。
 
 ## 启动
 
@@ -919,7 +934,9 @@ Tab 数量为零时没有可选目标。
 对只含一个 Tab 的缓存，n/p 都解析到同一成员：Ready 是空操作，
 RetryableAttachUnavailable 仅在没有待结算刷新时才是显式重试。有待结算刷新时，所有其他条件
 允许选择的阶段都先应用同目标空操作守卫。队列已满或越界操作不会关闭已经打开的导航器。
-Panel 按键沿活动 Tab 的分屏树移动本地焦点；单个 Panel 或没有方向邻居时为空操作。
+Panel 按键沿活动 Tab 的分屏树移动本地焦点；单个 Panel 或没有方向邻居时为空操作。“Panel
+投影与本地焦点”一节描述的临时 split/close/move 键位，与其他结构性提交适用相同的阶段、
+队列与 fence 规则，对焦点叶子准入一条结构性 panel 变更。
 
 ## Create 是排空 FIFO 的屏障
 
@@ -1601,6 +1618,7 @@ Started，还要求精确的请求尺寸。它返回明确的 `DefinitelyNotSubm
 | 严格的 0..256 投影与保留身份的刷新                                                     | 穷尽的分区/单元用例和从语料库派生的固定样例                                                       | 生成的 create/rename/move 历史及精确提交置换检查      | 更高修订允许 Tab 重排及改名；不可变成员事实保留。                  |
 | 规范分屏树投影保留叶子/split/slot 身份与方向                                           | `projects_split_tree_and_directional_leaf_neighbors` 及严格结构 ID 检查                           | 通过真实 `NativeTabView` 的规范快照投影               | 只接受未分组、未固定且每个叶子均有主 Presentation binding 的 Tab。 |
 | 本地 Panel 焦点保留 Tab，并切换到精确的所选叶子 binding                                | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` 及 NativeUi Switch 准入  | 既有 Switch 清理/Attach 生命周期和渲染器树遍历        | 一次只附着一个 viewer；非活动叶子不显示第二个实时帧。              |
+| Panel split/close/move 经结构准入提交，并结算精确 commit、拒绝、unknown 与 membership 修复   | `native/tests/panel.rs` mailbox/worker 结算用例及精确 split/move 候选验证器                        | local-client 结果分类测试与通用 membership 清理/安装生命周期 | 临时键位可能调整；close 依赖普通 publication 路径。                |
 | 选择的循环/边界/同目标/重试与原子拒绝                                                  | 纯选择表测试                                                                                      | 使用稳定种子、语义缩减和重放文本生成的邮箱轨迹        | 只报告有限的生成轨迹规模，并非普适证明。                           |
 | Create 在提交前排空旧 Poll/Feedback，提交前拒绝会恢复                                  | `NativeClientCreateBarrier.tla` 加模拟载体轨迹                                                    | 确定性的旧帧/绘制/反馈检查点轨迹                      | TLA 抽象字节、时钟、尺寸和渲染。                                   |
 | 提交后先验证/暂存 Snapshot 候选，再精确清理旧目标并原子选择；只有存活的 Started 才挂接 | Create 模型已检查；实际 UI 双 plan 安装、candidate-first carrier 和 generated mailbox traces      | 每个阻塞响应处的模拟载体                              | 载体退役清理不等同于声称 Detach 成功或候选已安装。                 |

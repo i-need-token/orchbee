@@ -86,6 +86,9 @@ visible through the automatic publication probe, and explicit refresh remains av
 | `x`                   | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                  |
 | `w`                   | Open the navigator and refresh shared Tabs while preserving the active terminal identity.          |
 | `h` / `j` / `k` / `l` | Move local focus to the neighboring Panel when the active Tab has a split tree.                    |
+| `-` / `|`             | Split the focused Panel downward / rightward into a second leaf (provisional binding).             |
+| `X`                   | Close the focused Panel leaf without a separate confirmation (provisional binding).                |
+| `H` / `J` / `K` / `L` | Move the focused Panel leaf toward its directional neighbor (provisional binding).                 |
 | `q` / `d`             | Close this Client while retained execution continues.                                              |
 
 [Context selection](docs/native-context-selection.md) preserves each retained terminal while
@@ -112,8 +115,15 @@ owns admission, geometry, feedback, failure, recovery and evidence bounds. Close
 lifecycle grant, including for a view-only Client. Closing the last Tab leaves Empty; explicit `c`
 creates a new terminal, while ordinary Client exit preserves it for later bare Open. A peer whose
 terminal was closed uses explicit `w` to recover the current membership. Linux process evidence
-covers this sequence. Canonical split-panel projection and local panel focus are integrated for
-ungrouped, unpinned Tabs; production restart recovery remains unfinished.
+covers this sequence. Canonical split-panel projection, local panel focus, and `panel.split` /
+`panel.close` / `panel.move` submission are integrated for ungrouped, unpinned Tabs; production
+restart recovery remains unfinished. Panel operations reuse the same structural-mutation admission:
+split submits the real controlling cell/pixel geometry and keeps the leaf's label, close is
+leaf-scoped and commits through the ordinary publication path, and move relocates the leaf beside
+its directional neighbor. A terminal-busy refusal from an overlapping aggregate Close is a definite
+not-applied result, and a committed removal of the focused leaf recovers membership onto a
+surviving leaf of the same Tab. The `-`, `|`, `X`, and `H`/`J`/`K`/`L` bindings are provisional
+pending the input-design review and may be rebound.
 
 ## Private local Client transport
 

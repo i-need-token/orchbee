@@ -89,6 +89,7 @@ fn panel_move_preserves_exact_commit_noop_and_compatible_precommit() -> TestResu
     for reason in [
         WorkbenchCommandUnavailableReason::RequestLedgerFull,
         WorkbenchCommandUnavailableReason::ServiceUnavailable,
+        WorkbenchCommandUnavailableReason::TerminalBusy,
     ] {
         outcomes.push(WorkbenchCommandOutcome::Unavailable { reason });
     }
@@ -212,12 +213,6 @@ fn panel_move_retires_impossible_revisions_identities_and_action_results() -> Te
             7,
             WorkbenchCommandOutcome::Unavailable {
                 reason: WorkbenchCommandUnavailableReason::NoCompatibleWorker,
-            },
-        ),
-        (
-            7,
-            WorkbenchCommandOutcome::Unavailable {
-                reason: WorkbenchCommandUnavailableReason::TerminalBusy,
             },
         ),
     ] {

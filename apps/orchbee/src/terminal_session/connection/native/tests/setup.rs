@@ -14,14 +14,15 @@ use crate::{
     terminal_session::{
         mailbox::{
             CausalSettlement, CommandMailbox, CreateMarker, EventError, MoveSettlement,
-            MutationResult, PollKey, QueuedCommand, RefreshSettlement, SwitchMarker, Tagged,
-            TakenEvent, UiReply, WorkerEvent,
+            MutationResult, PanelSettlement, PollKey, QueuedCommand, RefreshSettlement,
+            SwitchMarker, Tagged, TakenEvent, UiReply, WorkerEvent,
         },
         state::{
             AttachmentKey, CarrierFailure, CleanupContinuation, CreateOperation,
             CreateOperationKey, CreateProjectionDecision, FrameIdentity, MoveDecision,
             MoveOperation, MoveResult, NativeSessionState, OPERATION_TOTAL, OperationDeadlines,
-            PendingCreateCommit, PendingMoveCommit, ReadyDecision, RefreshDecision,
+            PanelDecision, PanelOperation, PanelRequestKind, PanelResult, PendingCreateCommit,
+            PendingMoveCommit, PendingPanelCommit, ReadyDecision, RefreshDecision,
             SetupEventDisposition,
         },
     },
@@ -623,6 +624,14 @@ impl Harness {
         self.finish_after_worker_failure_with_pending_commits(CarrierFailure::Closed)
             .map(|(_create, moved)| moved)
     }
+
+    pub(super) fn close_with_pending_panel(self) -> TestResult<Option<PendingPanelCommit>> {
+        self.mailbox.close(CarrierFailure::Closed);
+        self.shutdown.close()?;
+        self.carrier.abort();
+        self.finish_after_worker_failure_with_exit(CarrierFailure::Closed)
+            .map(|exit| exit.into_pending_results().panel)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -727,6 +736,7 @@ pub(super) enum UiEvent {
         decision: RefreshDecision,
     },
     Move(MoveDecision),
+    Panel(PanelDecision),
     Membership(RefreshDecision),
 }
 
@@ -1069,6 +1079,82 @@ impl UiDriver {
         Ok((operation, outcome))
     }
 
+    // This seam checks worker transport; canonical Panel settlement is covered by the
+    // state owner.
+    pub(super) fn admit_panel_transport(
+        &mut self,
+        kind: PanelRequestKind,
+    ) -> TestResult<PanelOperation> {
+        self.admit_panel_using(kind, false)
+    }
+
+    pub(super) fn admit_panel(&mut self, kind: PanelRequestKind) -> TestResult<PanelOperation> {
+        self.admit_panel_using(kind, true)
+    }
+
+    fn admit_panel_using(
+        &mut self,
+        kind: PanelRequestKind,
+        canonical: bool,
+    ) -> TestResult<PanelOperation> {
+        let clock = self.clock.clone();
+        let deadline = clock
+            .now()
+            .checked_add(OPERATION_TOTAL)
+            .ok_or_else(|| test_error("Panel deadline overflow"))?;
+        let mailbox = Arc::clone(&self.mailbox);
+        let state = self.state_mut();
+        mailbox
+            .try_enqueue_panel_for(
+                state,
+                deadline,
+                &clock,
+                |state, request_id| {
+                    state
+                        .plan_panel(request_id, kind, deadline)
+                        .ok_or("panel plan refused")
+                },
+                |state, operation| {
+                    if !canonical || state.begin_panel(operation.clone()) {
+                        Ok(())
+                    } else {
+                        Err("canonical Panel admission failed")
+                    }
+                },
+            )
+            .map_err(|error| test_error(&format!("Panel transport admission failed: {error:?}")))
+    }
+
+    pub(super) fn settle_panel_transport(
+        &mut self,
+        taken: TakenEvent,
+    ) -> TestResult<(PanelOperation, PanelResult)> {
+        self.settle_panel_transport_decision(taken, PanelDecision::Continue)
+    }
+
+    pub(super) fn settle_panel_transport_decision(
+        &mut self,
+        taken: TakenEvent,
+        decision: PanelDecision,
+    ) -> TestResult<(PanelOperation, PanelResult)> {
+        let (wait_key, event) = taken.into_parts();
+        let WorkerEvent::PanelResult { operation, outcome } = event else {
+            return Err(test_error("expected typed Panel result"));
+        };
+        let wait = wait_key.ok_or_else(|| test_error("Panel wait key absent"))?;
+        require_applied(self.mailbox.deposit_ui_reply_before(
+            &wait,
+            &self.clock,
+            |_transaction| {
+                Ok(UiReply::Panel(PanelSettlement::new(
+                    decision,
+                    operation.target().clone(),
+                )))
+            },
+        ))?;
+        Ok((operation, outcome))
+    }
+
     pub(super) fn admit_input(&mut self, input: ControlInput) -> TestResult<u64> {
         let key = self.state().desired().unwrap().clone();
         self.mailbox
@@ -1309,7 +1395,8 @@ impl UiDriver {
                     crate::terminal_session::state::MembershipResultKey::Close(_) => {
                         Err(test_error("use the exact Close transport consumer"))
                     }
-                    crate::terminal_session::state::MembershipResultKey::Move(_) => {
+                    crate::terminal_session::state::MembershipResultKey::Move(_)
+                    | crate::terminal_session::state::MembershipResultKey::Panel(_) => {
                         Ok(UiEvent::Membership(decision))
                     }
                 }
@@ -1356,6 +1443,45 @@ impl UiDriver {
                 }))?;
                 Ok(UiEvent::Move(
                     decision.ok_or_else(|| test_error("Move decision"))?,
+                ))
+            }
+            WorkerEvent::PanelResult { operation, outcome } => {
+                let wait = wait_key.ok_or_else(|| test_error("Panel wait key"))?;
+                let mailbox = Arc::clone(&self.mailbox);
+                let clock = self.clock.clone();
+                let state = self.state_mut();
+                let prepared = state.prepare_panel(&operation, outcome);
+                let membership = prepared.membership_candidate().is_some();
+                let deadlines = membership
+                    .then(|| OperationDeadlines::from_sample(clock.now()))
+                    .flatten();
+                let mut decision = None;
+                require_applied(mailbox.deposit_ui_reply_before(&wait, &clock, |transaction| {
+                    let settled = if membership {
+                        let (operation, prepared) = state.retain_prepared_panel_membership(prepared)?;
+                        let deadlines = deadlines.ok_or(CarrierFailure::Deadline)?;
+                        if transaction.observed_at() >= deadlines.forward_cutoff() { return Err(CarrierFailure::Deadline); }
+                        if state.attached_key().is_some() {
+                            PanelDecision::Cleanup(state.stage_panel_membership_cleanup(operation.request_id(), prepared, deadlines)?)
+                        } else {
+                            let install = prepared.selected_tab_id().map_or(crate::terminal_session::mailbox::DesiredInstall::Empty,
+                                |tab| crate::terminal_session::mailbox::DesiredInstall::Fresh(tab.clone()));
+                            let desired = transaction.prepare_desired_install(install)?;
+                            let plan = state.prepare_panel_membership_install(operation.request_id(), prepared, desired.desired().cloned(), Some(deadlines))?;
+                            let installed = plan.commit();
+                            desired.commit();
+                            match installed {
+                                crate::terminal_session::state::MembershipInstallDecision::Attach(target) => PanelDecision::AttachRecovered(target),
+                                crate::terminal_session::state::MembershipInstallDecision::Preserved => PanelDecision::Continue,
+                                _ => PanelDecision::SettledWithoutAttachment,
+                            }
+                        }
+                    } else { state.apply_prepared_panel(prepared) };
+                    decision = Some(settled.clone());
+                    Ok(UiReply::Panel(PanelSettlement::new(settled, state.desired().cloned())))
+                }))?;
+                Ok(UiEvent::Panel(
+                    decision.ok_or_else(|| test_error("Panel decision"))?,
                 ))
             }
             WorkerEvent::Bootstrap { cache } => {

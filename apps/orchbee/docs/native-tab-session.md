@@ -913,14 +913,34 @@ leaf alone owns the attached viewer and terminal frame.
 In a connected Native Session, `Ctrl+B h`, `j`, `k`, and `l` are Client-local focus actions. When a
 direction has a neighboring leaf, the Client allocates a fresh attachment generation for the same
 Tab, selects that leaf's exact binding and retained provenance, and runs the existing Switch cleanup
-and Attach lifecycle. It never writes a Workbench revision and never submits `panel.split`,
-`panel.close`, or `panel.move`. A single
+and Attach lifecycle. A focus action never writes a Workbench revision and never submits
+`panel.split`, `panel.close`, or `panel.move`. A single
 Panel or an edge with no neighbor is a local no-op. The renderer divides the canonical tree, marks
 the selected leaf, and draws the current live frame only there; inactive leaves retain their labels,
 identity, and geometry but show no second live frame until focused. Simultaneous multi-viewer
 composition remains outside this slice. A peer-created single-leaf split is accepted by the ordinary
 refresh path; the session preserves the selected Panel by identity while reindexing the cached tree
 and retained provenance (`peer_panel_split_refresh_preserves_active_panel_identity`).
+
+The provisional `Ctrl+B -`, `|`, `X`, and `H`/`J`/`K`/`L` bindings submit the three structural
+panel commands through the same mailbox mutation admission, typed settlement, pending-commit
+retention, and publication-refresh recovery used by Tab operations; the bindings are provisional
+pending the input-design review and may be rebound. `-` and `|` submit `panel.split` on the focused
+leaf in the Below / Right direction, carry the leaf's existing presentation label, and use the
+Client's real controlling cell/pixel geometry rather than a fabricated size. `X` submits the
+leaf-scoped `panel.close` on the focused leaf without a separate confirmation step; the accepted
+close commits through the ordinary publication path. `H`, `J`, `K`, and `L` submit `panel.move` on
+the focused leaf with the directional neighbor as `target_panel_id`; a single Panel or an edge with
+no directional neighbor is a local no-op before admission. All three operations admit only from a
+settled Ready, SelectedWithoutAttachment, or RetryableAttachUnavailable phase, keep their exact
+request correlation, and classify definite rejected/denied/unavailable outcomes — including the
+terminal-busy refusal an overlapping aggregate Close produces for same-Tab split/move — as
+not-applied results that preserve the carrier. A committed split or move retains its pending commit
+until a snapshot validates the exact expected candidate; a validated candidate that removed the
+previously selected leaf while its Tab survives enters the common membership cleanup/install path
+and attaches a surviving leaf of the same Tab. Unavailable snapshots retain the commit for a later
+refresh, divergent or ambiguous results retire the carrier without replay, and an executor exit
+after commit hands the retained commit to ordinary recovery.
 
 ## Startup
 
@@ -1101,7 +1121,10 @@ For a one-Tab cache, n/p resolve to the same member: Ready is a no-op and
 RetryableAttachUnavailable is an explicit retry only when no Refresh is pending. While Refresh is pending,
 the same-target no-op guard applies in all otherwise selectable phases. A full-queue or out-of-range action does not
 dismiss an already open navigator. Panel keys move local focus through the active Tab's split tree;
-they are a no-op for a single Panel or when no directional neighbor exists.
+they are a no-op for a single Panel or when no directional neighbor exists. The provisional
+split/close/move bindings described under Panel projection admit one structural panel mutation
+against the focused leaf under the same phase, queue, and fence rules as the other structural
+submissions.
 
 ## Create is a draining FIFO barrier
 
@@ -1933,6 +1956,7 @@ establish reorder preservation.
 | Strict 0..256 projection and identity-preserving refresh                                                                    | exhaustive partition/unit cases and corpus-derived fixtures                                                         | generated create/rename/move histories and exact commit-permutation tests       | Higher revisions may reorder and rename Tabs; immutable member facts survive.          |
 | Canonical split-tree projection preserves leaf/split/slot identity and orientation                                          | `projects_split_tree_and_directional_leaf_neighbors` plus strict structural-ID checks                               | canonical snapshot projection through the real `NativeTabView`                  | Only ungrouped, unpinned Tabs with bound primary leaf Presentations are accepted.      |
 | Local Panel focus keeps the Tab and switches to the exact selected leaf binding                                             | `panel_focus_switch_keeps_the_tab_and_targets_the_selected_leaf_binding` plus NativeUi switch admission             | existing Switch cleanup/Attach lifecycle and renderer tree traversal            | One viewer is attached at a time; inactive leaves do not show a second live frame.     |
+| Panel split/close/move submit through structural admission and settle exact commit, refusal, unknown, and membership repair | `native/tests/panel.rs` mailbox/worker settlement cases plus exact split/move candidate validators                  | local-client outcome classification tests and the common membership cleanup/install lifecycle | Provisional key bindings may change; close relies on the ordinary publication path.    |
 | Selection wrap/bounds/same/retry and atomic refusal                                                                         | pure selection table tests                                                                                          | generated mailbox traces with stable seeds, semantic shrinking, and replay text | Finite generated trace sizes are reported, not universal proof.                        |
 | Create drains old Poll/Feedback before submit and precommit restores                                                        | `NativeClientCreateBarrier.tla` plus fake-carrier traces                                                            | deterministic old-frame/draw/feedback checkpoint trace                          | TLA abstracts bytes, clock, geometry, and rendering.                                   |
 | Commit validates/stages a Snapshot candidate before exact old cleanup and atomic selection; only surviving Started attaches | Checked Create model; actual UI dual-plan installation, candidate-first carrier and generated mailbox traces        | fake carrier at each blocking response                                          | Carrier retirement cleanup is not a successful Detach or candidate-install claim.      |

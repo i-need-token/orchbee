@@ -335,6 +335,7 @@ fn render_native_workbench(
             native.phase(),
             NativeDisplayPhase::Ready
                 | NativeDisplayPhase::MoveProjectionUnavailable
+                | NativeDisplayPhase::PanelProjectionUnavailable
                 | NativeDisplayPhase::RenameProjectionUnavailable
         ) && native.projection_status()
             != NativeProjectionStatus::FrameAvailable
@@ -413,6 +414,7 @@ fn render_panel_tree(
                         native.phase(),
                         NativeDisplayPhase::Ready
                             | NativeDisplayPhase::MoveProjectionUnavailable
+                            | NativeDisplayPhase::PanelProjectionUnavailable
                             | NativeDisplayPhase::RenameProjectionUnavailable
                     ) {
                         locale.terminal_status(TerminalStatus::Blocked)

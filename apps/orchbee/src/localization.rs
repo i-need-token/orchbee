@@ -214,6 +214,24 @@ impl Locale {
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::CreateTab))) => {
                 "无法创建 Tab · 未发送命令"
             }
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::SplitPanel))) => {
+                "Panel split unavailable · no command was sent"
+            }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::SplitPanel))) => {
+                "面板拆分不可用 · 未发送命令"
+            }
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::ClosePanel))) => {
+                "Panel close unavailable · no command was sent"
+            }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::ClosePanel))) => {
+                "面板关闭不可用 · 未发送命令"
+            }
+            (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::MovePanel))) => {
+                "Panel move unavailable · no command was sent"
+            }
+            (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::MovePanel))) => {
+                "面板移动不可用 · 未发送命令"
+            }
             (
                 Self::EnUs,
                 Some(Notice::BackendUnavailable(
@@ -436,6 +454,10 @@ impl Locale {
                 Self::EnUs => "Tab moved · Ctrl+B w to refresh tab order".to_owned(),
                 Self::ZhCn => "标签已移动 · Ctrl+B w 刷新标签顺序".to_owned(),
             },
+            Phase::PanelProjectionUnavailable => match self {
+                Self::EnUs => "Panel operation committed · Ctrl+B w to refresh".to_owned(),
+                Self::ZhCn => "面板操作已提交 · Ctrl+B w 刷新".to_owned(),
+            },
             Phase::RenameProjectionUnavailable => match self {
                 Self::EnUs => "Rename committed · Ctrl+B w to refresh".to_owned(),
                 Self::ZhCn => "重命名已提交 · Ctrl+B w 刷新".to_owned(),
@@ -503,6 +525,10 @@ impl Locale {
             NativeSessionNotice::MoveNotMoved => match self {
                 Self::EnUs => "Tab was not moved".to_owned(),
                 Self::ZhCn => "标签未移动".to_owned(),
+            },
+            NativeSessionNotice::PanelNotApplied => match self {
+                Self::EnUs => "Panel operation was not applied".to_owned(),
+                Self::ZhCn => "面板操作未执行".to_owned(),
             },
         }
     }

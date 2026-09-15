@@ -42,6 +42,7 @@ use std::{
 
 mod close_reconciliation;
 mod membership;
+mod panel;
 #[cfg(target_os = "linux")]
 mod status_recovery;
 mod switch_membership;
@@ -80,6 +81,7 @@ pub(super) fn run(
     let returned = NativeWorkerExit::new(
         executor.pending_create.take(),
         executor.pending_move.take(),
+        executor.pending_panel.take(),
         executor.pending_close.take(),
         executor.pending_rename.take(),
     )
@@ -123,6 +125,7 @@ struct NativeExecutor {
     last_publication_probe: Option<Instant>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
+    pending_panel: Option<crate::terminal_session::state::PendingPanelCommit>,
     pending_close: Option<PendingCloseResult>,
     pending_rename: Option<crate::terminal_session::state::tab_rename::RenameWorkerEvidence>,
     pending_setup: Option<crate::terminal_session::state::workspace_setup::SetupWorkerEvidence>,
@@ -229,6 +232,7 @@ impl NativeExecutor {
             last_publication_probe: Some(started),
             pending_create: None,
             pending_move: None,
+            pending_panel: None,
             pending_close: None,
             pending_rename: None,
             pending_setup: None,
@@ -647,6 +651,9 @@ impl NativeExecutor {
                     QueuedCommand::Refresh(marker) => self.run_refresh(&lease, *marker)?,
                     QueuedCommand::Move(marker) => {
                         self.run_move(&lease, marker.operation().clone())?
+                    }
+                    QueuedCommand::Panel(marker) => {
+                        self.run_panel(&lease, marker.operation().clone())?
                     }
                     QueuedCommand::WorkspaceSetup(marker) => {
                         self.run_workspace_setup(&lease, marker.0.clone())?

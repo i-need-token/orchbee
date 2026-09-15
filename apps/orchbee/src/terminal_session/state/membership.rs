@@ -12,6 +12,7 @@ pub(in crate::terminal_session) enum MembershipResultKey {
     Close(super::CloseFlightKey),
     Switch(AttachmentKey),
     Move(WorkbenchRequestId),
+    Panel(WorkbenchRequestId),
     Rename(WorkbenchRequestId),
 }
 
@@ -63,14 +64,22 @@ pub(in crate::terminal_session) struct PreparedMembershipCandidate {
     candidate: NativeContextTabs,
     provenance: Vec<CreateTerminalProvenance>,
     selected_index: Option<usize>,
+    selected_panel: Option<usize>,
     retained_contexts: Option<Vec<super::context_selection::RetainedContext>>,
     setup_completion: Option<Box<super::workspace_setup::PreparedSetupCompletion>>,
 }
 
 impl PreparedMembershipCandidate {
     pub(in crate::terminal_session) fn preserves_selection(&self) -> bool {
-        self.candidate.location() == self.baseline.location()
+        self.selected_panel.is_none()
+            && self.candidate.location() == self.baseline.location()
             && self.selected_tab_id() == self.baseline_desired.as_ref().map(AttachmentKey::tab_id)
+    }
+
+    /// The surviving Tab kept its identity but the selected leaf vanished: the membership install
+    /// must re-attach to the repaired leaf instead of preserving the stale attachment.
+    pub(in crate::terminal_session) fn retarget_selected_panel(&mut self, panel_index: usize) {
+        self.selected_panel = Some(panel_index);
     }
 
     pub(in crate::terminal_session) fn selected_tab_id(&self) -> Option<&WorkbenchTabId> {
@@ -104,6 +113,7 @@ pub(in crate::terminal_session) struct PreparedMembershipInstall<'a> {
 enum MembershipMutationCompletion {
     None,
     Move,
+    Panel,
     Rename(WorkbenchRequestId),
 }
 
@@ -112,9 +122,16 @@ impl PreparedMembershipInstall<'_> {
         if let Some(committed) = self.settled_create {
             self.state.settled_create = Some(committed);
         }
-        if matches!(self.mutation_completion, MembershipMutationCompletion::Move) {
-            self.state.pending_mutation = None;
-            self.state.move_recovery = None;
+        match self.mutation_completion {
+            MembershipMutationCompletion::Move => {
+                self.state.pending_mutation = None;
+                self.state.move_recovery = None;
+            }
+            MembershipMutationCompletion::Panel => {
+                self.state.pending_mutation = None;
+                self.state.panel_recovery = None;
+            }
+            MembershipMutationCompletion::None | MembershipMutationCompletion::Rename(_) => {}
         }
         if self.refresh_generation.is_some() {
             self.state.pending_refresh_generation = None;
@@ -123,6 +140,7 @@ impl PreparedMembershipInstall<'_> {
                 self.prepared.candidate.revision(),
             ));
             self.state.move_recovery = None;
+            self.state.panel_recovery = None;
             self.state.rename_recovery = None;
         }
         if let Some(retained) = self.prepared.retained_contexts {
@@ -356,6 +374,7 @@ impl NativeSessionState {
             candidate,
             provenance,
             selected_index,
+            selected_panel: None,
         })
     }
 
@@ -471,7 +490,7 @@ impl NativeSessionState {
                 _ => return Err(CarrierFailure::Protocol),
             }
         } else {
-            0
+            prepared.selected_panel.unwrap_or(0)
         };
         let (replacement_phase, decision) = if preserve {
             let mut phase = self.phase.clone();
@@ -647,6 +666,7 @@ impl NativeSessionState {
             candidate: prepared.candidate.clone(),
             provenance: prepared.provenance.clone(),
             selected_index: prepared.selected_index,
+            selected_panel: prepared.selected_panel,
             retained_contexts: prepared.retained_contexts.clone(),
             setup_completion: prepared.setup_completion.clone(),
         })
@@ -700,6 +720,12 @@ impl NativeSessionState {
                 }
                 None
             }
+            MembershipResultKey::Panel(request_id) => {
+                if !self.panel_membership_is_current(request_id) {
+                    return Err(CarrierFailure::Protocol);
+                }
+                None
+            }
         };
         let mut plan = self.prepare_membership_install_inner(
             prepared,
@@ -712,6 +738,9 @@ impl NativeSessionState {
         plan.refresh_generation = refresh_generation;
         if matches!(cleanup.result(), MembershipResultKey::Move(_)) {
             plan.mutation_completion = MembershipMutationCompletion::Move;
+        }
+        if matches!(cleanup.result(), MembershipResultKey::Panel(_)) {
+            plan.mutation_completion = MembershipMutationCompletion::Panel;
         }
         if let MembershipResultKey::Rename(request_id) = cleanup.result() {
             plan.mutation_completion = MembershipMutationCompletion::Rename(request_id.clone());
@@ -739,6 +768,7 @@ impl NativeSessionState {
                     MembershipResultKey::Close(_)
                     | MembershipResultKey::Rename(_)
                     | MembershipResultKey::Move(_)
+                    | MembershipResultKey::Panel(_)
                     | MembershipResultKey::Switch(_) => false,
                 };
                 exact_origin
@@ -761,6 +791,9 @@ impl NativeSessionState {
                     }
                     MembershipResultKey::Move(request_id) => {
                         self.move_membership_is_current(request_id)
+                    }
+                    MembershipResultKey::Panel(request_id) => {
+                        self.panel_membership_is_current(request_id)
                     }
                     MembershipResultKey::Rename(request_id) => {
                         self.rename_membership_is_current(request_id)
@@ -1016,6 +1049,58 @@ impl NativeSessionState {
         }
         let mut plan = self.prepare_membership_install(prepared, desired, deadlines)?;
         plan.mutation_completion = MembershipMutationCompletion::Move;
+        Ok(plan)
+    }
+
+    pub(in crate::terminal_session) fn stage_panel_membership_cleanup(
+        &mut self,
+        request_id: &WorkbenchRequestId,
+        prepared: PreparedMembershipCandidate,
+        deadlines: OperationDeadlines,
+    ) -> Result<MembershipCleanup, CarrierFailure> {
+        if !self.invariant_holds()
+            || !self.panel_membership_is_current(request_id)
+            || self.pending_membership.is_some()
+            || self.cache != prepared.baseline
+            || self.desired != prepared.baseline_desired
+            || prepared.preserves_selection()
+            || !matches!(self.phase, SessionPhase::Ready(_))
+        {
+            return Err(CarrierFailure::Protocol);
+        }
+        let old = self.attached_key.clone().ok_or(CarrierFailure::Protocol)?;
+        let selected = self.active().cloned().ok_or(CarrierFailure::Protocol)?;
+        if selected.key() != &old {
+            return Err(CarrierFailure::Protocol);
+        }
+        let cleanup = MembershipCleanup {
+            result: MembershipResultKey::Panel(request_id.clone()),
+            old,
+            deadlines,
+            installs_candidate: true,
+            close_marker: None,
+            closed_proof: None,
+        };
+        self.pending_membership = Some(PendingMembership {
+            cleanup: cleanup.clone(),
+            prepared: Some(prepared),
+        });
+        self.phase = SessionPhase::ReconcilingMembership(selected);
+        Ok(cleanup)
+    }
+
+    pub(in crate::terminal_session) fn prepare_panel_membership_install(
+        &mut self,
+        request_id: &WorkbenchRequestId,
+        prepared: PreparedMembershipCandidate,
+        desired: Option<AttachmentKey>,
+        deadlines: Option<OperationDeadlines>,
+    ) -> Result<PreparedMembershipInstall<'_>, CarrierFailure> {
+        if !self.panel_membership_is_current(request_id) || self.pending_membership.is_some() {
+            return Err(CarrierFailure::Protocol);
+        }
+        let mut plan = self.prepare_membership_install(prepared, desired, deadlines)?;
+        plan.mutation_completion = MembershipMutationCompletion::Panel;
         Ok(plan)
     }
 }

@@ -348,6 +348,7 @@ fn classify_outcome(
                 reason,
                 WorkbenchCommandUnavailableReason::RequestLedgerFull
                     | WorkbenchCommandUnavailableReason::NoCompatibleWorker
+                    | WorkbenchCommandUnavailableReason::TerminalBusy
                     | WorkbenchCommandUnavailableReason::ServerBusy
                     | WorkbenchCommandUnavailableReason::ServiceUnavailable
             ) =>

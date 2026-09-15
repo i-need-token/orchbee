@@ -1,8 +1,9 @@
 use orchbee_workbench_protocol::{
     MAXIMUM_TABS_PER_CONTEXT, MAXIMUM_TERMINAL_CONTEXTS, PanelNode, PanelOrientation, SiteId,
     Snapshot, Tab, TerminalId, TerminalPresentationId, WorkbenchLabel, WorkbenchPanelId,
-    WorkbenchPanelSlotId, WorkbenchProjectId, WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId,
-    WorkbenchTabMoveDirection, WorkbenchTerminalContextId, WorkbenchWorkspaceId, WorkerId,
+    WorkbenchPanelSlotId, WorkbenchPanelSplitDirection, WorkbenchProjectId, WorkbenchRevision,
+    WorkbenchSplitId, WorkbenchTabId, WorkbenchTabMoveDirection, WorkbenchTerminalContextId,
+    WorkbenchWorkspaceId, WorkerId,
 };
 use std::collections::HashMap;
 
@@ -469,6 +470,51 @@ pub(super) struct ValidatedMovedProjection {
     pub(super) moved_index: Option<usize>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct SplitPanelExpectation {
+    pub(super) committed_revision: WorkbenchRevision,
+    pub(super) terminal_context_id: WorkbenchTerminalContextId,
+    pub(super) tab_id: WorkbenchTabId,
+    pub(super) panel_id: WorkbenchPanelId,
+    pub(super) new_panel_id: WorkbenchPanelId,
+    pub(super) split_id: WorkbenchSplitId,
+    pub(super) first_slot_id: WorkbenchPanelSlotId,
+    pub(super) second_slot_id: WorkbenchPanelSlotId,
+    pub(super) presentation_id: TerminalPresentationId,
+    pub(super) direction: WorkbenchPanelSplitDirection,
+    pub(super) requested_label: WorkbenchLabel,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct MovedPanelExpectation {
+    committed_revision: WorkbenchRevision,
+    terminal_context_id: WorkbenchTerminalContextId,
+    tab_id: WorkbenchTabId,
+    panel_id: WorkbenchPanelId,
+    target_panel_id: WorkbenchPanelId,
+    direction: WorkbenchPanelSplitDirection,
+}
+
+impl MovedPanelExpectation {
+    pub(super) const fn new(
+        committed_revision: WorkbenchRevision,
+        terminal_context_id: WorkbenchTerminalContextId,
+        tab_id: WorkbenchTabId,
+        panel_id: WorkbenchPanelId,
+        target_panel_id: WorkbenchPanelId,
+        direction: WorkbenchPanelSplitDirection,
+    ) -> Self {
+        Self {
+            committed_revision,
+            terminal_context_id,
+            tab_id,
+            panel_id,
+            target_panel_id,
+            direction,
+        }
+    }
+}
+
 pub(super) fn project_native_standalone_tabs(
     snapshot: &Snapshot,
 ) -> Result<NativeContextTabs, NativeProjectionError> {
@@ -655,6 +701,398 @@ pub(super) fn validate_moved_tab(
         candidate,
         moved_index,
     })
+}
+
+pub(super) fn validate_split_panel(
+    baseline: &NativeContextTabs,
+    expected: &SplitPanelExpectation,
+    candidate: NativeContextTabs,
+) -> Result<NativeContextTabs, NativeProjectionDivergence> {
+    validate_canonical_candidate(baseline, &candidate)?;
+    if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
+        || &expected.terminal_context_id != baseline.terminal_context_id()
+        || candidate.revision < expected.committed_revision
+    {
+        return Err(NativeProjectionDivergence);
+    }
+    if candidate.revision == expected.committed_revision {
+        let index = baseline
+            .tab_index(&expected.tab_id)
+            .ok_or(NativeProjectionDivergence)?;
+        let baseline_tab = &baseline.tabs[index];
+        let candidate_tab = candidate
+            .tabs
+            .get(index)
+            .ok_or(NativeProjectionDivergence)?;
+        if candidate.tabs.len() != baseline.tabs.len()
+            || candidate_tab.tab_id != expected.tab_id
+            || candidate_tab.tab_label != baseline_tab.tab_label
+            || baseline_tab.panel_index(&expected.panel_id).is_none()
+            || !split_graft_matches(baseline_tab, candidate_tab, expected)
+            || candidate
+                .tabs
+                .iter()
+                .zip(&baseline.tabs)
+                .enumerate()
+                .any(|(position, (candidate, baseline))| position != index && candidate != baseline)
+        {
+            return Err(NativeProjectionDivergence);
+        }
+    }
+    Ok(candidate)
+}
+
+pub(super) fn validate_moved_panel(
+    baseline: &NativeContextTabs,
+    expected: &MovedPanelExpectation,
+    candidate: NativeContextTabs,
+) -> Result<NativeContextTabs, NativeProjectionDivergence> {
+    validate_canonical_candidate(baseline, &candidate)?;
+    if baseline.revision.value().checked_add(1) != Some(expected.committed_revision.value())
+        || &expected.terminal_context_id != baseline.terminal_context_id()
+        || candidate.revision < expected.committed_revision
+    {
+        return Err(NativeProjectionDivergence);
+    }
+    if candidate.revision == expected.committed_revision {
+        let index = baseline
+            .tab_index(&expected.tab_id)
+            .ok_or(NativeProjectionDivergence)?;
+        let baseline_tab = &baseline.tabs[index];
+        let candidate_tab = candidate
+            .tabs
+            .get(index)
+            .ok_or(NativeProjectionDivergence)?;
+        if candidate.tabs.len() != baseline.tabs.len()
+            || candidate_tab.tab_id != expected.tab_id
+            || candidate_tab.tab_label != baseline_tab.tab_label
+            || baseline_tab.panel_index(&expected.panel_id).is_none()
+            || baseline_tab
+                .panel_index(&expected.target_panel_id)
+                .is_none()
+            || !move_graft_matches(baseline_tab, candidate_tab, expected)
+            || candidate
+                .tabs
+                .iter()
+                .zip(&baseline.tabs)
+                .enumerate()
+                .any(|(position, (candidate, baseline))| position != index && candidate != baseline)
+        {
+            return Err(NativeProjectionDivergence);
+        }
+    }
+    Ok(candidate)
+}
+
+/// A comparable tree form keyed on leaf Panel identities rather than DFS positions, so a
+/// projection that inserted or removed leaves can be reduced back to the baseline shape.
+#[derive(Debug, Eq, PartialEq)]
+enum TreeShape<'a> {
+    Leaf(&'a WorkbenchPanelId),
+    Split {
+        first: Box<TreeShape<'a>>,
+        second: Box<TreeShape<'a>>,
+        first_slot_id: &'a WorkbenchPanelSlotId,
+        second_slot_id: &'a WorkbenchPanelSlotId,
+        orientation: PanelOrientation,
+        split_id: &'a WorkbenchSplitId,
+    },
+}
+
+fn tree_shape<'a>(tree: &'a NativePanelTree, panels: &'a [NativePanel]) -> Option<TreeShape<'a>> {
+    match tree {
+        NativePanelTree::Panel { panel_index } => panels
+            .get(*panel_index)
+            .map(|panel| TreeShape::Leaf(&panel.panel_id)),
+        NativePanelTree::Split {
+            first,
+            second,
+            first_slot_id,
+            second_slot_id,
+            orientation,
+            split_id,
+        } => Some(TreeShape::Split {
+            first: Box::new(tree_shape(first, panels)?),
+            second: Box::new(tree_shape(second, panels)?),
+            first_slot_id,
+            second_slot_id,
+            orientation: *orientation,
+            split_id,
+        }),
+    }
+}
+
+fn find_split<'a>(
+    tree: &'a NativePanelTree,
+    split_id: &WorkbenchSplitId,
+) -> Option<&'a NativePanelTree> {
+    let NativePanelTree::Split {
+        first,
+        second,
+        split_id: id,
+        ..
+    } = tree
+    else {
+        return None;
+    };
+    if id == split_id {
+        return Some(tree);
+    }
+    find_split(first, split_id).or_else(|| find_split(second, split_id))
+}
+
+fn split_contains_id(tree: &NativePanelTree, split_id: &WorkbenchSplitId) -> bool {
+    find_split(tree, split_id).is_some()
+}
+
+fn leaf_panel_id<'a>(
+    tree: &'a NativePanelTree,
+    panels: &'a [NativePanel],
+) -> Option<&'a WorkbenchPanelId> {
+    let NativePanelTree::Panel { panel_index } = tree else {
+        return None;
+    };
+    panels.get(*panel_index).map(|panel| &panel.panel_id)
+}
+
+/// Replaces the committed Split with one of its children and reduces the tree to a shape; the
+/// substitute must itself belong to the same tree so the graft is the only difference.
+fn ungrafted_shape<'a>(
+    tree: &'a NativePanelTree,
+    graft_id: &WorkbenchSplitId,
+    replacement: &'a NativePanelTree,
+    panels: &'a [NativePanel],
+) -> Option<TreeShape<'a>> {
+    let NativePanelTree::Split {
+        first,
+        second,
+        first_slot_id,
+        second_slot_id,
+        orientation,
+        split_id,
+    } = tree
+    else {
+        return tree_shape(tree, panels);
+    };
+    if split_id == graft_id {
+        return tree_shape(replacement, panels);
+    }
+    Some(TreeShape::Split {
+        first: Box::new(ungrafted_shape(first, graft_id, replacement, panels)?),
+        second: Box::new(ungrafted_shape(second, graft_id, replacement, panels)?),
+        first_slot_id,
+        second_slot_id,
+        orientation: *orientation,
+        split_id,
+    })
+}
+
+/// Removes the leaf carrying `panel_id` and collapses its parent Split into the surviving
+/// sibling subtree, yielding the reduced shape. Absent leaves leave the shape unchanged.
+fn removed_leaf_shape<'a>(
+    tree: &'a NativePanelTree,
+    panels: &'a [NativePanel],
+    panel_id: &WorkbenchPanelId,
+) -> Option<TreeShape<'a>> {
+    match tree {
+        NativePanelTree::Panel { .. } => {
+            if leaf_panel_id(tree, panels) == Some(panel_id) {
+                None
+            } else {
+                tree_shape(tree, panels)
+            }
+        }
+        NativePanelTree::Split {
+            first,
+            second,
+            first_slot_id,
+            second_slot_id,
+            orientation,
+            split_id,
+        } => {
+            match (
+                removed_leaf_shape(first, panels, panel_id),
+                removed_leaf_shape(second, panels, panel_id),
+            ) {
+                (None, None) => None,
+                (Some(surviving), None) | (None, Some(surviving)) => Some(surviving),
+                (Some(first), Some(second)) => Some(TreeShape::Split {
+                    first: Box::new(first),
+                    second: Box::new(second),
+                    first_slot_id,
+                    second_slot_id,
+                    orientation: *orientation,
+                    split_id,
+                }),
+            }
+        }
+    }
+}
+
+const fn direction_orientation(direction: WorkbenchPanelSplitDirection) -> PanelOrientation {
+    match direction {
+        WorkbenchPanelSplitDirection::Left | WorkbenchPanelSplitDirection::Right => {
+            PanelOrientation::Horizontal
+        }
+        WorkbenchPanelSplitDirection::Above | WorkbenchPanelSplitDirection::Below => {
+            PanelOrientation::Vertical
+        }
+    }
+}
+
+fn split_graft_matches(
+    baseline: &NativeSimpleTab,
+    candidate: &NativeSimpleTab,
+    expected: &SplitPanelExpectation,
+) -> bool {
+    let Some(NativePanelTree::Split {
+        first,
+        second,
+        first_slot_id,
+        second_slot_id,
+        orientation,
+        ..
+    }) = find_split(&candidate.tree, &expected.split_id)
+    else {
+        return false;
+    };
+    if *first_slot_id != expected.first_slot_id
+        || *second_slot_id != expected.second_slot_id
+        || *orientation != direction_orientation(expected.direction)
+        || split_contains_id(&baseline.tree, &expected.split_id)
+    {
+        return false;
+    }
+    let (source, added) = match expected.direction {
+        WorkbenchPanelSplitDirection::Below | WorkbenchPanelSplitDirection::Right => {
+            (first.as_ref(), second.as_ref())
+        }
+        WorkbenchPanelSplitDirection::Above | WorkbenchPanelSplitDirection::Left => {
+            (second.as_ref(), first.as_ref())
+        }
+    };
+    let Some(added_panel) = leaf_panel_id(added, &candidate.panels).and_then(|panel_id| {
+        let NativePanelTree::Panel { panel_index } = added else {
+            return None;
+        };
+        candidate
+            .panels
+            .get(*panel_index)
+            .map(|panel| (panel_id, panel))
+    }) else {
+        return false;
+    };
+    if added_panel.0 != &expected.new_panel_id
+        || added_panel.1.presentation_id != expected.presentation_id
+        || added_panel.1.presentation_label != expected.requested_label
+    {
+        return false;
+    }
+    ungrafted_shape(
+        &candidate.tree,
+        &expected.split_id,
+        source,
+        &candidate.panels,
+    ) == tree_shape(&baseline.tree, &baseline.panels)
+}
+
+fn move_graft_matches(
+    baseline: &NativeSimpleTab,
+    candidate: &NativeSimpleTab,
+    expected: &MovedPanelExpectation,
+) -> bool {
+    let orientation = direction_orientation(expected.direction);
+    let (first_id, second_id) = match expected.direction {
+        WorkbenchPanelSplitDirection::Below | WorkbenchPanelSplitDirection::Right => {
+            (&expected.target_panel_id, &expected.panel_id)
+        }
+        WorkbenchPanelSplitDirection::Above | WorkbenchPanelSplitDirection::Left => {
+            (&expected.panel_id, &expected.target_panel_id)
+        }
+    };
+    let mut graft = None;
+    find_move_graft(
+        &candidate.tree,
+        &candidate.panels,
+        first_id,
+        second_id,
+        orientation,
+        &expected.target_panel_id,
+        &mut graft,
+    );
+    let Some((graft, target_child)) = graft else {
+        return false;
+    };
+    let NativePanelTree::Split { split_id, .. } = graft else {
+        return false;
+    };
+    if split_contains_id(&baseline.tree, split_id) {
+        return false;
+    }
+    let Some(candidate_reduced) =
+        ungrafted_shape(&candidate.tree, split_id, target_child, &candidate.panels)
+    else {
+        return false;
+    };
+    let Some(baseline_reduced) =
+        removed_leaf_shape(&baseline.tree, &baseline.panels, &expected.panel_id)
+    else {
+        return false;
+    };
+    candidate_reduced == baseline_reduced
+}
+
+/// Locates the fresh graft Split whose two children are exactly the moved and target leaves in
+/// the direction-implied order, returning the Split and the child that restores the target leaf.
+fn find_move_graft<'a>(
+    tree: &'a NativePanelTree,
+    panels: &'a [NativePanel],
+    first_id: &WorkbenchPanelId,
+    second_id: &WorkbenchPanelId,
+    orientation: PanelOrientation,
+    target_id: &WorkbenchPanelId,
+    graft: &mut Option<(&'a NativePanelTree, &'a NativePanelTree)>,
+) {
+    let NativePanelTree::Split {
+        first,
+        second,
+        orientation: node_orientation,
+        ..
+    } = tree
+    else {
+        return;
+    };
+    if graft.is_none()
+        && *node_orientation == orientation
+        && leaf_panel_id(first, panels) == Some(first_id)
+        && leaf_panel_id(second, panels) == Some(second_id)
+    {
+        let target_child = if leaf_panel_id(first, panels) == Some(target_id) {
+            first.as_ref()
+        } else {
+            second.as_ref()
+        };
+        *graft = Some((tree, target_child));
+        return;
+    }
+    find_move_graft(
+        first,
+        panels,
+        first_id,
+        second_id,
+        orientation,
+        target_id,
+        graft,
+    );
+    find_move_graft(
+        second,
+        panels,
+        first_id,
+        second_id,
+        orientation,
+        target_id,
+        graft,
+    );
 }
 
 fn project_tab(tab: &Tab) -> Result<NativeSimpleTab, NativeProjectionError> {

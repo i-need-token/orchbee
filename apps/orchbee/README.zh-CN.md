@@ -79,6 +79,9 @@ navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication
 | `x`                   | 确认关闭所选 Tab 对所有已连接 Client 的执行，或取消。               |
 | `w`                   | 打开 navigator 并刷新共享 Tab，保留活动终端身份。                   |
 | `h` / `j` / `k` / `l` | 当前 Tab 有分屏树时，将本地焦点移到相邻 Panel。                     |
+| `-` / `|`             | 将焦点 Panel 向下 / 向右分屏出第二个叶子（临时键位）。              |
+| `X`                   | 关闭焦点 Panel 叶子，无单独确认步骤（临时键位）。                   |
+| `H` / `J` / `K` / `L` | 将焦点 Panel 叶子移向其方向邻居（临时键位）。                       |
 | `q` / `d`             | 关闭此 Client，保留的执行继续运行。                                 |
 
 [上下文选择](docs/native-context-selection.zh-CN.md) 在切换位置时保留各终端的执行。
@@ -99,8 +102,13 @@ Ctrl+U 清空草稿。已知 Rename 提交但投影不可用时，同样通过 `
 [原生 Session 契约](docs/native-tab-session.zh-CN.md) 定义准入、尺寸、反馈、失败、恢复与证据边界。
 Close 要求独立生命周期授权，只读 Client 也适用。关闭最后一个 Tab 后留下 Empty；显式 `c`
 创建新终端，普通 Client 退出则保留该终端供后续裸 Open 使用。终端被关闭的 peer 通过显式 `w`
-恢复当前成员关系。Linux 进程证据覆盖此流程。未分组、未固定 Tab 的规范分屏投影与本地面板焦点
-已经接入；生产重启恢复仍未完成。
+恢复当前成员关系。Linux 进程证据覆盖此流程。未分组、未固定 Tab 的规范分屏投影、本地面板焦点
+以及 `panel.split` / `panel.close` / `panel.move` 提交已经接入；生产重启恢复仍未完成。
+面板操作复用同一结构变更准入：split 提交实际控制 cell/pixel 几何并沿用叶子 label，close 以
+叶子为作用域并经普通 publication 路径提交，move 将叶子重定位到其方向邻居旁。与聚合 Close
+重叠产生的 terminal-busy 拒绝属于确定的未应用结果；焦点叶子被提交移除时，Session 将成员
+关系恢复到同一 Tab 的存活叶子上。`-`、`|`、`X` 与 `H`/`J`/`K`/`L` 键位为临时绑定，待输入
+设计裁决后可能重绑。
 
 ## 私有本机 Client transport
 
