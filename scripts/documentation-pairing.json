@@ -485,6 +485,10 @@
 			"englishSha256": "1a747a510bc58097ab4870fc6e50370662dc3d9fc24d270b06f45f0b9bf6484e",
 			"zhCnSha256": "0d8fdad25efe0661e1e78af7f0240c02725a692d41adef9b5b098b1c5b5578d7"
 		},
+		"proposals/cli/tui-input-vocabulary.md": {
+			"englishSha256": "f804414babd33d7ceabf005f3debac1b80341acf5e4e1a317f082f639ea98734",
+			"zhCnSha256": "a2d6ced6bf996eff56372725af74877a7d393f5c16a8ac902a2202c11710e162"
+		},
 		"proposals/platform/connected-client-capability-service.md": {
 			"englishSha256": "38643e88a16119130b0e47a26b8998c001be67db3d21d6009f786e744b89cba1",
 			"zhCnSha256": "e64903a554b652a068db3cdaf05095ef312859d27b62d90a28abecb91fd11ac0"
