@@ -123,6 +123,47 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
             ClientAction::MovePanelFocus(PanelDirection::Right),
             None,
         ),
+        (
+            ClientKey::Plain('-'),
+            ClientAction::SplitPanel(PanelDirection::Down),
+            None,
+        ),
+        (
+            ClientKey::Plain('_'),
+            ClientAction::SplitPanel(PanelDirection::Up),
+            None,
+        ),
+        (
+            ClientKey::Plain('\\'),
+            ClientAction::SplitPanel(PanelDirection::Left),
+            None,
+        ),
+        (
+            ClientKey::Plain('|'),
+            ClientAction::SplitPanel(PanelDirection::Right),
+            None,
+        ),
+        (ClientKey::Plain('X'), ClientAction::ClosePanel, None),
+        (
+            ClientKey::Plain('H'),
+            ClientAction::MovePanel(PanelDirection::Left),
+            None,
+        ),
+        (
+            ClientKey::Plain('J'),
+            ClientAction::MovePanel(PanelDirection::Down),
+            None,
+        ),
+        (
+            ClientKey::Plain('K'),
+            ClientAction::MovePanel(PanelDirection::Up),
+            None,
+        ),
+        (
+            ClientKey::Plain('L'),
+            ClientAction::MovePanel(PanelDirection::Right),
+            None,
+        ),
     ];
 
     for (key, expected_action, expected_notice) in fixed_cases {

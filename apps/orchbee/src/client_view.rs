@@ -341,9 +341,18 @@ impl ClientView {
                 ClientAction::MovePanelFocus(PanelDirection::Right),
                 ShellCommand::None,
             ),
-            // Provisional panel-operation bindings; see the README shortcut table.
+            // Provisional panel-operation bindings aligned with the input-vocabulary
+            // draft table; see the README shortcut table.
             ClientKey::Plain('-') => (
                 ClientAction::SplitPanel(PanelDirection::Down),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('_') => (
+                ClientAction::SplitPanel(PanelDirection::Up),
+                ShellCommand::None,
+            ),
+            ClientKey::Plain('\\') => (
+                ClientAction::SplitPanel(PanelDirection::Left),
                 ShellCommand::None,
             ),
             ClientKey::Plain('|') => (

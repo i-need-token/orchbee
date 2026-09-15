@@ -759,13 +759,15 @@ split、close 与 move 的总和；同一基线到最终快照的比较即可接
 接受；Session 按身份保留所选 Panel，同时重排缓存树和保留的来源记录
 （`peer_panel_split_refresh_preserves_active_panel_identity`）。
 
-临时 `Ctrl+B -`、`|`、`X` 与 `H`/`J`/`K`/`L` 键位经由与 Tab 操作相同的 mailbox 变更准入、
-typed 结算、pending-commit 保留及 publication 刷新恢复路径，提交三个结构性 panel 命令；
-键位为临时绑定，待输入设计裁决后可能重绑。`-` 与 `|` 对焦点叶子按 Below / Right 方向提交
-`panel.split`，沿用叶子现有 presentation label，并使用 Client 真实的控制 cell/pixel 几何，
-绝不伪造尺寸。`X` 对焦点叶子提交叶子作用域的 `panel.close`，无单独确认步骤；被接受的
-close 经普通 publication 路径提交。`H`、`J`、`K`、`L` 对焦点叶子提交 `panel.move`，以方向
-邻居作为 `target_panel_id`；单个 Panel 或边界处没有方向邻居时在准入前即为本地空操作。
+临时 `Ctrl+B -`、`_`、`\`、`|`、`X` 与 `H`/`J`/`K`/`L` 键位经由与 Tab 操作相同的 mailbox
+变更准入、typed 结算、pending-commit 保留及 publication 刷新恢复路径，提交三个结构性
+panel 命令；键位为临时绑定，待输入设计裁决后可能重绑。`-`、`_`、`\`、`|` 对焦点叶子按
+Below / Above / Left / Right 方向提交 `panel.split`——键形遵循 input-vocabulary 草案表——
+沿用叶子现有 presentation label，并使用 Client 真实的控制 cell/pixel 几何，绝不伪造尺寸。
+`X` 对焦点叶子提交叶子作用域的 `panel.close`，无单独确认步骤；被接受的 close 经普通
+publication 路径提交。`H`、`J`、`K`、`L` 对焦点叶子提交 `panel.move`，以方向邻居作为
+`target_panel_id`——它们是草案 `PANEL` 模式 `h`/`j`/`k`/`l` move 的过渡性顶层替身，因为
+模式结构不在本切片范围内；单个 Panel 或边界处没有方向邻居时在准入前即为本地空操作。
 三个操作仅从已结算的 Ready、SelectedWithoutAttachment 或 RetryableAttachUnavailable 阶段准入，
 保持精确请求关联，并将明确的 rejected/denied/unavailable 结果——包括重叠的聚合 Close 对同
 Tab split/move 产生的 terminal-busy 拒绝——分类为保留载体的未应用结果。已提交的 split 或

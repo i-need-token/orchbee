@@ -922,16 +922,18 @@ composition remains outside this slice. A peer-created single-leaf split is acce
 refresh path; the session preserves the selected Panel by identity while reindexing the cached tree
 and retained provenance (`peer_panel_split_refresh_preserves_active_panel_identity`).
 
-The provisional `Ctrl+B -`, `|`, `X`, and `H`/`J`/`K`/`L` bindings submit the three structural
-panel commands through the same mailbox mutation admission, typed settlement, pending-commit
-retention, and publication-refresh recovery used by Tab operations; the bindings are provisional
-pending the input-design review and may be rebound. `-` and `|` submit `panel.split` on the focused
-leaf in the Below / Right direction, carry the leaf's existing presentation label, and use the
-Client's real controlling cell/pixel geometry rather than a fabricated size. `X` submits the
+The provisional `Ctrl+B -`, `_`, `\`, `|`, `X`, and `H`/`J`/`K`/`L` bindings submit the three
+structural panel commands through the same mailbox mutation admission, typed settlement,
+pending-commit retention, and publication-refresh recovery used by Tab operations; the bindings
+are provisional pending the input-design review and may be rebound. `-`, `_`, `\`, and `|` submit
+`panel.split` on the focused leaf in the Below / Above / Left / Right direction — the glyph set
+follows the input-vocabulary draft table — carry the leaf's existing presentation label, and use
+the Client's real controlling cell/pixel geometry rather than a fabricated size. `X` submits the
 leaf-scoped `panel.close` on the focused leaf without a separate confirmation step; the accepted
 close commits through the ordinary publication path. `H`, `J`, `K`, and `L` submit `panel.move` on
-the focused leaf with the directional neighbor as `target_panel_id`; a single Panel or an edge with
-no directional neighbor is a local no-op before admission. All three operations admit only from a
+the focused leaf with the directional neighbor as `target_panel_id` — interim top-level stand-ins
+for the draft's `PANEL`-mode `h`/`j`/`k`/`l` move, since mode structure is out of this slice's
+scope; a single Panel or an edge with no directional neighbor is a local no-op before admission. All three operations admit only from a
 settled Ready, SelectedWithoutAttachment, or RetryableAttachUnavailable phase, keep their exact
 request correlation, and classify definite rejected/denied/unavailable outcomes — including the
 terminal-busy refusal an overlapping aggregate Close produces for same-Tab split/move — as
