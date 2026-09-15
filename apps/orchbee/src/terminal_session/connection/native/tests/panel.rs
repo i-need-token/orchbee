@@ -1,5 +1,8 @@
 use super::{
-    commands::{drive_controlling_after_attach, drive_controlling_ready_from_snapshot},
+    commands::{
+        drive_controlling_after_attach, drive_controlling_ready_from_snapshot,
+        drive_pending_create_to_selected_without_attachment,
+    },
     setup::*,
 };
 use crate::terminal_session::state::{
@@ -14,9 +17,9 @@ use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, ProtocolVersion, Snapshot, TerminalPresentationId,
     WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandResult,
     WorkbenchCommandUnavailableReason, WorkbenchPanelId, WorkbenchPanelSlotId,
-    WorkbenchPanelSplitDirection, WorkbenchRequest, WorkbenchResponse, WorkbenchRevision,
-    WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason, WorkbenchSplitId,
-    WorkbenchTerminalGeometry,
+    WorkbenchPanelSplitDirection, WorkbenchRejectionReason, WorkbenchRequest, WorkbenchResponse,
+    WorkbenchRevision, WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason,
+    WorkbenchSplitId, WorkbenchTerminalGeometry,
 };
 
 fn steps(after: &[WireKind]) -> Vec<WireKind> {
@@ -98,8 +101,16 @@ fn respond_command(
 }
 
 fn split_pending_commit(operation: &PanelOperation, new_panel: u128) -> WorkbenchCommandOutcome {
+    split_pending_commit_at(operation, new_panel, 2)
+}
+
+fn split_pending_commit_at(
+    operation: &PanelOperation,
+    new_panel: u128,
+    revision: u64,
+) -> WorkbenchCommandOutcome {
     WorkbenchCommandOutcome::PanelSplitPending {
-        revision: WorkbenchRevision::new(2),
+        revision: WorkbenchRevision::new(revision),
         terminal_context_id: operation.baseline().terminal_context_id().clone(),
         tab_id: operation.target().tab_id().clone(),
         panel_id: operation.panel_id().clone(),
@@ -532,5 +543,236 @@ fn move_without_a_neighbor_leaf_is_a_noop_admission() -> TestResult {
         direction: crate::client_view::PanelDirection::Right,
     });
     assert!(refused.is_err());
+    harness.finish()
+}
+
+#[test]
+fn committed_split_whose_snapshot_drops_the_tab_repairs_membership_to_empty() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(
+        steps(&[WireKind::Workbench, WireKind::Workbench, WireKind::Obcs]),
+        geometry,
+    )?;
+    let (_key, _controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let operation = harness.ui.admit_panel(PanelRequestKind::Split {
+        direction: crate::client_view::PanelDirection::Right,
+    })?;
+    respond_command(
+        &harness,
+        &operation,
+        split_pending_commit(&operation, 4_010),
+    )?;
+    // A superseding snapshot that dropped the whole committed Tab cannot keep the leaf.
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(0, 3),
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Cleanup(_))
+    ));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .retained_panel_for_test()
+            .unwrap()
+            .operation(),
+        &operation,
+        "the known commit survives membership cleanup"
+    );
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("membership cleanup must Detach the old leaf"));
+    };
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Membership(RefreshDecision::SettledWithoutAttachment)
+    ));
+    let state = harness.ui.state();
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Empty);
+    assert!(state.desired().is_none());
+    assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
+    assert_eq!(
+        state.retained_panel_for_test().unwrap().operation(),
+        &operation
+    );
+    assert!(state.invariant_holds());
+    harness.finish()
+}
+
+#[test]
+fn move_rejected_tab_unavailable_reads_a_snapshot_before_settling() -> TestResult {
+    for (snapshot, extra) in [
+        // The Tab survives past the rejection revision: ordinary refresh result.
+        (split_snapshot(3), 0usize),
+        // The Tab is gone at a later revision: membership repair to Empty.
+        (snapshot(0, 3), 1usize),
+    ] {
+        let geometry = fixture_geometry()?;
+        let mut wire = vec![WireKind::Workbench, WireKind::Workbench];
+        wire.extend(std::iter::repeat_n(WireKind::Obcs, extra));
+        let mut harness = Harness::start(steps(&wire), geometry)?;
+        drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+        let operation = harness.ui.admit_panel(PanelRequestKind::Move {
+            direction: crate::client_view::PanelDirection::Right,
+        })?;
+        respond_command(
+            &harness,
+            &operation,
+            WorkbenchCommandOutcome::Rejected {
+                revision: WorkbenchRevision::new(2),
+                reason: WorkbenchRejectionReason::TabUnavailable,
+            },
+        )?;
+        respond_snapshot(&harness, WorkbenchSnapshotOutcome::Available { snapshot })?;
+        if extra == 0 {
+            assert!(matches!(
+                harness.ui.settle_next(FrameCut::None)?,
+                UiEvent::Panel(PanelDecision::Continue)
+            ));
+            let state = harness.ui.state();
+            assert_eq!(state.notice(), Some(SessionNotice::PanelNotApplied));
+            assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
+            assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+            assert!(state.selected_has_viewer());
+        } else {
+            assert!(matches!(
+                harness.ui.settle_next(FrameCut::None)?,
+                UiEvent::Panel(PanelDecision::Cleanup(_))
+            ));
+            let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+                return Err(test_error("membership cleanup must Detach the old leaf"));
+            };
+            harness
+                .carrier
+                .respond_obcs(ServerMessage::TerminalViewerResult(
+                    TerminalViewerResult::new(
+                        detach.request_id().clone(),
+                        TerminalViewerOutcome::Detached {},
+                    ),
+                ))?;
+            assert!(matches!(
+                harness.ui.settle_next(FrameCut::None)?,
+                UiEvent::Membership(RefreshDecision::SettledWithoutAttachment)
+            ));
+        }
+        assert!(harness.ui.state().invariant_holds());
+        harness.finish()?;
+    }
+    Ok(())
+}
+
+#[test]
+fn move_unchanged_settles_at_baseline_and_retires_on_a_divergent_revision() -> TestResult {
+    // Unchanged at the baseline revision is a definite no-op.
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(steps(&[WireKind::Workbench]), geometry)?;
+    drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let operation = harness.ui.admit_panel(PanelRequestKind::Move {
+        direction: crate::client_view::PanelDirection::Right,
+    })?;
+    respond_command(
+        &harness,
+        &operation,
+        WorkbenchCommandOutcome::Unchanged {
+            revision: WorkbenchRevision::new(1),
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Continue)
+    ));
+    let state = harness.ui.state();
+    assert_eq!(state.notice(), None);
+    assert_eq!(state.cache().revision(), WorkbenchRevision::new(1));
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert!(state.retained_panel_for_test().is_none());
+    harness.finish()?;
+
+    // Unchanged carrying any other revision is an incompatible outcome; the adapter
+    // retires it as outcome-unknown before the state machine sees a result.
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(steps(&[WireKind::Workbench]), geometry)?;
+    drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let operation = harness.ui.admit_panel_transport(PanelRequestKind::Move {
+        direction: crate::client_view::PanelDirection::Right,
+    })?;
+    respond_command(
+        &harness,
+        &operation,
+        WorkbenchCommandOutcome::Unchanged {
+            revision: WorkbenchRevision::new(2),
+        },
+    )?;
+    assert!(harness.ui.take_next().is_err());
+    assert_eq!(
+        harness.mailbox.is_closed(),
+        Some(CarrierFailure::OutcomeUnknown)
+    );
+    harness.finish_after_worker_failure(CarrierFailure::OutcomeUnknown)
+}
+
+#[test]
+fn committed_split_while_unattached_repairs_membership_without_a_cleanup() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(
+        steps(&[
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Workbench,
+            WireKind::Workbench,
+        ]),
+        geometry,
+    )?;
+    let (old_key, _controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, snapshot(1, 1), geometry)?;
+    let (_committed_key, _candidate) =
+        drive_pending_create_to_selected_without_attachment(&mut harness, &old_key)?;
+    assert!(!harness.ui.state().selected_has_viewer());
+    let operation = harness.ui.admit_panel(PanelRequestKind::Split {
+        direction: crate::client_view::PanelDirection::Right,
+    })?;
+    respond_command(
+        &harness,
+        &operation,
+        split_pending_commit_at(&operation, 3_010, 3),
+    )?;
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(0, 4),
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::SettledWithoutAttachment)
+    ));
+    let state = harness.ui.state();
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Empty);
+    assert!(state.desired().is_none());
+    assert_eq!(
+        state.retained_panel_for_test().unwrap().operation(),
+        &operation,
+        "the commit is retained through the unattached membership install"
+    );
+    assert!(state.invariant_holds());
     harness.finish()
 }

@@ -784,11 +784,11 @@ pub(super) fn validate_moved_panel(
     Ok(candidate)
 }
 
-/// A comparable tree form keyed on leaf Panel identities rather than DFS positions, so a
+/// A comparable tree form keyed on leaf member tuples rather than DFS positions, so a
 /// projection that inserted or removed leaves can be reduced back to the baseline shape.
 #[derive(Debug, Eq, PartialEq)]
 enum TreeShape<'a> {
-    Leaf(&'a WorkbenchPanelId),
+    Leaf(&'a NativePanel),
     Split {
         first: Box<TreeShape<'a>>,
         second: Box<TreeShape<'a>>,
@@ -801,9 +801,7 @@ enum TreeShape<'a> {
 
 fn tree_shape<'a>(tree: &'a NativePanelTree, panels: &'a [NativePanel]) -> Option<TreeShape<'a>> {
     match tree {
-        NativePanelTree::Panel { panel_index } => panels
-            .get(*panel_index)
-            .map(|panel| TreeShape::Leaf(&panel.panel_id)),
+        NativePanelTree::Panel { .. } => leaf_panel(tree, panels).map(TreeShape::Leaf),
         NativePanelTree::Split {
             first,
             second,
@@ -845,14 +843,18 @@ fn split_contains_id(tree: &NativePanelTree, split_id: &WorkbenchSplitId) -> boo
     find_split(tree, split_id).is_some()
 }
 
+fn leaf_panel<'a>(tree: &'a NativePanelTree, panels: &'a [NativePanel]) -> Option<&'a NativePanel> {
+    let NativePanelTree::Panel { panel_index } = tree else {
+        return None;
+    };
+    panels.get(*panel_index)
+}
+
 fn leaf_panel_id<'a>(
     tree: &'a NativePanelTree,
     panels: &'a [NativePanel],
 ) -> Option<&'a WorkbenchPanelId> {
-    let NativePanelTree::Panel { panel_index } = tree else {
-        return None;
-    };
-    panels.get(*panel_index).map(|panel| &panel.panel_id)
+    leaf_panel(tree, panels).map(|panel| &panel.panel_id)
 }
 
 /// Replaces the committed Split with one of its children and reduces the tree to a shape; the
@@ -988,6 +990,9 @@ fn split_graft_matches(
     {
         return false;
     }
+    if leaf_panel_id(source, &candidate.panels) != Some(&expected.panel_id) {
+        return false;
+    }
     ungrafted_shape(
         &candidate.tree,
         &expected.split_id,
@@ -1023,10 +1028,28 @@ fn move_graft_matches(
     let Some((graft, target_child)) = graft else {
         return false;
     };
-    let NativePanelTree::Split { split_id, .. } = graft else {
+    let NativePanelTree::Split {
+        first,
+        second,
+        split_id,
+        ..
+    } = graft
+    else {
         return false;
     };
     if split_contains_id(&baseline.tree, split_id) {
+        return false;
+    }
+    let moved_child = if std::ptr::eq(target_child, first.as_ref()) {
+        second.as_ref()
+    } else {
+        first.as_ref()
+    };
+    if baseline
+        .panel_index(&expected.panel_id)
+        .and_then(|index| baseline.panel(index))
+        != leaf_panel(moved_child, &candidate.panels)
+    {
         return false;
     }
     let Some(candidate_reduced) =

@@ -1124,7 +1124,7 @@ fn superseded_non_attachable_switch_skips_unattached_settlement_and_newest_gets_
     harness.finish()
 }
 
-fn drive_pending_create_to_selected_without_attachment(
+pub(super) fn drive_pending_create_to_selected_without_attachment(
     harness: &mut Harness,
     old_key: &crate::terminal_session::state::AttachmentKey,
 ) -> TestResult<(
