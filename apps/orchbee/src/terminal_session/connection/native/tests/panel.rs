@@ -1167,22 +1167,24 @@ fn committed_move_whose_superseding_snapshot_keeps_the_selected_leaf_merges() ->
         },
     )?;
     // A superseding read that folded in both our graft and a peer split keeps the selected
-    // leaf: the candidate must still merge by identity with no membership cleanup.
+    // leaf: the candidate must still merge by identity with no membership cleanup. The
+    // peer split wraps only leaf B's slot inside the move-created Split 3_030 — leaf
+    // splits never re-root an existing Split.
     let mut superseded = snapshot(1, 3);
     superseded.terminal_contexts[0].tabs[0].root = split_node(
-        panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
-        4_001,
         split_node(
+            panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
+            4_001,
             panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
-            3_021,
-            panel_node(1_001, 1_002, 1_003, 1_004, "1"),
-            3_022,
+            4_014,
             PanelOrientation::Horizontal,
-            3_030,
+            4_020,
         ),
-        4_014,
+        3_021,
+        panel_node(1_001, 1_002, 1_003, 1_004, "1"),
+        3_022,
         PanelOrientation::Horizontal,
-        4_020,
+        3_030,
     );
     respond_snapshot(
         &harness,
@@ -1231,23 +1233,25 @@ fn committed_split_after_reorder_dropping_the_selected_leaf_repairs_membership()
     )?;
     let (_key, _controller) =
         drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
-    // A peer split lands before the selected leaf so the selection sits at panel index 1.
+    // A peer left-split of the selected leaf lands at r2: a leaf split wraps only the
+    // target leaf into a new inner Split, so the old root/slots survive and A moves to
+    // panel index 1 in [C, A, B].
     harness.ui.admit_refresh()?;
     let mut reordered = snapshot(1, 2);
     reordered.terminal_contexts[0].tabs[0].root = split_node(
-        panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
-        4_001,
         split_node(
+            panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
+            4_001,
             panel_node(1_001, 1_002, 1_003, 1_004, "1"),
-            3_001,
-            panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
-            3_014,
+            4_014,
             PanelOrientation::Horizontal,
-            3_020,
+            4_020,
         ),
-        4_014,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        3_014,
         PanelOrientation::Horizontal,
-        4_020,
+        3_020,
     );
     respond_snapshot(
         &harness,
@@ -1279,23 +1283,23 @@ fn committed_split_after_reorder_dropping_the_selected_leaf_repairs_membership()
         },
     )?;
     // The superseding read folded in exactly one peer close of the just-split selected
-    // leaf: one panel.close removes one leaf per revision, so the split's own new leaf
-    // survives inside the collapsed inner slot and the clamped repair lands on it.
+    // leaf at r4: the split's own Split 5_020 collapses and its new leaf 5_010 takes the
+    // collapsed slot inside 4_020 — the clamped repair lands on it.
     let mut contracted = snapshot(1, 4);
     contracted.terminal_contexts[0].tabs[0].root = split_node(
-        panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
-        4_001,
         split_node(
+            panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
+            4_001,
             panel_node(5_010, 5_013, 5_011, 5_012, "1"),
-            3_001,
-            panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
-            3_014,
+            4_014,
             PanelOrientation::Horizontal,
-            3_020,
+            4_020,
         ),
-        4_014,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        3_014,
         PanelOrientation::Horizontal,
-        4_020,
+        3_020,
     );
     respond_snapshot(
         &harness,
@@ -1803,30 +1807,33 @@ fn committed_move_whose_superseding_snapshot_clamps_the_selection_down_to_a_surv
     )?;
     let (_key, _controller) =
         drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
-    // Peer splits fold two leaves ahead of the selection so it sits at panel index 2.
+    // Two successive peer left-splits of the selected leaf (one leaf per revision, each
+    // wrapping only the target leaf's slot — never re-rooting an existing Split): r2
+    // lands C ahead of A, r3 lands E ahead of A again, so the read at r3 folds both and
+    // the selection sits at panel index 2 in [C, E, A, B].
     harness.ui.admit_refresh()?;
-    let mut grown = snapshot(1, 2);
+    let mut grown = snapshot(1, 3);
     grown.terminal_contexts[0].tabs[0].root = split_node(
-        panel_node(4_010, 4_013, 4_011, 4_012, "peer-a"),
-        4_001,
         split_node(
-            panel_node(4_030, 4_033, 4_031, 4_032, "peer-b"),
-            4_031,
+            panel_node(4_010, 4_013, 4_011, 4_012, "peer-c"),
+            4_001,
             split_node(
+                panel_node(5_010, 5_013, 5_011, 5_012, "peer-e"),
+                5_001,
                 panel_node(1_001, 1_002, 1_003, 1_004, "1"),
-                3_001,
-                panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
-                3_014,
+                5_014,
                 PanelOrientation::Horizontal,
-                3_020,
+                5_020,
             ),
-            4_034,
+            4_014,
             PanelOrientation::Horizontal,
-            4_040,
+            4_020,
         ),
-        4_014,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        3_014,
         PanelOrientation::Horizontal,
-        4_020,
+        3_020,
     );
     respond_snapshot(
         &harness,
@@ -1851,21 +1858,22 @@ fn committed_move_whose_superseding_snapshot_clamps_the_selection_down_to_a_surv
         &harness,
         &operation,
         WorkbenchCommandOutcome::PanelMoved {
-            revision: WorkbenchRevision::new(3),
+            revision: WorkbenchRevision::new(4),
             terminal_context_id: operation.baseline().terminal_context_id().clone(),
             tab_id: operation.target().tab_id().clone(),
             panel_id: operation.panel_id().clone(),
             target_panel_id: moved_to,
         },
     )?;
-    // Two peer closes fold in before the read: the selected leaf goes at r4 and the
-    // trailing peer leaf at r5, so only the two inserted leaves remain at r5 and the
-    // repaired selection must clamp down from index 2 to index 1.
-    let mut contracted = snapshot(1, 5);
+    // Two peer closes fold in before the read, one leaf per revision: A goes at r5
+    // (inner split 5_020 collapses, sibling E takes its slot) and B goes at r6 (root
+    // 3_020 collapses, subtree 4_020 becomes the root). Only the two inserted leaves
+    // remain at r6 and the repaired selection must clamp down from index 2 to index 1.
+    let mut contracted = snapshot(1, 6);
     contracted.terminal_contexts[0].tabs[0].root = split_node(
-        panel_node(4_010, 4_013, 4_011, 4_012, "peer-a"),
+        panel_node(4_010, 4_013, 4_011, 4_012, "peer-c"),
         4_001,
-        panel_node(4_030, 4_033, 4_031, 4_032, "peer-b"),
+        panel_node(5_010, 5_013, 5_011, 5_012, "peer-e"),
         4_014,
         PanelOrientation::Horizontal,
         4_020,
@@ -1906,8 +1914,8 @@ fn committed_move_whose_superseding_snapshot_clamps_the_selection_down_to_a_surv
         attach.action(),
         &TerminalViewerAction::AttachBinding {
             site_id: ObcsSiteId::parse(&id(100))?,
-            worker_id: ObcsWorkerId::parse(&id(4_031))?,
-            terminal_id: ObcsTerminalId::parse(&id(4_032))?,
+            worker_id: ObcsWorkerId::parse(&id(5_011))?,
+            terminal_id: ObcsTerminalId::parse(&id(5_012))?,
         }
     );
     harness
@@ -1922,7 +1930,7 @@ fn committed_move_whose_superseding_snapshot_clamps_the_selection_down_to_a_surv
     drive_controlling_after_attach(&mut harness, &installed, geometry)?;
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
-    assert_eq!(state.cache().revision(), WorkbenchRevision::new(5));
+    assert_eq!(state.cache().revision(), WorkbenchRevision::new(6));
     assert_eq!(state.tab(0).unwrap().panel_count(), 2);
     assert_eq!(
         state.active().unwrap().panel_index(),
@@ -1931,7 +1939,7 @@ fn committed_move_whose_superseding_snapshot_clamps_the_selection_down_to_a_surv
     );
     assert_eq!(
         state.tab(0).unwrap().panel(1).unwrap().panel_id(),
-        &WorkbenchPanelId::parse(&id(4_030))?
+        &WorkbenchPanelId::parse(&id(5_010))?
     );
     assert_eq!(
         state.retained_panel_for_test().unwrap().operation(),
