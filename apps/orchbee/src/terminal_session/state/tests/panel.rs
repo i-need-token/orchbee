@@ -32,6 +32,12 @@ fn split_kind() -> PanelRequestKind {
     }
 }
 
+fn move_kind() -> PanelRequestKind {
+    PanelRequestKind::Move {
+        direction: PanelDirection::Right,
+    }
+}
+
 fn split_ready() -> NativeSessionState {
     ready_with_cache(project_native_standalone_tabs(&split_panel_baseline()).unwrap())
 }
@@ -1369,10 +1375,18 @@ fn retain_pending_panel_rejects_foreign_or_invalid_facts() {
 
 #[test]
 fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
-    // A refusal revision below the baseline is a faulty-authority input: the server
-    // reports the Tab unavailable at a revision older than the history we already hold.
+    // Input tiers. `TabUnavailable` is producible on the wire ONLY for Move intents:
+    // `connection/native/panel.rs:152-159` maps `DefinitePrecommit(Rejected{TabUnavailable})`
+    // + a post-rejection `read_panel_snapshot` to it; the Split path maps every
+    // `DefinitePrecommit` to `Precommit` (`native/panel.rs:78-79`) and Close never yields
+    // it either. Each arm below is labeled: legal wire fault / adapter-legal shape with
+    // an impossible authority (defensive) / deliberately adapter-unreachable forge.
+
+    // Adapter-legal shape, semantically impossible authority (defensive): a Move
+    // `TabUnavailable` CAN be produced, but no honest authority reports the Tab
+    // unavailable at a revision older than the baseline we already hold.
     let mut state = split_ready_at_revision(2);
-    let operation = plan(&state, 70_160, split_kind());
+    let operation = plan(&state, 70_160, move_kind());
     assert!(state.begin_panel(operation.clone()));
     let prepared = state.prepare_panel(
         &operation,
@@ -1392,40 +1406,64 @@ fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
     assert!(state.retained_panel_for_test().is_none());
     assert!(state.invariant_holds());
 
-    // A refusal at or beyond the baseline without snapshot evidence is a legal fault:
-    // the operation is definitely not applied, the admission releases, and the session
-    // survives — nothing was committed and no divergence is claimed.
-    for revision in [1, 5] {
-        let mut state = split_ready();
-        let operation = plan(&state, 70_161, split_kind());
-        let cache = state.cache().clone();
-        assert!(state.begin_panel(operation.clone()));
-        let prepared = state.prepare_panel(
-            &operation,
-            PanelResult::TabUnavailable {
-                revision: WorkbenchRevision::new(revision),
-                outcome: WorkbenchSnapshotOutcome::Unavailable {
-                    reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
-                },
-            },
-        );
-        assert_eq!(
-            state.apply_prepared_panel(prepared),
-            PanelDecision::Continue
-        );
-        assert_eq!(state.notice, Some(SessionNotice::PanelNotApplied));
-        assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
-        assert!(state.pending_panel().is_none());
-        assert_eq!(state.cache(), &cache);
-        assert!(state.retained_panel_for_test().is_none());
-        assert!(state.invariant_holds());
-    }
-
-    // A refusal at exactly the served snapshot's revision while the Tab is still in
-    // that snapshot is self-contradictory: the authority's own evidence disproves its
-    // claim. This is the fail-closed edge of the authority check — the session retires.
+    // Legal wire fault (positive control): the authority rejects the Move at a revision
+    // newer than the baseline, with no snapshot evidence — the Tab may genuinely have
+    // become unavailable at rev 5. The operation is definitely not applied, the
+    // admission releases, and the session survives.
     let mut state = split_ready();
-    let operation = plan(&state, 70_162, split_kind());
+    let operation = plan(&state, 70_161, move_kind());
+    let cache = state.cache().clone();
+    assert!(state.begin_panel(operation.clone()));
+    let prepared = state.prepare_panel(
+        &operation,
+        PanelResult::TabUnavailable {
+            revision: WorkbenchRevision::new(5),
+            outcome: WorkbenchSnapshotOutcome::Unavailable {
+                reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            },
+        },
+    );
+    assert_eq!(
+        state.apply_prepared_panel(prepared),
+        PanelDecision::Continue
+    );
+    assert_eq!(state.notice, Some(SessionNotice::PanelNotApplied));
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert!(state.pending_panel().is_none());
+    assert_eq!(state.cache(), &cache);
+    assert!(state.retained_panel_for_test().is_none());
+    assert!(state.invariant_holds());
+
+    // Defensive leniency boundary — NOT claimed as normal server history: the authority
+    // claims the Tab unavailable at exactly the baseline revision that still contains
+    // it, contradicting our held history. The reducer tolerates this as NotApplied;
+    // recorded so the leniency boundary stays pinned, not as a legal-fault example.
+    let mut state = split_ready();
+    let operation = plan(&state, 70_164, move_kind());
+    let cache = state.cache().clone();
+    assert!(state.begin_panel(operation.clone()));
+    let prepared = state.prepare_panel(
+        &operation,
+        PanelResult::TabUnavailable {
+            revision: WorkbenchRevision::new(1),
+            outcome: WorkbenchSnapshotOutcome::Unavailable {
+                reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            },
+        },
+    );
+    assert_eq!(
+        state.apply_prepared_panel(prepared),
+        PanelDecision::Continue
+    );
+    assert_eq!(state.notice, Some(SessionNotice::PanelNotApplied));
+    assert_eq!(state.cache(), &cache);
+    assert!(state.invariant_holds());
+
+    // Adapter-legal shape, self-contradictory evidence (defensive): a Move refusal at
+    // rev 2 while the authority's own served snapshot at rev 2 still contains the Tab —
+    // the evidence disproves the claim. The fail-closed edge of the authority check.
+    let mut state = split_ready();
+    let operation = plan(&state, 70_162, move_kind());
     assert!(state.begin_panel(operation.clone()));
     let mut still_present = split_panel_baseline();
     still_present.revision = WorkbenchRevision::new(2);
@@ -1447,10 +1485,10 @@ fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
     assert!(state.retained_panel_for_test().is_none());
     assert!(state.invariant_holds());
 
-    // A refusal at a revision newer than the snapshot served with it cannot be
-    // verified against anything: the evidence is older than the claim — divergent.
+    // Adapter-legal shape, unverifiable (defensive): refusal at rev 3 whose snapshot
+    // evidence only reaches rev 2 — the evidence is older than the claim.
     let mut state = split_ready();
-    let operation = plan(&state, 70_163, split_kind());
+    let operation = plan(&state, 70_163, move_kind());
     assert!(state.begin_panel(operation.clone()));
     let prepared = state.prepare_panel(
         &operation,
@@ -1468,6 +1506,33 @@ fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
         Some(CarrierFailure::AuthorityDivergence)
     );
     assert!(state.retained_panel_for_test().is_none());
+    assert!(state.invariant_holds());
+
+    // Deliberately adapter-unreachable forge: `TabUnavailable` bound to a Split
+    // operation cannot be produced by any honest wire peer (`native/panel.rs:81-83`
+    // unconditionally maps Split `DefinitePrecommit` to `Precommit`). Retained to pin
+    // that the reducer's TabUnavailable classification is intent-agnostic
+    // (`prepare_panel` does not dispatch on the operation kind) — a forged
+    // kind-mismatched result is tolerated with the same leniency as the legal fault.
+    let mut state = split_ready();
+    let operation = plan(&state, 70_165, split_kind());
+    let cache = state.cache().clone();
+    assert!(state.begin_panel(operation.clone()));
+    let prepared = state.prepare_panel(
+        &operation,
+        PanelResult::TabUnavailable {
+            revision: WorkbenchRevision::new(5),
+            outcome: WorkbenchSnapshotOutcome::Unavailable {
+                reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            },
+        },
+    );
+    assert_eq!(
+        state.apply_prepared_panel(prepared),
+        PanelDecision::Continue
+    );
+    assert_eq!(state.notice, Some(SessionNotice::PanelNotApplied));
+    assert_eq!(state.cache(), &cache);
     assert!(state.invariant_holds());
 }
 
@@ -1530,31 +1595,41 @@ fn committed_with_an_invalid_commit_retires_without_retaining_the_fact() {
 
 #[test]
 fn stale_membership_result_is_refused_by_the_second_line_of_defence() {
-    // The mailbox is the first line against stale replies; `retain_prepared_panel_membership`
-    // is the second: a membership-prepared result whose operation is no longer current
-    // must be refused with Protocol before any cleanup/install is staged.
-    let mut state = split_ready();
-    let operation = plan(&state, 70_180, split_kind());
+    // Three distinct input tiers, kept separate on purpose:
+    //   (a) the original pending result — a wire-legal Move refusal: the authority
+    //       answers `Rejected{TabUnavailable}` at rev 2 and its own post-rejection
+    //       snapshot at rev 3 shows the Tab is genuinely gone (`selected_tab_gone_snapshot`);
+    //   (b) the interleaved `NotSubmitted` release — also wire-legal for Move
+    //       (`DefinitelyNotSubmitted` → `NotSubmitted`, `native/panel.rs:144-150`);
+    //   (c) the re-presented stale carrier — a deliberately forged reducer-defense
+    //       input: no honest server returns two results for one operation.
+    // `retain_prepared_panel_membership` is the second line of defence (after the
+    // mailbox's stale-reply filter): a membership-prepared result whose operation is no
+    // longer current must be refused with Protocol before any cleanup/install is staged.
+    let mut state = split_ready_two_tabs();
+    let operation = plan(&state, 70_180, move_kind());
     assert!(state.begin_panel(operation.clone()));
     let result = PanelResult::TabUnavailable {
         revision: WorkbenchRevision::new(2),
         outcome: WorkbenchSnapshotOutcome::Available {
-            snapshot: selected_leaf_lost_snapshot(3),
+            snapshot: selected_tab_gone_snapshot(3),
         },
     };
-    // Positive control first: while the operation is current, the identical prepared
-    // result is genuinely retained — the refusal below is not vacuous.
+    // Positive control: while the operation is current, the wire-legal (a) result is
+    // genuinely classified as membership and retained — the refusal below is not vacuous.
     let prepared = state.prepare_panel(&operation, result.clone());
     assert!(prepared.membership_candidate().is_some());
     let (admitted, _candidate) = state
         .retain_prepared_panel_membership(prepared)
         .expect("the current membership result retains");
     assert_eq!(&admitted, &operation);
-    // An interleaved honest result releases the pending operation through the ordinary
-    // consumer, leaving a second prepared carrier for the same operation stale.
+    // The interleaved honest (b) result releases the pending operation through the
+    // ordinary consumer, leaving a second prepared carrier for the same operation stale.
     let release = state.prepare_panel(&operation, PanelResult::NotSubmitted);
     assert_eq!(state.apply_prepared_panel(release), PanelDecision::Continue);
     assert!(state.pending_panel().is_none());
+    // The forged (c) carrier: same content as the once-legal (a), re-presented after
+    // release — refused by the currentness check, not by content validation.
     let stale = state.prepare_panel(&operation, result);
     assert!(stale.membership_candidate().is_some());
     assert!(matches!(
