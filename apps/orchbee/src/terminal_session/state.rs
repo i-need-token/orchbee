@@ -1641,21 +1641,9 @@ impl NativeSessionState {
         };
         // The Tab survives but the selected leaf vanished (for example after our own panel.close):
         // repair the selection to a surviving leaf through the membership path instead of retiring.
-        let leaf_repair = active.as_ref().and_then(|active| {
-            let index = candidate.tab_index(active.key.tab_id())?;
-            let panel_id = self
-                .cache
-                .tabs()
-                .get(active.index)
-                .and_then(|tab| tab.panel(active.panel_index()))
-                .map(|panel| panel.panel_id())?;
-            let tab = candidate.tabs().get(index)?;
-            tab.panel_index(panel_id).is_none().then(|| {
-                active
-                    .panel_index()
-                    .min(tab.panel_count().saturating_sub(1))
-            })
-        });
+        let leaf_repair = active
+            .as_ref()
+            .and_then(|active| self.selected_leaf_repair_index(&candidate, active));
         if active
             .as_ref()
             .is_none_or(|active| candidate.tab_index(active.key.tab_id()).is_none())
@@ -1769,6 +1757,30 @@ impl NativeSessionState {
             self.context_selection = None;
         }
         decision
+    }
+
+    /// The Tab keeps its identity in the candidate but the selected leaf vanished (for
+    /// example after a peer panel.close folded into a later revision): the selection must
+    /// repair onto the clamped surviving-leaf index through the membership path rather than
+    /// a direct merge that cannot find it.
+    fn selected_leaf_repair_index(
+        &self,
+        candidate: &NativeContextTabs,
+        active: &SelectedTab,
+    ) -> Option<usize> {
+        let index = candidate.tab_index(active.key.tab_id())?;
+        let panel_id = self
+            .cache
+            .tabs()
+            .get(active.index)
+            .and_then(|tab| tab.panel(active.panel_index()))
+            .map(|panel| panel.panel_id())?;
+        let tab = candidate.tabs().get(index)?;
+        tab.panel_index(panel_id).is_none().then(|| {
+            active
+                .panel_index()
+                .min(tab.panel_count().saturating_sub(1))
+        })
     }
 
     fn merge_projection(&mut self, candidate: NativeContextTabs) -> bool {

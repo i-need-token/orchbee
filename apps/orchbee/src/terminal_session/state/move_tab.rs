@@ -315,14 +315,23 @@ impl NativeSessionState {
         pending: Option<PendingMoveCommit>,
         candidate: NativeContextTabs,
     ) -> PreparedMoveResult {
+        let mut leaf_repair = None;
         if candidate.tab_index(operation.target.tab_id()).is_some() {
-            return match pending {
-                Some(pending) => PreparedMoveResult::Committed {
-                    pending,
-                    candidate: Some(candidate),
-                },
-                None => PreparedMoveResult::RefusedProjection(candidate),
-            };
+            // A superseding candidate may have folded in a peer panel.close that removed the
+            // selected leaf while the Tab survives: repair the selection through the paired
+            // membership path instead of a direct merge that cannot find it.
+            leaf_repair = self
+                .active()
+                .and_then(|active| self.selected_leaf_repair_index(&candidate, active));
+            if leaf_repair.is_none() {
+                return match pending {
+                    Some(pending) => PreparedMoveResult::Committed {
+                        pending,
+                        candidate: Some(candidate),
+                    },
+                    None => PreparedMoveResult::RefusedProjection(candidate),
+                };
+            }
         }
         match self.prepare_membership_candidate(
             candidate,
@@ -330,10 +339,15 @@ impl NativeSessionState {
             operation.baseline.tab_index(operation.target.tab_id()),
             None,
         ) {
-            Ok(prepared) => PreparedMoveResult::Membership {
-                pending,
-                prepared: Box::new(prepared),
-            },
+            Ok(mut prepared) => {
+                if let Some(panel_index) = leaf_repair {
+                    prepared.retarget_selected_panel(panel_index);
+                }
+                PreparedMoveResult::Membership {
+                    pending,
+                    prepared: Box::new(prepared),
+                }
+            }
             Err(_) => PreparedMoveResult::Divergent { pending },
         }
     }
