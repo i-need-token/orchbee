@@ -1,7 +1,18 @@
+use std::{num::NonZeroU64, time::Instant};
+
 use super::*;
 use crate::workbench_authority::{
-    WorkbenchPanelSplitBegin, WorkbenchPanelSplitPreparation, WorkbenchReadOrNavigationRequest,
-    identity,
+    CloseContinuationNext, CloseStepObservation, WorkbenchPanelSplitBegin,
+    WorkbenchPanelSplitPreparation, WorkbenchReadOrNavigationRequest, WorkbenchTabCloseBegin,
+    WorkbenchTabClosePreparation, WorkbenchTabCloseResolution, WorkbenchTabCloseRuntimeTarget,
+    WorkbenchTerminalTab, identity,
+};
+use orchbee_capability_node_protocol::{
+    HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity,
+    LeaseExpiresAtUnixMilliseconds, LeaseId, LifecycleTerminalPhase, OperationId,
+    TERMINAL_LIFECYCLE_CAPABILITY_VERSION, TerminalFence, TerminalId as RuntimeTerminalId,
+    TerminalLifecycleAuthorization, TerminalLifecycleOutcome, TerminalLifecycleRequest,
+    TerminalLifecycleResult, TerminalOperationLease, WorkerGeneration, WorkerId as RuntimeWorkerId,
 };
 use orchbee_workbench_protocol::{
     PresentationBinding, ProtocolVersion, SiteId, TerminalId, WorkbenchLabel, WorkbenchRequest,
@@ -572,4 +583,265 @@ fn panel_move_without_navigation_grant_is_denied() {
         WorkbenchPanelMoveBegin::Ready(result) if result.outcome == WorkbenchCommandOutcome::Denied {}
     ));
     assert_eq!(authority.projection.snapshot(), &before);
+}
+
+/// The exact retained runtime association a Site owner supplies for `member`, matching the
+/// construction used by the Close authority tests.
+fn close_runtime(member: &WorkbenchTerminalTab) -> WorkbenchTabCloseRuntimeTarget {
+    let terminal = u128::from_str_radix(member.binding().terminal_id.as_str(), 16).unwrap();
+    WorkbenchTabCloseRuntimeTarget::new(
+        RuntimeWorkerId::from_bytes(2000_u128.to_be_bytes()).unwrap(),
+        WorkerGeneration::new(NonZeroU64::MIN),
+        RuntimeTerminalId::from_bytes(terminal.to_be_bytes()).unwrap(),
+        HostTerminalIdentity::new(
+            HostCreationId::from_bytes((terminal + 1000).to_be_bytes()).unwrap(),
+            HostEpoch::from_bytes(9000_u128.to_be_bytes()).unwrap(),
+            HostTerminalId::from_bytes((terminal + 2000).to_be_bytes()).unwrap(),
+        ),
+        TerminalFence::new(NonZeroU64::MIN),
+    )
+}
+
+/// The next lifecycle request the real Close continuation expects, built the same way the
+/// service owner builds it.
+fn close_step_request(
+    authority: &mut WorkbenchAuthority,
+    close_id: &WorkbenchRequestId,
+    now: Instant,
+) -> TerminalLifecycleRequest {
+    let CloseContinuationNext::Lifecycle {
+        action,
+        step_ordinal,
+    } = authority
+        .next_terminal_tab_close_step(close_id, now)
+        .unwrap()
+    else {
+        panic!("lifecycle step")
+    };
+    let runtime = authority
+        .terminal_tab_close_target(close_id)
+        .unwrap()
+        .runtime();
+    TerminalLifecycleRequest {
+        authorization: TerminalLifecycleAuthorization {
+            capability_version: TERMINAL_LIFECYCLE_CAPABILITY_VERSION,
+            terminal_id: runtime.terminal_id(),
+            worker_id: runtime.worker_id(),
+            worker_generation: runtime.worker_generation(),
+            binding_fence: runtime.fence(),
+            lease: TerminalOperationLease::new(
+                LeaseId::from_bytes(8000_u128.to_be_bytes()).unwrap(),
+                LeaseExpiresAtUnixMilliseconds::new(NonZeroU64::MAX),
+            ),
+        },
+        close_operation_id: OperationId::from_bytes(
+            u128::from_str_radix(close_id.as_str(), 16)
+                .unwrap()
+                .to_be_bytes(),
+        )
+        .unwrap(),
+        request_id: OperationId::from_bytes((8100 + u128::from(step_ordinal.get())).to_be_bytes())
+            .unwrap(),
+        attempt_generation: NonZeroU64::new(
+            authority
+                .terminal_tab_close_generation(close_id)
+                .unwrap()
+                .value(),
+        )
+        .unwrap(),
+        step_ordinal,
+        target: runtime.host_identity(),
+        action,
+    }
+}
+
+/// Drives a real leaf-scoped `panel.close` through admission, lifecycle settlement, target
+/// cleanup, and publication so the projection removes `panel_id` and advances the revision.
+fn publish_panel_close(
+    authority: &mut WorkbenchAuthority,
+    grant: &WorkbenchGrant,
+    command_id: u128,
+    terminal_context_id: &WorkbenchTerminalContextId,
+    tab_id: &WorkbenchTabId,
+    panel_id: &WorkbenchPanelId,
+    now: Instant,
+) {
+    let WorkbenchTabCloseBegin::Admitted(admission) = authority.begin_terminal_tab_close(
+        Some(grant),
+        command(
+            authority,
+            command_id,
+            WorkbenchAction::PanelClose {
+                terminal_context_id: terminal_context_id.clone(),
+                tab_id: tab_id.clone(),
+                panel_id: panel_id.clone(),
+            },
+        ),
+    ) else {
+        panic!("panel close admission")
+    };
+    let WorkbenchTabCloseResolution::Primary(primary) = admission.resolve_after_composition()
+    else {
+        panic!("panel close resolution")
+    };
+    let runtime = close_runtime(primary.member());
+    let WorkbenchTabClosePreparation::Prepared(prepared) =
+        primary.finish(runtime, Some(LifecycleTerminalPhase::AwaitingStart), now)
+    else {
+        panic!("panel close preparation")
+    };
+    let result = prepared.commit();
+    assert!(matches!(
+        result.outcome,
+        WorkbenchCommandOutcome::PanelCloseAccepted { .. }
+    ));
+    let close_id = result.request_id.clone();
+    let request = close_step_request(authority, &close_id, now);
+    let token = authority
+        .reserve_terminal_tab_close_step(&close_id, now, request)
+        .unwrap();
+    authority
+        .confirm_terminal_tab_close_step_admitted(&close_id, &token, now)
+        .unwrap();
+    authority
+        .settle_terminal_tab_close_step(
+            &close_id,
+            token,
+            now,
+            CloseStepObservation::Result(
+                &TerminalLifecycleResult::new(request, TerminalLifecycleOutcome::Disposed).unwrap(),
+            ),
+        )
+        .unwrap();
+    let runtime = authority
+        .terminal_tab_close_target(&close_id)
+        .unwrap()
+        .runtime();
+    authority
+        .complete_terminal_tab_close_target_cleanup(&close_id, runtime)
+        .unwrap();
+    let _ = authority
+        .prepare_terminal_tab_close_publication(&close_id, now)
+        .unwrap()
+        .commit();
+}
+
+/// A Move minted before a peer's legal removal must meet the revision gate before any
+/// membership lookup: the retained answer is `RevisionMismatch` carrying the CURRENT
+/// revision, never `TabUnavailable`/`PanelUnavailable` for the now-absent target. The
+/// same-revision degenerate requests below prove the membership predicates still fire, but
+/// only behind the gate; a client holding a coherent baseline can never mint them.
+#[test]
+fn revision_gate_precedes_membership_after_a_legal_peer_close() {
+    let (mut authority, grant) = authority();
+    let lifecycle =
+        WorkbenchGrant::read_only(authority.site_id().clone()).with_terminal_lifecycle();
+    let membership = authority.tree_standalone_membership().unwrap();
+    let member = membership.members().first().unwrap().clone();
+    let tab_id = member.tab_id().clone();
+    let panel_a = member.panel_id().clone();
+    split(
+        &mut authority,
+        &grant,
+        6000,
+        &tab_id,
+        &panel_a,
+        WorkbenchPanelSplitDirection::Right,
+    );
+    let membership = authority.tree_standalone_membership().unwrap();
+    let panel_b = membership
+        .members_for_tab(&tab_id)
+        .find(|member| member.panel_id() != &panel_a)
+        .unwrap()
+        .panel_id()
+        .clone();
+    let context = standalone_context(&authority);
+    let stale_revision = authority.projection.snapshot().revision;
+    // Minted while the target leaf is still projected; the unique request id keeps the
+    // ledger from replaying an older entry into this control flow.
+    let stale_move = move_command(
+        &authority,
+        7001,
+        &tab_id,
+        &panel_a,
+        &panel_b,
+        WorkbenchPanelSplitDirection::Right,
+    );
+    assert_eq!(stale_move.expected_revision, stale_revision);
+
+    // A peer's real panel.close removes the target leaf and publishes the revision bump.
+    publish_panel_close(
+        &mut authority,
+        &lifecycle,
+        8001,
+        &context,
+        &tab_id,
+        &panel_b,
+        Instant::now(),
+    );
+    let current = authority.projection.snapshot().revision;
+    assert!(current.value() > stale_revision.value());
+    let remaining: Vec<_> =
+        leaves(&authority.projection.snapshot().terminal_contexts[0].tabs[0].root)
+            .iter()
+            .map(leaf_panel_id)
+            .collect();
+    assert_eq!(remaining, vec![panel_a.clone()]);
+
+    let WorkbenchPanelMoveBegin::Ready(result) =
+        authority.begin_terminal_panel_move(Some(&grant), stale_move.clone())
+    else {
+        panic!("a stale move is rejected at the revision gate, never admitted")
+    };
+    assert_eq!(
+        result.outcome,
+        WorkbenchCommandOutcome::Rejected {
+            revision: current,
+            reason: WorkbenchRejectionReason::RevisionMismatch,
+        }
+    );
+    // The rejection is retained: replaying the identical command returns the stored entry
+    // rather than re-running the gate.
+    let WorkbenchPanelMoveBegin::Ready(replay) =
+        authority.begin_terminal_panel_move(Some(&grant), stale_move)
+    else {
+        panic!("a replayed stale move stays a ready result")
+    };
+    assert_eq!(replay.outcome, result.outcome);
+
+    // Degenerate controls at the current revision: the membership predicates still fire
+    // behind the gate. A client holding a coherent baseline can never mint these shapes.
+    let missing_panel = WorkbenchPanelId::parse(&identity(999_999)).unwrap();
+    let missing_target = move_command(
+        &authority,
+        9001,
+        &tab_id,
+        &panel_a,
+        &missing_panel,
+        WorkbenchPanelSplitDirection::Right,
+    );
+    assert_eq!(
+        submit(&mut authority, &grant, missing_target).outcome,
+        WorkbenchCommandOutcome::Rejected {
+            revision: current,
+            reason: WorkbenchRejectionReason::PanelUnavailable,
+        }
+    );
+    let missing_tab = WorkbenchTabId::parse(&identity(888_888)).unwrap();
+    let missing_tab_move = move_command(
+        &authority,
+        9002,
+        &missing_tab,
+        &panel_a,
+        &panel_a,
+        WorkbenchPanelSplitDirection::Right,
+    );
+    assert_eq!(
+        submit(&mut authority, &grant, missing_tab_move).outcome,
+        WorkbenchCommandOutcome::Rejected {
+            revision: current,
+            reason: WorkbenchRejectionReason::TabUnavailable,
+        }
+    );
+    assert!(!authority.retired);
 }
