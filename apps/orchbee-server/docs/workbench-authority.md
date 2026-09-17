@@ -95,9 +95,11 @@ The authority unit test, the standalone and Workspace Linux process witnesses
 `real_workspace_panel_split_and_aggregate_close_releases_both_terminals`, and the bounded
 `WorkbenchPanelSplit` TLA+ model cover this refinement. The native TUI consumes Client-local panel
 layout and focus through strict projection and local focus; it admits a peer leaf close as an exact
-sibling-substituted contraction of its baseline tree and retires only when its own attached leaf was
-removed. The TUI submits `panel.split`, `panel.close`, and `panel.move` from provisional `Ctrl+B`
-shortcuts pending the input-design review.
+sibling-substituted contraction of its baseline tree; when that contraction removes the leaf this
+Client is attached to while the Tab survives, the session enters the common membership
+cleanup/install path and attaches a surviving leaf instead of retiring. The TUI submits
+`panel.split`, `panel.close`, and `panel.move` from provisional `Ctrl+B` shortcuts pending the
+input-design review.
 
 `panel.move` is the pure projection counterpart: it relocates one leaf Panel inside its Tab without
 any lifecycle. Admission reuses the navigation mutation grant, the exact context/Tab checks, and
@@ -113,8 +115,10 @@ source leaf keeps its complete Panel node, Presentations and binding, and every 
 keeps every identity. The operation allocates three structural identities and one revision, then
 publishes `panel-moved` through the same baseline/publication path as every other committed
 projection. Replay, stale-revision and request-identity rules are the shared command rules. The
-Client projection admits a committed move only as this exact restructure — unchanged Panel set, one
-fresh graft, reduced trees equal — and retires on any other reshaping. The bounded
+Client projection admits a committed move as this exact restructure — unchanged Panel set, one
+fresh graft, reduced trees equal — at the committed revision; a later canonical revision is
+validated under ordinary canonical rules, repairing membership when it removed the selected leaf
+while the Tab survives, and only true divergence retires. The bounded
 `WorkbenchPanelMove` TLA+ model covers leaf removal, parent collapse, fresh graft identities,
 direction order/orientation and replay over a three-leaf tree domain; the Linux cohort witness
 `native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell` establishes the

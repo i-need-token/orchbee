@@ -75,7 +75,8 @@ terminal，Close 发布后同一请求可按原样重试。叶子级 Close 仅�
 `real_workspace_panel_split_and_aggregate_close_releases_both_terminals`，以及有界
 `WorkbenchPanelSplit` TLA+ 模型覆盖这一细化。Client-local panel layout 和 focus 已由原生 TUI
 通过严格 projection 和本地焦点消费这棵树；它把对端 leaf close 接受为对其基线树的精确兄弟
-替换收缩，仅当自身已挂接 leaf 被移除时才退役。TUI 现以临时 `Ctrl+B` 快捷键提交
+替换收缩；若该收缩在 Tab 存活期间移除了本 Client 已挂接的 leaf，会话进入通用的
+membership 清理/安装路径并附着同一 Tab 的存活 leaf，而非退役。TUI 现以临时 `Ctrl+B` 快捷键提交
 `panel.split`、`panel.close` 与 `panel.move`，待输入设计裁决后可能重绑。
 
 `panel.move` 是纯 projection 对应操作：它在 Tab 内重定位一个 leaf Panel，不涉及任何生命周期。
@@ -88,9 +89,10 @@ Split 按隐含次序排列的直接孩子（布局已满足）时，提交 `Unc
 消耗一个 fresh Split 身份和两个 fresh Slot 身份；源 leaf 保留完整 Panel 节点、Presentation 与绑定，
 所有未触及子树保留全部身份。该操作分配三个结构身份和一个修订，随后与其他已提交 projection 一样
 经基线/发表路径发布 `panel-moved`。重放、陈旧修订与请求身份规则遵循共享命令规则。Client
-projection 只把已提交的移动接受为这一确切重构——Panel 集合不变、恰有一个 fresh graft、化简后两树
-相等——其他任何重整形都触发退役。有界 `WorkbenchPanelMove` TLA+ 模型在三 leaf 树域上覆盖 leaf
-摘除、父级折叠、fresh graft 身份、方向次序/朝向及重放；Linux cohort witness
+projection 只在已提交修订处把已提交的移动接受为这一确切重构——Panel 集合不变、恰有一个
+fresh graft、化简后两树相等；更晚的规范修订按普通规范规则验证，若其在 Tab 存活期间移除了
+选中 leaf 则修复 membership，只有真正分歧才退役。有界 `WorkbenchPanelMove` TLA+ 模型在三 leaf
+树域上覆盖 leaf 摘除、父级折叠、fresh graft 身份、方向次序/朝向及重放；Linux cohort witness
 `native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell` 建立共享修订、leaf
 次序交换、shell 存活及已挂接 Client 刷新；Workspace 进程见证
 `real_workspace_panel_move_relocates_a_leaf_without_touching_either_terminal` 经 Workspace
