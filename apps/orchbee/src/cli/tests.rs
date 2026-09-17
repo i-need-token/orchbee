@@ -256,9 +256,15 @@ fn fixed_outputs_are_far_below_the_bound() {
             bodies.push(super::text::help(HelpTopic::Command(*command), locale).to_owned());
         }
     }
-    // Anti-miss: every command path the grammar resolves to a help topic must
-    // already be pinned above, so a newly admitted command cannot slip past
-    // the bound. Both surfaces are walked — trailing `--help` and `help`.
+    // Coverage contract — manual vocabulary, verified both directions:
+    // `roots`/`verbs` below are the *current* routing words maintained by
+    // hand. The walk proves the pinned `commands` table and the grammar agree
+    // on every command reachable through these surfaces; it cannot discover a
+    // root or verb that the grammar later admits but nobody lists here. When
+    // the grammar grows a new root or verb, extend these lists in the same
+    // change — the two assertions then keep the pin table honest for
+    // everything the walk does enumerate. Both legal surfaces are walked:
+    // trailing `--help` and the `help` prefix.
     let roots = [
         "api",
         "completion",
@@ -303,6 +309,14 @@ fn fixed_outputs_are_far_below_the_bound() {
         topics.len(),
         commands.len(),
         "the pinned table must cover every command path the grammar admits"
+    );
+    // Negative control on the mechanism over the current vocabulary: the walk
+    // must actually resolve known mutation topics, and a pin table missing
+    // one would trip both assertions above — proving the check is not vacuous.
+    // This says nothing about roots/verbs admitted later but never listed.
+    assert!(
+        topics.contains(&CommandPath::PanelSplit) && topics.contains(&CommandPath::WorkspaceCreate),
+        "the grammar walk must resolve real mutation help topics"
     );
     for body in &bodies {
         assert!(
