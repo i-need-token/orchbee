@@ -493,3 +493,453 @@ fn move_expectation_rejects_a_tab_at_a_different_index_and_divergent_siblings() 
         Err(NativeProjectionDivergence)
     );
 }
+
+// ---- nested (depth ≥ 2) grafts ----------------------------------------------
+//
+// The flat fixtures only exercise leaves directly under the root Split. These
+// cases put the source and target leaves at depth two, where grafts must
+// preserve every intermediate Split/Slot identity and removals collapse whole
+// ancestor chains.
+
+fn leaf_c() -> PanelNode {
+    panel(4_011, 4_012, 4_013, 4_014, "aux")
+}
+
+/// root Split [slot 2_001 → inner vertical Split 2_100 [2_101 → leaf_a |
+/// 2_102 → leaf_c] | slot 2_002 → leaf_b]: leaf_a sits at depth two.
+fn nested_root() -> PanelNode {
+    graft(
+        graft(
+            leaf_a(),
+            2_101,
+            leaf_c(),
+            2_102,
+            PanelOrientation::Vertical,
+            2_100,
+        ),
+        2_001,
+        leaf_b(),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    )
+}
+
+fn nested_baseline(tab_count: usize, revision: u64) -> NativeContextTabs {
+    candidate_with_root(tab_count, revision, nested_root())
+}
+
+/// The committed Split hangs inside the inner Split's first slot.
+fn nested_split_candidate() -> PanelNode {
+    graft(
+        graft(
+            split_graft(),
+            2_101,
+            leaf_c(),
+            2_102,
+            PanelOrientation::Vertical,
+            2_100,
+        ),
+        2_001,
+        leaf_b(),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    )
+}
+
+/// Moving leaf_a right of leaf_b removes it from the inner Split, which
+/// collapses so leaf_c inherits the root's first slot.
+fn nested_move_out_candidate() -> PanelNode {
+    graft(
+        leaf_c(),
+        2_001,
+        graft(
+            leaf_b(),
+            3_001,
+            leaf_a(),
+            3_002,
+            PanelOrientation::Horizontal,
+            3_000,
+        ),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    )
+}
+
+/// Moving leaf_b below leaf_c drops the root Split entirely: the inner Split
+/// becomes the root and carries the graft in its second slot.
+fn nested_move_in_candidate() -> PanelNode {
+    graft(
+        leaf_a(),
+        2_101,
+        graft(
+            leaf_c(),
+            3_101,
+            leaf_b(),
+            3_102,
+            PanelOrientation::Vertical,
+            3_100,
+        ),
+        2_102,
+        PanelOrientation::Vertical,
+        2_100,
+    )
+}
+
+fn nested_move_in_expectation() -> MovedPanelExpectation {
+    MovedPanelExpectation::new(
+        WorkbenchRevision::new(11),
+        context_id(2),
+        tab_id(1_000),
+        panel_id(2_011),
+        panel_id(4_011),
+        WorkbenchPanelSplitDirection::Below,
+    )
+}
+
+/// Another client closed the moved/source leaf after the commit: the inner
+/// Split and the graft both collapsed away while leaf_c and leaf_b retained
+/// their member tuples.
+fn nested_closed_source_root() -> PanelNode {
+    graft(
+        leaf_c(),
+        2_001,
+        leaf_b(),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    )
+}
+
+fn rejected_nested_split(root: PanelNode) {
+    let baseline = nested_baseline(1, 10);
+    let candidate = candidate_with_root(1, 11, root);
+    assert_eq!(
+        validate_split_panel(&baseline, &split_expectation(), candidate),
+        Err(NativeProjectionDivergence)
+    );
+}
+
+fn rejected_nested_move(root: PanelNode) {
+    let baseline = nested_baseline(1, 10);
+    let candidate = candidate_with_root(1, 11, root);
+    assert_eq!(
+        validate_moved_panel(&baseline, &move_expectation(), candidate),
+        Err(NativeProjectionDivergence)
+    );
+}
+
+#[test]
+fn split_expectation_accepts_a_graft_nested_inside_an_inner_split() {
+    let baseline = nested_baseline(1, 10);
+    let candidate = candidate_with_root(1, 11, nested_split_candidate());
+    assert!(validate_split_panel(&baseline, &split_expectation(), candidate).is_ok());
+}
+
+#[test]
+fn split_expectation_accepts_a_nested_graft_for_a_below_direction() {
+    // A Below split of the depth-two leaf produces a vertical graft.
+    let baseline = nested_baseline(1, 10);
+    let mut expected = split_expectation();
+    expected.direction = WorkbenchPanelSplitDirection::Below;
+    let candidate = candidate_with_root(
+        1,
+        11,
+        graft(
+            graft(
+                graft(
+                    leaf_a(),
+                    3_001,
+                    leaf_new(),
+                    3_002,
+                    PanelOrientation::Vertical,
+                    3_000,
+                ),
+                2_101,
+                leaf_c(),
+                2_102,
+                PanelOrientation::Vertical,
+                2_100,
+            ),
+            2_001,
+            leaf_b(),
+            2_002,
+            PanelOrientation::Horizontal,
+            2_000,
+        ),
+    );
+    assert!(validate_split_panel(&baseline, &expected, candidate).is_ok());
+}
+
+#[test]
+fn split_expectation_rejects_nested_grafts_under_the_wrong_member() {
+    // The graft landed under leaf_c's slot instead of leaf_a's: identities stay
+    // unique, but reducing the graft cannot reproduce the baseline inner Split.
+    rejected_nested_split(graft(
+        graft(
+            leaf_c(),
+            2_101,
+            split_graft(),
+            2_102,
+            PanelOrientation::Vertical,
+            2_100,
+        ),
+        2_001,
+        leaf_b(),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    ));
+}
+
+#[test]
+fn split_expectation_rejects_nested_wrong_members_positions_and_identities() {
+    // The source member keeps its Panel identity but mutates its tuple.
+    rejected_nested_split(graft(
+        graft(
+            graft(
+                panel(1_001, 1_099, 1_003, 1_004, "1"),
+                3_001,
+                leaf_new(),
+                3_002,
+                PanelOrientation::Horizontal,
+                3_000,
+            ),
+            2_101,
+            leaf_c(),
+            2_102,
+            PanelOrientation::Vertical,
+            2_100,
+        ),
+        2_001,
+        leaf_b(),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    ));
+    // The nested graft carries the wrong orientation for a Right split.
+    rejected_nested_split(graft(
+        graft(
+            graft(
+                leaf_a(),
+                3_001,
+                leaf_new(),
+                3_002,
+                PanelOrientation::Vertical,
+                3_000,
+            ),
+            2_101,
+            leaf_c(),
+            2_102,
+            PanelOrientation::Vertical,
+            2_100,
+        ),
+        2_001,
+        leaf_b(),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    ));
+    // The nested graft carries foreign slot identities.
+    rejected_nested_split(graft(
+        graft(
+            graft(
+                leaf_a(),
+                3_011,
+                leaf_new(),
+                3_012,
+                PanelOrientation::Horizontal,
+                3_000,
+            ),
+            2_101,
+            leaf_c(),
+            2_102,
+            PanelOrientation::Vertical,
+            2_100,
+        ),
+        2_001,
+        leaf_b(),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    ));
+    // The expectation names the inner baseline Split, so a candidate that
+    // merely reproduces the baseline shape is not a fresh graft.
+    let baseline = nested_baseline(1, 10);
+    let mut expected = split_expectation();
+    expected.split_id = split_id(2_100);
+    expected.first_slot_id = slot_id(2_101);
+    expected.second_slot_id = slot_id(2_102);
+    expected.new_panel_id = panel_id(4_011);
+    expected.presentation_id = presentation_id(4_012);
+    expected.requested_label = label("aux");
+    expected.direction = WorkbenchPanelSplitDirection::Below;
+    let candidate = candidate_with_root(1, 11, nested_root());
+    assert_eq!(
+        validate_split_panel(&baseline, &expected, candidate),
+        Err(NativeProjectionDivergence)
+    );
+}
+
+#[test]
+fn move_expectation_accepts_a_nested_source_collapsing_its_ancestor() {
+    let baseline = nested_baseline(1, 10);
+    let candidate = candidate_with_root(1, 11, nested_move_out_candidate());
+    assert!(validate_moved_panel(&baseline, &move_expectation(), candidate).is_ok());
+}
+
+#[test]
+fn move_expectation_accepts_a_move_into_a_deeper_target() {
+    let baseline = nested_baseline(1, 10);
+    let candidate = candidate_with_root(1, 11, nested_move_in_candidate());
+    assert!(validate_moved_panel(&baseline, &nested_move_in_expectation(), candidate).is_ok());
+}
+
+#[test]
+fn move_expectation_rejects_nested_wrong_members_positions_and_identities() {
+    // The moved child keeps its Panel identity but mutates its member tuple.
+    rejected_nested_move(graft(
+        leaf_c(),
+        2_001,
+        graft(
+            leaf_b(),
+            3_001,
+            panel(1_001, 1_099, 1_003, 1_004, "1"),
+            3_002,
+            PanelOrientation::Horizontal,
+            3_000,
+        ),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    ));
+    // Moved child first for a Right move: the position does not match the
+    // committed direction.
+    rejected_nested_move(graft(
+        leaf_c(),
+        2_001,
+        graft(
+            leaf_a(),
+            3_001,
+            leaf_b(),
+            3_002,
+            PanelOrientation::Horizontal,
+            3_000,
+        ),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    ));
+    // The graft reuses the collapsed inner Split's identity instead of being a
+    // fresh Split.
+    rejected_nested_move(graft(
+        leaf_c(),
+        2_001,
+        graft(
+            leaf_b(),
+            3_001,
+            leaf_a(),
+            3_002,
+            PanelOrientation::Horizontal,
+            2_100,
+        ),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    ));
+}
+
+#[test]
+fn split_expectation_distinguishes_exact_and_superseding_revisions() {
+    let baseline = nested_baseline(1, 10);
+    let expected = split_expectation();
+    // At the commit revision the exact graft is mandatory: a candidate missing
+    // it — here the source leaf closed before the graft could be observed — is
+    // rejected.
+    let at_commit = candidate_with_root(1, 11, nested_closed_source_root());
+    assert_eq!(
+        validate_split_panel(&baseline, &expected, at_commit),
+        Err(NativeProjectionDivergence)
+    );
+    // One revision later the same shape is a legal superseding read: another
+    // client closed the source leaf at r+2 while the Tab kept other members.
+    let superseding = candidate_with_root(1, 12, nested_closed_source_root());
+    assert!(validate_split_panel(&baseline, &expected, superseding).is_ok());
+    // The added leaf closed instead: the candidate rolls back to the baseline
+    // shape at a later revision, which is still superseding.
+    let rolled_back = candidate_with_root(1, 12, nested_root());
+    assert!(validate_split_panel(&baseline, &expected, rolled_back).is_ok());
+}
+
+#[test]
+fn move_expectation_distinguishes_exact_and_superseding_revisions() {
+    let baseline = nested_baseline(1, 10);
+    let expected = move_expectation();
+    let at_commit = candidate_with_root(1, 11, nested_closed_source_root());
+    assert_eq!(
+        validate_moved_panel(&baseline, &expected, at_commit),
+        Err(NativeProjectionDivergence)
+    );
+    let superseding = candidate_with_root(1, 12, nested_closed_source_root());
+    assert!(validate_moved_panel(&baseline, &expected, superseding).is_ok());
+}
+
+#[test]
+fn superseding_candidates_still_reject_mutated_members_and_structure() {
+    let baseline = nested_baseline(1, 10);
+    let split = split_expectation();
+    let moved = move_expectation();
+    // leaf_c survives the superseding edits but its presentation identity
+    // changed: member-tuple retention still applies at later revisions.
+    let mutated_member = candidate_with_root(
+        1,
+        12,
+        graft(
+            panel(4_011, 4_099, 4_013, 4_014, "aux"),
+            2_001,
+            leaf_b(),
+            2_002,
+            PanelOrientation::Horizontal,
+            2_000,
+        ),
+    );
+    assert_eq!(
+        validate_split_panel(&baseline, &split, mutated_member.clone()),
+        Err(NativeProjectionDivergence)
+    );
+    assert_eq!(
+        validate_moved_panel(&baseline, &moved, mutated_member),
+        Err(NativeProjectionDivergence)
+    );
+    // The inner Split survives but its orientation flipped: structure-tuple
+    // retention rejects it even though every member tuple is intact.
+    let flipped_structure = candidate_with_root(
+        1,
+        12,
+        graft(
+            graft(
+                leaf_a(),
+                2_101,
+                leaf_c(),
+                2_102,
+                PanelOrientation::Horizontal,
+                2_100,
+            ),
+            2_001,
+            leaf_b(),
+            2_002,
+            PanelOrientation::Horizontal,
+            2_000,
+        ),
+    );
+    assert_eq!(
+        validate_split_panel(&baseline, &split, flipped_structure.clone()),
+        Err(NativeProjectionDivergence)
+    );
+    assert_eq!(
+        validate_moved_panel(&baseline, &moved, flipped_structure),
+        Err(NativeProjectionDivergence)
+    );
+}
