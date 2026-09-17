@@ -1389,17 +1389,57 @@ fn retain_pending_panel_rejects_foreign_or_invalid_facts() {
 }
 
 #[test]
-fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
-    // Input tiers. `TabUnavailable` is producible on the wire ONLY for Move intents:
-    // `connection/native/panel.rs:152-159` maps `DefinitePrecommit(Rejected{TabUnavailable})`
-    // + a post-rejection `read_panel_snapshot` to it; the Split path maps every
-    // `DefinitePrecommit` to `Precommit` (`native/panel.rs:78-79`) and Close never yields
-    // it either. Each arm below is labeled: legal wire fault / adapter-legal shape with
-    // an impossible authority (defensive) / deliberately adapter-unreachable forge.
+fn stale_baseline_move_receives_reachable_revision_mismatch_refusal() {
+    // Reachable positive control for "a peer raced my baseline", constructed per the
+    // proven server control flow (R7 report-server-panel-outcomes-18 `955a72ec`
+    // §3/§7.1): the client holds a baseline containing the target; a legal commit by
+    // another client advances the authority to a newer revision; the original Move is
+    // then answered `Rejected{RevisionMismatch, revision: current}` at `begin` —
+    // before admission — never `TabUnavailable`. This is a reducer-level injection of
+    // the production-reachable `PanelResult::Precommit` shape; no network or real
+    // server ran here, and R7's parallel witnesses provide the server-side binding.
+    let mut state = split_ready_two_tabs();
+    let operation = plan(&state, 70_166, move_kind());
+    let cache = state.cache().clone();
+    assert!(state.begin_panel(operation.clone()));
+    let prepared = state.prepare_panel(
+        &operation,
+        PanelResult::Precommit(PanelPrecommit::Rejected {
+            revision: WorkbenchRevision::new(5),
+            reason: WorkbenchRejectionReason::RevisionMismatch,
+        }),
+    );
+    assert_eq!(
+        state.apply_prepared_panel(prepared),
+        PanelDecision::Continue
+    );
+    assert_eq!(state.notice, Some(SessionNotice::PanelNotApplied));
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert!(state.pending_panel().is_none());
+    assert_eq!(state.cache(), &cache);
+    assert!(state.retained_panel_for_test().is_none());
+    assert!(state.invariant_holds());
+}
 
-    // Adapter-legal shape, semantically impossible authority (defensive): a Move
-    // `TabUnavailable` CAN be produced, but no honest authority reports the Tab
-    // unavailable at a revision older than the baseline we already hold.
+#[test]
+fn tab_unavailable_sub_arms_cover_only_defensive_tiers() {
+    // Reachability tiers (R7 server-order review `955a72ec` §7.1/§7.6):
+    // `TabUnavailable` is producible on the wire ONLY for Move intents
+    // (`connection/native/panel.rs:152-159`), and a real `Rejected{TabUnavailable}`
+    // always carries `revision == expected == baseline` — the server checks
+    // `expected != current` FIRST (`terminal_panel_move.rs:224-225`) and answers
+    // `Rejected{RevisionMismatch, revision: current}` before `plan()` could emit
+    // anything else (`workbench_authority.rs:446-450`). Even `revision == baseline`
+    // requires degenerate input: the client's own baseline would already lack the Tab,
+    // which `plan_panel` could never have admitted. Every arm below is therefore a
+    // defensive input, tiered by how close it sits to the adapter-constructible
+    // boundary; none is a normal server history. The reachable positive control for
+    // "a peer raced my baseline" lives in
+    // `stale_baseline_move_receives_reachable_revision_mismatch_refusal`.
+
+    // Defensive — adapter-constructible shape carrying an impossible authority claim:
+    // no honest authority reports the Tab unavailable at a revision older than the
+    // baseline we already hold.
     let mut state = split_ready_at_revision(2);
     let operation = plan(&state, 70_160, move_kind());
     assert!(state.begin_panel(operation.clone()));
@@ -1421,10 +1461,11 @@ fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
     assert!(state.retained_panel_for_test().is_none());
     assert!(state.invariant_holds());
 
-    // Legal wire fault (positive control): the authority rejects the Move at a revision
-    // newer than the baseline, with no snapshot evidence — the Tab may genuinely have
-    // become unavailable at rev 5. The operation is definitely not applied, the
-    // admission releases, and the session survives.
+    // Defensive — adapter-constructible shape with server-impossible field values:
+    // `revision: 5` above baseline 1 can never be emitted for this reason, since
+    // `RevisionMismatch` intercepts the request first. The reducer's
+    // rev ≥ baseline + non-Available → NotApplied leniency is real and stays pinned;
+    // the input itself is not a reachable history.
     let mut state = split_ready();
     let operation = plan(&state, 70_161, move_kind());
     let cache = state.cache().clone();
@@ -1449,10 +1490,11 @@ fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
     assert!(state.retained_panel_for_test().is_none());
     assert!(state.invariant_holds());
 
-    // Defensive leniency boundary — NOT claimed as normal server history: the authority
-    // claims the Tab unavailable at exactly the baseline revision that still contains
-    // it, contradicting our held history. The reducer tolerates this as NotApplied;
-    // recorded so the leniency boundary stays pinned, not as a legal-fault example.
+    // Defensive leniency boundary — the only revision shape a real server could emit
+    // (`revision == baseline`), and even then only under degenerate input: the
+    // baseline still visibly contains the Tab, which no well-formed client's admitted
+    // operation allows. The reducer tolerates this as NotApplied; recorded so the
+    // leniency boundary stays pinned, not as a reachable-history example.
     let mut state = split_ready();
     let operation = plan(&state, 70_164, move_kind());
     let cache = state.cache().clone();
@@ -1474,9 +1516,10 @@ fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
     assert_eq!(state.cache(), &cache);
     assert!(state.invariant_holds());
 
-    // Adapter-legal shape, self-contradictory evidence (defensive): a Move refusal at
-    // rev 2 while the authority's own served snapshot at rev 2 still contains the Tab —
-    // the evidence disproves the claim. The fail-closed edge of the authority check.
+    // Defensive — adapter-constructible shape, self-contradictory evidence (and the
+    // claimed revision 2 > baseline 1 is server-impossible on its own): a Move refusal
+    // at rev 2 while the authority's own served snapshot at rev 2 still contains the
+    // Tab — the evidence disproves the claim. The fail-closed edge of the check.
     let mut state = split_ready();
     let operation = plan(&state, 70_162, move_kind());
     assert!(state.begin_panel(operation.clone()));
@@ -1500,8 +1543,9 @@ fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
     assert!(state.retained_panel_for_test().is_none());
     assert!(state.invariant_holds());
 
-    // Adapter-legal shape, unverifiable (defensive): refusal at rev 3 whose snapshot
-    // evidence only reaches rev 2 — the evidence is older than the claim.
+    // Defensive — adapter-constructible shape, unverifiable (and rev 3 > baseline 1 is
+    // server-impossible): refusal whose snapshot evidence only reaches rev 2 — the
+    // evidence is older than the claim.
     let mut state = split_ready();
     let operation = plan(&state, 70_163, move_kind());
     assert!(state.begin_panel(operation.clone()));
@@ -1528,7 +1572,8 @@ fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
     // unconditionally maps Split `DefinitePrecommit` to `Precommit`). Retained to pin
     // that the reducer's TabUnavailable classification is intent-agnostic
     // (`prepare_panel` does not dispatch on the operation kind) — a forged
-    // kind-mismatched result is tolerated with the same leniency as the legal fault.
+    // kind-mismatched result is tolerated with the same leniency as the other
+    // defensive arms.
     let mut state = split_ready();
     let operation = plan(&state, 70_165, split_kind());
     let cache = state.cache().clone();
@@ -1610,44 +1655,46 @@ fn committed_with_an_invalid_commit_retires_without_retaining_the_fact() {
 
 #[test]
 fn stale_membership_result_is_refused_by_the_second_line_of_defence() {
-    // Three distinct input tiers, kept separate on purpose:
-    //   (a) the original pending result — a wire-legal Move refusal: the authority
-    //       answers `Rejected{TabUnavailable}` at rev 2 and its own post-rejection
-    //       snapshot at rev 3 shows the Tab is genuinely gone (`selected_tab_gone_snapshot`);
-    //   (b) the interleaved `NotSubmitted` release — also wire-legal for Move
-    //       (`DefinitelyNotSubmitted` → `NotSubmitted`, `native/panel.rs:144-150`);
-    //   (c) the re-presented stale carrier — a deliberately forged reducer-defense
+    // Carrier (a) is a genuinely reachable history: the operation's own legal
+    // `Committed` (a Split commits at baseline+1) and the adapter's post-commit
+    // `read_panel_snapshot` legitimately reflects a peer's intervening close — a
+    // superseding truth in which the selected Tab is gone. That is exactly the
+    // membership carrier the honest pipeline can deliver (see also
+    // `committed_membership_for_a_removed_tab_walks_cleanup_and_install`).
+    //   (b) the release step is white-box: no honest server sends a second result for
+    //       the same operation — it stands in for the consumer freeing the operation
+    //       after the membership candidate was handed off;
+    //   (c) the re-presented stale carrier is a deliberately forged reducer-defense
     //       input: no honest server returns two results for one operation.
-    // (a) and (b) are each legal adapter results, but injecting them back-to-back on
-    // the same operation and then re-presenting (c) is a white-box defensive timing:
-    // the sequence as a whole is not an honest server history, and this test must not
-    // be read as a server returning two results for one operation.
     // `retain_prepared_panel_membership` is the second line of defence (after the
     // mailbox's stale-reply filter): a membership-prepared result whose operation is no
     // longer current must be refused with Protocol before any cleanup/install is staged.
     let mut state = split_ready_two_tabs();
-    let operation = plan(&state, 70_180, move_kind());
+    let operation = plan(&state, 70_180, split_kind());
+    let known = pending_split(&operation);
     assert!(state.begin_panel(operation.clone()));
-    let result = PanelResult::TabUnavailable {
-        revision: WorkbenchRevision::new(2),
+    let result = PanelResult::Committed {
+        commit: Box::new(split_commit(&operation)),
         outcome: WorkbenchSnapshotOutcome::Available {
             snapshot: selected_tab_gone_snapshot(3),
         },
     };
-    // Positive control: while the operation is current, the wire-legal (a) result is
-    // genuinely classified as membership and retained — the refusal below is not vacuous.
+    // Positive control: while the operation is current, the reachable (a) result is
+    // genuinely classified as membership and retained — the refusal below is not
+    // vacuous, and the committed fact is recorded as the known outcome.
     let prepared = state.prepare_panel(&operation, result.clone());
     assert!(prepared.membership_candidate().is_some());
     let (admitted, _candidate) = state
         .retain_prepared_panel_membership(prepared)
         .expect("the current membership result retains");
     assert_eq!(&admitted, &operation);
-    // The interleaved honest (b) result releases the pending operation through the
-    // ordinary consumer, leaving a second prepared carrier for the same operation stale.
+    assert_eq!(state.retained_panel_for_test(), Some(&known));
+    // The white-box (b) step releases the pending operation through the ordinary
+    // consumer, leaving a second prepared carrier for the same operation stale.
     let release = state.prepare_panel(&operation, PanelResult::NotSubmitted);
     assert_eq!(state.apply_prepared_panel(release), PanelDecision::Continue);
     assert!(state.pending_panel().is_none());
-    // The forged (c) carrier: same content as the once-legal (a), re-presented after
+    // The forged (c) carrier: same content as the once-retained (a), re-presented after
     // release — refused by the currentness check, not by content validation.
     let stale = state.prepare_panel(&operation, result);
     assert!(stale.membership_candidate().is_some());
@@ -1657,7 +1704,8 @@ fn stale_membership_result_is_refused_by_the_second_line_of_defence() {
     ));
     assert_eq!(state.notice, Some(SessionNotice::PanelNotApplied));
     assert!(state.pending_membership.is_none());
-    assert!(state.retained_panel_for_test().is_none());
+    // The known committed fact survives both the release and the forged re-present.
+    assert_eq!(state.retained_panel_for_test(), Some(&known));
     assert!(state.invariant_holds());
 }
 
