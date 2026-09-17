@@ -135,3 +135,16 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 效果延迟到后续发布或对端步骤；`transport` 在抽象模型中没有生产者。成员关系向量验证、数值
 截止精度、真实 carrier 行为与多操作流水线仍在该有界设计见证之外——它是所建模接口的证据，
 不是对无界生产系统的证明。
+
+另有两个被建模的输入是安全过近似，不是正常的 wire 历史。可达性分三层：抽象
+`Receive*`/`Consume*` 动作出现在聚合见证中，只证明所建模接口能消费该形状；本地 adapter
+只接受严格的按意图结果子集；而诚实 Server 发出的集合还要更小。`ReceiveTabUnavailable`
+是 reducer/权威故障输入——诚实权威只在 `revision == expected == baseline` 且 Tab 在该基线
+中本就缺失时才发出 `Rejected{TabUnavailable}`，这是良构 Client 不会提交的退化请求，因为
+任何修订不一致都会先得到 `RevisionMismatch` 应答——而模型动作可在任意 `serverRev` 下
+触发且不约束 `serverTab`。`ReceiveUnchangedForeign` 对 adapter 不可达——真实 adapter
+校验 `Unchanged.revision == expected`，不一致时以无法归类的结果呈现，绝不作为结果
+交付——而模型仍将其送入 reducer 的分歧裁决。两者都有意保留在模型中：它们演练生产分支
+所编码的防御性裁决，且 71 个动作的聚合覆盖仅证明每个抽象动作存在见证，而非每个动作都能
+由诚实 Server 到达。正常的已提交路径——包括经由对端合法关闭造成的取代叶子丢失——仍是
+诚实历史，有界安全性质建立在这一保守包络之上。

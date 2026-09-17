@@ -154,3 +154,20 @@ effects are delayed until a later publication or peer step; `transport` has no p
 abstract model. Membership-vector validation, numeric deadline precision, real carrier behavior,
 and multi-operation pipelining remain outside this bounded design witness — it is evidence for
 the modeled interface, not a proof of the unbounded production system.
+
+Two modeled inputs are safe over-approximations, not normal wire histories. Reachability is
+three-tiered: an abstract `Receive*`/`Consume*` action appearing in the aggregate witness proves
+only that the modeled interface can consume that shape; the native adapter accepts a strict
+per-intent subset of result kinds; and an honest Server emits a still smaller subset.
+`ReceiveTabUnavailable` is a reducer/authority-fault input — an honest authority emits
+`Rejected{TabUnavailable}` only at `revision == expected == baseline` with the Tab already absent
+from that baseline, a degenerate request a well-formed Client never submits because any revision
+mismatch is answered as `RevisionMismatch` first — while the modeled action fires at any
+`serverRev` regardless of `serverTab`. `ReceiveUnchangedForeign` is adapter-unreachable — the
+real adapter validates `Unchanged.revision == expected` and surfaces a mismatch as an
+unclassifiable outcome, never as a result — while the model still feeds it to the reducer's
+divergence arm. Both stay in the model deliberately: they exercise the defensive verdicts the
+production arms encode, and the 71-action aggregate coverage attests only that each abstract
+action has a witness, not that each is reachable from an honest server. The normal committed
+paths — including superseding leaf loss through a legal peer close — remain honest histories, and
+the bounded safety properties stand on this conservative envelope.
