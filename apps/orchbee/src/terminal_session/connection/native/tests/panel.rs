@@ -1278,13 +1278,21 @@ fn committed_split_after_reorder_dropping_the_selected_leaf_repairs_membership()
             presentation_id: TerminalPresentationId::parse(&id(5_013))?,
         },
     )?;
-    // The superseding read folded in a peer close of the just-split selected leaf; the
-    // surviving tree keeps the outer split and contracts the inner one to the peer leaf.
+    // The superseding read folded in exactly one peer close of the just-split selected
+    // leaf: one panel.close removes one leaf per revision, so the split's own new leaf
+    // survives inside the collapsed inner slot and the clamped repair lands on it.
     let mut contracted = snapshot(1, 4);
     contracted.terminal_contexts[0].tabs[0].root = split_node(
         panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
         4_001,
-        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        split_node(
+            panel_node(5_010, 5_013, 5_011, 5_012, "1"),
+            3_001,
+            panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+            3_014,
+            PanelOrientation::Horizontal,
+            3_020,
+        ),
         4_014,
         PanelOrientation::Horizontal,
         4_020,
@@ -1325,8 +1333,8 @@ fn committed_split_after_reorder_dropping_the_selected_leaf_repairs_membership()
         attach.action(),
         &TerminalViewerAction::AttachBinding {
             site_id: ObcsSiteId::parse(&id(100))?,
-            worker_id: ObcsWorkerId::parse(&id(3_011))?,
-            terminal_id: ObcsTerminalId::parse(&id(3_012))?,
+            worker_id: ObcsWorkerId::parse(&id(5_011))?,
+            terminal_id: ObcsTerminalId::parse(&id(5_012))?,
         }
     );
     harness
@@ -1342,7 +1350,12 @@ fn committed_split_after_reorder_dropping_the_selected_leaf_repairs_membership()
     let state = harness.ui.state();
     assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(state.cache().revision(), WorkbenchRevision::new(4));
-    assert_eq!(state.tab(0).unwrap().panel_count(), 2);
+    assert_eq!(state.tab(0).unwrap().panel_count(), 3);
+    assert_eq!(
+        state.tab(0).unwrap().panel(1).unwrap().panel_id(),
+        &WorkbenchPanelId::parse(&id(5_010))?,
+        "the split's own new leaf is the clamped repair target"
+    );
     assert_eq!(
         state.active().unwrap().panel_index(),
         1,
@@ -1420,14 +1433,16 @@ fn committed_split_superseding_leaf_loss_while_unattached_repairs_without_cleanu
             presentation_id: TerminalPresentationId::parse(&id(4_013))?,
         },
     )?;
+    // One peer close of the selected source leaf collapses the split's graft: the new
+    // leaf takes the collapsed inner slot first and the peer leaf survives second.
     let mut contracted = snapshot(2, 5);
     contracted.terminal_contexts[0].tabs[1].root = split_node(
-        panel_node(3_010, 3_013, 3_011, 3_012, "2"),
-        4_001,
         panel_node(4_010, 4_013, 4_011, 4_012, "2"),
-        4_014,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "2"),
+        3_014,
         PanelOrientation::Horizontal,
-        4_020,
+        3_020,
     );
     respond_snapshot(
         &harness,
@@ -1452,8 +1467,8 @@ fn committed_split_superseding_leaf_loss_while_unattached_repairs_without_cleanu
     assert_eq!(state.tab(1).unwrap().panel_count(), 2);
     assert_eq!(
         state.tab(1).unwrap().panel(0).unwrap().panel_id(),
-        &WorkbenchPanelId::parse(&id(3_010))?,
-        "the selection repairs onto the surviving peer leaf"
+        &WorkbenchPanelId::parse(&id(4_010))?,
+        "the selection repairs onto the split's own new leaf at the clamped index"
     );
     assert_eq!(
         state.retained_panel_for_test().unwrap().operation(),
