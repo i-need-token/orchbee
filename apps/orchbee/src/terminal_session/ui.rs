@@ -339,6 +339,8 @@ mod membership_tests;
 #[cfg(all(test, unix))]
 mod move_membership_tests;
 #[cfg(all(test, unix))]
+mod panel_input_tests;
+#[cfg(all(test, unix))]
 mod publication_hint_tests;
 #[cfg(test)]
 mod rename_membership_tests;

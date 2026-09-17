@@ -317,6 +317,71 @@ fn reports_unavailable_adapter_results_as_local_notices() {
 }
 
 #[test]
+fn unconnected_fallback_reports_the_new_panel_actions_and_keeps_focus_keys_silent() {
+    use crate::terminal_input::{DispatchOutcome, InputDispatcher, UnavailableTerminalInputPort};
+    use std::time::Instant;
+
+    for (key, expected) in [
+        (b'-', BackendAction::SplitPanel),
+        (b'_', BackendAction::SplitPanel),
+        (b'\\', BackendAction::SplitPanel),
+        (b'|', BackendAction::SplitPanel),
+        (b'X', BackendAction::ClosePanel),
+        (b'H', BackendAction::MovePanel),
+        (b'J', BackendAction::MovePanel),
+        (b'K', BackendAction::MovePanel),
+        (b'L', BackendAction::MovePanel),
+    ] {
+        let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+        let mut dispatcher = InputDispatcher::default();
+        let mut port = UnavailableTerminalInputPort;
+        assert_eq!(
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    &[0x02, key],
+                    &mut port,
+                    Instant::now(),
+                    |_, _| Ok::<_, std::io::Error>(()),
+                    &mut |_| Ok(()),
+                )
+                .unwrap(),
+            DispatchOutcome::Continue
+        );
+        assert_eq!(
+            view.notice(),
+            Some(Notice::BackendUnavailable(expected)),
+            "Ctrl+B {}",
+            key as char
+        );
+        assert!(!view.prefix_active());
+    }
+
+    // Baseline asymmetry (B1): h/j/k/l carry no BackendAction, so the same
+    // unconnected fallback drops them without any notice.
+    for key in *b"hjkl" {
+        let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+        let mut dispatcher = InputDispatcher::default();
+        let mut port = UnavailableTerminalInputPort;
+        assert_eq!(
+            dispatcher
+                .dispatch(
+                    &mut view,
+                    &[0x02, key],
+                    &mut port,
+                    Instant::now(),
+                    |_, _| Ok::<_, std::io::Error>(()),
+                    &mut |_| Ok(()),
+                )
+                .unwrap(),
+            DispatchOutcome::Continue
+        );
+        assert_eq!(view.notice(), None, "Ctrl+B {}", key as char);
+        assert!(!view.prefix_active());
+    }
+}
+
+#[test]
 fn exits_only_for_the_two_accepted_prefixed_keys() {
     for key in ['q', 'd'] {
         let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);

@@ -117,6 +117,85 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
 }
 
 #[test]
+fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
+    use crate::client_view::{
+        ClientAction, ClientKey, ClientView, PanelDirection, SessionActionDisposition,
+    };
+
+    let english = Locale::EnUs.shell();
+    let chinese = Locale::ZhCn.shell();
+    for (en, zh, bindings) in [
+        (
+            "Ctrl+B h/j/k/l Move between Panels (requires Site)",
+            "Ctrl+B h/j/k/l 在 Panel 之间移动（需要 Site）",
+            &[
+                ('h', ClientAction::MovePanelFocus(PanelDirection::Left)),
+                ('j', ClientAction::MovePanelFocus(PanelDirection::Down)),
+                ('k', ClientAction::MovePanelFocus(PanelDirection::Up)),
+                ('l', ClientAction::MovePanelFocus(PanelDirection::Right)),
+            ][..],
+        ),
+        (
+            "Ctrl+B - _ \\ | Split focused Panel below/above/left/right (requires Site)",
+            "Ctrl+B - _ \\ | 将焦点 Panel 向下/上/左/右分屏（需要 Site）",
+            &[
+                ('-', ClientAction::SplitPanel(PanelDirection::Down)),
+                ('_', ClientAction::SplitPanel(PanelDirection::Up)),
+                ('\\', ClientAction::SplitPanel(PanelDirection::Left)),
+                ('|', ClientAction::SplitPanel(PanelDirection::Right)),
+            ][..],
+        ),
+        (
+            "Ctrl+B X       Close focused Panel (requires Site)",
+            "Ctrl+B X       关闭焦点 Panel（需要 Site）",
+            &[('X', ClientAction::ClosePanel)][..],
+        ),
+        (
+            "Ctrl+B H/J/K/L Move focused Panel to that side (requires Site)",
+            "Ctrl+B H/J/K/L 将焦点 Panel 移向该侧（需要 Site）",
+            &[
+                ('H', ClientAction::MovePanel(PanelDirection::Left)),
+                ('J', ClientAction::MovePanel(PanelDirection::Down)),
+                ('K', ClientAction::MovePanel(PanelDirection::Up)),
+                ('L', ClientAction::MovePanel(PanelDirection::Right)),
+            ][..],
+        ),
+    ] {
+        assert!(english.shortcuts.contains(&en), "en-US row: {en}");
+        assert!(chinese.shortcuts.contains(&zh), "zh-CN row: {zh}");
+        for (key, expected) in bindings {
+            let mut view = ClientView::new(120);
+            let prefix = view.decide(ClientKey::ControlB);
+            view.commit(prefix, SessionActionDisposition::KeepNavigator);
+            let transition = view.decide(ClientKey::Plain(*key));
+            assert_eq!(transition.action(), Some(*expected), "Ctrl+B {key}");
+        }
+    }
+
+    for (action, en, zh) in [
+        (
+            BackendAction::SplitPanel,
+            "Panel split unavailable · no command was sent",
+            "面板拆分不可用 · 未发送命令",
+        ),
+        (
+            BackendAction::ClosePanel,
+            "Panel close unavailable · no command was sent",
+            "面板关闭不可用 · 未发送命令",
+        ),
+        (
+            BackendAction::MovePanel,
+            "Panel move unavailable · no command was sent",
+            "面板移动不可用 · 未发送命令",
+        ),
+    ] {
+        let notice = Some(Notice::BackendUnavailable(action));
+        assert_eq!(Locale::EnUs.shell_notice(notice), en);
+        assert_eq!(Locale::ZhCn.shell_notice(notice), zh);
+    }
+}
+
+#[test]
 fn localizes_context_navigation_backend_failures_in_both_locales() {
     let next = Some(Notice::BackendUnavailable(BackendAction::SelectNextContext));
     let previous = Some(Notice::BackendUnavailable(
