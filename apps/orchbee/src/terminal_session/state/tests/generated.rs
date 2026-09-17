@@ -106,6 +106,18 @@ impl PanelSettleClass {
     }
 }
 
+/// Whether a settle input models an honest Server trajectory or a deliberate
+/// defensive forgery. A `Normal` input must be a wire shape a real Server can
+/// emit for the operation's intent AND the adapter can produce; a `Defensive`
+/// input is a forged shape no honest trajectory delivers — it exercises reducer
+/// leniency only. The two tiers are counted separately so a forged input can
+/// never masquerade as normal coverage.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SettleTier {
+    Normal,
+    Defensive,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PanelAnchorClass {
     DivergentCommit,
@@ -175,6 +187,7 @@ enum TraceAction {
     },
     PanelSettle {
         class: PanelSettleClass,
+        tier: SettleTier,
     },
     PanelRecoveryRefresh {
         generation_step: u8,
@@ -232,7 +245,7 @@ impl TraceAction {
             Self::ClearNotice => ActionClass::ClearNotice,
             Self::PanelFocus { .. } => ActionClass::PanelFocus,
             Self::PanelSubmit { .. } => ActionClass::PanelSubmit,
-            Self::PanelSettle { class } => ActionClass::PanelSettle(class),
+            Self::PanelSettle { class, .. } => ActionClass::PanelSettle(class),
             Self::PanelRecoveryRefresh { .. } => ActionClass::PanelRecoveryRefresh,
             Self::RefreshLeafRepair { .. } => ActionClass::RefreshLeafRepair,
             Self::PanelAnchor { class } => ActionClass::PanelAnchor(class),
@@ -277,6 +290,11 @@ struct Coverage {
     panel_plan_refusals: usize,
     panel_structure_exclusions: usize,
     panel_settlements: [usize; PanelSettleClass::COUNT],
+    /// Tier split of `panel_settlements`: a settle is counted under exactly
+    /// one tier, so honest-trajectory coverage is visible apart from forged
+    /// inputs.
+    panel_settlements_normal: [usize; PanelSettleClass::COUNT],
+    panel_settlements_defensive: [usize; PanelSettleClass::COUNT],
     panel_merges: usize,
     panel_membership_installs: usize,
     panel_membership_cleanups: usize,
@@ -322,6 +340,20 @@ impl Coverage {
         {
             *total += count;
         }
+        for (total, count) in self
+            .panel_settlements_normal
+            .iter_mut()
+            .zip(other.panel_settlements_normal)
+        {
+            *total += count;
+        }
+        for (total, count) in self
+            .panel_settlements_defensive
+            .iter_mut()
+            .zip(other.panel_settlements_defensive)
+        {
+            *total += count;
+        }
         self.panel_merges += other.panel_merges;
         self.panel_membership_installs += other.panel_membership_installs;
         self.panel_membership_cleanups += other.panel_membership_cleanups;
@@ -338,6 +370,59 @@ impl Coverage {
     }
 }
 
+/// The wire fields a delivered settle input carried, summarized so the
+/// input-fidelity witness can audit what the generator actually produced —
+/// not just what the reducer did with it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SettleWire {
+    NotSubmitted,
+    Rejected {
+        revision: u64,
+        reason: WorkbenchRejectionReason,
+    },
+    Denied,
+    Unavailable {
+        reason: WorkbenchCommandUnavailableReason,
+    },
+    Unchanged {
+        revision: u64,
+    },
+    CloseAccepted,
+    Committed,
+    TabUnavailable {
+        revision: u64,
+    },
+}
+
+/// One recorded settle input: which intent it targeted, which tier produced it,
+/// the wire summary, and the authority/baseline revisions at construction.
+#[derive(Clone, Copy, Debug)]
+struct SettleWitness {
+    intent: IntentTag,
+    class: PanelSettleClass,
+    tier: SettleTier,
+    wire: SettleWire,
+    baseline_revision: u64,
+    server_revision: u64,
+}
+
+/// Which of the three panel intents a settle input targeted — `PanelIntent`
+/// carries payloads, so the witness stores this plain tag.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IntentTag {
+    Split,
+    Move,
+    Close,
+}
+
+fn intent_tag(intent: &PanelIntent) -> IntentTag {
+    match intent {
+        PanelIntent::Split { .. } => IntentTag::Split,
+        PanelIntent::Move { .. } => IntentTag::Move,
+        PanelIntent::Close => IntentTag::Close,
+    }
+}
+
 struct TraceState {
     session: NativeSessionState,
     generation: u64,
@@ -347,6 +432,9 @@ struct TraceState {
     geometry_columns: u16,
     human_creates: usize,
     committed_tabs: Vec<WorkbenchTabId>,
+    /// Every settle input the driver delivered, in order — the audit trail the
+    /// legality witness inspects.
+    settle_log: Vec<SettleWitness>,
     /// Authoritative wire history the emulated Server has committed; every delivered
     /// candidate is a projection of some prefix of this, so the Session cache is always
     /// re-derivable from a real Snapshot.
@@ -429,6 +517,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CommittedMerge,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelFocus {
                 direction: 1,
@@ -440,6 +529,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CommittedMerge,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelSubmit {
                 kind: 2,
@@ -447,6 +537,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CommittedMerge,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelSubmit {
                 kind: 0,
@@ -454,6 +545,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CommittedRecovery,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelRecoveryRefresh { generation_step: 1 },
             TraceAction::PanelSubmit {
@@ -462,6 +554,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CloseAccepted,
+                tier: SettleTier::Normal,
             },
             // Every multi-leaf Tab has a move target in some direction, so fanning all
             // four leaves a pending Move (later submissions just count as refusals).
@@ -483,6 +576,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::Unchanged,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelSubmit {
                 kind: 2,
@@ -502,6 +596,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::TabUnavailableGone,
+                tier: SettleTier::Defensive,
             },
             TraceAction::SwitchReady {
                 target_hint: 0,
@@ -513,6 +608,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CommittedMerge,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelFocus {
                 direction: 1,
@@ -525,6 +621,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CommittedMerge,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelFocus {
                 direction: 1,
@@ -551,6 +648,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             // commit fact).
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CommittedLeafRepair,
+                tier: SettleTier::Normal,
             },
             // The repair folded the selected leaf away, leaving a single-leaf Tab — split
             // once more so a Move has a target again.
@@ -560,6 +658,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::CommittedMerge,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelSubmit {
                 kind: 2,
@@ -579,6 +678,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::Unchanged,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelSubmit {
                 kind: 1,
@@ -586,6 +686,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::NotSubmitted,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelSubmit {
                 kind: 1,
@@ -593,6 +694,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::RejectedFresh,
+                tier: SettleTier::Defensive,
             },
             TraceAction::PanelSubmit {
                 kind: 1,
@@ -600,6 +702,17 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::RejectedStale,
+                tier: SettleTier::Normal,
+            },
+            // The preserved forged edge: a rejection carrying a revision below
+            // the baseline — no monotone Server emits it.
+            TraceAction::PanelSubmit {
+                kind: 1,
+                direction: 0,
+            },
+            TraceAction::PanelSettle {
+                class: PanelSettleClass::RejectedStale,
+                tier: SettleTier::Defensive,
             },
             TraceAction::PanelSubmit {
                 kind: 1,
@@ -607,6 +720,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::Denied,
+                tier: SettleTier::Normal,
             },
             TraceAction::PanelSubmit {
                 kind: 1,
@@ -614,6 +728,29 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::Unavailable,
+                tier: SettleTier::Normal,
+            },
+            // The preserved forged edge: ServerBusy on a Move — outside Move's
+            // real wire-compatible reason set, so no adapter could deliver it.
+            TraceAction::PanelSubmit {
+                kind: 2,
+                direction: 0,
+            },
+            TraceAction::PanelSubmit {
+                kind: 2,
+                direction: 1,
+            },
+            TraceAction::PanelSubmit {
+                kind: 2,
+                direction: 2,
+            },
+            TraceAction::PanelSubmit {
+                kind: 2,
+                direction: 3,
+            },
+            TraceAction::PanelSettle {
+                class: PanelSettleClass::Unavailable,
+                tier: SettleTier::Defensive,
             },
             TraceAction::PanelAnchor {
                 class: PanelAnchorClass::DivergentCommit,
@@ -716,6 +853,13 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
                         9 => PanelSettleClass::TabUnavailableGone,
                         _ => PanelSettleClass::CommittedLeafRepair,
                     },
+                    // An independent bit picks the tier; combinations the
+                    // tier gate rejects are skipped like illegal classes.
+                    tier: if random & 0x100 == 0 {
+                        SettleTier::Normal
+                    } else {
+                        SettleTier::Defensive
+                    },
                 },
                 18 => TraceAction::PanelRecoveryRefresh {
                     generation_step: byte,
@@ -799,6 +943,36 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             .iter()
             .all(|count| *count >= SEEDS.len())
     );
+    // Tier split: every class with an honest wire shape exercised it per seed,
+    // and every class carrying a forged edge exercised that edge per seed — a
+    // defensive input can never substitute for the normal one, or vice versa.
+    const NORMAL_SETTLE_CLASSES: [PanelSettleClass; 9] = [
+        PanelSettleClass::NotSubmitted,
+        PanelSettleClass::RejectedStale,
+        PanelSettleClass::Denied,
+        PanelSettleClass::Unavailable,
+        PanelSettleClass::Unchanged,
+        PanelSettleClass::CloseAccepted,
+        PanelSettleClass::CommittedMerge,
+        PanelSettleClass::CommittedRecovery,
+        PanelSettleClass::CommittedLeafRepair,
+    ];
+    const DEFENSIVE_SETTLE_CLASSES: [PanelSettleClass; 4] = [
+        PanelSettleClass::RejectedFresh,
+        PanelSettleClass::RejectedStale,
+        PanelSettleClass::Unavailable,
+        PanelSettleClass::TabUnavailableGone,
+    ];
+    assert!(
+        NORMAL_SETTLE_CLASSES
+            .iter()
+            .all(|class| total.panel_settlements_normal[class.index()] >= SEEDS.len())
+    );
+    assert!(
+        DEFENSIVE_SETTLE_CLASSES
+            .iter()
+            .all(|class| total.panel_settlements_defensive[class.index()] >= SEEDS.len())
+    );
     assert!(total.panel_merges >= SEEDS.len());
     assert!(total.panel_membership_installs >= SEEDS.len());
     assert!(total.panel_membership_cleanups >= SEEDS.len());
@@ -826,9 +1000,9 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
     assert!(randomized.retirements.iter().all(|count| *count > 0));
 }
 
-fn replay(actions: &[TraceAction]) -> Result<Coverage, TraceFailure> {
+fn new_trace() -> TraceState {
     let bootstrap = snapshot(3, 1, None).terminal_contexts[0].tabs.clone();
-    let mut trace = TraceState {
+    TraceState {
         session: ready(3),
         generation: 1,
         request: 10_000,
@@ -837,6 +1011,7 @@ fn replay(actions: &[TraceAction]) -> Result<Coverage, TraceFailure> {
         geometry_columns: 80,
         human_creates: 0,
         committed_tabs: Vec::new(),
+        settle_log: Vec::new(),
         server_tabs: bootstrap.clone(),
         server_revision: 1,
         delivered_tabs: bootstrap,
@@ -844,7 +1019,11 @@ fn replay(actions: &[TraceAction]) -> Result<Coverage, TraceFailure> {
         tab_seed: 3,
         identity: 0xA5E0_0000,
         coverage: Coverage::default(),
-    };
+    }
+}
+
+fn replay(actions: &[TraceAction]) -> Result<Coverage, TraceFailure> {
+    let mut trace = new_trace();
     for (step, action) in actions.iter().copied().enumerate() {
         let result =
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| apply(&mut trace, action)));
@@ -912,7 +1091,7 @@ fn apply(trace: &mut TraceState, action: TraceAction) -> Result<(), &'static str
             generation_step,
         } => panel_focus(trace, direction, generation_step)?,
         TraceAction::PanelSubmit { kind, direction } => panel_submit(trace, kind, direction)?,
-        TraceAction::PanelSettle { class } => panel_settle(trace, class)?,
+        TraceAction::PanelSettle { class, tier } => panel_settle(trace, class, tier)?,
         TraceAction::PanelRecoveryRefresh { generation_step } => {
             panel_recovery_refresh(trace, generation_step)?
         }
@@ -1120,9 +1299,13 @@ fn create_committed_then_reselect(
     class: CreatedClass,
     generation_step: u8,
 ) -> Result<(), &'static str> {
+    // The freshness clause: a stale-baseline create is honestly rejected with
+    // RevisionMismatch before admission — the commit path is only exercised
+    // while the session is current (any refresh re-syncs and reopens it).
     if trace.session.phase_kind() != SessionPhaseKind::Ready
         || trace.session.mutation_blocks_structure()
         || trace.session.cache().tabs().len() >= 64
+        || trace.session.cache().revision().value() < trace.server_revision
     {
         return Ok(());
     }
@@ -1455,7 +1638,9 @@ fn refresh(
     if available {
         require_provenance_prefix(&trace.session, &prior_provenance)?;
         // A recovery-folding merge may re-index the selected leaf; the identity and Tab
-        // slot must still be preserved.
+        // slot must still be preserved. Unobserved peer commits (stale-rejection
+        // paths) may already sit in `server_tabs`, so adoption is checked against
+        // the delivered Server state — not the old count plus this append alone.
         let active_after = trace
             .session
             .active()
@@ -1463,7 +1648,7 @@ fn refresh(
         let active_before = active
             .as_ref()
             .map(|selected| (selected.key(), selected.index()));
-        if trace.session.cache().tabs().len() != old_count + 1
+        if trace.session.cache().tabs().len() != trace.server_tabs.len()
             || trace.session.provenance(old_count) != Some(&CreateTerminalProvenance::BindingOnly)
             || active_after != active_before
             || trace.session.desired().unwrap() != &desired
@@ -1520,8 +1705,10 @@ fn refresh_stale_then_current(
             snapshot: snapshot_with_tabs(trace.server_tabs.clone(), trace.server_revision),
         },
     );
+    // Unobserved peer commits (stale-rejection paths) may already sit in
+    // `server_tabs`; adoption is checked against the delivered Server state.
     if trace.session.apply_prepared_refresh(prepared) != RefreshDecision::Continue
-        || trace.session.cache().tabs().len() != count + 1
+        || trace.session.cache().tabs().len() != trace.server_tabs.len()
         || trace.session.provenance(count) != Some(&CreateTerminalProvenance::BindingOnly)
         || trace
             .session
@@ -2071,8 +2258,52 @@ fn commit_edit(
 /// `panel.close`, and only Split/Move ever commit. A committed candidate that folds the
 /// selected leaf must also keep at least one baseline member in the Tab, or the Server
 /// history is not canonical.
-fn settle_class_legal(operation: &PanelOperation, class: PanelSettleClass) -> bool {
+fn settle_class_legal(
+    operation: &PanelOperation,
+    server_revision: u64,
+    class: PanelSettleClass,
+    tier: SettleTier,
+) -> bool {
     let intent = operation.intent();
+    // Tier gate: a Normal settle must be a wire shape a real Server can emit
+    // for this intent AND the adapter can produce. A Defensive settle is a
+    // preserved forged edge, and the marker is only legal where this driver
+    // actually constructs a forged shape.
+    let tier_legal = match tier {
+        SettleTier::Normal => match class {
+            // RejectedFresh is always synthetic (no rejection reason is
+            // reachable-consistent at the operation's own baseline), and a real
+            // peer removal advances the authority revision so admission yields
+            // RevisionMismatch before membership — TabUnavailableGone has no
+            // honest variant.
+            PanelSettleClass::RejectedFresh | PanelSettleClass::TabUnavailableGone => false,
+            // Honest at any baseline: NotSubmitted never reaches the Server,
+            // Denied is the authorization refusal and Unavailable the
+            // transport/ledger preflight — both precede the revision check —
+            // and RejectedStale IS the RevisionMismatch path.
+            PanelSettleClass::NotSubmitted
+            | PanelSettleClass::RejectedStale
+            | PanelSettleClass::Denied
+            | PanelSettleClass::Unavailable => true,
+            // Everything else requires the op's baseline to still be the
+            // current authority revision: admission rejects a stale baseline
+            // with RevisionMismatch before consulting membership.
+            _ => operation.baseline().revision().value() == server_revision,
+        },
+        SettleTier::Defensive => match class {
+            PanelSettleClass::RejectedFresh
+            | PanelSettleClass::RejectedStale
+            | PanelSettleClass::TabUnavailableGone => true,
+            // The forged edge is ServerBusy on a Move — outside Move's
+            // wire-compatible reason set. On Split/Close ServerBusy is an
+            // honest reason, so the defensive marker would be a false label.
+            PanelSettleClass::Unavailable => matches!(intent, PanelIntent::Move { .. }),
+            _ => false,
+        },
+    };
+    if !tier_legal {
+        return false;
+    }
     match class {
         PanelSettleClass::CommittedMerge | PanelSettleClass::CommittedRecovery => {
             matches!(intent, PanelIntent::Split { .. } | PanelIntent::Move { .. })
@@ -2119,11 +2350,15 @@ fn panel_submit(trace: &mut TraceState, kind: u8, direction: u8) -> Result<(), &
     Ok(())
 }
 
-fn panel_settle(trace: &mut TraceState, class: PanelSettleClass) -> Result<(), &'static str> {
+fn panel_settle(
+    trace: &mut TraceState,
+    class: PanelSettleClass,
+    tier: SettleTier,
+) -> Result<(), &'static str> {
     let Some(operation) = trace.session.pending_panel().cloned() else {
         return Ok(());
     };
-    if !settle_class_legal(&operation, class) {
+    if !settle_class_legal(&operation, trace.server_revision, class, tier) {
         return Ok(());
     }
     // While a panel operation is in flight every other structural admission must refuse:
@@ -2157,7 +2392,11 @@ fn panel_settle(trace: &mut TraceState, class: PanelSettleClass) -> Result<(), &
     trace.coverage.panel_structure_exclusions += 1;
 
     let baseline_revision = operation.baseline().revision().value();
-    let commit_revision = baseline_revision.checked_add(1).ok_or("revision")?;
+    // The authority revision is monotone and always at or above the op's
+    // baseline (peer commits may already have advanced it), so any commit or
+    // removal the Server performs lands at server_revision + 1 — not merely
+    // baseline + 1, which could collide with an existing peer revision.
+    let commit_revision = trace.server_revision.checked_add(1).ok_or("revision")?;
     let terminal_context_id = operation.baseline().terminal_context_id().clone();
     let tab_id = operation.target().tab_id().clone();
     let result = match class {
@@ -2175,14 +2414,47 @@ fn panel_settle(trace: &mut TraceState, class: PanelSettleClass) -> Result<(), &
             revision: WorkbenchRevision::new(baseline_revision),
             reason: WorkbenchRejectionReason::PanelUnavailable,
         }),
-        PanelSettleClass::RejectedStale => PanelResult::Precommit(PanelPrecommit::Rejected {
-            revision: WorkbenchRevision::new(baseline_revision.saturating_sub(1)),
-            reason: WorkbenchRejectionReason::RevisionMismatch,
-        }),
+        PanelSettleClass::RejectedStale => match tier {
+            // Honest path: a peer commit advanced the authority past the
+            // operation's baseline before admission, so the rejection cites
+            // the CURRENT authority revision — the real RevisionMismatch shape.
+            // The peer commit is a tab.create: a pure append is the only
+            // member change a later canonical refresh can still deliver —
+            // retained member tuples pin every adopted panel's label/binding.
+            SettleTier::Normal => {
+                let peer_tab = fresh_tab(trace);
+                trace.server_tabs.push(peer_tab);
+                trace.server_revision = trace.server_revision.checked_add(1).ok_or("revision")?;
+                PanelResult::Precommit(PanelPrecommit::Rejected {
+                    revision: WorkbenchRevision::new(trace.server_revision),
+                    reason: WorkbenchRejectionReason::RevisionMismatch,
+                })
+            }
+            // Forged edge: a rejection below the baseline — unreachable under
+            // a monotone authority revision.
+            SettleTier::Defensive => PanelResult::Precommit(PanelPrecommit::Rejected {
+                revision: WorkbenchRevision::new(baseline_revision.saturating_sub(1)),
+                reason: WorkbenchRejectionReason::RevisionMismatch,
+            }),
+        },
         PanelSettleClass::Denied => PanelResult::Precommit(PanelPrecommit::Denied),
-        PanelSettleClass::Unavailable => PanelResult::Precommit(PanelPrecommit::Unavailable {
-            reason: WorkbenchCommandUnavailableReason::ServerBusy,
-        }),
+        PanelSettleClass::Unavailable => {
+            let reason = match tier {
+                // Rotate across the intent's real wire-compatible reason set;
+                // on a stale baseline only the pre-admission reason survives.
+                SettleTier::Normal => {
+                    let honest = honest_unavailable_reasons(
+                        intent_tag(operation.intent()),
+                        baseline_revision == trace.server_revision,
+                    );
+                    honest[usize::try_from(trace.request).unwrap_or(0) % honest.len()]
+                }
+                // Forged edge: ServerBusy, outside Move's wire-compatible set
+                // (the tier gate confines this construction to Move).
+                SettleTier::Defensive => WorkbenchCommandUnavailableReason::ServerBusy,
+            };
+            PanelResult::Precommit(PanelPrecommit::Unavailable { reason })
+        }
         PanelSettleClass::Unchanged => {
             PanelResult::Unchanged(WorkbenchRevision::new(baseline_revision))
         }
@@ -2219,10 +2491,17 @@ fn panel_settle(trace: &mut TraceState, class: PanelSettleClass) -> Result<(), &
             }
         }
         PanelSettleClass::TabUnavailableGone => {
-            // The Tab was already removed at the revision the Server evaluated against;
-            // the refusal carries the observed revision where it is absent. A
-            // TabUnavailable whose candidate still contains the Tab is not a real
-            // Server history, so it is deliberately not generated.
+            // Defensive-only input (the tier gate admits no Normal variant): a
+            // real peer removal advances the authority revision, so a stale
+            // baseline fails admission's revision-equality check and emits
+            // Rejected{RevisionMismatch} BEFORE membership is consulted — this
+            // post-removal-revision TabUnavailable can never come off the
+            // wire. It survives solely as a forged exercise of the membership
+            // retarget path. The Tab is removed at the revision the forged
+            // Server evaluated against; the refusal carries the observed
+            // revision where it is absent. A TabUnavailable whose candidate
+            // still contains the Tab is not a real Server history either, so
+            // it is deliberately not generated.
             trace.server_tabs.retain(|tab| tab.tab_id != tab_id);
             trace.server_revision = commit_revision;
             PanelResult::TabUnavailable {
@@ -2261,7 +2540,134 @@ fn panel_settle(trace: &mut TraceState, class: PanelSettleClass) -> Result<(), &
         }
     };
     trace.coverage.panel_settlements[class.index()] += 1;
+    match tier {
+        SettleTier::Normal => {
+            assert_normal_wire_honest(&operation, &result, trace.server_revision);
+            trace.coverage.panel_settlements_normal[class.index()] += 1;
+        }
+        SettleTier::Defensive => {
+            trace.coverage.panel_settlements_defensive[class.index()] += 1;
+        }
+    }
+    trace.settle_log.push(SettleWitness {
+        intent: intent_tag(operation.intent()),
+        class,
+        tier,
+        wire: settle_wire(&result),
+        baseline_revision,
+        server_revision: trace.server_revision,
+    });
     apply_panel_result(trace, &operation, result, class)
+}
+
+/// The wire-compatible unavailable reasons for each panel intent, mirroring
+/// the adapters' compatibility arms: Split accepts `RequestLedgerFull`,
+/// `NoCompatibleWorker`, `TerminalBusy`, `ServerBusy`, `ServiceUnavailable`;
+/// Move accepts `RequestLedgerFull`, `TerminalBusy`, `ServiceUnavailable`;
+/// Close accepts `RequestLedgerFull`, `TerminalBusy`,
+/// `TerminalRuntimeUnavailable`, `ServerBusy`, `ServiceUnavailable`.
+///
+/// The set is stage-sensitive: on a stale baseline the Server's revision check
+/// fires before admission ever reaches the reasons a fuller set contains —
+/// TerminalBusy (post-admission aggregate close), NoCompatibleWorker and
+/// ServerBusy (coordinator/runtime preparation) can never outrun a
+/// RevisionMismatch. Only the pre-admission transport/ledger failure is honest
+/// there, so the stale set is exactly `ServiceUnavailable` — preflight,
+/// wire-compatible with every intent.
+fn honest_unavailable_reasons(
+    intent: IntentTag,
+    fresh: bool,
+) -> &'static [WorkbenchCommandUnavailableReason] {
+    if !fresh {
+        return &[WorkbenchCommandUnavailableReason::ServiceUnavailable];
+    }
+    match intent {
+        IntentTag::Split => &[
+            WorkbenchCommandUnavailableReason::RequestLedgerFull,
+            WorkbenchCommandUnavailableReason::NoCompatibleWorker,
+            WorkbenchCommandUnavailableReason::TerminalBusy,
+            WorkbenchCommandUnavailableReason::ServerBusy,
+            WorkbenchCommandUnavailableReason::ServiceUnavailable,
+        ],
+        IntentTag::Move => &[
+            WorkbenchCommandUnavailableReason::RequestLedgerFull,
+            WorkbenchCommandUnavailableReason::TerminalBusy,
+            WorkbenchCommandUnavailableReason::ServiceUnavailable,
+        ],
+        IntentTag::Close => &[
+            WorkbenchCommandUnavailableReason::RequestLedgerFull,
+            WorkbenchCommandUnavailableReason::TerminalBusy,
+            WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable,
+            WorkbenchCommandUnavailableReason::ServerBusy,
+            WorkbenchCommandUnavailableReason::ServiceUnavailable,
+        ],
+    }
+}
+
+/// Summarizes the wire fields of a constructed settle input for the audit log.
+fn settle_wire(result: &PanelResult) -> SettleWire {
+    match result {
+        PanelResult::NotSubmitted => SettleWire::NotSubmitted,
+        PanelResult::Precommit(PanelPrecommit::Rejected { revision, reason }) => {
+            SettleWire::Rejected {
+                revision: revision.value(),
+                reason: *reason,
+            }
+        }
+        PanelResult::Precommit(PanelPrecommit::Denied) => SettleWire::Denied,
+        PanelResult::Precommit(PanelPrecommit::Unavailable { reason }) => {
+            SettleWire::Unavailable { reason: *reason }
+        }
+        PanelResult::Unchanged(revision) => SettleWire::Unchanged {
+            revision: revision.value(),
+        },
+        PanelResult::CloseAccepted(_) => SettleWire::CloseAccepted,
+        PanelResult::Committed { .. } => SettleWire::Committed,
+        PanelResult::TabUnavailable { revision, .. } => SettleWire::TabUnavailable {
+            revision: revision.value(),
+        },
+    }
+}
+
+/// The necessary conditions for a settle input to be an honest Server
+/// trajectory rather than a forgery: a rejection must cite a revision the
+/// monotone authority counter can produce (and RevisionMismatch cites the
+/// current one), and an unavailable reason must be in the intent's real
+/// wire-compatible set. Runs inside the driver so a violation fails the trace
+/// immediately, and the witness test audits the same properties across the
+/// recorded log.
+fn assert_normal_wire_honest(
+    operation: &PanelOperation,
+    result: &PanelResult,
+    server_revision: u64,
+) {
+    match result {
+        PanelResult::Precommit(PanelPrecommit::Rejected { revision, reason }) => {
+            assert_eq!(
+                *reason,
+                WorkbenchRejectionReason::RevisionMismatch,
+                "normal rejection must be the stale RevisionMismatch shape"
+            );
+            assert_eq!(
+                revision.value(),
+                server_revision,
+                "normal rejection must cite the current authority revision"
+            );
+            assert!(
+                revision.value() > operation.baseline().revision().value(),
+                "normal stale rejection must follow a peer advance"
+            );
+        }
+        PanelResult::Precommit(PanelPrecommit::Unavailable { reason }) => assert!(
+            honest_unavailable_reasons(
+                intent_tag(operation.intent()),
+                operation.baseline().revision().value() == server_revision
+            )
+            .contains(reason),
+            "unavailable reason outside the intent's wire-compatible set for this revision stage"
+        ),
+        _ => {}
+    }
 }
 
 /// The real consume order, mirroring `ui/panel.rs`: membership candidates go through
@@ -2484,8 +2890,9 @@ fn install_panel_membership(
     Ok(())
 }
 
-/// The minimal real recovery fold: the next observed revision carries exactly the
-/// committed graft, so the projection validator must match it at `commit_revision`.
+/// The minimal real recovery fold: the next observed revision carries the
+/// committed graft (alongside any later peer history), so the projection
+/// validator must match it at a revision ≥ `commit_revision`.
 fn panel_recovery_refresh(trace: &mut TraceState, generation_step: u8) -> Result<(), &'static str> {
     if trace.session.panel_recovery_for_test().is_none() || trace.recovery_revision.is_none() {
         return Ok(());
@@ -2500,7 +2907,11 @@ fn panel_recovery_refresh(trace: &mut TraceState, generation_step: u8) -> Result
     if !trace.session.start_pending_refresh(trace.refresh) {
         return Err("recovery refresh admission");
     }
-    let revision = trace.recovery_revision.unwrap_or(0);
+    // The candidate is stamped at the CURRENT authority revision: peer commits
+    // (for example a tab.create admitted before the stale-rejection path) may
+    // have advanced it past `recovery_revision`, and stamping earlier would
+    // misattribute their content to the commit revision.
+    let revision = trace.server_revision;
     let prepared = trace.session.prepare_refresh(
         trace.refresh,
         WorkbenchSnapshotOutcome::Available {
@@ -3313,8 +3724,12 @@ fn serialize(actions: &[TraceAction]) -> String {
                 generation_step,
             } => format!("pf:{direction}:{generation_step}"),
             TraceAction::PanelSubmit { kind, direction } => format!("ps:{kind}:{direction}"),
-            TraceAction::PanelSettle { class } => {
-                format!("pt:{}", panel_settle_class_token(*class))
+            TraceAction::PanelSettle { class, tier } => {
+                format!(
+                    "pt:{}:{}",
+                    panel_settle_class_token(*class),
+                    settle_tier_token(*tier)
+                )
             }
             TraceAction::PanelRecoveryRefresh { generation_step } => {
                 format!("pv:{generation_step}")
@@ -3387,8 +3802,9 @@ fn deserialize_action(encoded: &str) -> Result<TraceAction, &'static str> {
             kind: number(1)?,
             direction: number(2)?,
         }),
-        ["pt", class] => Ok(TraceAction::PanelSettle {
+        ["pt", class, tier] => Ok(TraceAction::PanelSettle {
             class: parse_panel_settle_class(class)?,
+            tier: parse_settle_tier(tier)?,
         }),
         ["pv", _] => Ok(TraceAction::PanelRecoveryRefresh {
             generation_step: number(1)?,
@@ -3400,6 +3816,21 @@ fn deserialize_action(encoded: &str) -> Result<TraceAction, &'static str> {
             class: parse_panel_anchor_class(class)?,
         }),
         _ => Err("invalid action"),
+    }
+}
+
+const fn settle_tier_token(tier: SettleTier) -> &'static str {
+    match tier {
+        SettleTier::Normal => "n",
+        SettleTier::Defensive => "d",
+    }
+}
+
+fn parse_settle_tier(token: &str) -> Result<SettleTier, &'static str> {
+    match token {
+        "n" => Ok(SettleTier::Normal),
+        "d" => Ok(SettleTier::Defensive),
+        _ => Err("invalid settle tier"),
     }
 }
 
@@ -3593,9 +4024,15 @@ fn serialized_state_trace_round_trips_for_direct_replay() {
         },
         TraceAction::PanelSettle {
             class: PanelSettleClass::CommittedMerge,
+            tier: SettleTier::Normal,
         },
         TraceAction::PanelSettle {
             class: PanelSettleClass::CommittedLeafRepair,
+            tier: SettleTier::Normal,
+        },
+        TraceAction::PanelSettle {
+            class: PanelSettleClass::RejectedStale,
+            tier: SettleTier::Defensive,
         },
         TraceAction::PanelRecoveryRefresh {
             generation_step: 14,
@@ -3611,6 +4048,8 @@ fn serialized_state_trace_round_trips_for_direct_replay() {
     assert!(deserialize("").is_err());
     assert!(deserialize("cc:x:1").is_err());
     assert!(deserialize("pt:x").is_err());
+    assert!(deserialize("pt:s").is_err());
+    assert!(deserialize("pt:s:x").is_err());
     assert!(deserialize("pa:x").is_err());
     for action in actions {
         assert!(
@@ -3618,5 +4057,259 @@ fn serialized_state_trace_round_trips_for_direct_replay() {
                 .into_iter()
                 .all(|candidate| candidate.class() == action.class())
         );
+    }
+}
+
+/// Submit fan + settle pair for every (intent, class, tier) the plan admits.
+/// A multi-leaf tab is committed first so Move can be planned; combinations
+/// the class/tier gate rejects self-skip inside `panel_settle`.
+fn settle_probe_actions() -> Vec<TraceAction> {
+    let mut actions = vec![
+        TraceAction::PanelSubmit {
+            kind: 0,
+            direction: 1,
+        },
+        TraceAction::PanelSettle {
+            class: PanelSettleClass::CommittedMerge,
+            tier: SettleTier::Normal,
+        },
+    ];
+    for kind in [0u8, 1, 2] {
+        for class in [
+            PanelSettleClass::NotSubmitted,
+            PanelSettleClass::RejectedFresh,
+            PanelSettleClass::RejectedStale,
+            PanelSettleClass::Denied,
+            PanelSettleClass::Unavailable,
+            PanelSettleClass::Unchanged,
+            PanelSettleClass::TabUnavailableGone,
+        ] {
+            for tier in [SettleTier::Normal, SettleTier::Defensive] {
+                for direction in 0..4u8 {
+                    actions.push(TraceAction::PanelSubmit { kind, direction });
+                }
+                actions.push(TraceAction::PanelSettle { class, tier });
+                // A gate-skipped settle leaves the pending op alive; drain it
+                // so the next iteration's fan mints the intended intent.
+                actions.push(TraceAction::PanelSettle {
+                    class: PanelSettleClass::NotSubmitted,
+                    tier: SettleTier::Normal,
+                });
+            }
+        }
+    }
+    actions
+}
+
+/// Audits the recorded settle log: every Normal input must satisfy the real
+/// Server/adapter necessary conditions (producible revision, wire-compatible
+/// reason), and every Defensive input must carry the forged shape its tier
+/// marker claims. The in-driver `assert_normal_wire_honest` already fails a
+/// violating Normal input on the spot; this test additionally proves the probe
+/// actually reached every repaired edge.
+#[test]
+fn panel_settle_inputs_match_real_server_and_adapter_legality() {
+    let mut trace = new_trace();
+    for action in settle_probe_actions() {
+        apply(&mut trace, action).expect("settle probe");
+    }
+    let log = &trace.settle_log;
+    assert!(!log.is_empty(), "probe must deliver settle inputs");
+    for witness in log {
+        match (witness.tier, witness.wire) {
+            (SettleTier::Normal, SettleWire::Rejected { revision, reason }) => {
+                // The only honest rejection is the stale RevisionMismatch
+                // citing the current authority revision after a peer advance.
+                assert_eq!(reason, WorkbenchRejectionReason::RevisionMismatch);
+                assert_eq!(revision, witness.server_revision);
+                assert!(revision > witness.baseline_revision);
+            }
+            (SettleTier::Normal, SettleWire::Unavailable { reason }) => assert!(
+                honest_unavailable_reasons(
+                    witness.intent,
+                    witness.baseline_revision == witness.server_revision
+                )
+                .contains(&reason),
+                "normal unavailable reason must be stage- and wire-compatible"
+            ),
+            (SettleTier::Normal, SettleWire::Unchanged { revision }) => {
+                assert_eq!(revision, witness.baseline_revision)
+            }
+            (SettleTier::Normal, SettleWire::TabUnavailable { .. }) => {
+                panic!("TabUnavailable has no honest variant")
+            }
+            (SettleTier::Defensive, SettleWire::Rejected { revision, reason }) => {
+                match witness.class {
+                    // RejectedFresh's synthetic baseline-consistent rejection.
+                    PanelSettleClass::RejectedFresh => {
+                        assert_eq!(reason, WorkbenchRejectionReason::PanelUnavailable);
+                        assert_eq!(revision, witness.baseline_revision);
+                    }
+                    // The forged stale edge: below the baseline, unreachable
+                    // under a monotone authority revision.
+                    PanelSettleClass::RejectedStale => {
+                        assert_eq!(reason, WorkbenchRejectionReason::RevisionMismatch);
+                        assert!(revision < witness.baseline_revision);
+                    }
+                    _ => panic!("unexpected defensive rejection class"),
+                }
+            }
+            (SettleTier::Defensive, SettleWire::Unavailable { reason }) => {
+                // The forged unavailable edge is ServerBusy on a Move only.
+                assert_eq!(reason, WorkbenchCommandUnavailableReason::ServerBusy);
+                assert_eq!(witness.intent, IntentTag::Move);
+            }
+            (SettleTier::Defensive, SettleWire::TabUnavailable { revision }) => {
+                assert_eq!(witness.class, PanelSettleClass::TabUnavailableGone);
+                assert!(revision > witness.baseline_revision);
+            }
+            (SettleTier::Defensive, _) => {
+                panic!("defensive input must carry a forged shape")
+            }
+            (SettleTier::Normal, _) => {}
+        }
+    }
+    // Reachability: every repaired edge was actually exercised per intent.
+    let has = |intent: IntentTag, class: PanelSettleClass, tier: SettleTier| {
+        log.iter()
+            .any(|w| w.intent == intent && w.class == class && w.tier == tier)
+    };
+    for intent in [IntentTag::Split, IntentTag::Move, IntentTag::Close] {
+        assert!(has(
+            intent,
+            PanelSettleClass::RejectedStale,
+            SettleTier::Normal
+        ));
+        assert!(has(
+            intent,
+            PanelSettleClass::RejectedStale,
+            SettleTier::Defensive
+        ));
+        assert!(has(
+            intent,
+            PanelSettleClass::Unavailable,
+            SettleTier::Normal
+        ));
+        assert!(has(
+            intent,
+            PanelSettleClass::RejectedFresh,
+            SettleTier::Defensive
+        ));
+        assert!(!has(
+            intent,
+            PanelSettleClass::RejectedFresh,
+            SettleTier::Normal
+        ));
+    }
+    assert!(has(
+        IntentTag::Move,
+        PanelSettleClass::Unavailable,
+        SettleTier::Defensive
+    ));
+    assert!(!has(
+        IntentTag::Split,
+        PanelSettleClass::Unavailable,
+        SettleTier::Defensive
+    ));
+    assert!(!has(
+        IntentTag::Close,
+        PanelSettleClass::Unavailable,
+        SettleTier::Defensive
+    ));
+    assert!(has(
+        IntentTag::Move,
+        PanelSettleClass::TabUnavailableGone,
+        SettleTier::Defensive
+    ));
+    assert!(!has(
+        IntentTag::Move,
+        PanelSettleClass::TabUnavailableGone,
+        SettleTier::Normal
+    ));
+    assert!(!has(
+        IntentTag::Split,
+        PanelSettleClass::TabUnavailableGone,
+        SettleTier::Defensive
+    ));
+}
+
+/// Deterministic stage control for the stale-baseline Unavailable repair: once
+/// a peer commit leaves the operation's baseline behind the authority revision,
+/// only the pre-admission `ServiceUnavailable` is an honest unavailable reason —
+/// every reason admission reaches only after the revision check (TerminalBusy,
+/// NoCompatibleWorker, ServerBusy, TerminalRuntimeUnavailable) must be caught by
+/// the same `assert_normal_wire_honest` criterion the driver applies, and must
+/// pass again on a fresh baseline wherever the intent's wire set contains it.
+/// (`RequestLedgerFull` is likewise pre-admission in the real Server; the stale
+/// set stays the minimal uniform `ServiceUnavailable`.)
+#[test]
+fn stale_unavailable_reasons_are_stage_checked() {
+    for (kind, intent) in [
+        (0u8, IntentTag::Split),
+        (1, IntentTag::Close),
+        (2, IntentTag::Move),
+    ] {
+        let mut trace = new_trace();
+        // A committed split gives the two-leaf structure every intent plans on.
+        apply(
+            &mut trace,
+            TraceAction::PanelSubmit {
+                kind: 0,
+                direction: 1,
+            },
+        )
+        .expect("seed split submit");
+        apply(
+            &mut trace,
+            TraceAction::PanelSettle {
+                class: PanelSettleClass::CommittedMerge,
+                tier: SettleTier::Normal,
+            },
+        )
+        .expect("seed split commit");
+        apply(&mut trace, TraceAction::PanelSubmit { kind, direction: 1 }).expect("intent submit");
+        let operation = trace
+            .session
+            .pending_panel()
+            .cloned()
+            .expect("pending panel op");
+        assert_eq!(intent_tag(operation.intent()), intent);
+        let baseline = operation.baseline().revision().value();
+        // The peer advance that makes the baseline stale — the same shape the
+        // driver uses for a Normal stale rejection.
+        let peer_tab = fresh_tab(&mut trace);
+        trace.server_tabs.push(peer_tab);
+        trace.server_revision = trace.server_revision.checked_add(1).expect("revision");
+        assert!(baseline < trace.server_revision);
+        // Positive control: the pre-admission reason stays honest on a stale
+        // baseline.
+        assert_normal_wire_honest(
+            &operation,
+            &PanelResult::Precommit(PanelPrecommit::Unavailable {
+                reason: WorkbenchCommandUnavailableReason::ServiceUnavailable,
+            }),
+            trace.server_revision,
+        );
+        // Negative control: each post-admission reason is caught on the stale
+        // baseline even where the intent's fresh wire set would allow it, and
+        // is honest again on a fresh baseline.
+        for reason in [
+            WorkbenchCommandUnavailableReason::NoCompatibleWorker,
+            WorkbenchCommandUnavailableReason::TerminalBusy,
+            WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable,
+            WorkbenchCommandUnavailableReason::ServerBusy,
+        ] {
+            let forged = PanelResult::Precommit(PanelPrecommit::Unavailable { reason });
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    assert_normal_wire_honest(&operation, &forged, trace.server_revision)
+                }))
+                .is_err(),
+                "stale baseline must catch post-admission reason {reason:?}"
+            );
+            if honest_unavailable_reasons(intent, true).contains(&reason) {
+                assert_normal_wire_honest(&operation, &forged, baseline);
+            }
+        }
     }
 }
