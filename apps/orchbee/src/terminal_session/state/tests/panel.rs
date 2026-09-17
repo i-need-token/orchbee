@@ -93,6 +93,58 @@ fn split_retryable() -> NativeSessionState {
     state
 }
 
+/// The same split baseline admitted at an arbitrary cache revision, for results that
+/// must be compared against a baseline newer than revision 1.
+fn split_ready_at_revision(revision: u64) -> NativeSessionState {
+    let mut baseline = split_panel_baseline();
+    baseline.revision = WorkbenchRevision::new(revision);
+    ready_with_cache(project_native_standalone_tabs(&baseline).unwrap())
+}
+
+/// A SelectedWithoutAttachment state built by the real create admission path: a create
+/// whose terminal outcome is `OutcomeUnknown` records a non-attachable provenance, so
+/// the snapshot settle lands `SettledWithoutAttachment` — the new Tab is selected and
+/// the desired key stays armed, but no attachment exists.
+fn selected_without_attachment_state() -> NativeSessionState {
+    let mut state = ready(1);
+    let operation = create_operation(&state, 2, 100, "2");
+    let key = operation.key().clone();
+    assert!(state.begin_create(operation));
+    let candidate = snapshot(2, 2, Some("2"));
+    let created = &candidate.terminal_contexts[0].tabs[1];
+    let PanelNode::Panel {
+        panel_id,
+        primary_presentation,
+        ..
+    } = &created.root
+    else {
+        unreachable!()
+    };
+    assert!(state.retain_create_commit(
+        &key,
+        WorkbenchTabCreateCommit::Created {
+            revision: WorkbenchRevision::new(2),
+            terminal_context_id: context_id(2),
+            tab_id: created.tab_id.clone(),
+            panel_id: panel_id.clone(),
+            presentation_id: primary_presentation.presentation_id.clone(),
+            terminal_outcome: WorkbenchTerminalOutcome::OutcomeUnknown {},
+        },
+    ));
+    let decision = state.settle_create_snapshot(
+        &key,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: candidate,
+        },
+    );
+    assert_eq!(decision, CreateProjectionDecision::SettledWithoutAttachment);
+    assert_eq!(
+        state.phase_kind(),
+        SessionPhaseKind::SelectedWithoutAttachment
+    );
+    state
+}
+
 fn split_commit(operation: &PanelOperation) -> PanelCommit {
     PanelCommit::Split(WorkbenchPanelSplitCommit::Pending {
         revision: WorkbenchRevision::new(operation.baseline().revision().value() + 1),
@@ -968,11 +1020,14 @@ fn tab_unavailable_membership_installs_without_cleanup_when_unattached() {
         .expect("current membership result is retained");
     assert_eq!(&admitted, &operation);
     let selected_tab = candidate.selected_tab_id().unwrap().clone();
+    // The firing guard is the Ready-phase gate (`membership.rs:1067`): this fixture is
+    // `RetryableAttachUnavailable`, so staging is refused before the unattached arm
+    // (`membership.rs:1071`) is even reached — a Ready+unattached state cannot exist.
     assert!(
         state
             .stage_panel_membership_cleanup(operation.request_id(), candidate, deadlines())
             .is_err(),
-        "an unattached membership must not fabricate a cleanup"
+        "a non-Ready membership stage must not fabricate a cleanup"
     );
     assert!(state.pending_membership.is_none());
     // Re-prepare an identical membership candidate for the install path; the consumed
@@ -1084,6 +1139,8 @@ fn superseding_leaf_loss_installs_fresh_attachment_without_cleanup_when_unattach
         .retain_prepared_panel_membership(prepared)
         .expect("the unattached leaf-loss truth enters membership");
     assert_eq!(&admitted, &operation);
+    // Same guard attribution as above: the `!Ready` phase gate fires in this Retryable
+    // fixture; the unattached arm would also refuse, but is not what is exercised.
     assert!(
         state
             .stage_panel_membership_cleanup(operation.request_id(), candidate, deadlines())
@@ -1307,5 +1364,227 @@ fn retain_pending_panel_rejects_foreign_or_invalid_facts() {
 
     assert!(state.retain_pending_panel(known.clone()));
     assert_eq!(state.retained_panel_for_test(), Some(&known));
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn tab_unavailable_sub_arms_distinguish_faulty_authority_from_legal_faults() {
+    // A refusal revision below the baseline is a faulty-authority input: the server
+    // reports the Tab unavailable at a revision older than the history we already hold.
+    let mut state = split_ready_at_revision(2);
+    let operation = plan(&state, 70_160, split_kind());
+    assert!(state.begin_panel(operation.clone()));
+    let prepared = state.prepare_panel(
+        &operation,
+        PanelResult::TabUnavailable {
+            revision: WorkbenchRevision::new(1),
+            outcome: WorkbenchSnapshotOutcome::Unavailable {
+                reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+            },
+        },
+    );
+    assert_eq!(state.apply_prepared_panel(prepared), PanelDecision::Retire);
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Retired);
+    assert_eq!(
+        state.retired_failure(),
+        Some(CarrierFailure::AuthorityDivergence)
+    );
+    assert!(state.retained_panel_for_test().is_none());
+    assert!(state.invariant_holds());
+
+    // A refusal at or beyond the baseline without snapshot evidence is a legal fault:
+    // the operation is definitely not applied, the admission releases, and the session
+    // survives — nothing was committed and no divergence is claimed.
+    for revision in [1, 5] {
+        let mut state = split_ready();
+        let operation = plan(&state, 70_161, split_kind());
+        let cache = state.cache().clone();
+        assert!(state.begin_panel(operation.clone()));
+        let prepared = state.prepare_panel(
+            &operation,
+            PanelResult::TabUnavailable {
+                revision: WorkbenchRevision::new(revision),
+                outcome: WorkbenchSnapshotOutcome::Unavailable {
+                    reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                },
+            },
+        );
+        assert_eq!(
+            state.apply_prepared_panel(prepared),
+            PanelDecision::Continue
+        );
+        assert_eq!(state.notice, Some(SessionNotice::PanelNotApplied));
+        assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+        assert!(state.pending_panel().is_none());
+        assert_eq!(state.cache(), &cache);
+        assert!(state.retained_panel_for_test().is_none());
+        assert!(state.invariant_holds());
+    }
+
+    // A refusal at exactly the served snapshot's revision while the Tab is still in
+    // that snapshot is self-contradictory: the authority's own evidence disproves its
+    // claim. This is the fail-closed edge of the authority check — the session retires.
+    let mut state = split_ready();
+    let operation = plan(&state, 70_162, split_kind());
+    assert!(state.begin_panel(operation.clone()));
+    let mut still_present = split_panel_baseline();
+    still_present.revision = WorkbenchRevision::new(2);
+    let prepared = state.prepare_panel(
+        &operation,
+        PanelResult::TabUnavailable {
+            revision: WorkbenchRevision::new(2),
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: still_present,
+            },
+        },
+    );
+    assert_eq!(state.apply_prepared_panel(prepared), PanelDecision::Retire);
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Retired);
+    assert_eq!(
+        state.retired_failure(),
+        Some(CarrierFailure::AuthorityDivergence)
+    );
+    assert!(state.retained_panel_for_test().is_none());
+    assert!(state.invariant_holds());
+
+    // A refusal at a revision newer than the snapshot served with it cannot be
+    // verified against anything: the evidence is older than the claim — divergent.
+    let mut state = split_ready();
+    let operation = plan(&state, 70_163, split_kind());
+    assert!(state.begin_panel(operation.clone()));
+    let prepared = state.prepare_panel(
+        &operation,
+        PanelResult::TabUnavailable {
+            revision: WorkbenchRevision::new(3),
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: selected_leaf_lost_snapshot(2),
+            },
+        },
+    );
+    assert_eq!(state.apply_prepared_panel(prepared), PanelDecision::Retire);
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Retired);
+    assert_eq!(
+        state.retired_failure(),
+        Some(CarrierFailure::AuthorityDivergence)
+    );
+    assert!(state.retained_panel_for_test().is_none());
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn committed_with_an_invalid_commit_retires_without_retaining_the_fact() {
+    // `PendingPanelCommit::valid()` is the apply-level gate for committed results: a
+    // commit that does not follow the baseline exactly is divergent with no pending
+    // fact — unlike the valid-commit-divergent arm above, nothing may be retained.
+    for invalid in [
+        // The committed revision skips a step: baseline + 2 is not the successor.
+        (|operation: &PanelOperation| {
+            let mut commit = split_commit(operation);
+            let PanelCommit::Split(WorkbenchPanelSplitCommit::Pending { revision, .. }) =
+                &mut commit
+            else {
+                unreachable!()
+            };
+            *revision = WorkbenchRevision::new(revision.value() + 1);
+            commit
+        }) as fn(&PanelOperation) -> PanelCommit,
+        // A foreign panel identity: the commit names a leaf the operation never named.
+        (|operation: &PanelOperation| {
+            let mut commit = split_commit(operation);
+            let PanelCommit::Split(WorkbenchPanelSplitCommit::Pending {
+                panel_id: commit_panel,
+                ..
+            }) = &mut commit
+            else {
+                unreachable!()
+            };
+            *commit_panel = panel_id(9_999);
+            commit
+        }) as fn(&PanelOperation) -> PanelCommit,
+    ] {
+        let mut state = split_ready();
+        let operation = plan(&state, 70_170, split_kind());
+        assert!(state.begin_panel(operation.clone()));
+        let prepared = state.prepare_panel(
+            &operation,
+            PanelResult::Committed {
+                commit: Box::new(invalid(&operation)),
+                outcome: WorkbenchSnapshotOutcome::Unavailable {
+                    reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+                },
+            },
+        );
+        assert_eq!(state.apply_prepared_panel(prepared), PanelDecision::Retire);
+        assert_eq!(state.phase_kind(), SessionPhaseKind::Retired);
+        assert_eq!(
+            state.retired_failure(),
+            Some(CarrierFailure::AuthorityDivergence)
+        );
+        assert!(
+            state.retained_panel_for_test().is_none(),
+            "an invalid commit is never retained as a known fact"
+        );
+        assert!(state.invariant_holds());
+    }
+}
+
+#[test]
+fn stale_membership_result_is_refused_by_the_second_line_of_defence() {
+    // The mailbox is the first line against stale replies; `retain_prepared_panel_membership`
+    // is the second: a membership-prepared result whose operation is no longer current
+    // must be refused with Protocol before any cleanup/install is staged.
+    let mut state = split_ready();
+    let operation = plan(&state, 70_180, split_kind());
+    assert!(state.begin_panel(operation.clone()));
+    let result = PanelResult::TabUnavailable {
+        revision: WorkbenchRevision::new(2),
+        outcome: WorkbenchSnapshotOutcome::Available {
+            snapshot: selected_leaf_lost_snapshot(3),
+        },
+    };
+    // Positive control first: while the operation is current, the identical prepared
+    // result is genuinely retained — the refusal below is not vacuous.
+    let prepared = state.prepare_panel(&operation, result.clone());
+    assert!(prepared.membership_candidate().is_some());
+    let (admitted, _candidate) = state
+        .retain_prepared_panel_membership(prepared)
+        .expect("the current membership result retains");
+    assert_eq!(&admitted, &operation);
+    // An interleaved honest result releases the pending operation through the ordinary
+    // consumer, leaving a second prepared carrier for the same operation stale.
+    let release = state.prepare_panel(&operation, PanelResult::NotSubmitted);
+    assert_eq!(state.apply_prepared_panel(release), PanelDecision::Continue);
+    assert!(state.pending_panel().is_none());
+    let stale = state.prepare_panel(&operation, result);
+    assert!(stale.membership_candidate().is_some());
+    assert!(matches!(
+        state.retain_prepared_panel_membership(stale),
+        Err(CarrierFailure::Protocol)
+    ));
+    assert_eq!(state.notice, Some(SessionNotice::PanelNotApplied));
+    assert!(state.pending_membership.is_none());
+    assert!(state.retained_panel_for_test().is_none());
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn selected_without_attachment_phase_admits_panel_planning() {
+    // `SelectedWithoutAttachment` is an allowed planning phase: the selection exists,
+    // the desired key is armed, and no attachment is held — planning must still target
+    // the selected leaf, and the admitted operation begins normally.
+    let mut state = selected_without_attachment_state();
+    assert_eq!(state.attached_key(), None);
+    let selected = state.active().unwrap().clone();
+    assert_eq!(selected.index(), 1, "the created tab is selected");
+    let selected_panel = state.cache().tabs()[selected.index()]
+        .panel(selected.panel_index())
+        .unwrap()
+        .panel_id()
+        .clone();
+    let operation = plan(&state, 70_190, split_kind());
+    assert_eq!(operation.panel_id(), &selected_panel);
+    assert_eq!(operation.target(), state.desired().unwrap());
+    assert!(state.begin_panel(operation));
+    assert!(state.pending_panel().is_some());
     assert!(state.invariant_holds());
 }
