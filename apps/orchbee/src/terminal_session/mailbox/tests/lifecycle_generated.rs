@@ -529,6 +529,129 @@ fn generated_persistent_mailbox_and_state_lifecycle_replays_and_shrinks() {
     assert!(total.panel_retained_commits > 0);
 }
 
+/// Failure-cleanup coverage for the occupied-cell publisher scaffolding. Every
+/// early exit out of the scope closure — a controlled UI-stage error, a waiter
+/// observation that never lands, or a panic unwind — must close and wake the
+/// publisher so the scope join completes, must preserve the original error,
+/// and must never substitute the cleanup close for the measured production
+/// verdict. `recv_timeout` on the publisher's own report proves the thread ran
+/// to completion; a hung scope join would hang this test instead of passing.
+#[test]
+fn occupied_cell_publication_cleanup_covers_failure_paths() -> Result<(), ReplayFailure> {
+    // Publisher parked on the occupied cell when the UI stage returns a
+    // controlled error: the rescue close releases it before the scope joins,
+    // and the original violation propagates unchanged.
+    {
+        let mut sandbox = PanelSandbox::new()?;
+        let (operation, _lease, _wait) = sandbox.admit_split_awaiting()?;
+        let (results, completed) = std::sync::mpsc::channel();
+        let outcome = occupied_cell_publication(
+            &sandbox.mailbox,
+            WorkerEvent::PanelResult {
+                operation: operation.clone(),
+                outcome: PanelResult::NotSubmitted,
+            },
+            EventDeadline::PlacementOnly(operation.deadline()),
+            &sandbox.clock,
+            Duration::from_secs(2),
+            Duration::from_secs(5),
+            &results,
+            &completed,
+            || violation("injected UI-stage failure"),
+        );
+        let error = outcome.expect_err("injected UI-stage failure must propagate");
+        assert!(
+            matches!(&error, ReplayFailure::Violation(message) if message.contains("injected UI-stage failure")),
+            "original error was replaced or swallowed: {error:?}"
+        );
+        let cleanup = completed
+            .recv_timeout(Duration::from_secs(5))
+            .expect("rescued publisher never reported");
+        let failure = observed_err(cleanup, "rescued publication result")?
+            .closed_failure()
+            .expect("rescued publication was not closed");
+        assert_eq!(
+            failure,
+            CarrierFailure::Closed,
+            "cleanup close must be reported as cleanup, never as the measured verdict"
+        );
+        assert_eq!(sandbox.mailbox.is_closed(), Some(CarrierFailure::Closed));
+    }
+    // A publisher that never reaches the drain wait (its mailbox is already
+    // closed) still fails the waiter observation, and the scope join still
+    // completes because the rescue close is a no-op on an already-closed
+    // mailbox.
+    {
+        let mut sandbox = PanelSandbox::new()?;
+        let (operation, _lease, _wait) = sandbox.admit_split_awaiting()?;
+        sandbox.mailbox.close(CarrierFailure::Transport);
+        let (results, completed) = std::sync::mpsc::channel();
+        let outcome = occupied_cell_publication(
+            &sandbox.mailbox,
+            WorkerEvent::PanelResult {
+                operation: operation.clone(),
+                outcome: PanelResult::NotSubmitted,
+            },
+            EventDeadline::PlacementOnly(operation.deadline()),
+            &sandbox.clock,
+            Duration::from_millis(250),
+            Duration::from_secs(5),
+            &results,
+            &completed,
+            || Ok(()),
+        );
+        let error = outcome.expect_err("unparked publisher must fail the observation");
+        assert!(
+            matches!(&error, ReplayFailure::Violation(message) if message.contains("never parked")),
+            "original error was replaced or swallowed: {error:?}"
+        );
+        let cleanup = completed
+            .recv_timeout(Duration::from_secs(5))
+            .expect("closed-mailbox publisher never reported");
+        let failure = observed_err(cleanup, "closed-mailbox publication result")?
+            .closed_failure()
+            .expect("closed-mailbox publication was not closed");
+        assert_eq!(
+            failure,
+            CarrierFailure::Transport,
+            "the pre-existing close must survive the rescue close"
+        );
+    }
+    // A panic unwind inside the scope closure drops the rescue before the
+    // scope's implicit join, so the parked publisher exits and the panic
+    // payload reaches the caller unchanged.
+    {
+        let mut sandbox = PanelSandbox::new()?;
+        let (operation, _lease, _wait) = sandbox.admit_split_awaiting()?;
+        let (results, completed) = std::sync::mpsc::channel();
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = occupied_cell_publication(
+                &sandbox.mailbox,
+                WorkerEvent::PanelResult {
+                    operation: operation.clone(),
+                    outcome: PanelResult::NotSubmitted,
+                },
+                EventDeadline::PlacementOnly(operation.deadline()),
+                &sandbox.clock,
+                Duration::from_secs(2),
+                Duration::from_secs(5),
+                &results,
+                &completed,
+                || -> Result<(), ReplayFailure> { panic!("injected unwind") },
+            );
+        }));
+        assert!(panicked.is_err(), "injected unwind must propagate");
+        let cleanup = completed
+            .recv_timeout(Duration::from_secs(5))
+            .expect("rescued publisher never reported after unwind");
+        let failure = observed_err(cleanup, "unwind-rescued publication result")?
+            .closed_failure()
+            .expect("unwind-rescued publication was not closed");
+        assert_eq!(failure, CarrierFailure::Closed);
+    }
+    Ok(())
+}
+
 fn generate(seed: u64, seed_index: usize) -> Vec<TraceAction> {
     let mut random = seed;
     let mut next = || {
@@ -3316,7 +3439,8 @@ impl Trace {
         // drain it in real order — deposit the reply and take the receipt. Once the cell
         // empties the publication is validated against state at placement: the flight was
         // already consumed by the UI settlement, so it must close with Protocol rather
-        // than mutating anything.
+        // than mutating anything. The scoped publisher runs under the rescue guard so an
+        // early failure or unwind closes and wakes it before the scope joins.
         {
             let mut sandbox = PanelSandbox::new()?;
             let (operation, _lease, wait) = sandbox.admit_split_awaiting()?;
@@ -3329,43 +3453,41 @@ impl Trace {
             let clock = &sandbox.clock;
             let publisher_operation = operation.clone();
             let deadline = EventDeadline::PlacementOnly(publisher_operation.deadline());
-            let joined = std::thread::scope(|scope| {
-                let publisher = scope.spawn(move || {
-                    mailbox.publish_event_before_using(
-                        WorkerEvent::PanelResult {
-                            operation: publisher_operation,
-                            outcome: PanelResult::NotSubmitted,
-                        },
-                        deadline,
-                        clock,
-                    )
-                });
-                require(
-                    mailbox.await_condition_waiter_before(Instant::now() + Duration::from_secs(2)),
-                    "occupied-cell publisher never parked on the drain wait",
-                )?;
-                require(
+            let (results, completed) = std::sync::mpsc::channel();
+            let joined = occupied_cell_publication(
+                mailbox,
+                WorkerEvent::PanelResult {
+                    operation: publisher_operation,
+                    outcome: PanelResult::NotSubmitted,
+                },
+                deadline,
+                clock,
+                Duration::from_secs(2),
+                Duration::from_secs(5),
+                &results,
+                &completed,
+                || {
+                    require(
+                        observed(
+                            mailbox.deposit_ui_reply_before_using(&wait, clock, |_transaction| {
+                                let prepared = session.prepare_panel(&operation, published);
+                                Ok(UiReply::Panel(PanelSettlement::new(
+                                    session.apply_prepared_panel(prepared),
+                                    session.desired().cloned(),
+                                )))
+                            }),
+                            "drain occupied cell reply",
+                        )? == MutationResult::Applied,
+                        "occupied cell reply was stale",
+                    )?;
                     observed(
-                        mailbox.deposit_ui_reply_before_using(&wait, clock, |_transaction| {
-                            let prepared = session.prepare_panel(&operation, published);
-                            Ok(UiReply::Panel(PanelSettlement::new(
-                                session.apply_prepared_panel(prepared),
-                                session.desired().cloned(),
-                            )))
-                        }),
-                        "drain occupied cell reply",
-                    )? == MutationResult::Applied,
-                    "occupied cell reply was stale",
-                )?;
-                observed(
-                    mailbox.take_deposited_reply(&wait),
-                    "drain occupied cell reply receipt",
-                )?
-                .ok_or_else(|| violation_error("occupied cell reply receipt missing"))?;
-                publisher
-                    .join()
-                    .map_err(|_| violation_error("occupied-cell publisher panicked"))
-            })?;
+                        mailbox.take_deposited_reply(&wait),
+                        "drain occupied cell reply receipt",
+                    )?
+                    .ok_or_else(|| violation_error("occupied cell reply receipt missing"))?;
+                    Ok(())
+                },
+            )?;
             let error =
                 self.expect_protocol_close(joined, "occupied-cell publication after drain")?;
             require(
@@ -3377,7 +3499,9 @@ impl Trace {
         // A publication parked on an occupied event cell must honor its own placement
         // deadline: an advancing test clock pushes the re-sampled instant past the
         // deadline so the drain wait refuses with Deadline instead of waiting without
-        // bound (the hang the frozen `FixedClock` produced).
+        // bound (the hang the frozen `FixedClock` produced). The scoped publisher runs
+        // under the rescue guard so an early failure or unwind closes and wakes it
+        // before the scope joins.
         {
             let mut sandbox = PanelSandbox::new()?;
             let (operation, _lease, _wait) = sandbox.admit_split_awaiting()?;
@@ -3387,26 +3511,24 @@ impl Trace {
             let mailbox = &sandbox.mailbox;
             let publisher_operation = operation.clone();
             let deadline = EventDeadline::PlacementOnly(publisher_operation.deadline());
-            let joined = std::thread::scope(|scope| {
-                let publisher = scope.spawn(move || {
-                    mailbox.publish_event_before_using(
-                        WorkerEvent::PanelResult {
-                            operation: publisher_operation,
-                            outcome: PanelResult::NotSubmitted,
-                        },
-                        deadline,
-                        &adjustable,
-                    )
-                });
-                require(
-                    mailbox.await_condition_waiter_before(Instant::now() + Duration::from_secs(2)),
-                    "deadline publisher never parked on the drain wait",
-                )?;
-                elapsed.store(120_000, std::sync::atomic::Ordering::SeqCst);
-                publisher
-                    .join()
-                    .map_err(|_| violation_error("deadline publisher panicked"))
-            })?;
+            let (results, completed) = std::sync::mpsc::channel();
+            let joined = occupied_cell_publication(
+                mailbox,
+                WorkerEvent::PanelResult {
+                    operation: publisher_operation,
+                    outcome: PanelResult::NotSubmitted,
+                },
+                deadline,
+                &adjustable,
+                Duration::from_secs(2),
+                Duration::from_secs(5),
+                &results,
+                &completed,
+                || {
+                    elapsed.store(120_000, std::sync::atomic::Ordering::SeqCst);
+                    Ok(())
+                },
+            )?;
             let error = self.expect_protocol_close(joined, "occupied-cell publication deadline")?;
             require(
                 error == CarrierFailure::Deadline,
@@ -3998,6 +4120,85 @@ fn violation<T>(message: impl Into<String>) -> Result<T, ReplayFailure> {
 
 fn violation_error(message: impl Into<String>) -> ReplayFailure {
     ReplayFailure::Violation(message.into())
+}
+
+/// Drop-order cleanup for a scoped publisher parked on an occupied event cell.
+/// `std::thread::scope` joins its spawned threads only after the scope closure
+/// exits, so any early `?` or unwind out of the closure would otherwise join a
+/// publisher still parked in `publish_event_before_using` — under a frozen
+/// `FixedClock` with an undrained cell that join never returns. Arming this
+/// guard first closes the sandbox mailbox (waking every condition waiter) on
+/// the way out, so the publisher exits and the scope join completes. The
+/// rescue close is cleanup only: it is never the measured production verdict,
+/// and the original error still propagates.
+struct OccupiedCellRescue<'a> {
+    mailbox: &'a CommandMailbox,
+    armed: bool,
+}
+
+impl<'a> OccupiedCellRescue<'a> {
+    fn arm(mailbox: &'a CommandMailbox) -> Self {
+        Self {
+            mailbox,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for OccupiedCellRescue<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.mailbox.close(CarrierFailure::Closed);
+        }
+    }
+}
+
+/// Publishes `event` on a scoped thread while the sandbox event cell is
+/// occupied, then runs `drive` (the real drain or the controlled clock
+/// advance) on the test thread. The publisher reports its own result over
+/// `results`; the test thread receives it within `result_bound` before
+/// joining, so completion is proven by the publisher's report rather than
+/// inferred from waiter counters. Any early error or unwind drops the rescue
+/// guard before the scope's implicit join, so the parked publisher is closed
+/// and woken instead of blocking the test forever.
+#[allow(clippy::too_many_arguments)]
+fn occupied_cell_publication(
+    mailbox: &CommandMailbox,
+    event: WorkerEvent,
+    deadline: EventDeadline,
+    clock: &(dyn MailboxClock + Sync),
+    waiter_bound: Duration,
+    result_bound: Duration,
+    results: &std::sync::mpsc::Sender<Result<UiWaitKey, EventError>>,
+    completed: &std::sync::mpsc::Receiver<Result<UiWaitKey, EventError>>,
+    drive: impl FnOnce() -> Result<(), ReplayFailure>,
+) -> Result<Result<UiWaitKey, EventError>, ReplayFailure> {
+    std::thread::scope(|scope| {
+        let mut rescue = OccupiedCellRescue::arm(mailbox);
+        let publisher = {
+            let results = results.clone();
+            scope.spawn(move || {
+                let _ = results.send(mailbox.publish_event_before_using(event, deadline, clock));
+            })
+        };
+        require(
+            mailbox.await_condition_waiter_before(Instant::now() + waiter_bound),
+            "occupied-cell publisher never parked on the drain wait",
+        )?;
+        drive()?;
+        let publication = completed.recv_timeout(result_bound).map_err(|error| {
+            violation_error(format!("occupied-cell publisher did not report: {error}"))
+        })?;
+        publisher
+            .join()
+            .map_err(|_| violation_error("occupied-cell publisher panicked"))?;
+        rescue.disarm();
+        Ok(publication)
+    })
 }
 
 fn add_counts<const N: usize>(total: &mut [usize; N], other: &[usize; N]) {
