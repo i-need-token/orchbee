@@ -119,13 +119,20 @@ impl TestCohort {
             fs::write(&artifact_path, ARTIFACT_CONTENT)?;
             fs::set_permissions(artifact_path, fs::Permissions::from_mode(0o700))?;
         }
+        let manifest = path.join("cohort.json");
         fs::write(
-            path.join("cohort.json"),
+            &manifest,
             format!(
                 r#"{{"schemaVersion":1,"artifacts":{{"orchbee":"{}","orchbee-server":"{}","orchbee-worker":"{}","orchbee-terminal-host":"{}"}}}}"#,
                 ARTIFACT_SHA256, ARTIFACT_SHA256, ARTIFACT_SHA256, ARTIFACT_SHA256
             ),
         )?;
+        fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600))?;
+        assert_eq!(
+            fs::metadata(&manifest)?.permissions().mode() & 0o777,
+            0o600,
+            "test cohort manifest must be owner-only"
+        );
         Ok(Self(path))
     }
 

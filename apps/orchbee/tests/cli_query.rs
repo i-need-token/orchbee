@@ -89,8 +89,8 @@ fn cohort() -> &'static Path {
                 serde_json::json!({"schemaVersion": 1, "artifacts": artifacts}).to_string(),
             )
             .expect("write cohort manifest");
-            // NativeCohort rejects a group/other-accessible manifest; the
-            // process umask is not guaranteed to be 022.
+            // NativeCohort rejects group/other-writable manifests; pin the
+            // permissions independently of the inherited process umask.
             fs::set_permissions(&manifest, fs::Permissions::from_mode(0o600))
                 .expect("chmod cohort manifest");
             directory
