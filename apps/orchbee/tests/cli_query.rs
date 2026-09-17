@@ -740,6 +740,8 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
             ],
             "orchbee.terminal.get",
         ),
+        (&["status", "--format", "json"], "orchbee.status"),
+        (&["api", "snapshot"], "orchbee.api.snapshot"),
     ];
     let peer = spawn_peer_n(&scope, queries.len(), |stream| {
         admit(&stream);
@@ -912,6 +914,42 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
             "terminalContextId": id(0x20),
         })
     );
+
+    // `status` reports the same snapshot's real counts; `api snapshot`
+    // re-encodes the document itself.
+    let status = &documents[13]["result"];
+    assert_eq!(status["site"]["siteId"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    assert_eq!(status["site"]["revision"], "7");
+    assert_eq!(
+        status["counts"],
+        serde_json::json!({
+            "projects": 1,
+            "workspaces": 1,
+            "tabs": 3,
+            "panels": 4,
+            "boundTerminals": 2,
+        })
+    );
+    let snapshot = &documents[14]["result"]["snapshot"];
+    assert_eq!(snapshot["kind"], "workbench.snapshot");
+    assert_eq!(snapshot["revision"], "7");
+    assert_eq!(snapshot["terminalContexts"].as_array().unwrap().len(), 2);
+
+    // Negative mutations prove the two new schema assertions are not vacuous.
+    let status_schema = compiled_schema(&base, "orchbee.status");
+    let mut unreachable_site = documents[13].clone();
+    unreachable_site["result"]["site"]["reachable"] = serde_json::json!(false);
+    assert!(!status_schema.is_valid(&unreachable_site));
+    let mut extra_count = documents[13].clone();
+    extra_count["result"]["counts"]["bogus"] = serde_json::json!(0);
+    assert!(!status_schema.is_valid(&extra_count));
+    let snapshot_schema = compiled_schema(&base, "orchbee.api.snapshot");
+    let mut bad_kind = documents[14].clone();
+    bad_kind["result"]["snapshot"]["kind"] = serde_json::json!("bogus");
+    assert!(!snapshot_schema.is_valid(&bad_kind));
+    let mut bad_revision = documents[14].clone();
+    bad_revision["result"]["snapshot"]["revision"] = serde_json::json!("r7");
+    assert!(!snapshot_schema.is_valid(&bad_revision));
     Ok(())
 }
 
