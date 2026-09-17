@@ -1599,18 +1599,44 @@ fn runtime_base_leaves_socket_margin_and_really_binds() -> TestResult {
     assert_eq!(mode & 0o777, 0o700, "exclusive private directory");
     let scope = stage_scope(&base);
     let socket = scope.join("client.sock");
-    // 108-byte sun_path minus the trailing NUL — the ineliminable platform
-    // ceiling this fix works under; the helper asserts the same bound.
+    // Same bound the minter enforces — the real usable sun_path capacity on
+    // this platform, not a hardcoded Linux literal.
+    let limit = support::sun_path_limit();
     assert!(
-        socket.as_os_str().as_encoded_bytes().len() <= 107,
-        "socket path {}B exceeds sun_path",
-        socket.as_os_str().as_encoded_bytes().len()
+        socket.as_os_str().as_encoded_bytes().len() <= limit,
+        "socket path {}B exceeds sun_path limit {}B",
+        socket.as_os_str().as_encoded_bytes().len(),
+        limit
     );
     // The real bind — not just the length math — proves the margin on this
     // TMPDIR. A listener that could not bind is what SUN_LEN was failing on.
     let listener = UnixListener::bind(&socket).expect("socket binds within sun_path");
     drop(listener);
     let _ = fs::remove_file(&socket);
+    Ok(())
+}
+
+#[test]
+fn sun_path_boundary_is_exact_and_limit_plus_one_is_red() -> TestResult {
+    // Pin the derived limit against the real bind boundary on this platform:
+    // a path of exactly `limit` bytes binds; `limit`+1 must be refused up
+    // front — an explicit red, never a skip.
+    let dir = base_dir("bound");
+    let dir_len = dir.as_os_str().as_encoded_bytes().len();
+    let limit = support::sun_path_limit();
+    assert!(
+        dir_len + 2 <= limit,
+        "runtime base {dir:?} ({dir_len}B) leaves no room for the boundary probe"
+    );
+    let exact = dir.join("s".repeat(limit - dir_len - 1));
+    assert_eq!(exact.as_os_str().as_encoded_bytes().len(), limit);
+    let listener = UnixListener::bind(&exact).expect("exact-limit path binds");
+    drop(listener);
+    let _ = fs::remove_file(&exact);
+    let over = dir.join("s".repeat(limit - dir_len));
+    assert_eq!(over.as_os_str().as_encoded_bytes().len(), limit + 1);
+    let error = UnixListener::bind(&over).expect_err("limit+1 must be refused");
+    assert_eq!(error.kind(), ErrorKind::InvalidInput);
     Ok(())
 }
 

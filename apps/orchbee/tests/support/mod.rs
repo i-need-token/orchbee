@@ -376,13 +376,17 @@ const SCOPE_PREFIX: &str = "orchbee-native-";
 /// this suite can run under.
 const BASE_LEAF_LEN: usize = 11;
 
-/// Usable `sockaddr_un.sun_path` capacity on Linux: the field minus the
-/// trailing NUL bind(2) needs. Derived from the real libc types — `sockaddr_un`
-/// is `sa_family_t` followed by the `sun_path` array, and `u16` alignment means
-/// there is no padding — rather than a literal 108.
-fn sun_path_limit() -> usize {
+/// Usable `sockaddr_un.sun_path` capacity for a socket pathname: the field
+/// length minus the trailing NUL std reserves (`SocketAddr` rejects
+/// `len >= sun_path.len()`). The field offset — not `sizeof(sa_family_t)` —
+/// accounts for every header member: Linux (`sun_family:u16` + `sun_path[108]`)
+/// yields 110−2−1 = 107; BSD/Darwin (`sun_len:u8` + `sun_family:u8` +
+/// `sun_path[104]`) yields 106−2−1 = 103. Neither layout has tail padding:
+/// `sun_path` is a `c_char` array and `sockaddr_un` ends with it at its own
+/// alignment.
+pub fn sun_path_limit() -> usize {
     std::mem::size_of::<nix::libc::sockaddr_un>()
-        - std::mem::size_of::<nix::libc::sa_family_t>()
+        - std::mem::offset_of!(nix::libc::sockaddr_un, sun_path)
         - 1
 }
 
