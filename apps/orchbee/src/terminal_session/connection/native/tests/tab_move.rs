@@ -946,23 +946,24 @@ fn committed_move_after_reorder_dropping_the_selected_leaf_repairs_membership() 
     )?;
     let (_key, _controller) =
         drive_controlling_ready_from_snapshot(&mut harness, move_split_snapshot(1), geometry)?;
-    // A peer split lands before the selected leaf so the selection sits at panel index 1.
+    // One peer split of the selected leaf to the left seats the new leaf
+    // first inside the existing root, so the selection sits at panel index 1.
     harness.ui.admit_refresh()?;
     let mut reordered = snapshot(2, 2);
     reordered.terminal_contexts[0].tabs[0].root = split_node(
-        panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
-        4_001,
         split_node(
+            panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
+            4_001,
             panel_node(1_001, 1_002, 1_003, 1_004, "1"),
-            3_001,
-            panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
-            3_014,
+            4_014,
             PanelOrientation::Horizontal,
-            3_020,
+            4_020,
         ),
-        4_014,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        3_014,
         PanelOrientation::Horizontal,
-        4_020,
+        3_020,
     );
     respond_snapshot(
         &harness,
@@ -977,17 +978,18 @@ fn committed_move_after_reorder_dropping_the_selected_leaf_repairs_membership() 
     assert_eq!(harness.ui.state().active().unwrap().panel_index(), 1);
     let operation = harness.ui.admit_move(WorkbenchTabMoveDirection::Last)?;
     commit_move_at(&harness, &operation, 3)?;
-    // The superseding read folded in a peer close of the selected leaf; the surviving
-    // tree keeps the outer split and contracts the inner one to the peer leaf.
+    // The superseding read folded in a peer close of the selected leaf; the
+    // inner split contracts to the new leaf, which inherits the split's slot
+    // under the surviving root.
     let mut contracted = snapshot(2, 4);
     contracted.terminal_contexts[0].tabs.swap(0, 1);
     contracted.terminal_contexts[0].tabs[1].root = split_node(
         panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
-        4_001,
+        3_001,
         panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
-        4_014,
+        3_014,
         PanelOrientation::Horizontal,
-        4_020,
+        3_020,
     );
     respond_snapshot(
         &harness,
@@ -1142,25 +1144,25 @@ fn committed_move_whose_superseding_snapshot_keeps_the_selected_leaf_merges() ->
     drive_controlling_ready_from_snapshot(&mut harness, move_split_snapshot(1), geometry)?;
     let operation = harness.ui.admit_move(WorkbenchTabMoveDirection::Last)?;
     commit_move(&harness, &operation)?;
-    // A superseding read that folded in a peer split around the moved Tab keeps the
-    // selected leaf: the candidate must still merge by identity with no membership
-    // cleanup.
+    // A superseding read that folded in a peer split of the selected leaf
+    // inside the moved Tab keeps the leaf: the candidate must still merge by
+    // identity with no membership cleanup.
     let mut superseded = snapshot(2, 3);
     superseded.terminal_contexts[0].tabs.swap(0, 1);
     superseded.terminal_contexts[0].tabs[1].root = split_node(
-        panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
-        4_001,
         split_node(
-            panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
-            3_021,
+            panel_node(4_010, 4_013, 4_011, 4_012, "peer-new"),
+            4_001,
             panel_node(1_001, 1_002, 1_003, 1_004, "1"),
-            3_022,
+            4_014,
             PanelOrientation::Horizontal,
-            3_030,
+            4_020,
         ),
-        4_014,
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        3_014,
         PanelOrientation::Horizontal,
-        4_020,
+        3_020,
     );
     respond_snapshot(
         &harness,
@@ -1178,7 +1180,7 @@ fn committed_move_whose_superseding_snapshot_keeps_the_selected_leaf_merges() ->
     assert_eq!(state.tab(1).unwrap().panel_count(), 3);
     assert_eq!(
         state.active().unwrap().panel_index(),
-        2,
+        1,
         "the selected leaf keeps its identity inside the peer-grown moved Tab"
     );
     assert!(state.selected_has_viewer());
