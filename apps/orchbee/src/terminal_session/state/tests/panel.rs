@@ -1011,6 +1011,9 @@ fn committed_membership_for_a_removed_tab_walks_cleanup_and_install() {
 
 #[test]
 fn tab_unavailable_membership_installs_without_cleanup_when_unattached() {
+    // Input tier: `TabUnavailable` is adapter-producible only for Move intents
+    // (`connection/native/panel.rs:152-159`); bound to a Split operation it is a
+    // deliberate reducer-defense fixture — no honest adapter returns it this way.
     let mut state = retryable_state(Instant::now());
     let operation = plan(&state, 70_090, split_kind());
     assert!(state.begin_panel(operation.clone()));
@@ -1068,6 +1071,9 @@ fn superseding_snapshot_missing_the_selected_leaf_repairs_through_paired_members
     // The repaired contract: a same-Tab selected-leaf loss inside a superseding truth is
     // answered by a paired membership cleanup/install that re-targets the selection,
     // never by a direct merge that fabricates the missing leaf.
+    // Input tier: the Split-bound `TabUnavailable` carrier is a deliberate
+    // reducer-defense fixture — the adapter produces `TabUnavailable` only for Move
+    // (`native/panel.rs:152-159`); the membership path it feeds is real.
     let mut state = split_ready();
     let operation = plan(&state, 70_100, split_kind());
     let old = state.attached_key().unwrap().clone();
@@ -1124,6 +1130,9 @@ fn superseding_snapshot_missing_the_selected_leaf_repairs_through_paired_members
 
 #[test]
 fn superseding_leaf_loss_installs_fresh_attachment_without_cleanup_when_unattached() {
+    // Input tier: `TabUnavailable` is adapter-producible only for Move intents
+    // (`connection/native/panel.rs:152-159`); bound to a Split operation it is a
+    // deliberate reducer-defense fixture — no honest adapter returns it this way.
     let mut state = split_retryable();
     assert!(state.attached_key().is_none());
     let operation = plan(
@@ -1184,6 +1193,9 @@ fn superseding_leaf_loss_installs_fresh_attachment_without_cleanup_when_unattach
 fn membership_prepared_panel_consumed_directly_is_a_protocol_violation() {
     // The common consumer must route a Membership result through the paired
     // cleanup/install path; applying it as a plain result fails closed.
+    // Input tier: the Split-bound `TabUnavailable` carrier is a deliberate
+    // reducer-defense fixture — the adapter produces `TabUnavailable` only for Move
+    // (`native/panel.rs:152-159`); the protocol-violation path it feeds is real.
     let mut state = split_ready();
     let operation = plan(&state, 70_120, split_kind());
     assert!(state.begin_panel(operation.clone()));
@@ -1204,8 +1216,11 @@ fn membership_prepared_panel_consumed_directly_is_a_protocol_violation() {
 
 #[test]
 fn tab_unavailable_with_a_surviving_leaf_truth_merges_the_superseding_projection() {
-    // The server refused the mutation but delivered a newer truth that still contains
-    // the selected leaf: the core merges it in place and marks the panel not applied.
+    // The defensive fixture presents a refusal accompanied by a newer truth that still
+    // contains the selected leaf: the core merges it in place and marks the panel not
+    // applied. Input tier: the Split-bound `TabUnavailable` carrier is a deliberate
+    // reducer-defense fixture — the adapter produces `TabUnavailable` only for Move
+    // (`native/panel.rs:152-159`); the merge path it feeds is real.
     let mut state = split_ready();
     let operation = plan(&state, 70_130, split_kind());
     assert!(state.begin_panel(operation.clone()));
@@ -1603,6 +1618,10 @@ fn stale_membership_result_is_refused_by_the_second_line_of_defence() {
     //       (`DefinitelyNotSubmitted` → `NotSubmitted`, `native/panel.rs:144-150`);
     //   (c) the re-presented stale carrier — a deliberately forged reducer-defense
     //       input: no honest server returns two results for one operation.
+    // (a) and (b) are each legal adapter results, but injecting them back-to-back on
+    // the same operation and then re-presenting (c) is a white-box defensive timing:
+    // the sequence as a whole is not an honest server history, and this test must not
+    // be read as a server returning two results for one operation.
     // `retain_prepared_panel_membership` is the second line of defence (after the
     // mailbox's stale-reply filter): a membership-prepared result whose operation is no
     // longer current must be refused with Protocol before any cleanup/install is staged.
