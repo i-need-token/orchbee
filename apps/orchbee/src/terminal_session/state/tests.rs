@@ -14,6 +14,7 @@ mod generated;
 mod location_labels;
 mod membership;
 mod move_tab;
+mod panel;
 mod rename_draft;
 mod rename_text;
 mod reorder;
