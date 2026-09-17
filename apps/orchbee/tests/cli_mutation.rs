@@ -1448,6 +1448,158 @@ fn run_backstop_killed_child_does_not_wait_on_a_descendant() -> TestResult {
     Ok(())
 }
 
+// ---- run() capture budget ---------------------------------------------------
+//
+// The two streams share one 8MiB retain budget (support::CAPTURE_BYTE_BUDGET
+// stays private; these fixtures pin the observable behavior, not the const).
+// Every fixture is a finite `head -c` writer — no unbounded generators — and
+// a writer blocked mid-pipe is still alive when the limit fires, so the kill
+// arm is exercised deterministically.
+
+const CAPTURE_LIMIT: usize = 8 * 1024 * 1024;
+
+#[test]
+fn capture_budget_limits_a_stdout_flood_and_kills_the_writer() -> TestResult {
+    // 9MiB on stdout alone: the pipe holds ~64KiB, so the child is still
+    // blocked on write when the retained prefix reaches the budget — the
+    // limit kills and reaps it rather than growing the capture.
+    let mut command = Command::new("sh");
+    command.args(["-c", "head -c 9000000 /dev/zero | tr '\\0' o"]);
+    let failure = support::bounded_output(&mut command, Duration::from_secs(30))
+        .expect_err("a flooding child must fail, not capture without bound");
+    match failure {
+        support::BoundedChildFailure::OutputLimit {
+            limit,
+            status,
+            stdout,
+            stderr,
+        } => {
+            assert_eq!(limit, CAPTURE_LIMIT);
+            assert_eq!(status.signal(), Some(9), "blocked writer killed");
+            assert_eq!(stdout.len(), CAPTURE_LIMIT, "truncated at the budget");
+            assert!(stdout.iter().all(|byte| *byte == b'o'));
+            assert!(stderr.is_empty());
+        }
+        other => panic!("expected output-limit, got {other}"),
+    }
+    Ok(())
+}
+
+#[test]
+fn capture_budget_limits_a_stderr_flood() -> TestResult {
+    // The same shared budget covers a stderr-only flood; stdout is an early
+    // EOF and captures nothing.
+    let mut command = Command::new("sh");
+    command.args(["-c", "head -c 9000000 /dev/zero | tr '\\0' e >&2"]);
+    let failure = support::bounded_output(&mut command, Duration::from_secs(30))
+        .expect_err("a stderr flood must fail, not capture without bound");
+    match failure {
+        support::BoundedChildFailure::OutputLimit {
+            limit,
+            status,
+            stdout,
+            stderr,
+        } => {
+            assert_eq!(limit, CAPTURE_LIMIT);
+            assert_eq!(status.signal(), Some(9), "blocked writer killed");
+            assert!(stdout.is_empty());
+            assert_eq!(stderr.len(), CAPTURE_LIMIT, "truncated at the budget");
+            assert!(stderr.iter().all(|byte| *byte == b'e'));
+        }
+        other => panic!("expected output-limit, got {other}"),
+    }
+    Ok(())
+}
+
+#[test]
+fn capture_budget_is_shared_across_both_streams() -> TestResult {
+    // Sequential writers make the split deterministic: stdout drains its
+    // 6MiB fully, leaving 2,388,608B of the shared budget for stderr — so the
+    // retained total is exactly the budget, never a per-stream allotment.
+    let mut command = Command::new("sh");
+    command.args([
+        "-c",
+        "head -c 6000000 /dev/zero | tr '\\0' o; \
+         head -c 6000000 /dev/zero | tr '\\0' e >&2",
+    ]);
+    let failure = support::bounded_output(&mut command, Duration::from_secs(30))
+        .expect_err("a two-stream flood must share one budget");
+    match failure {
+        support::BoundedChildFailure::OutputLimit {
+            limit,
+            status,
+            stdout,
+            stderr,
+        } => {
+            assert_eq!(limit, CAPTURE_LIMIT);
+            assert_eq!(status.signal(), Some(9), "blocked writer killed");
+            assert_eq!(stdout.len(), 6_000_000);
+            assert_eq!(stderr.len(), CAPTURE_LIMIT - 6_000_000);
+        }
+        other => panic!("expected output-limit, got {other}"),
+    }
+    Ok(())
+}
+
+#[test]
+fn capture_budget_accepts_output_exactly_at_the_limit() -> TestResult {
+    // Exactly 8MiB then EOF is a legal capture: the limit fires only on the
+    // first byte *past* the budget, not on reaching it.
+    let mut command = Command::new("sh");
+    command.args(["-c", "head -c 8388608 /dev/zero | tr '\\0' o; exit 7"]);
+    let output = support::bounded_output(&mut command, Duration::from_secs(30))
+        .expect("output at exactly the budget must succeed");
+    assert_eq!(output.status.code(), Some(7));
+    assert_eq!(output.stdout.len(), CAPTURE_LIMIT);
+    assert!(output.stdout.iter().all(|byte| *byte == b'o'));
+    assert!(output.stderr.is_empty());
+    Ok(())
+}
+
+#[test]
+fn capture_budget_fires_on_the_byte_past_the_limit() -> TestResult {
+    // 8MiB+1: a single byte over the shared budget is already a failure —
+    // the retained prefix stops at exactly the limit.
+    let mut command = Command::new("sh");
+    command.args(["-c", "head -c 8388609 /dev/zero | tr '\\0' o"]);
+    let failure = support::bounded_output(&mut command, Duration::from_secs(30))
+        .expect_err("one byte past the budget must fail");
+    match failure {
+        support::BoundedChildFailure::OutputLimit { stdout, stderr, .. } => {
+            assert_eq!(stdout.len(), CAPTURE_LIMIT);
+            assert!(stderr.is_empty());
+        }
+        other => panic!("expected output-limit, got {other}"),
+    }
+    Ok(())
+}
+
+#[test]
+fn capture_budget_reports_an_already_exited_child() -> TestResult {
+    // The direct child exits 0 at once while a backgrounded finite writer
+    // keeps flooding the inherited stdout pipe: the limit reports the real
+    // observed exit status — no kill is needed or fabricated — and dropping
+    // the pipes SIGPIPEs the descendant, so nothing outlives the test.
+    let mut command = Command::new("sh");
+    command.args(["-c", "head -c 20000000 /dev/zero | tr '\\0' o & exit 0"]);
+    let failure = support::bounded_output(&mut command, Duration::from_secs(30))
+        .expect_err("a descendant flood must hit the same budget");
+    match failure {
+        support::BoundedChildFailure::OutputLimit {
+            status,
+            stdout,
+            stderr,
+            ..
+        } => {
+            assert_eq!(status.code(), Some(0), "the direct child exited 0");
+            assert_eq!(stdout.len(), CAPTURE_LIMIT);
+            assert!(stderr.is_empty());
+        }
+        other => panic!("expected output-limit, got {other}"),
+    }
+    Ok(())
+}
+
 // ---- ambiguous outcomes: typed unknown, never replayed -----------------------
 
 #[test]

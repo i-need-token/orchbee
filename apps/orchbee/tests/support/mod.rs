@@ -24,6 +24,13 @@ pub const RUN_WALL_CLOCK_BACKSTOP: Duration = Duration::from_secs(45);
 /// pipes already buffered, short enough that the timeout stays decisive.
 const POST_KILL_DRAIN: Duration = Duration::from_millis(100);
 
+/// Total bytes retained across both captured streams — one budget shared by
+/// stdout, stderr, and the post-kill drain. Sized at twice the largest
+/// legitimate capture in the suite (the 2,000,000B-per-stream witnesses);
+/// the wall-clock backstop alone cannot stop a fast writer from exhausting
+/// runner memory first.
+const CAPTURE_BYTE_BUDGET: usize = 8 * 1024 * 1024;
+
 /// The bounded wait failed. `status` is always the reaped direct-child state;
 /// `stdout`/`stderr` hold whatever was captured up to the failure and may be
 /// partial — they never pretend to be a complete normal `Output`.
@@ -51,6 +58,17 @@ pub enum BoundedChildFailure {
         stderr: Vec<u8>,
         stream: &'static str,
         error: std::io::Error,
+    },
+    /// Combined captured output crossed the shared byte budget. `stdout` and
+    /// `stderr` hold the truncated prefix actually retained (their total is
+    /// at most `limit`); `status` is the real reaped state — the child was
+    /// killed if it was still running, and a natural exit in the race is
+    /// reported as its own status.
+    OutputLimit {
+        limit: usize,
+        status: ExitStatus,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
     },
 }
 
@@ -105,6 +123,19 @@ impl std::fmt::Display for BoundedChildFailure {
                 out = stdout.len(),
                 err = stderr.len()
             ),
+            Self::OutputLimit {
+                limit,
+                status,
+                stdout,
+                stderr,
+            } => write!(
+                formatter,
+                "cli child output crossed the {limit}B shared capture budget; \
+                 child reaped ({status}) with a truncated prefix of \
+                 {out}B stdout / {err}B stderr retained",
+                out = stdout.len(),
+                err = stderr.len()
+            ),
         }
     }
 }
@@ -125,6 +156,9 @@ struct Pipe {
 enum DrainFault {
     /// The end-to-end deadline arrived mid-drain.
     Deadline,
+    /// A read observed bytes beyond the shared capture budget — the retained
+    /// prefix stops at the limit and nothing past it is appended.
+    Limit,
     /// The fd reported a real read error.
     Read(std::io::Error),
 }
@@ -140,10 +174,12 @@ impl Pipe {
         }
     }
 
-    /// Pull available bytes until EOF, `WouldBlock`, or `until`. Bounded in
-    /// every path — the deadline check sits inside the read loop so a
-    /// continuously writing child cannot starve it.
-    fn drain(&mut self, until: Instant) -> Result<(), DrainFault> {
+    /// Pull available bytes until EOF, `WouldBlock`, `until`, or the shared
+    /// capture budget. Bounded in every path — the deadline check sits inside
+    /// the read loop so a continuously writing child cannot starve it, and a
+    /// read that observes the first byte past `remaining` fails `Limit`
+    /// instead of growing `captured` without bound.
+    fn drain(&mut self, until: Instant, remaining: &mut usize) -> Result<(), DrainFault> {
         let mut chunk = [0u8; 8192];
         while self.open {
             if Instant::now() >= until {
@@ -151,7 +187,14 @@ impl Pipe {
             }
             match self.reader.read(&mut chunk) {
                 Ok(0) => self.open = false,
-                Ok(n) => self.captured.extend_from_slice(&chunk[..n]),
+                Ok(n) => {
+                    let take = n.min(*remaining);
+                    self.captured.extend_from_slice(&chunk[..take]);
+                    *remaining -= take;
+                    if take < n {
+                        return Err(DrainFault::Limit);
+                    }
+                }
                 Err(error) if error.kind() == ErrorKind::WouldBlock => break,
                 Err(error) if error.kind() == ErrorKind::Interrupted => {}
                 Err(error) => return Err(DrainFault::Read(error)),
@@ -171,6 +214,7 @@ fn finish(mut child: Child, budget: Duration) -> Result<Output, BoundedChildFail
     let mut stdout = child.stdout.take().map(Pipe::new);
     let mut stderr = child.stderr.take().map(Pipe::new);
     let mut observed: Option<ExitStatus> = None;
+    let mut remaining = CAPTURE_BYTE_BUDGET;
     loop {
         if observed.is_none() {
             match child.try_wait() {
@@ -190,10 +234,11 @@ fn finish(mut child: Child, budget: Duration) -> Result<Output, BoundedChildFail
             let status = child.wait().expect("reap cli child");
             observed = Some(status);
             if status.signal().is_some() {
-                // Real kill: one bounded pass collects what the pipes hold.
+                // Real kill: one bounded pass collects what the pipes hold,
+                // still inside the same shared capture budget.
                 let grace = Instant::now() + POST_KILL_DRAIN;
                 for pipe in [&mut stdout, &mut stderr].into_iter().flatten() {
-                    let _ = pipe.drain(grace);
+                    let _ = pipe.drain(grace, &mut remaining);
                 }
                 return Err(BoundedChildFailure::ChildTimeout {
                     budget,
@@ -206,18 +251,39 @@ fn finish(mut child: Child, budget: Duration) -> Result<Output, BoundedChildFail
             // through and finish draining under the same deadline.
         }
         let mut read_fault: Option<(&'static str, std::io::Error)> = None;
+        let mut limit_hit = false;
         for (pipe, stream) in [(stdout.as_mut(), "stdout"), (stderr.as_mut(), "stderr")] {
             let Some(pipe) = pipe else { continue };
-            match pipe.drain(deadline) {
+            match pipe.drain(deadline, &mut remaining) {
                 Ok(()) => {}
                 // Data may still be mid-flight; let the top of the loop apply
                 // the child-kill or drain-timeout branch with a fresh clock.
                 Err(DrainFault::Deadline) => break,
+                Err(DrainFault::Limit) => {
+                    limit_hit = true;
+                    break;
+                }
                 Err(DrainFault::Read(error)) => {
                     read_fault = Some((stream, error));
                     break;
                 }
             }
+        }
+        if limit_hit {
+            // The point of the limit is to stop growth now: kill the direct
+            // child if it is still running (a natural exit in the race is a
+            // legal reaped status), and skip the post-kill drain — there is
+            // no budget left to spend and nothing more worth collecting.
+            if observed.is_none() {
+                let _ = child.kill();
+                observed = Some(child.wait().expect("reap cli child"));
+            }
+            return Err(BoundedChildFailure::OutputLimit {
+                limit: CAPTURE_BYTE_BUDGET,
+                status: observed.expect("child status reaped"),
+                stdout: stdout.map_or_else(Vec::new, |pipe| pipe.captured),
+                stderr: stderr.map_or_else(Vec::new, |pipe| pipe.captured),
+            });
         }
         if let Some((stream, error)) = read_fault {
             if observed.is_none() {
