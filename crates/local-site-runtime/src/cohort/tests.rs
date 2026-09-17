@@ -44,6 +44,9 @@ impl Fixture {
             .unwrap(),
         )
         .unwrap();
+        // NativeCohort rejects a group/other-accessible manifest; the process
+        // umask is not guaranteed to clear group-write.
+        fs::set_permissions(path.join("cohort.json"), fs::Permissions::from_mode(0o600)).unwrap();
         Self {
             path,
             _filesystem_lock: guard,
