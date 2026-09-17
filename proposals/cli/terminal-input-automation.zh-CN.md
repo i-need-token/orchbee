@@ -78,9 +78,12 @@ viewer/control 契约：
   `input`、`resize` 或 `paste`。确定性拒绝不授予任何重试。
 - 歧义结果——wire 的 `outcome-unknown`，或写入、读取、deadline、关联或结果形态失败后的
   `SubmissionError::OutcomeUnknown`——使 Session 退役。命令停止，以 `outcome-unknown` 报告并
-  携带受影响的 `requestId`，绝不把该效果作为新请求重试。由于 OBCS version 1 不保留请求账本，
-  reconcile 是观察式的：操作者通过 `terminal read`、`terminal wait-output` 或 `terminal open`
-  核实终端，再决定是否重新提交意图。
+  携带受影响的 `requestId`，绝不把该效果作为新请求重试。这些命令所走的
+  `terminal.viewer`/`terminal.control` 请求族不保留请求账本：`requestId` 只把存活请求与其
+  结果关联，并非 Server 账本身份。（Server 确实为 `workbench.command` 保留有界账本——相同的
+  已结算重提交会重放原结果，同一 `requestId` 下的不同命令按身份冲突拒绝——但它不覆盖该请求
+  族。）因此 reconcile 是观察式的：操作者通过 `terminal read`、`terminal wait-output` 或
+  `terminal open` 核实终端，再决定是否重新提交意图。
 - `--detach` 不出现在本切片任何命令上：这些操作都不拥有可供事后观察的持久 Server 侧身份，且
   已接受契约禁止把终端输入变成 fire-and-forget 效果。
 

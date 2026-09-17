@@ -76,7 +76,7 @@ The flat prefix layer occupies 33 positions and its mnemonic space is nearly exh
 
 | Key space         | Bound                               | Free                                |
 | ----------------- | ----------------------------------- | ----------------------------------- |
-| Lowercase letters | 16: `a b c d e h j k l n p q r w x` | 10: `f g i m o s t u v y z`         |
+| Lowercase letters | 15: `a b c d e h j k l n p q r w x` | 11: `f g i m o s t u v y z`         |
 | Uppercase letters | 1: `R`                              | 25                                  |
 | Digits            | 9: `1`–`9`                          | 1: `0`                              |
 | Punctuation       | 6: `[` `]` `<` `>` `,` `?`          | about 26 printable positions        |
@@ -90,7 +90,7 @@ The already-admitted demand alone exceeds what remains memorable:
 - Session and attachment management (status surface, control-grant request) needs keys.
 - `panel.resize`, if admitted on the wire, needs step grow/shrink bindings.
 
-Fifteen or more new bindings against ten free letters would force punctuation with no mnemonic
+Fifteen or more new bindings against eleven free letters would force punctuation with no mnemonic
 value, and a flat map near fifty entries is past reliable recall. The vocabulary needs a second
 level; the question is which shape carries it.
 

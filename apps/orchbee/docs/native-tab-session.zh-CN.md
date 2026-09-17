@@ -765,7 +765,9 @@ panel 命令；键位为临时绑定，待输入设计裁决后可能重绑。`-
 Below / Above / Left / Right 方向提交 `panel.split`——键形遵循 input-vocabulary 草案表——
 沿用叶子现有 presentation label，并使用 Client 真实的控制 cell/pixel 几何，绝不伪造尺寸。
 `X` 对焦点叶子提交叶子作用域的 `panel.close`，无单独确认步骤；被接受的 close 经普通
-publication 路径提交。`H`、`J`、`K`、`L` 对焦点叶子提交 `panel.move`，以方向邻居作为
+publication 路径提交。关闭 Tab 的末叶会移除整个 Tab——其终端被处置，Tab 对每个已挂接
+Client 结束，与 `x` Tab close 所要确认的后果同等——因此 `X` 当前不经过 Tab close 路径要求的
+“所有已挂接 Client”绘制确认即可到达该结果。`H`、`J`、`K`、`L` 对焦点叶子提交 `panel.move`，以方向邻居作为
 `target_panel_id`——它们是草案 `PANEL` 模式 `h`/`j`/`k`/`l` move 的过渡性顶层替身，因为
 模式结构不在本切片范围内；单个 Panel 或边界处没有方向邻居时在准入前即为本地空操作。
 三个操作仅从已结算的 Ready、SelectedWithoutAttachment 或 RetryableAttachUnavailable 阶段准入，
@@ -775,6 +777,16 @@ move 保留其 pending commit，直到快照验证出精确的预期候选；若
 其 Tab 仍存活，则进入通用的 membership 清理/安装路径并附着同一 Tab 的存活叶子。快照不可用
 时保留 commit 等待后续刷新；分歧或含糊的结果在不重放的情况下退役载体；commit 之后执行器
 退出时，保留的 commit 交由普通恢复处理。
+
+这些结构性变更由 Server 的 `WorkbenchGrant` 能力授权——split 需要 `mutate_navigation` 与
+`create_terminal`，move 需要 `mutate_navigation`，close 需要 `close_terminal`
+（[Workbench authority](../../orchbee-server/docs/workbench-authority.zh-CN.md)）——该层独立于
+终端侧权威：viewer 附件的 `read`/`input`/`resize` capability 既不授予 input 也不授予 resize，
+终端唯一的合并 input-and-resize controller 授权绑定于一个 Session、viewer、Worker 代次与
+Host 终端
+（[`schemas/client-server/README.md`](../../../schemas/client-server/README.zh-CN.md)）。
+持有终端 input 或 resize 控制绝不授权 Workbench 变更，只读附件无论持有何种 Workbench 授权
+都不能 input 或 resize。
 
 ## 启动
 

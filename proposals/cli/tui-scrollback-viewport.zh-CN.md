@@ -306,7 +306,7 @@ Client: SetProjectionDemand { demand: Active }
 - `Valid` 的 `HistoryChanged` 携带新的 `revision`、`generation` 与 `total_rows`；
   client 更新元数据、确认，并通过 `Committed { delta: 0 }` 刷新内容——视口停留在
   相同的逻辑行上。
-- 返回 `revision` 不晚于最近事件的 `CurrentView` window 已经反映该变化，可取代
+- 返回 `revision` 不早于（`>=`）最近事件的 `CurrentView` window 已经反映该变化，可取代
   pending 的 refresh 或 recover 转移。
 - 新输出绝不自动滚动已打开的历史视口；只有无效 anchor 或用户自身意图才会移动它。
 

@@ -930,7 +930,10 @@ are provisional pending the input-design review and may be rebound. `-`, `_`, `\
 follows the input-vocabulary draft table — carry the leaf's existing presentation label, and use
 the Client's real controlling cell/pixel geometry rather than a fabricated size. `X` submits the
 leaf-scoped `panel.close` on the focused leaf without a separate confirmation step; the accepted
-close commits through the ordinary publication path. `H`, `J`, `K`, and `L` submit `panel.move` on
+close commits through the ordinary publication path. Closing the Tab's last leaf removes the whole
+Tab — its terminals are disposed and the Tab ends for every attached Client, the same blast radius
+the `x` Tab close confirms against — so `X` currently reaches that outcome without the drawn
+all-attached-Clients confirmation the Tab-close path requires. `H`, `J`, `K`, and `L` submit `panel.move` on
 the focused leaf with the directional neighbor as `target_panel_id` — interim top-level stand-ins
 for the draft's `PANEL`-mode `h`/`j`/`k`/`l` move, since mode structure is out of this slice's
 scope; a single Panel or an edge with no directional neighbor is a local no-op before admission. All three operations admit only from a
@@ -943,6 +946,17 @@ previously selected leaf while its Tab survives enters the common membership cle
 and attaches a surviving leaf of the same Tab. Unavailable snapshots retain the commit for a later
 refresh, divergent or ambiguous results retire the carrier without replay, and an executor exit
 after commit hands the retained commit to ordinary recovery.
+
+These structural mutations are authorized by the Server's `WorkbenchGrant` capabilities —
+`mutate_navigation` and `create_terminal` for split, `mutate_navigation` for move,
+`close_terminal` for close
+([Workbench authority](../../orchbee-server/docs/workbench-authority.md)) — a layer independent of
+terminal-side authority: a viewer attachment's `read`/`input`/`resize` capabilities grant neither
+input nor resize, and the terminal's single combined input-and-resize controller grant is bound to
+one Session, viewer, Worker generation, and Host terminal
+([`schemas/client-server/README.md`](../../../schemas/client-server/README.md)). Holding terminal
+input or resize control never authorizes a Workbench mutation, and a read-only attachment cannot
+input or resize regardless of any Workbench grant.
 
 ## Startup
 

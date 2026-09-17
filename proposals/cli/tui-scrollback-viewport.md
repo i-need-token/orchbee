@@ -319,7 +319,7 @@ client uses.
 - `HistoryChanged` with `Valid` carries the new `revision`, `generation`, and `total_rows`; the
   client updates metadata, acknowledges, and refreshes content via `Committed { delta: 0 }` — the
   viewport stays on the same logical rows.
-- A `CurrentView` window that returns `revision` at or beyond the last seen event already reflects
+- A `CurrentView` window that returns `revision` at or beyond (`>=`) the last seen event already reflects
   the change and supersedes a pending refresh or recover transition.
 - New output never auto-scrolls an open history viewport; only an invalid anchor or the user's own
   intent moves it.

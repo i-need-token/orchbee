@@ -72,24 +72,24 @@ The native Session renders the active context's ordered Tabs and canonical label
 owns its own active selection, navigator and viewport; another Client's committed Tabs become
 visible through the automatic publication probe, and explicit refresh remains available. These controls use the existing `Ctrl+B` prefix:
 
-| Key                    | Connected native behavior                                                                          |
-| ---------------------- | -------------------------------------------------------------------------------------------------- |
-| `c`                    | Request one Server-owned Tab creation, then select its validated committed member.                 |
-| `n` / `p`              | Select the next / previous Tab in the current Client snapshot.                                     |
-| `1` … `9`              | Select that position when present.                                                                 |
-| `[` / `]`              | Select the previous / next standalone or Workspace context in Server navigation order.             |
-| `a`                    | Create a Workspace in an existing or new Project through separate explicit submissions.            |
-| `e`                    | Configure the first directory of the current Empty, unconfigured Workspace.                        |
-| `r` / `R`              | Rename the current Workspace / its Project; standalone has neither target.                         |
-| `<` / `>`              | Move the active Tab before / after its neighbor, wrapping at either boundary.                      |
-| `,`                    | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels. |
-| `x`                    | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                  |
-| `w`                    | Open the navigator and refresh shared Tabs while preserving the active terminal identity.          |
-| `h` / `j` / `k` / `l`  | Move local focus to the neighboring Panel when the active Tab has a split tree.                    |
-| `-` / `_` / `\` / `\|` | Split the focused Panel below / above / left / right into a second leaf (provisional binding).     |
-| `X`                    | Close the focused Panel leaf without a separate confirmation (provisional binding).                |
-| `H` / `J` / `K` / `L`  | Move the focused Panel leaf toward its directional neighbor (provisional binding).                 |
-| `q` / `d`              | Close this Client while retained execution continues.                                              |
+| Key                    | Connected native behavior                                                                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `c`                    | Request one Server-owned Tab creation, then select its validated committed member.                                                                         |
+| `n` / `p`              | Select the next / previous Tab in the current Client snapshot.                                                                                             |
+| `1` … `9`              | Select that position when present.                                                                                                                         |
+| `[` / `]`              | Select the previous / next standalone or Workspace context in Server navigation order.                                                                     |
+| `a`                    | Create a Workspace in an existing or new Project through separate explicit submissions.                                                                    |
+| `e`                    | Configure the first directory of the current Empty, unconfigured Workspace.                                                                                |
+| `r` / `R`              | Rename the current Workspace / its Project; standalone has neither target.                                                                                 |
+| `<` / `>`              | Move the active Tab before / after its neighbor, wrapping at either boundary.                                                                              |
+| `,`                    | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels.                                                         |
+| `x`                    | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                                                                          |
+| `w`                    | Open the navigator and refresh shared Tabs while preserving the active terminal identity.                                                                  |
+| `h` / `j` / `k` / `l`  | Move local focus to the neighboring Panel when the active Tab has a split tree.                                                                            |
+| `-` / `_` / `\` / `\|` | Split the focused Panel below / above / left / right into a second leaf (provisional binding).                                                             |
+| `X`                    | Close the focused Panel leaf without a separate confirmation — on the last leaf this removes the whole Tab for all attached Clients (provisional binding). |
+| `H` / `J` / `K` / `L`  | Move the focused Panel leaf toward its directional neighbor (provisional binding).                                                                         |
+| `q` / `d`              | Close this Client while retained execution continues.                                                                                                      |
 
 [Context selection](docs/native-context-selection.md) preserves each retained terminal while
 switching location. The navigator and Workbench title show the current Project/Workspace. Empty
@@ -120,7 +120,19 @@ covers this sequence. Canonical split-panel projection, local panel focus, and `
 restart recovery remains unfinished. Panel operations reuse the same structural-mutation admission:
 split submits the real controlling cell/pixel geometry and keeps the leaf's label, close is
 leaf-scoped and commits through the ordinary publication path, and move relocates the leaf beside
-its directional neighbor. A terminal-busy refusal from an overlapping aggregate Close is a definite
+its directional neighbor. Closing the Tab's last leaf removes the whole Tab — its terminal
+execution is disposed and the Tab ends for every attached Client, the same consequence an explicit
+`x` Tab close warns about — and the provisional `X` binding performs that close without the drawn
+all-attached-Clients confirmation the Tab-close path requires. Panel commands are Workbench
+mutations admitted under the Server's `WorkbenchGrant` capabilities — `mutate_navigation` and
+`create_terminal` for split, `mutate_navigation` for move, `close_terminal` for close
+([Workbench authority](../orchbee-server/docs/workbench-authority.md)) — a layer independent of the
+terminal-side controls: a viewer attachment's `read`/`input`/`resize` capabilities grant neither
+input nor resize authority, and the terminal's single combined input-and-resize controller grant is
+bound to one Session, viewer, Worker generation, and Host terminal
+([`schemas/client-server/README.md`](../../schemas/client-server/README.md)). Terminal input or
+resize control never authorizes a Workbench mutation, and a read-only attachment cannot input or
+resize regardless of any Workbench grant. A terminal-busy refusal from an overlapping aggregate Close is a definite
 not-applied result, and a committed removal of the focused leaf recovers membership onto a
 surviving leaf of the same Tab. The `-`, `_`, `\`, `|`, `X`, and `H`/`J`/`K`/`L` bindings are
 provisional pending the input-design review and may be rebound; the split and close glyphs follow

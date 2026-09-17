@@ -96,8 +96,8 @@ The authority unit test, the standalone and Workspace Linux process witnesses
 `WorkbenchPanelSplit` TLA+ model cover this refinement. The native TUI consumes Client-local panel
 layout and focus through strict projection and local focus; it admits a peer leaf close as an exact
 sibling-substituted contraction of its baseline tree and retires only when its own attached leaf was
-removed. The TUI still does not submit
-`panel.split` or `panel.close` from a shortcut.
+removed. The TUI submits `panel.split`, `panel.close`, and `panel.move` from provisional `Ctrl+B`
+shortcuts pending the input-design review.
 
 `panel.move` is the pure projection counterpart: it relocates one leaf Panel inside its Tab without
 any lifecycle. Admission reuses the navigation mutation grant, the exact context/Tab checks, and

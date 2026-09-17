@@ -85,8 +85,12 @@ Two properties of this mapping drive the command designs:
 - An ambiguous result — wire `outcome-unknown`, or `SubmissionError::OutcomeUnknown` after a
   write, read, deadline, correlation, or result-shape failure — retires the Session. The
   command stops, reports `outcome-unknown` carrying the affected `requestId`, and never retries
-  the effect as a new request. Because OBCS version 1 keeps no request ledger, reconciliation is
-  observational: the operator verifies the terminal through `terminal read`,
+  the effect as a new request. The `terminal.viewer`/`terminal.control` request family these
+  commands ride keeps no request ledger: `requestId` correlates a live request with its result
+  but is not a Server-ledger identity. (The Server does retain a bounded `workbench.command`
+  ledger that replays an identical settled resubmission and rejects a different command under the
+  same `requestId` as an identity conflict; it does not cover this family.) Reconciliation is
+  therefore observational: the operator verifies the terminal through `terminal read`,
   `terminal wait-output`, or `terminal open` before deciding to re-issue intent.
 - `--detach` is not offered on any command in this slice: none of these operations owns a
   durable Server-side identity for later observation, and the accepted contract forbids turning

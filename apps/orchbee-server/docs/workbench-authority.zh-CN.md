@@ -75,8 +75,8 @@ terminal，Close 发布后同一请求可按原样重试。叶子级 Close 仅�
 `real_workspace_panel_split_and_aggregate_close_releases_both_terminals`，以及有界
 `WorkbenchPanelSplit` TLA+ 模型覆盖这一细化。Client-local panel layout 和 focus 已由原生 TUI
 通过严格 projection 和本地焦点消费这棵树；它把对端 leaf close 接受为对其基线树的精确兄弟
-替换收缩，仅当自身已挂接 leaf 被移除时才退役。TUI 仍不会从快捷键提交 `panel.split`
-或 `panel.close`。
+替换收缩，仅当自身已挂接 leaf 被移除时才退役。TUI 现以临时 `Ctrl+B` 快捷键提交
+`panel.split`、`panel.close` 与 `panel.move`，待输入设计裁决后可能重绑。
 
 `panel.move` 是纯 projection 对应操作：它在 Tab 内重定位一个 leaf Panel，不涉及任何生命周期。
 准入复用 navigation 变更授权、确切上下文/Tab 校验，以及树成员关系——Split 树所需的 leaf 级成员
