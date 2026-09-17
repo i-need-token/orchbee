@@ -599,9 +599,33 @@ fn nested_move_in_expectation() -> MovedPanelExpectation {
     )
 }
 
-/// Another client closed the moved/source leaf after the commit: the inner
-/// Split and the graft both collapsed away while leaf_c and leaf_b retained
-/// their member tuples.
+/// One close of the split's source leaf: the committed graft collapses and
+/// the added leaf retains the source's slot inside the inner Split. Three
+/// leaves survive — a split adds a leaf, so removing the source alone cannot
+/// return the tree to two leaves.
+fn nested_split_source_closed_root() -> PanelNode {
+    graft(
+        graft(
+            leaf_new(),
+            2_101,
+            leaf_c(),
+            2_102,
+            PanelOrientation::Vertical,
+            2_100,
+        ),
+        2_001,
+        leaf_b(),
+        2_002,
+        PanelOrientation::Horizontal,
+        2_000,
+    )
+}
+
+/// Only leaf_c and leaf_b remain under the root Split. This shape is
+/// reachable in one close after the move-out commit (the moved leaf's close
+/// collapses the graft and leaf_b keeps its slot), but only after a second
+/// close following a split commit (the added leaf must go too before the
+/// inner Split collapses).
 fn nested_closed_source_root() -> PanelNode {
     graft(
         leaf_c(),
@@ -855,20 +879,25 @@ fn move_expectation_rejects_nested_wrong_members_positions_and_identities() {
 fn split_expectation_distinguishes_exact_and_superseding_revisions() {
     let baseline = nested_baseline(1, 10);
     let expected = split_expectation();
-    // At the commit revision the exact graft is mandatory: a candidate missing
-    // it — here the source leaf closed before the graft could be observed — is
-    // rejected.
-    let at_commit = candidate_with_root(1, 11, nested_closed_source_root());
+    // At the commit revision the exact graft is mandatory: even the shape one
+    // close of the source leaf would produce is rejected while the revision
+    // still equals the commit.
+    let at_commit = candidate_with_root(1, 11, nested_split_source_closed_root());
     assert_eq!(
         validate_split_panel(&baseline, &expected, at_commit),
         Err(NativeProjectionDivergence)
     );
-    // One revision later the same shape is a legal superseding read: another
-    // client closed the source leaf at r+2 while the Tab kept other members.
-    let superseding = candidate_with_root(1, 12, nested_closed_source_root());
+    // r12: one peer close removes the source leaf; the committed graft
+    // collapses and the added leaf retains slot 2_101. That exact three-leaf
+    // shape is a legal superseding read.
+    let superseding = candidate_with_root(1, 12, nested_split_source_closed_root());
     assert!(validate_split_panel(&baseline, &expected, superseding).is_ok());
-    // The added leaf closed instead: the candidate rolls back to the baseline
-    // shape at a later revision, which is still superseding.
+    // r13: a second peer close removes the added leaf too; the inner Split
+    // collapses and leaf_c inherits the root's first slot — still superseding.
+    let further = candidate_with_root(1, 13, nested_closed_source_root());
+    assert!(validate_split_panel(&baseline, &expected, further).is_ok());
+    // The added leaf closed instead at r12: the candidate rolls back to the
+    // baseline shape, which is still superseding.
     let rolled_back = candidate_with_root(1, 12, nested_root());
     assert!(validate_split_panel(&baseline, &expected, rolled_back).is_ok());
 }
@@ -877,11 +906,16 @@ fn split_expectation_distinguishes_exact_and_superseding_revisions() {
 fn move_expectation_distinguishes_exact_and_superseding_revisions() {
     let baseline = nested_baseline(1, 10);
     let expected = move_expectation();
+    // A move adds no leaf, so the post-close two-leaf shape below already
+    // diverges from the committed tree at the commit revision and is rejected.
     let at_commit = candidate_with_root(1, 11, nested_closed_source_root());
     assert_eq!(
         validate_moved_panel(&baseline, &expected, at_commit),
         Err(NativeProjectionDivergence)
     );
+    // r12: one peer close of the moved leaf collapses the committed graft and
+    // leaf_b keeps slot 2_002 — reachable in a single close because a move
+    // adds no leaf.
     let superseding = candidate_with_root(1, 12, nested_closed_source_root());
     assert!(validate_moved_panel(&baseline, &expected, superseding).is_ok());
 }
