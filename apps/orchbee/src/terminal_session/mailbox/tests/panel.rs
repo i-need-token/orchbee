@@ -541,7 +541,8 @@ fn panel_reply_mismatches_close_protocol_without_running_the_settlement() {
     let outcome =
         |operation: &PanelOperation| committed_move(operation, panel_snapshot(3, split_root()));
 
-    // Depositing while the event is still untaken (flight not yet AwaitingUi) fails closed.
+    // Depositing while the published event is still untaken fails closed: place_panel_result
+    // already set the flight to AwaitingUi, so the untaken-event gate is what fires.
     let mailbox = bootstrapped_mailbox(1, 5);
     let mut state = split_ready_state();
     let operation = admit_move(&mailbox, &mut state, &clock, deadline).unwrap();
@@ -940,7 +941,8 @@ fn panel_commit_facts_stay_attributed_to_their_own_request_at_retirement() {
     // Request A's known commit is already retained; re-presenting the exact same fact is an
     // idempotent no-op rather than a new settlement.
     assert_eq!(state.retained_panel_for_test().unwrap().operation(), &first);
-    assert!(state.retain_pending_panel(PendingPanelCommit::new(first.clone(), commit.clone())));
+    let a_pending = PendingPanelCommit::new(first.clone(), commit.clone());
+    assert!(state.retain_pending_panel(a_pending.clone()));
     // But a fact fabricated for A that breaks the revision chain cannot be smuggled in while B
     // owns the pending slot.
     let mut forged = match commit.clone() {
@@ -977,6 +979,22 @@ fn panel_commit_facts_stay_attributed_to_their_own_request_at_retirement() {
     };
     assert!(!state.retain_pending_panel(PendingPanelCommit::new(second.clone(), split_commit(3),)));
     assert!(state.retain_pending_panel(PendingPanelCommit::new(second.clone(), split_commit(4),)));
+    // With B's commit retained and B owning the pending slot, A's own commit is still
+    // self-valid: the identical pending retains on a fresh state where A is the pending
+    // operation. Re-presented here it must be refused by the ownership guard alone, leaving
+    // B's retained fact untouched.
+    let replay_mailbox = bootstrapped_mailbox(1, 5);
+    let mut replay_state = split_ready_state();
+    let replay_first = admit_move(&replay_mailbox, &mut replay_state, &clock, deadline).unwrap();
+    assert_eq!(replay_first, first);
+    assert!(replay_state.retain_pending_panel(a_pending.clone()));
+    assert_ne!(state.retained_panel_for_test(), Some(&a_pending));
+    assert!(!state.retain_pending_panel(a_pending));
+    assert_eq!(
+        state.retained_panel_for_test().unwrap().operation(),
+        &second,
+        "a foreign request's commit cannot evict B's retained fact"
+    );
     assert!(state.finalize_retirement(CarrierFailure::Closed, None));
     assert!(state.invariant_holds());
     assert_eq!(
