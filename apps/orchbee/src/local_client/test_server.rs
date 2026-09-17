@@ -10,11 +10,37 @@ use std::{
     time::{Duration, Instant},
 };
 const SERVER_GUARD_TIMEOUT: Duration = Duration::from_secs(1);
+/// Per-admission accept bound: a missing client must fail `finish` with a
+/// clear `TimedOut` instead of leaving an unbounded blocking `accept` that
+/// `join` waits on forever.
+const ACCEPT_GUARD_TIMEOUT: Duration = Duration::from_secs(3);
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
 pub(crate) struct FakeServer {
     _directory: TestDirectory,
     endpoint: PathBuf,
     thread: thread::JoinHandle<io::Result<()>>,
+}
+
+/// Poll a nonblocking listener until a client arrives or `deadline` passes.
+/// `TimedOut` is returned explicitly so a caller can tell "nobody came" from
+/// a socket error; `Interrupted` retries, anything else propagates.
+fn accept_bounded(listener: &UnixListener, deadline: Instant) -> io::Result<UnixStream> {
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => return Ok(stream),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "fake Server accept deadline",
+                    ));
+                }
+                thread::sleep(Duration::from_millis(1));
+            }
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 impl FakeServer {
@@ -28,19 +54,7 @@ impl FakeServer {
         listener.set_nonblocking(true)?;
         let thread = thread::spawn(move || {
             for index in 0..count {
-                let cutoff = Instant::now() + Duration::from_secs(3);
-                let stream = loop {
-                    match listener.accept() {
-                        Ok((stream, _)) => break stream,
-                        Err(error)
-                            if error.kind() == io::ErrorKind::WouldBlock
-                                && Instant::now() < cutoff =>
-                        {
-                            thread::sleep(Duration::from_millis(1))
-                        }
-                        Err(error) => return Err(error),
-                    }
-                };
+                let stream = accept_bounded(&listener, Instant::now() + ACCEPT_GUARD_TIMEOUT)?;
                 stream.set_read_timeout(Some(SERVER_GUARD_TIMEOUT))?;
                 stream.set_write_timeout(Some(SERVER_GUARD_TIMEOUT))?;
                 handler(index, stream)?;
@@ -57,11 +71,21 @@ impl FakeServer {
     pub(crate) fn start(
         handler: impl FnOnce(UnixStream) -> io::Result<()> + Send + 'static,
     ) -> io::Result<Self> {
+        Self::start_with_accept_deadline(handler, ACCEPT_GUARD_TIMEOUT)
+    }
+
+    /// Same single-admission server with a caller-chosen accept bound, so
+    /// the timeout path is testable without spending the full guard.
+    fn start_with_accept_deadline(
+        handler: impl FnOnce(UnixStream) -> io::Result<()> + Send + 'static,
+        accept_timeout: Duration,
+    ) -> io::Result<Self> {
         let directory = TestDirectory::new()?;
         let endpoint = directory.path.join("client.sock");
         let listener = UnixListener::bind(&endpoint)?;
+        listener.set_nonblocking(true)?;
         let thread = thread::spawn(move || {
-            let (stream, _address) = listener.accept()?;
+            let stream = accept_bounded(&listener, Instant::now() + accept_timeout)?;
             stream.set_read_timeout(Some(SERVER_GUARD_TIMEOUT))?;
             stream.set_write_timeout(Some(SERVER_GUARD_TIMEOUT))?;
             handler(stream)
@@ -438,3 +462,6 @@ impl super::MonotonicClock for CheckpointClock {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
