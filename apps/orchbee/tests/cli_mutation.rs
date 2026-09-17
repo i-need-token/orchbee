@@ -15,7 +15,7 @@ use std::{
     os::unix::net::{UnixListener, UnixStream},
     os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::{Command, Output, Stdio},
     sync::{Arc, Mutex, OnceLock},
     thread,
     time::{Duration, Instant},
@@ -1351,6 +1351,30 @@ fn run_backstop_preserves_large_two_stream_output_and_status() -> TestResult {
 }
 
 #[test]
+fn spawned_child_with_large_piped_streams_exits_normally() -> TestResult {
+    // The already-spawned entry must drain while the child runs: waiting for
+    // exit first would block a healthy writer once stderr fills the pipe.
+    let mut command = Command::new("sh");
+    command
+        .args([
+            "-c",
+            "head -c 2000000 /dev/zero | tr '\\0' o; \
+             head -c 2000000 /dev/zero | tr '\\0' e >&2; exit 3",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child = command.spawn().expect("spawn writer");
+    let output = support::bounded_wait_with_output(child, Duration::from_secs(30))
+        .expect("large-output spawned child completes inside the backstop");
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(output.stdout.len(), 2_000_000);
+    assert_eq!(output.stderr.len(), 2_000_000);
+    assert!(output.stdout.iter().all(|byte| *byte == b'o'));
+    assert!(output.stderr.iter().all(|byte| *byte == b'e'));
+    Ok(())
+}
+
+#[test]
 fn run_backstop_kills_and_reaps_a_child_that_never_exits() -> TestResult {
     // `exec` makes the spawned pid the sleeper itself, so the backstop kills
     // exactly the spawned child — no grandchildren, nothing global. Exercised
@@ -1361,12 +1385,65 @@ fn run_backstop_kills_and_reaps_a_child_that_never_exits() -> TestResult {
         .spawn()
         .expect("spawn sleeper");
     let started = Instant::now();
-    let timeout = support::bounded_wait_with_output(child, Duration::from_secs(2))
+    let failure = support::bounded_wait_with_output(child, Duration::from_secs(2))
         .expect_err("a non-exiting child must surface as a timeout, not pass");
-    assert_eq!(timeout.status.signal(), Some(9), "reaped as SIGKILL");
+    match failure {
+        support::BoundedChildFailure::ChildTimeout { status, .. } => {
+            assert_eq!(status.signal(), Some(9), "reaped as SIGKILL");
+        }
+        other => panic!("expected child-timeout, got {other}"),
+    }
     assert!(
         started.elapsed() < Duration::from_secs(30),
         "the short test budget fired, not the 45s backstop"
+    );
+    Ok(())
+}
+
+#[test]
+fn run_backstop_fails_when_a_descendant_holds_the_pipe() -> TestResult {
+    // The direct child exits at once; its backgrounded sibling sleeper keeps
+    // the stdout pipe's write end open. The deadline must expire as an
+    // explicit drain timeout — not a fabricated Ok, and not a wait for the
+    // descendant (5s fixture vs 2s budget; the sleeper ends on its own and is
+    // reaped by init, so nothing is left behind).
+    let mut command = Command::new("sh");
+    command.args(["-c", "sleep 5 & exit 0"]);
+    let started = Instant::now();
+    let failure = support::bounded_output(&mut command, Duration::from_secs(2))
+        .expect_err("a pipe held by a descendant must fail explicitly");
+    match failure {
+        support::BoundedChildFailure::DrainTimeout { status, .. } => {
+            assert_eq!(status.code(), Some(0), "the direct child exited cleanly");
+        }
+        other => panic!("expected drain-timeout, got {other}"),
+    }
+    assert!(
+        started.elapsed() < Duration::from_secs(4),
+        "the deadline returned before the descendant released the pipe"
+    );
+    Ok(())
+}
+
+#[test]
+fn run_backstop_killed_child_does_not_wait_on_a_descendant() -> TestResult {
+    // The direct child is killed at the deadline while its backgrounded
+    // sleeper still holds the pipe: the result is the child-timeout, and it
+    // must come back near the budget — never at the descendant's pace.
+    let mut command = Command::new("sh");
+    command.args(["-c", "sleep 5 & exec sleep 60"]);
+    let started = Instant::now();
+    let failure = support::bounded_output(&mut command, Duration::from_secs(2))
+        .expect_err("a non-exiting child must surface as a timeout, not pass");
+    match failure {
+        support::BoundedChildFailure::ChildTimeout { status, .. } => {
+            assert_eq!(status.signal(), Some(9), "reaped as SIGKILL");
+        }
+        other => panic!("expected child-timeout, got {other}"),
+    }
+    assert!(
+        started.elapsed() < Duration::from_secs(4),
+        "kill+reap returned inside the deadline, not at the descendant's pace"
     );
     Ok(())
 }

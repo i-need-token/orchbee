@@ -5,82 +5,181 @@
 
 use std::{
     io::{ErrorKind, Read},
+    os::fd::AsFd,
     os::unix::process::ExitStatusExt,
     path::Path,
-    process::{Child, Command, Output, Stdio},
+    process::{Child, Command, ExitStatus, Output, Stdio},
     thread,
     time::{Duration, Instant},
 };
+
+use nix::fcntl::{FcntlArg, OFlag, fcntl};
 
 /// Wall-clock backstop on every spawned CLI child. A healthy run retires on
 /// the CLI's own 5s network budget; this bound only guards the suite against
 /// a child that never exits at all, leaving ample slack for a loaded machine.
 pub const RUN_WALL_CLOCK_BACKSTOP: Duration = Duration::from_secs(45);
 
-/// The spawned child never exited inside `budget` and had to be killed. The
-/// reaped status and whatever was drained stay attached so the timeout is a
-/// diagnosable failure, never a silent pass.
-#[derive(Debug)]
-pub struct BoundedChildTimeout {
-    pub budget: Duration,
-    pub status: std::process::ExitStatus,
-    pub stdout: Vec<u8>,
-    pub stderr: Vec<u8>,
+/// Extra drain window after a killed child: enough to collect whatever the
+/// pipes already buffered, short enough that the timeout stays decisive.
+const POST_KILL_DRAIN: Duration = Duration::from_millis(100);
+
+/// The bounded wait failed. `status` is always the reaped direct-child state;
+/// `stdout`/`stderr` hold whatever was captured up to the failure and may be
+/// partial — they never pretend to be a complete normal `Output`.
+pub enum BoundedChildFailure {
+    /// The direct child was still running at the deadline: SIGKILL + reaped.
+    ChildTimeout {
+        budget: Duration,
+        status: ExitStatus,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
+    },
+    /// The child exited (normally or in the kill race) but a pipe stayed open
+    /// past the deadline — some other process still holds a write end.
+    DrainTimeout {
+        budget: Duration,
+        status: ExitStatus,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
+    },
+    /// A pipe read failed; the child was killed if it was still running.
+    ReadError {
+        budget: Duration,
+        status: ExitStatus,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
+        stream: &'static str,
+        error: std::io::Error,
+    },
 }
 
-impl std::fmt::Display for BoundedChildTimeout {
+// Debug delegates to Display: the captured byte buffers only appear as
+// counts, so a failure report stays a line, not a memory dump.
+impl std::fmt::Debug for BoundedChildFailure {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "cli child exceeded the {:?} wall-clock backstop; killed and reaped \
-             ({}) with {}B stdout / {}B stderr captured",
-            self.budget,
-            self.status,
-            self.stdout.len(),
-            self.stderr.len()
-        )
+        std::fmt::Display::fmt(self, formatter)
     }
 }
 
-/// `Command::output` with a deadline. Owns the stdio configuration — stdin
-/// closed, both pipes drained on their own threads — so a child writing more
-/// than the pipe buffer cannot deadlock the wait. On expiry only the spawned
-/// child is killed (`Child::kill` targets its exact pid) and then reaped via
-/// `wait`. A child that exited on its own in the kill race still returns its
-/// real `Output`.
-pub fn bounded_output(
-    command: &mut Command,
-    budget: Duration,
-) -> Result<Output, BoundedChildTimeout> {
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let mut child = command.spawn().expect("spawn cli child");
-    let mut stdout_pipe = child.stdout.take().expect("stdout piped");
-    let mut stderr_pipe = child.stderr.take().expect("stderr piped");
-    let stdout_drain = thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = stdout_pipe.read_to_end(&mut bytes);
-        bytes
-    });
-    let stderr_drain = thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = stderr_pipe.read_to_end(&mut bytes);
-        bytes
-    });
-    let deadline = Instant::now() + budget;
-    let observed = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break Some(status),
-            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(5)),
-            Ok(None) => break None,
-            Err(error) => panic!("cli child wait failed: {error}"),
+impl std::fmt::Display for BoundedChildFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ChildTimeout {
+                budget,
+                status,
+                stdout,
+                stderr,
+            } => write!(
+                formatter,
+                "cli child exceeded the {budget:?} wall-clock backstop; killed \
+                 and reaped ({status}) with {out}B stdout / {err}B stderr captured",
+                out = stdout.len(),
+                err = stderr.len()
+            ),
+            Self::DrainTimeout {
+                budget,
+                status,
+                stdout,
+                stderr,
+            } => write!(
+                formatter,
+                "cli child exited ({status}) but a pipe stayed open past the \
+                 {budget:?} backstop — a descendant still holds a write end; \
+                 {out}B stdout / {err}B stderr captured",
+                out = stdout.len(),
+                err = stderr.len()
+            ),
+            Self::ReadError {
+                budget,
+                status,
+                stdout,
+                stderr,
+                stream,
+                error,
+            } => write!(
+                formatter,
+                "cli child {stream} read failed ({error}) inside the {budget:?} \
+                 backstop; child reaped ({status}) with {out}B stdout / \
+                 {err}B stderr captured",
+                out = stdout.len(),
+                err = stderr.len()
+            ),
         }
-    };
-    let status = match observed {
-        Some(status) => status,
-        None => {
+    }
+}
+
+/// What the guard needs from a captured stream: nonblocking flaggable reads.
+trait CapturablePipe: Read + AsFd {}
+impl<T: Read + AsFd> CapturablePipe for T {}
+
+/// A captured pipe switched to `O_NONBLOCK`: reads return `WouldBlock`
+/// instead of blocking, so draining never waits on a write end held open by
+/// a descendant and no reader thread can be left blocked after the deadline.
+struct Pipe {
+    reader: Box<dyn CapturablePipe>,
+    captured: Vec<u8>,
+    open: bool,
+}
+
+enum DrainFault {
+    /// The end-to-end deadline arrived mid-drain.
+    Deadline,
+    /// The fd reported a real read error.
+    Read(std::io::Error),
+}
+
+impl Pipe {
+    fn new<R: Read + AsFd + 'static>(reader: R) -> Self {
+        fcntl(&reader, FcntlArg::F_SETFL(OFlag::O_NONBLOCK))
+            .expect("mark cli child pipe nonblocking");
+        Self {
+            reader: Box::new(reader),
+            captured: Vec::new(),
+            open: true,
+        }
+    }
+
+    /// Pull available bytes until EOF, `WouldBlock`, or `until`. Bounded in
+    /// every path — the deadline check sits inside the read loop so a
+    /// continuously writing child cannot starve it.
+    fn drain(&mut self, until: Instant) -> Result<(), DrainFault> {
+        let mut chunk = [0u8; 8192];
+        while self.open {
+            if Instant::now() >= until {
+                return Err(DrainFault::Deadline);
+            }
+            match self.reader.read(&mut chunk) {
+                Ok(0) => self.open = false,
+                Ok(n) => self.captured.extend_from_slice(&chunk[..n]),
+                Err(error) if error.kind() == ErrorKind::WouldBlock => break,
+                Err(error) if error.kind() == ErrorKind::Interrupted => {}
+                Err(error) => return Err(DrainFault::Read(error)),
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Single finish engine behind both public entries: one end-to-end deadline
+/// covers the direct child's run *and* the pipe-EOF wait. On expiry a still
+/// running direct child gets an exact `Child::kill` + `wait` reap; a child
+/// that already exited but whose pipes stay open (a descendant holds a write
+/// end) is a distinct `DrainTimeout`, never a fabricated normal `Output`.
+fn finish(mut child: Child, budget: Duration) -> Result<Output, BoundedChildFailure> {
+    let deadline = Instant::now() + budget;
+    let mut stdout = child.stdout.take().map(Pipe::new);
+    let mut stderr = child.stderr.take().map(Pipe::new);
+    let mut observed: Option<ExitStatus> = None;
+    loop {
+        if observed.is_none() {
+            match child.try_wait() {
+                Ok(Some(status)) => observed = Some(status),
+                Ok(None) => {}
+                Err(error) => panic!("cli child wait failed: {error}"),
+            }
+        }
+        if observed.is_none() && Instant::now() >= deadline {
             match child.kill() {
                 Ok(()) => {}
                 // Exited between the last poll and the kill: nothing to
@@ -88,62 +187,99 @@ pub fn bounded_output(
                 Err(error) if error.kind() == ErrorKind::NotFound => {}
                 Err(error) => panic!("cli child kill failed: {error}"),
             }
-            child.wait().expect("reap cli child")
+            let status = child.wait().expect("reap cli child");
+            observed = Some(status);
+            if status.signal().is_some() {
+                // Real kill: one bounded pass collects what the pipes hold.
+                let grace = Instant::now() + POST_KILL_DRAIN;
+                for pipe in [&mut stdout, &mut stderr].into_iter().flatten() {
+                    let _ = pipe.drain(grace);
+                }
+                return Err(BoundedChildFailure::ChildTimeout {
+                    budget,
+                    status,
+                    stdout: stdout.map_or_else(Vec::new, |pipe| pipe.captured),
+                    stderr: stderr.map_or_else(Vec::new, |pipe| pipe.captured),
+                });
+            }
+            // No signal: the child exited on its own in the kill race — fall
+            // through and finish draining under the same deadline.
         }
-    };
-    let stdout = stdout_drain.join().expect("stdout drain joined");
-    let stderr = stderr_drain.join().expect("stderr drain joined");
-    if observed.is_none() && status.signal().is_some() {
-        return Err(BoundedChildTimeout {
-            budget,
-            status,
-            stdout,
-            stderr,
-        });
+        let mut read_fault: Option<(&'static str, std::io::Error)> = None;
+        for (pipe, stream) in [(stdout.as_mut(), "stdout"), (stderr.as_mut(), "stderr")] {
+            let Some(pipe) = pipe else { continue };
+            match pipe.drain(deadline) {
+                Ok(()) => {}
+                // Data may still be mid-flight; let the top of the loop apply
+                // the child-kill or drain-timeout branch with a fresh clock.
+                Err(DrainFault::Deadline) => break,
+                Err(DrainFault::Read(error)) => {
+                    read_fault = Some((stream, error));
+                    break;
+                }
+            }
+        }
+        if let Some((stream, error)) = read_fault {
+            if observed.is_none() {
+                let _ = child.kill();
+                observed = Some(child.wait().expect("reap cli child"));
+            }
+            return Err(BoundedChildFailure::ReadError {
+                budget,
+                status: observed.expect("child status reaped"),
+                stdout: stdout.map_or_else(Vec::new, |pipe| pipe.captured),
+                stderr: stderr.map_or_else(Vec::new, |pipe| pipe.captured),
+                stream,
+                error,
+            });
+        }
+        let drained = stdout.as_ref().is_none_or(|pipe| !pipe.open)
+            && stderr.as_ref().is_none_or(|pipe| !pipe.open);
+        if let Some(status) = observed {
+            if drained {
+                return Ok(Output {
+                    status,
+                    stdout: stdout.map_or_else(Vec::new, |pipe| pipe.captured),
+                    stderr: stderr.map_or_else(Vec::new, |pipe| pipe.captured),
+                });
+            }
+            if Instant::now() >= deadline {
+                return Err(BoundedChildFailure::DrainTimeout {
+                    budget,
+                    status,
+                    stdout: stdout.map_or_else(Vec::new, |pipe| pipe.captured),
+                    stderr: stderr.map_or_else(Vec::new, |pipe| pipe.captured),
+                });
+            }
+        }
+        thread::sleep(Duration::from_millis(1));
     }
-    Ok(Output {
-        status,
-        stdout,
-        stderr,
-    })
 }
 
-/// `Child::wait_with_output` under the same deadline, for callers that own a
-/// custom stdio sink (e.g. a `/dev/full` stdout) and therefore cannot route
-/// through `bounded_output`. Same kill/reap/race semantics; the deadline is
-/// enforced on the already-spawned child.
-pub fn bounded_wait_with_output(
-    mut child: Child,
+/// `Command::output` with a deadline. Owns the stdio configuration — stdin
+/// closed, both pipes captured — and drains them while the child runs, so a
+/// child writing more than the pipe buffer cannot deadlock the wait.
+pub fn bounded_output(
+    command: &mut Command,
     budget: Duration,
-) -> Result<Output, BoundedChildTimeout> {
-    let deadline = Instant::now() + budget;
-    let observed = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break Some(status),
-            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(5)),
-            Ok(None) => break None,
-            Err(error) => panic!("cli child wait failed: {error}"),
-        }
-    };
-    if observed.is_none() {
-        match child.kill() {
-            Ok(()) => {}
-            // Exited between the last poll and the kill: `wait_with_output`
-            // below reaps the real exit status.
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => panic!("cli child kill failed: {error}"),
-        }
-    }
-    let output = child.wait_with_output().expect("reap cli child");
-    if observed.is_none() && output.status.signal().is_some() {
-        return Err(BoundedChildTimeout {
-            budget,
-            status: output.status,
-            stdout: output.stdout,
-            stderr: output.stderr,
-        });
-    }
-    Ok(output)
+) -> Result<Output, BoundedChildFailure> {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child = command.spawn().expect("spawn cli child");
+    finish(child, budget)
+}
+
+/// Deadline wait on an already-spawned child whose stdio the caller owns —
+/// e.g. a `/dev/full` stdout that cannot route through `bounded_output`.
+/// Whichever pipes exist are drained while the child runs under the same
+/// single end-to-end deadline; unpiped streams are not treated as an error.
+pub fn bounded_wait_with_output(
+    child: Child,
+    budget: Duration,
+) -> Result<Output, BoundedChildFailure> {
+    finish(child, budget)
 }
 
 /// Spawn the staged CLI binary under the wall-clock backstop with the shared
