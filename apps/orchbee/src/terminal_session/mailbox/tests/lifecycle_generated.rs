@@ -2551,6 +2551,12 @@ impl Trace {
                         .is_none_or(|pending| pending.operation() != &operation),
                     "non-committed Panel retained a commit",
                 )?;
+                if class == OutcomeClass::Rejected {
+                    // The peer commit that justified the RevisionMismatch left the
+                    // authority ahead of the session cache: resync through the drain
+                    // refresh before any further fresh outcome is honest.
+                    needs_drain = true;
+                }
             }
             OutcomeClass::Unchanged => {
                 require(
@@ -3254,6 +3260,13 @@ impl Trace {
             .and_then(|index| self.session.provenance(index))
             .is_none_or(|provenance| provenance.attachable());
         let legal = |class: OutcomeClass| match class {
+            // `Unchanged` is adapter-legal on Move but unreachable on this finite
+            // Native-planned fixture: `plan_panel` always picks the same-direction
+            // neighbor, while a server `Unchanged` requires the source already
+            // sitting at the target's side of that direction (R6
+            // state-final-delta25). Keep it in the table for the white-box
+            // boundary, but never generate it as a normal outcome.
+            OutcomeClass::Unchanged => false,
             OutcomeClass::CommittedTabGone => self.authority.tabs.len() >= 3,
             OutcomeClass::CommittedDrop | OutcomeClass::CloseAccepted => {
                 target_index.is_some_and(|index| self.authority.leaf_count(index) >= 2)
@@ -3365,18 +3378,39 @@ impl Trace {
             _ => 0,
         };
         let baseline_revision = operation.baseline().revision();
+        // Fresh-only precondition: every normal outcome is built while the authority
+        // still sits at the revision the operation was planned against. A peer advance
+        // between admission and the reply would make a committed result or a later
+        // `Unavailable` dishonest; the `Rejected` arm below is the single exception —
+        // it constructs that peer advance itself before answering.
+        require(
+            self.authority.revision == baseline_revision.value(),
+            "normal Panel outcome built on a stale baseline",
+        )?;
         let result = match class {
             OutcomeClass::NotSubmitted => PanelResult::NotSubmitted,
-            OutcomeClass::Rejected => PanelResult::Precommit(PanelPrecommit::Rejected {
-                // `revision` is the server's current revision — equal to the baseline a
-                // fresh operation was planned against. `RequestIdentityConflict` is the one
-                // rejection reason honestly emittable for every intent at equal revision
-                // (the retained-ledger preflight); `PanelUnavailable`/`TabUnavailable`
-                // require degenerate input and `IdentityExhausted`/`ResourceLimit` are not
-                // in every intent's compatible set.
-                revision: baseline_revision,
-                reason: WorkbenchRejectionReason::RequestIdentityConflict,
-            }),
+            OutcomeClass::Rejected => {
+                // A legal peer commit lands between our admission and the reply: the
+                // authority revision advances past the baseline, so the honest
+                // first-check rejection is `RevisionMismatch` carrying the server's
+                // current revision (revision checks precede Tab/Panel checks). A
+                // `RequestIdentityConflict` at equal revision would claim a ledger
+                // history — a different command already occupying this request ID —
+                // that the generator never constructed. The peer commit is a tab
+                // rename: it advances the revision without consuming fixture IDs or
+                // disturbing the finite fixture's tab/leaf geometry, and the
+                // following `drain_refresh` resynchronizes the session to it.
+                self.authority.rename_first_tab();
+                let current = self.authority.revision;
+                require(
+                    current > baseline_revision.value(),
+                    "rejected reply did not carry the advanced authority revision",
+                )?;
+                PanelResult::Precommit(PanelPrecommit::Rejected {
+                    revision: WorkbenchRevision::new(current),
+                    reason: WorkbenchRejectionReason::RevisionMismatch,
+                })
+            }
             OutcomeClass::Denied => PanelResult::Precommit(PanelPrecommit::Denied),
             OutcomeClass::Unavailable => PanelResult::Precommit(PanelPrecommit::Unavailable {
                 // Per-intent honest transient: Split has no runtime dependency of its own
@@ -4793,6 +4827,15 @@ impl Authority {
             root,
             tab_id: new_tab_id,
         });
+        self.revision += 1;
+    }
+
+    /// A legal peer commit that only changes a tab's label: the revision
+    /// advances past every in-flight baseline without consuming fixture IDs or
+    /// touching tab order, leaf geometry, or admission-time expectations.
+    fn rename_first_tab(&mut self) {
+        let tab = self.tabs.first_mut().expect("bootstrap tab exists");
+        tab.label = format!("peer-{}", self.revision);
         self.revision += 1;
     }
 
