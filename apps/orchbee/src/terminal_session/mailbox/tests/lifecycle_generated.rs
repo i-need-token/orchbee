@@ -3312,6 +3312,108 @@ impl Trace {
             )?;
             self.coverage.panel_negative_probes += 1;
         }
+        // An occupied event cell forces a second publication to wait for the consumer to
+        // drain it in real order — deposit the reply and take the receipt. Once the cell
+        // empties the publication is validated against state at placement: the flight was
+        // already consumed by the UI settlement, so it must close with Protocol rather
+        // than mutating anything.
+        {
+            let mut sandbox = PanelSandbox::new()?;
+            let (operation, _lease, wait) = sandbox.admit_split_awaiting()?;
+            let published = sandbox
+                .published
+                .clone()
+                .ok_or_else(|| violation_error("sandbox outcome missing"))?;
+            let mailbox = &sandbox.mailbox;
+            let session = &mut sandbox.session;
+            let clock = &sandbox.clock;
+            let publisher_operation = operation.clone();
+            let deadline = EventDeadline::PlacementOnly(publisher_operation.deadline());
+            let joined = std::thread::scope(|scope| {
+                let publisher = scope.spawn(move || {
+                    mailbox.publish_event_before_using(
+                        WorkerEvent::PanelResult {
+                            operation: publisher_operation,
+                            outcome: PanelResult::NotSubmitted,
+                        },
+                        deadline,
+                        clock,
+                    )
+                });
+                require(
+                    mailbox.await_condition_waiter_before(Instant::now() + Duration::from_secs(2)),
+                    "occupied-cell publisher never parked on the drain wait",
+                )?;
+                require(
+                    observed(
+                        mailbox.deposit_ui_reply_before_using(&wait, clock, |_transaction| {
+                            let prepared = session.prepare_panel(&operation, published);
+                            Ok(UiReply::Panel(PanelSettlement::new(
+                                session.apply_prepared_panel(prepared),
+                                session.desired().cloned(),
+                            )))
+                        }),
+                        "drain occupied cell reply",
+                    )? == MutationResult::Applied,
+                    "occupied cell reply was stale",
+                )?;
+                observed(
+                    mailbox.take_deposited_reply(&wait),
+                    "drain occupied cell reply receipt",
+                )?
+                .ok_or_else(|| violation_error("occupied cell reply receipt missing"))?;
+                publisher
+                    .join()
+                    .map_err(|_| violation_error("occupied-cell publisher panicked"))
+            })?;
+            let error =
+                self.expect_protocol_close(joined, "occupied-cell publication after drain")?;
+            require(
+                error == CarrierFailure::Protocol,
+                "occupied-cell drain publication wrong failure",
+            )?;
+            self.coverage.panel_negative_probes += 1;
+        }
+        // A publication parked on an occupied event cell must honor its own placement
+        // deadline: an advancing test clock pushes the re-sampled instant past the
+        // deadline so the drain wait refuses with Deadline instead of waiting without
+        // bound (the hang the frozen `FixedClock` produced).
+        {
+            let mut sandbox = PanelSandbox::new()?;
+            let (operation, _lease, _wait) = sandbox.admit_split_awaiting()?;
+            let elapsed = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+            let adjustable =
+                crate::local_client::test_server::adjustable_operation_clock(elapsed.clone());
+            let mailbox = &sandbox.mailbox;
+            let publisher_operation = operation.clone();
+            let deadline = EventDeadline::PlacementOnly(publisher_operation.deadline());
+            let joined = std::thread::scope(|scope| {
+                let publisher = scope.spawn(move || {
+                    mailbox.publish_event_before_using(
+                        WorkerEvent::PanelResult {
+                            operation: publisher_operation,
+                            outcome: PanelResult::NotSubmitted,
+                        },
+                        deadline,
+                        &adjustable,
+                    )
+                });
+                require(
+                    mailbox.await_condition_waiter_before(Instant::now() + Duration::from_secs(2)),
+                    "deadline publisher never parked on the drain wait",
+                )?;
+                elapsed.store(120_000, std::sync::atomic::Ordering::SeqCst);
+                publisher
+                    .join()
+                    .map_err(|_| violation_error("deadline publisher panicked"))
+            })?;
+            let error = self.expect_protocol_close(joined, "occupied-cell publication deadline")?;
+            require(
+                error == CarrierFailure::Deadline,
+                "occupied-cell expiry wrong failure",
+            )?;
+            self.coverage.panel_negative_probes += 1;
+        }
         // A reply deposited before its event was taken is a protocol fault.
         {
             let mut sandbox = PanelSandbox::new()?;
