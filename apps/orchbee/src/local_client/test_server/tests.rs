@@ -44,12 +44,15 @@ fn finish_bounded(server: FakeServer) -> io::Result<()> {
 fn start_without_client_times_out_bounded() {
     let called = Arc::new(AtomicBool::new(false));
     let flag = called.clone();
+    // The accept deadline starts inside `start`, so the clock starts before
+    // the call — otherwise legal thread scheduling could measure an elapsed
+    // time just below the guard.
+    let began = Instant::now();
     let server = FakeServer::start(move |_stream| {
         flag.store(true, Ordering::SeqCst);
         Ok(())
     })
     .expect("server starts");
-    let began = Instant::now();
     let error = finish_bounded(server).expect_err("no client must not pass");
     let elapsed = began.elapsed();
     assert_eq!(error.kind(), io::ErrorKind::TimedOut);

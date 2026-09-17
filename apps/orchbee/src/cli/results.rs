@@ -1501,8 +1501,9 @@ mod tests {
         use crate::invocation::{QueryCommand, Target};
         use crate::localization::Locale;
         use orchbee_terminal_protocol::{
-            AttachmentId, HostEpoch, TerminalFrameRoute, TerminalPixelGeometry, TerminalTextCell,
-            TerminalTextCursor, TerminalTextFrame, TerminalTextRow, TerminalTextStyle,
+            AttachmentId, HostEpoch, ProtocolErrorCode, TerminalFrameRoute, TerminalPixelGeometry,
+            TerminalTextCell, TerminalTextCursor, TerminalTextFrame, TerminalTextRow,
+            TerminalTextStyle, decode_terminal_text_frame,
         };
         use std::num::NonZeroU64;
         use std::sync::Arc;
@@ -1539,6 +1540,10 @@ mod tests {
         }
 
         fn frame(rows: Vec<TerminalTextRow>) -> TerminalTextFrame {
+            frame_with_columns(rows, COLUMNS)
+        }
+
+        fn frame_with_columns(rows: Vec<TerminalTextRow>, columns: u16) -> TerminalTextFrame {
             TerminalTextFrame {
                 route: TerminalFrameRoute {
                     attachment_id: AttachmentId::from_bytes([7; 16]).expect("attachment"),
@@ -1551,7 +1556,7 @@ mod tests {
                 geometry: TerminalPixelGeometry {
                     cell_pixel_height: 1,
                     cell_pixel_width: 8,
-                    columns: COLUMNS,
+                    columns,
                     rows: u16::try_from(rows.len()).expect("row count fits u16"),
                 },
                 cursor: TerminalTextCursor {
@@ -1565,6 +1570,94 @@ mod tests {
                 theme_revision: 1,
                 rows,
             }
+        }
+
+        /// Minimal OBTF snapshot serializer for real-decoder round-trip
+        /// checks: cell texts are interned in first-use order, every cell
+        /// shares style 0, and a cell's width code goes into the wire
+        /// cell-flags byte. Rows are serialized with their actual cell
+        /// count, so an under-width row fails the decoder's
+        /// `cells_count == columns` rule instead of being padded silently.
+        fn wire(frame: &TerminalTextFrame) -> Vec<u8> {
+            let mut strings: Vec<Arc<str>> = Vec::new();
+            for row in &frame.rows {
+                for cell in &row.cells {
+                    if !strings.iter().any(|text| text == &cell.text) {
+                        strings.push(cell.text.clone());
+                    }
+                }
+            }
+            let route = &frame.route;
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(b"OBTF");
+            bytes.extend_from_slice(&[0, 0]); // format major/minor
+            bytes.push(1); // snapshot kind: no base revision
+            bytes.push(0); // routing flags
+            bytes.extend_from_slice(&[0; 4]); // total length, patched below
+            bytes.extend_from_slice(&160_u16.to_le_bytes()); // header bytes
+            bytes.extend_from_slice(&[0; 2]); // reserved
+            bytes.extend_from_slice(route.host_epoch.as_bytes());
+            bytes.extend_from_slice(route.attachment_id.as_bytes());
+            bytes.extend_from_slice(&route.sequence.get().to_le_bytes());
+            bytes.extend_from_slice(&u64::MAX.to_le_bytes()); // base revision: none
+            bytes.extend_from_slice(&route.revision.to_le_bytes());
+            bytes.extend_from_slice(&route.generation.get().to_le_bytes());
+            bytes.extend_from_slice(&[0; 8]); // reserved routing tail
+            bytes.extend_from_slice(&frame.geometry.columns.to_le_bytes());
+            bytes.extend_from_slice(&frame.geometry.rows.to_le_bytes());
+            bytes.extend_from_slice(&frame.cursor.column.to_le_bytes());
+            bytes.extend_from_slice(&frame.cursor.row.to_le_bytes());
+            bytes.push(1); // cursor shape
+            bytes.push(u8::from(frame.cursor.visible)); // cursor flags
+            bytes.push(if frame.alternate_screen { 2 } else { 1 }); // screen
+            bytes.push(0); // reserved
+            bytes.extend_from_slice(&0_u32.to_le_bytes()); // interaction
+            bytes.extend_from_slice(&frame.foreground.to_le_bytes());
+            bytes.extend_from_slice(&frame.background.to_le_bytes());
+            bytes.extend_from_slice(&0_u32.to_le_bytes()); // cursor color
+            bytes.extend_from_slice(&u32::MAX.to_le_bytes()); // title: none
+            bytes.extend_from_slice(&u32::MAX.to_le_bytes()); // directory: none
+            bytes.extend_from_slice(&(strings.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(&1_u16.to_le_bytes()); // one style entry
+            bytes.extend_from_slice(&frame.geometry.rows.to_le_bytes()); // all rows
+            bytes.extend_from_slice(&[0; 2]); // no extensions
+            bytes.extend_from_slice(&[0; 2]); // reserved tables
+            bytes.extend_from_slice(&frame.geometry.cell_pixel_width.to_le_bytes());
+            bytes.extend_from_slice(&frame.geometry.cell_pixel_height.to_le_bytes());
+            bytes.extend_from_slice(
+                &(u32::from(frame.geometry.columns) * u32::from(frame.geometry.rows)).to_le_bytes(),
+            );
+            bytes.push(3); // OBTF version byte checked by the route inspector
+            bytes.extend_from_slice(&frame.theme_revision.to_le_bytes());
+            bytes.extend_from_slice(&[0; 7]); // trailing reserved header
+            for text in &strings {
+                bytes.extend_from_slice(&(text.len() as u32).to_le_bytes());
+                bytes.extend_from_slice(text.as_bytes());
+            }
+            // One style entry: default colors, no link, no flags or underline.
+            bytes.extend_from_slice(&[0; 12]); // foreground/background/underline
+            bytes.extend_from_slice(&u32::MAX.to_le_bytes()); // link: none
+            bytes.extend_from_slice(&[0; 4]); // flags, underline, reserved
+            for row in &frame.rows {
+                bytes.extend_from_slice(&row.index.to_le_bytes());
+                bytes.push(row.flags);
+                bytes.push(0); // prompt: none
+                bytes.extend_from_slice(&(row.cells.len() as u16).to_le_bytes());
+                bytes.extend_from_slice(&[0; 2]); // reserved
+                for cell in &row.cells {
+                    let string = strings
+                        .iter()
+                        .position(|text| text == &cell.text)
+                        .expect("interned") as u32;
+                    bytes.extend_from_slice(&string.to_le_bytes());
+                    bytes.extend_from_slice(&0_u16.to_le_bytes()); // style 0
+                    bytes.push(cell.width); // cell flags carry the width code
+                    bytes.push(0); // reserved
+                }
+            }
+            let total = u32::try_from(bytes.len()).expect("frame length fits u32");
+            bytes[8..12].copy_from_slice(&total.to_le_bytes());
+            bytes
         }
 
         /// One row of 64 cells that all share a single string.
@@ -1693,13 +1786,15 @@ mod tests {
         /// renders one space, trailing padding trims, and a blank-only row
         /// emits an empty line. The rows obey the decoder's topology: a row
         /// ending in a spacer head sets `intoNext`, so the next row opens
-        /// with a wide cell and `fromPrevious`.
+        /// with a wide cell and `fromPrevious`. The dedicated 3-column
+        /// geometry keeps every row at exactly `columns` cells so the real
+        /// decoder accepts the frame.
         #[test]
         fn spacer_and_blank_cells_render_as_grid_content() {
             let wide_text: Arc<str> = Arc::from("中");
             let blank: Arc<str> = Arc::from("");
             let narrow: Arc<str> = Arc::from("x");
-            let frame = frame(vec![
+            let rows = vec![
                 TerminalTextRow {
                     index: 0,
                     flags: 1,
@@ -1722,9 +1817,21 @@ mod tests {
                 TerminalTextRow {
                     index: 3,
                     flags: 0,
-                    cells: vec![cell(&blank, 0), cell(&blank, 0)],
+                    cells: vec![cell(&blank, 0), cell(&blank, 0), cell(&blank, 0)],
                 },
-            ]);
+            ];
+            // The pre-repair shape: the same rows under the shared 64-column
+            // geometry carry fewer than `columns` cells, so the real decoder
+            // rejects the frame as `InvalidField`.
+            let mut under_width = rows.clone();
+            under_width[3].cells.pop();
+            let error = decode_terminal_text_frame(&wire(&frame(under_width)))
+                .expect_err("under-width rows must be rejected");
+            assert_eq!(error.code(), ProtocolErrorCode::InvalidField);
+            let frame = frame_with_columns(rows, 3);
+            let decoded = decode_terminal_text_frame(&wire(&frame)).expect("fixture decodes");
+            assert_eq!(decoded.geometry, frame.geometry);
+            assert_eq!(decoded.rows, frame.rows);
             let doc = terminal_read_doc(terminal(), &frame).expect("document");
             let texts: Vec<&str> = doc.rows.iter().map(|row| row.text.as_str()).collect();
             assert_eq!(texts, ["xx", "中界", " x", ""]);
@@ -1745,11 +1852,25 @@ mod tests {
             let head: Arc<str> = Arc::from("head\u{1b}row");
             let control: Arc<str> = Arc::from("\u{1}".repeat(16384).as_str());
             let tail: Arc<str> = Arc::from("tail-marker-row");
-            // One literal cell plus spacer heads: the joined line is the
-            // literal text after trailing-blank trim, and each row still
-            // carries exactly `columns` cells as the decoder requires.
+            // One literal cell plus narrow blank cells: the joined line is
+            // the literal text after trailing-blank trim, and each row
+            // carries exactly `columns` cells as the decoder requires. A
+            // spacer head is not legal padding — it is only valid as the
+            // final cell of a row that wraps `intoNext`.
             let blank: Arc<str> = Arc::from("");
             let text_row = |index: u16, text: &Arc<str>| {
+                let mut cells = vec![cell(text, 0)];
+                cells.extend((1..COLUMNS).map(|_| cell(&blank, 0)));
+                TerminalTextRow {
+                    index,
+                    flags: 0,
+                    cells,
+                }
+            };
+            // The pre-repair shape padded with spacer heads whose flags were
+            // 0: mid-row spacer heads and a spacer head on a non-wrapping row
+            // are both `InvalidField` to the real decoder.
+            let spacer_head_row = |index: u16, text: &Arc<str>| {
                 let mut cells = vec![cell(text, 0)];
                 cells.extend((1..COLUMNS).map(|_| cell(&blank, 3)));
                 TerminalTextRow {
@@ -1758,11 +1879,22 @@ mod tests {
                     cells,
                 }
             };
+            let illegal = frame(vec![
+                spacer_head_row(0, &head),
+                shared_row(1, 0, &control),
+                spacer_head_row(2, &tail),
+            ]);
+            let error = decode_terminal_text_frame(&wire(&illegal))
+                .expect_err("spacer-head padding must be rejected");
+            assert_eq!(error.code(), ProtocolErrorCode::InvalidField);
             let frame = frame(vec![
                 text_row(0, &head),
                 shared_row(1, 0, &control),
                 text_row(2, &tail),
             ]);
+            let decoded = decode_terminal_text_frame(&wire(&frame)).expect("fixture decodes");
+            assert_eq!(decoded.geometry, frame.geometry);
+            assert_eq!(decoded.rows, frame.rows);
             let doc = terminal_read_doc(terminal(), &frame).expect("document");
             assert_eq!(doc.row_count, 3);
             assert_eq!(doc.rows.len(), 1);
