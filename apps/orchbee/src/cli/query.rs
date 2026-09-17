@@ -253,8 +253,9 @@ fn poll_terminal_frame(
                             _ => return Err(viewer_protocol_invalid()),
                         }
                     }
-                    // A consumed ProjectionBlocked or a replayed record keeps
-                    // the loop polling for an applicable frame.
+                    // A consumed ProjectionBlocked keeps the loop polling for
+                    // an applicable frame; a replayed record was already
+                    // rejected above as protocol-invalid.
                     Ok(None) => {}
                     Err(()) => return Err(viewer_protocol_invalid()),
                 }

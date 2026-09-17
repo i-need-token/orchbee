@@ -2611,3 +2611,470 @@ fn terminal_read_recovers_through_need_snapshot_feedback() -> TestResult {
     assert!(schema.is_valid(&document), "read document: {document}");
     Ok(())
 }
+
+// ---- bounded frames + rejection witnesses ----------------------------------
+
+/// Assert the CLI released the session carrier after the scripted exchange:
+/// any further request — a retry or a leaked viewer action — fails the
+/// witness, and a read that stalls instead of hitting EOF fails it too.
+fn expect_session_eof(stream: &UnixStream) {
+    match read_client_message(&mut &*stream) {
+        Ok(message) => panic!("session must be released; CLI sent {message:?}"),
+        Err(error) => assert!(
+            matches!(
+                error,
+                orchbee_client_server_protocol::ReadMessageError::Io(ref io)
+                    if io.kind() == std::io::ErrorKind::UnexpectedEof
+            ),
+            "session must close, not stall or corrupt: {error:?}"
+        ),
+    }
+}
+
+/// A decoder-legal OBTF 0.0.3 snapshot built from a shared string table:
+/// `rows` carries `(flags, cells)` pairs where each cell entry is a string
+/// index and every row must hold exactly `columns` cells — the only shape
+/// this builder emits, so no impossible state can be expressed. It reuses
+/// the fixture attachment/epoch so the scripted `Attached` answer scopes the
+/// record, and the result is re-checked against the real decoder so a broken
+/// builder fails inside the test instead of corrupting the peer.
+fn budget_obtf(columns: u16, rows: &[(u8, &[u32])], strings: &[&str]) -> Vec<u8> {
+    let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
+    let row_count = u16::try_from(rows.len()).expect("row count fits u16");
+    let mut frame = Vec::new();
+    frame.extend_from_slice(b"OBTF");
+    frame.extend_from_slice(&[0, 0]); // format major/minor
+    frame.push(1); // snapshot kind: no base revision
+    frame.push(0); // routing flags
+    frame.extend_from_slice(&[0; 4]); // total length, patched below
+    frame.extend_from_slice(&160_u16.to_le_bytes()); // header bytes
+    frame.extend_from_slice(&[0; 2]); // reserved
+    frame.extend_from_slice(route.host_epoch.as_bytes());
+    frame.extend_from_slice(route.attachment_id.as_bytes());
+    frame.extend_from_slice(&1_u64.to_le_bytes()); // sequence
+    frame.extend_from_slice(&u64::MAX.to_le_bytes()); // base revision: none
+    frame.extend_from_slice(&1_u64.to_le_bytes()); // revision
+    frame.extend_from_slice(&1_u64.to_le_bytes()); // generation
+    frame.extend_from_slice(&[0; 8]); // reserved routing tail
+    frame.extend_from_slice(&columns.to_le_bytes());
+    frame.extend_from_slice(&row_count.to_le_bytes());
+    frame.extend_from_slice(&[0; 2]); // cursor column
+    frame.extend_from_slice(&[0; 2]); // cursor row
+    frame.push(1); // cursor shape
+    frame.push(1); // cursor flags: visible
+    frame.push(1); // primary screen
+    frame.push(0); // reserved
+    frame.extend_from_slice(&0_u32.to_le_bytes()); // interaction
+    frame.extend_from_slice(&0_u32.to_le_bytes()); // foreground
+    frame.extend_from_slice(&0_u32.to_le_bytes()); // background
+    frame.extend_from_slice(&0_u32.to_le_bytes()); // cursor color
+    frame.extend_from_slice(&u32::MAX.to_le_bytes()); // title: none
+    frame.extend_from_slice(&u32::MAX.to_le_bytes()); // directory: none
+    frame.extend_from_slice(&(strings.len() as u32).to_le_bytes());
+    frame.extend_from_slice(&1_u16.to_le_bytes()); // one style entry
+    frame.extend_from_slice(&row_count.to_le_bytes()); // snapshot: all rows
+    frame.extend_from_slice(&0_u16.to_le_bytes()); // no extensions
+    frame.extend_from_slice(&0_u16.to_le_bytes()); // reserved tables
+    // The 4,096-row bound still fits the 16-bit pixel extent at height 1.
+    frame.extend_from_slice(&8_u16.to_le_bytes()); // cell pixel width
+    frame.extend_from_slice(&1_u16.to_le_bytes()); // cell pixel height
+    frame.extend_from_slice(&(u32::from(columns) * u32::from(row_count)).to_le_bytes());
+    frame.push(3); // OBTF version byte checked by the route inspector
+    frame.extend_from_slice(&1_u64.to_le_bytes()); // theme revision
+    frame.extend_from_slice(&[0; 7]); // trailing reserved header
+    for text in strings {
+        let bytes = text.as_bytes();
+        frame.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        frame.extend_from_slice(bytes);
+    }
+    // One style entry: default colors, no link, no flags or underline.
+    frame.extend_from_slice(&[0; 12]); // foreground/background/underline
+    frame.extend_from_slice(&u32::MAX.to_le_bytes()); // link: none
+    frame.extend_from_slice(&[0; 4]); // flags, underline, reserved
+    for (ordinal, (flags, cells)) in rows.iter().enumerate() {
+        assert_eq!(
+            cells.len(),
+            usize::from(columns),
+            "row {ordinal} cell count"
+        );
+        frame.extend_from_slice(&(ordinal as u16).to_le_bytes()); // index
+        frame.push(*flags);
+        frame.push(0); // prompt: none
+        frame.extend_from_slice(&columns.to_le_bytes());
+        frame.extend_from_slice(&[0; 2]); // reserved
+        for &string in *cells {
+            frame.extend_from_slice(&string.to_le_bytes());
+            frame.extend_from_slice(&0_u16.to_le_bytes()); // style 0
+            frame.extend_from_slice(&[0; 2]); // narrow cell, reserved
+        }
+    }
+    let total = u32::try_from(frame.len()).expect("frame length fits u32");
+    frame[8..12].copy_from_slice(&total.to_le_bytes());
+    decode_terminal_text_frame(&frame).expect("generated frame must decode");
+    frame
+}
+
+/// The exact-boundary witness: one shared 16 KiB string reused across all
+/// 64 cells of a row joins to a 1,048,576-char text whose JSON encoding
+/// debits 1,048,578 budget bytes. Three rows debit 3,145,734; row 3 keeps
+/// 63 shared cells plus one mixed cell (`中`×4000 → 12,000 encoded bytes,
+/// ESC×500 → 3,000, `x`×1376 → 1,376 = 16,376), landing the row at exactly
+/// 1,048,570 and the sum on the 4,194,304 budget — `==` must still emit.
+/// Mutating the debit check to `>=` or skipping the quote bytes drops row 3.
+#[test]
+fn terminal_read_emits_rows_at_the_exact_text_budget() -> TestResult {
+    let base = base_dir("tread-budget-exact");
+    let scope = stage_scope(&base);
+    let full = "x".repeat(16384);
+    let tail = format!(
+        "{}{}{}",
+        "中".repeat(4000),
+        "\u{1b}".repeat(500),
+        "x".repeat(1376)
+    );
+    let shared = vec![0_u32; 64];
+    let mut last = vec![0_u32; 63];
+    last.push(1);
+    let rows: [(u8, &[u32]); 4] = [(0, &shared), (0, &shared), (0, &shared), (0, &last)];
+    let record = frame_record(&budget_obtf(64, &rows, &[full.as_str(), tail.as_str()]));
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        answer_detach(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let content = &document["result"]["content"];
+    assert_eq!(content["truncated"], false);
+    assert_eq!(content["omittedRows"], 0);
+    assert_eq!(content["rowCount"], 4);
+    let emitted = content["rows"].as_array().unwrap();
+    assert_eq!(emitted.len(), 4);
+    let full_text = "x".repeat(64 * 16384);
+    for (index, row) in emitted[..3].iter().enumerate() {
+        assert_eq!(row["index"], index as u64);
+        assert_eq!(row["text"].as_str().unwrap(), full_text);
+    }
+    let mut last_text = "x".repeat(63 * 16384);
+    last_text.push_str(&tail);
+    assert_eq!(emitted[3]["index"], 3);
+    assert_eq!(emitted[3]["text"].as_str().unwrap(), last_text);
+    let schema = compiled_schema(&base, "orchbee.terminal.read");
+    assert!(schema.is_valid(&document), "read document: {document}");
+    Ok(())
+}
+
+/// One encoded byte over the remaining budget omits the whole row: the mixed
+/// tail's `x` run grows to 1,377, so row 3 encodes to 1,048,571 against
+/// 1,048,570 left. The kept rows carry a wrap pair (bit 0 on row 0, bit 1 on
+/// row 1) so a continuation-flag swap fails here too.
+#[test]
+fn terminal_read_omits_the_row_one_byte_over_budget() -> TestResult {
+    let base = base_dir("tread-budget-partial");
+    let scope = stage_scope(&base);
+    let full = "x".repeat(16384);
+    let tail = format!(
+        "{}{}{}",
+        "中".repeat(4000),
+        "\u{1b}".repeat(500),
+        "x".repeat(1377)
+    );
+    let shared = vec![0_u32; 64];
+    let mut last = vec![0_u32; 63];
+    last.push(1);
+    let rows: [(u8, &[u32]); 4] = [(1, &shared), (2, &shared), (0, &shared), (0, &last)];
+    let record = frame_record(&budget_obtf(64, &rows, &[full.as_str(), tail.as_str()]));
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        answer_detach(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let content = &document["result"]["content"];
+    assert_eq!(content["truncated"], true);
+    assert_eq!(content["omittedRows"], 1);
+    assert_eq!(content["rowCount"], 4);
+    let emitted = content["rows"].as_array().unwrap();
+    assert_eq!(emitted.len(), 3);
+    assert_eq!(emitted[0]["continuation"]["intoNext"], true);
+    assert_eq!(emitted[0]["continuation"]["fromPrevious"], false);
+    assert_eq!(emitted[1]["continuation"]["intoNext"], false);
+    assert_eq!(emitted[1]["continuation"]["fromPrevious"], true);
+    assert_eq!(emitted[2]["continuation"]["intoNext"], false);
+    assert_eq!(emitted[2]["continuation"]["fromPrevious"], false);
+    let schema = compiled_schema(&base, "orchbee.terminal.read");
+    assert!(schema.is_valid(&document), "read document: {document}");
+    Ok(())
+}
+
+/// The decoder maximum of 4,096 rows with a first row already over budget:
+/// 64 cells sharing a 16 KiB control string join to 1,048,576 chars that
+/// JSON-escape to 6,291,458 bytes, so every row is omitted and the count
+/// stays honest at the schema's upper bound. Dictionary reuse keeps the wire
+/// frame ≈2.1 MiB — no giant fixture. A budget that debited raw text length
+/// instead of the escaped encoding, or a miscounted `omittedRows`, fails
+/// here; this is also the cell_count = 262,144 decoder boundary.
+#[test]
+fn terminal_read_omits_all_4096_rows_over_budget() -> TestResult {
+    let base = base_dir("tread-budget-omitted");
+    let scope = stage_scope(&base);
+    let control = "\u{1}".repeat(16384);
+    let cells = vec![0_u32; 64];
+    let rows: Vec<(u8, &[u32])> = (0..4096).map(|_| (0_u8, cells.as_slice())).collect();
+    let record = frame_record(&budget_obtf(64, &rows, &[control.as_str()]));
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        answer_detach(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let content = &document["result"]["content"];
+    assert_eq!(content["rowCount"], 4096);
+    assert_eq!(content["omittedRows"], 4096);
+    assert_eq!(content["truncated"], true);
+    assert!(content["rows"].as_array().unwrap().is_empty());
+    assert_eq!(document["result"]["frame"]["geometry"]["rows"], 4096);
+    let schema = compiled_schema(&base, "orchbee.terminal.read");
+    assert!(schema.is_valid(&document), "read document: {document}");
+    Ok(())
+}
+
+/// The all-omitted frame through the text path: no grid rows reach stdout,
+/// only the localized truncation marker — and no raw control byte escapes.
+#[test]
+fn terminal_read_text_output_marks_truncated_rows() -> TestResult {
+    let base = base_dir("tread-budget-text");
+    let scope = stage_scope(&base);
+    let control = "\u{1}".repeat(16384);
+    let cells = vec![0_u32; 64];
+    let rows: Vec<(u8, &[u32])> = (0..4096).map(|_| (0_u8, cells.as_slice())).collect();
+    let record = frame_record(&budget_obtf(64, &rows, &[control.as_str()]));
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        answer_detach(stream, &attachment);
+    });
+    let output = run(&base, &["terminal", "read", TERMINAL_ID]);
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "… 4096 more rows truncated at the read limit\n"
+    );
+    assert!(
+        !output.stdout.contains(&0x01),
+        "raw control bytes never reach stdout"
+    );
+    Ok(())
+}
+
+/// `AlreadyAttached` on the attach answer means the binding already has a
+/// viewer: contention is unavailability, and the CLI must release the
+/// session without a retry or a stray `Detach`.
+#[test]
+fn terminal_read_attach_already_attached_is_service_unavailable() -> TestResult {
+    let base = base_dir("tread-attached");
+    let scope = stage_scope(&base);
+    let peer = read_peer(&scope, |stream| {
+        let request = viewer_request(stream);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Rejected {
+                reason: ViewerRejectedReason::AlreadyAttached,
+            },
+        );
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(4));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "service-unavailable");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+/// `FeedbackMismatch` rejects the CLI's `NeedSnapshot`: a feedback-state
+/// contradiction is a protocol violation, not unavailability. The CLI still
+/// sends its best-effort `Detach` before releasing the session.
+#[test]
+fn terminal_read_feedback_mismatch_is_protocol_invalid() -> TestResult {
+    let base = base_dir("tread-fb-mismatch");
+    let scope = stage_scope(&base);
+    let blocked = blocked_record(1);
+    let stale = obtf_record();
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(blocked.clone()),
+        );
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(stale.clone()),
+        );
+        let request = viewer_request(stream);
+        match request.action() {
+            TerminalViewerAction::NeedSnapshot { .. } => {}
+            action => panic!("peer expected need-snapshot feedback, got {action:?}"),
+        }
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Rejected {
+                reason: ViewerRejectedReason::FeedbackMismatch,
+            },
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "protocol-invalid");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+/// A `Detached` outcome on `Poll` is wire-incompatible: the transport
+/// retires the session itself, so the CLI never retries and the peer sees
+/// the carrier close.
+#[test]
+fn terminal_read_incompatible_poll_result_is_protocol_invalid() -> TestResult {
+    let base = base_dir("tread-poll-incompat");
+    let scope = stage_scope(&base);
+    let peer = read_peer(&scope, |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(stream, &request, TerminalViewerOutcome::Detached {});
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "protocol-invalid");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+/// A `Record` outcome answering `NeedSnapshot` feedback is wire-incompatible
+/// the same way: session retired, no retry, protocol-invalid.
+#[test]
+fn terminal_read_incompatible_feedback_result_is_protocol_invalid() -> TestResult {
+    let base = base_dir("tread-fb-incompat");
+    let scope = stage_scope(&base);
+    let blocked = blocked_record(1);
+    let stale = obtf_record();
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(blocked.clone()),
+        );
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(stale.clone()),
+        );
+        let request = viewer_request(stream);
+        match request.action() {
+            TerminalViewerAction::NeedSnapshot { .. } => {}
+            action => panic!("peer expected need-snapshot feedback, got {action:?}"),
+        }
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(vec![0xAA; 64]),
+        );
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "protocol-invalid");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}

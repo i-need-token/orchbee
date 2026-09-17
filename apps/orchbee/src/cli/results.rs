@@ -1488,4 +1488,245 @@ mod tests {
         assert_eq!(rows.len(), DUP_TABS.len());
         assert!(rows.iter().all(|row| row.context.standalone));
     }
+
+    /// `terminal read` answer bounds over decoder-legal frame states: every
+    /// constructed frame honors the wire invariants the OBTF decoder enforces
+    /// (row index < `rows`, `cells == columns`, adjacent wrap-flag agreement),
+    /// so each case is a state a real record can deliver. The same shapes
+    /// cross the wire in the scripted-peer witnesses in `tests/cli_query.rs`.
+    #[cfg(unix)]
+    mod terminal_read {
+        use super::super::{Projection, TerminalRow, terminal_read_doc};
+        use orchbee_terminal_protocol::{
+            AttachmentId, HostEpoch, TerminalFrameRoute, TerminalPixelGeometry, TerminalTextCell,
+            TerminalTextCursor, TerminalTextFrame, TerminalTextRow, TerminalTextStyle,
+        };
+        use std::num::NonZeroU64;
+        use std::sync::Arc;
+
+        const COLUMNS: u16 = 64;
+
+        fn hex(n: u8) -> String {
+            format!("{n:032x}")
+        }
+
+        fn terminal() -> TerminalRow {
+            TerminalRow {
+                terminal_id: hex(0x01),
+                worker_id: "6f7263686265652d6c6f63616c2d7631".to_owned(),
+                presentation_id: hex(0x20),
+                panel_id: hex(0x21),
+                tab_id: hex(0x22),
+                terminal_context_id: hex(0x50),
+            }
+        }
+
+        fn cell(text: &Arc<str>, width: u8) -> TerminalTextCell {
+            TerminalTextCell {
+                text: text.clone(),
+                style: TerminalTextStyle {
+                    foreground: 0,
+                    background: 0,
+                    underline_color: 0,
+                    flags: 0,
+                    underline: 0,
+                },
+                width,
+            }
+        }
+
+        fn frame(rows: Vec<TerminalTextRow>) -> TerminalTextFrame {
+            TerminalTextFrame {
+                route: TerminalFrameRoute {
+                    attachment_id: AttachmentId::from_bytes([7; 16]).expect("attachment"),
+                    host_epoch: HostEpoch::from_bytes([9; 16]).expect("epoch"),
+                    sequence: NonZeroU64::new(1).expect("sequence"),
+                    generation: NonZeroU64::new(1).expect("generation"),
+                    revision: 1,
+                    base_revision: None,
+                },
+                geometry: TerminalPixelGeometry {
+                    cell_pixel_height: 1,
+                    cell_pixel_width: 8,
+                    columns: COLUMNS,
+                    rows: u16::try_from(rows.len()).expect("row count fits u16"),
+                },
+                cursor: TerminalTextCursor {
+                    column: 0,
+                    row: 0,
+                    visible: true,
+                },
+                alternate_screen: false,
+                foreground: 0,
+                background: 0,
+                theme_revision: 1,
+                rows,
+            }
+        }
+
+        /// One row of 64 cells that all share a single string.
+        fn shared_row(index: u16, flags: u8, text: &Arc<str>) -> TerminalTextRow {
+            TerminalTextRow {
+                index,
+                flags,
+                cells: vec![cell(text, 0); usize::from(COLUMNS)],
+            }
+        }
+
+        /// The exact-boundary frame: 64 cells sharing one 16 KiB string join
+        /// into a 1,048,576-char text whose JSON encoding debits 1,048,578
+        /// bytes. Three such rows debit 3,145,734; row 3 keeps 63 shared
+        /// cells plus a mixed tail (`中`×4000 = 12,000 encoded bytes, ESC×500
+        /// = 3,000, `x`×1376 = 1,376 — 16,376 total), encoding to exactly
+        /// 1,048,570 and landing the sum on READ_TEXT_BYTES. This pins the
+        /// `>`-not-`>=` debit check: a boundary row must still be emitted.
+        #[test]
+        fn exact_budget_emits_every_row() {
+            let full: Arc<str> = Arc::from("x".repeat(16384).as_str());
+            let tail_text = format!(
+                "{}{}{}",
+                "中".repeat(4000),
+                "\u{1b}".repeat(500),
+                "x".repeat(1376)
+            );
+            let tail: Arc<str> = Arc::from(tail_text.as_str());
+            let mut last_cells = vec![cell(&full, 0); 63];
+            last_cells.push(cell(&tail, 0));
+            let frame = frame(vec![
+                shared_row(0, 0, &full),
+                shared_row(1, 0, &full),
+                shared_row(2, 0, &full),
+                TerminalTextRow {
+                    index: 3,
+                    flags: 0,
+                    cells: last_cells,
+                },
+            ]);
+            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            assert_eq!(doc.row_count, 4);
+            assert_eq!(doc.rows.len(), 4);
+            assert_eq!(doc.omitted_rows, 0);
+            let full_text = "x".repeat(usize::from(COLUMNS) * 16384);
+            for (index, row) in doc.rows[..3].iter().enumerate() {
+                assert_eq!(row.index, index as u16);
+                assert_eq!(row.text, full_text);
+            }
+            let mut last_text = "x".repeat(63 * 16384);
+            last_text.push_str(&tail);
+            assert_eq!(doc.rows[3].index, 3);
+            assert_eq!(doc.rows[3].text, last_text);
+            let content = &Projection::TerminalRead(doc).result()["content"];
+            assert_eq!(content["truncated"], false);
+            assert_eq!(content["omittedRows"], 0);
+            assert_eq!(content["rowCount"], 4);
+        }
+
+        /// One encoded byte past the remaining budget omits the whole row:
+        /// the mixed tail's `x` run grows to 1,377 so row 3 encodes to
+        /// 1,048,571 against 1,048,570 left. The kept rows carry a wrap pair
+        /// — bit 0 `intoNext` on row 0 meets bit 1 `fromPrevious` on row 1 —
+        /// so a flag-swap mutation fails here too.
+        #[test]
+        fn one_byte_over_budget_omits_the_row() {
+            let full: Arc<str> = Arc::from("x".repeat(16384).as_str());
+            let tail: Arc<str> = Arc::from(
+                format!(
+                    "{}{}{}",
+                    "中".repeat(4000),
+                    "\u{1b}".repeat(500),
+                    "x".repeat(1377)
+                )
+                .as_str(),
+            );
+            let mut last_cells = vec![cell(&full, 0); 63];
+            last_cells.push(cell(&tail, 0));
+            let frame = frame(vec![
+                shared_row(0, 1, &full),
+                shared_row(1, 2, &full),
+                shared_row(2, 0, &full),
+                TerminalTextRow {
+                    index: 3,
+                    flags: 0,
+                    cells: last_cells,
+                },
+            ]);
+            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            assert_eq!(doc.row_count, 4);
+            assert_eq!(doc.rows.len(), 3);
+            assert_eq!(doc.omitted_rows, 1);
+            assert!(doc.rows[0].into_next && !doc.rows[0].from_previous);
+            assert!(!doc.rows[1].into_next && doc.rows[1].from_previous);
+            assert!(!doc.rows[2].into_next && !doc.rows[2].from_previous);
+            let content = &Projection::TerminalRead(doc).result()["content"];
+            assert_eq!(content["truncated"], true);
+            assert_eq!(content["omittedRows"], 1);
+        }
+
+        /// The decoder maximum of 4,096 rows with a first row already over
+        /// budget: 64 cells sharing a 16 KiB control-string join to
+        /// 1,048,576 chars that JSON-escape to 6,291,458 bytes, so every row
+        /// is omitted and the count stays honest at the schema's upper bound.
+        /// A miscounted `omitted_rows` or a budget that only checked `text`
+        /// length before escaping fails here.
+        #[test]
+        fn over_budget_first_row_omits_all_rows() {
+            let control: Arc<str> = Arc::from("\u{1}".repeat(16384).as_str());
+            let rows = (0..4096)
+                .map(|index| shared_row(index, 0, &control))
+                .collect();
+            let frame = frame(rows);
+            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            assert!(doc.rows.is_empty());
+            assert_eq!(doc.row_count, 4096);
+            assert_eq!(doc.omitted_rows, 4096);
+            let content = &Projection::TerminalRead(doc).result()["content"];
+            assert_eq!(content["truncated"], true);
+            assert_eq!(content["omittedRows"], 4096);
+            assert_eq!(content["rows"].as_array().expect("rows").len(), 0);
+        }
+
+        /// Grid-cell rendering inside the budget path: a spacer tail is
+        /// collapsed into its wide cell, a spacer head or an empty cell
+        /// renders one space, trailing padding trims, and a blank-only row
+        /// emits an empty line. The rows obey the decoder's topology: a row
+        /// ending in a spacer head sets `intoNext`, so the next row opens
+        /// with a wide cell and `fromPrevious`.
+        #[test]
+        fn spacer_and_blank_cells_render_as_grid_content() {
+            let wide_text: Arc<str> = Arc::from("中");
+            let blank: Arc<str> = Arc::from("");
+            let narrow: Arc<str> = Arc::from("x");
+            let frame = frame(vec![
+                TerminalTextRow {
+                    index: 0,
+                    flags: 1,
+                    cells: vec![cell(&narrow, 0), cell(&narrow, 0), cell(&blank, 3)],
+                },
+                TerminalTextRow {
+                    index: 1,
+                    flags: 2,
+                    cells: vec![
+                        cell(&wide_text, 1),
+                        cell(&blank, 2),
+                        cell(&Arc::from("界"), 0),
+                    ],
+                },
+                TerminalTextRow {
+                    index: 2,
+                    flags: 0,
+                    cells: vec![cell(&blank, 0), cell(&narrow, 0), cell(&blank, 0)],
+                },
+                TerminalTextRow {
+                    index: 3,
+                    flags: 0,
+                    cells: vec![cell(&blank, 0), cell(&blank, 0)],
+                },
+            ]);
+            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            let texts: Vec<&str> = doc.rows.iter().map(|row| row.text.as_str()).collect();
+            assert_eq!(texts, ["xx", "中界", " x", ""]);
+            assert!(doc.rows[0].into_next && doc.rows[1].from_previous);
+            assert_eq!(doc.omitted_rows, 0);
+        }
+    }
 }
