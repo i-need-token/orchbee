@@ -159,11 +159,12 @@ Two modeled inputs are safe over-approximations, not normal wire histories. Reac
 three-tiered: an abstract `Receive*`/`Consume*` action appearing in the aggregate witness proves
 only that the modeled interface can consume that shape; the native adapter accepts a strict
 per-intent subset of result kinds; and an honest Server emits a still smaller subset.
-`ReceiveTabUnavailable` is a reducer/authority-fault input — an honest authority emits
+`ReceiveTabUnavailable` is a reducer/authority-fault input: an honest authority emits
 `Rejected{TabUnavailable}` only at `revision == expected == baseline` with the Tab already absent
-from that baseline, a degenerate request a well-formed Client never submits because any revision
-mismatch is answered as `RevisionMismatch` first — while the modeled action fires at any
-`serverRev` regardless of `serverTab`. `ReceiveUnchangedForeign` is adapter-unreachable — the
+from that baseline. Such a request names a Tab absent from its own baseline, so well-formed
+Client planning cannot produce it; if a peer removes the Tab after that baseline, the revision
+advances and the Server returns `RevisionMismatch` before checking the Tab. The modeled action
+fires at any `serverRev` regardless of `serverTab`. `ReceiveUnchangedForeign` is adapter-unreachable — the
 real adapter validates `Unchanged.revision == expected` and surfaces a mismatch as an
 unclassifiable outcome, never as a result — while the model still feeds it to the reducer's
 divergence arm. Both stay in the model deliberately: they exercise the defensive verdicts the
