@@ -2772,7 +2772,7 @@
 				"apps/orchbee/src/presentation/**",
 				"apps/orchbee/docs/native-panel-lifecycle.zh-CN.md"
 			],
-			"timeoutMilliseconds": 1200000,
+			"timeoutMilliseconds": 1800000,
 			"workers": 1,
 			"requiredCoverage": [
 				"ClockAdvance",
@@ -2820,6 +2820,7 @@
 				"ConsumeTabUnavailableMembership",
 				"ConsumeTabUnavailableDivergent",
 				"ConsumeTabUnavailableNotApplied",
+				"ConsumeTabUnavailableRefused",
 				"ReleaseOldAttachment",
 				"FailMembershipCleanup",
 				"FailMembershipInstall",
@@ -2828,7 +2829,9 @@
 				"InstallMembershipAttach",
 				"InstallMembershipSelect",
 				"InstallMembershipEmpty",
+				"OfferAttachReply",
 				"CompleteAttach",
+				"ParkAttachUnavailable",
 				"FailAttach",
 				"ExpireAttach",
 				"AdmitRefresh",

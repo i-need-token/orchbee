@@ -25,7 +25,9 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 | 接收面板结果             | carrier 产生未提交、预提交否决、未变更、Tab 不可用、关闭已受理，或带提交后权威快照的已提交事实。                                                           |
 | 模糊结果退休             | 无法归类结果的已提交操作使 Session 以 unknown 退休；可能已产生效果的操作绝不自动重放。                                                                     |
 | 读取提交后快照           | 已提交的拆分/移动以新身份重读权威快照。精确的 `r+1` 候选必须匹配提交的嫁接；更晚的取代修订仅做规范验证。                                                   |
+| 读取 Tab 不可用快照      | Tab 不可用结果重读权威：更旧修订或同修订矛盾判为分歧，Tab 缺失安装 Empty 成员关系，更新的规范 Tab 候选经由常规候选路径接受。                               |
 | 存放类型化结果           | worker 将结果绑定到操作请求、序号与截止时间存放；与当前操作身份不匹配的存放永不被放置。                                                                     |
+| 拒绝过期输入             | 携带不匹配请求、序号或代次的存放或成员关系/刷新应答被原地拒绝；它保留阶段、关联身份、提交事实、附着、选中与缓存修订。                                     |
 | 消费类型化结果           | UI 仅在请求、序号、基线修订与期望叶子仍与挂起操作匹配时消费已放置结果。                                                                                    |
 | 合并已提交投影           | 候选仍包含操作选中叶子的已提交结果按候选修订并入投影缓存；该叶子保持选中与附着。                                                                           |
 | 修复取代成员关系         | 已提交结果的更晚候选在 Tab 存活时移除了选中叶子——包括对端合法关闭——进入成员关系调和：绝不以分歧退休。                                                     |
@@ -33,6 +35,8 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 | 非法权威分歧             | 非法嫁接、外来未变更移动、Tab 不可用矛盾或分歧候选使 Session 以权威分歧退休。                                                                              |
 | 暂存成员关系清理         | 成员关系调和先暂存释放精确旧附着；清理失败或截止过期以保留已提交事实的方式退休。                                                                           |
 | 安装修复后成员关系       | 仅在旧附着释放后方可安装新成员关系：Tab 消失时安装 Empty，否则选择修复后的叶子；可附着来源随后重新附着。                                                    |
+| 提供附着应答             | 挂起的安装附着在成员关系截止前收到 carrier 应答——已附着、已拒绝、不可用或协议违例。                                                                        |
+| 驻留可重试附着           | 已拒绝或不可用的附着应答将 Session 驻留在稳定的可重试阶段：无查看器附着，保留的提交保持有效，操作绝不重放也不自行重新附着。协议应答与截止过期仍然退休。        |
 | 放行至多有界刷新         | 无结构在途时，有界刷新重读权威快照；面板恢复期间它是唯一能解决保留提交的途径。                                                                             |
 | 应用刷新结果             | 规范刷新执行合并、修复缺失的选中叶子或安装 Empty 成员关系；不可用读驻留，分歧读退休。成员关系挂起期间刷新结果被栅栏。                                       |
 | 退休并关闭 Session       | UI 退休冻结挂起记录并保留已提交事实；Exit 关闭 Session。                                                                                                 |
@@ -56,7 +60,12 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 （`CloseReceiptKeepsSelection`、`CloseAcceptKeepsSelection`）；提交至多一次且模糊结果后绝不重放
 （`SubmissionIsAtMostOnce`、`NoReplayAfterAmbiguous`）；请求身份绝不回退
 （`RequestCursorNeverRewinds`）；在过期与消费的弱公平下挂起阶段最终结算或退休
-（`PendingEventuallySettlesOrRetires`）。
+（`PendingEventuallySettlesOrRetires`）。驻留的附着不持有附着且保留有效提交
+（`ParkedHasNoAttachment`、`ParkRetainsValidCommit`）；挂起的已拒绝/不可用应答绝不退休
+（`AttachUnavailableNeverRetires`、`RejectedAttachNeverRetires`）且总会被消费
+（`AttachReplyEventuallyConsumed`）；驻留的 Session 只能经由新一轮成员关系安装或退休离开——
+绝不自动重新附着或重放（`ParkedSettlesViaMembership`）；被拒绝的过期输入保留阶段、
+请求/序号关联、提交事实、附着、选中与缓存修订（`StaleRejectionPreservesState`）。
 
 ## 源码对应关系
 
@@ -67,14 +76,16 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 | 信箱在途排队/飞行阶段（`terminal_session/mailbox/panel.rs`）                                             | `stage = "queued"/"in-flight"`、`SubmitPanel`、`ExpirePanelFlight`                                        |
 | `run_panel` 结果分类（明确的预提交否决/未变更、关闭回执、已提交、未知）                                   | `Receive*` 动作、`ReceiveAmbiguousOutcome`、`NoReplayAfterAmbiguous`                                       |
 | `place_panel_result` 身份/序号/截止时间关联                                                             | `PlaceResult`、`OnlyCurrentResultPlaced`、`DepositCorrelatesCurrent`、`RejectStaleResultDeposit`           |
-| `panel_reply_current` 过期请求/序号/目标拒绝                                                            | 所有 `Consume*` 动作的 `ResultCurrent` 门控                                                               |
+| `panel_reply_current` 过期请求/序号/目标拒绝                                                            | 所有 `Consume*` 动作的 `ResultCurrent` 门控、`RejectStaleResultDeposit`、`RejectStaleMembershipReply`、`RejectStaleRefreshConsume`、`StaleRejectionPreservesState` |
 | `prepare_panel`、`prepare_panel_candidate` 精确与取代验证                                                | `ReadCommitSnapshot*`、`ConsumeCommittedMerge`、`ConsumeCommittedUnavailable`、`ConsumeCommittedDivergent`  |
+| `prepare_panel` Tab 不可用快照分类（更旧/分歧、Tab 消失、更新的规范 Tab）                                  | `ReadTabUnavailableSnapshot`、`ConsumeTabUnavailableMembership`/`Divergent`/`NotApplied`/`Refused`         |
 | `validate_split_panel`、`validate_moved_panel` 精确 `r+1` 嫁接与放宽的取代                                | `ReceiveCommitted` 有效性、`ConsumeInvalidGraftCommit`、`ReadCommitSnapshotExact`/`Superseding`            |
 | `merge_projection` 要求先前选中叶子                                                                     | `ConsumeCommittedMerge` 与 `ConsumeCommittedLeaflessRepair` 的分划                                        |
 | `apply_prepared_panel`、`retain_prepared_panel_membership` 提交保留                                     | `commitHeld`/`commitExpected`、`EnterMembership`、`RecoveryRetainsCommit`                                  |
 | `stage_panel_membership_cleanup`、`prepare_panel_membership_install` 先释放后安装次序                    | `ReleaseOldAttachment`、`InstallMembership*`、`AttachRequiresReleasedOld`                                  |
 | `retain_pending_panel`、`PanelProjectionUnavailable` 恢复                                               | `ConsumeCommittedUnavailable`、`stage = "recovery"`、`AdmitRefresh`、`ApplyRefresh*`                       |
 | `apply_panel_event` UI 结算（含无附着与 Empty 安装）                                                    | `InstallMembershipAttach`、`InstallMembershipSelect`、`InstallMembershipEmpty`、`CompleteAttach`           |
+| `setup_target` 附着结果分类与 `settle_without_attachment`（`SessionPhaseKind::RetryableAttachUnavailable`） | `OfferAttachReply`、`CompleteAttach`、`ParkAttachUnavailable`、`FailAttach`、`ExpireAttach`、`ParkedHasNoAttachment`、`RejectedAttachNeverRetires`、`ParkedSettlesViaMembership` |
 | 关闭 `Accepted` 回执与后续发布/移除                                                                     | `ReceiveCloseAccepted`、`ConsumeCloseAccepted`、`PeerCloseLeaf`、`CloseReceiptKeepsSelection`              |
 
 模型抽象掉字节级传输、具体 OS/PTY 行为、渲染、worker 接合、真实终端身份分配以及移动方向/几何。
@@ -90,12 +101,12 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 `{p, q, n}`、每次运行一个面板操作、`MaxQueue = 2`、`MaxRequest = 4`、`MaxRevision = 4`、
 `MaxTime = 5`、`Budget = 2`、`MaxPeer = 2`、`MaxRefresh = 2`。Tab 存活期间对端叶子移除不受限制，
 且不假设其保留操作的源叶子——取代叶子反例按构造可达。公平性仅为弱公平：截止过期、结果存放、
-结果消费、成员关系解决、附着解决与刷新应用在持续启用时必须最终触发；当某阶段合法地等待有界
-截止时间时不强制推进。
+结果消费、成员关系解决、附着应答的提供与解决以及刷新应用在持续启用时必须最终触发；当某阶段
+合法地等待有界截止时间时不强制推进。
 
 以固定的 TLA+ tools 1.7.4、每配置一个 worker 运行
 `node scripts/tla/run-models.mjs --models native-client-panel-lifecycle --jobs 1`。下列五个配置
-完成安全性与最终时序检查，队列清空，族内全部 68 个必需动作覆盖为正。
+完成安全性与最终时序检查，队列清空，族内全部 71 个必需动作覆盖为正。
 
 | 配置               | 有穷角色                                        | 生成 / 去重 / 深度 | 模型/配置 SHA-256 |
 | ------------------ | ----------------------------------------------- | ------------------ | ----------------- |
@@ -111,9 +122,16 @@ Client 绝不合并无法关联的面板结果。放行要求 Session 稳定、�
 
 - 从放置/消费中移除结果关联身份后，过期请求/序号的存放可被消费——
   `DepositCorrelatesCurrent`/`OnlyCurrentResultPlaced` 给出反例。
+- 删除过期输入守卫使不匹配的存放或应答改写受保护状态时违反 `StaleRejectionPreservesState`。
 - 将无叶子取代的成员关系修复替换为权威分歧——先前已发布的行为——在对端于 `r+2` 合法关闭
   选中叶子而 Tab 存活的场景下违反 `LeaflessSupersedingRepairs` 并给出反例。
 - 未先释放旧附着即安装或附着修复后的成员关系违反 `AttachRequiresReleasedOld`。
+- 将可重试驻留改写为退休违反 `RejectedAttachNeverRetires`；从驻留阶段重放或自动重新附着
+  违反 `ParkedSettlesViaMembership`。
 
-上述结果仅确立上文描述的有穷面板操作接口——不涵盖成员关系向量验证、数值截止、真实 carrier
-行为或多操作流水线。
+上述结果仅确立上文描述的有穷面板操作接口。已知边界如实披露而非默默声称：`commitValid = FALSE`
+与非规范候选是错误权威的防御性输入，不是正常的诚实对端轨迹；`SomeLeaf` 使用非确定性
+`CHOOSE`，对选中钳制做过近似；快照可经由请求游标被重复读取，而生产只读取一次；关闭回执的
+效果延迟到后续发布或对端步骤；`transport` 在抽象模型中没有生产者。成员关系向量验证、数值
+截止精度、真实 carrier 行为与多操作流水线仍在该有界设计见证之外——它是所建模接口的证据，
+不是对无界生产系统的证明。

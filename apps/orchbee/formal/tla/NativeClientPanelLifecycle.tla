@@ -17,12 +17,14 @@ StartPanels == IF Pair THEN {P, Q} ELSE {P}
 ExpectedAfter(base) == IF OpKind = "split" THEN base \cup {N} ELSE base
 
 Stages == {"none", "queued", "in-flight", "await-ui", "cleanup", "installing",
-           "attach-pending", "recovery"}
+           "attach-pending", "recovery", "parked"}
+AttachReplies == {"none", "attached", "rejected", "unavailable", "protocol"}
 WireKinds == {"none", "not-submitted", "precommit", "unchanged-same",
               "unchanged-foreign", "close-accepted", "committed",
               "tab-unavailable"}
 Candidates == {"none", "exact", "superseding-kept", "superseding-leafless",
-               "tab-gone", "unavailable", "divergent", "refreshed", "leafless"}
+               "tab-gone", "unavailable", "divergent", "refreshed", "leafless",
+              "refused"}
 MembershipStages == {"none", "staged", "cleaned"}
 MembershipOrigins == {"none", "panel", "refresh"}
 Debt == {"clean", "pending", "in-flight"}
@@ -40,7 +42,7 @@ Init ==
     sample |-> "none", sampleDeadline |-> -1,
     opUsed |-> FALSE, cursor |-> 0, serial |-> 0,
     stage |-> "none", opReq |-> 0, opSerial |-> 0, opBaselineRev |-> 0,
-    opBaselinePanels |-> {}, opTarget |-> NoPanel, opMoveTarget |-> NoPanel,
+    opBaselinePanels |-> {}, opTarget |-> NoPanel,
     opDeadline |-> -1,
     submitted |-> FALSE, submitCount |-> 0,
     commitHeld |-> FALSE, commitRev |-> 0, commitExpected |-> {},
@@ -48,6 +50,7 @@ Init ==
     wire |-> "none", result |-> "none", resultReq |-> 0, resultSerial |-> 0,
     candidate |-> "none", candidatePanels |-> {}, candidateRev |-> 0,
     tabUnavailRev |-> 0,
+    attachReply |-> "none",
     membership |-> "none", membershipReq |-> 0, membershipOld |-> NoPanel,
     membershipOrigin |-> "none", membershipDeadline |-> -1,
     attached |-> IF Attached THEN {P} ELSE {},
@@ -108,9 +111,11 @@ InstalledRecord(state) ==
   [state EXCEPT !.cachePanels = state.candidatePanels,
     !.cacheRev = state.candidateRev,
     !.selected = IF state.candidatePanels = {} THEN NoPanel
-                 ELSE SomeLeaf(state.candidatePanels),
+                 ELSE IF state.selected \in state.candidatePanels
+                      THEN state.selected ELSE SomeLeaf(state.candidatePanels),
     !.desired = IF state.candidatePanels = {} THEN NoPanel
-                ELSE SomeLeaf(state.candidatePanels),
+                ELSE IF state.selected \in state.candidatePanels
+                     THEN state.selected ELSE SomeLeaf(state.candidatePanels),
     !.applied = state.applied \/ (state.membershipOrigin = "panel"),
     !.membership = "none", !.membershipReq = 0, !.membershipOld = NoPanel,
     !.membershipOrigin = "none", !.refreshGen = 0, !.refreshRead = "none",
@@ -194,9 +199,6 @@ AdmitPanel ==
        !.cursor = @ + 1, !.serial = @ + 1, !.opReq = s.cursor + 1,
        !.opSerial = s.serial + 1, !.opBaselineRev = s.cacheRev,
        !.opBaselinePanels = s.cachePanels, !.opTarget = s.selected,
-       !.opMoveTarget = IF OpKind = "move"
-                        THEN SomeLeaf(s.cachePanels \ {s.selected})
-                        ELSE NoPanel,
        !.opDeadline = s.sampleDeadline]
 
 SubmitPanel ==
@@ -266,11 +268,16 @@ SnapshotIdentityExhausted ==
 ReadTabUnavailableSnapshot ==
   /\ Live /\ s.wire = "tab-unavailable" /\ BeforeDeadline
        /\ s.cursor < MaxRequest
-  /\ \/ /\ ~s.serverTab /\ s.serverRev >= s.tabUnavailRev
+  /\ \/ /\ s.serverRev < s.tabUnavailRev
+        /\ s' = [s EXCEPT !.cursor = @ + 1, !.candidate = "divergent"]
+     \/ /\ s.serverRev = s.tabUnavailRev /\ s.serverTab
+        /\ s' = [s EXCEPT !.cursor = @ + 1, !.candidate = "divergent"]
+     \/ /\ ~s.serverTab /\ s.serverRev >= s.tabUnavailRev
         /\ s' = [s EXCEPT !.cursor = @ + 1, !.candidate = "tab-gone",
             !.candidatePanels = {}, !.candidateRev = s.serverRev]
-     \/ /\ s.serverTab
-        /\ s' = [s EXCEPT !.cursor = @ + 1, !.candidate = "divergent"]
+     \/ /\ s.serverTab /\ s.serverRev > s.tabUnavailRev
+        /\ s' = [s EXCEPT !.cursor = @ + 1, !.candidate = "refused",
+            !.candidatePanels = s.serverPanels, !.candidateRev = s.serverRev]
      \/ s' = [s EXCEPT !.cursor = @ + 1, !.candidate = "unavailable"]
 
 PlaceResult ==
@@ -280,7 +287,9 @@ PlaceResult ==
        !.resultReq = s.opReq, !.resultSerial = s.opSerial]
 RejectStaleResultDeposit ==
   /\ Live /\ s.stage \in {"in-flight", "await-ui"}
-  /\ s' = [s EXCEPT !.staleRejected = TRUE]
+  /\ \E rq \in 0..MaxRequest, rs \in 0..MaxRequest:
+       (rq # s.opReq \/ rs # s.opSerial)
+       /\ s' = [s EXCEPT !.staleRejected = TRUE]
 ExpirePanelFlight ==
   /\ Live /\ s.stage \in {"queued", "in-flight"} /\ ~BeforeDeadline
   /\ s' = Retire("deadline", s)
@@ -339,6 +348,17 @@ ConsumeTabUnavailableNotApplied ==
   /\ Live /\ ResultCurrent /\ s.result = "tab-unavailable"
   /\ s.candidate = "unavailable"
   /\ s' = ClearResult(s)
+ConsumeTabUnavailableRefused ==
+  /\ Live /\ ResultCurrent /\ s.result = "tab-unavailable"
+  /\ s.candidate = "refused"
+  /\ \/ /\ s.attached \subseteq s.candidatePanels
+        /\ LET repaired == IF s.selected \in s.candidatePanels THEN s.selected
+                            ELSE SomeLeaf(s.candidatePanels)
+           IN s' = [ClearResult(s) EXCEPT !.cachePanels = s.candidatePanels,
+                     !.cacheRev = s.candidateRev, !.selected = repaired,
+                     !.desired = repaired]
+     \/ /\ ~(s.attached \subseteq s.candidatePanels)
+        /\ s' = EnterMembership("panel", KeepCandidate(s))
 
 ReleaseOldAttachment ==
   /\ Live /\ s.stage = "cleanup" /\ s.membership = "staged"
@@ -356,7 +376,8 @@ ExpireMembership ==
   /\ s' = Retire("deadline", s)
 RejectStaleMembershipReply ==
   /\ Live /\ s.membershipOrigin # "none"
-  /\ s' = [s EXCEPT !.staleRejected = TRUE]
+  /\ \E rq \in 0..MaxRequest:
+       rq # s.membershipReq /\ s' = [s EXCEPT !.staleRejected = TRUE]
 
 InstallMembershipAttach ==
   /\ Live /\ s.stage = "installing"
@@ -374,19 +395,29 @@ InstallMembershipEmpty ==
   /\ s.candidatePanels = {}
   /\ s' = [InstalledRecord(s) EXCEPT !.stage = "none"]
 
+OfferAttachReply ==
+  /\ Live /\ s.stage = "attach-pending" /\ s.attachReply = "none"
+  /\ s.membershipDeadline >= 0 /\ s.now < s.membershipDeadline
+  /\ \E kind \in {"attached", "rejected", "unavailable", "protocol"}:
+       s' = [s EXCEPT !.attachReply = kind]
 CompleteAttach ==
+  /\ Live /\ s.stage = "attach-pending" /\ s.attachReply = "attached"
+  /\ s' = [s EXCEPT !.attached = {s.selected}, !.stage = "none",
+       !.attachReply = "none"]
+ParkAttachUnavailable ==
   /\ Live /\ s.stage = "attach-pending"
-  /\ s' = [s EXCEPT !.attached = {s.selected}, !.stage = "none"]
+  /\ s.attachReply \in {"rejected", "unavailable"}
+  /\ s' = [s EXCEPT !.stage = "parked", !.attachReply = "none"]
 FailAttach ==
-  /\ Live /\ s.stage = "attach-pending"
+  /\ Live /\ s.stage = "attach-pending" /\ s.attachReply = "protocol"
   /\ s' = Retire("protocol", s)
 ExpireAttach ==
-  /\ Live /\ s.stage = "attach-pending" /\ s.membershipDeadline >= 0
-  /\ s.now >= s.membershipDeadline
+  /\ Live /\ s.stage = "attach-pending" /\ s.attachReply = "none"
+  /\ s.membershipDeadline >= 0 /\ s.now >= s.membershipDeadline
   /\ s' = Retire("deadline", s)
 
 AdmitRefresh ==
-  /\ Live /\ s.stage \in {"none", "recovery"} /\ s.refreshGen = 0
+  /\ Live /\ s.stage \in {"none", "recovery", "parked"} /\ s.refreshGen = 0
   /\ ~s.otherStructural /\ s.refreshCount < MaxRefresh
   /\ s.cursor < MaxRequest
   /\ s' = [s EXCEPT !.refreshGen = s.refreshCount + 1,
@@ -408,7 +439,7 @@ ReadRefreshDivergent ==
   /\ s' = [s EXCEPT !.refreshRead = "divergent"]
 
 ApplyRefreshMerge ==
-  /\ Live /\ s.stage \in {"none", "recovery"}
+  /\ Live /\ s.stage \in {"none", "recovery", "parked"}
   /\ s.refreshRead = "available" /\ s.candidate = "refreshed"
   /\ s' = [s EXCEPT !.refreshRead = "none", !.refreshGen = 0,
        !.cachePanels = s.candidatePanels, !.cacheRev = s.candidateRev,
@@ -420,33 +451,34 @@ ApplyRefreshMerge ==
        !.publicationInstalled = s.publicationInstalled
            \/ (s.closeConsumed /\ s.opTarget \notin s.candidatePanels)]
 ApplyRefreshRepairLeafless ==
-  /\ Live /\ s.stage \in {"none", "recovery"}
+  /\ Live /\ s.stage \in {"none", "recovery", "parked"}
   /\ s.refreshRead = "available" /\ s.candidate = "leafless"
   /\ s' = [EnterMembership("refresh", s) EXCEPT
        !.leafless = TRUE, !.refreshRead = "none", !.candidate = "none"]
 ApplyRefreshMembershipTabGone ==
-  /\ Live /\ s.stage \in {"none", "recovery"}
+  /\ Live /\ s.stage \in {"none", "recovery", "parked"}
   /\ s.refreshRead = "available" /\ s.candidate = "tab-gone"
   /\ s' = [EnterMembership("refresh", s) EXCEPT
        !.refreshRead = "none", !.candidate = "none"]
 ApplyRefreshUnavailable ==
-  /\ Live /\ s.stage \in {"none", "recovery"}
+  /\ Live /\ s.stage \in {"none", "recovery", "parked"}
   /\ s.refreshRead = "unavailable"
   /\ s' = [s EXCEPT !.refreshRead = "none", !.refreshGen = 0,
        !.publicationDebt = IF s.publicationDebt = "in-flight" THEN "pending"
                            ELSE s.publicationDebt,
        !.publicationLate = FALSE]
 ApplyRefreshDivergent ==
-  /\ Live /\ s.stage \in {"none", "recovery"}
+  /\ Live /\ s.stage \in {"none", "recovery", "parked"}
   /\ s.refreshRead = "divergent"
   /\ s' = [Retire("divergence", s) EXCEPT !.refreshRead = "none",
        !.refreshGen = 0]
 RejectStaleRefreshConsume ==
   /\ Live /\ s.refreshGen > 0
-  /\ s' = [s EXCEPT !.staleRejected = TRUE]
+  /\ \E g \in 1..MaxRefresh:
+       g # s.refreshGen /\ s' = [s EXCEPT !.staleRejected = TRUE]
 
 RequestSessionRetirement ==
-  /\ Live /\ ~s.retired
+  /\ Live /\ ~s.retired /\ s.attachReply = "none"
   /\ (ActiveFlow \/ s.wire # "none" \/ s.membershipOrigin # "none")
   /\ s' = Retire("exit", s)
 Exit ==
@@ -477,12 +509,13 @@ Next ==
   \/ ConsumeCommittedTabGone \/ ConsumeCommittedUnavailable
   \/ ConsumeCommittedDivergent \/ ConsumeInvalidGraftCommit
   \/ ConsumeTabUnavailableMembership \/ ConsumeTabUnavailableDivergent
-  \/ ConsumeTabUnavailableNotApplied
+  \/ ConsumeTabUnavailableNotApplied \/ ConsumeTabUnavailableRefused
   \/ ReleaseOldAttachment \/ FailMembershipCleanup \/ FailMembershipInstall
   \/ ExpireMembership \/ RejectStaleMembershipReply
   \/ InstallMembershipAttach \/ InstallMembershipSelect
   \/ InstallMembershipEmpty
-  \/ CompleteAttach \/ FailAttach \/ ExpireAttach
+  \/ OfferAttachReply \/ CompleteAttach \/ ParkAttachUnavailable
+  \/ FailAttach \/ ExpireAttach
   \/ AdmitRefresh \/ ReadRefreshAvailable \/ ReadRefreshUnavailable
   \/ ReadRefreshDivergent
   \/ ApplyRefreshMerge \/ ApplyRefreshRepairLeafless
@@ -509,7 +542,10 @@ Spec == Init /\ [][Next]_vars
   /\ WF_vars(FailMembershipInstall) /\ WF_vars(ExpireMembership)
   /\ WF_vars(InstallMembershipAttach) /\ WF_vars(InstallMembershipSelect)
   /\ WF_vars(InstallMembershipEmpty)
-  /\ WF_vars(CompleteAttach) /\ WF_vars(FailAttach) /\ WF_vars(ExpireAttach)
+  /\ WF_vars(OfferAttachReply)
+  /\ WF_vars(CompleteAttach) /\ WF_vars(ParkAttachUnavailable)
+  /\ WF_vars(FailAttach) /\ WF_vars(ExpireAttach)
+  /\ WF_vars(ConsumeTabUnavailableRefused)
   /\ WF_vars(ApplyRefreshMerge) /\ WF_vars(ApplyRefreshRepairLeafless)
   /\ WF_vars(ApplyRefreshMembershipTabGone) /\ WF_vars(ApplyRefreshUnavailable)
   /\ WF_vars(ApplyRefreshDivergent)
@@ -526,7 +562,6 @@ TypeOK ==
   /\ s.opSerial \in 0..MaxRequest /\ s.opBaselineRev \in 0..MaxRevision
   /\ s.opBaselinePanels \in SUBSET Panels
   /\ s.opTarget \in Panels \cup {NoPanel}
-  /\ s.opMoveTarget \in Panels \cup {NoPanel}
   /\ s.opDeadline \in -1..MaxTime
   /\ s.submitted \in BOOLEAN /\ s.submitCount \in 0..1
   /\ s.commitHeld \in BOOLEAN /\ s.commitRev \in 0..MaxRevision
@@ -536,6 +571,7 @@ TypeOK ==
   /\ s.candidate \in Candidates
   /\ s.candidatePanels \in SUBSET Panels /\ s.candidateRev \in 0..MaxRevision
   /\ s.tabUnavailRev \in 0..MaxRevision
+  /\ s.attachReply \in AttachReplies
   /\ s.membership \in MembershipStages /\ s.membershipReq \in 0..MaxRequest
   /\ s.membershipOld \in Panels \cup {NoPanel}
   /\ s.membershipOrigin \in MembershipOrigins
@@ -585,6 +621,11 @@ PendingMembershipOwnsOld ==
 InstalledMembershipReleasedOld ==
   (s.stage = "installing" /\ s.membership = "cleaned") => s.attached = {}
 SubmissionIsAtMostOnce == s.submitCount <= 1
+ParkedHasNoAttachment == s.stage = "parked" => s.attached = {}
+AttachUnavailableNeverRetires ==
+  s.attachReply \in {"rejected", "unavailable"} => ~s.retired
+ParkRetainsValidCommit ==
+  s.stage = "parked" => (s.commitHeld => s.commitValid)
 
 AdmissionRefusalPreservesCore == [][
   s.sample = "panel" /\ s'.sample = "none" /\ s'.stage = s.stage =>
@@ -627,5 +668,24 @@ NoReplayAfterAmbiguous == [][
 RequestCursorNeverRewinds == [][s'.cursor >= s.cursor]_vars
 PendingEventuallySettlesOrRetires ==
   (s.stage \in PendingStages) ~> (s.stage \notin PendingStages \/ s.retired)
+AttachReplyEventuallyConsumed ==
+  s.attachReply # "none" ~> (s.attachReply = "none" \/ s.retired)
+RejectedAttachNeverRetires == [][
+  s.attachReply \in {"rejected", "unavailable"} => ~s'.retired
+]_vars
+ParkedSettlesViaMembership == [][
+  s.stage = "parked" /\ s'.stage # "parked" =>
+    s'.stage = "installing" \/ s'.retired
+]_vars
+StaleRejectionPreservesState == [][
+  ~s.staleRejected /\ s'.staleRejected =>
+    /\ s'.stage = s.stage /\ s'.result = s.result
+    /\ s'.resultReq = s.resultReq /\ s'.resultSerial = s.resultSerial
+    /\ s'.commitHeld = s.commitHeld /\ s'.commitValid = s.commitValid
+    /\ s'.attached = s.attached /\ s'.selected = s.selected
+    /\ s'.desired = s.desired /\ s'.cacheRev = s.cacheRev
+    /\ s'.candidate = s.candidate /\ s'.membershipReq = s.membershipReq
+    /\ s'.refreshGen = s.refreshGen
+]_vars
 
 =============================================================================

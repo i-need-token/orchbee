@@ -26,7 +26,9 @@ attachment, and total deadline once, at admission; nothing may silently renumber
 | Receive panel outcome         | The carrier produces not-submitted, precommit, unchanged, tab-unavailable, close-accepted, or a committed fact with its post-commit authoritative snapshot.                                      |
 | Retire on ambiguous outcome   | A submitted operation whose outcome cannot be classified retires the Session as unknown; an operation that may have produced an effect is never automatically replayed.                          |
 | Read post-commit snapshot     | A committed split/move re-reads the authority snapshot at a fresh identity. The exact `r+1` candidate must match the committed graft; a later superseding revision is validated canonically only. |
+| Read tab-unavailable snapshot | A tab-unavailable outcome re-reads the authority: an older revision or a same-revision contradiction is divergent, a missing Tab installs Empty membership, and a newer canonical Tab candidate is accepted through the normal candidate path. |
 | Deposit typed result          | The worker deposits the outcome bound to the operation request, serial and deadline; a deposit that does not match the current operation identity is never placed.                               |
+| Reject stale input            | A deposit or membership/refresh reply carrying a mismatched request, serial, or generation is rejected in place; it preserves the stage, correlation identity, commit fact, attachment, selection, and cache revision. |
 | Consume typed result          | The UI consumes a placed result only while request, serial, baseline revision and desired leaf still match the pending operation.                                                               |
 | Merge committed projection    | A committed result whose candidate still contains the operation's selected leaf merges it into the projection cache at the candidate revision; the leaf stays selected and attached.             |
 | Repair superseding membership | A committed result whose later candidate removed the selected leaf while the Tab survives — including a peer's legal close — enters membership reconciliation: it must not retire as divergence. |
@@ -34,6 +36,8 @@ attachment, and total deadline once, at admission; nothing may silently renumber
 | Diverge on invalid authority  | An invalid graft, a foreign unchanged move, a tab-unavailable contradiction, or a divergent candidate retires the Session as authority divergence.                                              |
 | Stage membership cleanup      | Membership reconciliation first stages the release of the exact old attachment; cleanup failure or deadline expiry retires with the committed fact retained.                                    |
 | Install repaired membership   | Only after the old attachment is released may the new membership install: Empty when the Tab is gone, otherwise select a repaired leaf; attachable provenance then re-attaches.                    |
+| Offer attach reply            | A pending install attach receives a carrier reply — attached, rejected, unavailable, or a protocol violation — before the membership deadline.                                                   |
+| Park retryable attach         | A rejected or unavailable attach reply parks the Session in a stable retryable stage: no viewer attaches, the retained commit stays valid, and the operation is never replayed nor re-attached on its own. Protocol replies and deadline expiry still retire. |
 | Admit bounded refresh         | With no structural flight pending, a bounded refresh re-reads the authority snapshot; during panel recovery it is the only path that can resolve the retained commit.                            |
 | Apply refresh outcome         | A canonical refresh merges, repairs a missing selected leaf, or installs Empty membership; an unavailable read parks, a divergent read retires. Refresh results are fenced while membership is pending. |
 | Retire and close Session      | UI retirement freezes the pending records and preserves the committed fact; Exit closes the Session.                                                                                            |
@@ -61,7 +65,14 @@ until its publication installs (`CloseReceiptKeepsSelection`, `CloseAcceptKeepsS
 submission is at most once and never replays after an ambiguous outcome (`SubmissionIsAtMostOnce`,
 `NoReplayAfterAmbiguous`); request identity never rewinds (`RequestCursorNeverRewinds`); pending
 stages settle or retire under weak fairness of expiry and consumption
-(`PendingEventuallySettlesOrRetires`).
+(`PendingEventuallySettlesOrRetires`). A parked attach holds no attachment and retains a valid
+commit (`ParkedHasNoAttachment`, `ParkRetainsValidCommit`); a pending rejected/unavailable reply
+can never retire (`AttachUnavailableNeverRetires`, `RejectedAttachNeverRetires`) and is always
+consumed (`AttachReplyEventuallyConsumed`); a parked Session leaves only through a fresh
+membership install or retirement — never an automatic re-attach or replay
+(`ParkedSettlesViaMembership`); and a rejected stale input preserves stage, request/serial
+correlation, commit fact, attachment, selection, and cache revision
+(`StaleRejectionPreservesState`).
 
 ## Source correspondence
 
@@ -72,14 +83,16 @@ stages settle or retire under weak fairness of expiry and consumption
 | Mailbox flight queue/in-flight stages (`terminal_session/mailbox/panel.rs`)                                    | `stage = "queued"/"in-flight"`, `SubmitPanel`, `ExpirePanelFlight`                                          |
 | `run_panel` outcome classification (definite precommit/unchanged, close receipt, committed, unknown)          | `Receive*` actions, `ReceiveAmbiguousOutcome`, `NoReplayAfterAmbiguous`                                     |
 | `place_panel_result` identity/serial/deadline correlation                                                     | `PlaceResult`, `OnlyCurrentResultPlaced`, `DepositCorrelatesCurrent`, `RejectStaleResultDeposit`            |
-| `panel_reply_current` stale request/serial/target rejection                                                  | `ResultCurrent` gating of all `Consume*` actions                                                            |
+| `panel_reply_current` stale request/serial/target rejection                                                  | `ResultCurrent` gating of all `Consume*` actions, `RejectStaleResultDeposit`, `RejectStaleMembershipReply`, `RejectStaleRefreshConsume`, `StaleRejectionPreservesState` |
 | `prepare_panel`, `prepare_panel_candidate` exact vs superseding validation                                    | `ReadCommitSnapshot*`, `ConsumeCommittedMerge`, `ConsumeCommittedUnavailable`, `ConsumeCommittedDivergent`  |
+| `prepare_panel` tab-unavailable snapshot classification (older/divergent, Tab-gone, newer canonical Tab)      | `ReadTabUnavailableSnapshot`, `ConsumeTabUnavailableMembership`/`Divergent`/`NotApplied`/`Refused`          |
 | `validate_split_panel`, `validate_moved_panel` exact `r+1` graft vs relaxed superseding                        | `ReceiveCommitted` validity, `ConsumeInvalidGraftCommit`, `ReadCommitSnapshotExact`/`Superseding`           |
 | `merge_projection` requiring the prior selected leaf                                                         | `ConsumeCommittedMerge` vs `ConsumeCommittedLeaflessRepair` partition                                       |
 | `apply_prepared_panel`, `retain_prepared_panel_membership` commit retention                                  | `commitHeld`/`commitExpected`, `EnterMembership`, `RecoveryRetainsCommit`                                   |
 | `stage_panel_membership_cleanup`, `prepare_panel_membership_install` release-before-install ordering          | `ReleaseOldAttachment`, `InstallMembership*`, `AttachRequiresReleasedOld`                                   |
 | `retain_pending_panel`, `PanelProjectionUnavailable` recovery                                                | `ConsumeCommittedUnavailable`, `stage = "recovery"`, `AdmitRefresh`, `ApplyRefresh*`                        |
 | `apply_panel_event` UI settlement including unattached and Empty install                                      | `InstallMembershipAttach`, `InstallMembershipSelect`, `InstallMembershipEmpty`, `CompleteAttach`            |
+| `setup_target` attach outcome classification and `settle_without_attachment` (`SessionPhaseKind::RetryableAttachUnavailable`) | `OfferAttachReply`, `CompleteAttach`, `ParkAttachUnavailable`, `FailAttach`, `ExpireAttach`, `ParkedHasNoAttachment`, `RejectedAttachNeverRetires`, `ParkedSettlesViaMembership` |
 | Close `Accepted` receipt vs later publication/removal                                                         | `ReceiveCloseAccepted`, `ConsumeCloseAccepted`, `PeerCloseLeaf`, `CloseReceiptKeepsSelection`               |
 
 The model abstracts away byte-level transport, exact OS/PTY behavior, rendering, worker joins,
@@ -98,13 +111,13 @@ It covers one Tab, three leaves `{p, q, n}`, one panel operation per run, `MaxQu
 `MaxRefresh = 2`. Peer leaf removal is unrestricted while the Tab survives and is not assumed to
 preserve the operation's source leaf — the superseding-leaf counterexample is reachable by
 construction. Fairness is weak only: deadline expiry, result deposit, result consumption,
-membership resolution, attach resolution and refresh application must eventually fire when
-continuously enabled; nothing forces progress while a stage legitimately waits for a bounded
-deadline.
+membership resolution, attach reply offer and resolution, and refresh application must eventually
+fire when continuously enabled; nothing forces progress while a stage legitimately waits for a
+bounded deadline.
 
 Run `node scripts/tla/run-models.mjs --models native-client-panel-lifecycle --jobs 1` with pinned
 TLA+ tools 1.7.4 and one worker per configuration. The five configurations below complete safety
-and final temporal checking with empty queues and positive generated coverage for all 68 required
+and final temporal checking with empty queues and positive generated coverage for all 71 required
 actions across the family.
 
 | Configuration      | Finite role                                                   | Generated / distinct / depth | Model/configuration SHA-256 |
@@ -122,12 +135,22 @@ Temporary mutants (kept outside the repository) confirm the checked properties a
 - Removing result-correlation identity from placement/consume allows a stale request/serial
   deposit to be consumed — `DepositCorrelatesCurrent`/`OnlyCurrentResultPlaced` produce a
   counterexample.
+- Deleting the stale-input guard so a mismatched deposit or reply mutates protected state
+  violates `StaleRejectionPreservesState`.
 - Replacing leafless superseding membership repair with authority divergence — the previously
   shipped behavior — violates `LeaflessSupersedingRepairs` with a counterexample where a peer
   legally closes the selected leaf at `r+2` while the Tab survives.
 - Installing or attaching the repaired membership without first releasing the old attachment
   violates `AttachRequiresReleasedOld`.
+- Converting the retryable park into retirement violates `RejectedAttachNeverRetires`; replaying
+  or auto re-attaching from the parked stage violates `ParkedSettlesViaMembership`.
 
-These results establish only the finite panel-operation interface described above — not
-membership-vector validation, numeric deadlines, real carrier behavior, or multi-operation
-pipelining.
+These results establish only the finite panel-operation interface described above. Known
+boundaries, disclosed rather than silently claimed: `commitValid = FALSE` and noncanonical
+candidates are faulty-authority defensive inputs, not normal honest peer traces; `SomeLeaf` uses
+a nondeterministic `CHOOSE` and over-approximates the selection clamp; a snapshot may be re-read
+repeatedly through the request cursor where production performs a single read; a close receipt's
+effects are delayed until a later publication or peer step; `transport` has no producer in the
+abstract model. Membership-vector validation, numeric deadline precision, real carrier behavior,
+and multi-operation pipelining remain outside this bounded design witness — it is evidence for
+the modeled interface, not a proof of the unbounded production system.
