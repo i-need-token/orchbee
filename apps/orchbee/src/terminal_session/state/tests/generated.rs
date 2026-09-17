@@ -2279,9 +2279,9 @@ fn settle_class_legal(
             // builds Move through a same-direction geometric neighbor, so the
             // source is never already the target-direction sibling a Server
             // Unchanged would require; Unchanged stays a Move-only
-            // adapter/reducer white-box edge, not normal Server history. (A
-            // deeper tree could plan a no-op Move honestly — the exclusion is
-            // this fixture's constructions, not the shape itself.)
+            // adapter/reducer white-box edge, not normal Server history. (No
+            // claim is made here about constructions outside this bounded
+            // fixture.)
             PanelSettleClass::RejectedFresh
             | PanelSettleClass::TabUnavailableGone
             | PanelSettleClass::Unchanged => false,
