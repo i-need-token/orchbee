@@ -97,7 +97,10 @@ The authority unit test, the standalone and Workspace Linux process witnesses
 layout and focus through strict projection and local focus; it admits a peer leaf close as an exact
 sibling-substituted contraction of its baseline tree; when that contraction removes the leaf this
 Client is attached to while the Tab survives, the session enters the common membership
-cleanup/install path and attaches a surviving leaf instead of retiring. The TUI submits
+cleanup/install path to re-attach onto a surviving leaf instead of retiring outright: a successful
+attach resumes normally, an unavailable attach may park at `RetryableAttachUnavailable` with the
+known commit retained, and protocol or deadline failures still retire under the shared fail-closed
+rules. The TUI submits
 `panel.split`, `panel.close`, and `panel.move` from provisional `Ctrl+B` shortcuts pending the
 input-design review.
 
@@ -118,7 +121,9 @@ projection. Replay, stale-revision and request-identity rules are the shared com
 Client projection admits a committed move as this exact restructure — unchanged Panel set, one
 fresh graft, reduced trees equal — at the committed revision; a later canonical revision is
 validated under ordinary canonical rules, repairing membership when it removed the selected leaf
-while the Tab survives, and only true divergence retires. The bounded
+while the Tab survives; within this validation step only genuine divergence retires as
+`AuthorityDivergence`, while transport or protocol failures still retire under their own carrier
+rules. The bounded
 `WorkbenchPanelMove` TLA+ model covers leaf removal, parent collapse, fresh graft identities,
 direction order/orientation and replay over a three-leaf tree domain; the Linux cohort witness
 `native_standalone_panel_move_relocates_a_leaf_without_touching_either_shell` establishes the
