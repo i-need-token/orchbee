@@ -46,14 +46,7 @@
 		},
 		"frame": {
 			"type": "object",
-			"required": [
-				"revision",
-				"generation",
-				"sequence",
-				"alternateScreen",
-				"geometry",
-				"cursor"
-			],
+			"required": ["revision", "generation", "sequence", "alternateScreen", "geometry", "cursor"],
 			"additionalProperties": false,
 			"properties": {
 				"revision": { "$ref": "#/$defs/decimal" },

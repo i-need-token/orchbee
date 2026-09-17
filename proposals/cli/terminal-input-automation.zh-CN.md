@@ -1,13 +1,13 @@
 # 终端输入自动化
 
-| 字段     | 值                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态     | 评审中的提案。设计 `terminal send-text`、`terminal send-keys` 与 `terminal wait-output`——已接受信息架构中标注 "later explicitly authorized slice" 的三条命令——以及已接受但未实现的 first-cohort 命令 `terminal open`。在本切片被接受前，本文任何内容均未获准或实现；以下所有选项拼写均为提案                                                                                                                                                          |
-| 负责人   | 产品命令体验，以及 Rust `orchbee` Client、Server 语义命令边界与终端投影数据面的维护者                                                                                                                                                                                                                                                                                                                                                             |
-| 现行权威 | [`native-command-surface.md`](native-command-surface.md) 持有已接受的信息架构与 automation/input/mutation 契约；[`apps/orchbee/docs/native-cli-query.md`](../../apps/orchbee/docs/native-cli-query.zh-CN.md) 拥有本切片所扩展的已交付只读语法、envelope、失败矩阵与预算约定；[`schemas/client-server/README.md`](../../schemas/client-server/README.zh-CN.md) 拥有 OBCS wire 模型                                                                       |
-| 父设计   | [`native-command-surface.md`](native-command-surface.md)——本提案仅拥有下述四条命令契约；不改变任何已接受决策                                                                                                                                                                                                                                                                                                                                      |
-| 决策权威 | 切片负责人接受：四条语法、viewer/controller wire 映射、键名词汇及其客户端编码、有界观察模型、输出 schema，以及下述失败矩阵扩展。最终选项拼写、完整 `wait-output` 谓词集、agent 控制域归属与确切边界值仍为保留决策                                                                                                                                                                                                                                     |
-| 退出条件 | 全部四条动词获得已接受的命令契约，并在已交付的 CLI 约定下以场景证据实现，之后本提案被消费进归属的实现记录                                                                                                                                                                                                                                                                                                                                         |
+| 字段     | 值                                                                                                                                                                                                                                                                                                                                                                                |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态     | 评审中的提案。设计 `terminal send-text`、`terminal send-keys` 与 `terminal wait-output`——已接受信息架构中标注 "later explicitly authorized slice" 的三条命令——以及已接受但未实现的 first-cohort 命令 `terminal open`。在本切片被接受前，本文任何内容均未获准或实现；以下所有选项拼写均为提案                                                                                      |
+| 负责人   | 产品命令体验，以及 Rust `orchbee` Client、Server 语义命令边界与终端投影数据面的维护者                                                                                                                                                                                                                                                                                             |
+| 现行权威 | [`native-command-surface.md`](native-command-surface.md) 持有已接受的信息架构与 automation/input/mutation 契约；[`apps/orchbee/docs/native-cli-query.md`](../../apps/orchbee/docs/native-cli-query.zh-CN.md) 拥有本切片所扩展的已交付只读语法、envelope、失败矩阵与预算约定；[`schemas/client-server/README.md`](../../schemas/client-server/README.zh-CN.md) 拥有 OBCS wire 模型 |
+| 父设计   | [`native-command-surface.md`](native-command-surface.md)——本提案仅拥有下述四条命令契约；不改变任何已接受决策                                                                                                                                                                                                                                                                      |
+| 决策权威 | 切片负责人接受：四条语法、viewer/controller wire 映射、键名词汇及其客户端编码、有界观察模型、输出 schema，以及下述失败矩阵扩展。最终选项拼写、完整 `wait-output` 谓词集、agent 控制域归属与确切边界值仍为保留决策                                                                                                                                                                 |
+| 退出条件 | 全部四条动词获得已接受的命令契约，并在已交付的 CLI 约定下以场景证据实现，之后本提案被消费进归属的实现记录                                                                                                                                                                                                                                                                         |
 
 英文规范原文：
 [terminal-input-automation.md](terminal-input-automation.md)。
@@ -46,14 +46,14 @@ scrollback 或字节流谓词；`--detach` 支持；close/kill 动词。
 准入，以及一次有界 Workbench snapshot 读取。随后终端定向在同一 Client Session 上继续走 OBCS
 viewer/control 契约：
 
-| 阶段     | Wire 语义                                                                                                                                                                                                                                                                                                          |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 定向     | `<target>` 只接受完整的类型化终端 ID（恰好 32 个小写十六进制字符，非零），规则同 `terminal get`；不提供 label 匹配。解析把 snapshot 绑定映射为 `{siteId, workerId, terminalId}`；未绑定或不存在的终端是 `not-found`                                                                                                        |
-| Attach   | `terminal.viewer` `attach-binding` `{siteId, workerId, terminalId}` → `attached` `{attachmentId, hostEpoch}`——一个由本 Session 持有的新只读 viewer                                                                                                                                                                     |
-| Acquire  | `terminal.control` `acquire` `{attachmentId}` → `acquired` `{controllerId}`——请求该终端唯一的合并 input-and-resize 授权。竞争返回 `rejected` `{reason:"controller-busy"}`；Server 没有等待队列，因此 CLI 报告拒绝而不是阻塞                                                                                              |
-| Input    | `terminal.control` `input` `{attachmentId, controllerId, sequence, bytes}`，1–4,096 个裸字节 → `input-accepted`；或一条 `paste` `OBCQ` 记录，1–262,144 字节 → `pasted` `{acceptedBytes}`。Acceptance 的含义是进入 Host 的有界输入队列，而不是应用已消费或执行它                                                          |
-| Observe  | `terminal.viewer` `poll` `{attachmentId}` → `empty` 或一条二进制 `OBSR` 记录；客户端应用该记录后用 `frame-applied` `{sequence, generation, revision}` 确认；sequence 或解码分歧经 `need-snapshot` 恢复                                                                                                                  |
-| Release  | `terminal.viewer` `detach` `{attachmentId}` → `detached`——在 viewer 退役前释放 controller 授权。Session 丢失执行同样的清理，因此崩溃的命令绝不会持有授权或 viewer                                                                                                                                                      |
+| 阶段    | Wire 语义                                                                                                                                                                                                                                                       |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 定向    | `<target>` 只接受完整的类型化终端 ID（恰好 32 个小写十六进制字符，非零），规则同 `terminal get`；不提供 label 匹配。解析把 snapshot 绑定映射为 `{siteId, workerId, terminalId}`；未绑定或不存在的终端是 `not-found`                                             |
+| Attach  | `terminal.viewer` `attach-binding` `{siteId, workerId, terminalId}` → `attached` `{attachmentId, hostEpoch}`——一个由本 Session 持有的新只读 viewer                                                                                                              |
+| Acquire | `terminal.control` `acquire` `{attachmentId}` → `acquired` `{controllerId}`——请求该终端唯一的合并 input-and-resize 授权。竞争返回 `rejected` `{reason:"controller-busy"}`；Server 没有等待队列，因此 CLI 报告拒绝而不是阻塞                                     |
+| Input   | `terminal.control` `input` `{attachmentId, controllerId, sequence, bytes}`，1–4,096 个裸字节 → `input-accepted`；或一条 `paste` `OBCQ` 记录，1–262,144 字节 → `pasted` `{acceptedBytes}`。Acceptance 的含义是进入 Host 的有界输入队列，而不是应用已消费或执行它 |
+| Observe | `terminal.viewer` `poll` `{attachmentId}` → `empty` 或一条二进制 `OBSR` 记录；客户端应用该记录后用 `frame-applied` `{sequence, generation, revision}` 确认；sequence 或解码分歧经 `need-snapshot` 恢复                                                          |
+| Release | `terminal.viewer` `detach` `{attachmentId}` → `detached`——在 viewer 退役前释放 controller 授权。Session 丢失执行同样的清理，因此崩溃的命令绝不会持有授权或 viewer                                                                                               |
 
 该映射的两条性质驱动了命令设计：
 
@@ -148,18 +148,18 @@ bracketed-paste 模式编码。
 
 提案词汇与编码（最终拼写为保留项）：
 
-| Token                            | 字节                                                                                                                                     |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `C-<c>`                          | 控制字节：`C-a`…`C-z` → `0x01`…`0x1a`（大小写不敏感）；`C-@`/`C-Space` → `0x00`；`C-[` → `0x1b`；`C-\` → `0x1c`；`C-]` → `0x1d`；`C-^` → `0x1e`；`C-_` → `0x1f`；`C-?` → `0x7f` |
-| `M-<key>`                        | `0x1b` 加 `<key>` 的编码（meta/alt）                                                                                                     |
-| `C-M-<c>`                        | `0x1b` 加 `C-<c>` 控制字节                                                                                                               |
-| `Enter`, `Escape`, `Tab`, `Space`, `BSpace`, `BTab` | `0x0d`；`0x1b`；`0x09`；`0x20`；`0x7f`；`0x1b 0x5b 0x5a`（shift-tab）                                                          |
-| `Up`, `Down`, `Right`, `Left`    | `0x1b 0x5b 0x41`/`0x42`/`0x43`/`0x44`（CSI normal cursor 模式）                                                                          |
-| `Home`, `End`                    | `0x1b 0x5b 0x48`/`0x46`                                                                                                                 |
-| `Insert`, `Delete`, `PageUp`, `PageDown` | `0x1b 0x5b 0x32 0x7e`；`0x1b 0x5b 0x33 0x7e`；`0x1b 0x5b 0x35 0x7e`；`0x1b 0x5b 0x36 0x7e`                                   |
-| `F1`–`F4`                        | `0x1b 0x4f 0x50`/`0x51`/`0x52`/`0x53`（SS3）                                                                                             |
-| `F5`–`F12`                       | `0x1b 0x5b <n> 0x7e`，`<n>` = `15`,`17`,`18`,`19`,`20`,`21`,`23`,`24`                                                                    |
-| `C-`/`M-`/`S-` + 具名特殊键      | xterm 修饰形式：方向键/Home/End → `0x1b 0x5b 0x31 0x3b <m> <final>`；`Insert`/`Delete`/`PageUp`/`PageDown`/`F5`–`F12` → `0x1b 0x5b <n> 0x3b <m> 0x7e`；`F1`–`F4` → `0x1b 0x5b 0x31 0x3b <m> P/Q/R/S`，`<m>` = `1 + shift(1) + alt(2) + ctrl(4)` |
+| Token                                               | 字节                                                                                                                                                                                                                                            |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `C-<c>`                                             | 控制字节：`C-a`…`C-z` → `0x01`…`0x1a`（大小写不敏感）；`C-@`/`C-Space` → `0x00`；`C-[` → `0x1b`；`C-\` → `0x1c`；`C-]` → `0x1d`；`C-^` → `0x1e`；`C-_` → `0x1f`；`C-?` → `0x7f`                                                                 |
+| `M-<key>`                                           | `0x1b` 加 `<key>` 的编码（meta/alt）                                                                                                                                                                                                            |
+| `C-M-<c>`                                           | `0x1b` 加 `C-<c>` 控制字节                                                                                                                                                                                                                      |
+| `Enter`, `Escape`, `Tab`, `Space`, `BSpace`, `BTab` | `0x0d`；`0x1b`；`0x09`；`0x20`；`0x7f`；`0x1b 0x5b 0x5a`（shift-tab）                                                                                                                                                                           |
+| `Up`, `Down`, `Right`, `Left`                       | `0x1b 0x5b 0x41`/`0x42`/`0x43`/`0x44`（CSI normal cursor 模式）                                                                                                                                                                                 |
+| `Home`, `End`                                       | `0x1b 0x5b 0x48`/`0x46`                                                                                                                                                                                                                         |
+| `Insert`, `Delete`, `PageUp`, `PageDown`            | `0x1b 0x5b 0x32 0x7e`；`0x1b 0x5b 0x33 0x7e`；`0x1b 0x5b 0x35 0x7e`；`0x1b 0x5b 0x36 0x7e`                                                                                                                                                      |
+| `F1`–`F4`                                           | `0x1b 0x4f 0x50`/`0x51`/`0x52`/`0x53`（SS3）                                                                                                                                                                                                    |
+| `F5`–`F12`                                          | `0x1b 0x5b <n> 0x7e`，`<n>` = `15`,`17`,`18`,`19`,`20`,`21`,`23`,`24`                                                                                                                                                                           |
+| `C-`/`M-`/`S-` + 具名特殊键                         | xterm 修饰形式：方向键/Home/End → `0x1b 0x5b 0x31 0x3b <m> <final>`；`Insert`/`Delete`/`PageUp`/`PageDown`/`F5`–`F12` → `0x1b 0x5b <n> 0x3b <m> 0x7e`；`F1`–`F4` → `0x1b 0x5b 0x31 0x3b <m> P/Q/R/S`，`<m>` = `1 + shift(1) + alt(2) + ctrl(4)` |
 
 与现有输入编码的关系：Host 的语义 `KeyInput` 路径（W3C 风格键码、经 Ghostty VT 的
 mode-aware 编码）在 OBCS version 1 下不可达——`terminal.control` `input` 只携带裸字节。因此
@@ -180,12 +180,12 @@ viewer 并等待，直到某个谓词被满足或 deadline 到达。它绝不 ac
 
 谓词（至少一个必需；组合为 OR）：
 
-| Flag                   | 提案边界                    | 语义                                                                                                                                          |
-| ---------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--text <literal>`     | 1–4,096 UTF-8 字节          | 可见屏幕文本包含该字面子串时满足                                                                                                               |
-| `--regex <pattern>`    | 1–4,096 字节且可编译        | 模式在屏幕文本任意位置匹配时满足；Rust `regex` 线性时间语法（无 backreference/lookaround）；无法编译的模式是 `invalid-usage`                    |
-| `--silence <duration>` | 1–600,000 ms                | 自上一个已应用 frame（或自 attach）起 `<duration>` 内无新应用 frame 时满足                                                                     |
-| `--timeout <duration>` | 1–600,000 ms，默认 30 s     | 对观察阶段的强制总边界；到达时仍无谓词满足则结束等待                                                                                           |
+| Flag                   | 提案边界                | 语义                                                                                                                         |
+| ---------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `--text <literal>`     | 1–4,096 UTF-8 字节      | 可见屏幕文本包含该字面子串时满足                                                                                             |
+| `--regex <pattern>`    | 1–4,096 字节且可编译    | 模式在屏幕文本任意位置匹配时满足；Rust `regex` 线性时间语法（无 backreference/lookaround）；无法编译的模式是 `invalid-usage` |
+| `--silence <duration>` | 1–600,000 ms            | 自上一个已应用 frame（或自 attach）起 `<duration>` 内无新应用 frame 时满足                                                   |
+| `--timeout <duration>` | 1–600,000 ms，默认 30 s | 对观察阶段的强制总边界；到达时仍无谓词满足则结束等待                                                                         |
 
 求值平面：谓词在可见屏幕文本上求值——frame 可见行拼接成的文本，即 `terminal read` 所暴露的
 同一投影平面——在每个已应用 frame 后求值，包括 attach 后的首个快照。本命令刻意不承诺字节流或
@@ -281,15 +281,15 @@ Exit code 沿用已交付表：`0` 成功；`1` 本地确定性结果（输入�
 
 新增或扩展词汇：
 
-| Kind               | Exit | Details                                                | 产生者                                                                                                                                                    |
-| ------------------ | ---- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `controller-busy`  | 3    | `{resource:"terminal",target}`                         | `acquire` → `rejected{controller-busy}`：另一 Client 持有合并 input/resize 授权。确定性拒绝——Server 没有任何队列                                             |
-| `denied`           | 3    | 增加 `{reason}`                                        | 其他 `rejected` outcome：`not-controller`、`host-rejected`、`host-input-invalid`、`host-input-limit-exceeded`、`host-input-backpressure`、`host-input-unavailable`、`feedback-mismatch`——`reason` 携带 wire 值 |
-| `outcome-unknown`  | 8    | `{stage,requestId,sentBytes?}`                         | wire `outcome-unknown` 或 `SubmissionError::OutcomeUnknown`；输入序列中途死亡时 `sentBytes` 报告已确认输入字节                                              |
-| `not-found`        | 3    | `{resource:"terminal",target}`                         | 目标在 snapshot 中不可解析、`attach` → `rejected{terminal-unavailable}`，或操作中途 `rejected{viewer-unavailable}`                                          |
-| `service-unavailable` | 4 | `{stage,reason}`                                       | 有界重试耗尽后，任意阶段的 `unavailable{server-busy|terminal-runtime-unavailable|workbench-unavailable}`                                                  |
-| `internal-failure` | 1    | 省略                                                   | `rejected{sequence-mismatch}` 或 `already-attached`（若 sequence/attachment 跟踪正确则不可达）、编码错误、deadline 构造失败                                  |
-| `transport-loss`   | 5    | `{stage}`                                              | `RequestNotSubmitted`——可证明从未到达 transport 的请求不携带歧义效果                                                                                      |
+| Kind                  | Exit | Details                        | 产生者                                                                                                                                                                                                         |
+| --------------------- | ---- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `controller-busy`     | 3    | `{resource:"terminal",target}` | `acquire` → `rejected{controller-busy}`：另一 Client 持有合并 input/resize 授权。确定性拒绝——Server 没有任何队列                                                                                               |
+| `denied`              | 3    | 增加 `{reason}`                | 其他 `rejected` outcome：`not-controller`、`host-rejected`、`host-input-invalid`、`host-input-limit-exceeded`、`host-input-backpressure`、`host-input-unavailable`、`feedback-mismatch`——`reason` 携带 wire 值 |
+| `outcome-unknown`     | 8    | `{stage,requestId,sentBytes?}` | wire `outcome-unknown` 或 `SubmissionError::OutcomeUnknown`；输入序列中途死亡时 `sentBytes` 报告已确认输入字节                                                                                                 |
+| `not-found`           | 3    | `{resource:"terminal",target}` | 目标在 snapshot 中不可解析、`attach` → `rejected{terminal-unavailable}`，或操作中途 `rejected{viewer-unavailable}`                                                                                             |
+| `service-unavailable` | 4    | `{stage,reason}`               | 有界重试耗尽后，任意阶段的 `unavailable{server-busy\|terminal-runtime-unavailable\|workbench-unavailable}`                                                                                                     |
+| `internal-failure`    | 1    | 省略                           | `rejected{sequence-mismatch}` 或 `already-attached`（若 sequence/attachment 跟踪正确则不可达）、编码错误、deadline 构造失败                                                                                    |
+| `transport-loss`      | 5    | `{stage}`                      | `RequestNotSubmitted`——可证明从未到达 transport 的请求不携带歧义效果                                                                                                                                           |
 
 阶段名在已交付集合（`cohort`、`runtime-base`、`runtime-directory`、`socket`、`discovery`、
 `admission`、`snapshot`、`platform`）上扩展 `attach`、`acquire`、`input`、`observe` 与
@@ -345,18 +345,18 @@ scrollback 谓词）；agent 控制域归属与任何独立的 agent 域策略�
 
 ## 场景矩阵与证据
 
-| 场景                                                                                                              | 期望                                                                                          | 证据                                                                    |
-| ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 语法：输入来源互斥、`--`、format、help 形态、谓词要求、未知 key token                                            | 在任何运行时访问前的精确 `invalid-usage`/类型化 ID 失败                                       | `src/invocation` 测试 + `tests/cli_query.rs` 风格集成                  |
-| 键名词汇：每个名称/修饰组合                                                                                      | 黄金字节编码向量；未知 token 被拒绝                                                            | key-table 单元测试                                                      |
-| 切分：0/1/4,096/4,097/262,144/262,145 字节来源、UTF-8 边界切分                                                    | 正确分块数、边界处 `invalid-usage`、字节精确流                                                | send-path 单元测试                                                      |
-| 脚本化 OBCS peer：acquire `controller-busy`；input 拒绝；`unavailable` 原因；发送中途 `outcome-unknown`           | 按矩阵的类型化 kind；效果绝不重试；报告 `requestId`                                           | 脚本化 peer 集成测试                                                    |
-| Viewer 生命周期：`attach-binding` 拒绝/`unavailable` 优先级、poll/`frame-applied`、`need-snapshot`                | 类型化映射；单一附件；有序确认                                                                | 脚本化 peer 集成测试                                                    |
-| `wait-output`：首个快照即匹配、流中途匹配、`--silence`、deadline、`blocked` 记录、终端丢失                        | `matched`/`deadline` 语义；每个 revision 被求值；类型化结束状态                               | 带构造 frame 序列的脚本化 peer 测试                                     |
-| `open`：NDJSON 事件顺序、自包含行、截断标记、`ended` 原因、`--timeout`/`--frames`                                | 事件语法与边界在构造流下成立                                                                  | 脚本化 peer + 黄金 NDJSON 测试                                          |
-| Secret 不泄漏：内容字节在每种输出/诊断/completion 面上缺席                                                         | 两种 locale 下对 stdout/stderr/completion 的扫描断言                                          | 输出测试                                                                |
-| 非 TTY 执行、等待/流中途 `SIGINT`、stdout 写失败                                                                  | 文档化退出；阻塞前丢弃 Session                                                                | 集成测试                                                                |
-| 真实 staged-cohort Server：在持有 controller 的 TUI 旁对活终端执行 send-*/wait/open                              | `controller-busy` 拒绝；释放后成功路径；无泄漏授权                                            | `tests/local_startup_process`                                           |
+| 场景                                                                                                    | 期望                                                            | 证据                                                  |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------- |
+| 语法：输入来源互斥、`--`、format、help 形态、谓词要求、未知 key token                                   | 在任何运行时访问前的精确 `invalid-usage`/类型化 ID 失败         | `src/invocation` 测试 + `tests/cli_query.rs` 风格集成 |
+| 键名词汇：每个名称/修饰组合                                                                             | 黄金字节编码向量；未知 token 被拒绝                             | key-table 单元测试                                    |
+| 切分：0/1/4,096/4,097/262,144/262,145 字节来源、UTF-8 边界切分                                          | 正确分块数、边界处 `invalid-usage`、字节精确流                  | send-path 单元测试                                    |
+| 脚本化 OBCS peer：acquire `controller-busy`；input 拒绝；`unavailable` 原因；发送中途 `outcome-unknown` | 按矩阵的类型化 kind；效果绝不重试；报告 `requestId`             | 脚本化 peer 集成测试                                  |
+| Viewer 生命周期：`attach-binding` 拒绝/`unavailable` 优先级、poll/`frame-applied`、`need-snapshot`      | 类型化映射；单一附件；有序确认                                  | 脚本化 peer 集成测试                                  |
+| `wait-output`：首个快照即匹配、流中途匹配、`--silence`、deadline、`blocked` 记录、终端丢失              | `matched`/`deadline` 语义；每个 revision 被求值；类型化结束状态 | 带构造 frame 序列的脚本化 peer 测试                   |
+| `open`：NDJSON 事件顺序、自包含行、截断标记、`ended` 原因、`--timeout`/`--frames`                       | 事件语法与边界在构造流下成立                                    | 脚本化 peer + 黄金 NDJSON 测试                        |
+| Secret 不泄漏：内容字节在每种输出/诊断/completion 面上缺席                                              | 两种 locale 下对 stdout/stderr/completion 的扫描断言            | 输出测试                                              |
+| 非 TTY 执行、等待/流中途 `SIGINT`、stdout 写失败                                                        | 文档化退出；阻塞前丢弃 Session                                  | 集成测试                                              |
+| 真实 staged-cohort Server：在持有 controller 的 TUI 旁对活终端执行 send-*/wait/open                     | `controller-busy` 拒绝；释放后成功路径；无泄漏授权              | `tests/local_startup_process`                         |
 
 模型义务：本切片不新增 Server 状态机、持久化或重试——它组合已注册的 OBCS viewer/control
 模型与一个客户端有界观察循环——因此不需要新的 TLA+ 模型。触发范围覆盖 `apps/orchbee` 源与

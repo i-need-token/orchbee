@@ -1,13 +1,13 @@
 # TUI Scrollback 视口
 
-| 字段     | 值                                                                                                                                                                                                                                                                                                                                                     |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 字段     | 值                                                                                                                                                                                                                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 状态     | 提案评审中；下文 wire 语义已对照 `crates/terminal-protocol`、`packages/terminal-protocol/references/protocol.md` 与 `apps/terminal-host` 核实；Client-local 视口模型将 `packages/terminal` projected-terminal 已验证的行为移植到 TUI；键位、剪贴板途径与呈现细节保持 provisional |
-| 负责人   | TUI 视口体验，以及 Rust `orchbee` Client、OBCS/OBCN relay 词汇与 `packages/terminal` 的维护者                                                                                                                                                                                                                                                            |
-| 现行权威 | `crates/terminal-protocol` 与 `apps/terminal-host/docs/runtime-model.md` 拥有 wire 与 Host 语义；`apps/orchbee/README.md` 拥有 TUI 不变量                                                                                                                                                                                                         |
-| 父设计   | [`native-command-surface.md`](native-command-surface.zh-CN.md) 拥有 TUI-as-peer-Client contract；[`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md) 拥有 Client/Server/Worker/Host relay 拓扑                                                                                                                                       |
-| 决策权威 | 产品决策人通过 `m3-input-design` 裁决键位、剪贴板途径与呈现细节；本提案只决定视口模型及其对既有 wire 语义的使用                                                                                                                                                      |
-| 退出条件 | TUI 用户可以在不改 wire 协议、不改共享状态的前提下上翻已保留的 terminal 历史并复制历史文本；当实现面写入所属 package 指南后删除本提案                                                                                                        |
+| 负责人   | TUI 视口体验，以及 Rust `orchbee` Client、OBCS/OBCN relay 词汇与 `packages/terminal` 的维护者                                                                                                                                                                                    |
+| 现行权威 | `crates/terminal-protocol` 与 `apps/terminal-host/docs/runtime-model.md` 拥有 wire 与 Host 语义；`apps/orchbee/README.md` 拥有 TUI 不变量                                                                                                                                        |
+| 父设计   | [`native-command-surface.md`](native-command-surface.zh-CN.md) 拥有 TUI-as-peer-Client contract；[`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md) 拥有 Client/Server/Worker/Host relay 拓扑                                                          |
+| 决策权威 | 产品决策人通过 `m3-input-design` 裁决键位、剪贴板途径与呈现细节；本提案只决定视口模型及其对既有 wire 语义的使用                                                                                                                                                                  |
+| 退出条件 | TUI 用户可以在不改 wire 协议、不改共享状态的前提下上翻已保留的 terminal 历史并复制历史文本；当实现面写入所属 package 指南后删除本提案                                                                                                                                            |
 
 英文规范原文：
 [tui-scrollback-viewport.md](tui-scrollback-viewport.md)。
@@ -137,28 +137,28 @@ wire 已完备，但当前内部 relay 无法把它送达 TUI。已核实的事�
 
 所需增补（内部 relay 词汇，仅增量——OBTP 本身不动）：
 
-| 层级 | 增补 |
-| ---- | ---- |
-| OBCS 与 OBCN `TerminalViewerAction` | 镜像 OBTP 控制的新 typed 变体：`SetHistoryDemand`、`HistoryObserved`、`ReadRows`、`RowsApplied`、`SelectionGesture`、`SelectionCommand`、`SelectionExport`、`SelectionExportChunkApplied`、`SelectionExportCancel` |
-| Worker viewer 路由 | 每个 viewer 一个有界 FIFO（建议深度至少 8）存放非 frame 事件记录——`HistoryChanged`、`SelectionChanged`、`SelectionExportChunk`、`SelectionExportFinished`——与单个 frame 槽分离；溢出即退役该 viewer，与既有饱和策略一致 |
-| Worker exchange 映射 | 每个新动作执行一次关联 OBTP `exchange()`，并经既有 outcome 词汇返回响应记录（或 `FeedbackAccepted` 式确认） |
-| Server local-terminal service | 新动作与 outcome 的透明透传，与既有 viewer relay 一致 |
-| TUI client | `LocalClient::submit_terminal_viewer` 为新动作的管道，外加 `Render` detail window 的有界 Rust OBRW 解码器（OBRW 头加内部 OBPB 快照，映射到渲染器已绘制的 cell 类型；OBKG placement 可在首个切片中跳过） |
+| 层级                                | 增补                                                                                                                                                                                                                    |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OBCS 与 OBCN `TerminalViewerAction` | 镜像 OBTP 控制的新 typed 变体：`SetHistoryDemand`、`HistoryObserved`、`ReadRows`、`RowsApplied`、`SelectionGesture`、`SelectionCommand`、`SelectionExport`、`SelectionExportChunkApplied`、`SelectionExportCancel`      |
+| Worker viewer 路由                  | 每个 viewer 一个有界 FIFO（建议深度至少 8）存放非 frame 事件记录——`HistoryChanged`、`SelectionChanged`、`SelectionExportChunk`、`SelectionExportFinished`——与单个 frame 槽分离；溢出即退役该 viewer，与既有饱和策略一致 |
+| Worker exchange 映射                | 每个新动作执行一次关联 OBTP `exchange()`，并经既有 outcome 词汇返回响应记录（或 `FeedbackAccepted` 式确认）                                                                                                             |
+| Server local-terminal service       | 新动作与 outcome 的透明透传，与既有 viewer relay 一致                                                                                                                                                                   |
+| TUI client                          | `LocalClient::submit_terminal_viewer` 为新动作的管道，外加 `Render` detail window 的有界 Rust OBRW 解码器（OBRW 头加内部 OBPB 快照，映射到渲染器已绘制的 cell 类型；OBKG placement 可在首个切片中跳过）                 |
 
 ## 与 `terminal read` 的共享语义边界
 
 `m3-terminal-read` 在同一批实现一次性 `orchbee terminal read` CLI，基于相同的 wire
 原语。边界在 purpose lane 与生命周期，而非另一种协议。
 
-| 关注点 | 共享 wire/transport 层（两个消费者） | TUI scrollback 视口（本提案） | `terminal read` CLI（兄弟任务） |
-| ------ | ------------------------------------ | --------------------------- | ------------------------------- |
-| Attachment | `read` capability attach；`AttachTerminal`/`DetachTerminal`；capability/epoch 校验 | 复用既有的长生命周期 viewer attachment | 可持有短生命周期 read attachment，输出后 detach |
-| Demand | `SetHistoryDemand`/`HistoryDemandAccepted` 语义 | 会话 viewing 期间保持 `ViewingHistory` | 仅读取期间 `ViewingHistory`，随后恢复 |
-| Row access | `ReadRows`/`RowsSnapshot`/`RowsApplied`；generation/revision/request-sequence 身份；lane 隔离 | `purpose: Viewport`、`CurrentView` 策略、`Tail`/`Committed` origin、`Render` detail、单 flight | `purpose: Buffer`、`Exact` 策略、`Absolute`/`Oldest` origin、`Text` detail、分页 flight |
-| Events | `HistoryChanged`/`HistoryObserved` 精确确认 | 确认每个事件；anchor status 驱动 refresh 或 recover | 确认读取期间收到的事件 |
-| Selection/export | Gesture、command、`SelectionChanged`、分块纯文本导出 | 通过 committed anchor 驱动复制 | 可用 export 或 `Text` 读取产出输出 |
-| 身份规则 | Attachment、host epoch、generation、revision、request sequence、event sequence | 按 flight 强制；陈旧 window 丢弃 | 按页强制；陈旧页重试或上报 |
-| 界限 | 协商的 `rowWindowBytes`、relay 记录上限、协议硬界限 | 视口大小 window；overscan 缓存 | 按字节预算分页并自适应缩小 |
+| 关注点           | 共享 wire/transport 层（两个消费者）                                                          | TUI scrollback 视口（本提案）                                                                  | `terminal read` CLI（兄弟任务）                                                         |
+| ---------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Attachment       | `read` capability attach；`AttachTerminal`/`DetachTerminal`；capability/epoch 校验            | 复用既有的长生命周期 viewer attachment                                                         | 可持有短生命周期 read attachment，输出后 detach                                         |
+| Demand           | `SetHistoryDemand`/`HistoryDemandAccepted` 语义                                               | 会话 viewing 期间保持 `ViewingHistory`                                                         | 仅读取期间 `ViewingHistory`，随后恢复                                                   |
+| Row access       | `ReadRows`/`RowsSnapshot`/`RowsApplied`；generation/revision/request-sequence 身份；lane 隔离 | `purpose: Viewport`、`CurrentView` 策略、`Tail`/`Committed` origin、`Render` detail、单 flight | `purpose: Buffer`、`Exact` 策略、`Absolute`/`Oldest` origin、`Text` detail、分页 flight |
+| Events           | `HistoryChanged`/`HistoryObserved` 精确确认                                                   | 确认每个事件；anchor status 驱动 refresh 或 recover                                            | 确认读取期间收到的事件                                                                  |
+| Selection/export | Gesture、command、`SelectionChanged`、分块纯文本导出                                          | 通过 committed anchor 驱动复制                                                                 | 可用 export 或 `Text` 读取产出输出                                                      |
+| 身份规则         | Attachment、host epoch、generation、revision、request sequence、event sequence                | 按 flight 强制；陈旧 window 丢弃                                                               | 按页强制；陈旧页重试或上报                                                              |
+| 界限             | 协商的 `rowWindowBytes`、relay 记录上限、协议硬界限                                           | 视口大小 window；overscan 缓存                                                                 | 按字节预算分页并自适应缩小                                                              |
 
 TUI 特有的内容不会渗入 CLI：viewport phase、scroll offset、overscan 缓存、键鼠意图、
 selection gesture 与剪贴板途径都是 Client-local。反之，CLI 的一次性快照也不驱动 TUI
@@ -248,13 +248,13 @@ Client: SetProjectionDemand { demand: Active }
 
 ### 状态
 
-| 状态 | 含义 |
-| ---- | ---- |
-| `live` | following bottom：渲染 live 帧 projection；未安装 history window |
-| `entering` | 首个 `Viewport` lane `ReadRows` flight 在飞；冻结的最后 live 帧停留在屏上 |
-| `viewing` | 已提交 history window 被渲染；至多一个 `Viewport` lane refresh/scroll flight 在飞 |
-| `recovering` | 已请求回到底部；等待下一个 live 快照帧以丢弃 history 状态 |
-| `disposed` | attachment、terminal 或 session 已消失；全部视口状态被丢弃 |
+| 状态         | 含义                                                                              |
+| ------------ | --------------------------------------------------------------------------------- |
+| `live`       | following bottom：渲染 live 帧 projection；未安装 history window                  |
+| `entering`   | 首个 `Viewport` lane `ReadRows` flight 在飞；冻结的最后 live 帧停留在屏上         |
+| `viewing`    | 已提交 history window 被渲染；至多一个 `Viewport` lane refresh/scroll flight 在飞 |
+| `recovering` | 已请求回到底部；等待下一个 live 快照帧以丢弃 history 状态                         |
+| `disposed`   | attachment、terminal 或 session 已消失；全部视口状态被丢弃                        |
 
 ### Offset 与锚定模型
 
@@ -272,32 +272,32 @@ Client: SetProjectionDemand { demand: Active }
 
 ### 状态转移表
 
-| 状态 | 事件 | 下一状态 | 动作 |
-| ---- | ---- | -------- | ---- |
-| `live` | 首个 live 帧 / 正常帧 | `live` | 照旧应用 projection |
-| `live` | 上滚意图；alternate screen、无 scrollback，或 `total_rows` ≤ 可见行 | `live` | 显示本地化 "no scrollback" 状态提示 |
-| `live` | 上滚意图；primary screen 且有 scrollback | `entering` | 发送 `SetHistoryDemand(ViewingHistory)`、`SetProjectionDemand(Paused)` 与一次 `Tail` `ReadRows` flight |
-| `entering` | `HistoryDemandAccepted` / `ProjectionDemandAccepted` | `entering` | 记录接受；仍在等 row flight |
-| `entering` | `HistoryChanged` | `entering` | `HistoryObserved`；首个 window 落地前 `anchor_status` 仅供参考 |
-| `entering` | 匹配 flight 的 `RowsSnapshot` | `viewing` | 安装 window、渲染它、发送 `RowsApplied` |
-| `entering` | Typed failure、陈旧或畸形 window、发送失败 | `recovering` | fail closed：恢复 `FollowingBottom` + `Active` 并给出状态提示 |
-| `viewing` | 行/页滚动意图 | `viewing` | 累积或派发 `Committed { delta }` `CurrentView` flight |
-| `viewing` | `Home` / 跳转意图 | `viewing` | 朝目标发 `Tail { rows_before }` `CurrentView` flight |
-| `viewing` | `End` 或滚到 `rows_before == 0` | `recovering` | `SetHistoryDemand(FollowingBottom)` + `SetProjectionDemand(Active)` |
-| `viewing` | 匹配 flight 的 `RowsSnapshot` | `viewing` | 替换 window；安装后 `RowsApplied` |
-| `viewing` | 陈旧 `RowsSnapshot`（generation/revision/request sequence 不匹配） | `viewing` | 丢弃；若无 pending 则发 `Committed { delta: 0 }` 刷新 |
-| `viewing` | `HistoryChanged` 且 `anchor_status: Valid` | `viewing` | `HistoryObserved`；刷新 flight `Committed { delta: 0 }` |
-| `viewing` | `HistoryChanged` 且 `anchor_status: Evicted` 或 `None` | `recovering` | `HistoryObserved`；anchor 身份已失，回到底部 |
-| `viewing` | 暂停期间到达 live 帧记录 | `recovering` | 在 paused demand 下属意外；按失同步处理并恢复 |
-| `viewing` | `SelectionChanged` / export 事件 | `viewing` | 更新或退役 selection lane；与 viewport phase 正交 |
-| `viewing` | terminal input 意图 | `recovering` | 先吸回底部；input 经 controller 独立继续 |
-| `viewing` | 视口 resize | `viewing` | 丢弃已渲染 window，显示 re-anchoring 占位；随后的 `HistoryChanged` 决定 refresh（`Valid`）或 `recovering` |
-| `viewing` | detach、attach 失败、transport 丢失 | `disposed` | anchor 与 window 随 attachment 消亡 |
-| `entering` / `viewing` | terminal retirement 或 session/attachment 切换 | `disposed` | 全部视口状态随旧 attachment 丢弃；新 attachment 从 `live` 开始 |
-| `recovering` | 下一个 live 快照帧 | `live` | 丢弃 history store 与计数器；恢复 projection |
-| `recovering` | 快照到达前的上滚意图 | `recovering` | 忽略（或至多缓冲一个意图）直到 `live` |
-| `recovering` | `HistoryChanged`、detach 或 transport 丢失 | `disposed` | 能确认的仍确认；attachment 反正终结会话 |
-| `disposed` | 任意事件 | `disposed` | 终态；没有新的 `live` attach 不再进入 |
+| 状态                   | 事件                                                                | 下一状态     | 动作                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------- |
+| `live`                 | 首个 live 帧 / 正常帧                                               | `live`       | 照旧应用 projection                                                                                       |
+| `live`                 | 上滚意图；alternate screen、无 scrollback，或 `total_rows` ≤ 可见行 | `live`       | 显示本地化 "no scrollback" 状态提示                                                                       |
+| `live`                 | 上滚意图；primary screen 且有 scrollback                            | `entering`   | 发送 `SetHistoryDemand(ViewingHistory)`、`SetProjectionDemand(Paused)` 与一次 `Tail` `ReadRows` flight    |
+| `entering`             | `HistoryDemandAccepted` / `ProjectionDemandAccepted`                | `entering`   | 记录接受；仍在等 row flight                                                                               |
+| `entering`             | `HistoryChanged`                                                    | `entering`   | `HistoryObserved`；首个 window 落地前 `anchor_status` 仅供参考                                            |
+| `entering`             | 匹配 flight 的 `RowsSnapshot`                                       | `viewing`    | 安装 window、渲染它、发送 `RowsApplied`                                                                   |
+| `entering`             | Typed failure、陈旧或畸形 window、发送失败                          | `recovering` | fail closed：恢复 `FollowingBottom` + `Active` 并给出状态提示                                             |
+| `viewing`              | 行/页滚动意图                                                       | `viewing`    | 累积或派发 `Committed { delta }` `CurrentView` flight                                                     |
+| `viewing`              | `Home` / 跳转意图                                                   | `viewing`    | 朝目标发 `Tail { rows_before }` `CurrentView` flight                                                      |
+| `viewing`              | `End` 或滚到 `rows_before == 0`                                     | `recovering` | `SetHistoryDemand(FollowingBottom)` + `SetProjectionDemand(Active)`                                       |
+| `viewing`              | 匹配 flight 的 `RowsSnapshot`                                       | `viewing`    | 替换 window；安装后 `RowsApplied`                                                                         |
+| `viewing`              | 陈旧 `RowsSnapshot`（generation/revision/request sequence 不匹配）  | `viewing`    | 丢弃；若无 pending 则发 `Committed { delta: 0 }` 刷新                                                     |
+| `viewing`              | `HistoryChanged` 且 `anchor_status: Valid`                          | `viewing`    | `HistoryObserved`；刷新 flight `Committed { delta: 0 }`                                                   |
+| `viewing`              | `HistoryChanged` 且 `anchor_status: Evicted` 或 `None`              | `recovering` | `HistoryObserved`；anchor 身份已失，回到底部                                                              |
+| `viewing`              | 暂停期间到达 live 帧记录                                            | `recovering` | 在 paused demand 下属意外；按失同步处理并恢复                                                             |
+| `viewing`              | `SelectionChanged` / export 事件                                    | `viewing`    | 更新或退役 selection lane；与 viewport phase 正交                                                         |
+| `viewing`              | terminal input 意图                                                 | `recovering` | 先吸回底部；input 经 controller 独立继续                                                                  |
+| `viewing`              | 视口 resize                                                         | `viewing`    | 丢弃已渲染 window，显示 re-anchoring 占位；随后的 `HistoryChanged` 决定 refresh（`Valid`）或 `recovering` |
+| `viewing`              | detach、attach 失败、transport 丢失                                 | `disposed`   | anchor 与 window 随 attachment 消亡                                                                       |
+| `entering` / `viewing` | terminal retirement 或 session/attachment 切换                      | `disposed`   | 全部视口状态随旧 attachment 丢弃；新 attachment 从 `live` 开始                                            |
+| `recovering`           | 下一个 live 快照帧                                                  | `live`       | 丢弃 history store 与计数器；恢复 projection                                                              |
+| `recovering`           | 快照到达前的上滚意图                                                | `recovering` | 忽略（或至多缓冲一个意图）直到 `live`                                                                     |
+| `recovering`           | `HistoryChanged`、detach 或 transport 丢失                          | `disposed`   | 能确认的仍确认；attachment 反正终结会话                                                                   |
+| `disposed`             | 任意事件                                                            | `disposed`   | 终态；没有新的 `live` attach 不再进入                                                                     |
 
 ### viewing 期间的稳定性
 
@@ -340,17 +340,17 @@ Client: SetProjectionDemand { demand: Active }
 签署。模型立场是非模态滚动——scrollback 从不捕获输入；terminal input 会把视口吸回
 底部。
 
-| 意图 | provisional 键位 | 说明 |
-| ---- | ---------------- | ---- |
-| 进入 scrollback | 鼠标滚轮上滚，或 `Ctrl+B PageUp` / `Ctrl+B Up` | 非模态；terminal 应用不占用指针时无需模式键 |
-| 上/下一行 | 鼠标滚轮，或 `Ctrl+B Up` / `Ctrl+B Down` | 映射为 ±1 的 `Committed { delta }` flight |
-| 上/下一页 | `Ctrl+B PageUp` / `Ctrl+B PageDown` | 每页 `visible_rows − 1`，与 terminal 惯例一致 |
-| 跳到顶/底 | `Ctrl+B Home` / `Ctrl+B End` | 顶 = 最旧已保留行；End 返回 `live` |
-| 退出 scrollback | `Ctrl+B End`、滚到底部，或键入 terminal input | 吸回底部；非模态模型下不需要独立退出键 |
-| 选择开始/移动/结束 | 视口上鼠标拖拽 | `SelectionGesture` `Start`/`Update`/`End`；键盘驱动选择是后续模态切片 |
-| 取消选择 | `Ctrl+B Escape` 或开始新选择 | `SelectionGesture` `Cancel` 或 `SelectionCommand` `Clear` |
-| 复制选择 | `Ctrl+B y` | `SelectionExport` 纯文本 → 本地剪贴板（途径保留见下） |
-| 状态指示 | 面板边框徽标如 `History 1,240/5,000` 加逐出省略标记 | 呈现细节；保留 |
+| 意图               | provisional 键位                                    | 说明                                                                  |
+| ------------------ | --------------------------------------------------- | --------------------------------------------------------------------- |
+| 进入 scrollback    | 鼠标滚轮上滚，或 `Ctrl+B PageUp` / `Ctrl+B Up`      | 非模态；terminal 应用不占用指针时无需模式键                           |
+| 上/下一行          | 鼠标滚轮，或 `Ctrl+B Up` / `Ctrl+B Down`            | 映射为 ±1 的 `Committed { delta }` flight                             |
+| 上/下一页          | `Ctrl+B PageUp` / `Ctrl+B PageDown`                 | 每页 `visible_rows − 1`，与 terminal 惯例一致                         |
+| 跳到顶/底          | `Ctrl+B Home` / `Ctrl+B End`                        | 顶 = 最旧已保留行；End 返回 `live`                                    |
+| 退出 scrollback    | `Ctrl+B End`、滚到底部，或键入 terminal input       | 吸回底部；非模态模型下不需要独立退出键                                |
+| 选择开始/移动/结束 | 视口上鼠标拖拽                                      | `SelectionGesture` `Start`/`Update`/`End`；键盘驱动选择是后续模态切片 |
+| 取消选择           | `Ctrl+B Escape` 或开始新选择                        | `SelectionGesture` `Cancel` 或 `SelectionCommand` `Clear`             |
+| 复制选择           | `Ctrl+B y`                                          | `SelectionExport` 纯文本 → 本地剪贴板（途径保留见下）                 |
+| 状态指示           | 面板边框徽标如 `History 1,240/5,000` 加逐出省略标记 | 呈现细节；保留                                                        |
 
 本提案有意不设计的可选后续项：模态 copy-mode 光标、scrollback 搜索 UI、prompt
 导航跳转与 scrollbar 交互。`purpose: Search` row lane 已为后续搜索切片备好。
@@ -359,10 +359,10 @@ Client: SetProjectionDemand { demand: Active }
 
 存在两条剪贴板途径：
 
-| 途径 | 方向 | 适配 |
-| ---- | ---- | ---- |
-| OSC 52（`TerminalClipboardWriteRequest`，kind 56） | terminal *应用*请求 Client 写剪贴板 | 方向不对：它只承载应用意图，不授予平台效果 |
-| TUI 进程本地剪贴板写入 | Client 组装 `SelectionExport` 字节并写系统剪贴板 | 方向正确；把复制语义（`SelectionChanged` → export → 剪贴板）留在 wire 指定的 Client 上 |
+| 途径                                               | 方向                                             | 适配                                                                                   |
+| -------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| OSC 52（`TerminalClipboardWriteRequest`，kind 56） | terminal *应用*请求 Client 写剪贴板              | 方向不对：它只承载应用意图，不授予平台效果                                             |
+| TUI 进程本地剪贴板写入                             | Client 组装 `SelectionExport` 字节并写系统剪贴板 | 方向正确；把复制语义（`SelectionChanged` → export → 剪贴板）留在 wire 指定的 Client 上 |
 
 推荐路径：用户选择留在 wire 上（`SelectionGesture`/`SelectionCommand` →
 `SelectionChanged`）；复制是一次 `SelectionExport`，按块排入有界本地缓冲（≤ 16 MiB），
@@ -374,31 +374,31 @@ Client-local 剪贴板写入。
 
 ## 界限与失败行为
 
-| 界限 | 值 | 视口规则 |
-| ---- | -- | -------- |
-| `scrollback_bytes` 默认 / 零 / 上限 | 10,000,000 / 禁用 / 1,000,000,000 | 零意味着 `total_rows` 等于屏幕行数；进入时显示 "no scrollback" |
-| Row window | ≤ 44 MiB 且 ≤ 4096 行，112 字节 OBRW 头 | 视口请求远小于此；请求自身携带更紧的 `maximum_bytes` |
-| 协商 `rowWindowBytes` | Worker 已协商到协议上限 | 仍把每次请求的 `maximum_bytes`（建议 ≤ 4 MiB）限在 relay 记录上限之下 |
-| Relay 记录 | 64 B + 36 MiB | 合法的 44 MiB window 无法穿越 relay；视口与页大小远低于它 |
-| `Committed` delta | ±4096 行 | 更大的累积 delta 拆成多次 flight 或经 `Tail` 解析 |
-| Frame cells / rows / columns | 262,144 / 4096 / 4096 | 视口缓存镜像 frame 有界几何 |
-| Selection preview / export / chunk | 4 KiB / 16 MiB / 1 MiB | 复制按块排干，溢出或 dispose 时取消 |
-| 视口缓存 | 建议 ≤ 8 MiB 解码 cell，16 行 overscan | 超过缓存预算的 window 被拒绝并使视口恢复 |
-| History 事件确认 | 至多一个在飞 `HistoryChanged` | 总是 `HistoryObserved`；陈旧确认为 no-op |
+| 界限                                | 值                                      | 视口规则                                                              |
+| ----------------------------------- | --------------------------------------- | --------------------------------------------------------------------- |
+| `scrollback_bytes` 默认 / 零 / 上限 | 10,000,000 / 禁用 / 1,000,000,000       | 零意味着 `total_rows` 等于屏幕行数；进入时显示 "no scrollback"        |
+| Row window                          | ≤ 44 MiB 且 ≤ 4096 行，112 字节 OBRW 头 | 视口请求远小于此；请求自身携带更紧的 `maximum_bytes`                  |
+| 协商 `rowWindowBytes`               | Worker 已协商到协议上限                 | 仍把每次请求的 `maximum_bytes`（建议 ≤ 4 MiB）限在 relay 记录上限之下 |
+| Relay 记录                          | 64 B + 36 MiB                           | 合法的 44 MiB window 无法穿越 relay；视口与页大小远低于它             |
+| `Committed` delta                   | ±4096 行                                | 更大的累积 delta 拆成多次 flight 或经 `Tail` 解析                     |
+| Frame cells / rows / columns        | 262,144 / 4096 / 4096                   | 视口缓存镜像 frame 有界几何                                           |
+| Selection preview / export / chunk  | 4 KiB / 16 MiB / 1 MiB                  | 复制按块排干，溢出或 dispose 时取消                                   |
+| 视口缓存                            | 建议 ≤ 8 MiB 解码 cell，16 行 overscan  | 超过缓存预算的 window 被拒绝并使视口恢复                              |
+| History 事件确认                    | 至多一个在飞 `HistoryChanged`           | 总是 `HistoryObserved`；陈旧确认为 no-op                              |
 
 失败矩阵——fail closed，尽可能保住 live 视图：
 
-| 状况 | 行为 |
-| ---- | ---- |
-| 无已保留 scrollback（`total_rows` ≤ 可见行、alternate screen，或 `scrollback_bytes` 为 0） | 保持 `live`；本地化状态提示；不发送 demand 变化 |
-| viewing 期间最旧行被逐出 | `HistoryChanged` `Evicted` → `recovering`；仅在 window 仍可信时把历史顶标记（`start_row` > 最旧索引）渲染为省略行 |
-| generation/revision/sequence 陈旧的 window | 不渲染直接丢弃；经 `Committed { delta: 0 }` 刷新；反复陈旧止于 `recovering` |
-| 畸形或不匹配 window | 同样丢弃并恢复；身份无法验证的 window 绝不绘制 |
-| 任一 history 控制的 `TypedFailure` | `recovering`；经既有 notice 路径呈现该 typed failure |
-| Attach 失败或 transport 丢失 | `disposed`；按 live projection 丢失的 session 重连策略处理 |
-| Row window 超出协商/relay 预算 | 缩小 `maximum_bytes` 与 `row_count`；若单屏 window 仍失败则 `recovering` |
-| Terminal retirement 或 session 切换 | `disposed`；替换 attachment 以空 history 状态从 `live` 开始 |
-| viewing 期间 resize | 丢弃已渲染 window（其列几何已陈旧）；下一个 `HistoryChanged` 解析为刷新或 `recovering` |
+| 状况                                                                                       | 行为                                                                                                              |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| 无已保留 scrollback（`total_rows` ≤ 可见行、alternate screen，或 `scrollback_bytes` 为 0） | 保持 `live`；本地化状态提示；不发送 demand 变化                                                                   |
+| viewing 期间最旧行被逐出                                                                   | `HistoryChanged` `Evicted` → `recovering`；仅在 window 仍可信时把历史顶标记（`start_row` > 最旧索引）渲染为省略行 |
+| generation/revision/sequence 陈旧的 window                                                 | 不渲染直接丢弃；经 `Committed { delta: 0 }` 刷新；反复陈旧止于 `recovering`                                       |
+| 畸形或不匹配 window                                                                        | 同样丢弃并恢复；身份无法验证的 window 绝不绘制                                                                    |
+| 任一 history 控制的 `TypedFailure`                                                         | `recovering`；经既有 notice 路径呈现该 typed failure                                                              |
+| Attach 失败或 transport 丢失                                                               | `disposed`；按 live projection 丢失的 session 重连策略处理                                                        |
+| Row window 超出协商/relay 预算                                                             | 缩小 `maximum_bytes` 与 `row_count`；若单屏 window 仍失败则 `recovering`                                          |
+| Terminal retirement 或 session 切换                                                        | `disposed`；替换 attachment 以空 history 状态从 `live` 开始                                                       |
+| viewing 期间 resize                                                                        | 丢弃已渲染 window（其列几何已陈旧）；下一个 `HistoryChanged` 解析为刷新或 `recovering`                            |
 
 ## 共享文档一致性
 

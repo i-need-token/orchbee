@@ -25,8 +25,8 @@ use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
     WorkbenchCommandResult, WorkbenchCommandUnavailableReason, WorkbenchRejectionReason,
     WorkbenchRequest, WorkbenchResponse, WorkbenchRevision, WorkbenchSnapshotOutcome,
-    WorkbenchSnapshotResult, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
-    parse_snapshot, read_workbench_request, write_workbench_response,
+    WorkbenchSnapshotResult, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome, parse_snapshot,
+    read_workbench_request, write_workbench_response,
 };
 use sha2::{Digest, Sha256};
 
@@ -207,9 +207,7 @@ fn snapshot_response(
 /// Admit the session and answer the snapshot read with the fixture; returns
 /// the snapshot request identity so callers can prove the command's identity
 /// is a different, fresh one.
-fn admit_and_serve_snapshot(
-    stream: &UnixStream,
-) -> orchbee_workbench_protocol::WorkbenchRequestId {
+fn admit_and_serve_snapshot(stream: &UnixStream) -> orchbee_workbench_protocol::WorkbenchRequestId {
     admit(stream);
     let request_id = read_snapshot_request(stream);
     snapshot_response(
@@ -412,7 +410,11 @@ const RIGHT_PANEL: &str = "00000000000000000000000000000046";
 /// expected revision come from the snapshot, the request identity is fresh
 /// (never the snapshot read's), and the action is the expected one.
 fn assert_command_base(command: &WorkbenchCommand, snapshot_request: &str) {
-    assert_eq!(command.site_id.as_str(), SITE, "Site identity from snapshot");
+    assert_eq!(
+        command.site_id.as_str(),
+        SITE,
+        "Site identity from snapshot"
+    );
     assert_eq!(
         command.expected_revision,
         revision(7),
@@ -453,15 +455,25 @@ fn workspace_create_commits_under_a_fresh_request() -> TestResult {
                 revision: revision(8),
                 workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&id(0x61))
                     .unwrap(),
-                terminal_context_id:
-                    orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&id(0x62))
-                        .unwrap(),
+                terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+                    &id(0x62),
+                )
+                .unwrap(),
             },
         );
     });
     let output = run(
         &base,
-        &["workspace", "create", "--project", "web", "--label", "api", "--format", "json"],
+        &[
+            "workspace",
+            "create",
+            "--project",
+            "web",
+            "--label",
+            "api",
+            "--format",
+            "json",
+        ],
     );
     peer.join().expect("peer finished");
     assert_eq!(
@@ -533,7 +545,14 @@ fn workspace_rename_resolves_label_and_reports_unchanged() -> TestResult {
 
     let renamed = run(
         &base,
-        &["workspace", "rename", "main", "--label", "ops", "--format=json"],
+        &[
+            "workspace",
+            "rename",
+            "main",
+            "--label",
+            "ops",
+            "--format=json",
+        ],
     );
     assert_eq!(
         renamed.status.code(),
@@ -598,8 +617,10 @@ fn tab_create_against_standalone_context_reports_terminal() -> TestResult {
                 terminal_context_id: terminal_context_id.clone(),
                 tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&id(0x63)).unwrap(),
                 panel_id: orchbee_workbench_protocol::WorkbenchPanelId::parse(&id(0x64)).unwrap(),
-                presentation_id:
-                    orchbee_workbench_protocol::TerminalPresentationId::parse(&id(0x65)).unwrap(),
+                presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(&id(
+                    0x65,
+                ))
+                .unwrap(),
                 terminal_outcome: WorkbenchTerminalOutcome::Started {
                     geometry: *geometry,
                 },
@@ -674,8 +695,10 @@ fn tab_create_in_workspace_context_resolves_context() -> TestResult {
                 terminal_context_id: terminal_context_id.clone(),
                 tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(&id(0x66)).unwrap(),
                 panel_id: orchbee_workbench_protocol::WorkbenchPanelId::parse(&id(0x67)).unwrap(),
-                presentation_id:
-                    orchbee_workbench_protocol::TerminalPresentationId::parse(&id(0x68)).unwrap(),
+                presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(&id(
+                    0x68,
+                ))
+                .unwrap(),
             },
         );
     });
@@ -762,8 +785,10 @@ fn tab_rename_move_and_close_each_submit_one_command() -> TestResult {
                 assert_eq!(terminal_context_id.as_str(), CONTEXT);
                 assert_eq!(tab_id.as_str(), OPS_TAB);
                 WorkbenchCommandOutcome::TabCloseAccepted {
-                    close_request_id:
-                        orchbee_workbench_protocol::WorkbenchRequestId::parse(&id(0x70)).unwrap(),
+                    close_request_id: orchbee_workbench_protocol::WorkbenchRequestId::parse(&id(
+                        0x70,
+                    ))
+                    .unwrap(),
                     terminal_context_id: terminal_context_id.clone(),
                     tab_id: tab_id.clone(),
                     accepted_revision: revision(7),
@@ -776,7 +801,14 @@ fn tab_rename_move_and_close_each_submit_one_command() -> TestResult {
 
     let renamed = run(
         &base,
-        &["tab", "rename", "ops", "--label", "renamed", "--format=json"],
+        &[
+            "tab",
+            "rename",
+            "ops",
+            "--label",
+            "renamed",
+            "--format=json",
+        ],
     );
     assert_eq!(
         renamed.status.code(),
@@ -794,7 +826,14 @@ fn tab_rename_move_and_close_each_submit_one_command() -> TestResult {
 
     let moved = run(
         &base,
-        &["tab", "move", "logs", "--direction", "last", "--format=json"],
+        &[
+            "tab",
+            "move",
+            "logs",
+            "--direction",
+            "last",
+            "--format=json",
+        ],
     );
     assert_eq!(moved.status.code(), Some(0));
     let document = envelope(&moved);
@@ -863,13 +902,18 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
                         .unwrap(),
                     split_id: orchbee_workbench_protocol::WorkbenchSplitId::parse(&id(0x72))
                         .unwrap(),
-                    first_slot_id:
-                        orchbee_workbench_protocol::WorkbenchPanelSlotId::parse(&id(0x73)).unwrap(),
-                    second_slot_id:
-                        orchbee_workbench_protocol::WorkbenchPanelSlotId::parse(&id(0x74)).unwrap(),
-                    presentation_id:
-                        orchbee_workbench_protocol::TerminalPresentationId::parse(&id(0x75))
-                            .unwrap(),
+                    first_slot_id: orchbee_workbench_protocol::WorkbenchPanelSlotId::parse(&id(
+                        0x73,
+                    ))
+                    .unwrap(),
+                    second_slot_id: orchbee_workbench_protocol::WorkbenchPanelSlotId::parse(&id(
+                        0x74,
+                    ))
+                    .unwrap(),
+                    presentation_id: orchbee_workbench_protocol::TerminalPresentationId::parse(
+                        &id(0x75),
+                    )
+                    .unwrap(),
                     terminal_outcome: WorkbenchTerminalOutcome::Started {
                         geometry: *geometry,
                     },
@@ -884,8 +928,10 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
                 assert_eq!(tab_id.as_str(), LOGS_TAB);
                 assert_eq!(panel_id.as_str(), RIGHT_PANEL);
                 WorkbenchCommandOutcome::PanelCloseAccepted {
-                    close_request_id:
-                        orchbee_workbench_protocol::WorkbenchRequestId::parse(&id(0x76)).unwrap(),
+                    close_request_id: orchbee_workbench_protocol::WorkbenchRequestId::parse(&id(
+                        0x76,
+                    ))
+                    .unwrap(),
                     terminal_context_id: terminal_context_id.clone(),
                     tab_id: tab_id.clone(),
                     panel_id: panel_id.clone(),
@@ -1087,7 +1133,13 @@ fn rejected_command_maps_to_exit_three() -> TestResult {
     let output = run(
         &base,
         &[
-            "workspace", "rename", "main", "--label", "x", "--format", "json",
+            "workspace",
+            "rename",
+            "main",
+            "--label",
+            "x",
+            "--format",
+            "json",
         ],
     );
     peer.join().expect("peer finished");
@@ -1121,9 +1173,16 @@ fn denied_and_unavailable_map_to_the_existing_matrix() -> TestResult {
     let denied_peer = spawn_peer(&scope, |stream| {
         admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
-        command_response(&stream, command.request_id, WorkbenchCommandOutcome::Denied {});
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Denied {},
+        );
     });
-    let denied = run(&base, &["tab", "rename", "ops", "--label", "x", "--format=json"]);
+    let denied = run(
+        &base,
+        &["tab", "rename", "ops", "--label", "x", "--format=json"],
+    );
     denied_peer.join().expect("peer finished");
     assert_eq!(denied.status.code(), Some(3));
     assert_eq!(envelope(&denied)["failure"]["kind"], "denied");
@@ -1207,12 +1266,11 @@ fn dropped_response_is_outcome_unknown_without_replay() -> TestResult {
     let document = envelope(&output);
     assert_eq!(document["failure"]["kind"], "outcome-unknown");
     assert_eq!(document["failure"]["details"]["stage"], "command");
+    assert_eq!(document["failure"]["details"]["reason"], "response-loss");
     assert_eq!(
-        document["failure"]["details"]["reason"],
-        "response-loss"
-    );
-    assert_eq!(
-        document["failure"]["details"]["requestId"].as_str().unwrap(),
+        document["failure"]["details"]["requestId"]
+            .as_str()
+            .unwrap(),
         submitted.lock().unwrap().as_str(),
         "the typed unknown reports the submitted request identity"
     );
@@ -1239,7 +1297,10 @@ fn malformed_and_miscorrelated_responses_are_outcome_unknown() -> TestResult {
             .write_all(b"NOT-A-WORKBENCH-FRAME")
             .expect("peer writes garbage");
     });
-    let output = run(&base, &["tab", "move", "ops", "--direction", "next", "--format=json"]);
+    let output = run(
+        &base,
+        &["tab", "move", "ops", "--direction", "next", "--format=json"],
+    );
     malformed_peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(8));
     let document = envelope(&output);
@@ -1252,7 +1313,10 @@ fn malformed_and_miscorrelated_responses_are_outcome_unknown() -> TestResult {
         let wrong = orchbee_workbench_protocol::WorkbenchRequestId::parse(&id(0x77)).unwrap();
         command_response(&stream, wrong, WorkbenchCommandOutcome::Denied {});
     });
-    let output = run(&base, &["tab", "move", "ops", "--direction", "next", "--format=json"]);
+    let output = run(
+        &base,
+        &["tab", "move", "ops", "--direction", "next", "--format=json"],
+    );
     mismatch_peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(8));
     let document = envelope(&output);
@@ -1280,16 +1344,20 @@ fn wrong_response_kind_is_outcome_unknown() -> TestResult {
     });
     let output = run(
         &base,
-        &["workspace", "rename", "main", "--label", "x", "--format=json"],
+        &[
+            "workspace",
+            "rename",
+            "main",
+            "--label",
+            "x",
+            "--format=json",
+        ],
     );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(8));
     let document = envelope(&output);
     assert_eq!(document["failure"]["kind"], "outcome-unknown");
-    assert_eq!(
-        document["failure"]["details"]["reason"],
-        "response-invalid"
-    );
+    assert_eq!(document["failure"]["details"]["reason"], "response-invalid");
     Ok(())
 }
 
@@ -1306,8 +1374,10 @@ fn incompatible_outcome_is_outcome_unknown() -> TestResult {
             command.request_id,
             WorkbenchCommandOutcome::TabMoved {
                 revision: revision(8),
-                terminal_context_id:
-                    orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(CONTEXT).unwrap(),
+                terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+                    CONTEXT,
+                )
+                .unwrap(),
                 tab_id: orchbee_workbench_protocol::WorkbenchTabId::parse(OPS_TAB).unwrap(),
             },
         );
@@ -1354,7 +1424,14 @@ fn snapshot_unavailable_never_reaches_a_command() -> TestResult {
     });
     let output = run(
         &base,
-        &["workspace", "rename", "main", "--label", "x", "--format=json"],
+        &[
+            "workspace",
+            "rename",
+            "main",
+            "--label",
+            "x",
+            "--format=json",
+        ],
     );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(4));
@@ -1381,12 +1458,21 @@ fn unresolved_targets_never_reach_a_command() -> TestResult {
     let output = run(
         &base,
         &[
-            "workspace", "rename", "ghost", "--label", "x", "--format", "json",
+            "workspace",
+            "rename",
+            "ghost",
+            "--label",
+            "x",
+            "--format",
+            "json",
         ],
     );
     assert_eq!(output.status.code(), Some(3));
     assert_eq!(envelope(&output)["failure"]["kind"], "not-found");
-    assert_eq!(envelope(&output)["failure"]["details"]["resource"], "workspace");
+    assert_eq!(
+        envelope(&output)["failure"]["details"]["resource"],
+        "workspace"
+    );
     // Unknown tab id → not-found on the tab resource.
     let ghost = id(0x7e);
     let output = run(
@@ -1522,11 +1608,34 @@ fn mutation_usage_failures_precede_runtime_access() -> TestResult {
         &["workspace", "create", "--label", "x"],
         &["workspace", "create", "--project", "p"],
         &["tab", "create", "--workspace", "w", "--label", "t"],
-        &["tab", "create", "--standalone", "--workspace", "w", "--label", "t"],
+        &[
+            "tab",
+            "create",
+            "--standalone",
+            "--workspace",
+            "w",
+            "--label",
+            "t",
+        ],
         &["tab", "move", "t", "--direction", "above"],
         &["panel", "move", "p", "--direction", "left"],
-        &["panel", "split", "not-an-id", "--direction", "right", "--label", "p",
-          "--cols", "80", "--rows", "24", "--cell-width", "9", "--cell-height", "18"],
+        &[
+            "panel",
+            "split",
+            "not-an-id",
+            "--direction",
+            "right",
+            "--label",
+            "p",
+            "--cols",
+            "80",
+            "--rows",
+            "24",
+            "--cell-width",
+            "9",
+            "--cell-height",
+            "18",
+        ],
         &["workspace", "rename", "w", "--label", "x", "--confirm"],
         &["status", "--label", "x"],
     ];
@@ -1535,7 +1644,10 @@ fn mutation_usage_failures_precede_runtime_access() -> TestResult {
         argv.extend(["--format", "json"]);
         let output = run(&base, &argv);
         assert_eq!(output.status.code(), Some(2), "{argv:?}");
-        let kind = envelope(&output)["failure"]["kind"].as_str().unwrap().to_owned();
+        let kind = envelope(&output)["failure"]["kind"]
+            .as_str()
+            .unwrap()
+            .to_owned();
         assert!(
             kind == "invalid-usage" || kind == "invalid-identifier",
             "{argv:?} → {kind}"
@@ -1602,7 +1714,13 @@ fn hostile_labels_round_trip_through_the_receipt() -> TestResult {
     let output = run(
         &base,
         &[
-            "workspace", "rename", "main", "--label", hostile, "--format", "json",
+            "workspace",
+            "rename",
+            "main",
+            "--label",
+            hostile,
+            "--format",
+            "json",
         ],
     );
     peer.join().expect("peer finished");
@@ -1624,10 +1742,7 @@ fn hostile_labels_round_trip_through_the_receipt() -> TestResult {
             },
         );
     });
-    let output = run(
-        &base,
-        &["workspace", "rename", "main", "--label", hostile],
-    );
+    let output = run(&base, &["workspace", "rename", "main", "--label", hostile]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     assert!(output.stdout.len() < 8192, "text receipt stays small");

@@ -6,9 +6,9 @@ use orchbee_workbench_protocol::{
 };
 
 use super::{
-    CommandPath, CompletionShell, FailureEnvelope, Family, HelpTopic, MutationCommand, OutputFormat,
-    ParseFailure, ParseFailureKind, QueryCommand, Request, Resource, TabContext, Target,
-    parse_request,
+    CommandPath, CompletionShell, FailureEnvelope, Family, HelpTopic, MutationCommand,
+    OutputFormat, ParseFailure, ParseFailureKind, QueryCommand, Request, Resource, TabContext,
+    Target, parse_request,
 };
 
 fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
@@ -740,14 +740,7 @@ fn tab_create_args(context: &str) -> Vec<&str> {
 fn accepts_every_mutation_path() {
     let cases: &[(&[&str], MutationCommand)] = &[
         (
-            &[
-                "workspace",
-                "create",
-                "--project",
-                "web",
-                "--label",
-                "api",
-            ],
+            &["workspace", "create", "--project", "web", "--label", "api"],
             MutationCommand::WorkspaceCreate {
                 project: Target::Label("web".into()),
                 label: label("api"),
@@ -828,15 +821,7 @@ fn geometry_bearing_commands_require_the_whole_geometry() {
         ))
     );
 
-    let mut arguments = vec![
-        "panel",
-        "split",
-        ID,
-        "--direction",
-        "right",
-        "--label",
-        "p",
-    ];
+    let mut arguments = vec!["panel", "split", ID, "--direction", "right", "--label", "p"];
     arguments.extend(GEOMETRY_ARGS);
     assert_eq!(
         parse(&arguments),
@@ -909,7 +894,16 @@ fn close_commands_require_explicit_confirm() {
         &["tab", "rename", ID, "--label", "x", "--confirm"][..],
         &["workspace", "rename", "w", "--label", "x", "--confirm"][..],
         &["tab", "move", ID, "--direction", "next", "--confirm"][..],
-        &["panel", "move", ID, "--target-panel", ID2, "--direction", "left", "--confirm"][..],
+        &[
+            "panel",
+            "move",
+            ID,
+            "--target-panel",
+            ID2,
+            "--direction",
+            "left",
+            "--confirm",
+        ][..],
         &["status", "--confirm"][..],
         // The flag is single-use.
         &["tab", "close", ID, "--confirm", "--confirm"][..],
@@ -975,8 +969,24 @@ fn mutation_direction_values_follow_the_command_family() {
     for arguments in [
         &["tab", "move", ID, "--direction", "above"][..],
         &["tab", "move", ID, "--direction", "right"][..],
-        &["panel", "move", ID, "--target-panel", ID2, "--direction", "next"][..],
-        &["panel", "move", ID, "--target-panel", ID2, "--direction", "sideways"][..],
+        &[
+            "panel",
+            "move",
+            ID,
+            "--target-panel",
+            ID2,
+            "--direction",
+            "next",
+        ][..],
+        &[
+            "panel",
+            "move",
+            ID,
+            "--target-panel",
+            ID2,
+            "--direction",
+            "sideways",
+        ][..],
     ] {
         assert_eq!(
             parse(arguments),
@@ -1008,15 +1018,18 @@ fn mutation_required_options_cannot_be_dropped() {
             "{arguments:?}"
         );
     }
-    assert_eq!(parse(&full_split), Ok(mutation(
-        MutationCommand::PanelSplit {
-            target: Target::Id(ID.into()),
-            direction: WorkbenchPanelSplitDirection::Right,
-            label: label("p"),
-            geometry: geometry(),
-        },
-        OutputFormat::Text
-    )));
+    assert_eq!(
+        parse(&full_split),
+        Ok(mutation(
+            MutationCommand::PanelSplit {
+                target: Target::Id(ID.into()),
+                direction: WorkbenchPanelSplitDirection::Right,
+                label: label("p"),
+                geometry: geometry(),
+            },
+            OutputFormat::Text
+        ))
+    );
 }
 
 #[test]
@@ -1024,16 +1037,70 @@ fn mutation_options_stay_inside_their_command_scope() {
     let mut create = vec!["workspace", "create", "--project", "p", "--label", "x"];
     let cases: &[&[&str]] = &[
         // Query-only filters are not mutation flags, and vice versa.
-        &["workspace", "create", "--project", "p", "--label", "x", "--standalone"],
-        &["workspace", "create", "--project", "p", "--label", "x", "--tab", "t"],
+        &[
+            "workspace",
+            "create",
+            "--project",
+            "p",
+            "--label",
+            "x",
+            "--standalone",
+        ],
+        &[
+            "workspace",
+            "create",
+            "--project",
+            "p",
+            "--label",
+            "x",
+            "--tab",
+            "t",
+        ],
         &["workspace", "rename", "w", "--label", "x", "--project", "p"],
         &["tab", "rename", "t", "--label", "x", "--workspace", "w"],
         &["tab", "move", "t", "--direction", "next", "--label", "x"],
-        &["tab", "move", "t", "--direction", "next", "--workspace", "w"],
+        &[
+            "tab",
+            "move",
+            "t",
+            "--direction",
+            "next",
+            "--workspace",
+            "w",
+        ],
         &["tab", "close", "t", "--confirm", "--label", "x"],
-        &["panel", "split", ID, "--direction", "right", "--label", "p", "--tab", "t"],
-        &["panel", "move", ID, "--target-panel", ID2, "--direction", "left", "--label", "x"],
-        &["panel", "move", ID, "--target-panel", ID2, "--direction", "left", "--standalone"],
+        &[
+            "panel",
+            "split",
+            ID,
+            "--direction",
+            "right",
+            "--label",
+            "p",
+            "--tab",
+            "t",
+        ],
+        &[
+            "panel",
+            "move",
+            ID,
+            "--target-panel",
+            ID2,
+            "--direction",
+            "left",
+            "--label",
+            "x",
+        ],
+        &[
+            "panel",
+            "move",
+            ID,
+            "--target-panel",
+            ID2,
+            "--direction",
+            "left",
+            "--standalone",
+        ],
         // Mutation flags on queries or the bare invocation are usage.
         &["status", "--label", "x"],
         &["status", "--direction", "next"],
@@ -1044,7 +1111,16 @@ fn mutation_options_stay_inside_their_command_scope() {
         &["--label", "x"],
         &["--confirm"],
         &["--direction", "next"],
-        &["--cols", "80", "--rows", "24", "--cell-width", "9", "--cell-height", "18"],
+        &[
+            "--cols",
+            "80",
+            "--rows",
+            "24",
+            "--cell-width",
+            "9",
+            "--cell-height",
+            "18",
+        ],
         &["--target-panel", ID],
     ];
     for arguments in cases {
@@ -1126,8 +1202,19 @@ fn mutation_values_are_bounded() {
         ("80", "24", "17", "4096"),
     ] {
         let arguments = [
-            "tab", "create", "--standalone", "--label", "t", "--cols", cols, "--rows", rows,
-            "--cell-width", width, "--cell-height", height,
+            "tab",
+            "create",
+            "--standalone",
+            "--label",
+            "t",
+            "--cols",
+            cols,
+            "--rows",
+            rows,
+            "--cell-width",
+            width,
+            "--cell-height",
+            height,
         ];
         assert_eq!(
             parse(&arguments),
@@ -1171,11 +1258,7 @@ fn mutation_targets_follow_each_resource_rule() {
     // Label-capable resources take ids or exact labels on their operand.
     assert_eq!(
         parse(&["workspace", "create", "--project", ZERO, "--label", "x"]),
-        Err(identifier(
-            Resource::Project,
-            ZERO,
-            FailureEnvelope::Text
-        ))
+        Err(identifier(Resource::Project, ZERO, FailureEnvelope::Text))
     );
     assert_eq!(
         parse(&["tab", "rename", ZERO, "--label", "x"]),
@@ -1192,15 +1275,47 @@ fn mutation_targets_follow_each_resource_rule() {
     );
     // Panels accept only complete typed ids — operands and --target-panel alike.
     for (arguments, resource, value) in [
-        (&["panel", "split", "short", "--direction", "right", "--label", "p"][..], Resource::Panel, "short"),
-        (&["panel", "close", ZERO, "--confirm"][..], Resource::Panel, ZERO),
         (
-            &["panel", "move", ID, "--target-panel", "by-label", "--direction", "left"][..],
+            &[
+                "panel",
+                "split",
+                "short",
+                "--direction",
+                "right",
+                "--label",
+                "p",
+            ][..],
+            Resource::Panel,
+            "short",
+        ),
+        (
+            &["panel", "close", ZERO, "--confirm"][..],
+            Resource::Panel,
+            ZERO,
+        ),
+        (
+            &[
+                "panel",
+                "move",
+                ID,
+                "--target-panel",
+                "by-label",
+                "--direction",
+                "left",
+            ][..],
             Resource::Panel,
             "by-label",
         ),
         (
-            &["panel", "move", ID, "--target-panel", ZERO, "--direction", "left"][..],
+            &[
+                "panel",
+                "move",
+                ID,
+                "--target-panel",
+                ZERO,
+                "--direction",
+                "left",
+            ][..],
             Resource::Panel,
             ZERO,
         ),
@@ -1214,8 +1329,20 @@ fn mutation_targets_follow_each_resource_rule() {
     // --project/--workspace on mutation commands are full targets too.
     assert_eq!(
         parse(&[
-            "tab", "create", "--workspace", ZERO, "--label", "t", "--cols", "80", "--rows",
-            "24", "--cell-width", "9", "--cell-height", "18",
+            "tab",
+            "create",
+            "--workspace",
+            ZERO,
+            "--label",
+            "t",
+            "--cols",
+            "80",
+            "--rows",
+            "24",
+            "--cell-width",
+            "9",
+            "--cell-height",
+            "18",
         ]),
         Err(identifier(Resource::Workspace, ZERO, FailureEnvelope::Text))
     );
@@ -1327,9 +1454,7 @@ fn mutation_failures_follow_the_format_envelope() {
     );
     // Format anywhere legal around a complete mutation command selects json.
     assert_eq!(
-        parse(&[
-            "--format=json", "tab", "close", ID, "--confirm",
-        ]),
+        parse(&["--format=json", "tab", "close", ID, "--confirm",]),
         Ok(mutation(
             MutationCommand::TabClose {
                 target: Target::Id(ID.into()),

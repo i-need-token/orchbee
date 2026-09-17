@@ -43,16 +43,7 @@
 				"secondSlotId": { "$ref": "#/$defs/id" },
 				"presentationId": { "$ref": "#/$defs/id" },
 				"direction": {
-					"enum": [
-						"above",
-						"below",
-						"first",
-						"last",
-						"left",
-						"next",
-						"previous",
-						"right"
-					]
+					"enum": ["above", "below", "first", "last", "left", "next", "previous", "right"]
 				},
 				"label": { "type": "string" },
 				"terminal": {
@@ -64,11 +55,7 @@
 							"enum": ["failed", "pending", "started", "unavailable", "unknown"]
 						},
 						"reason": {
-							"enum": [
-								"server-busy",
-								"terminal-create-failed",
-								"terminal-runtime-unavailable"
-							]
+							"enum": ["server-busy", "terminal-create-failed", "terminal-runtime-unavailable"]
 						},
 						"geometry": { "$ref": "#/$defs/geometry" }
 					}

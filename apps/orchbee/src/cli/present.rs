@@ -348,7 +348,10 @@ fn detail(out: &mut Bounded, value: &Value) -> Result<(), TooLarge> {
 /// A mutation receipt renders as one `name  value` block using the JSON
 /// field names verbatim so text and JSON name identical fields; the label
 /// value is the only user-controlled text and is escaped through `quoted`.
-pub(crate) fn receipt(out: &mut Bounded, receipt: &super::mutation::Receipt) -> Result<(), TooLarge> {
+pub(crate) fn receipt(
+    out: &mut Bounded,
+    receipt: &super::mutation::Receipt,
+) -> Result<(), TooLarge> {
     let rows = receipt.text_fields();
     let width = rows
         .iter()

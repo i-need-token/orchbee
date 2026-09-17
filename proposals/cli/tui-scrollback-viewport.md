@@ -1,13 +1,13 @@
 # TUI Scrollback Viewport
 
-| Field              | Value                                                                                                                                                                                                                                                                                                                                                     |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Field              | Value                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Status             | Proposal under review; the wire semantics below are verified against `crates/terminal-protocol`, `packages/terminal-protocol/references/protocol.md`, and `apps/terminal-host`; the Client-local viewport model adapts the proven `packages/terminal` projected-terminal behavior for the TUI; key bindings, clipboard transport, and presentation stay provisional |
-| Owner              | TUI viewport experience and the maintainers of the Rust `orchbee` Client, the OBCS/OBCN relay vocabularies, and `packages/terminal`                                                                                                                                                                                                                            |
-| Current authority  | `crates/terminal-protocol` and `apps/terminal-host/docs/runtime-model.md` own wire and Host semantics; `apps/orchbee/README.md` owns TUI invariants                                                                                                                                                                                                         |
-| Parent design      | [`native-command-surface.md`](native-command-surface.md) owns the TUI-as-peer-Client contract; [`native-runtime-topology.md`](../platform/native-runtime-topology.md) owns the Client/Server/Worker/Host relay topology                                                                                                                                       |
-| Decision authority | The product owner decides key bindings, clipboard transport, and presentation details through `m3-input-design`; this proposal decides only the viewport model and its use of existing wire semantics                                                                                                                                                      |
-| Exit condition     | A TUI user can scroll upward through retained terminal history and copy historical text with no wire-protocol changes and no shared-state mutation; this proposal is deleted once the implemented surface is documented in the owning package guides                                                                                                        |
+| Owner              | TUI viewport experience and the maintainers of the Rust `orchbee` Client, the OBCS/OBCN relay vocabularies, and `packages/terminal`                                                                                                                                                                                                                                 |
+| Current authority  | `crates/terminal-protocol` and `apps/terminal-host/docs/runtime-model.md` own wire and Host semantics; `apps/orchbee/README.md` owns TUI invariants                                                                                                                                                                                                                 |
+| Parent design      | [`native-command-surface.md`](native-command-surface.md) owns the TUI-as-peer-Client contract; [`native-runtime-topology.md`](../platform/native-runtime-topology.md) owns the Client/Server/Worker/Host relay topology                                                                                                                                             |
+| Decision authority | The product owner decides key bindings, clipboard transport, and presentation details through `m3-input-design`; this proposal decides only the viewport model and its use of existing wire semantics                                                                                                                                                               |
+| Exit condition     | A TUI user can scroll upward through retained terminal history and copy historical text with no wire-protocol changes and no shared-state mutation; this proposal is deleted once the implemented surface is documented in the owning package guides                                                                                                                |
 
 Simplified Chinese review translation:
 [tui-scrollback-viewport.zh-CN.md](tui-scrollback-viewport.zh-CN.md).
@@ -46,7 +46,7 @@ Terminal Host wire; nothing in it changes.
 ### Attachment capability and projection demand
 
 - A viewer attaches with `AttachTerminal` requesting `AttachmentCapabilityState { read: true,
-  input: false, resize: false }` and no resize lease; the Host answers
+input: false, resize: false }` and no resize lease; the Host answers
   `AttachmentCapabilities` with the granted immutable capabilities. The existing TUI viewer attach
   already requests exactly this grant, so scrollback needs no new capability.
 - `SetProjectionDemand { demand: Active | Paused }` controls whether the Host pushes frame events;
@@ -145,28 +145,28 @@ The wire is complete, but today the internal relay cannot carry it to the TUI. V
 
 Required additions (internal relay vocabulary, additive only — OBTP itself is untouched):
 
-| Layer | Addition |
-| ----- | -------- |
-| OBCS and OBCN `TerminalViewerAction` | New typed variants mirroring the OBTP controls: `SetHistoryDemand`, `HistoryObserved`, `ReadRows`, `RowsApplied`, `SelectionGesture`, `SelectionCommand`, `SelectionExport`, `SelectionExportChunkApplied`, `SelectionExportCancel` |
-| Worker viewer routing | A bounded per-viewer FIFO (recommended depth at least 8) for non-frame event records — `HistoryChanged`, `SelectionChanged`, `SelectionExportChunk`, `SelectionExportFinished` — kept separate from the single frame slot; overflow retires the viewer, matching the existing saturation policy |
-| Worker exchange mapping | Each new action performs one correlated OBTP `exchange()` and returns the response record (or `FeedbackAccepted`-style acknowledgement) through the existing outcome vocabulary |
-| Server local-terminal service | Transparent passthrough of the new actions and outcomes, consistent with existing viewer relay |
-| TUI client | `LocalClient::submit_terminal_viewer` plumbing for the new actions plus a bounded Rust OBRW decoder for `Render`-detail windows (OBRW header plus the inner OBPB snapshot mapped onto the cell types the renderer already draws; OBKG placements may be skipped in the first slice) |
+| Layer                                | Addition                                                                                                                                                                                                                                                                                        |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OBCS and OBCN `TerminalViewerAction` | New typed variants mirroring the OBTP controls: `SetHistoryDemand`, `HistoryObserved`, `ReadRows`, `RowsApplied`, `SelectionGesture`, `SelectionCommand`, `SelectionExport`, `SelectionExportChunkApplied`, `SelectionExportCancel`                                                             |
+| Worker viewer routing                | A bounded per-viewer FIFO (recommended depth at least 8) for non-frame event records — `HistoryChanged`, `SelectionChanged`, `SelectionExportChunk`, `SelectionExportFinished` — kept separate from the single frame slot; overflow retires the viewer, matching the existing saturation policy |
+| Worker exchange mapping              | Each new action performs one correlated OBTP `exchange()` and returns the response record (or `FeedbackAccepted`-style acknowledgement) through the existing outcome vocabulary                                                                                                                 |
+| Server local-terminal service        | Transparent passthrough of the new actions and outcomes, consistent with existing viewer relay                                                                                                                                                                                                  |
+| TUI client                           | `LocalClient::submit_terminal_viewer` plumbing for the new actions plus a bounded Rust OBRW decoder for `Render`-detail windows (OBRW header plus the inner OBPB snapshot mapped onto the cell types the renderer already draws; OBKG placements may be skipped in the first slice)             |
 
 ## Shared semantic boundary with `terminal read`
 
 `m3-terminal-read` implements the one-shot `orchbee terminal read` CLI over the same wire
 primitives. The boundary is the purpose lane and the lifecycle, not a different protocol.
 
-| Concern | Shared wire/transport layer (both consumers) | TUI scrollback viewport (this proposal) | `terminal read` CLI (sibling task) |
-| ------- | -------------------------------------------- | --------------------------------------- | ---------------------------------- |
-| Attachment | `read` capability attach; `AttachTerminal`/`DetachTerminal`; capability/epoch validation | Reuses the existing long-lived viewer attachment | May hold a short-lived read attachment and detach after output |
-| Demand | `SetHistoryDemand`/`HistoryDemandAccepted` semantics | `ViewingHistory` for the session's viewing duration | `ViewingHistory` only for the read, then restore |
-| Row access | `ReadRows`/`RowsSnapshot`/`RowsApplied`; generation/revision/request-sequence identity; lane isolation | `purpose: Viewport`, `CurrentView` policy, `Tail`/`Committed` origins, `Render` detail, one flight | `purpose: Buffer`, `Exact` policy, `Absolute`/`Oldest` origins, `Text` detail, paged flights |
-| Events | `HistoryChanged`/`HistoryObserved` exact acknowledgement | Acknowledge every event; anchor status drives refresh or recover | Acknowledge events received during the read |
-| Selection/export | Gesture, command, `SelectionChanged`, chunked plain-text export | Drives copy through the committed anchor | May use export or `Text` reads for output |
-| Identity rules | Attachment, host epoch, generation, revision, request sequence, event sequence | Enforced per flight; stale windows discarded | Enforced per page; stale pages retried or reported |
-| Limits | Negotiated `rowWindowBytes`, relay record cap, protocol hard bounds | Viewport-sized windows; overscan cache | Byte-budgeted pages with adaptive shrink |
+| Concern          | Shared wire/transport layer (both consumers)                                                           | TUI scrollback viewport (this proposal)                                                            | `terminal read` CLI (sibling task)                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Attachment       | `read` capability attach; `AttachTerminal`/`DetachTerminal`; capability/epoch validation               | Reuses the existing long-lived viewer attachment                                                   | May hold a short-lived read attachment and detach after output                               |
+| Demand           | `SetHistoryDemand`/`HistoryDemandAccepted` semantics                                                   | `ViewingHistory` for the session's viewing duration                                                | `ViewingHistory` only for the read, then restore                                             |
+| Row access       | `ReadRows`/`RowsSnapshot`/`RowsApplied`; generation/revision/request-sequence identity; lane isolation | `purpose: Viewport`, `CurrentView` policy, `Tail`/`Committed` origins, `Render` detail, one flight | `purpose: Buffer`, `Exact` policy, `Absolute`/`Oldest` origins, `Text` detail, paged flights |
+| Events           | `HistoryChanged`/`HistoryObserved` exact acknowledgement                                               | Acknowledge every event; anchor status drives refresh or recover                                   | Acknowledge events received during the read                                                  |
+| Selection/export | Gesture, command, `SelectionChanged`, chunked plain-text export                                        | Drives copy through the committed anchor                                                           | May use export or `Text` reads for output                                                    |
+| Identity rules   | Attachment, host epoch, generation, revision, request sequence, event sequence                         | Enforced per flight; stale windows discarded                                                       | Enforced per page; stale pages retried or reported                                           |
+| Limits           | Negotiated `rowWindowBytes`, relay record cap, protocol hard bounds                                    | Viewport-sized windows; overscan cache                                                             | Byte-budgeted pages with adaptive shrink                                                     |
 
 Nothing TUI-specific leaks into the CLI: viewport phase, scroll offset, overscan cache, key and
 mouse intent, selection gestures, and clipboard transport are Client-local. Conversely, the CLI's
@@ -259,13 +259,13 @@ client uses.
 
 ### States
 
-| State | Meaning |
-| ----- | ------- |
-| `live` | Following bottom: live frame projection is rendered; no history window is installed |
-| `entering` | First `Viewport`-lane `ReadRows` flight outstanding; the frozen last live frame stays on screen |
-| `viewing` | A committed history window is rendered; zero or one `Viewport`-lane refresh/scroll flight may be outstanding |
-| `recovering` | Return-to-bottom requested; waiting for the next live snapshot frame before discarding history state |
-| `disposed` | Attachment, terminal, or session gone; all viewport state is dropped |
+| State        | Meaning                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------ |
+| `live`       | Following bottom: live frame projection is rendered; no history window is installed                          |
+| `entering`   | First `Viewport`-lane `ReadRows` flight outstanding; the frozen last live frame stays on screen              |
+| `viewing`    | A committed history window is rendered; zero or one `Viewport`-lane refresh/scroll flight may be outstanding |
+| `recovering` | Return-to-bottom requested; waiting for the next live snapshot frame before discarding history state         |
+| `disposed`   | Attachment, terminal, or session gone; all viewport state is dropped                                         |
 
 ### Offset and anchoring model
 
@@ -285,32 +285,32 @@ client uses.
 
 ### State transition table
 
-| State | Event | Next | Action |
-| ----- | ----- | ---- | ------ |
-| `live` | First live frame / normal frame | `live` | Apply projection as today |
-| `live` | Scroll-up intent; alternate screen, no scrollback, or `total_rows` ≤ visible rows | `live` | Show a localized "no scrollback" status hint |
-| `live` | Scroll-up intent; primary screen with scrollback | `entering` | Send `SetHistoryDemand(ViewingHistory)`, `SetProjectionDemand(Paused)`, and a `Tail` `ReadRows` flight |
-| `entering` | `HistoryDemandAccepted` / `ProjectionDemandAccepted` | `entering` | Record acceptance; still waiting on the row flight |
-| `entering` | `HistoryChanged` | `entering` | `HistoryObserved`; `anchor_status` is informational until the first window lands |
-| `entering` | `RowsSnapshot` matching the flight | `viewing` | Install window, render it, send `RowsApplied` |
-| `entering` | Typed failure, stale or malformed window, send failure | `recovering` | Fail closed: restore `FollowingBottom` + `Active` and surface a status hint |
-| `viewing` | Line/page scroll intent | `viewing` | Accumulate or dispatch `Committed { delta }` `CurrentView` flight |
-| `viewing` | `Home` / jump intent | `viewing` | `Tail { rows_before }` `CurrentView` flight toward target |
-| `viewing` | `End` or scroll reaching `rows_before == 0` | `recovering` | `SetHistoryDemand(FollowingBottom)` + `SetProjectionDemand(Active)` |
-| `viewing` | `RowsSnapshot` matching the flight | `viewing` | Replace window; `RowsApplied` after install |
-| `viewing` | `RowsSnapshot` stale (generation/revision/request sequence mismatch) | `viewing` | Discard; issue a `Committed { delta: 0 }` refresh if none pending |
-| `viewing` | `HistoryChanged` with `anchor_status: Valid` | `viewing` | `HistoryObserved`; refresh flight `Committed { delta: 0 }` |
-| `viewing` | `HistoryChanged` with `anchor_status: Evicted` or `None` | `recovering` | `HistoryObserved`; anchor identity is gone, return to bottom |
-| `viewing` | Live frame record arrives while paused | `recovering` | Unexpected under paused demand; treat as desynchronization, recover |
-| `viewing` | `SelectionChanged` / export events | `viewing` | Update or retire selection lane; orthogonal to viewport phase |
-| `viewing` | Terminal input intent | `recovering` | Snap to bottom first; the input proceeds independently through the controller |
-| `viewing` | Viewport resize | `viewing` | Drop the rendered window, show a re-anchoring placeholder; the resulting `HistoryChanged` decides refresh (`Valid`) or `recovering` |
-| `viewing` | Detach, attach failure, transport loss | `disposed` | Anchor and window die with the attachment |
-| `entering` / `viewing` | Terminal retirement or session/attachment switch | `disposed` | Discard all viewport state with the old attachment; the new attachment starts `live` |
-| `recovering` | Next live snapshot frame | `live` | Discard history store and counters; resume projection |
-| `recovering` | Scroll-up intent before the snapshot arrives | `recovering` | Ignore (or buffer at most one intent) until `live` |
-| `recovering` | `HistoryChanged`, detach, or transport loss | `disposed` | Acknowledge what can be acknowledged; the attachment ends the session anyway |
-| `disposed` | Any event | `disposed` | Terminal state; nothing re-enters without a fresh `live` attach |
+| State                  | Event                                                                             | Next         | Action                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `live`                 | First live frame / normal frame                                                   | `live`       | Apply projection as today                                                                                                           |
+| `live`                 | Scroll-up intent; alternate screen, no scrollback, or `total_rows` ≤ visible rows | `live`       | Show a localized "no scrollback" status hint                                                                                        |
+| `live`                 | Scroll-up intent; primary screen with scrollback                                  | `entering`   | Send `SetHistoryDemand(ViewingHistory)`, `SetProjectionDemand(Paused)`, and a `Tail` `ReadRows` flight                              |
+| `entering`             | `HistoryDemandAccepted` / `ProjectionDemandAccepted`                              | `entering`   | Record acceptance; still waiting on the row flight                                                                                  |
+| `entering`             | `HistoryChanged`                                                                  | `entering`   | `HistoryObserved`; `anchor_status` is informational until the first window lands                                                    |
+| `entering`             | `RowsSnapshot` matching the flight                                                | `viewing`    | Install window, render it, send `RowsApplied`                                                                                       |
+| `entering`             | Typed failure, stale or malformed window, send failure                            | `recovering` | Fail closed: restore `FollowingBottom` + `Active` and surface a status hint                                                         |
+| `viewing`              | Line/page scroll intent                                                           | `viewing`    | Accumulate or dispatch `Committed { delta }` `CurrentView` flight                                                                   |
+| `viewing`              | `Home` / jump intent                                                              | `viewing`    | `Tail { rows_before }` `CurrentView` flight toward target                                                                           |
+| `viewing`              | `End` or scroll reaching `rows_before == 0`                                       | `recovering` | `SetHistoryDemand(FollowingBottom)` + `SetProjectionDemand(Active)`                                                                 |
+| `viewing`              | `RowsSnapshot` matching the flight                                                | `viewing`    | Replace window; `RowsApplied` after install                                                                                         |
+| `viewing`              | `RowsSnapshot` stale (generation/revision/request sequence mismatch)              | `viewing`    | Discard; issue a `Committed { delta: 0 }` refresh if none pending                                                                   |
+| `viewing`              | `HistoryChanged` with `anchor_status: Valid`                                      | `viewing`    | `HistoryObserved`; refresh flight `Committed { delta: 0 }`                                                                          |
+| `viewing`              | `HistoryChanged` with `anchor_status: Evicted` or `None`                          | `recovering` | `HistoryObserved`; anchor identity is gone, return to bottom                                                                        |
+| `viewing`              | Live frame record arrives while paused                                            | `recovering` | Unexpected under paused demand; treat as desynchronization, recover                                                                 |
+| `viewing`              | `SelectionChanged` / export events                                                | `viewing`    | Update or retire selection lane; orthogonal to viewport phase                                                                       |
+| `viewing`              | Terminal input intent                                                             | `recovering` | Snap to bottom first; the input proceeds independently through the controller                                                       |
+| `viewing`              | Viewport resize                                                                   | `viewing`    | Drop the rendered window, show a re-anchoring placeholder; the resulting `HistoryChanged` decides refresh (`Valid`) or `recovering` |
+| `viewing`              | Detach, attach failure, transport loss                                            | `disposed`   | Anchor and window die with the attachment                                                                                           |
+| `entering` / `viewing` | Terminal retirement or session/attachment switch                                  | `disposed`   | Discard all viewport state with the old attachment; the new attachment starts `live`                                                |
+| `recovering`           | Next live snapshot frame                                                          | `live`       | Discard history store and counters; resume projection                                                                               |
+| `recovering`           | Scroll-up intent before the snapshot arrives                                      | `recovering` | Ignore (or buffer at most one intent) until `live`                                                                                  |
+| `recovering`           | `HistoryChanged`, detach, or transport loss                                       | `disposed`   | Acknowledge what can be acknowledged; the attachment ends the session anyway                                                        |
+| `disposed`             | Any event                                                                         | `disposed`   | Terminal state; nothing re-enters without a fresh `live` attach                                                                     |
 
 ### Stability while viewing
 
@@ -356,17 +356,17 @@ All bindings below are **provisional**: `m3-input-design` owns the TUI key vocab
 product owner signs off. The model stance is non-modal scrolling — typing is never captured by
 scrollback; terminal input snaps the viewport back to the bottom.
 
-| Intent | Provisional binding | Notes |
-| ------ | ------------------- | ----- |
-| Enter scrollback | Mouse wheel up, or `Ctrl+B PageUp` / `Ctrl+B Up` | Non-modal; works without a mode key when the terminal application does not claim the pointer |
-| One line up/down | Mouse wheel, or `Ctrl+B Up` / `Ctrl+B Down` | Maps to a `Committed { delta }` flight of ±1 |
-| Page up/down | `Ctrl+B PageUp` / `Ctrl+B PageDown` | `visible_rows − 1` per page, matching terminal convention |
-| Jump to top/bottom | `Ctrl+B Home` / `Ctrl+B End` | Top = oldest retained row; End returns to `live` |
-| Exit scrollback | `Ctrl+B End`, scrolling to bottom, or typing terminal input | Snap-to-bottom; no separate quit key needed in the non-modal model |
-| Selection start/move/end | Mouse drag over the viewport | `SelectionGesture` `Start`/`Update`/`End`; keyboard-driven selection is a follow-up modal slice |
-| Cancel selection | `Ctrl+B Escape` or starting a new selection | `SelectionGesture` `Cancel` or `SelectionCommand` `Clear` |
-| Copy selection | `Ctrl+B y` | `SelectionExport` plain text → local clipboard (transport reserved below) |
-| Status indicator | Panel-chrome badge such as `History 1,240/5,000` plus an evicted-ellipsis marker | Presentation detail; reserved |
+| Intent                   | Provisional binding                                                              | Notes                                                                                           |
+| ------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Enter scrollback         | Mouse wheel up, or `Ctrl+B PageUp` / `Ctrl+B Up`                                 | Non-modal; works without a mode key when the terminal application does not claim the pointer    |
+| One line up/down         | Mouse wheel, or `Ctrl+B Up` / `Ctrl+B Down`                                      | Maps to a `Committed { delta }` flight of ±1                                                    |
+| Page up/down             | `Ctrl+B PageUp` / `Ctrl+B PageDown`                                              | `visible_rows − 1` per page, matching terminal convention                                       |
+| Jump to top/bottom       | `Ctrl+B Home` / `Ctrl+B End`                                                     | Top = oldest retained row; End returns to `live`                                                |
+| Exit scrollback          | `Ctrl+B End`, scrolling to bottom, or typing terminal input                      | Snap-to-bottom; no separate quit key needed in the non-modal model                              |
+| Selection start/move/end | Mouse drag over the viewport                                                     | `SelectionGesture` `Start`/`Update`/`End`; keyboard-driven selection is a follow-up modal slice |
+| Cancel selection         | `Ctrl+B Escape` or starting a new selection                                      | `SelectionGesture` `Cancel` or `SelectionCommand` `Clear`                                       |
+| Copy selection           | `Ctrl+B y`                                                                       | `SelectionExport` plain text → local clipboard (transport reserved below)                       |
+| Status indicator         | Panel-chrome badge such as `History 1,240/5,000` plus an evicted-ellipsis marker | Presentation detail; reserved                                                                   |
 
 Optional follow-ups this proposal deliberately does not design: a modal copy-mode cursor, scrollback
 search UI, prompt-navigation jumps, and a scrollbar affordance. The `purpose: Search` row lane
@@ -376,10 +376,10 @@ already exists for a later search slice.
 
 Two clipboard routes exist:
 
-| Route | Direction | Fit |
-| ----- | --------- | --- |
-| OSC 52 (`TerminalClipboardWriteRequest`, kind 56) | Terminal *application* asks the Client to write the clipboard | Wrong direction for user-driven copy; it carries application intent only and grants no platform effect |
-| Local clipboard write by the TUI process | Client assembles `SelectionExport` bytes and writes the system clipboard | Correct direction; keeps the copy semantics (`SelectionChanged` → export → clipboard) on the Client where the wire puts them |
+| Route                                             | Direction                                                                | Fit                                                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| OSC 52 (`TerminalClipboardWriteRequest`, kind 56) | Terminal _application_ asks the Client to write the clipboard            | Wrong direction for user-driven copy; it carries application intent only and grants no platform effect                       |
+| Local clipboard write by the TUI process          | Client assembles `SelectionExport` bytes and writes the system clipboard | Correct direction; keeps the copy semantics (`SelectionChanged` → export → clipboard) on the Client where the wire puts them |
 
 Recommended path: user selection lives on the wire (`SelectionGesture`/`SelectionCommand` →
 `SelectionChanged`); copy is a `SelectionExport` drained chunk-by-chunk into a bounded local buffer
@@ -392,31 +392,31 @@ Client-local clipboard write.
 
 ## Limits and failure behavior
 
-| Bound | Value | Viewport rule |
-| ----- | ----- | ------------- |
-| `scrollback_bytes` default / zero / maximum | 10,000,000 / disabled / 1,000,000,000 | Zero means `total_rows` equals the screen; entry shows "no scrollback" |
-| Row window | ≤ 44 MiB and ≤ 4096 rows, 112-byte OBRW header | Viewport requests are far smaller; the request itself carries a tighter `maximum_bytes` |
-| Negotiated `rowWindowBytes` | Worker already negotiates the protocol maximum | Still cap per-request `maximum_bytes` (recommended ≤ 4 MiB) below the relay record cap |
-| Relay record | 64 B + 36 MiB | A legal 44 MiB window cannot traverse the relay; viewport and page sizes stay well under it |
-| `Committed` delta | ±4096 rows | Larger accumulated deltas split into multiple flights or resolve through `Tail` |
-| Frame cells / rows / columns | 262,144 / 4096 / 4096 | Viewport cache mirrors frame-bounded geometry |
-| Selection preview / export / chunk | 4 KiB / 16 MiB / 1 MiB | Copy drains chunks and cancels on overflow or dispose |
-| Viewport cache | Recommended ≤ 8 MiB decoded cells, 16-row overscan | Windows exceeding the cache budget are rejected and the viewport recovers |
-| History event acknowledgement | Exactly one in-flight `HistoryChanged` | Always `HistoryObserved`; stale acknowledgements are no-ops |
+| Bound                                       | Value                                              | Viewport rule                                                                               |
+| ------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `scrollback_bytes` default / zero / maximum | 10,000,000 / disabled / 1,000,000,000              | Zero means `total_rows` equals the screen; entry shows "no scrollback"                      |
+| Row window                                  | ≤ 44 MiB and ≤ 4096 rows, 112-byte OBRW header     | Viewport requests are far smaller; the request itself carries a tighter `maximum_bytes`     |
+| Negotiated `rowWindowBytes`                 | Worker already negotiates the protocol maximum     | Still cap per-request `maximum_bytes` (recommended ≤ 4 MiB) below the relay record cap      |
+| Relay record                                | 64 B + 36 MiB                                      | A legal 44 MiB window cannot traverse the relay; viewport and page sizes stay well under it |
+| `Committed` delta                           | ±4096 rows                                         | Larger accumulated deltas split into multiple flights or resolve through `Tail`             |
+| Frame cells / rows / columns                | 262,144 / 4096 / 4096                              | Viewport cache mirrors frame-bounded geometry                                               |
+| Selection preview / export / chunk          | 4 KiB / 16 MiB / 1 MiB                             | Copy drains chunks and cancels on overflow or dispose                                       |
+| Viewport cache                              | Recommended ≤ 8 MiB decoded cells, 16-row overscan | Windows exceeding the cache budget are rejected and the viewport recovers                   |
+| History event acknowledgement               | Exactly one in-flight `HistoryChanged`             | Always `HistoryObserved`; stale acknowledgements are no-ops                                 |
 
 Failure matrix — fail closed, keep the live view wherever possible:
 
-| Condition | Behavior |
-| --------- | -------- |
-| No retained scrollback (`total_rows` ≤ visible rows, alternate screen, or `scrollback_bytes` 0) | Stay `live`; localized status hint; no demand change is sent |
-| Oldest rows evicted while viewing | `HistoryChanged` `Evicted` → `recovering`; the top-of-history marker (`start_row` > oldest index) renders as an ellipsis row only while the window is still trusted |
-| Stale generation/revision/sequence window | Discard without rendering; refresh through `Committed { delta: 0 }`; repeated staleness ends in `recovering` |
-| Malformed or mismatched window | Same discard-and-recover rule; a window whose identity cannot be verified is never painted |
-| `TypedFailure` on any history control | `recovering`; surface the typed failure through the existing notice path |
-| Attach failure or transport loss | `disposed`; session re-attach policy applies as for live projection loss |
-| Row window too large for the negotiated/relay budget | Shrink `maximum_bytes` and `row_count`; if even a single-screen window fails, `recovering` |
-| Terminal retirement or session switch | `disposed`; the replacement attachment starts `live` with empty history state |
-| Resize while viewing | Drop the rendered window (its column geometry is stale); the next `HistoryChanged` resolves to refresh or `recovering` |
+| Condition                                                                                       | Behavior                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No retained scrollback (`total_rows` ≤ visible rows, alternate screen, or `scrollback_bytes` 0) | Stay `live`; localized status hint; no demand change is sent                                                                                                        |
+| Oldest rows evicted while viewing                                                               | `HistoryChanged` `Evicted` → `recovering`; the top-of-history marker (`start_row` > oldest index) renders as an ellipsis row only while the window is still trusted |
+| Stale generation/revision/sequence window                                                       | Discard without rendering; refresh through `Committed { delta: 0 }`; repeated staleness ends in `recovering`                                                        |
+| Malformed or mismatched window                                                                  | Same discard-and-recover rule; a window whose identity cannot be verified is never painted                                                                          |
+| `TypedFailure` on any history control                                                           | `recovering`; surface the typed failure through the existing notice path                                                                                            |
+| Attach failure or transport loss                                                                | `disposed`; session re-attach policy applies as for live projection loss                                                                                            |
+| Row window too large for the negotiated/relay budget                                            | Shrink `maximum_bytes` and `row_count`; if even a single-screen window fails, `recovering`                                                                          |
+| Terminal retirement or session switch                                                           | `disposed`; the replacement attachment starts `live` with empty history state                                                                                       |
+| Resize while viewing                                                                            | Drop the rendered window (its column geometry is stale); the next `HistoryChanged` resolves to refresh or `recovering`                                              |
 
 ## Shared-document consistency
 

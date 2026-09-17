@@ -8,8 +8,8 @@
 use orchbee_workbench_protocol::{WorkbenchRevision, WorkbenchTerminalGeometry};
 use serde_json::{Map, Value, json};
 
-use super::schema::MUTATION_RESULT_ID;
 use super::Output;
+use super::schema::MUTATION_RESULT_ID;
 #[cfg(not(target_os = "linux"))]
 use super::{Failure, FailureKind, failure_output, stage_reason_details};
 use crate::invocation::{MutationCommand, OutputFormat};
@@ -215,26 +215,25 @@ mod linux {
 
     use orchbee_workbench_protocol::{
         PanelNode, Project, ProtocolVersion, SiteId, Snapshot, Tab, TerminalContext,
-        WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason,
-        WorkbenchPanelId, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
-        WorkbenchRequestId, WorkbenchRevision, WorkbenchTabMoveDirection,
-        WorkbenchTerminalFailureReason, WorkbenchTerminalOutcome,
-        WorkbenchTerminalUnavailableReason, WorkbenchWireError, Workspace,
+        WorkbenchAction, WorkbenchCommand, WorkbenchCommandUnavailableReason, WorkbenchPanelId,
+        WorkbenchPanelSplitDirection, WorkbenchRejectionReason, WorkbenchRequestId,
+        WorkbenchRevision, WorkbenchTabMoveDirection, WorkbenchTerminalFailureReason,
+        WorkbenchTerminalOutcome, WorkbenchTerminalUnavailableReason, WorkbenchWireError,
+        Workspace,
     };
     use serde_json::{Map, json};
 
     use super::super::query::{request_id, snapshot_session};
     use super::super::{
-        Failure, FailureKind, Output, failure_output, output, present, results,
-        stage_details, stage_reason_details,
+        Failure, FailureKind, Output, failure_output, output, present, results, stage_details,
+        stage_reason_details,
     };
     use super::{Receipt, TerminalFact, command_source};
     use crate::invocation::{MutationCommand, OutputFormat, Resource, TabContext, Target};
     use crate::local_client::LocalClient;
     use crate::local_client::workbench::panel_close::{
-        WorkbenchPanelCloseAccepted, WorkbenchPanelCloseFailure,
-        WorkbenchPanelCloseNotSubmitted, WorkbenchPanelClosePrecommit,
-        WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
+        WorkbenchPanelCloseAccepted, WorkbenchPanelCloseFailure, WorkbenchPanelCloseNotSubmitted,
+        WorkbenchPanelClosePrecommit, WorkbenchPanelCloseRequest, WorkbenchPanelCloseSubmission,
     };
     use crate::local_client::workbench::panel_move::{
         WorkbenchPanelMoveCommit, WorkbenchPanelMoveNotSubmitted,
@@ -248,8 +247,7 @@ mod linux {
     };
     use crate::local_client::workbench::tab_rename::{
         WorkbenchTabRenameNotSubmitted, WorkbenchTabRenameOutcomeUnknownReason,
-        WorkbenchTabRenamePrecommit, WorkbenchTabRenameRequest,
-        WorkbenchTabRenameSubmission,
+        WorkbenchTabRenamePrecommit, WorkbenchTabRenameRequest, WorkbenchTabRenameSubmission,
     };
     use crate::local_client::workbench::workspace_setup::{
         WorkbenchSetupCommit, WorkbenchSetupNotSubmitted, WorkbenchSetupOutcomeUnknownReason,
@@ -356,11 +354,7 @@ mod linux {
         (WorkbenchPanelMoveNotSubmitted, WorkbenchPanelMovePrecommit, WorkbenchPanelMoveOutcomeUnknownReason);
     }
 
-    pub(super) fn run(
-        command: &MutationCommand,
-        format: OutputFormat,
-        locale: Locale,
-    ) -> Output {
+    pub(super) fn run(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
         match execute(command) {
             Err(failure) => failure_output(failure, Some(format), locale),
             Ok(receipt) => success_output(&receipt, format, locale),
@@ -425,9 +419,10 @@ mod linux {
                     TabContext::Standalone => {
                         snapshot.navigation.standalone_terminal_context_id.clone()
                     }
-                    TabContext::Workspace(target) => {
-                        resolve_workspace(snapshot, target)?.1.terminal_context_id.clone()
-                    }
+                    TabContext::Workspace(target) => resolve_workspace(snapshot, target)?
+                        .1
+                        .terminal_context_id
+                        .clone(),
                 };
                 Ok(WorkbenchAction::TabCreate {
                     terminal_context_id,
@@ -502,11 +497,16 @@ mod linux {
         }
     }
 
-    fn resolve_project<'a>(snapshot: &'a Snapshot, target: &Target) -> Result<&'a Project, Failure> {
+    fn resolve_project<'a>(
+        snapshot: &'a Snapshot,
+        target: &Target,
+    ) -> Result<&'a Project, Failure> {
         results::resolve_or_fail(
-            snapshot.navigation.projects.iter().map(|project| {
-                (project.project_id.as_str(), project.label.as_str(), project)
-            }),
+            snapshot
+                .navigation
+                .projects
+                .iter()
+                .map(|project| (project.project_id.as_str(), project.label.as_str(), project)),
             target,
             Resource::Project,
         )
@@ -581,9 +581,7 @@ mod linux {
 
     fn panel_id_in<'a>(node: &'a PanelNode, identity: &str) -> Option<&'a WorkbenchPanelId> {
         match node {
-            PanelNode::Panel { panel_id, .. } if panel_id.as_str() == identity => {
-                Some(panel_id)
-            }
+            PanelNode::Panel { panel_id, .. } if panel_id.as_str() == identity => Some(panel_id),
             PanelNode::Panel { .. } => None,
             PanelNode::Split { children, .. } => children
                 .iter()
@@ -608,25 +606,28 @@ mod linux {
         let internal = || Failure::new(FailureKind::InternalFailure);
         match &resolved.action {
             WorkbenchAction::WorkspaceCreate { .. } | WorkbenchAction::WorkspaceRename { .. } => {
-                let request =
-                    WorkbenchSetupRequest::try_from(command).map_err(|_| internal())?;
+                let request = WorkbenchSetupRequest::try_from(command).map_err(|_| internal())?;
                 match client.submit_workbench_setup(request, deadline) {
-                    WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::WorkspaceCreated {
-                        revision,
-                        workspace_id,
-                        terminal_context_id,
-                    }) => Ok(receipt(&resolved, "workspace.create", "committed")
+                    WorkbenchSetupSubmission::Committed(
+                        WorkbenchSetupCommit::WorkspaceCreated {
+                            revision,
+                            workspace_id,
+                            terminal_context_id,
+                        },
+                    ) => Ok(receipt(&resolved, "workspace.create", "committed")
                         .revision(revision)
                         .id("projectId", resolved_project_id(&resolved.action))
                         .id("workspaceId", workspace_id.as_str())
                         .id("terminalContextId", terminal_context_id.as_str())
                         .label(resolved_label(&resolved.action))),
-                    WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::WorkspaceRenamed {
-                        revision,
-                        project_id,
-                        workspace_id,
-                        unchanged,
-                    }) => Ok(receipt(
+                    WorkbenchSetupSubmission::Committed(
+                        WorkbenchSetupCommit::WorkspaceRenamed {
+                            revision,
+                            project_id,
+                            workspace_id,
+                            unchanged,
+                        },
+                    ) => Ok(receipt(
                         &resolved,
                         "workspace.rename",
                         if unchanged { "unchanged" } else { "committed" },
@@ -752,8 +753,7 @@ mod linux {
                 tab_id,
                 direction,
             } => {
-                let request =
-                    WorkbenchTabMoveRequest::try_from(command).map_err(|_| internal())?;
+                let request = WorkbenchTabMoveRequest::try_from(command).map_err(|_| internal())?;
                 let base = receipt(&resolved, "tab.move", "committed")
                     .id("terminalContextId", terminal_context_id.as_str())
                     .id("tabId", tab_id.as_str())
@@ -1009,13 +1009,12 @@ mod linux {
     /// A definite pre-commit answer the Server typed itself.
     fn precommit_failure(precommit: Precommit) -> Failure {
         match precommit {
-            Precommit::Rejected { revision, reason } => {
-                Failure::new(FailureKind::Rejected).details(Map::from_iter([
+            Precommit::Rejected { revision, reason } => Failure::new(FailureKind::Rejected)
+                .details(Map::from_iter([
                     ("stage".to_owned(), json!("command")),
                     ("reason".to_owned(), json!(rejection_reason(reason))),
                     ("revision".to_owned(), json!(revision)),
-                ]))
-            }
+                ])),
             Precommit::Denied => Failure::new(FailureKind::Denied),
             Precommit::Unavailable { reason } => Failure::new(FailureKind::ServiceUnavailable)
                 .details(stage_reason_details("command", unavailable_reason(reason))),
@@ -1043,12 +1042,8 @@ mod linux {
             WorkbenchRejectionReason::WorkspaceDirectoryUnavailable => {
                 "workspace-directory-unavailable"
             }
-            WorkbenchRejectionReason::WorkspaceDirectoryConflict => {
-                "workspace-directory-conflict"
-            }
-            WorkbenchRejectionReason::TerminalContextUnavailable => {
-                "terminal-context-unavailable"
-            }
+            WorkbenchRejectionReason::WorkspaceDirectoryConflict => "workspace-directory-conflict",
+            WorkbenchRejectionReason::TerminalContextUnavailable => "terminal-context-unavailable",
             WorkbenchRejectionReason::TabUnavailable => "tab-unavailable",
             WorkbenchRejectionReason::PanelUnavailable => "panel-unavailable",
             WorkbenchRejectionReason::ResourceLimit => "resource-limit",
@@ -1147,16 +1142,14 @@ mod linux {
                 },
                 Err(output::TooLarge) => too_large(),
             },
-            OutputFormat::Text => {
-                match output::render_text(|out| present::receipt(out, receipt)) {
-                    Ok(stdout) => Output {
-                        status: 0,
-                        stdout,
-                        stderr: String::new(),
-                    },
-                    Err(output::TooLarge) => too_large(),
-                }
-            }
+            OutputFormat::Text => match output::render_text(|out| present::receipt(out, receipt)) {
+                Ok(stdout) => Output {
+                    status: 0,
+                    stdout,
+                    stderr: String::new(),
+                },
+                Err(output::TooLarge) => too_large(),
+            },
         }
     }
 
@@ -1169,8 +1162,8 @@ mod linux {
         use std::io;
 
         use orchbee_workbench_protocol::{
-            WorkbenchTabCloseAttemptGeneration, WorkbenchTabId,
-            WorkbenchTerminalContextId, WorkbenchTerminalGeometry,
+            WorkbenchTabCloseAttemptGeneration, WorkbenchTabId, WorkbenchTerminalContextId,
+            WorkbenchTerminalGeometry,
         };
 
         use super::*;
@@ -1190,7 +1183,10 @@ mod linux {
         #[test]
         fn not_submitted_maps_only_request_to_transport_loss() {
             let cases = [
-                (NotSubmitted::SessionUnavailable, FailureKind::InternalFailure),
+                (
+                    NotSubmitted::SessionUnavailable,
+                    FailureKind::InternalFailure,
+                ),
                 (NotSubmitted::RequestEncoding, FailureKind::InternalFailure),
                 (NotSubmitted::Request, FailureKind::TransportLoss),
             ];
@@ -1199,10 +1195,7 @@ mod linux {
                 assert_eq!(failure.kind, kind);
                 match kind {
                     FailureKind::TransportLoss => {
-                        assert_eq!(
-                            failure.details.as_ref().unwrap()["stage"],
-                            json!("command")
-                        );
+                        assert_eq!(failure.details.as_ref().unwrap()["stage"], json!("command"));
                     }
                     _ => assert!(failure.details.is_none()),
                 }

@@ -1,26 +1,26 @@
 # 原生 Agent 观测投影
 
-| 字段       | 内容                                                                                                                                                                                                                                                                                                                                                  |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态       | 设计输入，评审中。本文记录已核实的现状事实、精确定位原生 wire 缺口，并为原生 TUI 与 CLI 提出一个可验收的投影边界。在产品与架构 decision owner 接受之前，本文任何内容都不是已接受权威；下文每个选项都只是提案而非决策                                                                                                                                    |
-| 决策 Owner | 以 Orchbee 产品与架构 decision owner 身份行事的 active requester                                                                                                                                                                                                                                                                                        |
-| 语义 Owner | Agent 观测域、Server 语义所有权与原生 Client 投影边界                                                                                                                                                                                                                                                                                                  |
-| 当前权威   | [`agent-runtime-observation.md`](agent-runtime-observation.zh-CN.md)、[`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md)、[`native-command-surface.md`](../cli/native-command-surface.zh-CN.md)                                                                                                                                |
-| 退出条件   | 投影边界被接受，所属切片实现并附证据，持续维护的契约迁入所属 package 与 application 指南及测试，然后删除本提案及其译本                                                                                                                                                                                                                                |
+| 字段       | 内容                                                                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态       | 设计输入，评审中。本文记录已核实的现状事实、精确定位原生 wire 缺口，并为原生 TUI 与 CLI 提出一个可验收的投影边界。在产品与架构 decision owner 接受之前，本文任何内容都不是已接受权威；下文每个选项都只是提案而非决策      |
+| 决策 Owner | 以 Orchbee 产品与架构 decision owner 身份行事的 active requester                                                                                                                                                          |
+| 语义 Owner | Agent 观测域、Server 语义所有权与原生 Client 投影边界                                                                                                                                                                     |
+| 当前权威   | [`agent-runtime-observation.md`](agent-runtime-observation.zh-CN.md)、[`native-runtime-topology.md`](../platform/native-runtime-topology.zh-CN.md)、[`native-command-surface.md`](../cli/native-command-surface.zh-CN.md) |
+| 退出条件   | 投影边界被接受，所属切片实现并附证据，持续维护的契约迁入所属 package 与 application 指南及测试，然后删除本提案及其译本                                                                                                    |
 
 英文 [native-agent-projection.md](native-agent-projection.md) 是 canonical 版本；本文用于简体中文评审。
 
 ## 变更授权
 
-| 字段     | 建议授权                                                                                                                                                                                                                                                                                                                                                  |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 分级     | 该边界拥有有序状态、cursor 语义、保留溢出与多 Client 投影，因此属于 Modeled；它在 Server 与原生 Client 之间引入新的跨进程契约，因此同时属于 Consequential                                                                                                                                                                                                   |
-| 问题     | 原生 TUI 与 CLI 完全无法观测 Agent session。canonical observed-session 模型及其易失变化流只存在于 TypeScript 运行时中，位于 Desktop 拥有的 ingress、Desktop 拥有的 renderer 协议与 Desktop 拥有的本地 semantic-command endpoint 之后。Rust Server 没有任何 Agent 模块，原生 wire 族不携带任何 Agent 文档                                                  |
-| 阶段结果 | 一条已授权、只读、content-free 的 Agent 观测投影从 Server 拥有的 canonical 模型抵达原生 TUI 与 CLI：先取 baseline snapshot，再以 opaque cursor 跟随有界有序变化页，保留溢出时显式返回 reset-required，并保持 truthful freshness；TUI 通过自己的呈现渲染它，CLI 通过已接受的命令面暴露查询族                                                                   |
-| 非目标   | Agent 启动、停止、resume、调度、编排、prompt 提交、问题应答、批准或任何 mutation；终端内容或进程抓取；持久历史；remote relay；改变 Workbench publication 语义；在本切片内迁移 Server 侧 canonical 状态；决定 wire schema 名称、数值边界或产品词汇                                                                                                          |
-| 兼容性   | Agent 观测缺失、不支持、过期或被拒绝时，终端、Workbench snapshot 与 publication、现有 Client session 及 CLI 命令行为完全一致。不请求该族的 Client 看不到任何变化                                                                                                                                                                                            |
-| 交付     | wire 契约与 schema 先于 TUI 和 CLI 消费者。每个消费者切片保有自己的呈现所有权与证据边界                                                                                                                                                                                                                                                                    |
-| 恢复     | 可在不触碰 Workbench 投影的情况下撤回该投影族；缺失时所有 Agent 指示降级为隐藏或 `unknown`，绝不凭空产生 working、attention、success 或 failure                                                                                                                                                                                                             |
+| 字段     | 建议授权                                                                                                                                                                                                                                                                                                 |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 分级     | 该边界拥有有序状态、cursor 语义、保留溢出与多 Client 投影，因此属于 Modeled；它在 Server 与原生 Client 之间引入新的跨进程契约，因此同时属于 Consequential                                                                                                                                                |
+| 问题     | 原生 TUI 与 CLI 完全无法观测 Agent session。canonical observed-session 模型及其易失变化流只存在于 TypeScript 运行时中，位于 Desktop 拥有的 ingress、Desktop 拥有的 renderer 协议与 Desktop 拥有的本地 semantic-command endpoint 之后。Rust Server 没有任何 Agent 模块，原生 wire 族不携带任何 Agent 文档 |
+| 阶段结果 | 一条已授权、只读、content-free 的 Agent 观测投影从 Server 拥有的 canonical 模型抵达原生 TUI 与 CLI：先取 baseline snapshot，再以 opaque cursor 跟随有界有序变化页，保留溢出时显式返回 reset-required，并保持 truthful freshness；TUI 通过自己的呈现渲染它，CLI 通过已接受的命令面暴露查询族              |
+| 非目标   | Agent 启动、停止、resume、调度、编排、prompt 提交、问题应答、批准或任何 mutation；终端内容或进程抓取；持久历史；remote relay；改变 Workbench publication 语义；在本切片内迁移 Server 侧 canonical 状态；决定 wire schema 名称、数值边界或产品词汇                                                        |
+| 兼容性   | Agent 观测缺失、不支持、过期或被拒绝时，终端、Workbench snapshot 与 publication、现有 Client session 及 CLI 命令行为完全一致。不请求该族的 Client 看不到任何变化                                                                                                                                         |
+| 交付     | wire 契约与 schema 先于 TUI 和 CLI 消费者。每个消费者切片保有自己的呈现所有权与证据边界                                                                                                                                                                                                                  |
+| 恢复     | 可在不触碰 Workbench 投影的情况下撤回该投影族；缺失时所有 Agent 指示降级为隐藏或 `unknown`，绝不凭空产生 working、attention、success 或 failure                                                                                                                                                          |
 
 ## 已核实现状
 
@@ -39,7 +39,7 @@
 - `apps/orchbee-server/src` 不含任何 Agent 模块、schema 或所有权接缝；`apps/orchbee-server/src/lib.rs` 仅导出 Workbench authority 与 projection 类型。
 - `crates/workbench-protocol` 的 `Snapshot`、`Delta`、`Presentation`、`DeltaChange`、`WorkbenchProtocolDocument` 与 `WorkbenchPublicationDocument` 只携带 Workbench navigation 与 terminal-context 数据。`WorkbenchRequest` 恰好准入 `workbench.snapshot.read`、`workbench.command`、`workbench.tab-close.read`、`workbench.tab-close.resume` 与 `workbench.publication.read`。`apps/orchbee-server/src/workbench_projection.rs` 中的 Server publication journal 至多保留 `MAXIMUM_RESULT_PUBLICATIONS`（64）条已提交 publication。
 - `apps/orchbee-server/src/local_client_service/application_session.rs` 按四字节前缀对本地 Client 连接解复用：`OBCS`（终端控制帧）、`OBCQ`（paste 记录）与 `OBWP`（Workbench 请求）。任何其他前缀以 `UnknownProtocol` 终止会话。不存在 Agent 族分支。
-- `apps/orchbee-worker` 在 `host_connection/viewers.rs` 中解码 `orchbee.agent.v1` 终端 application signal，仅用于按终端 epoch  fencing 后丢弃；不存在任何 Agent 运行时、汇合或转发。`apps/orchbee-server`、`apps/orchbee-worker`、`crates/capability-node-protocol` 与 `crates/client-server-protocol` 中没有任何 Agent 引用。
+- `apps/orchbee-worker` 在 `host_connection/viewers.rs` 中解码 `orchbee.agent.v1` 终端 application signal，仅用于按终端 epoch fencing 后丢弃；不存在任何 Agent 运行时、汇合或转发。`apps/orchbee-server`、`apps/orchbee-worker`、`crates/capability-node-protocol` 与 `crates/client-server-protocol` 中没有任何 Agent 引用。
 - `apps/orchbee`（原生 TUI/CLI 可执行文件）通过 `snapshot.read` 基线加 `publication.read` cursor 读取轮询 Workbench 状态，并在普通轮询上搭 250 ms publication probe；提示转化为 `PublicationDebt` 刷新需求。`tui_render.rs` 绘制一条静态本地化 `Agents` 侧栏行，不消费任何状态。原生 CLI 面无 Agent 命令。
 
 ## 精确 wire 缺口
@@ -54,12 +54,12 @@
 
 ## 投影边界选项
 
-| 选项 | 形态 | 后果 |
-| ---- | ---- | ---- |
-| A. 在 Workbench `Snapshot`/`Delta` 中内嵌 Agent 字段 | 向 `crates/workbench-protocol` 文档加入 session 集合或 per-presentation 标记 | 融合两个权威与两个 revision 空间：Workbench journal（64 条已提交 publication、Workbench revision）将携带无关的 Agent 变化（512 条迁移 journal、自有 cursor 与 reset 语义），且每个 Workbench 消费者都要解析它不拥有的域。拒绝 |
-| B. 在现有 OBWP 请求枚举中准入 `agent.observation.*` 请求与结果 kind | 在同一带帧连接上扩展 `WorkbenchRequest` 与响应枚举加入 Agent intent | 复用带帧连接、请求标识、版本与 dispatch，无需新解复用分支；但该枚举与 crate 以 Workbench 投影协议命名和归属，Agent kind 要么误名该族，要么迫使重命名/泛化。仅当 owner 接受命名空间张力时可行 |
-| C. 独立 Agent-observation 协议族 | 在同一已认证本地 Client 连接上新增四字节 magic 与 crate，拥有自己的请求/结果文档、journal 与 revision 空间 | 与仓库的一域一族解复用（`OBCS`、`OBCQ`、`OBWP`、`OBCN`、`OBLS`）一致，所有权无歧义，且不触碰 Workbench；代价是一个新解复用分支、一个 crate 及其自身的符合性证据 |
-| D. 在 `ClientMessage`/`ServerMessage`（OBCS）内做 Agent 读取 | 扩展终端控制帧族 | OBCS 当前承载终端 attachment 与控制消息，而非投影读取；把域投影混入控制族会在第二个载体上重演选项 B 的所有权问题。拒绝 |
+| 选项                                                                | 形态                                                                                                       | 后果                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A. 在 Workbench `Snapshot`/`Delta` 中内嵌 Agent 字段                | 向 `crates/workbench-protocol` 文档加入 session 集合或 per-presentation 标记                               | 融合两个权威与两个 revision 空间：Workbench journal（64 条已提交 publication、Workbench revision）将携带无关的 Agent 变化（512 条迁移 journal、自有 cursor 与 reset 语义），且每个 Workbench 消费者都要解析它不拥有的域。拒绝 |
+| B. 在现有 OBWP 请求枚举中准入 `agent.observation.*` 请求与结果 kind | 在同一带帧连接上扩展 `WorkbenchRequest` 与响应枚举加入 Agent intent                                        | 复用带帧连接、请求标识、版本与 dispatch，无需新解复用分支；但该枚举与 crate 以 Workbench 投影协议命名和归属，Agent kind 要么误名该族，要么迫使重命名/泛化。仅当 owner 接受命名空间张力时可行                                  |
+| C. 独立 Agent-observation 协议族                                    | 在同一已认证本地 Client 连接上新增四字节 magic 与 crate，拥有自己的请求/结果文档、journal 与 revision 空间 | 与仓库的一域一族解复用（`OBCS`、`OBCQ`、`OBWP`、`OBCN`、`OBLS`）一致，所有权无歧义，且不触碰 Workbench；代价是一个新解复用分支、一个 crate 及其自身的符合性证据                                                               |
+| D. 在 `ClientMessage`/`ServerMessage`（OBCS）内做 Agent 读取        | 扩展终端控制帧族                                                                                           | OBCS 当前承载终端 attachment 与控制消息，而非投影读取；把域投影混入控制族会在第二个载体上重演选项 B 的所有权问题。拒绝                                                                                                        |
 
 ### 推荐
 

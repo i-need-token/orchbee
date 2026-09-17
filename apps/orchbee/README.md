@@ -72,24 +72,24 @@ The native Session renders the active context's ordered Tabs and canonical label
 owns its own active selection, navigator and viewport; another Client's committed Tabs become
 visible through the automatic publication probe, and explicit refresh remains available. These controls use the existing `Ctrl+B` prefix:
 
-| Key                   | Connected native behavior                                                                          |
-| --------------------- | -------------------------------------------------------------------------------------------------- |
-| `c`                   | Request one Server-owned Tab creation, then select its validated committed member.                 |
-| `n` / `p`             | Select the next / previous Tab in the current Client snapshot.                                     |
-| `1` … `9`             | Select that position when present.                                                                 |
-| `[` / `]`             | Select the previous / next standalone or Workspace context in Server navigation order.             |
-| `a`                   | Create a Workspace in an existing or new Project through separate explicit submissions.            |
-| `e`                   | Configure the first directory of the current Empty, unconfigured Workspace.                        |
-| `r` / `R`             | Rename the current Workspace / its Project; standalone has neither target.                         |
-| `<` / `>`             | Move the active Tab before / after its neighbor, wrapping at either boundary.                      |
-| `,`                   | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels. |
-| `x`                   | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                  |
-| `w`                   | Open the navigator and refresh shared Tabs while preserving the active terminal identity.          |
-| `h` / `j` / `k` / `l` | Move local focus to the neighboring Panel when the active Tab has a split tree.                    |
-| `-` / `_` / `\` / `|` | Split the focused Panel below / above / left / right into a second leaf (provisional binding).     |
-| `X`                   | Close the focused Panel leaf without a separate confirmation (provisional binding).                |
-| `H` / `J` / `K` / `L` | Move the focused Panel leaf toward its directional neighbor (provisional binding).                 |
-| `q` / `d`             | Close this Client while retained execution continues.                                              |
+| Key                    | Connected native behavior                                                                          |
+| ---------------------- | -------------------------------------------------------------------------------------------------- |
+| `c`                    | Request one Server-owned Tab creation, then select its validated committed member.                 |
+| `n` / `p`              | Select the next / previous Tab in the current Client snapshot.                                     |
+| `1` … `9`              | Select that position when present.                                                                 |
+| `[` / `]`              | Select the previous / next standalone or Workspace context in Server navigation order.             |
+| `a`                    | Create a Workspace in an existing or new Project through separate explicit submissions.            |
+| `e`                    | Configure the first directory of the current Empty, unconfigured Workspace.                        |
+| `r` / `R`              | Rename the current Workspace / its Project; standalone has neither target.                         |
+| `<` / `>`              | Move the active Tab before / after its neighbor, wrapping at either boundary.                      |
+| `,`                    | Edit the selected Tab's shared label; Enter submits after its first complete draw, Escape cancels. |
+| `x`                    | Confirm closing the selected Tab's execution for all attached Clients, or cancel.                  |
+| `w`                    | Open the navigator and refresh shared Tabs while preserving the active terminal identity.          |
+| `h` / `j` / `k` / `l`  | Move local focus to the neighboring Panel when the active Tab has a split tree.                    |
+| `-` / `_` / `\` / `\|` | Split the focused Panel below / above / left / right into a second leaf (provisional binding).     |
+| `X`                    | Close the focused Panel leaf without a separate confirmation (provisional binding).                |
+| `H` / `J` / `K` / `L`  | Move the focused Panel leaf toward its directional neighbor (provisional binding).                 |
+| `q` / `d`              | Close this Client while retained execution continues.                                              |
 
 [Context selection](docs/native-context-selection.md) preserves each retained terminal while
 switching location. The navigator and Workbench title show the current Project/Workspace. Empty

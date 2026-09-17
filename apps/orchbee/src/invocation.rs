@@ -1013,7 +1013,11 @@ fn business_options(options: &Options) -> bool {
 
 /// Reject every named option outside the command's admitted set. `--format`
 /// is orthogonal and never scope-checked.
-fn check_scope(options: &Options, scope: Scope, envelope: FailureEnvelope) -> Result<(), ParseFailure> {
+fn check_scope(
+    options: &Options,
+    scope: Scope,
+    envelope: FailureEnvelope,
+) -> Result<(), ParseFailure> {
     reject(
         (options.project.is_some() && !scope.project)
             || (options.workspace.is_some() && !scope.workspace)

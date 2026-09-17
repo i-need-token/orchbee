@@ -328,10 +328,14 @@ fn sub_flag_cases_bash() -> String {
                 .join("|");
             match *flag {
                 "--workspace" => {
-                    format!("                            {patterns}) ((seen_standalone)) && done=1 ;;")
+                    format!(
+                        "                            {patterns}) ((seen_standalone)) && done=1 ;;"
+                    )
                 }
                 "--standalone" => {
-                    format!("                            {patterns}) ((seen_workspace)) && done=1 ;;")
+                    format!(
+                        "                            {patterns}) ((seen_workspace)) && done=1 ;;"
+                    )
                 }
                 _ => format!("                            {patterns}) ;;"),
             }
@@ -354,10 +358,14 @@ fn after_flag_cases_bash() -> String {
                 .join("|");
             match *flag {
                 "--workspace" => {
-                    format!("                            {patterns}) ((seen_standalone)) && done=1 ;;")
+                    format!(
+                        "                            {patterns}) ((seen_standalone)) && done=1 ;;"
+                    )
                 }
                 "--standalone" => {
-                    format!("                            {patterns}) ((seen_workspace)) && done=1 ;;")
+                    format!(
+                        "                            {patterns}) ((seen_workspace)) && done=1 ;;"
+                    )
                 }
                 _ => format!("                            {patterns}) ;;"),
             }
@@ -471,7 +479,10 @@ fn direction_cases_bash() -> String {
     DIRECTION_VALUES
         .iter()
         .map(|(command, values)| {
-            format!("            {command}) candidates=\"{}\" ;;", values.join(" "))
+            format!(
+                "            {command}) candidates=\"{}\" ;;",
+                values.join(" ")
+            )
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -1114,7 +1125,10 @@ fn direction_cases_fish() -> String {
     DIRECTION_VALUES
         .iter()
         .map(|(command, values)| {
-            format!("            case '{command}'; set candidates {}", values.join(" "))
+            format!(
+                "            case '{command}'; set candidates {}",
+                values.join(" ")
+            )
         })
         .collect::<Vec<_>>()
         .join("\n")

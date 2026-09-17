@@ -1,12 +1,12 @@
 # TUI 输入系统与交互词汇扩展
 
-| 字段     | 值                                                                                                                                                                                                                                                                                                                                            |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态     | 提请产品决策人验收的草案。本文尚无任何已接受内容；每个新键位、mode、手势规则与 wire 请求都标注为 provisional，只有经过与父 contract 相同的验收路径才生效                                                                                                                                                                                        |
-| 负责人   | 产品命令体验，以及 Rust `orchbee` Client TUI 输入路径、Server 语义命令边界与 terminal protocol 的维护者                                                                                                                                                                                                                                         |
-| 父设计   | [`native-command-surface.md`](native-command-surface.md) 拥有已接受的 TUI Client contract 与 `Ctrl+B` initial map；[`native-runtime-topology.md`](../platform/native-runtime-topology.md) 拥有共享 Workbench document 与 Client View 边界                                                                                                          |
-| 决策权威 | 产品决策人决定二级输入结构、各 provisional 键位表、每项 wire 准入请求以及 mouse-capture 策略。Astra 的调研结论已把 floating panes、插件系统、可配置键位文件、tmux session 语义与客户端 tiling 排除在范围外                                                                                                                                        |
-| 退出条件 | 本词汇的一个已接受切片落入所属 app 文档、输入实现与测试；届时本提案退役或缩减为尚未接受的剩余部分                                                                                                                                                                                                                                               |
+| 字段     | 值                                                                                                                                                                                                                                        |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态     | 提请产品决策人验收的草案。本文尚无任何已接受内容；每个新键位、mode、手势规则与 wire 请求都标注为 provisional，只有经过与父 contract 相同的验收路径才生效                                                                                  |
+| 负责人   | 产品命令体验，以及 Rust `orchbee` Client TUI 输入路径、Server 语义命令边界与 terminal protocol 的维护者                                                                                                                                   |
+| 父设计   | [`native-command-surface.md`](native-command-surface.md) 拥有已接受的 TUI Client contract 与 `Ctrl+B` initial map；[`native-runtime-topology.md`](../platform/native-runtime-topology.md) 拥有共享 Workbench document 与 Client View 边界 |
+| 决策权威 | 产品决策人决定二级输入结构、各 provisional 键位表、每项 wire 准入请求以及 mouse-capture 策略。Astra 的调研结论已把 floating panes、插件系统、可配置键位文件、tmux session 语义与客户端 tiling 排除在范围外                                |
+| 退出条件 | 本词汇的一个已接受切片落入所属 app 文档、输入实现与测试；届时本提案退役或缩减为尚未接受的剩余部分                                                                                                                                         |
 
 英文规范原文：
 [tui-input-vocabulary.md](tui-input-vocabulary.md)。
@@ -32,25 +32,25 @@ port 的动作与纯本地动作分开。
 中面向产品记录的动作是 17 个；完整实现表还包含 accepted initial contract 里的 sidebar toggle、
 shortcut help、literal-prefix 转发与前缀取消：
 
-| 键                    | 行为                                                                                  | 语义               |
-| --------------------- | ------------------------------------------------------------------------------------ | ------------------ |
-| `c`                   | 在当前 context 中 `tab.create`                                                        | Workbench mutation |
-| `n` / `p`             | 选择下一个 / 上一个 Tab，切换 display attachment                                       | Client-local       |
-| `1` … `9`             | 选择指定序位的 Tab，切换 display attachment                                            | Client-local       |
-| `[` / `]`             | 选择上一个 / 下一个 standalone 或 Workspace context                                    | Client-local       |
-| `a`                   | 通过分阶段 setup wizard 执行 `workspace.create`                                        | Workbench mutation |
-| `e`                   | 对 Empty Workspace 执行 `workspace.primary-directory.accept`                           | Workbench mutation |
-| `r` / `R`             | 通过 rename editor 执行 `workspace.rename` / `project.rename`                          | Workbench mutation |
-| `<` / `>`             | `tab.move` 前移 / 后移                                                                | Workbench mutation |
-| `,`                   | 通过 rename editor 执行 `tab.rename`                                                  | Workbench mutation |
-| `x`                   | 经绘制确认的 `tab.close`                                                              | Workbench mutation |
-| `w`                   | 切换 navigator overlay；refresh 执行一次 Server snapshot read                          | Client-local       |
-| `h` / `j` / `k` / `l` | 在 split tree 上移动本地 focus                                                         | Client-local       |
-| `q` / `d`             | 关闭本 Client Session；retained 执行继续                                               | Client-local       |
-| `b`                   | 切换 business sidebar（按 viewport 决定 docked 或 overlay）                             | Client-local       |
-| `?`                   | 打开 shortcut-help overlay                                                             | Client-local       |
-| `Ctrl+B`              | 向 terminal 转发一个字面 `0x02` 字节                                                    | Client-local       |
-| `Escape`              | 取消待决前缀                                                                          | Client-local       |
+| 键                    | 行为                                                          | 语义               |
+| --------------------- | ------------------------------------------------------------- | ------------------ |
+| `c`                   | 在当前 context 中 `tab.create`                                | Workbench mutation |
+| `n` / `p`             | 选择下一个 / 上一个 Tab，切换 display attachment              | Client-local       |
+| `1` … `9`             | 选择指定序位的 Tab，切换 display attachment                   | Client-local       |
+| `[` / `]`             | 选择上一个 / 下一个 standalone 或 Workspace context           | Client-local       |
+| `a`                   | 通过分阶段 setup wizard 执行 `workspace.create`               | Workbench mutation |
+| `e`                   | 对 Empty Workspace 执行 `workspace.primary-directory.accept`  | Workbench mutation |
+| `r` / `R`             | 通过 rename editor 执行 `workspace.rename` / `project.rename` | Workbench mutation |
+| `<` / `>`             | `tab.move` 前移 / 后移                                        | Workbench mutation |
+| `,`                   | 通过 rename editor 执行 `tab.rename`                          | Workbench mutation |
+| `x`                   | 经绘制确认的 `tab.close`                                      | Workbench mutation |
+| `w`                   | 切换 navigator overlay；refresh 执行一次 Server snapshot read | Client-local       |
+| `h` / `j` / `k` / `l` | 在 split tree 上移动本地 focus                                | Client-local       |
+| `q` / `d`             | 关闭本 Client Session；retained 执行继续                      | Client-local       |
+| `b`                   | 切换 business sidebar（按 viewport 决定 docked 或 overlay）   | Client-local       |
+| `?`                   | 打开 shortcut-help overlay                                    | Client-local       |
+| `Ctrl+B`              | 向 terminal 转发一个字面 `0x02` 字节                          | Client-local       |
+| `Escape`              | 取消待决前缀                                                  | Client-local       |
 
 前缀表之外还有四个输入面：
 
@@ -70,13 +70,13 @@ shortcut help、literal-prefix 转发与前缀取消：
 
 扁平前缀层已占用 33 个位置，其可助记空间接近耗尽：
 
-| 键位空间           | 已绑定                                       | 空闲                                                    |
-| ------------------ | -------------------------------------------- | ------------------------------------------------------- |
-| 小写字母           | 16：`a b c d e h j k l n p q r w x`          | 10：`f g i m o s t u v y z`                             |
-| 大写字母           | 1：`R`                                       | 25                                                      |
-| 数字               | 9：`1`–`9`                                   | 1：`0`                                                  |
-| 标点               | 6：`[` `]` `<` `>` `,` `?`                   | 约 26 个可印刷位置                                      |
-| 控制字节           | 2：`Ctrl+B`、`Escape`                        | 实际上没有可安全用于快捷键的字节                        |
+| 键位空间 | 已绑定                              | 空闲                             |
+| -------- | ----------------------------------- | -------------------------------- |
+| 小写字母 | 16：`a b c d e h j k l n p q r w x` | 10：`f g i m o s t u v y z`      |
+| 大写字母 | 1：`R`                              | 25                               |
+| 数字     | 9：`1`–`9`                          | 1：`0`                           |
+| 标点     | 6：`[` `]` `<` `>` `,` `?`          | 约 26 个可印刷位置               |
+| 控制字节 | 2：`Ctrl+B`、`Escape`               | 实际上没有可安全用于快捷键的字节 |
 
 仅已准入的需求就超过剩余可记忆容量：
 
@@ -126,19 +126,19 @@ mode；新小写与标点绑定保持一次性动作。`R` 先于该约定存在
 
 `Ctrl+B` 之后的一级新增：
 
-| 绑定     | 动作                                                                        | 语义               | 状态       |
-| -------- | --------------------------------------------------------------------------- | ------------------ | ---------- |
-| `-`      | `panel.split`，新 panel 放在下方                                            | Workbench mutation | Provisional |
-| `_`      | `panel.split`，新 panel 放在上方                                            | Workbench mutation | Provisional |
-| `\`      | `panel.split`，新 panel 放在左侧                                            | Workbench mutation | Provisional |
-| `\|`     | `panel.split`，新 panel 放在右侧                                            | Workbench mutation | Provisional |
-| `X`      | 对聚焦 leaf 执行 `panel.close`，沿用同样的绘制确认风格                       | Workbench mutation | Provisional |
-| `z`      | 切换聚焦 panel 的 Client-local zoom                                         | Client-local       | Provisional |
-| `P`      | 进入 `PANEL` mode                                                           | Client-local       | Provisional |
-| `U`      | 进入 `SCROLLBACK` mode                                                      | Client-local       | Provisional |
-| `:`      | 打开命令行                                                                  | Client-local       | Provisional |
-| `i`      | 打开 session/attachment status overlay                                      | Client-local       | Provisional |
-| `t`      | Client 处于 view-only 时请求 controller grant                               | Client-local       | Provisional |
+| 绑定 | 动作                                                   | 语义               | 状态        |
+| ---- | ------------------------------------------------------ | ------------------ | ----------- |
+| `-`  | `panel.split`，新 panel 放在下方                       | Workbench mutation | Provisional |
+| `_`  | `panel.split`，新 panel 放在上方                       | Workbench mutation | Provisional |
+| `\`  | `panel.split`，新 panel 放在左侧                       | Workbench mutation | Provisional |
+| `\|` | `panel.split`，新 panel 放在右侧                       | Workbench mutation | Provisional |
+| `X`  | 对聚焦 leaf 执行 `panel.close`，沿用同样的绘制确认风格 | Workbench mutation | Provisional |
+| `z`  | 切换聚焦 panel 的 Client-local zoom                    | Client-local       | Provisional |
+| `P`  | 进入 `PANEL` mode                                      | Client-local       | Provisional |
+| `U`  | 进入 `SCROLLBACK` mode                                 | Client-local       | Provisional |
+| `:`  | 打开命令行                                             | Client-local       | Provisional |
+| `i`  | 打开 session/attachment status overlay                 | Client-local       | Provisional |
+| `t`  | Client 处于 view-only 时请求 controller grant          | Client-local       | Provisional |
 
 split 字形绑定读作它们画出的线：`-` 分成行、`|` 分成列；未加 shift 的字形把新 panel 放在
 自然端（下、右），加 shift 的变体做镜像（上、左）。`X` 把 `x` 的目标从 Tab 收窄到聚焦的
@@ -146,28 +146,28 @@ Panel。`u` 系字母保持空闲，所以 `U` 可读作向上进入 history。
 
 `PANEL` mode 草案映射（mode-local 命名空间；Escape 退出）：
 
-| 键              | 动作                                                          | 语义               | 状态              |
-| --------------- | ------------------------------------------------------------- | ------------------ | ----------------- |
-| `h`/`j`/`k`/`l` | 把聚焦 panel 向该侧 `panel.move`                              | Workbench mutation | Provisional       |
-| `x`             | 对聚焦 leaf 执行 `panel.close`                                | Workbench mutation | Provisional       |
-| `z`             | 切换 Client-local zoom                                        | Client-local       | Provisional       |
-| `+` / `-`       | 把聚焦 panel 步进放大 / 缩小                                  | Workbench mutation | Blocked: wire gap |
-| `=`             | 把聚焦 split 重置为等分                                       | Workbench mutation | Blocked: wire gap |
-| `?`             | 当前 mode 的 shortcut help                                    | Client-local       | Provisional       |
-| `Escape`        | 退出该 mode                                                   | Client-local       | Provisional       |
+| 键              | 动作                             | 语义               | 状态              |
+| --------------- | -------------------------------- | ------------------ | ----------------- |
+| `h`/`j`/`k`/`l` | 把聚焦 panel 向该侧 `panel.move` | Workbench mutation | Provisional       |
+| `x`             | 对聚焦 leaf 执行 `panel.close`   | Workbench mutation | Provisional       |
+| `z`             | 切换 Client-local zoom           | Client-local       | Provisional       |
+| `+` / `-`       | 把聚焦 panel 步进放大 / 缩小     | Workbench mutation | Blocked: wire gap |
+| `=`             | 把聚焦 split 重置为等分          | Workbench mutation | Blocked: wire gap |
+| `?`             | 当前 mode 的 shortcut help       | Client-local       | Provisional       |
+| `Escape`        | 退出该 mode                      | Client-local       | Provisional       |
 
 `SCROLLBACK` mode 草案映射。进入时在 attachment 上声明 `ViewingHistory` demand；退出时
 回到 `FollowingBottom`。全部查看键都是对既有 wire read 的 Client-local 驱动：
 
-| 键                     | 动作                                                | 语义               | 状态        |
-| ---------------------- | --------------------------------------------------- | ------------------ | ----------- |
-| `j`/`k` 或 `Down`/`Up` | 滚动一行                                            | Attachment-scoped  | Provisional |
-| `d`/`u` 或翻页键       | 滚动一个 viewport                                   | Attachment-scoped  | Provisional |
-| `g` / `G`              | 跳到最旧 / 最新                                     | Attachment-scoped  | Provisional |
-| `/`                    | 基于 `Search` row read 打开 search 行编辑器          | Client-local       | Provisional |
-| `n` / `N`              | 下一个 / 上一个 search 命中                         | Client-local       | Provisional |
-| `y`                    | 导出当前 selection                                  | Attachment-scoped  | Provisional |
-| `q` / `Escape`         | 退出该 mode                                         | Client-local       | Provisional |
+| 键                     | 动作                                        | 语义              | 状态        |
+| ---------------------- | ------------------------------------------- | ----------------- | ----------- |
+| `j`/`k` 或 `Down`/`Up` | 滚动一行                                    | Attachment-scoped | Provisional |
+| `d`/`u` 或翻页键       | 滚动一个 viewport                           | Attachment-scoped | Provisional |
+| `g` / `G`              | 跳到最旧 / 最新                             | Attachment-scoped | Provisional |
+| `/`                    | 基于 `Search` row read 打开 search 行编辑器 | Client-local      | Provisional |
+| `n` / `N`              | 下一个 / 上一个 search 命中                 | Client-local      | Provisional |
+| `y`                    | 导出当前 selection                          | Attachment-scoped | Provisional |
+| `q` / `Escape`         | 退出该 mode                                 | Client-local      | Provisional |
 
 `:` 命令行复用 modal 行编辑器机制与 CLI noun/verb 语法：`panel split right`、
 `panel resize right 10`、`tab rename`、`help panel`。Enter 提交至多一个 typed intent；
@@ -196,15 +196,15 @@ navigator 深化是单独的决策点，因为该 overlay 目前从不捕获输�
 
 手势映射草案。命中区域来自 Client-local layout projection：
 
-| 手势                     | 命中面               | 语义意图                                                                         | 语义               | 状态              |
-| ------------------------ | -------------------- | -------------------------------------------------------------------------------- | ------------------ | ----------------- |
-| 左键点击                 | Tab strip 条目       | 选择该 Tab                                                                       | Client-local       | Provisional       |
-| 左键点击                 | Panel viewport       | 聚焦该 panel；仅当内部 app 上报 mouse 时转发为 `MouseInput`                       | Client-local       | Provisional       |
-| 左键拖拽                 | split 边界           | 释放时产生一个 `panel.resize` intent                                              | Workbench mutation | Blocked: wire gap |
-| 左键点击 / 激活          | navigator 条目       | 解析为与选择键相同的 selection intent                                             | Client-local       | Provisional       |
-| 滚轮上 / 下              | Panel viewport       | 进入或在 `SCROLLBACK` demand 内移动；在底部回到 `FollowingBottom`                 | Attachment-scoped  | Provisional       |
-| 左键拖拽                 | Panel 文本           | `SelectionGesture` start/update，然后 `SelectionExport`                          | Attachment-scoped  | Provisional       |
-| 修饰键拖拽（如 Shift）   | 任意处               | 交给外层 terminal 自己的 bypass 做原生选择                                        | Client-local       | Provisional       |
+| 手势                   | 命中面         | 语义意图                                                          | 语义               | 状态              |
+| ---------------------- | -------------- | ----------------------------------------------------------------- | ------------------ | ----------------- |
+| 左键点击               | Tab strip 条目 | 选择该 Tab                                                        | Client-local       | Provisional       |
+| 左键点击               | Panel viewport | 聚焦该 panel；仅当内部 app 上报 mouse 时转发为 `MouseInput`       | Client-local       | Provisional       |
+| 左键拖拽               | split 边界     | 释放时产生一个 `panel.resize` intent                              | Workbench mutation | Blocked: wire gap |
+| 左键点击 / 激活        | navigator 条目 | 解析为与选择键相同的 selection intent                             | Client-local       | Provisional       |
+| 滚轮上 / 下            | Panel viewport | 进入或在 `SCROLLBACK` demand 内移动；在底部回到 `FollowingBottom` | Attachment-scoped  | Provisional       |
+| 左键拖拽               | Panel 文本     | `SelectionGesture` start/update，然后 `SelectionExport`           | Attachment-scoped  | Provisional       |
+| 修饰键拖拽（如 Shift） | 任意处         | 交给外层 terminal 自己的 bypass 做原生选择                        | Client-local       | Provisional       |
 
 selection 与 mouse-reporting passthrough 之间是唯一真正的策略决策。当 terminal 内部的
 app 开启自己的 mouse reporting 时，其 viewport 内的拖拽属于该 app；没有开启时，同一手势
@@ -219,11 +219,11 @@ app 开启自己的 mouse reporting 时，其 viewport 内的拖拽属于该 app
 `Search`、`Viewport`）、`SelectionGesture`/`SelectionCommand`/`SelectionChanged` 与
 `SelectionExport`。缺口：
 
-| 缺口                                             | 用途                                                   | 请求的决策                                                              |
-| ------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `panel.resize` `WorkbenchAction`                 | 边界拖拽与键盘步进 resize                              | 准入一个 resize mutation——形态选项：direction 加 delta，或新的 slot 比 |
-| 内部 terminal mouse-mode 投影                    | selection 与 passthrough 的路由                        | 把 terminal 的 mouse-reporting 标志暴露为 Client 可见的 terminal fact  |
-| exported selection 的 clipboard 交接             | `y` 与拖拽选择的投递                                   | 确认以 OSC52 或平台 clipboard 作为 Client-local 投递路径               |
+| 缺口                                 | 用途                            | 请求的决策                                                             |
+| ------------------------------------ | ------------------------------- | ---------------------------------------------------------------------- |
+| `panel.resize` `WorkbenchAction`     | 边界拖拽与键盘步进 resize       | 准入一个 resize mutation——形态选项：direction 加 delta，或新的 slot 比 |
+| 内部 terminal mouse-mode 投影        | selection 与 passthrough 的路由 | 把 terminal 的 mouse-reporting 标志暴露为 Client 可见的 terminal fact  |
+| exported selection 的 clipboard 交接 | `y` 与拖拽选择的投递            | 确认以 OSC52 或平台 clipboard 作为 Client-local 投递路径               |
 
 ## 非目标
 
@@ -236,7 +236,7 @@ app 开启自己的 mouse reporting 时，其 viewport 内的拖拽属于该 app
 
 ## 对已验收契约的影响
 
-`native-command-surface.md` 中的 `Ctrl+B` initial map 是已验收的 *initial* contract。本
+`native-command-surface.md` 中的 `Ctrl+B` initial map 是已验收的 _initial_ contract。本
 提案做增量扩展：所有既有绑定保持行为，下列不变量被保留或一般化而非削弱：
 
 - 一个 chord、一层待决：`Ctrl+B` 仍是唯一顶层入口；`Ctrl+B` `Ctrl+B` 仍发送字面
