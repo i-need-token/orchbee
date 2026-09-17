@@ -41,8 +41,6 @@ mod support;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-const SCOPE_PREFIX: &str = "orchbee-native-";
-
 // ---- staged cohort --------------------------------------------------------
 
 /// One cohort directory per test process: copies of the four build artifacts
@@ -102,31 +100,20 @@ fn cohort() -> &'static Path {
 
 // ---- Site scope staging ---------------------------------------------------
 
+/// Thin wrapper over the shared minter: a long TMPDIR must not push the
+/// rendezvous socket path past `sun_path`, so names stay short and exclusive.
 fn base_dir(tag: &str) -> PathBuf {
-    let directory = std::env::temp_dir().join(format!(
-        "obcli-query-base-{}-{tag}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos()
-    ));
-    fs::create_dir_all(&directory).expect("create runtime base");
-    fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).expect("chmod base");
-    directory
+    support::runtime_base(tag)
 }
 
 fn scope_dir(base: &Path) -> PathBuf {
-    base.join(format!("{SCOPE_PREFIX}{}", nix::unistd::geteuid()))
+    support::scope_dir(base)
 }
 
 /// Create the existing-only Site scope directory the rendezvous validator
 /// expects (mode 0700, owned by the caller).
 fn stage_scope(base: &Path) -> PathBuf {
-    let scope = scope_dir(base);
-    fs::create_dir(&scope).expect("create scope directory");
-    fs::set_permissions(&scope, fs::Permissions::from_mode(0o700)).expect("chmod scope");
-    scope
+    support::stage_scope(base)
 }
 
 // ---- scripted peer --------------------------------------------------------

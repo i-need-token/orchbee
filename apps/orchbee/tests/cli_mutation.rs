@@ -35,8 +35,6 @@ mod support;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-const SCOPE_PREFIX: &str = "orchbee-native-";
-
 // ---- staged cohort --------------------------------------------------------
 
 /// One cohort directory per test process: copies of the four build artifacts
@@ -93,31 +91,16 @@ fn cohort() -> &'static Path {
 
 // ---- Site scope staging ---------------------------------------------------
 
+/// Thin wrapper over the shared minter: a long TMPDIR must not push the
+/// rendezvous socket path past `sun_path`, so names stay short and exclusive.
 fn base_dir(tag: &str) -> PathBuf {
-    let directory = std::env::temp_dir().join(format!(
-        "obcli-mutation-base-{}-{tag}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos()
-    ));
-    fs::create_dir_all(&directory).expect("create runtime base");
-    fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).expect("chmod base");
-    directory
-}
-
-fn scope_dir(base: &Path) -> PathBuf {
-    base.join(format!("{SCOPE_PREFIX}{}", nix::unistd::geteuid()))
+    support::runtime_base(tag)
 }
 
 /// Create the existing-only Site scope directory the rendezvous validator
 /// expects (mode 0700, owned by the caller).
 fn stage_scope(base: &Path) -> PathBuf {
-    let scope = scope_dir(base);
-    fs::create_dir(&scope).expect("create scope directory");
-    fs::set_permissions(&scope, fs::Permissions::from_mode(0o700)).expect("chmod scope");
-    scope
+    support::stage_scope(base)
 }
 
 // ---- scripted peer --------------------------------------------------------
@@ -1597,6 +1580,59 @@ fn capture_budget_reports_an_already_exited_child() -> TestResult {
         }
         other => panic!("expected output-limit, got {other}"),
     }
+    Ok(())
+}
+
+// ---- short runtime base -----------------------------------------------------
+//
+// The shared minter keeps `<base>/<scope>/client.sock` inside `sun_path` even
+// under a long TMPDIR. These witnesses pin the observable contract — real
+// bind, exclusivity, 0700 — under whatever TMPDIR the suite actually runs.
+
+#[test]
+fn runtime_base_leaves_socket_margin_and_really_binds() -> TestResult {
+    let base = base_dir("margin");
+    let mode = fs::metadata(&base)
+        .expect("base exists")
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o700, "exclusive private directory");
+    let scope = stage_scope(&base);
+    let socket = scope.join("client.sock");
+    // 108-byte sun_path minus the trailing NUL — the ineliminable platform
+    // ceiling this fix works under; the helper asserts the same bound.
+    assert!(
+        socket.as_os_str().as_encoded_bytes().len() <= 107,
+        "socket path {}B exceeds sun_path",
+        socket.as_os_str().as_encoded_bytes().len()
+    );
+    // The real bind — not just the length math — proves the margin on this
+    // TMPDIR. A listener that could not bind is what SUN_LEN was failing on.
+    let listener = UnixListener::bind(&socket).expect("socket binds within sun_path");
+    drop(listener);
+    let _ = fs::remove_file(&socket);
+    Ok(())
+}
+
+#[test]
+fn runtime_base_dirs_are_exclusive_and_never_shared() -> TestResult {
+    // Sequential mints with the same tag differ; concurrent mints across
+    // threads (same pid) also differ — uniqueness comes from exclusive
+    // create_dir, not from the truncated entropy.
+    let first = base_dir("shared");
+    let second = base_dir("shared");
+    assert_ne!(first, second);
+    let handles: Vec<_> = (0..8)
+        .map(|_| thread::spawn(|| support::runtime_base("shared")))
+        .collect();
+    let minted: Vec<PathBuf> = handles
+        .into_iter()
+        .map(|handle| handle.join().expect("minter finished"))
+        .collect();
+    let mut sorted = minted.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), minted.len(), "no shared directory");
     Ok(())
 }
 

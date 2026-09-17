@@ -4,16 +4,20 @@
 //! binaries share one bounded-output implementation.
 
 use std::{
+    fs,
     io::{ErrorKind, Read},
     os::fd::AsFd,
+    os::unix::fs::PermissionsExt,
     os::unix::process::ExitStatusExt,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Output, Stdio},
+    sync::atomic::{AtomicU32, Ordering},
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use nix::fcntl::{FcntlArg, OFlag, fcntl};
+use sha2::{Digest, Sha256};
 
 /// Wall-clock backstop on every spawned CLI child. A healthy run retires on
 /// the CLI's own 5s network budget; this bound only guards the suite against
@@ -360,4 +364,92 @@ pub fn run(binary: &Path, base: &Path, arguments: &[&str]) -> Output {
         .env("LANG", "en_US.UTF-8");
     bounded_output(&mut command, RUN_WALL_CLOCK_BACKSTOP)
         .unwrap_or_else(|timeout| panic!("{timeout}"))
+}
+
+// ---- short runtime base -----------------------------------------------------
+
+/// Site scope directory prefix the rendezvous validator expects.
+const SCOPE_PREFIX: &str = "orchbee-native-";
+
+/// Leaf-name length minted by `runtime_base`: `"oc-"` + 8 hex chars. Fixed
+/// and short so the socket-margin check below bounds the canonical TMPDIR
+/// this suite can run under.
+const BASE_LEAF_LEN: usize = 11;
+
+/// Usable `sockaddr_un.sun_path` capacity on Linux: the field minus the
+/// trailing NUL bind(2) needs. Derived from the real libc types — `sockaddr_un`
+/// is `sa_family_t` followed by the `sun_path` array, and `u16` alignment means
+/// there is no padding — rather than a literal 108.
+fn sun_path_limit() -> usize {
+    std::mem::size_of::<nix::libc::sockaddr_un>()
+        - std::mem::size_of::<nix::libc::sa_family_t>()
+        - 1
+}
+
+/// Mint a short, exclusively-created, mode-0700 runtime base under the
+/// canonical TMPDIR so `<base>/<scope>/client.sock` stays inside `sun_path`
+/// even when TMPDIR itself is long. `tag` feeds the name entropy only — it is
+/// not a uniqueness guarantee; exclusive `create_dir` plus bounded retries
+/// are. Fails fast with a clear message when the canonical TMPDIR leaves no
+/// socket margin at all instead of hanging or silently skipping.
+pub fn runtime_base(tag: &str) -> PathBuf {
+    let tmp = std::env::temp_dir()
+        .canonicalize()
+        .expect("canonicalize TMPDIR for the cli runtime base");
+    let uid = nix::unistd::geteuid().as_raw();
+    // Worst socket the rendezvous can bind/connect is `client.sock` under the
+    // euid scope; `worker.sock` has the same length.
+    let suffix_len = format!("/{SCOPE_PREFIX}{uid}/client.sock").len();
+    let limit = sun_path_limit();
+    let tmp_len = tmp.as_os_str().as_encoded_bytes().len();
+    assert!(
+        tmp_len + 1 + BASE_LEAF_LEN + suffix_len <= limit,
+        "canonical TMPDIR {tmp:?} ({tmp_len}B) leaves no unix-socket margin for \
+         an {BASE_LEAF_LEN}B leaf plus {suffix_len}B scope/socket suffix \
+         (sun_path limit {limit}B) — point TMPDIR at a shorter real directory",
+    );
+    let pid = std::process::id();
+    static SEQUENCE: AtomicU32 = AtomicU32::new(0);
+    for _ in 0..32 {
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let digest = Sha256::digest(format!("obcli:{tag}:{pid}:{nanos}:{sequence}"));
+        let leaf = format!(
+            "oc-{:02x}{:02x}{:02x}{:02x}",
+            digest[0], digest[1], digest[2], digest[3]
+        );
+        let directory = tmp.join(leaf);
+        match fs::create_dir(&directory) {
+            Ok(()) => {
+                fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))
+                    .expect("chmod runtime base");
+                return directory;
+            }
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                panic!("create cli runtime base {}: {error}", directory.display())
+            }
+        }
+    }
+    panic!(
+        "could not mint a unique short runtime dir under {} after 32 attempts",
+        tmp.display()
+    );
+}
+
+/// The existing-only Site scope path inside a runtime base.
+pub fn scope_dir(base: &Path) -> PathBuf {
+    base.join(format!("{SCOPE_PREFIX}{}", nix::unistd::geteuid()))
+}
+
+/// Create the Site scope directory the rendezvous validator expects (mode
+/// 0700, owned by the caller).
+pub fn stage_scope(base: &Path) -> PathBuf {
+    let scope = scope_dir(base);
+    fs::create_dir(&scope).expect("create scope directory");
+    fs::set_permissions(&scope, fs::Permissions::from_mode(0o700)).expect("chmod scope");
+    scope
 }
