@@ -506,7 +506,7 @@ fn generated_persistent_mailbox_and_state_lifecycle_replays_and_shrinks() {
             && total.panel_outcomes[OutcomeClass::CommittedDrop.index()] > 0
             && total.panel_outcomes[OutcomeClass::CommittedNoSnapshot.index()] > 0
             && total.panel_outcomes[OutcomeClass::CloseAccepted.index()] > 0
-            && total.panel_outcomes[OutcomeClass::TabGone.index()] > 0
+            && total.panel_outcomes[OutcomeClass::CommittedTabGone.index()] > 0
             && total.panel_outcomes[OutcomeClass::NotSubmitted.index()] > 0
             && total.panel_outcomes[OutcomeClass::Rejected.index()] > 0,
         "outcome classes not covered: {total:?}"
@@ -682,8 +682,13 @@ fn generate(seed: u64, seed_index: usize) -> Vec<TraceAction> {
             probe: next(),
         },
         TraceAction::CommitSecondCreate,
+        // The session just settled without attachment on a single-leaf non-attachable
+        // pending tab. Forcing Split here lets the setup steering commit a Keep that grows
+        // it to two leaves — the precondition both post-refresh membership outcomes need
+        // (Move admissibility on even seeds, a surviving sibling for leaf repair on odd
+        // seeds).
         TraceAction::PanelCycle {
-            kind: next(),
+            kind: 0,
             outcome: next(),
             probe: next(),
         },
@@ -699,8 +704,15 @@ fn generate(seed: u64, seed_index: usize) -> Vec<TraceAction> {
         TraceAction::SupersedeSwitch {
             target_hint: next(),
         },
+        // The post-refresh cycle is the only position where an unattached membership
+        // result can still fire a decision: the session settled without attachment on the
+        // pending tab after the second create, and the switch always re-attaches. The
+        // forced intent alternates by seed parity so the preference order in
+        // `build_panel_outcome` differs across seeds; which side lands depends on which
+        // tab the refresh left selected, and across the fixed seeds both
+        // AttachRecovered and SettledWithoutAttachment fire.
         TraceAction::PanelCycle {
-            kind: next(),
+            kind: 1 - (seed_index % 2) as u8,
             outcome: next(),
             probe: next(),
         },
@@ -2315,11 +2327,14 @@ impl Trace {
             "queued input escaped while the Panel lease was active",
         )?;
 
-        let (outcome, class) = self.build_panel_outcome(&operation, kind, outcome_sel)?;
+        let (outcome, class, expected_decision) =
+            self.build_panel_outcome(&operation, kind, outcome_sel)?;
         self.coverage.panel_outcomes[class.index()] += 1;
         if matches!(
             class,
-            OutcomeClass::CommittedKeep | OutcomeClass::CommittedDrop | OutcomeClass::TabGone
+            OutcomeClass::CommittedKeep
+                | OutcomeClass::CommittedDrop
+                | OutcomeClass::CommittedTabGone
         ) {
             self.allocate_read()?;
         }
@@ -2503,69 +2518,133 @@ impl Trace {
         }
 
         let mut needs_drain = false;
-        match settlement.decision() {
-            PanelDecision::Continue => {
-                self.coverage.panel_decisions[0] += 1;
-                match class {
-                    OutcomeClass::CloseAccepted => {
-                        require(
-                            self.session.publication_debt_pending(),
-                            "CloseAccepted did not arm publication debt",
-                        )?;
-                        // The receipt latches session-side debt only; the mailbox's own
-                        // publication latch is a separate ingress set by poll-result hints.
-                        require(
-                            !self.mailbox.lock().publication_hint_pending,
-                            "CloseAccepted latched the mailbox publication hint",
-                        )?;
-                        self.coverage.panel_publication_drains += 1;
-                        needs_drain = true;
-                    }
-                    OutcomeClass::CommittedNoSnapshot => {
-                        require(
-                            self.session.panel_recovery_for_test().is_some(),
-                            "snapshot-less commit did not arm panel recovery",
-                        )?;
-                        self.coverage.panel_recovery_arms += 1;
-                        needs_drain = true;
-                    }
-                    OutcomeClass::TabUnavailable => {
-                        // The workbench advanced a revision we never saw; a refresh resyncs the
-                        // cache before the next baseline is taken.
-                        needs_drain = true;
-                    }
-                    _ => {
-                        require(
-                            self.session.notice() == Some(SessionNotice::PanelNotApplied)
-                                || matches!(
-                                    class,
-                                    OutcomeClass::Unchanged | OutcomeClass::CommittedKeep
-                                ),
-                            "non-committed Panel lost its notice",
-                        )?;
-                    }
-                }
+        let decision_index = match settlement.decision() {
+            PanelDecision::Continue => 0,
+            PanelDecision::Cleanup(_) => 1,
+            PanelDecision::AttachRecovered(_) => 2,
+            PanelDecision::SettledWithoutAttachment => 3,
+            PanelDecision::Retire => 4,
+        };
+        // The decision the settlement returned is checked against the expectation derived
+        // from the input class and the pre-settlement facts — never echoed back — so a
+        // misclassified membership result cannot hide behind the Continue catch-all.
+        if decision_index != expected_decision {
+            return violation(format!(
+                "settlement decision diverged from the input-fact oracle: class={class:?} expected={expected_decision} got={decision_index}"
+            ));
+        }
+        self.coverage.panel_decisions[decision_index] += 1;
+        // Side facts each input class must leave behind, asserted independently of the
+        // returned decision and before any drive mutates the session further.
+        match class {
+            OutcomeClass::NotSubmitted
+            | OutcomeClass::Rejected
+            | OutcomeClass::Denied
+            | OutcomeClass::Unavailable => {
+                require(
+                    self.session.notice() == Some(SessionNotice::PanelNotApplied),
+                    "non-committed Panel lost its PanelNotApplied notice",
+                )?;
+                require(
+                    self.session
+                        .retained_panel_for_test()
+                        .is_none_or(|pending| pending.operation() != &operation),
+                    "non-committed Panel retained a commit",
+                )?;
             }
+            OutcomeClass::Unchanged => {
+                require(
+                    self.session.notice().is_none(),
+                    "Unchanged Panel left a notice",
+                )?;
+                require(
+                    self.session
+                        .retained_panel_for_test()
+                        .is_none_or(|pending| pending.operation() != &operation),
+                    "Unchanged Panel retained a commit",
+                )?;
+            }
+            OutcomeClass::CommittedKeep => {
+                require(
+                    self.session.notice().is_none(),
+                    "committed Panel left a notice",
+                )?;
+                require(
+                    self.session
+                        .retained_panel_for_test()
+                        .is_some_and(|pending| pending.operation() == &operation),
+                    "committed Panel did not retain its commit",
+                )?;
+            }
+            OutcomeClass::CommittedNoSnapshot => {
+                require(
+                    self.session.notice().is_none(),
+                    "snapshot-less commit left a notice",
+                )?;
+                require(
+                    self.session
+                        .retained_panel_for_test()
+                        .is_some_and(|pending| pending.operation() == &operation),
+                    "snapshot-less commit did not retain its commit",
+                )?;
+                require(
+                    self.session.panel_recovery_for_test().is_some(),
+                    "snapshot-less commit did not arm panel recovery",
+                )?;
+                self.coverage.panel_recovery_arms += 1;
+                needs_drain = true;
+            }
+            OutcomeClass::CloseAccepted => {
+                require(
+                    self.session.notice().is_none(),
+                    "accepted close left a notice",
+                )?;
+                require(
+                    self.session.publication_debt_pending(),
+                    "CloseAccepted did not arm publication debt",
+                )?;
+                // The receipt latches session-side debt only; the mailbox's own
+                // publication latch is a separate ingress set by poll-result hints.
+                require(
+                    !self.mailbox.lock().publication_hint_pending,
+                    "CloseAccepted latched the mailbox publication hint",
+                )?;
+                self.coverage.panel_publication_drains += 1;
+                needs_drain = true;
+            }
+            OutcomeClass::CommittedDrop | OutcomeClass::CommittedTabGone => {
+                // The membership path retains the commit's pending record; the notice
+                // stays clear.
+                require(
+                    self.session.notice().is_none(),
+                    "membership commit left a notice",
+                )?;
+                require(
+                    self.session
+                        .retained_panel_for_test()
+                        .is_some_and(|pending| pending.operation() == &operation),
+                    "membership commit did not retain its commit",
+                )?;
+            }
+        }
+        match settlement.decision() {
+            PanelDecision::Continue => {}
             PanelDecision::Cleanup(cleanup) => {
-                self.coverage.panel_decisions[1] += 1;
                 self.coverage.panel_membership_cleanups += 1;
                 let cleanup = cleanup.clone();
                 self.drive_membership_cleanup(&cleanup)?;
             }
             PanelDecision::AttachRecovered(target) => {
-                self.coverage.panel_decisions[2] += 1;
                 let target = target.clone();
                 self.drive_attach(&target)?;
             }
             PanelDecision::SettledWithoutAttachment => {
-                self.coverage.panel_decisions[3] += 1;
                 require(
                     self.session.attached_key().is_none(),
                     "SettledWithoutAttachment left an attachment",
                 )?;
             }
             PanelDecision::Retire => {
-                self.coverage.panel_decisions[4] += 1;
                 return violation("generated Panel cycle retired mid-trace");
             }
         }
@@ -3152,13 +3231,17 @@ impl Trace {
     }
 
     /// Builds the worker-visible `PanelResult` for the admitted operation and mutates the
-    /// authority model so the snapshot the result carries is the real committed state.
+    /// authority model so the snapshot the result carries is the real committed state. The
+    /// third tuple element is the settlement decision this exact input must produce —
+    /// computed from the request class and pre-settlement session/authority facts before
+    /// the authority mutates, so the caller can check the SUT's decision against an
+    /// independent expectation rather than echoing it.
     fn build_panel_outcome(
         &mut self,
         operation: &PanelOperation,
         kind: PanelRequestKind,
         outcome_sel: u8,
-    ) -> Result<(PanelResult, OutcomeClass), ReplayFailure> {
+    ) -> Result<(PanelResult, OutcomeClass, usize), ReplayFailure> {
         let table = outcome_table(kind);
         // A tab-gone refusal needs enough surviving tabs for the rest of the trace, and a
         // selected-leaf close needs a sibling to keep the tab alive.
@@ -3167,8 +3250,11 @@ impl Trace {
             .tabs
             .iter()
             .position(|tab| tab.tab_id == *operation.target().tab_id());
+        let target_attachable = target_index
+            .and_then(|index| self.session.provenance(index))
+            .is_none_or(|provenance| provenance.attachable());
         let legal = |class: OutcomeClass| match class {
-            OutcomeClass::TabGone => self.authority.tabs.len() >= 3,
+            OutcomeClass::CommittedTabGone => self.authority.tabs.len() >= 3,
             OutcomeClass::CommittedDrop | OutcomeClass::CloseAccepted => {
                 target_index.is_some_and(|index| self.authority.leaf_count(index) >= 2)
             }
@@ -3183,45 +3269,61 @@ impl Trace {
             };
         }
         // Deterministic coverage: membership classes drive the attached session to a staged
-        // Cleanup decision and the unattached session to a direct install. TabGone reselects
-        // another tab (which may be non-attachable → SettledWithoutAttachment); CommittedDrop
-        // repairs the selected leaf in place. While a decision is still uncovered this trace,
-        // prefer the class that produces it; otherwise prefer the recovery-arming class once,
-        // then fall back to the first supported class that never fired.
+        // Cleanup decision and the unattached session to a direct install. CommittedTabGone
+        // reselects another tab (which may be non-attachable → SettledWithoutAttachment);
+        // CommittedDrop repairs the selected leaf in place. While a decision is still
+        // uncovered this trace, prefer the class that produces it; otherwise prefer the
+        // recovery-arming class once, then fall back to the first supported class that
+        // never fired.
         let supported = |candidate: OutcomeClass| table.contains(&candidate) && legal(candidate);
         let mut steered = None;
         if self.session.attached_key().is_some() {
             if self.coverage.panel_decisions[1] == 0 {
-                steered = [OutcomeClass::CommittedDrop, OutcomeClass::TabGone]
+                steered = [OutcomeClass::CommittedDrop, OutcomeClass::CommittedTabGone]
                     .into_iter()
                     .find(|candidate| supported(*candidate));
             }
         } else {
-            // SettledWithoutAttachment: the membership install must select a tab whose
-            // provenance cannot attach — either a whole-tab removal reselecting one, or a
-            // leaf repair on the pending (non-attachable) tab itself.
-            let target_attachable = target_index
-                .and_then(|index| self.session.provenance(index))
-                .is_none_or(|provenance| provenance.attachable());
-            if self.coverage.panel_decisions[3] == 0 {
-                if supported(OutcomeClass::TabGone)
-                    && self.tabgone_retargets_unattachable(operation)
-                {
-                    steered = Some(OutcomeClass::TabGone);
-                } else if !target_attachable && supported(OutcomeClass::CommittedDrop) {
-                    steered = Some(OutcomeClass::CommittedDrop);
-                }
-            }
-            // AttachRecovered: the mirrored install reattaches — a leaf repair on an
-            // attachable tab, or a whole-tab removal reselecting an attachable one.
-            if steered.is_none() && self.coverage.panel_decisions[2] == 0 {
-                if supported(OutcomeClass::CommittedDrop) && target_attachable {
-                    steered = Some(OutcomeClass::CommittedDrop);
-                } else if supported(OutcomeClass::TabGone)
-                    && !self.tabgone_retargets_unattachable(operation)
-                {
-                    steered = Some(OutcomeClass::TabGone);
-                }
+            // The unattached membership install either reattaches (AttachRecovered) or
+            // settles without an attachment (SettledWithoutAttachment), decided by the
+            // selected candidate tab's provenance. A trace reaches at most one unattached
+            // cycle where a membership class is legal, so the generator splits the two
+            // decisions across seeds: the post-refresh request is forced to Move on even
+            // seeds and Split on odd seeds, and the preference follows the intent rather
+            // than this trace's own coverage (which is always zero on arrival).
+            let drop_legal = supported(OutcomeClass::CommittedDrop);
+            let gone_legal = supported(OutcomeClass::CommittedTabGone);
+            let gone_unattachable = gone_legal && self.tabgone_retargets_unattachable(operation);
+            let settle_choice = if gone_unattachable {
+                Some(OutcomeClass::CommittedTabGone)
+            } else if !target_attachable && drop_legal {
+                Some(OutcomeClass::CommittedDrop)
+            } else {
+                None
+            };
+            let recover_choice = if target_attachable && drop_legal {
+                Some(OutcomeClass::CommittedDrop)
+            } else if gone_legal && !gone_unattachable {
+                Some(OutcomeClass::CommittedTabGone)
+            } else {
+                None
+            };
+            steered = if matches!(kind, PanelRequestKind::Move { .. }) {
+                recover_choice.or(settle_choice)
+            } else {
+                settle_choice.or(recover_choice)
+            };
+            // A split commit on a single-leaf non-attachable selected tab is the only way
+            // to grow it toward what later membership coverage needs: leaf repair needs a
+            // surviving sibling, and the forced Move request at the post-refresh position
+            // only admits a multi-leaf active tab.
+            if steered.is_none()
+                && (self.coverage.panel_decisions[2] == 0 || self.coverage.panel_decisions[3] == 0)
+                && !target_attachable
+                && target_index.is_some_and(|index| self.authority.leaf_count(index) < 2)
+                && supported(OutcomeClass::CommittedKeep)
+            {
+                steered = Some(OutcomeClass::CommittedKeep);
             }
         }
         if let Some(candidate) = steered {
@@ -3238,28 +3340,62 @@ impl Trace {
         {
             class = candidate;
         }
+        require(
+            adapter_legal_outcome(kind, class),
+            "generated outcome class is unreachable for this intent at the adapter",
+        )?;
+        // The decision the settlement must produce for this input, derived from the
+        // request facts and the pre-settlement session/authority state: non-committed
+        // refusals and no-ops Continue; membership classes stage cleanup while attached
+        // or install directly while unattached, attaching only when the reselected tab's
+        // provenance allows it.
+        let expected_decision = match class {
+            OutcomeClass::CommittedDrop | OutcomeClass::CommittedTabGone => {
+                if self.session.attached_key().is_some() {
+                    1
+                } else {
+                    let attachable = if class == OutcomeClass::CommittedDrop {
+                        target_attachable
+                    } else {
+                        !self.tabgone_retargets_unattachable(operation)
+                    };
+                    if attachable { 2 } else { 3 }
+                }
+            }
+            _ => 0,
+        };
         let baseline_revision = operation.baseline().revision();
         let result = match class {
             OutcomeClass::NotSubmitted => PanelResult::NotSubmitted,
             OutcomeClass::Rejected => PanelResult::Precommit(PanelPrecommit::Rejected {
+                // `revision` is the server's current revision — equal to the baseline a
+                // fresh operation was planned against. `RequestIdentityConflict` is the one
+                // rejection reason honestly emittable for every intent at equal revision
+                // (the retained-ledger preflight); `PanelUnavailable`/`TabUnavailable`
+                // require degenerate input and `IdentityExhausted`/`ResourceLimit` are not
+                // in every intent's compatible set.
                 revision: baseline_revision,
-                reason: WorkbenchRejectionReason::PanelUnavailable,
+                reason: WorkbenchRejectionReason::RequestIdentityConflict,
             }),
             OutcomeClass::Denied => PanelResult::Precommit(PanelPrecommit::Denied),
             OutcomeClass::Unavailable => PanelResult::Precommit(PanelPrecommit::Unavailable {
-                reason: WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable,
+                // Per-intent honest transient: Split has no runtime dependency of its own
+                // (`TerminalRuntimeUnavailable` only ever arrives embedded in a committed
+                // `PanelSplitCreated`), Move never touches a runtime at all, and only Close
+                // resolves a retained runtime target. `ServiceUnavailable` is honest for
+                // every intent but the split gets its own reachable coordinator answer.
+                reason: match kind {
+                    PanelRequestKind::Split { .. } => {
+                        WorkbenchCommandUnavailableReason::NoCompatibleWorker
+                    }
+                    PanelRequestKind::Move { .. } => {
+                        WorkbenchCommandUnavailableReason::TerminalBusy
+                    }
+                    PanelRequestKind::Close => {
+                        WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable
+                    }
+                },
             }),
-            OutcomeClass::TabUnavailable => {
-                // The workbench advanced a revision for a peer mutation we never saw; model it
-                // as a tab append so the next refresh candidate stays canonical-legal.
-                self.authority.append_tab();
-                PanelResult::TabUnavailable {
-                    revision: WorkbenchRevision::new(self.authority.revision),
-                    outcome: WorkbenchSnapshotOutcome::Unavailable {
-                        reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
-                    },
-                }
-            }
             OutcomeClass::Unchanged => PanelResult::Unchanged(baseline_revision),
             OutcomeClass::CommittedKeep
             | OutcomeClass::CommittedDrop
@@ -3300,17 +3436,22 @@ impl Trace {
                     accepted_revision: baseline_revision,
                 })
             }
-            OutcomeClass::TabGone => {
+            OutcomeClass::CommittedTabGone => {
+                // Our commit lands at baseline+1; a peer whole-tab close then folds into
+                // the superseding snapshot the adapter reads — revision > committed, so
+                // projection validation skips the exact graft check and the missing target
+                // routes to the membership retarget path with the commit still retained.
+                let commit = self.authority.apply_commit(operation)?;
                 self.authority.remove_tab(operation.target().tab_id());
-                PanelResult::TabUnavailable {
-                    revision: WorkbenchRevision::new(self.authority.revision),
+                PanelResult::Committed {
+                    commit: Box::new(commit),
                     outcome: WorkbenchSnapshotOutcome::Available {
                         snapshot: self.authority.snapshot(),
                     },
                 }
             }
         };
-        Ok((result, class))
+        Ok((result, class, expected_decision))
     }
 
     /// Terminal action: runs every protocol-negative probe on fresh sandbox pairs (each probe
@@ -3551,6 +3692,43 @@ impl Trace {
             require(
                 error == CarrierFailure::Protocol,
                 "early reply wrong failure",
+            )?;
+            self.coverage.panel_negative_probes += 1;
+        }
+        // A reply deposited with a valid wait key after the mailbox closed must surface
+        // the recorded close as the first cause: `ensure_open` precedes admission and
+        // settlement, so the closure never runs and no new state lands — a mismatched
+        // wait-key fault cannot be re-derived in place of the close.
+        {
+            let mut sandbox = PanelSandbox::new()?;
+            let (_operation, _lease, wait) = sandbox.admit_split_awaiting()?;
+            sandbox.mailbox.close(CarrierFailure::Closed);
+            let ran = Cell::new(false);
+            let error = observed_err(
+                sandbox.mailbox.deposit_ui_reply_before_using(
+                    &wait,
+                    &sandbox.clock,
+                    |_transaction| {
+                        ran.set(true);
+                        Ok(UiReply::Panel(PanelSettlement::new(
+                            PanelDecision::Continue,
+                            None,
+                        )))
+                    },
+                ),
+                "deposit Panel reply on a closed mailbox",
+            )?;
+            require(
+                error.closed_failure() == Some(CarrierFailure::Closed),
+                "closed-mailbox deposit lost the first cause",
+            )?;
+            require(
+                !ran.get(),
+                "closed-mailbox deposit ran the settlement closure",
+            )?;
+            require(
+                sandbox.mailbox.is_closed() == Some(CarrierFailure::Closed),
+                "closed-mailbox deposit changed the recorded close",
             )?;
             self.coverage.panel_negative_probes += 1;
         }
@@ -4409,8 +4587,6 @@ enum OutcomeClass {
     Rejected,
     Denied,
     Unavailable,
-    /// `TabUnavailable` refusal carrying no snapshot: settles as not-applied.
-    TabUnavailable,
     /// `Unchanged` at exactly the operation baseline revision: a legal no-op.
     Unchanged,
     /// Committed, and the delivered snapshot still contains the selected leaf.
@@ -4422,12 +4598,15 @@ enum OutcomeClass {
     CommittedNoSnapshot,
     /// `panel.close` accepted with the close deferred to a later revision: arms publication debt.
     CloseAccepted,
-    /// `TabUnavailable` carrying a snapshot whose whole tab is gone: membership retarget.
-    TabGone,
+    /// Committed, but a peer whole-tab close folded into the snapshot between our commit
+    /// and the read: the only honest whole-tab-removal shape (`PanelResult::TabUnavailable`
+    /// is a defensive-only variant — a real `Rejected{TabUnavailable}` always carries
+    /// `revision == baseline`, which can never describe a tab that was present there).
+    CommittedTabGone,
 }
 
 impl OutcomeClass {
-    const COUNT: usize = 11;
+    const COUNT: usize = 10;
 
     const fn index(self) -> usize {
         match self {
@@ -4435,30 +4614,52 @@ impl OutcomeClass {
             Self::Rejected => 1,
             Self::Denied => 2,
             Self::Unavailable => 3,
-            Self::TabUnavailable => 4,
-            Self::Unchanged => 5,
-            Self::CommittedKeep => 6,
-            Self::CommittedDrop => 7,
-            Self::CommittedNoSnapshot => 8,
-            Self::CloseAccepted => 9,
-            Self::TabGone => 10,
+            Self::Unchanged => 4,
+            Self::CommittedKeep => 5,
+            Self::CommittedDrop => 6,
+            Self::CommittedNoSnapshot => 7,
+            Self::CloseAccepted => 8,
+            Self::CommittedTabGone => 9,
         }
     }
 }
 
-/// Per-request-kind outcome tables. Lengths stay in {5, 7, 9} so that adding the cycle counter
-/// to the generated byte sweeps every residue across the eight fixed seeds.
+/// The adapter-legality boundary (`connection/native/panel.rs`): which `PanelResult` shapes
+/// the native adapter can return for each intent, crossed with the server-side honesty tier
+/// (`report-server-panel-outcomes-18` §5–§7): `Unchanged` exists only on Move,
+/// `CloseAccepted` only on Close, Close never returns `Committed`, and
+/// `PanelResult::TabUnavailable` is a defensive-only variant no honest normal trajectory
+/// produces for any intent — so no `OutcomeClass` models it and none may be added back.
+const fn adapter_legal_outcome(kind: PanelRequestKind, class: OutcomeClass) -> bool {
+    !matches!(
+        (kind, class),
+        (
+            PanelRequestKind::Split { .. } | PanelRequestKind::Close,
+            OutcomeClass::Unchanged,
+        ) | (
+            PanelRequestKind::Split { .. } | PanelRequestKind::Move { .. },
+            OutcomeClass::CloseAccepted,
+        ) | (
+            PanelRequestKind::Close,
+            OutcomeClass::CommittedKeep
+                | OutcomeClass::CommittedDrop
+                | OutcomeClass::CommittedNoSnapshot
+                | OutcomeClass::CommittedTabGone,
+        )
+    )
+}
+
+/// Per-request-kind outcome tables — entries restricted to `adapter_legal_outcome`.
 fn outcome_table(kind: PanelRequestKind) -> &'static [OutcomeClass] {
-    const SPLIT: [OutcomeClass; 9] = [
+    const SPLIT: [OutcomeClass; 8] = [
         OutcomeClass::NotSubmitted,
         OutcomeClass::Rejected,
         OutcomeClass::Denied,
         OutcomeClass::Unavailable,
-        OutcomeClass::TabUnavailable,
         OutcomeClass::CommittedKeep,
         OutcomeClass::CommittedDrop,
         OutcomeClass::CommittedNoSnapshot,
-        OutcomeClass::TabGone,
+        OutcomeClass::CommittedTabGone,
     ];
     const MOVE: [OutcomeClass; 9] = [
         OutcomeClass::NotSubmitted,
@@ -4469,16 +4670,14 @@ fn outcome_table(kind: PanelRequestKind) -> &'static [OutcomeClass] {
         OutcomeClass::CommittedKeep,
         OutcomeClass::CommittedDrop,
         OutcomeClass::CommittedNoSnapshot,
-        OutcomeClass::TabGone,
+        OutcomeClass::CommittedTabGone,
     ];
-    const CLOSE: [OutcomeClass; 7] = [
+    const CLOSE: [OutcomeClass; 5] = [
         OutcomeClass::NotSubmitted,
         OutcomeClass::Rejected,
         OutcomeClass::Denied,
         OutcomeClass::Unavailable,
-        OutcomeClass::TabUnavailable,
         OutcomeClass::CloseAccepted,
-        OutcomeClass::TabGone,
     ];
     match kind {
         PanelRequestKind::Split { .. } => &SPLIT,
