@@ -71,6 +71,9 @@ enum RetirementClass {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PanelSettleClass {
     NotSubmitted,
+    // Synthetic defensive input only: see the construction site in `panel_settle` — no
+    // reachable Server history produces a fresh-baseline rejection for these fixtures,
+    // so the class verifies the NotApplied mapping, not a real peer edit.
     RejectedFresh,
     RejectedStale,
     Denied,
@@ -2159,6 +2162,15 @@ fn panel_settle(trace: &mut TraceState, class: PanelSettleClass) -> Result<(), &
     let tab_id = operation.target().tab_id().clone();
     let result = match class {
         PanelSettleClass::NotSubmitted => PanelResult::NotSubmitted,
+        // A Rejected precommit evaluated at the operation's own baseline. No existing
+        // WorkbenchRejectionReason is reachable-consistent here: tree-derived reasons
+        // (PanelUnavailable/TabUnavailable/ResourceLimit) contradict a baseline snapshot
+        // where the leaf still exists, and ledger/allocator reasons
+        // (RequestIdentityConflict/IdentityExhausted) contradict the trace's unique
+        // request ids or later commits. This is therefore a deliberately synthetic
+        // defensive input — it exercises only the fresh-rejection → PanelNotApplied
+        // mapping (pending cleared, no commit retained) and is not counted as real
+        // Server-history evidence.
         PanelSettleClass::RejectedFresh => PanelResult::Precommit(PanelPrecommit::Rejected {
             revision: WorkbenchRevision::new(baseline_revision),
             reason: WorkbenchRejectionReason::PanelUnavailable,
