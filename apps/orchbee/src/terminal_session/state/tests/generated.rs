@@ -576,7 +576,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::Unchanged,
-                tier: SettleTier::Normal,
+                tier: SettleTier::Defensive,
             },
             TraceAction::PanelSubmit {
                 kind: 2,
@@ -678,7 +678,7 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
             },
             TraceAction::PanelSettle {
                 class: PanelSettleClass::Unchanged,
-                tier: SettleTier::Normal,
+                tier: SettleTier::Defensive,
             },
             TraceAction::PanelSubmit {
                 kind: 1,
@@ -946,21 +946,21 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
     // Tier split: every class with an honest wire shape exercised it per seed,
     // and every class carrying a forged edge exercised that edge per seed — a
     // defensive input can never substitute for the normal one, or vice versa.
-    const NORMAL_SETTLE_CLASSES: [PanelSettleClass; 9] = [
+    const NORMAL_SETTLE_CLASSES: [PanelSettleClass; 8] = [
         PanelSettleClass::NotSubmitted,
         PanelSettleClass::RejectedStale,
         PanelSettleClass::Denied,
         PanelSettleClass::Unavailable,
-        PanelSettleClass::Unchanged,
         PanelSettleClass::CloseAccepted,
         PanelSettleClass::CommittedMerge,
         PanelSettleClass::CommittedRecovery,
         PanelSettleClass::CommittedLeafRepair,
     ];
-    const DEFENSIVE_SETTLE_CLASSES: [PanelSettleClass; 4] = [
+    const DEFENSIVE_SETTLE_CLASSES: [PanelSettleClass; 5] = [
         PanelSettleClass::RejectedFresh,
         PanelSettleClass::RejectedStale,
         PanelSettleClass::Unavailable,
+        PanelSettleClass::Unchanged,
         PanelSettleClass::TabUnavailableGone,
     ];
     assert!(
@@ -2275,8 +2275,16 @@ fn settle_class_legal(
             // reachable-consistent at the operation's own baseline), and a real
             // peer removal advances the authority revision so admission yields
             // RevisionMismatch before membership — TabUnavailableGone has no
-            // honest variant.
-            PanelSettleClass::RejectedFresh | PanelSettleClass::TabUnavailableGone => false,
+            // honest variant. In this bounded fixture the native planner
+            // builds Move through a same-direction geometric neighbor, so the
+            // source is never already the target-direction sibling a Server
+            // Unchanged would require; Unchanged stays a Move-only
+            // adapter/reducer white-box edge, not normal Server history. (A
+            // deeper tree could plan a no-op Move honestly — the exclusion is
+            // this fixture's constructions, not the shape itself.)
+            PanelSettleClass::RejectedFresh
+            | PanelSettleClass::TabUnavailableGone
+            | PanelSettleClass::Unchanged => false,
             // Honest at any baseline: NotSubmitted never reaches the Server,
             // Denied is the authorization refusal and Unavailable the
             // transport/ledger preflight — both precede the revision check —
@@ -2298,6 +2306,9 @@ fn settle_class_legal(
             // wire-compatible reason set. On Split/Close ServerBusy is an
             // honest reason, so the defensive marker would be a false label.
             PanelSettleClass::Unavailable => matches!(intent, PanelIntent::Move { .. }),
+            // Unchanged keeps its Move-only adapter/reducer white-box edge;
+            // the intent legality below still confines it to Move.
+            PanelSettleClass::Unchanged => true,
             _ => false,
         },
     };
@@ -2455,6 +2466,8 @@ fn panel_settle(
             };
             PanelResult::Precommit(PanelPrecommit::Unavailable { reason })
         }
+        // Defensive-only (Move white-box edge): the baseline-stamped no-op a
+        // real Server cannot emit for this fixture's planned Moves.
         PanelSettleClass::Unchanged => {
             PanelResult::Unchanged(WorkbenchRevision::new(baseline_revision))
         }
@@ -2666,6 +2679,11 @@ fn assert_normal_wire_honest(
             .contains(reason),
             "unavailable reason outside the intent's wire-compatible set for this revision stage"
         ),
+        // The planner's same-direction Move never already sits at the target
+        // sibling in this fixture, so a Normal Unchanged is a mislabeled edge.
+        PanelResult::Unchanged(_) => {
+            panic!("Unchanged has no honest variant in this fixture")
+        }
         _ => {}
     }
 }
@@ -4132,8 +4150,8 @@ fn panel_settle_inputs_match_real_server_and_adapter_legality() {
                 .contains(&reason),
                 "normal unavailable reason must be stage- and wire-compatible"
             ),
-            (SettleTier::Normal, SettleWire::Unchanged { revision }) => {
-                assert_eq!(revision, witness.baseline_revision)
+            (SettleTier::Normal, SettleWire::Unchanged { .. }) => {
+                panic!("Unchanged has no honest variant in this fixture")
             }
             (SettleTier::Normal, SettleWire::TabUnavailable { .. }) => {
                 panic!("TabUnavailable has no honest variant")
@@ -4162,6 +4180,12 @@ fn panel_settle_inputs_match_real_server_and_adapter_legality() {
             (SettleTier::Defensive, SettleWire::TabUnavailable { revision }) => {
                 assert_eq!(witness.class, PanelSettleClass::TabUnavailableGone);
                 assert!(revision > witness.baseline_revision);
+            }
+            (SettleTier::Defensive, SettleWire::Unchanged { revision }) => {
+                // The white-box edge stays a baseline-stamped no-op on Move.
+                assert_eq!(witness.class, PanelSettleClass::Unchanged);
+                assert_eq!(witness.intent, IntentTag::Move);
+                assert_eq!(revision, witness.baseline_revision);
             }
             (SettleTier::Defensive, _) => {
                 panic!("defensive input must carry a forged shape")
@@ -4229,6 +4253,30 @@ fn panel_settle_inputs_match_real_server_and_adapter_legality() {
     assert!(!has(
         IntentTag::Split,
         PanelSettleClass::TabUnavailableGone,
+        SettleTier::Defensive
+    ));
+    // Unchanged migrated to the defensive bucket: the white-box edge must be
+    // exercised on Move, stay Move-only, and never flow back into Normal.
+    assert!(has(
+        IntentTag::Move,
+        PanelSettleClass::Unchanged,
+        SettleTier::Defensive
+    ));
+    for intent in [IntentTag::Split, IntentTag::Move, IntentTag::Close] {
+        assert!(!has(
+            intent,
+            PanelSettleClass::Unchanged,
+            SettleTier::Normal
+        ));
+    }
+    assert!(!has(
+        IntentTag::Split,
+        PanelSettleClass::Unchanged,
+        SettleTier::Defensive
+    ));
+    assert!(!has(
+        IntentTag::Close,
+        PanelSettleClass::Unchanged,
         SettleTier::Defensive
     ));
 }
