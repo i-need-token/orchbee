@@ -15,7 +15,7 @@ use std::{
     os::unix::net::{UnixListener, UnixStream},
     os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
+    process::{Command, Output},
     sync::{Arc, Mutex, OnceLock},
     thread,
     time::{Duration, Instant},
@@ -30,6 +30,8 @@ use orchbee_workbench_protocol::{
     read_workbench_request, write_workbench_response,
 };
 use sha2::{Digest, Sha256};
+
+mod support;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -278,107 +280,10 @@ fn command_response(
     .expect("peer writes command result");
 }
 
-/// Wall-clock backstop on every spawned CLI child. A healthy run retires on
-/// the CLI's own 5s network budget; this bound only guards the suite against
-/// a child that never exits at all, leaving ample slack for a loaded machine.
-const RUN_WALL_CLOCK_BACKSTOP: Duration = Duration::from_secs(45);
-
+/// Every spawned CLI child runs under the shared 45s wall-clock backstop in
+/// `tests/support` — the same guard `cli_query` uses.
 fn run(base: &Path, arguments: &[&str]) -> Output {
-    let mut command = Command::new(cohort().join("orchbee"));
-    command
-        .args(arguments)
-        .env("ORCHBEE_RUNTIME_BASE", base)
-        .env_remove("LC_ALL")
-        .env_remove("LC_MESSAGES")
-        .env("LANG", "en_US.UTF-8")
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    bounded_output(&mut command, RUN_WALL_CLOCK_BACKSTOP)
-        .unwrap_or_else(|timeout| panic!("{timeout}"))
-}
-
-/// The spawned child never exited inside `budget` and had to be killed. The
-/// reaped status and whatever was drained stay attached so the timeout is a
-/// diagnosable failure, never a silent pass.
-#[derive(Debug)]
-struct BoundedChildTimeout {
-    budget: Duration,
-    status: std::process::ExitStatus,
-    stdout: Vec<u8>,
-    stderr: Vec<u8>,
-}
-
-impl std::fmt::Display for BoundedChildTimeout {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "cli child exceeded the {:?} wall-clock backstop; killed and reaped \
-             ({}) with {}B stdout / {}B stderr captured",
-            self.budget,
-            self.status,
-            self.stdout.len(),
-            self.stderr.len()
-        )
-    }
-}
-
-/// `Command::output` with a deadline. Each pipe drains on its own thread so a
-/// child writing more than the pipe buffer cannot deadlock the wait; on expiry
-/// only the spawned child is killed (`Child::kill` targets its exact pid) and
-/// then reaped via `wait`. A child that exited on its own in the kill race
-/// still returns its real `Output`.
-fn bounded_output(command: &mut Command, budget: Duration) -> Result<Output, BoundedChildTimeout> {
-    let mut child = command.spawn().expect("spawn cli child");
-    let mut stdout_pipe = child.stdout.take().expect("stdout piped");
-    let mut stderr_pipe = child.stderr.take().expect("stderr piped");
-    let stdout_drain = thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = stdout_pipe.read_to_end(&mut bytes);
-        bytes
-    });
-    let stderr_drain = thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = stderr_pipe.read_to_end(&mut bytes);
-        bytes
-    });
-    let deadline = Instant::now() + budget;
-    let observed = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break Some(status),
-            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(5)),
-            Ok(None) => break None,
-            Err(error) => panic!("cli child wait failed: {error}"),
-        }
-    };
-    let status = match observed {
-        Some(status) => status,
-        None => {
-            match child.kill() {
-                Ok(()) => {}
-                // Exited between the last poll and the kill: nothing to
-                // signal, `wait` reaps the real exit status below.
-                Err(error) if error.kind() == ErrorKind::NotFound => {}
-                Err(error) => panic!("cli child kill failed: {error}"),
-            }
-            child.wait().expect("reap cli child")
-        }
-    };
-    let stdout = stdout_drain.join().expect("stdout drain joined");
-    let stderr = stderr_drain.join().expect("stderr drain joined");
-    if observed.is_none() && status.signal().is_some() {
-        return Err(BoundedChildTimeout {
-            budget,
-            status,
-            stdout,
-            stderr,
-        });
-    }
-    Ok(Output {
-        status,
-        stdout,
-        stderr,
-    })
+    support::run(&cohort().join("orchbee"), base, arguments)
 }
 
 fn envelope(output: &Output) -> serde_json::Value {
@@ -1430,16 +1335,12 @@ fn run_backstop_preserves_large_two_stream_output_and_status() -> TestResult {
     // Two MiB per stream far exceeds the pipe buffer: without concurrent
     // drains the child would block on a full pipe and die by the backstop.
     let mut command = Command::new("sh");
-    command
-        .args([
-            "-c",
-            "head -c 2000000 /dev/zero | tr '\\0' o; \
-             head -c 2000000 /dev/zero | tr '\\0' e >&2; exit 3",
-        ])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let output = bounded_output(&mut command, Duration::from_secs(30))
+    command.args([
+        "-c",
+        "head -c 2000000 /dev/zero | tr '\\0' o; \
+         head -c 2000000 /dev/zero | tr '\\0' e >&2; exit 3",
+    ]);
+    let output = support::bounded_output(&mut command, Duration::from_secs(30))
         .expect("large-output child completes inside the backstop");
     assert_eq!(output.status.code(), Some(3));
     assert_eq!(output.stdout.len(), 2_000_000);
@@ -1452,15 +1353,15 @@ fn run_backstop_preserves_large_two_stream_output_and_status() -> TestResult {
 #[test]
 fn run_backstop_kills_and_reaps_a_child_that_never_exits() -> TestResult {
     // `exec` makes the spawned pid the sleeper itself, so the backstop kills
-    // exactly the spawned child — no grandchildren, nothing global.
-    let mut command = Command::new("sh");
-    command
+    // exactly the spawned child — no grandchildren, nothing global. Exercised
+    // through the `bounded_wait_with_output` entry: the same deadline applies
+    // to an already-spawned child with custom stdio.
+    let child = Command::new("sh")
         .args(["-c", "exec sleep 60"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .spawn()
+        .expect("spawn sleeper");
     let started = Instant::now();
-    let timeout = bounded_output(&mut command, Duration::from_secs(2))
+    let timeout = support::bounded_wait_with_output(child, Duration::from_secs(2))
         .expect_err("a non-exiting child must surface as a timeout, not pass");
     assert_eq!(timeout.status.signal(), Some(9), "reaped as SIGKILL");
     assert!(

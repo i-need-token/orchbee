@@ -37,6 +37,8 @@ use orchbee_workbench_protocol::{
 };
 use sha2::{Digest, Sha256};
 
+mod support;
+
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 const SCOPE_PREFIX: &str = "orchbee-native-";
@@ -232,15 +234,10 @@ fn snapshot_response(
     .expect("peer writes snapshot result");
 }
 
+/// Every spawned CLI child runs under the shared 45s wall-clock backstop in
+/// `tests/support` — the same guard `cli_mutation` uses.
 fn run(base: &Path, arguments: &[&str]) -> Output {
-    Command::new(cohort().join("orchbee"))
-        .args(arguments)
-        .env("ORCHBEE_RUNTIME_BASE", base)
-        .env_remove("LC_ALL")
-        .env_remove("LC_MESSAGES")
-        .env("LANG", "en_US.UTF-8")
-        .output()
-        .expect("spawn staged orchbee")
+    support::run(&cohort().join("orchbee"), base, arguments)
 }
 
 fn failure_kind(output: &Output) -> serde_json::Value {
@@ -1022,10 +1019,12 @@ fn completion_scripts_are_local_and_parseable() -> TestResult {
 fn missing_cohort_is_a_check_failure_not_a_crash() -> TestResult {
     // The unadorned build-tree binary has no cohort.json beside it.
     let base = base_dir("nocohort");
-    let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_orchbee"));
+    command
         .args(["status", "--format", "json"])
-        .env("ORCHBEE_RUNTIME_BASE", &base)
-        .output()?;
+        .env("ORCHBEE_RUNTIME_BASE", &base);
+    let output = support::bounded_output(&mut command, support::RUN_WALL_CLOCK_BACKSTOP)
+        .unwrap_or_else(|timeout| panic!("{timeout}"));
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(failure_kind(&output)["failure"]["kind"], "check-failed");
     assert_eq!(
@@ -1543,14 +1542,15 @@ fn stdout_write_failure_is_reported() -> TestResult {
     // /dev/full fails every write: the real emit boundary, not an injected
     // earlier stage.
     let dev_full = fs::File::options().write(true).open("/dev/full")?;
-    let output = Command::new(cohort().join("orchbee"))
+    let child = Command::new(cohort().join("orchbee"))
         .args(["api", "schema", "orchbee.status", "--format", "json"])
         .env("ORCHBEE_RUNTIME_BASE", &base)
         .env("LANG", "en_US.UTF-8")
         .stdout(std::process::Stdio::from(dev_full))
         .stderr(std::process::Stdio::piped())
-        .spawn()?
-        .wait_with_output()?;
+        .spawn()?;
+    let output = support::bounded_wait_with_output(child, support::RUN_WALL_CLOCK_BACKSTOP)
+        .unwrap_or_else(|timeout| panic!("{timeout}"));
     assert_eq!(output.status.code(), Some(1));
     assert!(
         !output.stderr.is_empty(),
@@ -1577,10 +1577,10 @@ fn bash_complete(script: &Path, words: &[&str]) -> Vec<String> {
             .join(" "),
         words.len()
     );
-    let output = Command::new("bash")
-        .args(["-c", &harness])
-        .output()
-        .expect("bash runs");
+    let mut command = Command::new("bash");
+    command.args(["-c", &harness]);
+    let output = support::bounded_output(&mut command, support::RUN_WALL_CLOCK_BACKSTOP)
+        .unwrap_or_else(|timeout| panic!("bash harness: {timeout}"));
     assert_eq!(
         output.status.code(),
         Some(0),
@@ -1604,10 +1604,10 @@ fn zsh_complete(script: &Path, words: &[&str]) -> Vec<String> {
             .join(" "),
         words.len() + 1
     );
-    let output = Command::new("zsh")
-        .args(["-f", "-c", &harness])
-        .output()
-        .expect("zsh runs");
+    let mut command = Command::new("zsh");
+    command.args(["-f", "-c", &harness]);
+    let output = support::bounded_output(&mut command, support::RUN_WALL_CLOCK_BACKSTOP)
+        .unwrap_or_else(|timeout| panic!("zsh harness: {timeout}"));
     assert_eq!(
         output.status.code(),
         Some(0),
