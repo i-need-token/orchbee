@@ -1497,6 +1497,9 @@ mod tests {
     #[cfg(unix)]
     mod terminal_read {
         use super::super::{Projection, TerminalRow, terminal_read_doc};
+        use crate::cli::{output::render_text, present};
+        use crate::invocation::{QueryCommand, Target};
+        use crate::localization::Locale;
         use orchbee_terminal_protocol::{
             AttachmentId, HostEpoch, TerminalFrameRoute, TerminalPixelGeometry, TerminalTextCell,
             TerminalTextCursor, TerminalTextFrame, TerminalTextRow, TerminalTextStyle,
@@ -1727,6 +1730,66 @@ mod tests {
             assert_eq!(texts, ["xx", "中界", " x", ""]);
             assert!(doc.rows[0].into_next && doc.rows[1].from_previous);
             assert_eq!(doc.omitted_rows, 0);
+        }
+
+        /// Negative control for the budget stop: emitted rows are a strict
+        /// prefix of the frame, never a greedy subset. The middle row alone
+        /// overflows the remaining budget — 64 cells sharing one 16 KiB
+        /// control string JSON-escape to 6,291,458 bytes — so the small tail
+        /// row behind it must be omitted even though it would fit on its
+        /// own. A `break`→`continue` mutation would emit that tail and fail
+        /// here. This pins the CLI/decoder boundary only; no real host is
+        /// involved.
+        #[test]
+        fn rows_after_the_budget_stop_stay_omitted() {
+            let head: Arc<str> = Arc::from("head\u{1b}row");
+            let control: Arc<str> = Arc::from("\u{1}".repeat(16384).as_str());
+            let tail: Arc<str> = Arc::from("tail-marker-row");
+            // One literal cell plus spacer heads: the joined line is the
+            // literal text after trailing-blank trim, and each row still
+            // carries exactly `columns` cells as the decoder requires.
+            let blank: Arc<str> = Arc::from("");
+            let text_row = |index: u16, text: &Arc<str>| {
+                let mut cells = vec![cell(text, 0)];
+                cells.extend((1..COLUMNS).map(|_| cell(&blank, 3)));
+                TerminalTextRow {
+                    index,
+                    flags: 0,
+                    cells,
+                }
+            };
+            let frame = frame(vec![
+                text_row(0, &head),
+                shared_row(1, 0, &control),
+                text_row(2, &tail),
+            ]);
+            let doc = terminal_read_doc(terminal(), &frame).expect("document");
+            assert_eq!(doc.row_count, 3);
+            assert_eq!(doc.rows.len(), 1);
+            assert_eq!(doc.rows[0].index, 0);
+            assert_eq!(doc.rows[0].text, "head\u{1b}row");
+            assert_eq!(doc.omitted_rows, 2);
+
+            let projection = Projection::TerminalRead(doc);
+            let content = &projection.result()["content"];
+            assert_eq!(content["rowCount"], 3);
+            assert_eq!(content["truncated"], true);
+            assert_eq!(content["omittedRows"], 2);
+            let rows = content["rows"].as_array().expect("rows array");
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0]["index"], 0);
+            assert_eq!(rows[0]["text"], "head\u{1b}row");
+
+            // The real text path emits only the prefix: the head's control
+            // character stays escaped, the affordable tail never leaks, and
+            // the localized marker counts both omitted rows.
+            let command = QueryCommand::TerminalRead(Target::Id(hex(0x01)));
+            let body = render_text(|out| present::render(out, &projection, &command, Locale::EnUs))
+                .expect("text output fits the preparation bound");
+            let body = String::from_utf8(body).expect("utf8 output");
+            assert!(body.contains("head\\u{001b}row"));
+            assert!(!body.contains("tail-marker-row"));
+            assert!(body.ends_with("… 2 more rows truncated at the read limit\n"));
         }
     }
 }
