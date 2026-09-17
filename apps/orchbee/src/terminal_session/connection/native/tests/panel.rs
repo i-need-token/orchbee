@@ -1652,3 +1652,509 @@ fn committed_move_superseding_leaf_loss_attach_unavailable_parks_retryable_keepi
     assert!(state.invariant_holds());
     harness.finish()
 }
+
+// ---- m4-r4-tui independent review challenges (session foggy-lycra) ----
+// Shapes chosen to be disjoint from the repair commit's own witnesses, revised
+// after Astra's 03a trace review: `panel.move` rejects TabUnavailable only when
+// the Tab is absent from the authority projection, and each panel.close commits
+// its own revision — so refused witnesses exercise the tab-absent membership arm
+// and a two-leaf fold carries the revision of the second close.
+
+#[test]
+fn refused_move_whose_superseding_snapshot_drops_the_tab_repairs_membership_to_survivor()
+-> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(
+        steps(&[
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+        ]),
+        geometry,
+    )?;
+    let mut initial = snapshot(2, 1);
+    initial.terminal_contexts[0].tabs[0].root = split_node(
+        panel_node(1_001, 1_002, 1_003, 1_004, "1"),
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        3_014,
+        PanelOrientation::Horizontal,
+        3_020,
+    );
+    let (_key, _controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, initial, geometry)?;
+    let operation = harness.ui.admit_panel(PanelRequestKind::Move {
+        direction: crate::client_view::PanelDirection::Right,
+    })?;
+    // A peer removed the whole selected Tab at r2, so the authority rejects the move with
+    // TabUnavailable there; the superseding r3 read confirms the Tab is still gone. The
+    // refused settlement must route through membership onto the surviving Tab with
+    // exactly one detach/attach pair and no fabricated commit.
+    respond_command(
+        &harness,
+        &operation,
+        WorkbenchCommandOutcome::Rejected {
+            revision: WorkbenchRevision::new(2),
+            reason: WorkbenchRejectionReason::TabUnavailable,
+        },
+    )?;
+    // The candidate must drop Tab id 1_000 by identity: a same-id Tab would be a
+    // resurrected leaf-repair shape that no real close sequence produces.
+    let mut contracted = snapshot(2, 3);
+    contracted.terminal_contexts[0].tabs.remove(0);
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: contracted,
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Cleanup(_))
+    ));
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "a refused superseding candidate must still Detach the lost attachment",
+        ));
+    };
+    assert_eq!(
+        detach.action(),
+        &TerminalViewerAction::Detach {
+            attachment_id: attached_viewer_id()?,
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Membership(RefreshDecision::AttachRecovered(ref target))
+            if target.selected().index() == 0 && target.selected().panel_index() == 0
+    ));
+    let installed = harness.ui.state().desired().unwrap().clone();
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the surviving Tab must AttachBinding"));
+    };
+    assert_eq!(
+        attach.action(),
+        &TerminalViewerAction::AttachBinding {
+            site_id: ObcsSiteId::parse(&id(100))?,
+            worker_id: ObcsWorkerId::parse(&id(1_013))?,
+            terminal_id: ObcsTerminalId::parse(&id(1_014))?,
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(attach.request_id().clone(), attached_outcome()?),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Attached { key } if key == installed
+    ));
+    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    let state = harness.ui.state();
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert_eq!(state.cache().revision(), WorkbenchRevision::new(3));
+    assert_eq!(state.cache().tabs().len(), 1);
+    let active = state.active().unwrap();
+    assert_eq!(active.index(), 0);
+    assert_eq!(active.panel_index(), 0);
+    assert!(
+        state.retained_panel_for_test().is_none(),
+        "a refused operation has no commit to retain"
+    );
+    assert_eq!(
+        state.notice(),
+        Some(SessionNotice::PanelNotApplied),
+        "the refused settlement surfaces the not-applied notice"
+    );
+    assert!(state.invariant_holds());
+    harness.finish()
+}
+
+#[test]
+fn committed_move_whose_superseding_snapshot_clamps_the_selection_down_to_a_survivor() -> TestResult
+{
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(
+        steps(&[
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+        ]),
+        geometry,
+    )?;
+    let (_key, _controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    // Peer splits fold two leaves ahead of the selection so it sits at panel index 2.
+    harness.ui.admit_refresh()?;
+    let mut grown = snapshot(1, 2);
+    grown.terminal_contexts[0].tabs[0].root = split_node(
+        panel_node(4_010, 4_013, 4_011, 4_012, "peer-a"),
+        4_001,
+        split_node(
+            panel_node(4_030, 4_033, 4_031, 4_032, "peer-b"),
+            4_031,
+            split_node(
+                panel_node(1_001, 1_002, 1_003, 1_004, "1"),
+                3_001,
+                panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+                3_014,
+                PanelOrientation::Horizontal,
+                3_020,
+            ),
+            4_034,
+            PanelOrientation::Horizontal,
+            4_040,
+        ),
+        4_014,
+        PanelOrientation::Horizontal,
+        4_020,
+    );
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available { snapshot: grown },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh { .. }
+    ));
+    assert_eq!(harness.ui.state().active().unwrap().panel_index(), 2);
+    let operation = harness.ui.admit_panel(PanelRequestKind::Move {
+        direction: crate::client_view::PanelDirection::Left,
+    })?;
+    let PanelIntent::Move {
+        target_panel_id, ..
+    } = operation.intent()
+    else {
+        return Err(test_error("Move admission must carry the Move intent"));
+    };
+    let moved_to = target_panel_id.clone();
+    respond_command(
+        &harness,
+        &operation,
+        WorkbenchCommandOutcome::PanelMoved {
+            revision: WorkbenchRevision::new(3),
+            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            tab_id: operation.target().tab_id().clone(),
+            panel_id: operation.panel_id().clone(),
+            target_panel_id: moved_to,
+        },
+    )?;
+    // Two peer closes fold in before the read: the selected leaf goes at r4 and the
+    // trailing peer leaf at r5, so only the two inserted leaves remain at r5 and the
+    // repaired selection must clamp down from index 2 to index 1.
+    let mut contracted = snapshot(1, 5);
+    contracted.terminal_contexts[0].tabs[0].root = split_node(
+        panel_node(4_010, 4_013, 4_011, 4_012, "peer-a"),
+        4_001,
+        panel_node(4_030, 4_033, 4_031, 4_032, "peer-b"),
+        4_014,
+        PanelOrientation::Horizontal,
+        4_020,
+    );
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: contracted,
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Cleanup(_))
+    ));
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "the membership cleanup must Detach the closed leaf",
+        ));
+    };
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Membership(RefreshDecision::AttachRecovered(ref target))
+            if target.selected().panel_index() == 1
+    ));
+    let installed = harness.ui.state().desired().unwrap().clone();
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the surviving leaf must AttachBinding"));
+    };
+    assert_eq!(
+        attach.action(),
+        &TerminalViewerAction::AttachBinding {
+            site_id: ObcsSiteId::parse(&id(100))?,
+            worker_id: ObcsWorkerId::parse(&id(4_031))?,
+            terminal_id: ObcsTerminalId::parse(&id(4_032))?,
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(attach.request_id().clone(), attached_outcome()?),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Attached { key } if key == installed
+    ));
+    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    let state = harness.ui.state();
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert_eq!(state.cache().revision(), WorkbenchRevision::new(5));
+    assert_eq!(state.tab(0).unwrap().panel_count(), 2);
+    assert_eq!(
+        state.active().unwrap().panel_index(),
+        1,
+        "the clamped selection lands on the last surviving leaf"
+    );
+    assert_eq!(
+        state.tab(0).unwrap().panel(1).unwrap().panel_id(),
+        &WorkbenchPanelId::parse(&id(4_030))?
+    );
+    assert_eq!(
+        state.retained_panel_for_test().unwrap().operation(),
+        &operation
+    );
+    assert!(state.invariant_holds());
+    harness.finish()
+}
+
+#[test]
+fn committed_move_whose_superseding_snapshot_drops_the_leaf_and_rewrites_a_member_retires_divergent()
+-> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(steps(&[WireKind::Workbench, WireKind::Workbench]), geometry)?;
+    drive_controlling_ready_from_snapshot(&mut harness, split_snapshot(1), geometry)?;
+    let operation = harness.ui.admit_panel(PanelRequestKind::Move {
+        direction: crate::client_view::PanelDirection::Right,
+    })?;
+    respond_command(
+        &harness,
+        &operation,
+        WorkbenchCommandOutcome::PanelMoved {
+            revision: WorkbenchRevision::new(2),
+            terminal_context_id: operation.baseline().terminal_context_id().clone(),
+            tab_id: operation.target().tab_id().clone(),
+            panel_id: operation.panel_id().clone(),
+            target_panel_id: WorkbenchPanelId::parse(&id(3_010))?,
+        },
+    )?;
+    // A superseding read is not freed from canonical validation: the selected leaf is
+    // gone AND the surviving member kept its panel_id but rewrote its terminal binding.
+    // The membership-repair path must not absorb this shape; it stays divergence.
+    let mut corrupted = snapshot(1, 3);
+    corrupted.terminal_contexts[0].tabs[0].root = panel_node(3_010, 3_013, 3_011, 9_999, "peer");
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: corrupted,
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Retire)
+    ));
+    assert_eq!(
+        harness
+            .ui
+            .state()
+            .retained_panel_for_test()
+            .unwrap()
+            .operation(),
+        &operation,
+        "the known commit is retained through the divergence retire"
+    );
+    harness.finish_after_worker_failure(CarrierFailure::AuthorityDivergence)
+}
+
+#[test]
+fn refused_move_superseding_tab_loss_while_unattached_reattaches_without_cleanup() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(
+        steps(&[
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+        ]),
+        geometry,
+    )?;
+    let (old_key, _controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, snapshot(1, 1), geometry)?;
+    let (_committed_key, _candidate) =
+        drive_pending_create_to_selected_without_attachment(&mut harness, &old_key)?;
+    assert!(!harness.ui.state().selected_has_viewer());
+    // Grow the unattached second Tab to two leaves so panel.move has a neighbor.
+    let split = harness.ui.admit_panel(PanelRequestKind::Split {
+        direction: crate::client_view::PanelDirection::Right,
+    })?;
+    respond_command(&harness, &split, split_pending_commit_at(&split, 3_010, 3))?;
+    let mut grown = snapshot(2, 3);
+    grown.terminal_contexts[0].tabs[1].root = split_node(
+        panel_node(1_011, 1_012, 1_013, 1_014, "2"),
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "2"),
+        3_014,
+        PanelOrientation::Horizontal,
+        3_020,
+    );
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available { snapshot: grown },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Continue)
+    ));
+    assert_eq!(harness.ui.state().tab(1).unwrap().panel_count(), 2);
+    let operation = harness.ui.admit_panel(PanelRequestKind::Move {
+        direction: crate::client_view::PanelDirection::Right,
+    })?;
+    // Refused at r4 because a peer removed the whole selected Tab there; the superseding
+    // r5 read confirms it is still gone. With no attachment there must be no fabricated
+    // cleanup: the membership path installs the selection on the surviving Tab directly
+    // and settles without viewer traffic.
+    respond_command(
+        &harness,
+        &operation,
+        WorkbenchCommandOutcome::Rejected {
+            revision: WorkbenchRevision::new(4),
+            reason: WorkbenchRejectionReason::TabUnavailable,
+        },
+    )?;
+    let mut contracted = snapshot(2, 5);
+    contracted.terminal_contexts[0].tabs.remove(1);
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: contracted,
+        },
+    )?;
+    // The surviving Tab's provenance is attachable, so the membership repair retries the
+    // attach on it — one AttachBinding, still no Detach since nothing was attached.
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::AttachRecovered(ref target))
+            if target.selected().index() == 0 && target.selected().panel_index() == 0
+    ));
+    let installed = harness.ui.state().desired().unwrap().clone();
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the surviving Tab must AttachBinding"));
+    };
+    assert_eq!(
+        attach.action(),
+        &TerminalViewerAction::AttachBinding {
+            site_id: ObcsSiteId::parse(&id(100))?,
+            worker_id: ObcsWorkerId::parse(&id(1_003))?,
+            terminal_id: ObcsTerminalId::parse(&id(1_004))?,
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(attach.request_id().clone(), attached_outcome()?),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Attached { key } if key == installed
+    ));
+    drive_controlling_after_attach(&mut harness, &installed, geometry)?;
+    let state = harness.ui.state();
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert!(state.selected_has_viewer());
+    let active = state.active().unwrap();
+    assert_eq!(active.index(), 0);
+    assert_eq!(active.panel_index(), 0);
+    assert_eq!(state.cache().revision(), WorkbenchRevision::new(5));
+    assert_eq!(state.cache().tabs().len(), 1);
+    assert_eq!(
+        state.tab(0).unwrap().panel(0).unwrap().panel_id(),
+        &WorkbenchPanelId::parse(&id(1_001))?
+    );
+    assert_eq!(
+        state.retained_panel_for_test().unwrap().operation(),
+        &split,
+        "a refused operation retains the earlier split commit, not a fabricated one"
+    );
+    assert!(state.invariant_holds());
+    harness.finish()
+}
+
+// A Rejected outcome other than TabUnavailable is a Precommit result: the executor
+// does not issue a superseding read, so the script ends at the command and the
+// settlement applies the refusal notice directly.
+#[test]
+fn refused_move_rejected_panel_unavailable_settles_without_a_read() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(steps(&[WireKind::Workbench]), geometry)?;
+    let mut initial = snapshot(2, 1);
+    initial.terminal_contexts[0].tabs[0].root = split_node(
+        panel_node(1_001, 1_002, 1_003, 1_004, "1"),
+        3_001,
+        panel_node(3_010, 3_013, 3_011, 3_012, "peer"),
+        3_014,
+        PanelOrientation::Horizontal,
+        3_020,
+    );
+    let (_key, _controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, initial, geometry)?;
+    let operation = harness.ui.admit_panel(PanelRequestKind::Move {
+        direction: crate::client_view::PanelDirection::Right,
+    })?;
+    respond_command(
+        &harness,
+        &operation,
+        WorkbenchCommandOutcome::Rejected {
+            revision: WorkbenchRevision::new(2),
+            reason: WorkbenchRejectionReason::PanelUnavailable,
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Continue)
+    ));
+    let state = harness.ui.state();
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert_eq!(state.cache().revision(), WorkbenchRevision::new(1));
+    assert_eq!(
+        state.notice(),
+        Some(SessionNotice::PanelNotApplied),
+        "the refused settlement surfaces the not-applied notice"
+    );
+    assert!(
+        state.retained_panel_for_test().is_none(),
+        "a refused operation has no commit to retain"
+    );
+    assert!(state.invariant_holds());
+    harness.finish()
+}
