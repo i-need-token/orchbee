@@ -111,9 +111,10 @@ Close 要求独立生命周期授权，只读 Client 也适用。关闭最后一
 绘制确认。Panel 命令是在 Server `WorkbenchGrant` 能力下准入的 Workbench 变更——split 需要
 `mutate_navigation` 与 `create_terminal`，move 需要 `mutate_navigation`，close 需要
 `close_terminal`（[Workbench authority](../orchbee-server/docs/workbench-authority.zh-CN.md)）——
-该层独立于终端侧控制：viewer 附件的 `read`/`input`/`resize` capability 既不授予 input 也不授予
-resize 权威，终端唯一的合并 input-and-resize controller 授权绑定于一个 Session、viewer、Worker
-代次与 Host 终端
+该层独立于终端侧控制：viewer 附件既不授予 input 也不授予 resize 权威——其
+`read`/`input`/`resize` capability 标志只作用于该附件本身——input 与 resize 只经终端唯一的
+合并 input-and-resize controller 授权流动，该授权绑定于一个 Session、viewer、Worker 代次与
+Host 终端
 （[`schemas/client-server/README.md`](../../schemas/client-server/README.zh-CN.md)）。终端的
 input/resize 控制绝不授权 Workbench 变更，只读附件无论持有何种 Workbench 授权都不能 input 或
 resize。与聚合 Close

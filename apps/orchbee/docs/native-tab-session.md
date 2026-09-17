@@ -951,9 +951,10 @@ These structural mutations are authorized by the Server's `WorkbenchGrant` capab
 `mutate_navigation` and `create_terminal` for split, `mutate_navigation` for move,
 `close_terminal` for close
 ([Workbench authority](../../orchbee-server/docs/workbench-authority.md)) — a layer independent of
-terminal-side authority: a viewer attachment's `read`/`input`/`resize` capabilities grant neither
-input nor resize, and the terminal's single combined input-and-resize controller grant is bound to
-one Session, viewer, Worker generation, and Host terminal
+terminal-side authority: a viewer attachment grants neither input nor resize — its
+`read`/`input`/`resize` capability flags scope that attachment itself — and input and resize flow
+only through the terminal's single combined input-and-resize controller grant, bound to one
+Session, viewer, Worker generation, and Host terminal
 ([`schemas/client-server/README.md`](../../../schemas/client-server/README.md)). Holding terminal
 input or resize control never authorizes a Workbench mutation, and a read-only attachment cannot
 input or resize regardless of any Workbench grant.

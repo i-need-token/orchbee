@@ -781,9 +781,9 @@ move 保留其 pending commit，直到快照验证出精确的预期候选；若
 这些结构性变更由 Server 的 `WorkbenchGrant` 能力授权——split 需要 `mutate_navigation` 与
 `create_terminal`，move 需要 `mutate_navigation`，close 需要 `close_terminal`
 （[Workbench authority](../../orchbee-server/docs/workbench-authority.zh-CN.md)）——该层独立于
-终端侧权威：viewer 附件的 `read`/`input`/`resize` capability 既不授予 input 也不授予 resize，
-终端唯一的合并 input-and-resize controller 授权绑定于一个 Session、viewer、Worker 代次与
-Host 终端
+终端侧权威：viewer 附件既不授予 input 也不授予 resize——其 `read`/`input`/`resize`
+capability 标志只作用于该附件本身——input 与 resize 只经终端唯一的合并 input-and-resize
+controller 授权流动，该授权绑定于一个 Session、viewer、Worker 代次与 Host 终端
 （[`schemas/client-server/README.md`](../../../schemas/client-server/README.zh-CN.md)）。
 持有终端 input 或 resize 控制绝不授权 Workbench 变更，只读附件无论持有何种 Workbench 授权
 都不能 input 或 resize。
