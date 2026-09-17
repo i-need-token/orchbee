@@ -17,7 +17,7 @@ use std::{
     process::{Command, Output},
     sync::{Arc, Mutex, OnceLock},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use orchbee_local_client_protocol::{LocalClientMessage, read_message, write_message};
@@ -129,6 +129,13 @@ fn spawn_peer(
     spawn_peer_n(scope, 1, script)
 }
 
+/// Every peer-side wait is bounded so a CLI that dies before connecting — or
+/// stalls mid-exchange — fails the test quickly instead of hanging the whole
+/// suite on `accept()`/`join()`. A peer timeout panics inside the peer thread
+/// and propagates through `join`: it is a test failure, never a quiet pass.
+const PEER_ACCEPT_DEADLINE: Duration = Duration::from_secs(60);
+const PEER_IO_DEADLINE: Duration = Duration::from_secs(30);
+
 fn spawn_peer_n(
     scope: &Path,
     connections: usize,
@@ -147,23 +154,51 @@ fn spawn_peer_n(
         for _ in 0..connections {
             // A CLI that exits before connecting must fail the test, not hang
             // the join: bound the accept so the peer thread always retires.
-            let deadline = std::time::Instant::now() + Duration::from_secs(60);
-            let stream = loop {
-                match listener.accept() {
-                    Ok((stream, _)) => break stream,
-                    Err(error) if error.kind() == ErrorKind::WouldBlock => {
-                        assert!(
-                            std::time::Instant::now() < deadline,
-                            "peer accept timed out waiting for the CLI"
-                        );
-                        thread::sleep(Duration::from_millis(10));
-                    }
-                    Err(error) => panic!("peer accept failed: {error}"),
-                }
-            };
+            let stream = accept_bounded(&listener);
+            // Accepted streams are blocking; per-call timeouts cap the
+            // script's own reads and writes so `join` stays bounded as well.
+            stream
+                .set_read_timeout(Some(PEER_IO_DEADLINE))
+                .expect("peer read timeout");
+            stream
+                .set_write_timeout(Some(PEER_IO_DEADLINE))
+                .expect("peer write timeout");
             script(stream);
         }
     })
+}
+
+/// Accept the next connection within `PEER_ACCEPT_DEADLINE`; a CLI that never
+/// arrives is a test failure, not an infinite block. The listener must already
+/// be nonblocking.
+fn accept_bounded(listener: &UnixListener) -> UnixStream {
+    let deadline = Instant::now() + PEER_ACCEPT_DEADLINE;
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => return stream,
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                assert!(
+                    Instant::now() < deadline,
+                    "peer accept timed out waiting for the CLI"
+                );
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("peer accept failed: {error}"),
+        }
+    }
+}
+
+/// After a deliberate peer stall the CLI must retire the session on its own
+/// deadline; a read timeout here fails the test instead of passing as the
+/// scripted silence.
+fn expect_peer_retire(stream: &UnixStream) {
+    use std::io::Read;
+    let mut byte = [0_u8; 1];
+    match (&*stream).read(&mut byte) {
+        Ok(0) => {}
+        Ok(_) => panic!("the CLI wrote after its exchange budget elapsed"),
+        Err(error) => panic!("the CLI did not retire the stalled session: {error}"),
+    }
 }
 
 /// OBLC admission: read the hello, answer `ClientAccepted`, return the stream.
@@ -1217,6 +1252,82 @@ fn denied_and_unavailable_map_to_the_existing_matrix() -> TestResult {
     Ok(())
 }
 
+// ---- peer absence and silence stay inside the CLI's own budgets -------------
+
+#[test]
+fn no_listening_peer_fails_discovery_or_admission_fast() -> TestResult {
+    let base = base_dir("no-peer");
+    let scope = stage_scope(&base);
+    // No client.sock at all: rendezvous finds the scope but no listener, so
+    // discovery itself answers without any peer involvement.
+    let output = run(
+        &base,
+        &["tab", "rename", "ops", "--label", "x", "--format=json"],
+    );
+    assert_eq!(output.status.code(), Some(4));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "service-unavailable");
+    assert_eq!(document["failure"]["details"]["stage"], "discovery");
+
+    // A stale socket with nobody listening: connect fails on the spot.
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
+    drop(listener);
+    let output = run(
+        &base,
+        &["tab", "rename", "ops", "--label", "x", "--format=json"],
+    );
+    assert_eq!(output.status.code(), Some(4));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "service-unavailable");
+    assert_eq!(document["failure"]["details"]["stage"], "admission");
+    Ok(())
+}
+
+#[test]
+fn a_connected_but_silent_peer_cannot_hold_the_cli_past_its_budget() -> TestResult {
+    let base = base_dir("peer-silence");
+    let scope = stage_scope(&base);
+    // Admission silence: the hello lands but no acceptance ever comes back.
+    // The CLI's shared exchange budget must end the exchange; the peer then
+    // observes the disconnect instead of timing the test out itself.
+    let silent_admission = spawn_peer(&scope, |stream| {
+        match read_message(&mut &stream) {
+            Ok(LocalClientMessage::ClientHello(_)) => {}
+            other => panic!("peer expected ClientHello, got {other:?}"),
+        }
+        expect_peer_retire(&stream);
+    });
+    let output = run(
+        &base,
+        &["tab", "rename", "ops", "--label", "x", "--format=json"],
+    );
+    silent_admission.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "transport-loss");
+    assert_eq!(document["failure"]["details"]["stage"], "admission");
+
+    // Post-admission silence: admitted, the snapshot read lands, and no
+    // response ever follows — the same shared budget ends it.
+    let silent_snapshot = spawn_peer(&scope, |stream| {
+        admit(&stream);
+        let _ = read_snapshot_request(&stream);
+        expect_peer_retire(&stream);
+    });
+    let output = run(
+        &base,
+        &["tab", "rename", "ops", "--label", "x", "--format=json"],
+    );
+    silent_snapshot.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "transport-loss");
+    assert_eq!(document["failure"]["details"]["stage"], "snapshot");
+    Ok(())
+}
+
 // ---- ambiguous outcomes: typed unknown, never replayed -----------------------
 
 #[test]
@@ -1229,10 +1340,19 @@ fn dropped_response_is_outcome_unknown_without_replay() -> TestResult {
     let socket = scope.join("client.sock");
     let listener = UnixListener::bind(&socket).expect("bind client socket");
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
     let submitted = Arc::new(Mutex::new(String::new()));
     let seen = submitted.clone();
     let peer = thread::spawn(move || {
-        let (stream, _) = listener.accept().expect("peer accept");
+        let stream = accept_bounded(&listener);
+        stream
+            .set_read_timeout(Some(PEER_IO_DEADLINE))
+            .expect("peer read timeout");
+        stream
+            .set_write_timeout(Some(PEER_IO_DEADLINE))
+            .expect("peer write timeout");
         admit(&stream);
         let request_id = read_snapshot_request(&stream);
         snapshot_response(
@@ -1247,9 +1367,6 @@ fn dropped_response_is_outcome_unknown_without_replay() -> TestResult {
         drop(stream);
         // Prove nothing reconnects: the CLI has already exited by the time its
         // caller asserts below, so any backlog entry now is a replay attempt.
-        listener
-            .set_nonblocking(true)
-            .expect("listener nonblocking");
         thread::sleep(Duration::from_millis(300));
         match listener.accept() {
             Err(error) if error.kind() == ErrorKind::WouldBlock => {}

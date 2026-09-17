@@ -199,7 +199,10 @@ fn renderer_path_lands_exactly_on_and_just_over_the_bound() {
 
 #[test]
 fn fixed_outputs_are_far_below_the_bound() {
-    use crate::invocation::{CommandPath, CompletionShell, Family, HelpTopic};
+    use crate::invocation::{
+        CommandPath, CompletionShell, Family, HelpTopic, Request, parse_request,
+    };
+    use std::ffi::OsString;
     let mut bodies = vec![
         super::completion::render(CompletionShell::Bash),
         super::completion::render(CompletionShell::Zsh),
@@ -218,27 +221,89 @@ fn fixed_outputs_are_far_below_the_bound() {
         bodies.push(super::text::help(HelpTopic::Family(family), Locale::EnUs).to_owned());
         bodies.push(super::text::help(HelpTopic::Family(family), Locale::ZhCn).to_owned());
     }
-    for command in [
+    // Every `CommandPath` variant, in both locales — the bound must cover the
+    // mutation helps as well as the queries.
+    let commands = [
         CommandPath::ApiSchema,
         CommandPath::ApiSnapshot,
         CommandPath::Completion,
         CommandPath::ConfigCheck,
+        CommandPath::PanelClose,
         CommandPath::PanelGet,
         CommandPath::PanelList,
+        CommandPath::PanelMove,
+        CommandPath::PanelSplit,
         CommandPath::ProjectGet,
         CommandPath::ProjectList,
         CommandPath::Status,
+        CommandPath::TabClose,
+        CommandPath::TabCreate,
         CommandPath::TabGet,
         CommandPath::TabList,
+        CommandPath::TabMove,
+        CommandPath::TabRename,
         CommandPath::TerminalGet,
         CommandPath::TerminalList,
         CommandPath::TerminalRead,
         CommandPath::Tui,
+        CommandPath::WorkspaceCreate,
         CommandPath::WorkspaceGet,
         CommandPath::WorkspaceList,
-    ] {
-        bodies.push(super::text::help(HelpTopic::Command(command), Locale::EnUs).to_owned());
+        CommandPath::WorkspaceRename,
+    ];
+    for command in &commands {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            bodies.push(super::text::help(HelpTopic::Command(*command), locale).to_owned());
+        }
     }
+    // Anti-miss: every command path the grammar resolves to a help topic must
+    // already be pinned above, so a newly admitted command cannot slip past
+    // the bound. Both surfaces are walked — trailing `--help` and `help`.
+    let roots = [
+        "api",
+        "completion",
+        "config",
+        "help",
+        "panel",
+        "project",
+        "status",
+        "tab",
+        "terminal",
+        "tui",
+        "workspace",
+    ];
+    let verbs = [
+        "check", "close", "create", "get", "list", "move", "read", "rename", "schema", "snapshot",
+        "split",
+    ];
+    let mut topics: Vec<CommandPath> = Vec::new();
+    let mut collect = |arguments: &[&str]| {
+        if let Ok(Request::Help(HelpTopic::Command(command))) =
+            parse_request(arguments.iter().map(|word| OsString::from(*word)))
+            && !topics.contains(&command)
+        {
+            topics.push(command);
+        }
+    };
+    for root in roots {
+        collect(&[root, "--help"]);
+        collect(&["help", root]);
+        for verb in verbs {
+            collect(&[root, verb, "--help"]);
+            collect(&["help", root, verb]);
+        }
+    }
+    for command in &topics {
+        assert!(
+            commands.contains(command),
+            "command path {command:?} resolved by the grammar is not pinned in the bound test"
+        );
+    }
+    assert_eq!(
+        topics.len(),
+        commands.len(),
+        "the pinned table must cover every command path the grammar admits"
+    );
     for body in &bodies {
         assert!(
             body.len() < 64 * 1024,
