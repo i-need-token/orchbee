@@ -53,6 +53,13 @@
 - **Frontend Actions**: `docs/frontend/actions.md` — semantic actions, registration, availability, synchronous and asynchronous execution, cancellation, concurrency, and verification
 - **Frontend Keyboard Shortcuts**: `docs/frontend/keyboard-shortcuts.md` — action ownership, bindings, platform display, conflicts, and verification
 - **Frontend Browser Storage**: `docs/frontend/browser-storage.md` — local persistence ownership, key versioning, validation, privacy, and verification
+- **TUI Visual Foundations**: `docs/tui/visual-foundations.md` — color roles, theme contract, text hierarchy, frames, glyphs, and display width
+- **TUI Layout**: `docs/tui/layout.md` — regions, size tiers, degradation order, overlay geometry, truncation, and resize
+- **TUI Keyboard Input**: `docs/tui/keyboard-input.md` — key decoding, binding model, input ownership, editing conventions, and discovery
+- **TUI Mouse Input**: `docs/tui/mouse-input.md` — capture policy, hit testing, gesture vocabulary, passthrough, wheel normalization, and selection
+- **TUI Overlays and Status**: `docs/tui/overlays-and-status.md` — surface selection, overlay composition, confirmations, status line, notices, and pending indication
+- **TUI Terminal Environment**: `docs/tui/terminal-environment.md` — host admission, mode lifecycle, capability detection, output discipline, and restoration
+- **TUI Verification**: `docs/tui/verification.md` — structural prerequisites and render, input, environment, and host evidence for terminal interfaces
 
 ## Project Structure
 

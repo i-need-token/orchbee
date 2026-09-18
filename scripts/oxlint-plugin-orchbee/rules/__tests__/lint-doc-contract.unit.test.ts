@@ -15,7 +15,7 @@ const REPOSITORY_ROOT = resolve(import.meta.dirname, '../../../..');
 const DOCS_ROOT = join(REPOSITORY_ROOT, 'docs');
 const LOCALIZED_DOCS_ROOT = join(DOCS_ROOT, 'zh-CN');
 const RULES_ROOT = resolve(import.meta.dirname, '..');
-const STANDARD_DOMAIN_DIRECTORIES = new Set(['frontend']);
+const STANDARD_DOMAIN_DIRECTORIES = new Set(['frontend', 'tui']);
 
 function collectFiles(directory: string, extension: string): readonly string[] {
 	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

@@ -53,6 +53,13 @@
 - **前端 Action**：`docs/frontend/actions.md` — 语义 Action、注册、可用性、同步和异步执行、取消、并发和验证
 - **前端键盘快捷键**：`docs/frontend/keyboard-shortcuts.md` — Action 所有权、绑定、平台显示、冲突和验证
 - **前端浏览器存储**：`docs/frontend/browser-storage.md` — 本地持久化所有权、键版本控制、验证、隐私和验证
+- **TUI 视觉基础**：`docs/tui/visual-foundations.md` — 颜色角色、主题契约、文本层级、框架、字形和显示宽度
+- **TUI 布局**：`docs/tui/layout.md` — 区域、尺寸层级、降级顺序、覆盖层几何、截断和尺寸变化
+- **TUI 键盘输入**：`docs/tui/keyboard-input.md` — 按键解码、绑定模型、输入归属、编辑约定和发现
+- **TUI 鼠标输入**：`docs/tui/mouse-input.md` — 捕获策略、命中测试、手势词汇、透传、滚轮归一化和选择
+- **TUI 覆盖层与状态**：`docs/tui/overlays-and-status.md` — 表面选择、覆盖层组合、确认、状态行、通知和等待指示
+- **TUI 终端环境**：`docs/tui/terminal-environment.md` — 宿主准入、模式生命周期、能力探测、输出纪律和恢复
+- **TUI 验证**：`docs/tui/verification.md` — 终端界面的结构前提以及渲染、输入、环境和宿主证据
 
 ## 项目结构
 

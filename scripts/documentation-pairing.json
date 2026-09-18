@@ -2,12 +2,12 @@
 	"formatVersion": 1,
 	"pairs": {
 		"AGENTS.md": {
-			"englishSha256": "2d5ecafb56fb85b9fe32c60c9ff1c0e4161cdd90ace6cf936aa01d85c734c163",
-			"zhCnSha256": "da7cd798ce4f832d666a1f10307586c5c2e2dd0d7aedc4b57be6debc15a5b4d6"
+			"englishSha256": "550bdf8987add0aaab93c3d2df859a117c784c63f72f5fe4d87de3c262f6851d",
+			"zhCnSha256": "6e865ff6d1a6de7e02ff9fac4c1c2238c35266be00e94677d75b4990385a4524"
 		},
 		"CLAUDE.md": {
-			"englishSha256": "2d5ecafb56fb85b9fe32c60c9ff1c0e4161cdd90ace6cf936aa01d85c734c163",
-			"zhCnSha256": "da7cd798ce4f832d666a1f10307586c5c2e2dd0d7aedc4b57be6debc15a5b4d6"
+			"englishSha256": "550bdf8987add0aaab93c3d2df859a117c784c63f72f5fe4d87de3c262f6851d",
+			"zhCnSha256": "6e865ff6d1a6de7e02ff9fac4c1c2238c35266be00e94677d75b4990385a4524"
 		},
 		"README.md": {
 			"englishSha256": "e4581a9ec2738ca6e13e89fd26eb75e9c403e9d8ef8ae9da8e9e929cd31ac263",
@@ -336,6 +336,34 @@
 		"docs/frontend/visual-foundations.md": {
 			"englishSha256": "23215d23044a8e120676108dbb90c3d421b6f37fd7ff6375dffcdcd84a4fcf6b",
 			"zhCnSha256": "13d130947f8fdd37e05950494dc539217d6cf70b7760011d44b3d12772d9cfd1"
+		},
+		"docs/tui/keyboard-input.md": {
+			"englishSha256": "8b663c47903b7881355859163806e395114fd911dbc02f790a4cc542ae9efb72",
+			"zhCnSha256": "5ce7b0a2cc29a6d7473c32b27ed43638af624320b30bbfc20e86597b9bd37f17"
+		},
+		"docs/tui/layout.md": {
+			"englishSha256": "88dd17cd682a6b5f2df7cb3f4ad8cfb47e4fa264ab9509e374f44f33a4174ef3",
+			"zhCnSha256": "fca4b7143eacafb649eca4a978fc6aecf5adf43e882dfd5d9c627e3ab35a2a87"
+		},
+		"docs/tui/mouse-input.md": {
+			"englishSha256": "38964126f5d444d9764f61dd8bf6c7dd7f00e14cdad6a1700cad83a0bfee4571",
+			"zhCnSha256": "aba9f7425bc90a34bd47b1a3e53968b76dae4a29886c85ecd38119726a4a6d64"
+		},
+		"docs/tui/overlays-and-status.md": {
+			"englishSha256": "25af2f89f8d2c9569e2b4828e568c5b8d68ae12b525d91f74aa6f740277ae3a0",
+			"zhCnSha256": "795fa1945b187f646a8d10637b8b0db94722eb76718754507a6a713a60a213e8"
+		},
+		"docs/tui/terminal-environment.md": {
+			"englishSha256": "fc9104ae9edc65f84262a1cabe1b372baf019a76f520a6fc1c25db4db00d437f",
+			"zhCnSha256": "32286fcedf5a58115ca13c1c1cca25e202ee272bb44825a82434b42a140cf7a4"
+		},
+		"docs/tui/verification.md": {
+			"englishSha256": "299affcc972890978ed917b340a1f872182134a7137d08ceae777c1f36b1cb05",
+			"zhCnSha256": "447f6a9f6b5ab7f1e8c3e8d1cb2ea2d2526cd74f99517d6bb1d99ad5d25ea7a9"
+		},
+		"docs/tui/visual-foundations.md": {
+			"englishSha256": "23722910c5c24f5f6e780a19ae130a42c8d4052bc3240d0ddc0c4aaec9815375",
+			"zhCnSha256": "85a329f815dfedfd2d73da04d52d3625cd60ad04e4e421cd7d4c6dce2e3cb059"
 		},
 		"packages/actions/README.md": {
 			"englishSha256": "903249d8440eb351b5a0db2c70999006e3bb1cd9a50c6f8b580ca69cb6de4837",
