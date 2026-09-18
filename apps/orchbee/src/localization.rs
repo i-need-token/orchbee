@@ -141,9 +141,11 @@ pub(crate) struct ShellText {
 
 impl ShellText {
     /// Builds the help rows from the same prefix binding registry that
-    /// dispatch matches: `<chord><padding><localized description>`, with the
-    /// localized "other keys" passthrough row appended last.
-    pub(crate) fn shortcut_rows(&self) -> Vec<String> {
+    /// dispatch matches: `(padded chord, localized description)` pairs, with
+    /// the localized "other keys" passthrough row appended last. The chord is
+    /// padded to a uniform column so callers can align descriptions without
+    /// re-deriving the split — chords may themselves contain spaces.
+    pub(crate) fn shortcut_rows(&self) -> Vec<(String, String)> {
         let chords: Vec<String> = PREFIX_GROUPS.iter().map(group_chord).collect();
         let width = chords
             .iter()
@@ -151,15 +153,19 @@ impl ShellText {
             .max()
             .unwrap_or(0)
             + 1;
-        let mut rows: Vec<String> = PREFIX_GROUPS
+        let mut rows: Vec<(String, String)> = PREFIX_GROUPS
             .iter()
             .zip(&chords)
-            .map(|(group, chord)| format!("{chord:<width$}{}", (self.prefix_desc)(group.desc)))
+            .map(|(group, chord)| {
+                (
+                    format!("{chord:<width$}"),
+                    (self.prefix_desc)(group.desc).to_owned(),
+                )
+            })
             .collect();
-        rows.push(format!(
-            "{:<width$}{}",
-            self.other_keys_label,
-            (self.prefix_desc)(PrefixDesc::OtherKeys)
+        rows.push((
+            format!("{:<width$}", self.other_keys_label),
+            (self.prefix_desc)(PrefixDesc::OtherKeys).to_owned(),
         ));
         rows
     }

@@ -14,7 +14,7 @@ use crate::{
         NativeProjectionStatus, NativeRefreshStatus, NativeSessionView, NativeTabView,
         TerminalSessionView,
     },
-    terminal_text::{sanitize_terminal_text, truncate_display},
+    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_layout::{
         ShellAreas, SidebarArea, SidebarLayer, ViewportTier, overlay_area, place_overlay,
         project_shell_areas, terminal_area,
@@ -733,43 +733,48 @@ fn render_sidebar(
         frame.render_widget(Clear, sidebar.area);
     }
 
+    // Inner width: right border plus the block's 2/1 horizontal padding.
+    // Labels truncate on grapheme boundaries with an ellipsis marker so a
+    // long status never clips mid-word or silently hides that it was cut.
+    let inner_width = usize::from(sidebar.area.width.saturating_sub(4));
+    let fit = |label: String| truncate_display(&label, inner_width, theme.glyphs.ellipsis);
     let items = [
         ListItem::new(Line::styled(
-            text.site_section,
+            fit(text.site_section.to_owned()),
             theme
                 .style(Role::TextSecondary)
                 .add_modifier(Modifier::BOLD),
         )),
         ListItem::new(Line::styled(
-            format!("{} {backend_status}", theme.glyphs.status_bullet),
+            fit(format!("{} {backend_status}", theme.glyphs.status_bullet)),
             theme.style(Role::StatusWarning),
         )),
         ListItem::new(""),
         ListItem::new(Line::styled(
-            text.business_section,
+            fit(text.business_section.to_owned()),
             theme
                 .style(Role::TextSecondary)
                 .add_modifier(Modifier::BOLD),
         )),
         ListItem::new(Line::styled(
-            format!("  {}", text.standalone),
+            fit(format!("  {}", text.standalone)),
             theme.style(Role::TextPrimary),
         )),
         ListItem::new(Line::styled(
-            format!("  {}", text.projects),
+            fit(format!("  {}", text.projects)),
             theme.style(Role::TextSecondary),
         )),
         ListItem::new(Line::styled(
-            format!("  {}", text.workspaces),
+            fit(format!("  {}", text.workspaces)),
             theme.style(Role::TextSecondary),
         )),
         ListItem::new(Line::styled(
-            format!("  {}", text.agents),
+            fit(format!("  {}", text.agents)),
             theme.style(Role::TextSecondary),
         )),
         ListItem::new(""),
         ListItem::new(Line::styled(
-            text.sidebar_hint,
+            fit(text.sidebar_hint.to_owned()),
             theme.style(Role::HintLabel),
         )),
     ];
@@ -795,19 +800,72 @@ fn render_sidebar(
 const HELP_FOOTER_ROWS: u16 = 2;
 const MINIMUM_HELP_ROWS_PER_PAGE: u16 = 2;
 
-/// The total shortcut-help pages for `row_count` rows shown
-/// `rows_per_page` at a time. Pure projection shared with the input layer:
-/// the dispatcher clamps its page state with the same count the renderer
-/// uses, so the two can never disagree about the last page.
-pub(crate) fn help_page_count(rows_per_page: usize, row_count: usize) -> usize {
-    row_count.div_ceil(rows_per_page.max(1)).max(1)
+/// Groups whole shortcut rows into pages that each fit `rows_per_page`
+/// rendered lines: `row_lines[i]` is the line count row `i` occupies after
+/// width-aware wrapping. A row is never split across a page boundary, so no
+/// wrapped tail can be drawn as a half-visible line. Returns the page ranges
+/// as row indices, or `None` when a single row exceeds the page budget —
+/// the caller then refuses placement instead of clipping content.
+fn paginate_help_rows(row_lines: &[usize], rows_per_page: usize) -> Option<Vec<(usize, usize)>> {
+    let mut pages = Vec::new();
+    let mut start = 0;
+    let mut used = 0;
+    for (index, &lines) in row_lines.iter().enumerate() {
+        if lines > rows_per_page {
+            return None;
+        }
+        if used + lines > rows_per_page {
+            pages.push((start, index));
+            start = index;
+            used = 0;
+        }
+        used += lines;
+    }
+    pages.push((start, row_lines.len()));
+    Some(pages)
 }
 
-/// Render the shortcut-help overlay paged to fit the placed area: the footer
+/// Wraps `text` to `width` display cells on grapheme boundaries, preferring
+/// to break at ASCII spaces; a word wider than `width` breaks mid-word so no
+/// cell is ever clipped. Returns at least one (possibly empty) line.
+fn wrap_display(text: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
+    let mut lines = Vec::new();
+    let mut line = String::new();
+    let mut line_width = 0_usize;
+    for word in text.split(' ') {
+        let gap = usize::from(!line.is_empty());
+        if !line.is_empty() && line_width + gap + display_width(word) > width {
+            lines.push(std::mem::take(&mut line));
+            line_width = 0;
+        } else if gap == 1 {
+            line.push(' ');
+            line_width += 1;
+        }
+        // Hard-wrap an over-wide word across lines on grapheme boundaries.
+        for grapheme in
+            ratatui::text::Span::raw(word).styled_graphemes(ratatui::style::Style::default())
+        {
+            let cell = display_width(grapheme.symbol);
+            if line_width + cell > width {
+                lines.push(std::mem::take(&mut line));
+                line_width = 0;
+            }
+            line.push_str(grapheme.symbol);
+            line_width += cell;
+        }
+    }
+    lines.push(line);
+    lines
+}
+
+/// Render the shortcut-help overlay paged to fit the placed area: each
+/// shortcut description wraps to the inner width on grapheme boundaries, a
+/// shortcut's wrapped lines always stay on one page, and the footer
 /// (dismiss key, paging hint, typing purpose, and `page/total`) is always
-/// drawn, and only the current page's rows are shown — content is never
-/// silently clipped. Returns the placed rect and the effective page after
-/// clamping to the page count, or `None` when rows plus footer cannot fit.
+/// drawn — content is never silently clipped. Returns the placed rect and
+/// the effective page after clamping to the page count, or `None` when rows
+/// plus footer cannot fit whole shortcuts.
 fn render_shortcut_help(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -816,8 +874,7 @@ fn render_shortcut_help(
     theme: &Theme,
 ) -> Option<(Rect, usize)> {
     let rows = text.shortcut_rows();
-    let row_count = rows.len();
-    let height = u16::try_from(row_count)
+    let height = u16::try_from(rows.len())
         .unwrap_or(u16::MAX)
         .saturating_add(HELP_FOOTER_ROWS)
         .saturating_add(2);
@@ -828,10 +885,42 @@ fn render_shortcut_help(
         return None;
     }
     let rows_per_page = usize::from(rows_per_page);
-    let total_pages = help_page_count(rows_per_page, row_count);
+    let width = usize::from(inner.width);
+
+    // Each registry row is a (padded chord, description) pair: the chord
+    // column is already a uniform width, so continuation lines align under
+    // the description column by the chord's display width.
+    let row_lines = rows
+        .iter()
+        .map(|(chord, label)| {
+            let indent = display_width(chord);
+            let label_width = width.saturating_sub(indent);
+            let wrapped = wrap_display(label, label_width);
+            let mut lines = Vec::with_capacity(wrapped.len());
+            let mut parts = wrapped.into_iter();
+            lines.push(Line::from(vec![
+                Span::styled(chord.clone(), theme.style(Role::HintKey)),
+                Span::styled(
+                    parts.next().unwrap_or_default(),
+                    theme.style(Role::TextPrimary),
+                ),
+            ]));
+            lines.extend(parts.map(|part| {
+                Line::styled(
+                    format!("{:indent$}{part}", ""),
+                    theme.style(Role::TextPrimary),
+                )
+            }));
+            lines
+        })
+        .collect::<Vec<_>>();
+    let pages = paginate_help_rows(
+        &row_lines.iter().map(Vec::len).collect::<Vec<_>>(),
+        rows_per_page,
+    )?;
+    let total_pages = pages.len();
     let page = page.min(total_pages - 1);
-    let start = page.saturating_mul(rows_per_page);
-    let end = start.saturating_add(rows_per_page).min(row_count);
+    let (start, end) = pages[page];
 
     frame.render_widget(Clear, area);
     let block = overlay_block(text.shortcut_title, theme);
@@ -839,32 +928,29 @@ fn render_shortcut_help(
         Layout::vertical([Constraint::Min(0), Constraint::Length(HELP_FOOTER_ROWS)]).areas(inner);
     frame.render_widget(block, area);
 
-    let items = rows[start..end]
+    let items = row_lines[start..end]
         .iter()
-        .map(|shortcut| {
-            let row = shortcut.split_once("  ").map_or_else(
-                || Line::styled(shortcut.clone(), theme.style(Role::TextPrimary)),
-                |(keys, label)| {
-                    Line::from(vec![
-                        Span::styled(keys, theme.style(Role::HintKey)),
-                        Span::styled(format!("  {label}"), theme.style(Role::TextPrimary)),
-                    ])
-                },
-            );
-            ListItem::new(row)
-        })
+        .flatten()
+        .map(|line| ListItem::new(line.clone()))
         .collect::<Vec<_>>();
     frame.render_widget(List::new(items), rows_area);
 
     let footer = vec![
-        Line::styled(text.help_dismiss_hint, theme.style(Role::HintLabel)),
         Line::styled(
-            format!(
-                "{} {} {}/{}",
-                text.help_paging_hint,
-                theme.glyphs.middle_dot,
-                page + 1,
-                total_pages
+            truncate_display(text.help_dismiss_hint, width, theme.glyphs.ellipsis),
+            theme.style(Role::HintLabel),
+        ),
+        Line::styled(
+            truncate_display(
+                &format!(
+                    "{} {} {}/{}",
+                    text.help_paging_hint,
+                    theme.glyphs.middle_dot,
+                    page + 1,
+                    total_pages
+                ),
+                width,
+                theme.glyphs.ellipsis,
             ),
             theme.style(Role::HintLabel),
         ),

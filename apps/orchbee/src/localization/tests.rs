@@ -2,10 +2,19 @@ use std::{collections::HashMap, ffi::OsString};
 
 use crate::client_view::{BackendAction, Notice};
 
-use super::{Locale, select_locale};
+use super::{Locale, ShellText, select_locale};
 
 #[cfg(unix)]
 mod location_labels;
+
+/// Flattens `(padded chord, description)` help pairs back into the single
+/// rendered row string so the registry-derived text can be compared whole.
+fn joined_shortcut_rows(text: &ShellText) -> Vec<String> {
+    text.shortcut_rows()
+        .iter()
+        .map(|(chord, desc)| format!("{chord}{desc}"))
+        .collect()
+}
 
 #[test]
 fn uses_locale_precedence_and_skips_empty_values() {
@@ -85,33 +94,29 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
         "Ctrl+B PageUp / PageDown",
     ] {
         assert!(
-            english
-                .shortcut_rows()
+            joined_shortcut_rows(&english)
                 .iter()
                 .any(|line| line.starts_with(shortcut))
         );
         assert!(
-            chinese
-                .shortcut_rows()
+            joined_shortcut_rows(&chinese)
                 .iter()
                 .any(|line| line.starts_with(shortcut))
         );
     }
     assert!(
-        english
-            .shortcut_rows()
+        joined_shortcut_rows(&english)
             .iter()
             .any(|row| row == "Ctrl+B w                 Toggle Workbench navigator")
     );
     assert!(
-        chinese
-            .shortcut_rows()
+        joined_shortcut_rows(&chinese)
             .iter()
             .any(|row| row == "Ctrl+B w                 切换 Workbench 导航器")
     );
-    assert!(english.shortcut_rows().iter().any(|row| row
+    assert!(joined_shortcut_rows(&english).iter().any(|row| row
         == "Ctrl+B [ / ]             Select previous / next Workbench location (wraps; requires Site)"));
-    assert!(chinese.shortcut_rows().iter().any(|row| row
+    assert!(joined_shortcut_rows(&chinese).iter().any(|row| row
         == "Ctrl+B [ / ]             选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）"));
 }
 
@@ -133,14 +138,12 @@ fn help_page_row_matches_the_registry_bindings_in_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
     assert!(
-        english
-            .shortcut_rows()
+        joined_shortcut_rows(&english)
             .iter()
             .any(|row| row == "Ctrl+B PageUp / PageDown Page this shortcut help while it is open")
     );
     assert!(
-        chinese
-            .shortcut_rows()
+        joined_shortcut_rows(&chinese)
             .iter()
             .any(|row| row == "Ctrl+B PageUp / PageDown 在帮助打开时翻看此快捷键帮助的页面")
     );
@@ -257,11 +260,15 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
         ),
     ] {
         assert!(
-            english.shortcut_rows().iter().any(|row| row.as_str() == en),
+            joined_shortcut_rows(&english)
+                .iter()
+                .any(|row| row.as_str() == en),
             "en-US row: {en}"
         );
         assert!(
-            chinese.shortcut_rows().iter().any(|row| row.as_str() == zh),
+            joined_shortcut_rows(&chinese)
+                .iter()
+                .any(|row| row.as_str() == zh),
             "zh-CN row: {zh}"
         );
         for (code, expected) in bindings {

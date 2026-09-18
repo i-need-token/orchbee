@@ -240,32 +240,32 @@ fn buffer_rows(terminal: &Terminal<TestBackend>, width: u16, height: u16) -> Vec
 }
 
 #[test]
-fn help_paginates_rows_and_clamps_the_requested_page() {
+fn help_paginates_wrapped_rows_and_clamps_the_requested_page() {
     let theme = crate::tui_theme::Theme::rgb_test_dark();
     let text = Locale::EnUs.shell();
     let mut terminal = infallible(Terminal::new(TestBackend::new(60, 12)));
     let mut placed = None;
 
-    // 23 registry-backed shortcut rows in a 6-row window -> 4 pages; page 99
-    // clamps to 3.
+    // Wrapped shortcut rows in an 8-line page budget -> several pages; the
+    // requested page 99 clamps to the last one and the footer stays visible.
     infallible(terminal.draw(|frame| {
         placed = super::render_shortcut_help(frame, frame.area(), text, 99, &theme);
     }));
     let (_, page) = placed.expect("help must fit in 60x12");
-    assert_eq!(page, 3);
+    assert!(page >= 1, "wrapped help must need more than one page");
+    let last = page + 1;
     let rows = buffer_rows(&terminal, 60, 12);
-    // The clamped last page starts at shortcut row 18.
-    assert!(
-        rows[2].contains("Ctrl+B PageUp / PageDown"),
-        "{:?}",
-        rows[2]
-    );
-    assert!(rows[5].contains("Ctrl+B q / d"), "{:?}", rows[5]);
-    assert!(rows[6].contains("Other keys"), "{:?}", rows[6]);
+    assert!(rows[9].contains(&format!("{last}/{last}")), "{:?}", rows[9]);
     assert!(rows[8].contains("Ctrl+B ? closes help"), "{:?}", rows[8]);
-    assert!(rows[9].contains("4/4"), "{:?}", rows[9]);
+    // The last page holds the trailing "other keys" registry row, whose
+    // description wrapped onto an aligned continuation line.
+    assert!(rows.iter().any(|row| row.contains("terminal")), "{rows:?}");
+    assert!(
+        rows.iter().any(|row| row.contains("input port")),
+        "{rows:?}"
+    );
     // Rows from earlier pages are not drawn.
-    assert!(!rows.iter().any(|row| row.contains("Ctrl+B h/j/k/l")));
+    assert!(!rows.iter().any(|row| row.contains("Ctrl+B a")));
 
     infallible(terminal.draw(|frame| {
         placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
@@ -273,17 +273,76 @@ fn help_paginates_rows_and_clamps_the_requested_page() {
     let (_, page) = placed.expect("help must fit in 60x12");
     assert_eq!(page, 0);
     let rows = buffer_rows(&terminal, 60, 12);
-    assert!(rows[2].contains("Ctrl+B a"), "{:?}", rows[2]);
-    assert!(rows[9].contains("1/4"), "{:?}", rows[9]);
-    assert!(!rows.iter().any(|row| row.contains("Ctrl+B h/j/k/l")));
+    assert!(rows.iter().any(|row| row.contains("Ctrl+B a")), "{rows:?}");
+    assert!(rows[9].contains("1/"), "{:?}", rows[9]);
 }
 
 #[test]
-fn help_page_count_rounds_up_and_never_returns_zero() {
-    assert_eq!(super::help_page_count(6, 21), 4);
-    assert_eq!(super::help_page_count(21, 21), 1);
-    assert_eq!(super::help_page_count(4, 0), 1);
-    assert_eq!(super::help_page_count(0, 5), 5);
+fn help_wraps_long_descriptions_instead_of_clipping_them() {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let text = Locale::EnUs.shell();
+    // A 46-column overlay leaves ~28 cells for labels: long descriptions
+    // must wrap onto continuation lines rather than clip at the right edge.
+    let mut terminal = infallible(Terminal::new(TestBackend::new(46, 20)));
+    let mut placed = None;
+    infallible(terminal.draw(|frame| {
+        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+    }));
+    placed.expect("46x20 help must fit with wrapping");
+    let rows = buffer_rows(&terminal, 46, 20);
+    let joined = rows.join("\n");
+    // The longest English descriptions appear whole across wrapped lines.
+    for word in ["Workspace", "directory", "Project"] {
+        assert!(joined.contains(word), "clipped {word}: {joined}");
+    }
+    // Continuation lines align under the description column: after the left
+    // border they begin with the key-column padding and still carry text.
+    assert!(
+        rows.iter().any(|row| {
+            let inner = row.trim_start().trim_start_matches(['│', '|', '+']);
+            inner.starts_with("              ") && !inner[14..].trim().is_empty()
+        }),
+        "no aligned continuation line: {rows:?}"
+    );
+}
+
+#[test]
+fn help_wraps_chinese_descriptions_on_grapheme_boundaries() {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let text = Locale::ZhCn.shell();
+    let mut terminal = infallible(Terminal::new(TestBackend::new(46, 20)));
+    let mut placed = None;
+    infallible(terminal.draw(|frame| {
+        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+    }));
+    placed.expect("zh help must fit with wrapping");
+    let rows = buffer_rows(&terminal, 46, 20);
+    // A wide-character description hard-wraps without dropping its tail.
+    let tail = rows.concat();
+    assert!(tail.contains('页'), "wrapped zh tail lost: {rows:?}");
+    assert!(
+        rows.iter().any(|row| row.contains("PgUp/PgDn")),
+        "paging footer missing: {rows:?}"
+    );
+}
+
+#[test]
+fn paginate_help_rows_groups_whole_rows_into_page_budgets() {
+    // Uniform one-line rows paginate exactly like the old row division.
+    assert_eq!(
+        super::paginate_help_rows(&[1; 21], 6),
+        Some(vec![(0, 6), (6, 12), (12, 18), (18, 21)])
+    );
+    assert_eq!(super::paginate_help_rows(&[1; 5], 5), Some(vec![(0, 5)]));
+    assert_eq!(super::paginate_help_rows(&[], 4), Some(vec![(0, 0)]));
+    // A multi-line row counts every rendered line and is never split.
+    assert_eq!(
+        super::paginate_help_rows(&[3, 3, 1, 4], 5),
+        Some(vec![(0, 1), (1, 3), (3, 4)])
+    );
+    // A row taller than the page refuses placement instead of clipping.
+    assert_eq!(super::paginate_help_rows(&[1, 6, 1], 4), None);
+    assert_eq!(super::paginate_help_rows(&[2], 0), None);
 }
 
 #[test]
@@ -307,4 +366,25 @@ fn help_refuses_placement_that_would_clip_rows_or_footer() {
         .map(|cell| cell.symbol())
         .collect::<String>();
     assert!(text.trim().is_empty(), "refused overlay drew: {text:?}");
+}
+
+#[test]
+fn sidebar_status_truncates_with_ellipsis_on_grapheme_boundaries() {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let text = Locale::EnUs.shell();
+    let mut terminal = infallible(Terminal::new(TestBackend::new(30, 12)));
+    let sidebar = super::SidebarArea {
+        area: ratatui::layout::Rect::new(0, 0, 30, 12),
+        layer: super::SidebarLayer::Docked,
+    };
+    infallible(terminal.draw(|frame| {
+        super::render_sidebar(frame, sidebar, text, "Tab 1 · Ready · controlling", &theme);
+    }));
+    let rows = buffer_rows(&terminal, 30, 12);
+    let joined = rows.concat();
+    // The 29-cell status exceeds the 26-cell inner width: it must end with
+    // the ellipsis marker instead of a half-clipped word.
+    assert!(joined.contains('…'), "no ellipsis marker: {rows:?}");
+    assert!(!joined.contains("controlling"), "status not cut: {rows:?}");
+    assert!(joined.contains("contr"), "{rows:?}");
 }
