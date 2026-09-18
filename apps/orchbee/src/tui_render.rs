@@ -61,6 +61,7 @@ pub(crate) fn render_terminal_shell(
     let mut rename = None;
     let mut setup = None;
     let mut overlay_refused = false;
+    let mut help_page = None;
     let sidebar_status;
     let status_text;
     let mut secondary_notice = None;
@@ -130,13 +131,15 @@ pub(crate) fn render_terminal_shell(
         }
 
         let overlay = match view.overlay() {
-            Some(Overlay::ShortcutHelp) => Some(
-                // The help page is U5-owned view state; this slice has no
-                // paging input, so help always opens on page 0. The returned
-                // effective page is the write-back seam for U5's dispatcher.
-                render_shortcut_help(frame, overlay_area(&areas), text, 0, theme)
-                    .map(|(area, _page)| area),
-            ),
+            Some(Overlay::ShortcutHelp) => {
+                // The help page is ClientView-owned; the renderer reports the
+                // clamped effective page back through the draw receipt so the
+                // dispatcher's counter settles on what was actually painted.
+                let presented =
+                    render_shortcut_help(frame, overlay_area(&areas), text, view.help_page(), theme);
+                help_page = presented.map(|(_, page)| page);
+                Some(presented.map(|(area, _page)| area))
+            }
             Some(Overlay::WorkbenchNavigator) => Some(match session.as_ref() {
                 Some(TerminalSessionView::Native(native)) => render_native_workbench_navigator(
                     frame,
@@ -245,6 +248,7 @@ pub(crate) fn render_terminal_shell(
     }
 
     NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
+        .with_help_page(help_page)
         .with_panel_close(panel_prompt)
         .with_rename(rename)
         .with_setup(setup)
@@ -789,8 +793,9 @@ fn render_shortcut_help(
     page: usize,
     theme: &Theme,
 ) -> Option<(Rect, usize)> {
-    let rows = text.shortcuts.len();
-    let height = u16::try_from(rows)
+    let rows = text.shortcut_rows();
+    let row_count = rows.len();
+    let height = u16::try_from(row_count)
         .unwrap_or(u16::MAX)
         .saturating_add(HELP_FOOTER_ROWS)
         .saturating_add(2);
@@ -801,10 +806,10 @@ fn render_shortcut_help(
         return None;
     }
     let rows_per_page = usize::from(rows_per_page);
-    let total_pages = help_page_count(rows_per_page, rows);
+    let total_pages = help_page_count(rows_per_page, row_count);
     let page = page.min(total_pages - 1);
     let start = page.saturating_mul(rows_per_page);
-    let end = start.saturating_add(rows_per_page).min(rows);
+    let end = start.saturating_add(rows_per_page).min(row_count);
 
     frame.render_widget(Clear, area);
     let block = overlay_block(text.shortcut_title, theme);
@@ -812,11 +817,11 @@ fn render_shortcut_help(
         Layout::vertical([Constraint::Min(0), Constraint::Length(HELP_FOOTER_ROWS)]).areas(inner);
     frame.render_widget(block, area);
 
-    let items = text.shortcuts[start..end]
+    let items = rows[start..end]
         .iter()
         .map(|shortcut| {
             let row = shortcut.split_once("  ").map_or_else(
-                || Line::styled(*shortcut, theme.style(Role::TextPrimary)),
+                || Line::styled(shortcut.clone(), theme.style(Role::TextPrimary)),
                 |(keys, label)| {
                     Line::from(vec![
                         Span::styled(keys, theme.style(Role::HintKey)),

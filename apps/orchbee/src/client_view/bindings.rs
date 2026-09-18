@@ -20,6 +20,8 @@ pub(crate) enum PrefixAction {
     SidebarToggle,
     NavigatorToggle,
     ShowHelp,
+    HelpPagePrevious,
+    HelpPageNext,
 }
 
 /// One matchable key set inside a group. `CharRange` exists so the ordered-Tab
@@ -81,6 +83,7 @@ pub(crate) enum PrefixDesc {
     SidebarToggle,
     NavigatorToggle,
     ShowHelp,
+    HelpPage,
     Exit,
     LiteralPrefix,
     DismissPrefix,
@@ -273,6 +276,23 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
             shell: ShellCommand::None,
         }],
         desc: PrefixDesc::ShowHelp,
+    },
+    // Pages an open help overlay; with help closed the chord is inert
+    // (same unknown-prefix outcome as any unbound member key).
+    PrefixGroup {
+        members: &[
+            PrefixMember {
+                keys: key(KeyCode::PageUp),
+                action: PrefixAction::HelpPagePrevious,
+                shell: ShellCommand::None,
+            },
+            PrefixMember {
+                keys: key(KeyCode::PageDown),
+                action: PrefixAction::HelpPageNext,
+                shell: ShellCommand::None,
+            },
+        ],
+        desc: PrefixDesc::HelpPage,
     },
     PrefixGroup {
         members: &[PrefixMember {

@@ -781,6 +781,7 @@ impl NativeUi {
             ClientAction::ToggleBusinessSidebar
             | ClientAction::OpenShortcutHelp
             | ClientAction::CloseShortcutHelp
+            | ClientAction::PageShortcutHelp
             | ClientAction::CloseWorkbenchNavigator
             | ClientAction::ForwardLiteralPrefix
             | ClientAction::DismissPrefix

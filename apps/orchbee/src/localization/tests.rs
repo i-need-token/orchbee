@@ -64,7 +64,7 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(english.shortcut_rows().len(), 22);
+    assert_eq!(english.shortcut_rows().len(), 23);
     assert_eq!(chinese.shortcut_rows().len(), english.shortcut_rows().len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
@@ -82,6 +82,7 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
         "Ctrl+B [ / ]",
         "Ctrl+B 1..9",
         "Ctrl+B w",
+        "Ctrl+B PageUp / PageDown",
     ] {
         assert!(
             english
@@ -100,19 +101,70 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
         english
             .shortcut_rows()
             .iter()
-            .any(|row| row == "Ctrl+B w       Toggle Workbench navigator")
+            .any(|row| row == "Ctrl+B w                 Toggle Workbench navigator")
     );
     assert!(
         chinese
             .shortcut_rows()
             .iter()
-            .any(|row| row == "Ctrl+B w       切换 Workbench 导航器")
+            .any(|row| row == "Ctrl+B w                 切换 Workbench 导航器")
     );
     assert!(english.shortcut_rows().iter().any(|row| row
-        == "Ctrl+B [ / ]   Select previous / next Workbench location (wraps; requires Site)"));
-    assert!(chinese.shortcut_rows().iter().any(
-        |row| row == "Ctrl+B [ / ]   选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）"
-    ));
+        == "Ctrl+B [ / ]             Select previous / next Workbench location (wraps; requires Site)"));
+    assert!(chinese.shortcut_rows().iter().any(|row| row
+        == "Ctrl+B [ / ]             选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）"));
+}
+
+/// The help-paging row is registry-derived like every other row: the same
+/// table the dispatcher matches generates the displayed chord and the
+/// localized description, in both locales.
+#[test]
+fn help_page_row_matches_the_registry_bindings_in_both_locales() {
+    use crate::client_view::{
+        ClientAction, ClientTransition, ClientView, KeyCode, KeyEvent, Modifiers, Overlay,
+        PrefixInput, SessionActionDisposition,
+    };
+    fn press(view: &mut ClientView, input: KeyCode, mods: Modifiers) -> ClientTransition {
+        let transition = view.decide(PrefixInput::Key(KeyEvent::press(input, mods)));
+        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        transition
+    }
+
+    let english = Locale::EnUs.shell();
+    let chinese = Locale::ZhCn.shell();
+    assert!(
+        english
+            .shortcut_rows()
+            .iter()
+            .any(|row| row == "Ctrl+B PageUp / PageDown Page this shortcut help while it is open")
+    );
+    assert!(
+        chinese
+            .shortcut_rows()
+            .iter()
+            .any(|row| row == "Ctrl+B PageUp / PageDown 在帮助打开时翻看此快捷键帮助的页面")
+    );
+
+    // The displayed chords resolve through the registry to the help-page
+    // action — never a second hard-coded table.
+    let mut view = ClientView::new(120);
+    for (code, expected_page) in [(KeyCode::PageUp, 0), (KeyCode::PageDown, 1)] {
+        press(&mut view, KeyCode::Char('b'), Modifiers::CTRL);
+        press(&mut view, KeyCode::Char('?'), Modifiers::NONE);
+        assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+        press(&mut view, KeyCode::Char('b'), Modifiers::CTRL);
+        let paged = press(&mut view, code, Modifiers::NONE);
+        assert_eq!(
+            paged.action(),
+            Some(ClientAction::PageShortcutHelp),
+            "Ctrl+B {code:?}"
+        );
+        assert_eq!(view.help_page(), expected_page, "Ctrl+B {code:?}");
+        // Close the help again for the next iteration: the page resets.
+        press(&mut view, KeyCode::Char('b'), Modifiers::CTRL);
+        press(&mut view, KeyCode::Char('?'), Modifiers::NONE);
+        assert_eq!(view.help_page(), 0);
+    }
 }
 
 #[test]
@@ -133,8 +185,8 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
     let chinese = Locale::ZhCn.shell();
     for (en, zh, bindings) in [
         (
-            "Ctrl+B h/j/k/l Move between Panels (requires Site)",
-            "Ctrl+B h/j/k/l 在 Panel 之间移动（需要 Site）",
+            "Ctrl+B h/j/k/l           Move between Panels (requires Site)",
+            "Ctrl+B h/j/k/l           在 Panel 之间移动（需要 Site）",
             &[
                 (
                     KeyCode::Char('h'),
@@ -155,8 +207,8 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
             ][..],
         ),
         (
-            "Ctrl+B - _ \\ | Split focused Panel below/above/left/right (requires Site)",
-            "Ctrl+B - _ \\ | 将焦点 Panel 向下/上/左/右分屏（需要 Site）",
+            "Ctrl+B - _ \\ |           Split focused Panel below/above/left/right (requires Site)",
+            "Ctrl+B - _ \\ |           将焦点 Panel 向下/上/左/右分屏（需要 Site）",
             &[
                 (
                     KeyCode::Char('-'),
@@ -177,13 +229,13 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
             ][..],
         ),
         (
-            "Ctrl+B X       Close focused Panel (requires Site)",
-            "Ctrl+B X       关闭焦点 Panel（需要 Site）",
+            "Ctrl+B X                 Close focused Panel (requires Site)",
+            "Ctrl+B X                 关闭焦点 Panel（需要 Site）",
             &[(KeyCode::Char('X'), ClientAction::ClosePanel)][..],
         ),
         (
-            "Ctrl+B H/J/K/L Move focused Panel to that side (requires Site)",
-            "Ctrl+B H/J/K/L 将焦点 Panel 移向该侧（需要 Site）",
+            "Ctrl+B H/J/K/L           Move focused Panel to that side (requires Site)",
+            "Ctrl+B H/J/K/L           将焦点 Panel 移向该侧（需要 Site）",
             &[
                 (
                     KeyCode::Char('H'),

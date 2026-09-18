@@ -173,7 +173,7 @@ fn reserves_exactly_one_status_row_at_every_tier() {
 #[test]
 fn overlays_never_cover_the_status_row() {
     let mut view = ClientView::new(80);
-    prefix(&mut view, ClientKey::Plain('?'));
+    prefix(&mut view, plain('?'));
     let rows = rendered_rows(80, 24, &view, Locale::EnUs);
     let status = &rows[23];
     assert!(status.contains("unavailable"), "{status:?}");
@@ -182,7 +182,7 @@ fn overlays_never_cover_the_status_row() {
     }
 
     let mut view = ClientView::new(60);
-    prefix(&mut view, ClientKey::Plain('w'));
+    prefix(&mut view, plain('w'));
     let rows = rendered_rows(60, 12, &view, Locale::ZhCn);
     assert!(rows[11].contains("快捷键") || rows[11].contains("Site"));
 }
@@ -202,7 +202,7 @@ fn degrades_to_minimal_chrome_below_sixty_columns_or_twelve_rows() {
     assert!(!short.contains("ORCHBEE"));
 
     let mut toggled = ClientView::new(50);
-    prefix(&mut toggled, ClientKey::Plain('b'));
+    prefix(&mut toggled, plain('b'));
     let toggled_render = rendered_text(50, 10, &toggled, Locale::EnUs);
     assert!(!toggled_render.contains("ORCHBEE"));
 }

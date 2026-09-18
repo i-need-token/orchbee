@@ -304,7 +304,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
         &mut dimensions,
     )?;
     let _changed = terminal_input.tick();
-    draw_surface(terminal, &view, chrome, terminal_input)?;
+    draw_surface(terminal, &mut view, chrome, terminal_input)?;
     loop {
         if termination.requested() {
             return Ok(LoopExit::Signal);
@@ -348,14 +348,14 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
         }
 
         if redraw {
-            draw_surface(terminal, &view, chrome, terminal_input)?;
+            draw_surface(terminal, &mut view, chrome, terminal_input)?;
         }
     }
 }
 
 fn draw_surface<B: Backend>(
     terminal: &mut Terminal<B>,
-    view: &ClientView,
+    view: &mut ClientView,
     chrome: Chrome<'_>,
     surface: &mut (impl TerminalSurface + ?Sized),
 ) -> Result<(), LoopFailure<B::Error>> {
@@ -366,7 +366,11 @@ fn draw_surface<B: Backend>(
                 render_terminal_shell(frame, view, chrome.locale, surface.view(), chrome.theme);
         })
         .map_err(LoopFailure::Terminal)?;
+    let help_page = receipt.help_page();
     surface.after_close_draw(receipt);
+    if let Some(page) = help_page {
+        view.settle_help_page(page);
+    }
     surface.after_draw();
     Ok(())
 }

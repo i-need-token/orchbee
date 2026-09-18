@@ -76,6 +76,7 @@ pub(crate) enum ClientAction {
     ToggleBusinessSidebar,
     OpenShortcutHelp,
     CloseShortcutHelp,
+    PageShortcutHelp,
     OpenWorkbenchNavigator,
     CloseWorkbenchNavigator,
     CreateTab,
@@ -179,6 +180,7 @@ impl ClientAction {
             | Self::CancelClose
             | Self::OpenShortcutHelp
             | Self::CloseShortcutHelp
+            | Self::PageShortcutHelp
             | Self::OpenWorkbenchNavigator
             | Self::CloseWorkbenchNavigator
             | Self::ForwardLiteralPrefix
@@ -203,9 +205,21 @@ pub(crate) struct ClientView {
     prefix_active: bool,
     viewport: ViewportClass,
     wide_sidebar_visible: bool,
+    /// The shortcut-help page the renderer was asked for. Client-local
+    /// presentation state only — it is never put on the wire or into
+    /// NativeSession business. The renderer clamps it against the real
+    /// page count on every draw and the UI loop writes the effective page
+    /// back through `settle_help_page`; render never mutates it.
+    help_page: usize,
 }
 
 impl ClientView {
+    /// The largest page index the dispatcher may ask for. The registry's
+    /// row count bounds the real page count (every page shows at least one
+    /// row), so a held PageDown can never grow this counter past the
+    /// number of binding groups — no allocation scales with input.
+    const HELP_PAGE_BOUND: usize = PREFIX_GROUPS.len();
+
     pub(crate) const fn new(width: u16) -> Self {
         Self {
             notice: None,
@@ -213,6 +227,7 @@ impl ClientView {
             prefix_active: false,
             viewport: ViewportClass::from_width(width),
             wide_sidebar_visible: true,
+            help_page: 0,
         }
     }
 
@@ -226,6 +241,20 @@ impl ClientView {
 
     pub(crate) const fn prefix_active(self) -> bool {
         self.prefix_active
+    }
+
+    /// The help page the renderer should draw. Consumed by the paged
+    /// `render_shortcut_help` seam; always a bounded counter.
+    pub(crate) const fn help_page(self) -> usize {
+        self.help_page
+    }
+
+    /// Settles the renderer-clamped effective page after a draw. The UI
+    /// loop is the only writer: the renderer reports which page it
+    /// actually painted (or clamped to after a resize shrank the page
+    /// count) and this state follows that receipt.
+    pub(crate) fn settle_help_page(&mut self, effective_page: usize) {
+        self.help_page = effective_page.min(Self::HELP_PAGE_BOUND);
     }
 
     pub(crate) const fn sidebar_surface(self) -> SidebarSurface {
@@ -342,12 +371,32 @@ impl ClientView {
                 // The same binding opens and closes the help overlay so the
                 // overlay is always exit-discoverable; ordinary keys keep
                 // reaching the pane because nothing captures input here.
+                // Either way the page resets: a reopened help starts at
+                // page 0.
+                self.settle_help_page(0);
                 if self.overlay == Some(Overlay::ShortcutHelp) {
                     self.overlay = None;
                     (ClientAction::CloseShortcutHelp, ShellCommand::None)
                 } else {
                     self.overlay = Some(Overlay::ShortcutHelp);
                     (ClientAction::OpenShortcutHelp, ShellCommand::None)
+                }
+            }
+            PrefixAction::HelpPagePrevious | PrefixAction::HelpPageNext => {
+                if self.overlay == Some(Overlay::ShortcutHelp) {
+                    // Only an open help pages: the page key is consumed
+                    // while the overlay is up, and the renderer's clamped
+                    // page settles the upper bound on the next draw.
+                    self.settle_help_page(match member.action {
+                        PrefixAction::HelpPagePrevious => self.help_page().saturating_sub(1),
+                        _ => self.help_page() + 1,
+                    });
+                    (ClientAction::PageShortcutHelp, ShellCommand::None)
+                } else {
+                    // With help closed the chord is inert — the same
+                    // unknown-prefix outcome any unbound member key gets.
+                    self.notice = Some(Notice::UnknownPrefix);
+                    (ClientAction::UnknownPrefix, ShellCommand::None)
                 }
             }
         }

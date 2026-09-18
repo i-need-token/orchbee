@@ -1,7 +1,7 @@
 use super::{
     BackendAction, ClientAction, ClientTransition, ClientView, KeyCode, KeyEvent, Modifiers,
-    Notice, Overlay, PanelDirection, PrefixInput, SessionActionDisposition, ShellCommand,
-    SidebarSurface, ViewportClass, WIDE_VIEWPORT_MINIMUM_COLUMNS,
+    Notice, Overlay, PREFIX_GROUPS, PanelDirection, PrefixInput, SessionActionDisposition,
+    ShellCommand, SidebarSurface, ViewportClass, WIDE_VIEWPORT_MINIMUM_COLUMNS,
 };
 
 fn key(code: KeyCode) -> PrefixInput {
@@ -399,6 +399,105 @@ fn unconnected_fallback_reports_the_new_panel_actions_and_keeps_focus_keys_silen
         assert_eq!(view.notice(), None, "Ctrl+B {}", key as char);
         assert!(!view.prefix_active());
     }
+}
+
+#[test]
+fn page_keys_page_an_open_help_and_reset_on_close_and_reopen() {
+    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+    assert_eq!(view.help_page(), 0);
+
+    enter_prefix(&mut view);
+    commit(&mut view, plain('?'));
+    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+
+    enter_prefix(&mut view);
+    let paged = commit(&mut view, key(KeyCode::PageDown));
+    assert_eq!(paged.action(), Some(ClientAction::PageShortcutHelp));
+    assert_eq!(paged.shell(), ShellCommand::None);
+    assert_eq!(view.help_page(), 1);
+
+    enter_prefix(&mut view);
+    commit(&mut view, key(KeyCode::PageDown));
+    assert_eq!(view.help_page(), 2);
+    enter_prefix(&mut view);
+    commit(&mut view, key(KeyCode::PageUp));
+    assert_eq!(view.help_page(), 1);
+
+    // Closing and reopening starts again at page 0.
+    enter_prefix(&mut view);
+    commit(&mut view, plain('?'));
+    assert_eq!(view.overlay(), None);
+    assert_eq!(view.help_page(), 0);
+    enter_prefix(&mut view);
+    commit(&mut view, plain('?'));
+    assert_eq!(view.help_page(), 0);
+}
+
+#[test]
+fn page_keys_without_help_follow_the_unknown_prefix_rules() {
+    for page_key in [KeyCode::PageUp, KeyCode::PageDown] {
+        let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+        enter_prefix(&mut view);
+        let transition = commit(&mut view, key(page_key));
+        assert_eq!(transition.action(), Some(ClientAction::UnknownPrefix));
+        assert_eq!(transition.shell(), ShellCommand::None);
+        assert_eq!(view.notice(), Some(Notice::UnknownPrefix));
+        assert_eq!(view.help_page(), 0);
+    }
+
+    // An overlay other than help does not claim the page keys either.
+    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+    enter_prefix(&mut view);
+    commit(&mut view, plain('w'));
+    enter_prefix(&mut view);
+    let transition = commit(&mut view, key(KeyCode::PageDown));
+    assert_eq!(transition.action(), Some(ClientAction::UnknownPrefix));
+    assert_eq!(view.help_page(), 0);
+}
+
+#[test]
+fn unprefixed_page_keys_still_reach_the_terminal() {
+    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+    for page_key in [KeyCode::PageUp, KeyCode::PageDown] {
+        let transition = commit(&mut view, key(page_key));
+        assert_eq!(transition.action(), None);
+        assert_eq!(transition.shell(), ShellCommand::ForwardTerminal);
+    }
+    // And the same holds while the help overlay is open: it never
+    // captures ordinary input.
+    enter_prefix(&mut view);
+    commit(&mut view, plain('?'));
+    let transition = commit(&mut view, key(KeyCode::PageDown));
+    assert_eq!(transition.shell(), ShellCommand::ForwardTerminal);
+    assert_eq!(view.help_page(), 0);
+}
+
+#[test]
+fn the_help_page_counter_is_bounded_and_settles_the_renderers_effective_page() {
+    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+    enter_prefix(&mut view);
+    commit(&mut view, plain('?'));
+
+    // PageDown can never run away: the counter is capped by the registry
+    // row bound, and PageUp saturates at 0.
+    for _ in 0..(PREFIX_GROUPS.len() + 8) {
+        enter_prefix(&mut view);
+        commit(&mut view, key(KeyCode::PageDown));
+    }
+    assert_eq!(view.help_page(), PREFIX_GROUPS.len());
+    enter_prefix(&mut view);
+    commit(&mut view, key(KeyCode::PageUp));
+    assert_eq!(view.help_page(), PREFIX_GROUPS.len() - 1);
+
+    // The UI loop's write-back of the renderer's effective page is the
+    // only way an out-of-range index (e.g. after a resize shrank the page
+    // count) reconciles — render never mutates view state itself.
+    view.settle_help_page(3);
+    assert_eq!(view.help_page(), 3);
+    view.settle_help_page(usize::MAX);
+    assert_eq!(view.help_page(), PREFIX_GROUPS.len());
+    view.settle_help_page(0);
+    assert_eq!(view.help_page(), 0);
 }
 
 #[test]

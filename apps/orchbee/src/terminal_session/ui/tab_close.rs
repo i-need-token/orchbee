@@ -42,9 +42,20 @@ pub(crate) struct NativeDrawReceipt {
     rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
     setup: Option<ModalPresentation<super::NativeSetupToken>>,
     panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
+    /// The shortcut-help page the renderer actually presented, reported back
+    /// to the ClientView through the draw receipt so the dispatcher's page
+    /// state settles on the clamped value (render never mutates it).
+    help_page: Option<usize>,
 }
 
 impl NativeDrawReceipt {
+    pub(crate) const fn help_page(self) -> Option<usize> {
+        self.help_page
+    }
+    pub(crate) const fn with_help_page(mut self, help_page: Option<usize>) -> Self {
+        self.help_page = help_page;
+        self
+    }
     pub(crate) const fn with_setup(
         mut self,
         setup: Option<ModalPresentation<super::NativeSetupToken>>,
@@ -62,6 +73,7 @@ impl NativeDrawReceipt {
             rename: None,
             setup: None,
             panel_prompt: None,
+            help_page: None,
         }
     }
     pub(crate) const fn with_rename(
