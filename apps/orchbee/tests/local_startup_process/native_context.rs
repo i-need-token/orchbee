@@ -351,7 +351,7 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
             "",
             "Closing this Tab ends its execution for all attached Clients.",
             "",
-            "y · confirm    n / Esc · cancel",
+            "y · confirm    Esc · cancel",
         ],
         &mut [],
     );
@@ -1147,7 +1147,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
             "",
             "Closing this Tab ends its execution for all attached Clients.",
             "",
-            "y · confirm    n / Esc · cancel",
+            "y · confirm    Esc · cancel",
         ],
         &mut [&mut independent],
     );

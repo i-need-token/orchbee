@@ -72,14 +72,14 @@ const ENGLISH: CloseCopy = CloseCopy {
     ready: "Tab 1 · Ready · controlling",
     title: "Close terminal Tab?",
     warning: "Closing this Tab ends its execution for all attached Clients.",
-    actions: "y · confirm    n / Esc · cancel",
+    actions: "y · confirm    Esc · cancel",
 };
 const CHINESE: CloseCopy = CloseCopy {
     locale: "zh_CN.UTF-8",
     ready: "Tab 1 · 已就绪 · 可控制",
     title: "关闭终端 Tab？",
     warning: "关闭此 Tab 将终止其执行，影响所有已连接的 Client。",
-    actions: "y · 确认    n / Esc · 取消",
+    actions: "y · 确认    Esc · 取消",
 };
 
 fn ready(client: &mut Client, checkpoint: usize, deadline: Instant, copy: CloseCopy) {
@@ -127,7 +127,10 @@ fn localized_cancel_and_ordinary_exit_keep_the_exact_native_shell() -> TestResul
 
         prompt(&mut client, copy);
         let checkpoint = client.checkpoint();
-        client.send(b"nMUST_NOT_REACH_SHELL");
+        // The confirmation's exact cancel key is Esc; a lone 0x1b resolves to
+        // Escape through the bounded wait. Sending it alone keeps the armed
+        // packet free of a tail that would otherwise leak into the shell.
+        client.send(b"\x1b");
         ready(
             &mut client,
             checkpoint,

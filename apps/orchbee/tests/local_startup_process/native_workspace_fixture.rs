@@ -123,7 +123,11 @@ pub(super) fn submit_directory(client: &mut Client, path: &str) -> usize {
     finish_modal_handoff(client, &[WORKSPACE_HEADER, EMPTY]);
     let checkpoint = client.checkpoint();
     client.send(b"\x02e");
-    let hint = "Literal absolute path, at most 4,096 UTF-8 bytes, without NUL. No expansion or directory creation.";
+    // The modal wraps the long hint onto two interior rows inside its inner width.
+    let hint = [
+        "Literal absolute path, at most 4,096 UTF-8 bytes, without NUL. No expansion or",
+        "directory creation.",
+    ];
     modal(
         client,
         checkpoint,
@@ -137,7 +141,8 @@ pub(super) fn submit_directory(client: &mut Client, path: &str) -> usize {
             "",
             "",
             "",
-            hint,
+            hint[0],
+            hint[1],
             "",
             TEXT_ACTIONS,
         ],
@@ -157,7 +162,8 @@ pub(super) fn submit_directory(client: &mut Client, path: &str) -> usize {
             "",
             path,
             "",
-            hint,
+            hint[0],
+            hint[1],
             "",
             TEXT_ACTIONS,
         ],
