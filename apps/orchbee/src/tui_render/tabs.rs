@@ -10,6 +10,8 @@ use crate::terminal_text::sanitize_terminal_text;
 
 use super::{EMPHASIS, MUTED, TEXT};
 
+const ELLIPSIS: char = '…';
+
 #[derive(Clone, Copy)]
 pub(super) struct TabDisplay<'a> {
     pub(super) position: usize,
@@ -36,6 +38,7 @@ pub(super) fn render_navigator<'a>(
     tab_at: impl Fn(usize) -> Option<TabDisplay<'a>>,
 ) {
     let lines = navigator_lines(
+        usize::from(area.width),
         usize::from(area.height),
         tab_count,
         active_position,
@@ -68,7 +71,10 @@ fn compact_line<'a>(
             spans.push(Span::raw(" "));
             used = used.saturating_add(1);
         }
-        let (token, token_width) = compact_token(tab);
+        let remaining = width.saturating_sub(used);
+        let Some((token, token_width)) = compact_token(tab, remaining) else {
+            break;
+        };
         spans.push(Span::styled(token, compact_style(tab.active)));
         used = used.saturating_add(token_width);
         if used >= width {
@@ -115,12 +121,13 @@ fn compact_window_start<'a>(
 }
 
 fn navigator_lines<'a>(
+    width: usize,
     height: usize,
     tab_count: usize,
     active_position: Option<usize>,
     tab_at: &impl Fn(usize) -> Option<TabDisplay<'a>>,
 ) -> Vec<Line<'static>> {
-    if height == 0 || tab_count == 0 {
+    if height == 0 || width == 0 || tab_count == 0 {
         return Vec::new();
     }
     let active_index = active_position
@@ -136,19 +143,36 @@ fn navigator_lines<'a>(
         .map_while(tab_at)
         .map(|tab| {
             Line::from(Span::styled(
-                navigator_row(tab),
+                navigator_row(tab, width),
                 navigator_style(tab.active),
             ))
         })
         .collect()
 }
 
-fn compact_token(tab: TabDisplay<'_>) -> (String, usize) {
+fn compact_token(tab: TabDisplay<'_>, max_width: usize) -> Option<(String, usize)> {
     let safe_label = sanitize_terminal_text(tab.label);
     let marker = if tab.active { '*' } else { ' ' };
-    let token = format!("[{marker}{} {safe_label}]", tab.position);
+    let prefix = format!("[{marker}{} ", tab.position);
+    let prefix_width = Line::raw(prefix.as_str()).width();
+    let token = format!("{prefix}{safe_label}]");
     let width = Line::raw(token.as_str()).width();
-    (token, width)
+    if width <= max_width {
+        return Some((token, width));
+    }
+    let label_budget = max_width
+        .checked_sub(prefix_width)
+        .and_then(|rest| rest.checked_sub(2));
+    let Some(label_budget) = label_budget.filter(|budget| *budget >= 1) else {
+        let clipped = truncate_display(&token, max_width);
+        let clipped_width = Line::raw(clipped.as_str()).width();
+        return Some((clipped, clipped_width));
+    };
+    let truncated = format!(
+        "{prefix}{}{ELLIPSIS}]",
+        truncate_display(&safe_label, label_budget)
+    );
+    Some((truncated.clone(), Line::raw(truncated.as_str()).width()))
 }
 
 fn compact_token_width(tab: TabDisplay<'_>) -> usize {
@@ -159,10 +183,40 @@ fn compact_token_width(tab: TabDisplay<'_>) -> usize {
         .saturating_add(1)
 }
 
-fn navigator_row(tab: TabDisplay<'_>) -> String {
+fn navigator_row(tab: TabDisplay<'_>, width: usize) -> String {
     let safe_label = sanitize_terminal_text(tab.label);
     let marker = if tab.active { '*' } else { ' ' };
-    format!("[{marker}{}] {safe_label}", tab.position)
+    let prefix = format!("[{marker}{}] ", tab.position);
+    let prefix_width = Line::raw(prefix.as_str()).width();
+    let row = format!("{prefix}{safe_label}");
+    if Line::raw(row.as_str()).width() <= width {
+        return row;
+    }
+    let Some(label_budget) = width
+        .checked_sub(prefix_width)
+        .and_then(|rest| rest.checked_sub(1))
+        .filter(|budget| *budget >= 1)
+    else {
+        return truncate_display(&row, width);
+    };
+    format!(
+        "{prefix}{}{ELLIPSIS}",
+        truncate_display(&safe_label, label_budget)
+    )
+}
+
+pub(super) fn truncate_display(label: &str, budget: usize) -> String {
+    let mut text = String::new();
+    let mut used = 0_usize;
+    for grapheme in Line::raw(label).styled_graphemes(Style::default()) {
+        let width = Line::raw(grapheme.symbol).width();
+        if used.saturating_add(width) > budget {
+            break;
+        }
+        text.push_str(grapheme.symbol);
+        used = used.saturating_add(width);
+    }
+    text
 }
 
 fn compact_style(active: bool) -> Style {

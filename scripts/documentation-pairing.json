@@ -153,6 +153,10 @@
 			"englishSha256": "243d50491add4de34377903e103def4b816bae23daa821830c422cb85061b433",
 			"zhCnSha256": "84e64675cae1228a732db5ab3322aa77a23f740bd7e4e7d081e4889a30970be8"
 		},
+		"apps/orchbee/docs/tui-shell-layout.md": {
+			"englishSha256": "b9c256516e501678e838d7caeb57157cfdaff3d743c32e35c6a5a1d01578aeef",
+			"zhCnSha256": "374fc2f0c227542663ba1b1d6748a23ab920697c61c76d27d0c84587a9c83aa3"
+		},
 		"apps/server/README.md": {
 			"englishSha256": "332ffbc750feb60fb3f23dc7a536970e929cb56c529b2f253f109f41bc8d7370",
 			"zhCnSha256": "c9290becb6796baeb94ce0533b7e6b0bd2a8d44aa47d3fde4f6815b61fedb3f7"

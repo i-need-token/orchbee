@@ -152,7 +152,7 @@ fn compact_strip_clips_without_splitting_a_double_width_cell() {
 }
 
 #[test]
-fn long_active_label_is_clipped_after_its_complete_prefix() {
+fn long_active_label_truncates_with_an_ellipsis_after_its_complete_prefix() {
     let label = format!("e\u{301}{}suffix", "界".repeat(256));
     let canonical = label.clone();
     let tabs = [TestTab {
@@ -162,8 +162,35 @@ fn long_active_label_is_clipped_after_its_complete_prefix() {
 
     let (text, _) = rendered(8, 1, &tabs, Some(1), Surface::Compact);
 
-    assert!(text.starts_with("[*1 e\u{301}界"), "{text:?}");
+    assert_eq!(text, "[*1 e\u{301}…] \n");
     assert_eq!(label, canonical);
+}
+
+#[test]
+fn long_chinese_label_truncates_on_display_width_with_an_ellipsis() {
+    let tabs = [TestTab {
+        label: "项目管理器工作区终端会话标签页",
+        active: true,
+    }];
+
+    let (text, _) = rendered(12, 1, &tabs, Some(1), Surface::Compact);
+
+    // "[*1 " is 4 cells; "…]" reserves 2, leaving a 6-cell label budget (3 CJK).
+    // Wide graphemes occupy a continuation cell that reads back as a space.
+    assert_eq!(text, "[*1 项 目 管 …]\n");
+    assert!(!text.replace(' ', "").contains("理"));
+}
+
+#[test]
+fn navigator_rows_truncate_wide_labels_on_display_width() {
+    let tabs = [TestTab {
+        label: "项目管理器工作区终端会话标签页",
+        active: true,
+    }];
+
+    let (text, _) = rendered(14, 1, &tabs, Some(1), Surface::Navigator);
+
+    assert_eq!(text, "[*1] 项 目 管 理 …\n");
 }
 
 #[test]
@@ -225,8 +252,8 @@ fn token_formatting_is_usize_safe() {
         label: "label",
     };
 
-    let (compact, _) = compact_token(tab);
-    let navigator = navigator_row(tab);
+    let (compact, _) = compact_token(tab, usize::MAX).unwrap();
+    let navigator = navigator_row(tab, usize::MAX);
 
     assert_eq!(compact, format!("[*{} label]", usize::MAX));
     assert_eq!(navigator, format!("[*{}] label", usize::MAX));

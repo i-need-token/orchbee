@@ -29,6 +29,7 @@ pub(super) fn render_navigator<'a>(
     context_at: impl Fn(usize) -> Option<ContextDisplay<'a>>,
 ) {
     let lines = navigator_lines(
+        usize::from(area.width),
         usize::from(area.height),
         context_count,
         active_position,
@@ -42,13 +43,14 @@ pub(super) fn location_label(context: ContextDisplay<'_>) -> String {
 }
 
 fn navigator_lines<'a>(
+    width: usize,
     height: usize,
     context_count: usize,
     active_position: Option<usize>,
     context_at: &impl Fn(usize) -> Option<ContextDisplay<'a>>,
 ) -> Vec<Line<'static>> {
     let visible = height.min(MAX_VISIBLE_CONTEXTS).min(context_count);
-    if visible == 0 {
+    if visible == 0 || width == 0 {
         return Vec::new();
     }
 
@@ -66,16 +68,33 @@ fn navigator_lines<'a>(
         .map_while(context_at)
         .map(|context| {
             Line::from(Span::styled(
-                context_row(context),
+                context_row(context, width),
                 navigator_style(context.active),
             ))
         })
         .collect()
 }
 
-fn context_row(context: ContextDisplay<'_>) -> String {
+fn context_row(context: ContextDisplay<'_>, width: usize) -> String {
     let marker = if context.active { '*' } else { ' ' };
-    format!("[{marker}{}] {}", context.position, context_label(context))
+    let prefix = format!("[{marker}{}] ", context.position);
+    let prefix_width = Line::raw(prefix.as_str()).width();
+    let label = context_label(context);
+    let row = format!("{prefix}{label}");
+    if Line::raw(row.as_str()).width() <= width {
+        return row;
+    }
+    let Some(label_budget) = width
+        .checked_sub(prefix_width)
+        .and_then(|rest| rest.checked_sub(1))
+        .filter(|budget| *budget >= 1)
+    else {
+        return super::tabs::truncate_display(&row, width);
+    };
+    format!(
+        "{prefix}{}…",
+        super::tabs::truncate_display(&label, label_budget)
+    )
 }
 
 fn context_label(context: ContextDisplay<'_>) -> String {

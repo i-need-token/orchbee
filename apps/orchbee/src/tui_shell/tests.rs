@@ -220,7 +220,7 @@ fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()
     let original = dimensions(120, 32);
     let view = ClientView::new(original.columns);
     let geometry = super::terminal_geometry(original, &view)?;
-    assert_eq!((geometry.columns(), geometry.rows()), (88, 25));
+    assert_eq!((geometry.columns(), geometry.rows()), (88, 28));
     assert_eq!(
         (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
         (8, 20)

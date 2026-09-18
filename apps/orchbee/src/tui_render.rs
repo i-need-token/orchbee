@@ -10,10 +10,14 @@ use crate::{
     client_view::{ClientView, Overlay},
     localization::{Locale, ShellText},
     terminal_session::{
-        NativeDisplayPhase, NativeDrawReceipt, NativePanelTree, NativeProjectionStatus,
-        NativeRefreshStatus, NativeSessionView, NativeTabView, TerminalSessionView,
+        NativeCloseStatusToken, NativeDisplayPhase, NativeDrawReceipt, NativePanelTree,
+        NativeProjectionStatus, NativeRefreshStatus, NativeSessionView, NativeTabView,
+        TerminalSessionView,
     },
-    tui_layout::{ShellAreas, SidebarArea, SidebarLayer, centered_overlay, project_shell_areas},
+    tui_layout::{
+        ShellAreas, SidebarArea, SidebarLayer, ViewportTier, divide_panes, overlay_area,
+        pane_content, place_overlay, project_shell_areas, terminal_area,
+    },
 };
 
 use crate::terminal_session::TerminalStatus;
@@ -49,151 +53,184 @@ pub(crate) fn render_terminal_shell(
     frame.render_widget(Block::new().style(Style::new().bg(BACKGROUND)), area);
 
     let areas = project_shell_areas(area, view.sidebar_surface());
-    let mut status_draw = None;
-    let sidebar_status = match session.as_ref() {
+    let tier = areas.tier;
+
+    let mut status_draw: Option<(NativeCloseStatusToken, Rect)> = None;
+    let mut prompt = None;
+    let mut rename = None;
+    let mut setup = None;
+    let mut overlay_refused = false;
+    let sidebar_status;
+    let status_text;
+    let mut secondary_notice = None;
+
+    match session.as_ref() {
         None => {
-            render_unavailable_workbench(
-                frame,
-                areas.tabs,
-                areas.panel,
-                text,
-                text.tabs_unavailable,
-            );
-            render_status(
-                frame,
-                areas.status,
-                view,
-                locale,
-                text,
-                locale.shell_notice(None),
-                None,
-            );
-            text.backend_status.to_owned()
+            sidebar_status = text.backend_status.to_owned();
+            status_text = locale.shell_notice(None).to_owned();
+            if tier != ViewportTier::TooSmall {
+                render_unavailable_workbench(frame, &areas, text, text.tabs_unavailable, tier);
+            }
         }
         #[cfg(test)]
         Some(TerminalSessionView::Legacy { projection, status }) => {
-            render_unavailable_workbench(
-                frame,
-                areas.tabs,
-                areas.panel,
-                text,
-                text.workbench_title,
-            );
-            render_legacy_terminal(frame, areas.panel, view, locale, *projection, *status);
-            let status = locale.terminal_status(*status);
-            render_status(frame, areas.status, view, locale, text, status, None);
-            status.to_owned()
+            sidebar_status = locale.terminal_status(*status).to_owned();
+            status_text = sidebar_status.clone();
+            if tier != ViewportTier::TooSmall {
+                render_unavailable_workbench(frame, &areas, text, text.workbench_title, tier);
+                render_legacy_terminal(frame, areas.panel, view, locale, *projection, *status);
+            }
         }
         Some(TerminalSessionView::Native(native)) => {
             let phase_status = locale.native_phase_status(native);
-            render_native_workbench(frame, &areas, view, locale, text, native, &phase_status);
             let close = native.close_status();
             let status = close.as_ref().map_or_else(
                 || locale.native_status(native),
                 |status| locale.native_close_status(status),
             );
-            let local_notice = close
+            secondary_notice = close
                 .as_ref()
                 .and_then(|_| native.notice())
                 .map(|notice| locale.native_notice(notice));
-            let visible = render_status(
-                frame,
-                areas.status,
-                view,
-                locale,
-                text,
-                &status,
-                local_notice.as_deref(),
-            );
-            status_draw = close.and_then(|status| visible.map(|area| (status.token(), area)));
-            phase_status
-        }
-    };
-
-    if let Some(sidebar) = areas.sidebar {
-        render_sidebar(frame, sidebar, text, &sidebar_status);
-    }
-
-    let overlay = match view.overlay() {
-        Some(Overlay::ShortcutHelp) => Some(render_shortcut_help(frame, area, text)),
-        Some(Overlay::WorkbenchNavigator) => Some(match session.as_ref() {
-            Some(TerminalSessionView::Native(native)) => {
-                render_native_workbench_navigator(frame, area, text, locale, native)
+            sidebar_status = phase_status.to_owned();
+            status_text = status;
+            if tier != ViewportTier::TooSmall {
+                render_native_workbench(frame, &areas, view, locale, text, native, &phase_status);
             }
-            #[cfg(test)]
-            Some(TerminalSessionView::Legacy { .. }) => {
-                render_unavailable_workbench_navigator(frame, area, text)
-            }
-            None => render_unavailable_workbench_navigator(frame, area, text),
-        }),
-        Some(Overlay::BusinessSidebar) => areas.sidebar.map(|sidebar| sidebar.area),
-        None => None,
-    };
-    if let Some(overlay) = overlay {
-        status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(overlay));
-    }
-    let mut prompt = None;
-    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
-        && let Some(confirmation) = native.close_confirmation()
-    {
-        let modal = tab_close::render(frame, locale, &confirmation);
-        status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
-        prompt = modal.prompt;
-        if let Some(token) = modal.status {
-            status_draw = Some((token, modal.area));
         }
     }
-    let mut rename = None;
-    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
-        && let Some(draft) = native.rename_draft()
-    {
-        let (area, token) = tab_rename::render(frame, locale, &draft);
-        status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
-        prompt = None;
-        rename = token;
+
+    if tier == ViewportTier::TooSmall {
+        render_too_small_notice(frame, areas.body, text);
     }
-    let mut setup = None;
-    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
-        && let Some(draft) = native.setup_draft()
-    {
-        let (area, token) = workspace_setup::render(frame, locale, &draft, native.setup_status());
-        status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
-        prompt = None;
-        rename = None;
-        setup = token;
+
+    if tier != ViewportTier::TooSmall {
+        if let Some(sidebar) = areas.sidebar {
+            render_sidebar(frame, sidebar, text, &sidebar_status);
+        }
+
+        let overlay = match view.overlay() {
+            Some(Overlay::ShortcutHelp) => {
+                Some(render_shortcut_help(frame, overlay_area(&areas), text))
+            }
+            Some(Overlay::WorkbenchNavigator) => Some(match session.as_ref() {
+                Some(TerminalSessionView::Native(native)) => render_native_workbench_navigator(
+                    frame,
+                    overlay_area(&areas),
+                    text,
+                    locale,
+                    native,
+                ),
+                #[cfg(test)]
+                Some(TerminalSessionView::Legacy { .. }) => {
+                    render_unavailable_workbench_navigator(frame, overlay_area(&areas), text)
+                }
+                None => render_unavailable_workbench_navigator(frame, overlay_area(&areas), text),
+            }),
+            Some(Overlay::BusinessSidebar) => Some(areas.sidebar.map(|sidebar| sidebar.area)),
+            None => None,
+        };
+        if let Some(None) = overlay {
+            overlay_refused = true;
+        }
+
+        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+            && let Some(confirmation) = native.close_confirmation()
+        {
+            let modal = tab_close::render(frame, locale, &confirmation);
+            status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
+            prompt = modal.prompt;
+            if let Some(token) = modal.status {
+                status_draw = Some((token, modal.area));
+            }
+        }
+        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+            && let Some(draft) = native.rename_draft()
+        {
+            let (area, token) = tab_rename::render(frame, locale, &draft);
+            status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
+            prompt = None;
+            rename = token;
+        }
+        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+            && let Some(draft) = native.setup_draft()
+        {
+            let (area, token) =
+                workspace_setup::render(frame, locale, &draft, native.setup_status());
+            status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
+            prompt = None;
+            rename = None;
+            setup = token;
+        }
+    } else if view.overlay().is_some() {
+        overlay_refused = true;
     }
+
+    let notice = if overlay_refused {
+        Some(text.overlay_refused)
+    } else {
+        secondary_notice.as_deref()
+    };
+    let visible = render_status(
+        frame,
+        areas.status,
+        view,
+        locale,
+        text,
+        &status_text,
+        notice,
+        tier,
+    );
+    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && let Some(close) = native.close_status()
+    {
+        status_draw = status_draw.or(visible.map(|area| (close.token(), area)));
+    }
+
     NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
         .with_rename(rename)
         .with_setup(setup)
 }
 
+fn render_too_small_notice(frame: &mut Frame<'_>, body: Rect, text: ShellText) {
+    let row = Rect::new(
+        body.x,
+        body.y.saturating_add(body.height / 2),
+        body.width,
+        1,
+    );
+    frame.render_widget(
+        Paragraph::new(tabs::truncate_display(
+            text.too_small_notice,
+            usize::from(body.width),
+        ))
+        .alignment(Alignment::Center)
+        .style(Style::new().fg(WARNING)),
+        row,
+    );
+}
+
 fn render_unavailable_workbench(
     frame: &mut Frame<'_>,
-    tabs: Rect,
-    panel: Rect,
+    areas: &ShellAreas,
     text: ShellText,
     tab_status: &str,
+    tier: ViewportTier,
 ) {
-    let tab_line = Line::from(vec![
-        Span::styled(format!(" {tab_status} "), Style::new().fg(MUTED)),
-        Span::styled(
-            "  !  ",
-            Style::new().fg(WARNING).add_modifier(Modifier::BOLD),
-        ),
-    ]);
-    frame.render_widget(
-        Paragraph::new(tab_line).block(
-            Block::new()
-                .borders(Borders::ALL)
-                .border_style(Style::new().fg(BORDER))
-                .border_type(BorderType::Rounded)
-                .title(Span::styled(
-                    format!(" {} ", text.workbench_title),
-                    Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD),
-                )),
-        ),
-        tabs,
-    );
+    if !areas.tabs.is_empty() {
+        let tab_line = Line::from(vec![
+            Span::styled(
+                format!(" {} ", text.workbench_title),
+                Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!(" {tab_status} "), Style::new().fg(MUTED)),
+            Span::styled(
+                "  !  ",
+                Style::new().fg(WARNING).add_modifier(Modifier::BOLD),
+            ),
+        ]);
+        frame.render_widget(Paragraph::new(tab_line), areas.tabs);
+    }
 
     let content = vec![
         Line::from(""),
@@ -205,23 +242,33 @@ fn render_unavailable_workbench(
         Line::styled(text.shell_only_detail, Style::new().fg(TEXT)),
         Line::styled(text.no_client_session, Style::new().fg(MUTED)),
     ];
-    frame.render_widget(
-        Paragraph::new(content)
-            .alignment(Alignment::Center)
-            .wrap(Wrap { trim: true })
-            .block(
-                Block::new()
-                    .borders(Borders::ALL)
-                    .border_style(Style::new().fg(BORDER))
-                    .border_type(BorderType::Rounded)
-                    .padding(Padding::vertical(1))
-                    .title(Span::styled(
-                        format!(" {} ", text.panel_title),
-                        Style::new().fg(TEXT),
-                    )),
-            ),
-        panel,
-    );
+    let content_area = terminal_area(areas.panel);
+    if tier.shows_panel_frame() {
+        frame.render_widget(
+            Paragraph::new(content)
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::new()
+                        .borders(Borders::ALL)
+                        .border_style(Style::new().fg(BORDER))
+                        .border_type(BorderType::Rounded)
+                        .padding(Padding::vertical(1))
+                        .title(Span::styled(
+                            format!(" {} ", text.panel_title),
+                            Style::new().fg(TEXT),
+                        )),
+                ),
+            areas.panel,
+        );
+    } else {
+        frame.render_widget(
+            Paragraph::new(content)
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true }),
+            content_area,
+        );
+    }
 }
 
 #[cfg(test)]
@@ -233,7 +280,7 @@ fn render_legacy_terminal(
     projection: Option<&crate::terminal_projection::TerminalProjection>,
     status: TerminalStatus,
 ) {
-    let area = crate::tui_layout::terminal_area(panel);
+    let area = terminal_area(panel);
     frame.render_widget(Clear, area);
     if let Some(terminal) =
         projection.and_then(crate::terminal_projection::TerminalProjection::frame)
@@ -258,41 +305,22 @@ fn render_native_workbench(
     native: &NativeSessionView<'_>,
     phase_status: &str,
 ) {
-    let tabs_area = areas.tabs;
     let panel_area = areas.panel;
     let location = native_location_label(native, text.standalone);
-    let workbench_title = location.as_deref().map_or_else(
-        || text.workbench_title.to_owned(),
-        |location| format!("{} · {location}", text.workbench_title),
-    );
-    let tabs_block = Block::new()
-        .borders(Borders::ALL)
-        .border_style(Style::new().fg(BORDER))
-        .border_type(BorderType::Rounded)
-        .title(Span::styled(
-            format!(" {workbench_title} "),
-            Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD),
-        ));
-    let tabs_content = tabs_block.inner(tabs_area);
-    frame.render_widget(tabs_block, tabs_area);
-    tabs::render_compact(
-        frame,
-        tabs_content,
-        native.tab_count(),
-        native.active_position(),
-        |index| native_tab(native, index),
-    );
+    render_tab_strip(frame, areas.tabs, native, location.as_deref());
 
-    let panel_block = Block::new()
-        .borders(Borders::ALL)
-        .border_style(Style::new().fg(BORDER))
-        .border_type(BorderType::Rounded)
-        .title(Span::styled(
-            format!(" {} ", text.panel_title),
-            Style::new().fg(TEXT),
-        ));
-    let panel_content = panel_block.inner(panel_area);
-    frame.render_widget(panel_block, panel_area);
+    let content_area = terminal_area(panel_area);
+    if areas.tier.shows_panel_frame() {
+        let panel_block = Block::new()
+            .borders(Borders::ALL)
+            .border_style(Style::new().fg(BORDER))
+            .border_type(BorderType::Rounded)
+            .title(Span::styled(
+                format!(" {} ", text.panel_title),
+                Style::new().fg(TEXT),
+            ));
+        frame.render_widget(panel_block, panel_area);
+    }
     let terminal = if native.projection_status() == NativeProjectionStatus::FrameAvailable {
         native
             .projection()
@@ -305,9 +333,10 @@ fn render_native_workbench(
         .and_then(|position| position.checked_sub(1))
         .and_then(|index| native.tab(index));
     if let Some(tab) = active_tab.filter(|tab| tab.panel_count() > 1) {
+        let mut dividers = Vec::new();
         render_panel_tree(
             frame,
-            panel_content,
+            content_area,
             tab,
             tab.panel_tree(),
             terminal,
@@ -319,11 +348,13 @@ fn render_native_workbench(
             phase_status,
             locale,
             native,
+            &mut dividers,
         );
+        render_dividers(frame, &dividers);
     } else if let Some(terminal) = terminal {
         terminal_cells::render(
             frame,
-            panel_content,
+            content_area,
             terminal,
             client_view.overlay().is_none()
                 && native.close_confirmation().is_none()
@@ -356,7 +387,55 @@ fn render_native_workbench(
             Paragraph::new(panel_status)
                 .style(Style::new().fg(MUTED))
                 .wrap(Wrap { trim: true }),
-            panel_content,
+            content_area,
+        );
+    }
+}
+
+fn render_tab_strip(
+    frame: &mut Frame<'_>,
+    tabs_area: Rect,
+    native: &NativeSessionView<'_>,
+    location: Option<&str>,
+) {
+    if tabs_area.is_empty() {
+        return;
+    }
+    let location = location.map(|location| format!("· {location} "));
+    let (strip, location_area) = location.as_ref().map_or((tabs_area, None), |location| {
+        let width = u16::try_from(Line::raw(location.as_str()).width()).unwrap_or(u16::MAX);
+        if width < tabs_area.width {
+            (
+                Rect::new(
+                    tabs_area.x,
+                    tabs_area.y,
+                    tabs_area.width - width - 1,
+                    tabs_area.height,
+                ),
+                Some(Rect::new(
+                    tabs_area.x + tabs_area.width - width,
+                    tabs_area.y,
+                    width,
+                    tabs_area.height,
+                )),
+            )
+        } else {
+            (tabs_area, None)
+        }
+    });
+    tabs::render_compact(
+        frame,
+        strip,
+        native.tab_count(),
+        native.active_position(),
+        |index| native_tab(native, index),
+    );
+    if let (Some(location), Some(location_area)) = (location, location_area) {
+        frame.render_widget(
+            Paragraph::new(location)
+                .alignment(Alignment::Right)
+                .style(Style::new().fg(MUTED)),
+            location_area,
         );
     }
 }
@@ -373,104 +452,183 @@ fn render_panel_tree(
     phase_status: &str,
     locale: Locale,
     native: &NativeSessionView<'_>,
+    dividers: &mut Vec<Rect>,
 ) {
     match tree {
         NativePanelTree::Panel { panel_index } => {
-            let active = tab.active_panel() == Some(*panel_index);
-            let panel = tab.panel(*panel_index);
-            let title = panel.map_or_else(
-                || format!(" {} {} ", text.panel_title, panel_index.saturating_add(1)),
-                |panel| {
-                    format!(
-                        " {} {} · {} ",
-                        text.panel_title,
-                        panel_index.saturating_add(1),
-                        panel.presentation_label().as_str()
-                    )
-                },
+            render_leaf(
+                frame,
+                area,
+                tab,
+                *panel_index,
+                terminal,
+                input_enabled,
+                text,
+                phase_status,
+                locale,
+                native,
             );
-            let border = if active { EMPHASIS } else { BORDER };
-            let block = Block::new()
-                .borders(Borders::ALL)
-                .border_style(Style::new().fg(border))
-                .border_type(BorderType::Rounded)
-                .title(Span::styled(
-                    title,
-                    Style::new()
-                        .fg(if active { EMPHASIS } else { MUTED })
-                        .add_modifier(if active {
-                            Modifier::BOLD
-                        } else {
-                            Modifier::empty()
-                        }),
-                ));
-            let content = block.inner(area);
-            frame.render_widget(block, area);
-            if active {
-                if let Some(terminal) = terminal {
-                    terminal_cells::render(frame, content, terminal, input_enabled);
-                } else {
-                    let status = if matches!(
-                        native.phase(),
-                        NativeDisplayPhase::Ready
-                            | NativeDisplayPhase::MoveProjectionUnavailable
-                            | NativeDisplayPhase::PanelProjectionUnavailable
-                            | NativeDisplayPhase::RenameProjectionUnavailable
-                    ) {
-                        locale.terminal_status(TerminalStatus::Blocked)
-                    } else {
-                        phase_status
-                    };
-                    frame.render_widget(
-                        Paragraph::new(status)
-                            .style(Style::new().fg(MUTED))
-                            .wrap(Wrap { trim: true }),
-                        content,
-                    );
-                }
-            }
         }
         NativePanelTree::Split {
             first,
             second,
             orientation,
             ..
-        } => {
-            let [first_area, second_area] = match orientation {
-                orchbee_workbench_protocol::PanelOrientation::Horizontal => {
-                    Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-                        .areas(area)
+        } => match divide_panes(area, *orientation) {
+            Some(division) => {
+                dividers.push(division.divider);
+                render_panel_tree(
+                    frame,
+                    division.first,
+                    tab,
+                    first,
+                    terminal,
+                    input_enabled,
+                    text,
+                    phase_status,
+                    locale,
+                    native,
+                    dividers,
+                );
+                render_panel_tree(
+                    frame,
+                    division.second,
+                    tab,
+                    second,
+                    terminal,
+                    input_enabled,
+                    text,
+                    phase_status,
+                    locale,
+                    native,
+                    dividers,
+                );
+            }
+            None => {
+                let leaf = active_leaf(tree, tab.active_panel()).or_else(|| first_leaf(tree));
+                if let Some(NativePanelTree::Panel { panel_index }) = leaf {
+                    render_leaf(
+                        frame,
+                        area,
+                        tab,
+                        *panel_index,
+                        terminal,
+                        input_enabled,
+                        text,
+                        phase_status,
+                        locale,
+                        native,
+                    );
                 }
-                orchbee_workbench_protocol::PanelOrientation::Vertical => {
-                    Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
-                        .areas(area)
-                }
+            }
+        },
+    }
+}
+
+fn active_leaf(tree: &NativePanelTree, active: Option<usize>) -> Option<&NativePanelTree> {
+    match tree {
+        NativePanelTree::Panel { panel_index } => (Some(*panel_index) == active).then_some(tree),
+        NativePanelTree::Split { first, second, .. } => {
+            active_leaf(first, active).or_else(|| active_leaf(second, active))
+        }
+    }
+}
+
+fn first_leaf(tree: &NativePanelTree) -> Option<&NativePanelTree> {
+    match tree {
+        NativePanelTree::Panel { .. } => Some(tree),
+        NativePanelTree::Split { first, .. } => first_leaf(first),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_leaf(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    tab: NativeTabView<'_>,
+    panel_index: usize,
+    terminal: Option<&orchbee_terminal_protocol::TerminalTextFrame>,
+    input_enabled: bool,
+    text: ShellText,
+    phase_status: &str,
+    locale: Locale,
+    native: &NativeSessionView<'_>,
+) {
+    let active = tab.active_panel() == Some(panel_index);
+    let panel = tab.panel(panel_index);
+    let title = panel.map_or_else(
+        || format!(" {} {} ", text.panel_title, panel_index.saturating_add(1)),
+        |panel| {
+            format!(
+                " {} {} · {} ",
+                text.panel_title,
+                panel_index.saturating_add(1),
+                panel.presentation_label().as_str()
+            )
+        },
+    );
+    let title_style = if active {
+        Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD)
+    } else {
+        Style::new().fg(MUTED)
+    };
+    let title_area = Rect::new(area.x, area.y, area.width, 1.min(area.height));
+    frame.render_widget(
+        Paragraph::new(tabs::truncate_display(&title, usize::from(area.width))).style(title_style),
+        title_area,
+    );
+    let content = pane_content(area);
+    if active {
+        if let Some(terminal) = terminal {
+            terminal_cells::render(frame, content, terminal, input_enabled);
+        } else {
+            let status = if matches!(
+                native.phase(),
+                NativeDisplayPhase::Ready
+                    | NativeDisplayPhase::MoveProjectionUnavailable
+                    | NativeDisplayPhase::PanelProjectionUnavailable
+                    | NativeDisplayPhase::RenameProjectionUnavailable
+            ) {
+                locale.terminal_status(TerminalStatus::Blocked)
+            } else {
+                phase_status
             };
-            render_panel_tree(
-                frame,
-                first_area,
-                tab,
-                first,
-                terminal,
-                input_enabled,
-                text,
-                phase_status,
-                locale,
-                native,
-            );
-            render_panel_tree(
-                frame,
-                second_area,
-                tab,
-                second,
-                terminal,
-                input_enabled,
-                text,
-                phase_status,
-                locale,
-                native,
+            frame.render_widget(
+                Paragraph::new(status)
+                    .style(Style::new().fg(MUTED))
+                    .wrap(Wrap { trim: true }),
+                content,
             );
         }
+    } else {
+        frame.render_widget(
+            Paragraph::new(text.inactive_pane)
+                .style(Style::new().fg(MUTED))
+                .wrap(Wrap { trim: true }),
+            content,
+        );
+    }
+}
+
+fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect]) {
+    let mut cells = std::collections::BTreeSet::new();
+    for divider in dividers {
+        for y in divider.y..divider.y.saturating_add(divider.height) {
+            for x in divider.x..divider.x.saturating_add(divider.width) {
+                cells.insert((x, y));
+            }
+        }
+    }
+    for &(x, y) in &cells {
+        let glyph = crate::tui_layout::divider_glyph(
+            cells.contains(&(x, y.saturating_sub(1))),
+            cells.contains(&(x, y.saturating_add(1))),
+            cells.contains(&(x.saturating_sub(1), y)),
+            cells.contains(&(x.saturating_add(1), y)),
+        );
+        frame
+            .buffer_mut()
+            .set_string(x, y, glyph.to_string(), Style::new().fg(BORDER));
     }
 }
 
@@ -502,6 +660,7 @@ fn native_location_label(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_status(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -510,49 +669,52 @@ fn render_status(
     text: ShellText,
     status: &str,
     secondary_notice: Option<&str>,
+    tier: ViewportTier,
 ) -> Option<Rect> {
+    if area.is_empty() {
+        return None;
+    }
     let secondary_notice = secondary_notice.filter(|_| !view.prefix_active());
-    let secondary_width = secondary_notice.map_or(24, |notice| {
-        u16::try_from(Line::raw(notice).width())
-            .unwrap_or(u16::MAX)
-            .max(24)
-    });
-    let [notice, prefix] =
-        Layout::horizontal([Constraint::Min(0), Constraint::Length(secondary_width)]).areas(area);
-    let status_block = Block::new()
-        .borders(Borders::TOP)
-        .border_style(Style::new().fg(BORDER));
-    let inner = status_block.inner(notice);
-    frame.render_widget(
-        Paragraph::new(
-            view.notice()
-                .map_or(status, |notice| locale.shell_notice(Some(notice))),
-        )
-        .style(Style::new().fg(MUTED))
-        .block(status_block.clone()),
-        notice,
-    );
     let (label, style) = if let Some(notice) = secondary_notice {
-        (notice, Style::new().fg(WARNING))
+        (notice.to_owned(), Style::new().fg(WARNING))
     } else if view.prefix_active() {
         (
-            text.prefix_active,
+            text.prefix_active.to_owned(),
             Style::new()
                 .fg(BACKGROUND)
                 .bg(EMPHASIS)
                 .add_modifier(Modifier::BOLD),
         )
     } else {
-        (text.prefix_idle, Style::new().fg(MUTED))
+        let hint = match tier {
+            ViewportTier::Full => text.prefix_idle,
+            ViewportTier::Compact => text.hint_short,
+            ViewportTier::Minimal | ViewportTier::TooSmall => text.exit_hint,
+        };
+        (hint.to_owned(), Style::new().fg(MUTED))
     };
+    let right_width = u16::try_from(Line::raw(label.as_str()).width())
+        .unwrap_or(u16::MAX)
+        .max(24)
+        .min(area.width);
+    let [status_area, right] =
+        Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).areas(area);
+    let status_label = view.notice().map_or_else(
+        || status.to_owned(),
+        |notice| locale.shell_notice(Some(notice)).to_owned(),
+    );
+    frame.render_widget(
+        Paragraph::new(status_label).style(Style::new().fg(MUTED)),
+        status_area,
+    );
     frame.render_widget(
         Paragraph::new(label)
             .alignment(Alignment::Right)
-            .style(style)
-            .block(status_block),
-        prefix,
+            .style(style),
+        right,
     );
-    (view.notice().is_none() && tab_close::unwrapped_text_fits(status, inner)).then_some(inner)
+    (view.notice().is_none() && tab_close::unwrapped_text_fits(status, status_area))
+        .then_some(status_area)
 }
 
 fn render_sidebar(
@@ -614,11 +776,11 @@ fn render_sidebar(
     );
 }
 
-fn render_shortcut_help(frame: &mut Frame<'_>, viewport: Rect, text: ShellText) -> Rect {
+fn render_shortcut_help(frame: &mut Frame<'_>, area: Rect, text: ShellText) -> Option<Rect> {
     let height = u16::try_from(text.shortcuts.len())
         .unwrap_or(u16::MAX)
         .saturating_add(4);
-    let area = centered_overlay(viewport, 76, height);
+    let area = place_overlay(area, 76, height)?;
     frame.render_widget(Clear, area);
     let mut items = text
         .shortcuts
@@ -634,15 +796,15 @@ fn render_shortcut_help(frame: &mut Frame<'_>, viewport: Rect, text: ShellText) 
         List::new(items).block(overlay_block(text.shortcut_title)),
         area,
     );
-    area
+    Some(area)
 }
 
 fn render_unavailable_workbench_navigator(
     frame: &mut Frame<'_>,
-    viewport: Rect,
+    area: Rect,
     text: ShellText,
-) -> Rect {
-    let area = centered_overlay(viewport, 68, 9);
+) -> Option<Rect> {
+    let area = place_overlay(area, 68, 9)?;
     frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(vec![
@@ -658,17 +820,17 @@ fn render_unavailable_workbench_navigator(
         .block(overlay_block(text.navigator_title)),
         area,
     );
-    area
+    Some(area)
 }
 
 fn render_native_workbench_navigator(
     frame: &mut Frame<'_>,
-    viewport: Rect,
+    area: Rect,
     text: ShellText,
     locale: Locale,
     native: &NativeSessionView<'_>,
-) -> Rect {
-    let area = centered_overlay(viewport, 88, 12);
+) -> Option<Rect> {
+    let area = place_overlay(area, 88, 12)?;
     frame.render_widget(Clear, area);
     let block = overlay_block(text.navigator_title);
     let content = block.inner(area);
@@ -721,7 +883,7 @@ fn render_native_workbench_navigator(
             status_area,
         );
     }
-    area
+    Some(area)
 }
 
 fn overlay_block(title: &'static str) -> Block<'static> {
