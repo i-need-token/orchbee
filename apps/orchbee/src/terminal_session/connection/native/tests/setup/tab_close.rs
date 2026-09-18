@@ -2,8 +2,8 @@ use super::super::commands::drive_controlling_ready_from_snapshot;
 use super::*;
 use crate::terminal_session::mailbox::UiWaitKey;
 use crate::terminal_session::state::{
-    CloseFlightKey, CloseOperation, CloseOperationKind, CloseReadMode, CloseResult, CloseSelection,
-    CloseTarget, PendingCloseResult,
+    CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation, CloseOperationKind, CloseReadMode,
+    CloseResult, CloseSelection, CloseTarget, PendingCloseResult,
 };
 use orchbee_workbench_protocol::{
     WorkbenchCommandOutcome, WorkbenchCommandResult, WorkbenchRequestId,
@@ -233,6 +233,23 @@ fn close_family_captured_exchange_and_typed_receipt_survive_late_ui_consumption(
         let next = admit(&mut harness, Family::Read)?;
         receive(&harness, Family::Read, &next)?;
         assert_ne!(next.key(), operation.key());
+        // Production ticks consume each finished Close lease acknowledgement; this driver
+        // deposits replies without ticking, so drain the exact hand-off explicitly or the
+        // next close-family finish_lease observes the stale record as a protocol violation.
+        let acknowledgement = harness
+            .mailbox
+            .take_close_acknowledgement()
+            .ok_or_else(|| test_error("first Close lease acknowledgement was not handed off"))?;
+        let CloseLeaseAcknowledgement::Exchange(key) = &acknowledgement else {
+            return Err(test_error(
+                "first Close lease acknowledgement was not an exchange",
+            ));
+        };
+        assert_eq!(key, operation.key());
+        harness
+            .ui
+            .state_mut()
+            .acknowledge_close_lease(acknowledgement);
         harness
             .carrier
             .respond_workbench(response(Family::Read, &next)?)?;
