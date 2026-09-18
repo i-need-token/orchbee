@@ -827,9 +827,13 @@ fn paginate_help_rows(row_lines: &[usize], rows_per_page: usize) -> Option<Vec<(
 
 /// Wraps `text` to `width` display cells on grapheme boundaries, preferring
 /// to break at ASCII spaces; a word wider than `width` breaks mid-word so no
-/// cell is ever clipped. Returns at least one (possibly empty) line.
-fn wrap_display(text: &str, width: usize) -> Vec<String> {
-    let width = width.max(1);
+/// cell is ever clipped. Returns `None` when the text cannot be presented
+/// honestly — a zero budget, or a grapheme wider than `width` that no line
+/// could hold without clipping. Never fabricates a width the caller lacks.
+fn wrap_display(text: &str, width: usize) -> Option<Vec<String>> {
+    if width == 0 {
+        return text.is_empty().then(|| vec![String::new()]);
+    }
     let mut lines = Vec::new();
     let mut line = String::new();
     let mut line_width = 0_usize;
@@ -847,6 +851,9 @@ fn wrap_display(text: &str, width: usize) -> Vec<String> {
             ratatui::text::Span::raw(word).styled_graphemes(ratatui::style::Style::default())
         {
             let cell = display_width(grapheme.symbol);
+            if cell > width {
+                return None;
+            }
             if line_width + cell > width {
                 lines.push(std::mem::take(&mut line));
                 line_width = 0;
@@ -856,7 +863,7 @@ fn wrap_display(text: &str, width: usize) -> Vec<String> {
         }
     }
     lines.push(line);
-    lines
+    Some(lines)
 }
 
 /// Render the shortcut-help overlay paged to fit the placed area: each
@@ -889,13 +896,16 @@ fn render_shortcut_help(
 
     // Each registry row is a (padded chord, description) pair: the chord
     // column is already a uniform width, so continuation lines align under
-    // the description column by the chord's display width.
+    // the description column by the chord's display width. A chord wider
+    // than the inner width cannot be drawn without clipping — refuse.
     let row_lines = rows
         .iter()
         .map(|(chord, label)| {
             let indent = display_width(chord);
-            let label_width = width.saturating_sub(indent);
-            let wrapped = wrap_display(label, label_width);
+            if indent > width {
+                return None;
+            }
+            let wrapped = wrap_display(label, width - indent)?;
             let mut lines = Vec::with_capacity(wrapped.len());
             let mut parts = wrapped.into_iter();
             lines.push(Line::from(vec![
@@ -911,9 +921,9 @@ fn render_shortcut_help(
                     theme.style(Role::TextPrimary),
                 )
             }));
-            lines
+            Some(lines)
         })
-        .collect::<Vec<_>>();
+        .collect::<Option<Vec<_>>>()?;
     let pages = paginate_help_rows(
         &row_lines.iter().map(Vec::len).collect::<Vec<_>>(),
         rows_per_page,
@@ -935,25 +945,29 @@ fn render_shortcut_help(
         .collect::<Vec<_>>();
     frame.render_widget(List::new(items), rows_area);
 
+    // The footer is mandatory and is never truncated: the dismiss line
+    // uses the widest localized form that fits whole — long first, then
+    // the explicit short form. The paging line leads with `page/total`
+    // and keeps the full paging hint, so the position is always visible.
+    // When the dismiss line cannot fit even in short form — or the paging
+    // line does not fit — placement refuses instead of drawing a keyless
+    // or numberless footer.
+    let dismiss = [text.help_dismiss_hint, text.help_dismiss_hint_short]
+        .into_iter()
+        .find(|hint| display_width(hint) <= width)?;
+    let paging = format!(
+        "{}/{} {} {}",
+        page + 1,
+        total_pages,
+        theme.glyphs.middle_dot,
+        text.help_paging_hint
+    );
+    if display_width(&paging) > width {
+        return None;
+    }
     let footer = vec![
-        Line::styled(
-            truncate_display(text.help_dismiss_hint, width, theme.glyphs.ellipsis),
-            theme.style(Role::HintLabel),
-        ),
-        Line::styled(
-            truncate_display(
-                &format!(
-                    "{} {} {}/{}",
-                    text.help_paging_hint,
-                    theme.glyphs.middle_dot,
-                    page + 1,
-                    total_pages
-                ),
-                width,
-                theme.glyphs.ellipsis,
-            ),
-            theme.style(Role::HintLabel),
-        ),
+        Line::styled(dismiss, theme.style(Role::HintLabel)),
+        Line::styled(paging, theme.style(Role::HintLabel)),
     ];
     frame.render_widget(Paragraph::new(footer), footer_area);
     Some((area, page))

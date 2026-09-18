@@ -256,7 +256,7 @@ fn help_paginates_wrapped_rows_and_clamps_the_requested_page() {
     let last = page + 1;
     let rows = buffer_rows(&terminal, 60, 12);
     assert!(rows[9].contains(&format!("{last}/{last}")), "{:?}", rows[9]);
-    assert!(rows[8].contains("Ctrl+B ? closes help"), "{:?}", rows[8]);
+    assert!(rows[8].contains("Ctrl+B ? closes"), "{:?}", rows[8]);
     // The last page holds the trailing "other keys" registry row, whose
     // description wrapped onto an aligned continuation line.
     assert!(rows.iter().any(|row| row.contains("terminal")), "{rows:?}");
@@ -324,6 +324,86 @@ fn help_wraps_chinese_descriptions_on_grapheme_boundaries() {
         rows.iter().any(|row| row.contains("PgUp/PgDn")),
         "paging footer missing: {rows:?}"
     );
+}
+
+#[test]
+fn wrap_display_refuses_widths_that_cannot_hold_a_grapheme() {
+    // Zero budget is unrenderable for real text; empty text needs no cell.
+    assert_eq!(super::wrap_display("ab", 0), None);
+    assert_eq!(super::wrap_display("", 0), Some(vec![String::new()]));
+    // A one-cell line can hold ASCII but never a two-cell CJK grapheme —
+    // the honest answer is `None`, not a forged wider line.
+    assert_eq!(
+        super::wrap_display("ab", 1),
+        Some(vec!["a".into(), "b".into()])
+    );
+    assert_eq!(super::wrap_display("中", 1), None);
+    assert_eq!(super::wrap_display("a中", 1), None);
+    assert_eq!(super::wrap_display("中", 2), Some(vec!["中".into()]));
+    // A combining sequence is one grapheme: it fits a 1-cell line whole.
+    assert_eq!(
+        super::wrap_display("a\u{301}", 1),
+        Some(vec!["a\u{301}".into()])
+    );
+    // An empty word between spaces still returns at least one line.
+    assert_eq!(super::wrap_display("", 5), Some(vec![String::new()]));
+}
+
+#[test]
+fn help_footer_falls_back_to_the_explicit_short_form_then_refuses() {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let text = Locale::EnUs.shell();
+    // 46x20: the long dismiss line (56 cells) exceeds the 40-cell inner
+    // width, so the localized short form renders — close chord, typing
+    // purpose, full paging chord, and page number all still visible.
+    let mut terminal = infallible(Terminal::new(TestBackend::new(46, 20)));
+    let mut placed = None;
+    infallible(terminal.draw(|frame| {
+        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+    }));
+    placed.expect("46x20 must fit the short footer");
+    let rows = buffer_rows(&terminal, 46, 20).concat();
+    assert!(
+        rows.contains("Ctrl+B ? closes · typing continues"),
+        "{rows}"
+    );
+    assert!(rows.contains("Ctrl+B PgUp/PgDn turns pages"), "{rows}");
+
+    // 38 columns: even the 34-cell short dismiss line cannot fit the
+    // 32-cell inner width, so the overlay refuses — no keyless footer.
+    let mut terminal = infallible(Terminal::new(TestBackend::new(38, 12)));
+    let mut placed = Some((ratatui::layout::Rect::default(), 0usize));
+    infallible(terminal.draw(|frame| {
+        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+    }));
+    assert_eq!(
+        placed, None,
+        "38-wide help must refuse, not clip the footer"
+    );
+}
+
+#[test]
+fn help_paging_line_leads_with_the_page_number() {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let text = Locale::EnUs.shell();
+    // `page/total` always leads the paging line, ahead of the full paging
+    // chord — it can never be clipped away by a right-edge cutoff.
+    let mut terminal = infallible(Terminal::new(TestBackend::new(60, 12)));
+    infallible(terminal.draw(|frame| {
+        super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+    }));
+    let rows = buffer_rows(&terminal, 60, 12);
+    let paging = rows
+        .iter()
+        .find(|row| row.contains("PgUp"))
+        .expect("paging footer line missing")
+        .trim_start_matches([' ', '│', '|', '+'])
+        .to_owned();
+    assert!(
+        paging.starts_with("1/"),
+        "page number not leading: {paging:?}"
+    );
+    assert!(paging.contains("Ctrl+B PgUp/PgDn"), "{paging:?}");
 }
 
 #[test]
