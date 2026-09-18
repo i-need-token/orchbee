@@ -1,12 +1,13 @@
 use ratatui::layout::Rect;
 
-use orchbee_workbench_protocol::PanelOrientation;
+use orchbee_workbench_protocol::{PanelOrientation, WorkbenchPanelSlotId, WorkbenchSplitId};
 
-use crate::client_view::SidebarSurface;
+use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
 
 use super::{
-    DOCKED_SIDEBAR_COLUMNS, SidebarLayer, ViewportTier, centered_overlay, divide_panes,
-    divider_glyph, overlay_area, pane_content, place_overlay, project_shell_areas, terminal_area,
+    DOCKED_SIDEBAR_COLUMNS, LeafArea, SidebarLayer, ViewportTier, centered_overlay, divide_panes,
+    divider_glyph, overlay_area, pane_content, place_overlay, project_panel_tree,
+    project_shell_areas, terminal_area,
 };
 
 #[test]
@@ -221,4 +222,153 @@ fn clips_legacy_centered_overlays_to_tiny_viewports() {
     let centered = centered_overlay(viewport, 72, 28);
 
     assert_eq!(centered, Rect::new(9, 10, 8, 2));
+}
+
+fn tree_id(value: u128) -> String {
+    format!("{value:032x}")
+}
+
+fn panel(index: usize) -> NativePanelTree {
+    NativePanelTree::Panel { panel_index: index }
+}
+
+fn split(
+    first: NativePanelTree,
+    second: NativePanelTree,
+    orientation: PanelOrientation,
+    id: u128,
+) -> NativePanelTree {
+    NativePanelTree::Split {
+        first: Box::new(first),
+        second: Box::new(second),
+        first_slot_id: WorkbenchPanelSlotId::parse(&tree_id(id)).unwrap(),
+        second_slot_id: WorkbenchPanelSlotId::parse(&tree_id(id + 1)).unwrap(),
+        orientation,
+        split_id: WorkbenchSplitId::parse(&tree_id(id + 2)).unwrap(),
+    }
+}
+
+#[test]
+fn projects_a_single_panel_to_one_leaf() {
+    let tree = panel(2);
+    let projection = project_panel_tree(Rect::new(1, 1, 90, 38), &tree, Some(0));
+
+    assert_eq!(
+        projection.leaves,
+        vec![LeafArea {
+            panel_index: 2,
+            leaf: Rect::new(1, 1, 90, 38),
+            content: Rect::new(1, 2, 90, 37),
+        }]
+    );
+    assert!(projection.dividers.is_empty());
+    assert_eq!(
+        projection.active_content(Some(2)),
+        Some(Rect::new(1, 2, 90, 37))
+    );
+}
+
+#[test]
+fn projects_a_split_into_leaves_sharing_one_divider() {
+    let tree = split(panel(0), panel(1), PanelOrientation::Horizontal, 10);
+    let projection = project_panel_tree(Rect::new(0, 0, 21, 9), &tree, Some(1));
+
+    assert_eq!(projection.dividers, vec![Rect::new(10, 0, 1, 9)]);
+    assert_eq!(
+        projection.leaves,
+        vec![
+            LeafArea {
+                panel_index: 0,
+                leaf: Rect::new(0, 0, 10, 9),
+                content: Rect::new(0, 1, 10, 8),
+            },
+            LeafArea {
+                panel_index: 1,
+                leaf: Rect::new(11, 0, 10, 9),
+                content: Rect::new(11, 1, 10, 8),
+            },
+        ]
+    );
+    // The selected leaf — not the first — is the Session resize target.
+    assert_eq!(
+        projection.active_content(Some(1)),
+        Some(Rect::new(11, 1, 10, 8))
+    );
+    assert_eq!(
+        projection.active_content(Some(0)),
+        Some(Rect::new(0, 1, 10, 8))
+    );
+    // Falls back to the first projected leaf when nothing matches.
+    assert_eq!(
+        projection.active_content(None),
+        Some(Rect::new(0, 1, 10, 8))
+    );
+    assert_eq!(
+        projection.active_content(Some(99)),
+        Some(Rect::new(0, 1, 10, 8))
+    );
+}
+
+#[test]
+fn projects_nested_splits_with_one_divider_per_split() {
+    let tree = split(
+        panel(0),
+        split(panel(1), panel(2), PanelOrientation::Vertical, 20),
+        PanelOrientation::Horizontal,
+        10,
+    );
+    let projection = project_panel_tree(Rect::new(0, 0, 41, 19), &tree, Some(2));
+
+    assert_eq!(
+        projection.dividers,
+        vec![Rect::new(20, 0, 1, 19), Rect::new(21, 9, 20, 1)]
+    );
+    assert_eq!(
+        projection.leaves,
+        vec![
+            LeafArea {
+                panel_index: 0,
+                leaf: Rect::new(0, 0, 20, 19),
+                content: Rect::new(0, 1, 20, 18),
+            },
+            LeafArea {
+                panel_index: 1,
+                leaf: Rect::new(21, 0, 20, 9),
+                content: Rect::new(21, 1, 20, 8),
+            },
+            LeafArea {
+                panel_index: 2,
+                leaf: Rect::new(21, 10, 20, 9),
+                content: Rect::new(21, 11, 20, 8),
+            },
+        ]
+    );
+    assert_eq!(
+        projection.active_content(Some(2)),
+        Some(Rect::new(21, 11, 20, 8))
+    );
+}
+
+#[test]
+fn collapses_an_unfittable_split_to_the_selected_leaf() {
+    let tree = split(panel(0), panel(1), PanelOrientation::Horizontal, 10);
+    // 8 columns cannot fit two >=4-column panes plus a divider.
+    let projection = project_panel_tree(Rect::new(0, 0, 8, 9), &tree, Some(1));
+
+    assert_eq!(projection.leaves.len(), 1);
+    assert_eq!(projection.leaves[0].panel_index, 1);
+    assert_eq!(projection.leaves[0].leaf, Rect::new(0, 0, 8, 9));
+    assert!(projection.dividers.is_empty());
+    assert_eq!(
+        projection.active_content(Some(1)),
+        Some(Rect::new(0, 1, 8, 8))
+    );
+
+    // With no matching selection the first leaf wins.
+    let fallback = project_panel_tree(Rect::new(0, 0, 8, 9), &tree, Some(9));
+    assert_eq!(fallback.leaves[0].panel_index, 0);
+    assert_eq!(
+        fallback.active_content(Some(9)),
+        Some(Rect::new(0, 1, 8, 8))
+    );
 }

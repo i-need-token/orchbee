@@ -216,3 +216,77 @@ fn paints_only_the_localized_too_small_notice_and_the_status_line() {
     let narrow = rendered_rows(19, 30, &view, Locale::EnUs);
     assert!(narrow.iter().any(|row| row.contains("Too small")));
 }
+
+fn buffer_rows(terminal: &Terminal<TestBackend>, width: u16, height: u16) -> Vec<String> {
+    let buffer = terminal.backend().buffer();
+    (0..height)
+        .map(|y| {
+            (0..width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect()
+}
+
+#[test]
+fn help_paginates_rows_and_clamps_the_requested_page() {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let text = Locale::EnUs.shell();
+    let mut terminal = infallible(Terminal::new(TestBackend::new(60, 12)));
+    let mut placed = None;
+
+    // 21 shortcut rows in a 6-row window -> 4 pages; page 99 clamps to 3.
+    infallible(terminal.draw(|frame| {
+        placed = super::render_shortcut_help(frame, frame.area(), text, 99, &theme);
+    }));
+    let (_, page) = placed.expect("help must fit in 60x12");
+    assert_eq!(page, 3);
+    let rows = buffer_rows(&terminal, 60, 12);
+    // The clamped last page starts at shortcut row 18.
+    assert!(rows[2].contains("Ctrl+B q / d"), "{:?}", rows[2]);
+    assert!(rows[8].contains("Ctrl+B ? closes help"), "{:?}", rows[8]);
+    assert!(rows[9].contains("4/4"), "{:?}", rows[9]);
+    // Rows from earlier pages are not drawn.
+    assert!(!rows.iter().any(|row| row.contains("Ctrl+B h/j/k/l")));
+
+    infallible(terminal.draw(|frame| {
+        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+    }));
+    let (_, page) = placed.expect("help must fit in 60x12");
+    assert_eq!(page, 0);
+    let rows = buffer_rows(&terminal, 60, 12);
+    assert!(rows[2].contains("Ctrl+B a"), "{:?}", rows[2]);
+    assert!(rows[9].contains("1/4"), "{:?}", rows[9]);
+    assert!(!rows.iter().any(|row| row.contains("Ctrl+B h/j/k/l")));
+}
+
+#[test]
+fn help_page_count_rounds_up_and_never_returns_zero() {
+    assert_eq!(super::help_page_count(6, 21), 4);
+    assert_eq!(super::help_page_count(21, 21), 1);
+    assert_eq!(super::help_page_count(4, 0), 1);
+    assert_eq!(super::help_page_count(0, 5), 5);
+}
+
+#[test]
+fn help_refuses_placement_that_would_clip_rows_or_footer() {
+    let theme = crate::tui_theme::Theme::rgb_test_dark();
+    let text = Locale::EnUs.shell();
+    let mut terminal = infallible(Terminal::new(TestBackend::new(40, 7)));
+    let mut placed = Some((ratatui::layout::Rect::default(), 0usize));
+
+    // A 5-row placed overlay leaves 3 inner rows — only 1 row per page, below
+    // the 2-row minimum, so the overlay refuses instead of clipping.
+    infallible(terminal.draw(|frame| {
+        placed = super::render_shortcut_help(frame, frame.area(), text, 0, &theme);
+    }));
+    assert_eq!(placed, None);
+    let text = terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(text.trim().is_empty(), "refused overlay drew: {text:?}");
+}

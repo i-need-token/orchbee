@@ -93,10 +93,13 @@ fn navigator_window_follows_an_active_context_beyond_the_first_nine() {
 
     let text = rendered(64, MAX_VISIBLE_CONTEXTS as u16, &contexts, Some(15));
 
+    // The clipped window keeps its last row for the current/total position.
     assert!(text.contains("[ 11]"), "{text:?}");
     assert!(text.contains("[*15]"), "{text:?}");
-    assert!(text.contains("[ 19]"), "{text:?}");
+    assert!(text.contains("[ 18]"), "{text:?}");
+    assert!(text.contains("15/20"), "{text:?}");
     assert!(!text.contains("[  1]"), "{text:?}");
+    assert!(!text.contains("[ 19]"), "{text:?}");
     assert!(!text.contains("[ 20]"), "{text:?}");
 }
 

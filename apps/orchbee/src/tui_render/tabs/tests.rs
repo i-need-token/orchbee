@@ -292,9 +292,11 @@ fn navigator_scrolls_to_keep_an_active_row_after_many_tabs_visible() {
 
     let (text, _) = rendered(20, 4, &tabs, Some(256), Surface::Navigator);
 
-    assert!(text.contains("[ 253] 253"), "{text:?}");
+    // The clipped window keeps its last row for the current/total position.
+    assert!(text.contains("[ 254] 254"), "{text:?}");
     assert!(text.contains("[*256] 256"), "{text:?}");
-    assert!(!text.contains("[ 252]"));
+    assert!(text.contains("256/256"), "{text:?}");
+    assert!(!text.contains("[ 253]"), "{text:?}");
 }
 
 #[test]

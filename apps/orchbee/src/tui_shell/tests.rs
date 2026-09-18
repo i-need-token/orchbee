@@ -226,6 +226,7 @@ fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()
         (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
         (8, 20)
     );
+    // Missing pixel extents are an honest host failure: Err, never faked.
     for incomplete in [
         WindowDimensions {
             pixel_width: 0,
@@ -235,6 +236,12 @@ fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()
             pixel_height: 0,
             ..original
         },
+    ] {
+        assert!(super::terminal_geometry(incomplete, &view, None).is_err());
+    }
+    // Zero cell counts classify as TooSmall: the resize is withheld (Ok(None))
+    // rather than erroring or fabricating a 1x1 pane.
+    for empty in [
         WindowDimensions {
             columns: 0,
             ..original
@@ -244,7 +251,7 @@ fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()
             ..original
         },
     ] {
-        assert!(super::terminal_geometry(incomplete, &view, None).is_err());
+        assert_eq!(super::terminal_geometry(empty, &view, None)?, None);
     }
     Ok(())
 }
@@ -264,6 +271,67 @@ fn too_small_geometry_withholds_resize_instead_of_fabricating() -> io::Result<()
             "too-small {dimensions:?} must withhold the resize (Ok(None)), not fabricate one"
         );
     }
+    Ok(())
+}
+
+#[test]
+fn minimal_geometry_deducts_no_invisible_frame() -> io::Result<()> {
+    let view = ClientView::new(50);
+    // 50x10 is Minimal: the panel spans the whole body minus the status row,
+    // with no border cells deducted because none are drawn.
+    let geometry = super::terminal_geometry(dimensions(50, 10), &view, None)?
+        .expect("a Minimal viewport still presents a pane");
+    assert_eq!((geometry.columns(), geometry.rows()), (50, 9));
+    Ok(())
+}
+
+#[test]
+fn too_small_viewport_pauses_resize_and_recovers_with_real_geometry() -> io::Result<()> {
+    let initial = dimensions(100, 24);
+    let tiny = dimensions(15, 4);
+    let mut terminal = test_terminal(initial);
+    let mut inputs = QueueInputSource {
+        inputs: VecDeque::from([Ok(Some(b"x".to_vec())), Ok(Some(b"\x02q".to_vec()))]),
+    };
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial), Ok(tiny), Ok(initial)])),
+    };
+    let mut surface = OrderedSurface::default();
+
+    assert_eq!(
+        test_loop(
+            &mut terminal,
+            Locale::EnUs,
+            &mut inputs,
+            &mut surface,
+            &FixedTermination(false),
+            &viewport,
+            initial,
+        )?,
+        LoopExit::User
+    );
+
+    let geometry = super::terminal_geometry(initial, &ClientView::new(100), None)?
+        .expect("a presentable viewport must produce pane geometry");
+    // While too small no resize is issued — the session keeps its last valid
+    // geometry, typing still reaches it, and observation resumes unchanged
+    // once a real pane fits again.
+    assert_eq!(
+        surface.events,
+        [
+            SurfaceEvent::Observe(geometry),
+            SurfaceEvent::Tick,
+            SurfaceEvent::AfterDraw,
+            SurfaceEvent::InvalidateCloseDisplay,
+            SurfaceEvent::Tick,
+            SurfaceEvent::Forward(b"x".to_vec()),
+            SurfaceEvent::AfterDraw,
+            SurfaceEvent::InvalidateCloseDisplay,
+            SurfaceEvent::Observe(geometry),
+            SurfaceEvent::Tick,
+            SurfaceEvent::Action(ClientAction::Exit),
+        ]
+    );
     Ok(())
 }
 

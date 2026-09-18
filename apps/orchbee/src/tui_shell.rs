@@ -449,9 +449,9 @@ fn active_pane_area(
         Some(TerminalSessionView::Native(native)) => native,
         #[cfg(test)]
         Some(TerminalSessionView::Legacy { .. }) => {
-            return Some(content).filter(|_| !content.is_empty());
+            return (!content.is_empty()).then_some(content);
         }
-        None => return Some(content).filter(|_| !content.is_empty()),
+        None => return (!content.is_empty()).then_some(content),
     };
     let tab = native
         .active_position()
@@ -463,7 +463,7 @@ fn active_pane_area(
     } else {
         Some(content)
     }?;
-    Some(area).filter(|_| !area.is_empty())
+    (!area.is_empty()).then_some(area)
 }
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
