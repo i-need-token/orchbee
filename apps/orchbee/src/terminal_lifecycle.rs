@@ -23,6 +23,9 @@ use crate::terminal_device::InheritedTerminal;
 
 const RESTORATION_ATTEMPTS_PER_MODE: u8 = 2;
 
+pub(crate) const SYNCHRONIZED_UPDATE_BEGIN: &[u8] = b"\x1b[?2026h";
+pub(crate) const SYNCHRONIZED_UPDATE_END: &[u8] = b"\x1b[?2026l";
+
 struct BracketedPaste(bool);
 
 impl crossterm::Command for BracketedPaste {
@@ -31,11 +34,20 @@ impl crossterm::Command for BracketedPaste {
     }
 }
 
+struct SynchronizedUpdateEnd;
+
+impl crossterm::Command for SynchronizedUpdateEnd {
+    fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
+        output.write_str("\x1b[?2026l")
+    }
+}
+
 pub(crate) trait TerminalModes: Send + Sync + 'static {
     fn disable_bracketed_paste(&self) -> io::Result<()>;
     fn enable_bracketed_paste(&self) -> io::Result<()>;
     fn disable_raw_mode(&self) -> io::Result<()>;
     fn enable_raw_mode(&self) -> io::Result<()>;
+    fn end_synchronized_update(&self) -> io::Result<()>;
     fn enter_alternate_screen(&self) -> io::Result<()>;
     fn hide_cursor(&self) -> io::Result<()>;
     fn leave_alternate_screen(&self) -> io::Result<()>;
@@ -46,6 +58,7 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
 enum RestorationStep {
     DisableBracketedPaste,
     DisableRaw,
+    EndSynchronizedUpdate,
     LeaveAlternate,
     ShowCursor,
 }
@@ -55,6 +68,7 @@ impl fmt::Display for RestorationStep {
         match self {
             Self::DisableBracketedPaste => formatter.write_str("disable bracketed paste"),
             Self::DisableRaw => formatter.write_str("disable raw mode"),
+            Self::EndSynchronizedUpdate => formatter.write_str("end synchronized update"),
             Self::LeaveAlternate => formatter.write_str("leave alternate screen"),
             Self::ShowCursor => formatter.write_str("show cursor"),
         }
@@ -139,20 +153,57 @@ impl ModeLease {
 }
 
 #[derive(Debug)]
+pub(crate) struct SynchronizedUpdateLease {
+    frame_output_blocked: AtomicBool,
+    obligation: ModeLease,
+}
+
+impl SynchronizedUpdateLease {
+    pub(crate) const fn new() -> Self {
+        Self {
+            frame_output_blocked: AtomicBool::new(false),
+            obligation: ModeLease::new(),
+        }
+    }
+
+    pub(crate) fn open_frame(&self) {
+        self.obligation.mark_operation_started();
+    }
+
+    pub(crate) fn frame_open(&self) -> bool {
+        self.obligation.restoration_required()
+    }
+
+    pub(crate) fn confirm_frame_closed(&self) {
+        self.obligation.clear_after_success();
+    }
+
+    pub(crate) fn frame_output_blocked(&self) -> bool {
+        self.frame_output_blocked.load(Ordering::Acquire)
+    }
+
+    pub(crate) fn block_frame_output(&self) {
+        self.frame_output_blocked.store(true, Ordering::Release);
+    }
+}
+
+#[derive(Debug)]
 struct TerminalModeState {
     bracketed_paste: ModeLease,
     alternate_screen: ModeLease,
     cursor: ModeLease,
     raw_mode: ModeLease,
+    synchronized_update: Arc<SynchronizedUpdateLease>,
 }
 
 impl TerminalModeState {
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
             bracketed_paste: ModeLease::new(),
             alternate_screen: ModeLease::new(),
             cursor: ModeLease::new(),
             raw_mode: ModeLease::new(),
+            synchronized_update: Arc::new(SynchronizedUpdateLease::new()),
         }
     }
 }
@@ -213,9 +264,20 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         Ok(guard)
     }
 
+    /// Stops buffered frame output before its writer is dropped after a draw
+    /// failure. The lifecycle still owns any pending synchronized-update end
+    /// and restores it through the separate control channel.
+    pub(crate) fn discard_frame_output(&self) {
+        self.state.synchronized_update.block_frame_output();
+    }
+
     pub(crate) fn restore(&mut self) -> Result<(), TerminalRestoreError> {
         self.bracketed_paste_enabled = false;
         restore_modes(self.control.as_ref(), &self.state)
+    }
+
+    pub(crate) fn synchronized_update_lease(&self) -> Arc<SynchronizedUpdateLease> {
+        Arc::clone(&self.state.synchronized_update)
     }
 
     pub(crate) fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()> {
@@ -272,7 +334,14 @@ fn restore_modes<C: TerminalModes>(
     control: &C,
     state: &TerminalModeState,
 ) -> Result<(), TerminalRestoreError> {
-    let mut failures = Vec::with_capacity(4);
+    let mut failures = Vec::with_capacity(5);
+    state.synchronized_update.block_frame_output();
+    restore_mode(
+        &state.synchronized_update.obligation,
+        RestorationStep::EndSynchronizedUpdate,
+        || control.end_synchronized_update(),
+        &mut failures,
+    );
     restore_mode(
         &state.bracketed_paste,
         RestorationStep::DisableBracketedPaste,
@@ -400,6 +469,10 @@ impl TerminalModes for InheritedTerminalModes {
         }
         tcsetattr(self.terminal.input().as_ref(), OptionalActions::Now, &raw)
             .map_err(io::Error::from)
+    }
+
+    fn end_synchronized_update(&self) -> io::Result<()> {
+        self.write_command(SynchronizedUpdateEnd)
     }
 
     fn enter_alternate_screen(&self) -> io::Result<()> {

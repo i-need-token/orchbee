@@ -40,8 +40,13 @@ pub(super) fn render(
         Line::from(""),
         Line::from(locale.panel_close_actions()),
     ]);
-    let (area, complete) =
-        render_content(frame, content_area, locale.panel_close_resize_hint(), text, theme);
+    let (area, complete) = render_content(
+        frame,
+        content_area,
+        locale.panel_close_resize_hint(),
+        text,
+        theme,
+    );
     PanelModalDraw {
         area,
         prompt: if complete {

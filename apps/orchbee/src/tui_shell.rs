@@ -1,7 +1,7 @@
 use std::{
     fmt,
     fs::File,
-    io::{self, Read},
+    io::{self, BufWriter, Read},
     os::fd::AsFd,
     time::{Duration, Instant},
 };
@@ -19,12 +19,13 @@ use crate::{
     terminal_input::{DispatchOutcome, InputDispatcher, UnavailableTerminalInputPort},
     terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
     termination_signal::{TerminationSignal, TerminationSource},
-    tui_backend::{FixedViewportBackend, ResizableBackend},
+    tui_backend::{FixedViewportBackend, ResizableBackend, RestorationGatedWriter},
     tui_render::render_terminal_shell,
 };
 
 const EVENT_POLL_INTERVAL_MILLISECONDS: u16 = 50;
 const MAXIMUM_INPUT_BYTES_PER_POLL: usize = 4096;
+const OUTPUT_BUFFER_CAPACITY: usize = 64 * 1024;
 
 #[derive(Debug)]
 pub(crate) enum TuiFailure {
@@ -80,7 +81,7 @@ trait InputSource {
 }
 
 trait ViewportSource {
-    fn window_dimensions(&self) -> io::Result<WindowDimensions>;
+    fn window_dimensions(&self) -> io::Result<Option<WindowDimensions>>;
 }
 
 struct InheritedInputSource {
@@ -141,8 +142,8 @@ impl InputSource for InheritedInputSource {
 }
 
 impl ViewportSource for InheritedTerminal {
-    fn window_dimensions(&self) -> io::Result<WindowDimensions> {
-        self.window_dimensions()
+    fn window_dimensions(&self) -> io::Result<Option<WindowDimensions>> {
+        self.observe_window_dimensions()
     }
 }
 
@@ -207,8 +208,15 @@ fn run_prepared_surface(
     let termination = TerminationSignal::install().map_err(TuiFailure::Runtime)?;
     let mut modes = TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone()))
         .map_err(TuiFailure::Runtime)?;
-    let output = File::from(inherited.duplicate_output().map_err(TuiFailure::Runtime)?);
-    let backend = FixedViewportBackend::new(output, dimensions);
+    let synchronized_update = modes.synchronized_update_lease();
+    let output = BufWriter::with_capacity(
+        OUTPUT_BUFFER_CAPACITY,
+        RestorationGatedWriter::new(
+            File::from(inherited.duplicate_output().map_err(TuiFailure::Runtime)?),
+            synchronized_update,
+        ),
+    );
+    let backend = FixedViewportBackend::new(output, dimensions, modes.synchronized_update_lease());
     let mut terminal = Terminal::with_options(
         backend,
         TerminalOptions {
@@ -235,6 +243,11 @@ fn run_prepared_surface(
         dimensions,
     )
     .map_err(LoopFailure::into_io_error);
+    if run_result.is_err() {
+        // BufWriter's drop may retry buffered bytes. Fence incomplete frame
+        // output first; mode restoration still sends its own control bytes.
+        modes.discard_frame_output();
+    }
     drop(terminal);
     drop(terminal_input);
     let restore_result = modes.restore().map_err(io::Error::other);
@@ -360,12 +373,12 @@ fn draw_surface<B: Backend>(
     surface: &mut (impl TerminalSurface + ?Sized),
 ) -> Result<(), LoopFailure<B::Error>> {
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
-    terminal
-        .draw(|frame| {
-            receipt =
-                render_terminal_shell(frame, view, chrome.locale, surface.view(), chrome.theme);
-        })
-        .map_err(LoopFailure::Terminal)?;
+    let drawn = terminal.draw(|frame| {
+        receipt = render_terminal_shell(frame, view, chrome.locale, surface.view(), chrome.theme);
+    });
+    if let Err(error) = drawn {
+        return Err(LoopFailure::Terminal(error));
+    }
     let help_page = receipt.help_page();
     surface.after_close_draw(receipt);
     if let Some(page) = help_page {
@@ -382,9 +395,12 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     terminal_input: &mut (impl TerminalSurface + ?Sized),
     dimensions: &mut WindowDimensions,
 ) -> Result<bool, LoopFailure<B::Error>> {
-    let next = viewport
+    let Some(next) = viewport
         .window_dimensions()
-        .map_err(LoopFailure::Viewport)?;
+        .map_err(LoopFailure::Viewport)?
+    else {
+        return Ok(false);
+    };
     let changed = next != *dimensions;
     if changed {
         terminal_input.invalidate_close_display();

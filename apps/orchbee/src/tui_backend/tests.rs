@@ -1,8 +1,22 @@
+use std::{
+    io::{self, Write},
+    sync::Arc,
+};
+
 use ratatui::{backend::Backend, buffer::Cell};
 
-use crate::terminal_device::WindowDimensions;
+use crate::{
+    terminal_device::WindowDimensions,
+    terminal_lifecycle::{
+        SYNCHRONIZED_UPDATE_BEGIN, SYNCHRONIZED_UPDATE_END, SynchronizedUpdateLease,
+    },
+};
 
-use super::{FixedViewportBackend, ResizableBackend};
+use super::{FixedViewportBackend, ResizableBackend, RestorationGatedWriter};
+
+fn new_test_backend<W: Write>(writer: W, dimensions: WindowDimensions) -> FixedViewportBackend<W> {
+    FixedViewportBackend::new(writer, dimensions, Arc::new(SynchronizedUpdateLease::new()))
+}
 
 #[test]
 fn reports_only_its_explicitly_supplied_cell_and_pixel_viewport() -> std::io::Result<()> {
@@ -12,7 +26,7 @@ fn reports_only_its_explicitly_supplied_cell_and_pixel_viewport() -> std::io::Re
         pixel_width: 960,
         rows: 32,
     };
-    let mut backend = FixedViewportBackend::new(Vec::<u8>::new(), initial);
+    let mut backend = new_test_backend(Vec::<u8>::new(), initial);
 
     assert_eq!(backend.size()?.width, 120);
     assert_eq!(backend.size()?.height, 32);
@@ -58,7 +72,7 @@ fn sanitizes_untrusted_cell_symbols_at_the_final_print_boundary()
         pixel_width: 8,
         rows: 1,
     };
-    let mut backend = FixedViewportBackend::new(Vec::<u8>::new(), dimensions);
+    let mut backend = new_test_backend(Vec::<u8>::new(), dimensions);
     let payload = "safe\x1b]52;c;payload\x07\r\n\u{85}\u{2028}\u{2029}界e\u{301}";
     let mut cell = Cell::default();
     cell.set_symbol(payload);
@@ -75,4 +89,315 @@ fn sanitizes_untrusted_cell_symbols_at_the_final_print_boundary()
     assert!(output.contains("界e\u{301}"));
     assert_eq!(cell.symbol(), payload);
     Ok(())
+}
+
+struct ScriptedWriter {
+    buffer: Vec<u8>,
+    fail_writes_from: Option<usize>,
+    flush_calls: usize,
+    flush_error_kind: Option<io::ErrorKind>,
+    write_calls: usize,
+    write_error_kind: io::ErrorKind,
+}
+
+impl ScriptedWriter {
+    fn new() -> Self {
+        Self {
+            buffer: Vec::new(),
+            fail_writes_from: None,
+            flush_calls: 0,
+            flush_error_kind: None,
+            write_calls: 0,
+            write_error_kind: io::ErrorKind::BrokenPipe,
+        }
+    }
+}
+
+impl Write for ScriptedWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let index = self.write_calls;
+        self.write_calls += 1;
+        if self.fail_writes_from.is_some_and(|from| index >= from) {
+            return Err(io::Error::new(
+                self.write_error_kind,
+                "injected write failure",
+            ));
+        }
+        self.buffer.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.flush_calls += 1;
+        match self.flush_error_kind {
+            Some(kind) => Err(io::Error::new(kind, "injected flush failure")),
+            None => Ok(()),
+        }
+    }
+}
+
+const TEST_DIMENSIONS: WindowDimensions = WindowDimensions {
+    columns: 4,
+    pixel_height: 32,
+    pixel_width: 16,
+    rows: 2,
+};
+
+fn marker_positions(output: &[u8], marker: &[u8]) -> Vec<usize> {
+    output
+        .windows(marker.len())
+        .enumerate()
+        .filter_map(|(index, window)| (window == marker).then_some(index))
+        .collect()
+}
+
+#[test]
+fn wraps_each_frame_diff_and_cursor_in_one_synchronized_pair_and_one_flush() -> io::Result<()> {
+    let mut backend = new_test_backend(ScriptedWriter::new(), TEST_DIMENSIONS);
+    let mut cell = Cell::default();
+    cell.set_symbol("a");
+
+    for _frame in 0..2 {
+        backend.draw(std::iter::once((0, 0, &cell)))?;
+        backend.hide_cursor()?;
+        backend.set_cursor_position((1, 1))?;
+        backend.show_cursor()?;
+        backend.flush()?;
+    }
+
+    let output = &backend.writer.buffer;
+    let begins = marker_positions(output, SYNCHRONIZED_UPDATE_BEGIN);
+    let ends = marker_positions(output, SYNCHRONIZED_UPDATE_END);
+    assert_eq!(begins.len(), 2);
+    assert_eq!(ends.len(), 2);
+    assert!(begins[0] < ends[0] && ends[0] < begins[1] && begins[1] < ends[1]);
+    assert!(output.ends_with(SYNCHRONIZED_UPDATE_END));
+    assert_eq!(backend.writer.flush_calls, 2);
+    Ok(())
+}
+
+#[test]
+fn a_failed_begin_still_owes_the_host_an_end_attempt() {
+    let mut writer = ScriptedWriter::new();
+    writer.fail_writes_from = Some(0);
+    let mut backend = new_test_backend(writer, TEST_DIMENSIONS);
+    let mut cell = Cell::default();
+    cell.set_symbol("a");
+
+    let error = backend
+        .draw(std::iter::once((0, 0, &cell)))
+        .expect_err("begin failure propagates");
+    assert_eq!(error.kind(), io::ErrorKind::BrokenPipe);
+    assert!(backend.synchronized_update.frame_open());
+
+    let writes_before_flush = backend.writer.write_calls;
+    backend.writer.fail_writes_from = None;
+    backend.writer.flush_error_kind = Some(io::ErrorKind::PermissionDenied);
+    let error = backend.flush().expect_err("flush failure propagates");
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+    assert_eq!(backend.writer.write_calls, writes_before_flush + 1);
+    assert!(backend.writer.buffer.ends_with(SYNCHRONIZED_UPDATE_END));
+    assert!(
+        backend.synchronized_update.frame_open(),
+        "an unconfirmed end keeps the pair pending"
+    );
+
+    backend.writer.flush_error_kind = None;
+    backend.flush().expect("the recovery end attempt succeeds");
+    assert!(!backend.synchronized_update.frame_open());
+}
+
+#[test]
+fn a_failed_mid_frame_write_still_ends_the_open_pair() {
+    let mut writer = ScriptedWriter::new();
+    writer.fail_writes_from = Some(1);
+    let mut backend = new_test_backend(writer, TEST_DIMENSIONS);
+    let mut cell = Cell::default();
+    cell.set_symbol("a");
+
+    assert!(backend.draw(std::iter::once((0, 0, &cell))).is_err());
+    assert!(backend.synchronized_update.frame_open());
+
+    backend.writer.fail_writes_from = None;
+    backend.flush().expect("end attempt succeeds");
+    assert!(backend.writer.buffer.ends_with(SYNCHRONIZED_UPDATE_END));
+    assert_eq!(backend.writer.flush_calls, 1);
+}
+
+#[test]
+fn a_failed_flush_still_attempts_the_end_marker() {
+    let mut writer = ScriptedWriter::new();
+    writer.flush_error_kind = Some(io::ErrorKind::BrokenPipe);
+    let mut backend = new_test_backend(writer, TEST_DIMENSIONS);
+    let mut cell = Cell::default();
+    cell.set_symbol("a");
+
+    backend
+        .draw(std::iter::once((0, 0, &cell)))
+        .expect("draw succeeds");
+    let error = backend.flush().expect_err("flush failure propagates");
+    assert_eq!(error.kind(), io::ErrorKind::BrokenPipe);
+    assert!(backend.writer.buffer.ends_with(SYNCHRONIZED_UPDATE_END));
+    assert!(
+        backend.synchronized_update.frame_open(),
+        "an end marker whose flush failed is unconfirmed"
+    );
+    assert_eq!(backend.writer.flush_calls, 1);
+
+    backend.writer.flush_error_kind = None;
+    backend.flush().expect("the recovery end attempt succeeds");
+    assert_eq!(
+        marker_positions(&backend.writer.buffer, SYNCHRONIZED_UPDATE_END).len(),
+        2
+    );
+    assert!(!backend.synchronized_update.frame_open());
+}
+
+#[test]
+fn a_failed_end_marker_is_reported_before_a_flush_failure() {
+    let mut backend = new_test_backend(ScriptedWriter::new(), TEST_DIMENSIONS);
+    let mut cell = Cell::default();
+    cell.set_symbol("a");
+    backend
+        .draw(std::iter::once((0, 0, &cell)))
+        .expect("draw succeeds");
+
+    backend.writer.fail_writes_from = Some(backend.writer.write_calls);
+    backend.writer.write_error_kind = io::ErrorKind::PermissionDenied;
+    backend.writer.flush_error_kind = Some(io::ErrorKind::BrokenPipe);
+    let error = backend.flush().expect_err("the first failure wins");
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+    assert_eq!(backend.writer.flush_calls, 1);
+    assert!(
+        backend.synchronized_update.frame_open(),
+        "a failed end write keeps the pair pending"
+    );
+
+    backend.writer.fail_writes_from = None;
+    backend.writer.flush_error_kind = None;
+    backend.flush().expect("the recovery end attempt succeeds");
+    assert!(backend.writer.buffer.ends_with(SYNCHRONIZED_UPDATE_END));
+    assert!(!backend.synchronized_update.frame_open());
+}
+
+#[test]
+fn an_unconfirmed_end_keeps_the_pair_pending_for_recovery() {
+    let mut backend = new_test_backend(ScriptedWriter::new(), TEST_DIMENSIONS);
+    let mut cell = Cell::default();
+    cell.set_symbol("a");
+    backend
+        .draw(std::iter::once((0, 0, &cell)))
+        .expect("draw succeeds");
+
+    backend.writer.fail_writes_from = Some(backend.writer.write_calls);
+    backend.writer.flush_error_kind = Some(io::ErrorKind::BrokenPipe);
+    assert!(backend.flush().is_err());
+    assert!(
+        backend.synchronized_update.frame_open(),
+        "an unconfirmed end must keep the pair pending for lifecycle recovery"
+    );
+
+    backend.writer.fail_writes_from = None;
+    backend.writer.flush_error_kind = None;
+    backend.flush().expect("the recovery end attempt succeeds");
+    assert!(!backend.synchronized_update.frame_open());
+}
+
+#[test]
+fn a_flush_without_an_open_frame_emits_no_end_marker() -> io::Result<()> {
+    let mut backend = new_test_backend(ScriptedWriter::new(), TEST_DIMENSIONS);
+
+    backend.flush()?;
+
+    assert!(backend.writer.buffer.is_empty());
+    assert_eq!(backend.writer.flush_calls, 1);
+    Ok(())
+}
+
+#[test]
+fn a_restoration_gated_writer_discards_frame_bytes_once_recovery_starts() {
+    let synchronized_update = Arc::new(SynchronizedUpdateLease::new());
+    let mut writer =
+        RestorationGatedWriter::new(Vec::<u8>::new(), Arc::clone(&synchronized_update));
+
+    writer.write_all(b"live frame").expect("pre-restore write");
+    writer.flush().expect("pre-restore flush");
+    assert_eq!(writer.inner, b"live frame");
+
+    synchronized_update.block_frame_output();
+    writer
+        .write_all(b"stale frame")
+        .expect("blocked writes are absorbed");
+    writer.flush().expect("blocked flush is a no-op");
+    assert_eq!(
+        writer.inner, b"live frame",
+        "no late buffered frame reaches the restored terminal"
+    );
+}
+
+#[test]
+fn a_buffer_drop_flush_above_a_blocked_gate_emits_nothing() {
+    let synchronized_update = Arc::new(SynchronizedUpdateLease::new());
+    let sink = Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+    let sink_for_writer = Arc::clone(&sink);
+    {
+        let mut writer = io::BufWriter::with_capacity(
+            64,
+            RestorationGatedWriter::new(
+                MutexWriter(sink_for_writer),
+                Arc::clone(&synchronized_update),
+            ),
+        );
+        writer.write_all(b"pending frame").expect("buffered write");
+        assert!(
+            sink.lock().map(|bytes| bytes.is_empty()).unwrap_or(false),
+            "the frame stays buffered before any flush"
+        );
+        synchronized_update.block_frame_output();
+    }
+    assert!(
+        sink.lock().map(|bytes| bytes.is_empty()).unwrap_or(false),
+        "the drop-time buffer flush is absorbed by the blocked gate"
+    );
+}
+
+struct MutexWriter(Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl Write for MutexWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        match self.0.lock() {
+            Ok(mut buffer) => {
+                buffer.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            Err(_) => Err(io::Error::other("mutex sink was poisoned")),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn synchronized_output_sequences_have_a_single_lifecycle_owner() {
+    let lifecycle = include_str!("../terminal_lifecycle.rs");
+    for required in ["2026h", "2026l"] {
+        assert!(
+            lifecycle.contains(required),
+            "terminal lifecycle must own the synchronized update marker: {required}"
+        );
+    }
+    for source in [
+        include_str!("../tui_backend.rs"),
+        include_str!("../tui_render.rs"),
+        include_str!("../tui_shell.rs"),
+    ] {
+        for forbidden in ["2026h", "2026l"] {
+            assert!(
+                !source.contains(forbidden),
+                "non-lifecycle source emits a synchronized update marker: {forbidden}"
+            );
+        }
+    }
 }

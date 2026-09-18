@@ -44,12 +44,12 @@ pub(crate) fn run_native_rename_resize(
     };
     let viewport = QueueViewportSource {
         dimensions: std::cell::RefCell::new(VecDeque::from([
-            Ok(initial),
-            Ok(initial),
-            Ok(resized),
-            Ok(resized),
-            Ok(resized),
-            Ok(resized),
+            Ok(Some(initial)),
+            Ok(Some(initial)),
+            Ok(Some(resized)),
+            Ok(Some(resized)),
+            Ok(Some(resized)),
+            Ok(Some(resized)),
         ])),
     };
     let mut leases = Vec::new();

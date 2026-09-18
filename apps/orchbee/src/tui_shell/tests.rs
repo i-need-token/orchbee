@@ -16,6 +16,7 @@ use crate::{
     localization::Locale,
     terminal_device::WindowDimensions,
     terminal_input::{TerminalInputPort, TerminalInputUnavailable},
+    terminal_lifecycle::SynchronizedUpdateLease,
     termination_signal::TerminationSource,
     tui_backend::{FixedViewportBackend, ResizableBackend},
 };
@@ -83,10 +84,10 @@ pub(crate) fn run_native_close_resize_confirmation(
     };
     let viewport = QueueViewportSource {
         dimensions: std::cell::RefCell::new(VecDeque::from([
-            Ok(initial),
-            Ok(resized),
-            Ok(resized),
-            Ok(resized),
+            Ok(Some(initial)),
+            Ok(Some(resized)),
+            Ok(Some(resized)),
+            Ok(Some(resized)),
         ])),
     };
     let mut surface = Surface {
@@ -126,7 +127,7 @@ impl TerminationSource for FixedTermination {
 }
 
 struct QueueViewportSource {
-    dimensions: std::cell::RefCell<VecDeque<io::Result<WindowDimensions>>>,
+    dimensions: std::cell::RefCell<VecDeque<io::Result<Option<WindowDimensions>>>>,
 }
 
 struct FailingResizeViewportSource {
@@ -137,14 +138,14 @@ struct FailingResizeViewportSource {
 }
 
 impl ViewportSource for FailingResizeViewportSource {
-    fn window_dimensions(&self) -> io::Result<WindowDimensions> {
+    fn window_dimensions(&self) -> io::Result<Option<WindowDimensions>> {
         let calls = self.calls.get();
         self.calls.set(calls + 1);
         if calls == 0 {
-            Ok(self.initial)
+            Ok(Some(self.initial))
         } else {
             self.writer_failure.store(true, Ordering::Relaxed);
-            Ok(self.changed)
+            Ok(Some(self.changed))
         }
     }
 }
@@ -178,7 +179,7 @@ impl Write for SwitchableFailureWriter {
 }
 
 impl ViewportSource for QueueViewportSource {
-    fn window_dimensions(&self) -> io::Result<WindowDimensions> {
+    fn window_dimensions(&self) -> io::Result<Option<WindowDimensions>> {
         match self.dimensions.borrow_mut().pop_front() {
             Some(dimensions) => dimensions,
             None => Err(io::Error::other("test viewport queue exhausted")),
@@ -294,7 +295,11 @@ fn too_small_viewport_pauses_resize_and_recovers_with_real_geometry() -> io::Res
         inputs: VecDeque::from([Ok(Some(b"x".to_vec())), Ok(Some(b"\x02q".to_vec()))]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial), Ok(tiny), Ok(initial)])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([
+            Ok(Some(initial)),
+            Ok(Some(tiny)),
+            Ok(Some(initial)),
+        ])),
     };
     let mut surface = OrderedSurface::default();
 
@@ -382,7 +387,7 @@ fn exits_through_the_prefixed_user_binding_without_forwarding_it() -> io::Result
         inputs: VecDeque::from([Ok(Some(b"\x02q".to_vec()))]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial), Ok(initial)])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(Some(initial)), Ok(Some(initial))])),
     };
     let mut input = RecordingTerminalInput::default();
 
@@ -410,7 +415,7 @@ fn returns_from_a_requested_signal_without_reading_input_or_viewport() -> io::Re
         inputs: VecDeque::new(),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial)])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(Some(initial))])),
     };
     let mut input = RecordingTerminalInput::default();
 
@@ -437,7 +442,7 @@ fn propagates_input_errors_to_the_restoring_session_boundary() -> io::Result<()>
         inputs: VecDeque::from([Err(io::Error::other("injected poll failure"))]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial)])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(Some(initial))])),
     };
     let mut input = RecordingTerminalInput::default();
 
@@ -509,9 +514,9 @@ fn observes_fresh_geometry_before_initial_draw_tick_and_same_batch_effects() -> 
     };
     let viewport = QueueViewportSource {
         dimensions: std::cell::RefCell::new(VecDeque::from([
-            Ok(measured),
-            Ok(measured),
-            Ok(measured),
+            Ok(Some(measured)),
+            Ok(Some(measured)),
+            Ok(Some(measured)),
         ])),
     };
     let mut surface = OrderedSurface::default();
@@ -569,7 +574,7 @@ fn required_viewport_failure_prevents_dispatch_of_an_already_read_batch() -> io:
     };
     let viewport = QueueViewportSource {
         dimensions: std::cell::RefCell::new(VecDeque::from([
-            Ok(initial),
+            Ok(Some(initial)),
             Err(io::Error::other("injected viewport failure")),
         ])),
     };
@@ -600,6 +605,7 @@ fn required_terminal_resize_failure_prevents_dispatch_of_an_already_read_batch()
             failure: Arc::clone(&writer_failure),
         },
         initial,
+        Arc::new(SynchronizedUpdateLease::new()),
     );
     let mut terminal = Terminal::with_options(
         backend,
@@ -654,10 +660,10 @@ fn applies_explicit_viewport_changes_without_backend_global_queries() -> io::Res
     };
     let viewport = QueueViewportSource {
         dimensions: std::cell::RefCell::new(VecDeque::from([
-            Ok(initial),
-            Ok(narrow),
-            Ok(narrow),
-            Ok(narrow),
+            Ok(Some(initial)),
+            Ok(Some(narrow)),
+            Ok(Some(narrow)),
+            Ok(Some(narrow)),
         ])),
     };
     let mut input = RecordingTerminalInput::default();
@@ -719,6 +725,7 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
             failure: failure.clone(),
         },
         dimensions,
+        Arc::new(SynchronizedUpdateLease::new()),
     );
     let mut terminal = Terminal::with_options(
         backend,
@@ -737,7 +744,10 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
         inputs: VecDeque::from([Ok(None)]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(dimensions), Ok(dimensions)])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([
+            Ok(Some(dimensions)),
+            Ok(Some(dimensions)),
+        ])),
     };
     assert!(matches!(
         run_event_loop(
@@ -774,7 +784,7 @@ fn outer_resize_invalidates_close_before_input_even_when_terminal_geometry_is_eq
         inputs: VecDeque::from([Ok(Some(b"y\x02q".to_vec()))]),
     };
     let viewport = QueueViewportSource {
-        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(initial), Ok(resized)])),
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(Some(initial)), Ok(Some(resized))])),
     };
     let mut surface = OrderedSurface::default();
     assert_eq!(
@@ -806,6 +816,128 @@ fn outer_resize_invalidates_close_before_input_even_when_terminal_geometry_is_eq
             SurfaceEvent::Observe(geometry),
             SurfaceEvent::Tick,
             SurfaceEvent::Forward(b"y".to_vec()),
+            SurfaceEvent::Action(ClientAction::Exit),
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn transient_zero_cell_observations_preserve_the_last_valid_viewport() -> io::Result<()> {
+    let initial = dimensions(100, 24);
+    let resized = dimensions(70, 24);
+    let mut terminal = test_terminal(initial);
+    let mut inputs = QueueInputSource {
+        inputs: VecDeque::from([
+            Ok(None),
+            Ok(None),
+            Ok(Some(b"kept".to_vec())),
+            Ok(Some(b"\x02q".to_vec())),
+        ]),
+    };
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([
+            Ok(Some(initial)),
+            Ok(None),
+            Ok(None),
+            Ok(Some(resized)),
+            Ok(Some(resized)),
+        ])),
+    };
+    let mut input = RecordingTerminalInput::default();
+
+    assert_eq!(
+        test_loop(
+            &mut terminal,
+            Locale::EnUs,
+            &mut inputs,
+            &mut input,
+            &FixedTermination(false),
+            &viewport,
+            initial,
+        )?,
+        LoopExit::User
+    );
+    assert_eq!(input.forwarded, [b"kept".to_vec()]);
+    assert_eq!(terminal.size().map_err(infallible_to_io)?.width, 70);
+    assert_eq!(terminal.size().map_err(infallible_to_io)?.height, 24);
+    Ok(())
+}
+
+#[test]
+fn transient_zero_cells_do_not_swallow_a_real_viewport_failure() -> io::Result<()> {
+    let initial = dimensions(80, 24);
+    let mut terminal = test_terminal(initial);
+    let mut inputs = QueueInputSource {
+        inputs: VecDeque::from([Ok(None), Ok(None)]),
+    };
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([
+            Ok(Some(initial)),
+            Ok(None),
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "injected viewport failure",
+            )),
+        ])),
+    };
+    let mut input = RecordingTerminalInput::default();
+
+    let result = test_loop(
+        &mut terminal,
+        Locale::EnUs,
+        &mut inputs,
+        &mut input,
+        &FixedTermination(false),
+        &viewport,
+        initial,
+    );
+
+    assert!(matches!(
+        result,
+        Err(error) if error.kind() == io::ErrorKind::PermissionDenied
+    ));
+    Ok(())
+}
+
+#[test]
+fn transient_zero_cells_never_report_a_geometry_to_the_session() -> io::Result<()> {
+    let initial = dimensions(100, 24);
+    let mut terminal = test_terminal(initial);
+    let mut inputs = QueueInputSource {
+        inputs: VecDeque::from([Ok(None), Ok(Some(b"\x02q".to_vec()))]),
+    };
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([
+            Ok(Some(initial)),
+            Ok(None),
+            Ok(None),
+        ])),
+    };
+    let mut surface = OrderedSurface::default();
+
+    assert_eq!(
+        test_loop(
+            &mut terminal,
+            Locale::EnUs,
+            &mut inputs,
+            &mut surface,
+            &FixedTermination(false),
+            &viewport,
+            initial,
+        )?,
+        LoopExit::User
+    );
+    let geometry = super::terminal_geometry(initial, &ClientView::new(100), None)?
+        .expect("an unavailable workbench still projects a pane");
+    assert_eq!(
+        surface.events,
+        [
+            SurfaceEvent::Observe(geometry),
+            SurfaceEvent::Tick,
+            SurfaceEvent::AfterDraw,
+            SurfaceEvent::Tick,
+            SurfaceEvent::Tick,
             SurfaceEvent::Action(ClientAction::Exit),
         ]
     );

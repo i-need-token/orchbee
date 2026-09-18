@@ -121,13 +121,26 @@ impl InheritedTerminal {
     }
 
     pub(crate) fn window_dimensions(&self) -> io::Result<WindowDimensions> {
-        let size = tcgetwinsize(self.output.as_ref()).map_err(io::Error::from)?;
-        if size.ws_col == 0 || size.ws_row == 0 {
+        let dimensions = self.query_window_dimensions()?;
+        if dimensions.columns == 0 || dimensions.rows == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "the inherited terminal reported zero cell dimensions",
             ));
         }
+        Ok(dimensions)
+    }
+
+    pub(crate) fn observe_window_dimensions(&self) -> io::Result<Option<WindowDimensions>> {
+        let dimensions = self.query_window_dimensions()?;
+        if dimensions.columns == 0 || dimensions.rows == 0 {
+            return Ok(None);
+        }
+        Ok(Some(dimensions))
+    }
+
+    fn query_window_dimensions(&self) -> io::Result<WindowDimensions> {
+        let size = tcgetwinsize(self.output.as_ref()).map_err(io::Error::from)?;
         Ok(WindowDimensions {
             columns: size.ws_col,
             pixel_height: size.ws_ypixel,

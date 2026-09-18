@@ -135,8 +135,13 @@ pub(crate) fn render_terminal_shell(
                 // The help page is ClientView-owned; the renderer reports the
                 // clamped effective page back through the draw receipt so the
                 // dispatcher's counter settles on what was actually painted.
-                let presented =
-                    render_shortcut_help(frame, overlay_area(&areas), text, view.help_page(), theme);
+                let presented = render_shortcut_help(
+                    frame,
+                    overlay_area(&areas),
+                    text,
+                    view.help_page(),
+                    theme,
+                );
                 help_page = presented.map(|(_, page)| page);
                 Some(presented.map(|(area, _page)| area))
             }
@@ -167,13 +172,8 @@ pub(crate) fn render_terminal_shell(
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.close_confirmation()
         {
-            let modal = tab_close::render(
-                frame,
-                locale,
-                &confirmation,
-                overlay_area(&areas),
-                theme,
-            );
+            let modal =
+                tab_close::render(frame, locale, &confirmation, overlay_area(&areas), theme);
             status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
             prompt = Some(modal.prompt);
             if let Some(token) = modal.status {
@@ -183,13 +183,8 @@ pub(crate) fn render_terminal_shell(
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.panel_close_confirmation()
         {
-            let modal = panel_close::render(
-                frame,
-                locale,
-                &confirmation,
-                overlay_area(&areas),
-                theme,
-            );
+            let modal =
+                panel_close::render(frame, locale, &confirmation, overlay_area(&areas), theme);
             status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
             prompt = None;
             panel_prompt = Some(modal.prompt);

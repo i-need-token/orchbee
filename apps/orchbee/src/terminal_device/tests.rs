@@ -78,6 +78,55 @@ fn admits_matching_real_pty_descriptors_and_rejects_different_ptys()
 }
 
 #[test]
+fn runtime_observation_reports_zero_cells_as_absent_and_recovers()
+-> Result<(), Box<dyn std::error::Error>> {
+    use rustix::termios::{Winsize as RustixWinsize, tcsetwinsize};
+
+    let pty = openpty(
+        Some(&Winsize {
+            ws_col: 80,
+            ws_row: 24,
+            ws_xpixel: 640,
+            ws_ypixel: 384,
+        }),
+        None,
+    )?;
+    let terminal = InheritedTerminal::admit_from(pty.slave.as_fd(), pty.slave.as_fd())?;
+
+    tcsetwinsize(
+        pty.slave.as_fd(),
+        RustixWinsize {
+            ws_col: 0,
+            ws_row: 0,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
+        },
+    )?;
+    assert_eq!(terminal.observe_window_dimensions()?, None);
+    assert!(terminal.window_dimensions().is_err());
+
+    tcsetwinsize(
+        pty.slave.as_fd(),
+        RustixWinsize {
+            ws_col: 110,
+            ws_row: 30,
+            ws_xpixel: 880,
+            ws_ypixel: 600,
+        },
+    )?;
+    assert_eq!(
+        terminal.observe_window_dimensions()?,
+        Some(super::WindowDimensions {
+            columns: 110,
+            pixel_height: 600,
+            pixel_width: 880,
+            rows: 30,
+        })
+    );
+    Ok(())
+}
+
+#[test]
 fn inherited_terminal_adapter_has_no_path_process_or_global_size_fallback() {
     let source = [
         include_str!("../terminal_device.rs"),

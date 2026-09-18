@@ -1,4 +1,7 @@
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    sync::Arc,
+};
 
 use crossterm::{
     QueueableCommand,
@@ -16,7 +19,13 @@ use ratatui::{
     style::{Color, Modifier},
 };
 
-use crate::{terminal_device::WindowDimensions, terminal_text::sanitize_terminal_symbol};
+use crate::{
+    terminal_device::WindowDimensions,
+    terminal_lifecycle::{
+        SYNCHRONIZED_UPDATE_BEGIN, SYNCHRONIZED_UPDATE_END, SynchronizedUpdateLease,
+    },
+    terminal_text::sanitize_terminal_symbol,
+};
 
 pub(crate) trait ResizableBackend: Backend {
     fn set_window_dimensions(&mut self, dimensions: WindowDimensions);
@@ -24,17 +33,53 @@ pub(crate) trait ResizableBackend: Backend {
 
 pub(crate) struct FixedViewportBackend<W: Write> {
     cursor_position: Position,
+    synchronized_update: Arc<SynchronizedUpdateLease>,
     window: WindowSize,
     writer: W,
 }
 
 impl<W: Write> FixedViewportBackend<W> {
-    pub(crate) fn new(writer: W, dimensions: WindowDimensions) -> Self {
+    pub(crate) fn new(
+        writer: W,
+        dimensions: WindowDimensions,
+        synchronized_update: Arc<SynchronizedUpdateLease>,
+    ) -> Self {
         Self {
             cursor_position: Position::ORIGIN,
+            synchronized_update,
             window: to_window_size(dimensions),
             writer,
         }
+    }
+}
+
+pub(crate) struct RestorationGatedWriter<W: Write> {
+    inner: W,
+    synchronized_update: Arc<SynchronizedUpdateLease>,
+}
+
+impl<W: Write> RestorationGatedWriter<W> {
+    pub(crate) fn new(inner: W, synchronized_update: Arc<SynchronizedUpdateLease>) -> Self {
+        Self {
+            inner,
+            synchronized_update,
+        }
+    }
+}
+
+impl<W: Write> Write for RestorationGatedWriter<W> {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        if self.synchronized_update.frame_output_blocked() {
+            return Ok(buffer.len());
+        }
+        self.inner.write(buffer)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        if self.synchronized_update.frame_output_blocked() {
+            return Ok(());
+        }
+        self.inner.flush()
     }
 }
 
@@ -51,6 +96,10 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
+        if !self.synchronized_update.frame_open() {
+            self.synchronized_update.open_frame();
+            self.writer.write_all(SYNCHRONIZED_UPDATE_BEGIN)?;
+        }
         for (x, y, cell) in content {
             self.writer.queue(MoveTo(x, y))?;
             self.writer
@@ -118,7 +167,22 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush()
+        let mut first_error = None;
+        if self.synchronized_update.frame_open() {
+            first_error = self.writer.write_all(SYNCHRONIZED_UPDATE_END).err();
+        }
+        if let Err(error) = self.writer.flush()
+            && first_error.is_none()
+        {
+            first_error = Some(error);
+        }
+        if first_error.is_none() {
+            self.synchronized_update.confirm_frame_closed();
+        }
+        match first_error {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 }
 
