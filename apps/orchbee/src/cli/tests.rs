@@ -226,7 +226,6 @@ fn fixed_outputs_are_far_below_the_bound() {
     let commands = [
         CommandPath::ApiSchema,
         CommandPath::ApiSnapshot,
-        CommandPath::Completion,
         CommandPath::ConfigCheck,
         CommandPath::PanelClose,
         CommandPath::PanelGet,

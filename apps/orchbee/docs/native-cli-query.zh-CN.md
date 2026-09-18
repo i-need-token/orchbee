@@ -63,7 +63,7 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
 - `--target-panel <target>`：带值 flag，单次使用，`panel move` 上必填；按 `panel` 的
   target 规则解析（仅完整 typed ID），并在被移动 panel 自身所在 tab 内解析。
 - `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
-- `--help`：根级独占 token，或完整命令路径的单一后缀。
+- `-h`/`--help`：根级独占 token，或已识别帮助路径（family 或完整命令路径）的单一后缀。
 - `--` 之后的位置参数：`--` 之后的 token 只作位置参数，故 `orchbee -- status` 查询 status，
   `orchbee project get -- --help` 解析的是字面 label `--help`。
 
@@ -73,7 +73,7 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
 orchbee                         # 裸调用 → TUI（不变）
 orchbee tui                     # TUI（不变）
 orchbee --version               # 版本行（不变）
-orchbee --help | orchbee help   # 根帮助
+orchbee -h|--help | orchbee help   # 根帮助
 orchbee status
 orchbee project list | project get <target>
 orchbee workspace list [--project <target>] | workspace get <target>
@@ -94,17 +94,17 @@ orchbee api schema [<schema-id>]
 orchbee config check
 orchbee completion bash|zsh|fish
 orchbee help <recognized path>
-orchbee <complete command path> --help
+orchbee <recognized path> -h|--help
 ```
 
 帮助主题：根级；`project`、`workspace`、`tab`、`panel`、`terminal`、`api`、`config`、
-`completion` 七个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
-过滤器、不带 format）。族名单独出现时不是后缀形式的完整命令路径：`project --help` 是 usage，
-而 `help project` 给出族概览。后缀 help 优先于缺失的业务参数（`project get --help` 描述
-`project get`），但不优先于已给出的业务参数或多余 token（`project get x --help`、
-`status extra --help` 都是 usage）。未列出的目标如 `help help`、`help version`、`help --version`
-按未知路径 → usage。Help、`--version`、`completion` 与 `api schema` 绝不触碰平台、运行、
-cohort 或 Site 状态。
+`completion` 八个族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
+过滤器、不带 format）。路径末尾的 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
+`project --help`、`project get --help` 输出的内容与 `help`、`help project`、`help project get`
+完全相同。后缀 help 优先于缺失的业务参数（`project get --help` 描述 `project get`），但不优先于
+已给出的业务参数或多余 token（`project get x --help`、`status extra --help` 都是 usage）。未列出的
+目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`--version`、
+`completion` 与 `api schema` 绝不触碰平台、运行、cohort 或 Site 状态。
 
 `<geometry>` 代表四个必填 flag：`--cols <n> --rows <n> --cell-width <n>
 --cell-height <n>`。

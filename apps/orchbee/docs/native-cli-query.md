@@ -78,7 +78,8 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   the `panel` target rule (a complete typed ID only) and resolved inside the moved panel's
   own tab.
 - `--version`: legal only as the sole root invocation; any other position or company is usage.
-- `--help`: root sole token, or the single suffix of a complete command path.
+- `-h`/`--help`: root sole token, or the single suffix of a recognized help path (a family
+  name or a complete command path).
 - `--` positionals: tokens after `--` are positional only, so `orchbee -- status` queries
   status and `orchbee project get -- --help` resolves the literal label `--help`.
 
@@ -88,7 +89,7 @@ Command paths (fixed words, no abbreviations or aliases):
 orchbee                         # bare → TUI (unchanged)
 orchbee tui                     # TUI (unchanged)
 orchbee --version               # version line (unchanged)
-orchbee --help | orchbee help   # root help
+orchbee -h|--help | orchbee help   # root help
 orchbee status
 orchbee project list | project get <target>
 orchbee workspace list [--project <target>] | workspace get <target>
@@ -109,18 +110,18 @@ orchbee api schema [<schema-id>]
 orchbee config check
 orchbee completion bash|zsh|fish
 orchbee help <recognized path>
-orchbee <complete command path> --help
+orchbee <recognized path> -h|--help
 ```
 
 Help topics: root; families `project`, `workspace`, `tab`, `panel`, `terminal`, `api`, `config`,
 `completion`; and every complete command path including `tui`. `help` takes only a recognized
-path (no filters, no format). A family name alone is not a complete command path for the suffix
-form: `project --help` is usage while `help project` gives the family overview. Suffix help takes
-precedence over missing business arguments (`project get --help` describes `project get`) but not
-over supplied business arguments or extra tokens (`project get x --help`, `status extra --help`
-are usage). Unlisted targets such as `help help`, `help version`, `help --version` are unknown
-paths → usage. Help, `--version`, `completion`, and `api schema` never touch platform, runtime,
-cohort, or Site state.
+path (no filters, no format). A trailing `-h` or `--help` is the same request on the same path:
+`orchbee --help`, `project --help`, and `project get --help` emit exactly what `help`,
+`help project`, and `help project get` emit. Suffix help takes precedence over missing business
+arguments (`project get --help` describes `project get`) but not over supplied business
+arguments or extra tokens (`project get x --help`, `status extra --help` are usage). Unlisted
+targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
+`--version`, `completion`, and `api schema` never touch platform, runtime, cohort, or Site state.
 
 `<geometry>` stands for the four required flags `--cols <n> --rows <n> --cell-width <n>
 --cell-height <n>`.

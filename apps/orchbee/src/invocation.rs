@@ -115,7 +115,6 @@ pub(crate) enum CommandPath {
     ApiSnapshot,
     ApiSchema,
     ConfigCheck,
-    Completion,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -478,7 +477,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 *seen = true;
                 index += 1;
             }
-            "--help" => {
+            "--help" | "-h" => {
                 positionals.push(Token::HelpFlag);
                 index += 1;
             }
@@ -505,7 +504,7 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
         reject_extras(&options, envelope)?;
         return Ok(Request::Version);
     }
-    // A trailing --help applies to an exact complete command path only.
+    // A trailing -h/--help applies to a recognized help path only.
     let (path, suffix_help) = match positionals.last() {
         Some(Token::HelpFlag) => (&positionals[..positionals.len() - 1], true),
         _ => (&positionals[..], false),
@@ -534,7 +533,7 @@ fn resolve_help_suffix(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    // --help must be the sole suffix of a complete command path; other flag
+    // -h/--help must be the sole suffix of a recognized help path; other flag
     // tokens, a selected format, filters, or business arguments make it usage.
     reject_extras(options, envelope)?;
     if words
@@ -550,37 +549,12 @@ fn resolve_help_suffix(
             Token::HelpFlag | Token::VersionFlag => unreachable!("flags excluded above"),
         })
         .collect();
-    let topic = match path.as_slice() {
-        [] => return Ok(Request::RootHelp),
-        ["tui"] => HelpTopic::Command(CommandPath::Tui),
-        ["status"] => HelpTopic::Command(CommandPath::Status),
-        ["project", "list"] => HelpTopic::Command(CommandPath::ProjectList),
-        ["project", "get"] => HelpTopic::Command(CommandPath::ProjectGet),
-        ["workspace", "list"] => HelpTopic::Command(CommandPath::WorkspaceList),
-        ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
-        ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
-        ["workspace", "rename"] => HelpTopic::Command(CommandPath::WorkspaceRename),
-        ["tab", "list"] => HelpTopic::Command(CommandPath::TabList),
-        ["tab", "get"] => HelpTopic::Command(CommandPath::TabGet),
-        ["tab", "create"] => HelpTopic::Command(CommandPath::TabCreate),
-        ["tab", "rename"] => HelpTopic::Command(CommandPath::TabRename),
-        ["tab", "move"] => HelpTopic::Command(CommandPath::TabMove),
-        ["tab", "close"] => HelpTopic::Command(CommandPath::TabClose),
-        ["panel", "list"] => HelpTopic::Command(CommandPath::PanelList),
-        ["panel", "get"] => HelpTopic::Command(CommandPath::PanelGet),
-        ["panel", "split"] => HelpTopic::Command(CommandPath::PanelSplit),
-        ["panel", "close"] => HelpTopic::Command(CommandPath::PanelClose),
-        ["panel", "move"] => HelpTopic::Command(CommandPath::PanelMove),
-        ["terminal", "list"] => HelpTopic::Command(CommandPath::TerminalList),
-        ["terminal", "get"] => HelpTopic::Command(CommandPath::TerminalGet),
-        ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
-        ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
-        ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
-        ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
-        ["completion"] => HelpTopic::Command(CommandPath::Completion),
-        _ => return Err(usage(envelope)),
-    };
-    Ok(Request::Help(topic))
+    if path.is_empty() {
+        return Ok(Request::RootHelp);
+    }
+    help_topic(&path)
+        .map(Request::Help)
+        .ok_or_else(|| usage(envelope))
 }
 
 fn resolve_words(
@@ -875,8 +849,19 @@ fn resolve_help_path(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     reject_extras(options, envelope)?;
-    let topic = match rest {
-        [] => return Ok(Request::RootHelp),
+    if rest.is_empty() {
+        return Ok(Request::RootHelp);
+    }
+    help_topic(rest)
+        .map(Request::Help)
+        .ok_or_else(|| usage(envelope))
+}
+
+/// The one recognized-help-path table shared by `help <path>` and a trailing
+/// `-h`/`--help`: families map to their overview, complete command paths to
+/// their command help. Anything else is not a help path at all.
+fn help_topic(path: &[&str]) -> Option<HelpTopic> {
+    Some(match path {
         ["tui"] => HelpTopic::Command(CommandPath::Tui),
         ["status"] => HelpTopic::Command(CommandPath::Status),
         ["project"] => HelpTopic::Family(Family::Project),
@@ -910,9 +895,8 @@ fn resolve_help_path(
         ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
-        _ => return Err(usage(envelope)),
-    };
-    Ok(Request::Help(topic))
+        _ => return None,
+    })
 }
 
 fn query(command: QueryCommand, options: &Options) -> Request {

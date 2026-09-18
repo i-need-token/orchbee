@@ -46,6 +46,7 @@ fn accepts_legacy_root_forms() {
     assert_eq!(parse(&["--"]), Ok(Request::Tui));
     assert_eq!(parse(&["--", "tui"]), Ok(Request::Tui));
     assert_eq!(parse(&["--help"]), Ok(Request::RootHelp));
+    assert_eq!(parse(&["-h"]), Ok(Request::RootHelp));
     assert_eq!(parse(&["help"]), Ok(Request::RootHelp));
     assert_eq!(parse(&["--version"]), Ok(Request::Version));
 }
@@ -243,7 +244,7 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["project"],
         &["project", "get"],
         &["project", "get", "a", "b"],
-        &["-h"],
+        &["-x"],
         &["--unknown"],
         &["status", "--unknown"],
         &["--help", "status"],
@@ -388,8 +389,23 @@ fn dash_leading_tokens_can_be_filter_values() {
 }
 
 #[test]
-fn suffix_help_requires_an_exact_complete_command_path() {
+fn suffix_help_resolves_any_recognized_help_path() {
     let topics: &[(&[&str], HelpTopic)] = &[
+        // Families resolve to their overview, exactly like `help <family>`.
+        (&["project", "--help"], HelpTopic::Family(Family::Project)),
+        (
+            &["workspace", "--help"],
+            HelpTopic::Family(Family::Workspace),
+        ),
+        (&["tab", "--help"], HelpTopic::Family(Family::Tab)),
+        (&["panel", "--help"], HelpTopic::Family(Family::Panel)),
+        (&["terminal", "--help"], HelpTopic::Family(Family::Terminal)),
+        (&["api", "--help"], HelpTopic::Family(Family::Api)),
+        (&["config", "--help"], HelpTopic::Family(Family::Config)),
+        (
+            &["completion", "--help"],
+            HelpTopic::Family(Family::Completion),
+        ),
         (&["tui", "--help"], HelpTopic::Command(CommandPath::Tui)),
         (
             &["status", "--help"],
@@ -451,20 +467,16 @@ fn suffix_help_requires_an_exact_complete_command_path() {
             &["config", "check", "--help"],
             HelpTopic::Command(CommandPath::ConfigCheck),
         ),
-        (
-            &["completion", "--help"],
-            HelpTopic::Command(CommandPath::Completion),
-        ),
     ];
     for (arguments, topic) in topics {
         assert_eq!(parse(arguments), Ok(Request::Help(*topic)), "{arguments:?}");
+        // The -h short alias is the same suffix flag at the same position.
+        let mut aliased = arguments.to_vec();
+        *aliased.last_mut().expect("suffix flag") = "-h";
+        assert_eq!(parse(&aliased), Ok(Request::Help(*topic)), "{aliased:?}");
     }
 
     let cases: &[&[&str]] = &[
-        // A family name is not a complete command path for the suffix form.
-        &["project", "--help"],
-        &["api", "--help"],
-        &["config", "--help"],
         // Business arguments with suffix help are usage.
         &["project", "get", "x", "--help"],
         &["api", "schema", "orchbee.status", "--help"],

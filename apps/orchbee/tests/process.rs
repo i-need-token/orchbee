@@ -1,7 +1,7 @@
 use std::{error::Error, ffi::OsStr, process::Command};
 
-const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read\n  orchbee api          Machine snapshot and embedded schema documents\n\nMutations (one command per invocation, against the running Site):\n  orchbee workspace    create | rename\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  A Project is created inside the TUI: Ctrl+B a opens the Workspace wizard.\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee --help       Show this help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read\n  orchbee api          机器快照与内嵌 schema 文档\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee workspace    create | rename\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  Project 在 TUI 内创建：Ctrl+B a 打开 Workspace 向导。\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee --help       显示此帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read\n  orchbee api          Machine snapshot and embedded schema documents\n\nMutations (one command per invocation, against the running Site):\n  orchbee workspace    create | rename\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  A Project is created inside the TUI: Ctrl+B a opens the Workspace wizard.\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read\n  orchbee api          机器快照与内嵌 schema 文档\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee workspace    create | rename\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  Project 在 TUI 内创建：Ctrl+B a 打开 Workspace 向导。\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
 
 #[test]
 fn emits_exact_help_in_both_locales() -> Result<(), Box<dyn Error>> {
@@ -72,9 +72,112 @@ fn suffix_help_on_a_complete_path_succeeds() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn help_flag_aliases_match_the_help_command_at_every_recognized_path() -> Result<(), Box<dyn Error>>
+{
+    // `<path> --help` and `<path> -h` emit the identical document `help <path>`
+    // emits, at the root and at every family and complete command path — all
+    // without touching a running Site.
+    let root = run(["--help"], "en_US.UTF-8")?;
+    assert_eq!(root.status.code(), Some(0));
+    for arguments in [["-h"], ["help"]] {
+        let output = run(arguments, "en_US.UTF-8")?;
+        assert_eq!(output.status.code(), Some(0), "{arguments:?}");
+        assert_eq!(output.stdout, root.stdout, "{arguments:?}");
+        assert!(output.stderr.is_empty());
+    }
+
+    let paths: &[&[&str]] = &[
+        &["tui"],
+        &["status"],
+        &["project"],
+        &["workspace"],
+        &["tab"],
+        &["panel"],
+        &["terminal"],
+        &["api"],
+        &["config"],
+        &["completion"],
+        &["project", "list"],
+        &["project", "get"],
+        &["workspace", "list"],
+        &["workspace", "get"],
+        &["workspace", "create"],
+        &["workspace", "rename"],
+        &["tab", "list"],
+        &["tab", "get"],
+        &["tab", "create"],
+        &["tab", "rename"],
+        &["tab", "move"],
+        &["tab", "close"],
+        &["panel", "list"],
+        &["panel", "get"],
+        &["panel", "split"],
+        &["panel", "close"],
+        &["panel", "move"],
+        &["terminal", "list"],
+        &["terminal", "get"],
+        &["terminal", "read"],
+        &["api", "snapshot"],
+        &["api", "schema"],
+        &["config", "check"],
+    ];
+    for path in paths {
+        let mut help = vec!["help"];
+        help.extend_from_slice(path);
+        let canonical = run(help.iter().copied(), "en_US.UTF-8")?;
+        assert_eq!(canonical.status.code(), Some(0), "{help:?}");
+        for flag in ["--help", "-h"] {
+            let mut aliased = path.to_vec();
+            aliased.push(flag);
+            let output = run(aliased.iter().copied(), "en_US.UTF-8")?;
+            assert_eq!(output.status.code(), Some(0), "{aliased:?}");
+            assert_eq!(output.stdout, canonical.stdout, "{aliased:?}");
+            assert!(output.stderr.is_empty(), "{aliased:?}");
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn help_flag_ownership_terminator_and_conflicts_stay_usage() -> Result<(), Box<dyn Error>> {
+    for arguments in [
+        // A flag value owns the next word: --format consumes --help, leaving
+        // an invalid format selection rather than a help request.
+        vec!["--format", "--help"],
+        vec!["tab", "create", "--cols", "--help"],
+        // After `--` every word is literal; "--help" is then an unknown path.
+        vec!["--", "--help"],
+        vec!["tab", "--", "--help"],
+        // Version and help flags conflict; a second help flag is never legal.
+        vec!["--version", "--help"],
+        vec!["--help", "--version"],
+        vec!["--help", "--help"],
+        vec!["-h", "-h"],
+        // A help flag mid-path is not a suffix.
+        vec!["--help", "status"],
+        vec!["-h", "status"],
+        // Business arguments suppress suffix help.
+        vec!["project", "get", "x", "--help"],
+        vec!["status", "extra", "--help"],
+        // Format on a help request is a syntax failure.
+        vec!["status", "--help", "--format", "text"],
+    ] {
+        let output = run(arguments.iter().copied(), "en_US.UTF-8")?;
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(output.stdout.is_empty(), "{arguments:?}");
+        assert_eq!(
+            String::from_utf8(output.stderr)?,
+            "Invalid invocation. Run 'orchbee --help'.\n",
+            "{arguments:?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn rejects_unknown_short_and_additional_arguments_before_output() -> Result<(), Box<dyn Error>> {
     for arguments in [
-        vec!["-h"],
+        vec!["-x"],
         vec!["workbench"],
         vec!["--help", "--version"],
         vec!["status", "--bogus"],
