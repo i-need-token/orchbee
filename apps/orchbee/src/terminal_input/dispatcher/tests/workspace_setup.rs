@@ -198,7 +198,10 @@ fn location_rename_preserves_prefilled_label_on_submit_and_cancels_without_submi
         );
         assert!(port.submissions.is_empty());
         assert!(!port.active);
-        assert!(port.forwarded.is_empty());
+        // The `\r` is an independent key in a new packet after the modal
+        // released at the boundary: it reaches the pane instead of being
+        // swallowed by a time window.
+        assert_eq!(port.forwarded.as_slice(), b"\r");
     }
 }
 
@@ -226,6 +229,163 @@ fn location_rename_paste_retains_the_512_scalar_limit_instead_of_the_directory_b
         assert!(port.fault);
         assert!(port.forwarded.is_empty());
     }
+}
+
+#[test]
+fn the_packet_after_a_completed_decision_forwards_in_order() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    port.shown = true;
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\r", now);
+    assert_eq!(port.submissions, [NativeSetupStage::WorkspaceRename]);
+    assert!(!port.active);
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"ab",
+        now + Duration::from_millis(10),
+    );
+    assert_eq!(port.forwarded, b"ab");
+}
+
+#[test]
+fn the_decision_packet_tail_stays_owned() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    port.shown = true;
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\rxy", now);
+    assert_eq!(port.submissions, [NativeSetupStage::WorkspaceRename]);
+    assert!(port.forwarded.is_empty());
+}
+
+#[test]
+fn a_csi_tail_started_in_the_released_packet_keeps_frame_ownership() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    port.shown = true;
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\r\x1b", now);
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"[D",
+        now + Duration::from_millis(10),
+    );
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"z",
+        now + Duration::from_millis(20),
+    );
+    assert_eq!(port.forwarded, b"z");
+}
+
+#[test]
+fn an_unterminated_paste_tail_keeps_frame_ownership_across_reads() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    port.shown = true;
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\r\x1b[200~ab", now);
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"cd\x1b[201~",
+        now + Duration::from_millis(10),
+    );
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"z",
+        now + Duration::from_millis(20),
+    );
+    assert_eq!(port.forwarded, b"z");
+}
+
+#[test]
+fn a_utf8_tail_started_in_the_released_packet_keeps_continuations_owned() {
+    for gap in [10, 60] {
+        let now = Instant::now();
+        let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+        port.shown = true;
+        let mut dispatcher = InputDispatcher::default();
+        dispatch(&mut dispatcher, &mut port, b"\r\xe4", now);
+        dispatch(
+            &mut dispatcher,
+            &mut port,
+            b"\xb8\xad",
+            now + Duration::from_millis(gap),
+        );
+        dispatch(
+            &mut dispatcher,
+            &mut port,
+            b"z",
+            now + Duration::from_millis(gap + 10),
+        );
+        assert_eq!(port.forwarded, b"z", "gap {gap}ms");
+    }
+}
+
+#[test]
+fn an_unexpired_escape_resolver_stays_owned_but_the_next_packet_is_free() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    port.shown = true;
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\r\x1b", now);
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"x",
+        now + Duration::from_millis(10),
+    );
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"y",
+        now + Duration::from_millis(20),
+    );
+    assert_eq!(port.forwarded, b"y");
+}
+
+#[test]
+fn an_expired_escape_releases_before_the_next_packet() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    port.shown = true;
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\r\x1b", now);
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"x",
+        now + Duration::from_millis(60),
+    );
+    assert_eq!(port.forwarded, b"x");
+}
+
+#[test]
+fn a_c1_sequence_tail_started_in_the_released_packet_keeps_ownership() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+    port.shown = true;
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\r\x9b", now);
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"D",
+        now + Duration::from_millis(10),
+    );
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"z",
+        now + Duration::from_millis(20),
+    );
+    assert_eq!(port.forwarded, b"z");
 }
 
 fn dispatch(dispatcher: &mut InputDispatcher, port: &mut SetupPort, bytes: &[u8], now: Instant) {
@@ -314,7 +474,7 @@ fn directory_paste_uses_remaining_bytes_and_does_not_append_an_overflow_prefix()
 }
 
 #[test]
-fn an_asynchronous_step_reacquires_bracketed_paste_after_a_quiet_handoff() {
+fn an_asynchronous_step_reacquires_bracketed_paste_after_the_packet_boundary() {
     let now = Instant::now();
     let mut port = SetupPort::new(NativeSetupStage::WorkspaceLabel);
     let mut dispatcher = InputDispatcher::default();
@@ -341,7 +501,9 @@ fn an_asynchronous_step_reacquires_bracketed_paste_after_a_quiet_handoff() {
             Ok::<_, io::Error>(())
         })
         .unwrap();
+    // The lease ends at the next read packet, not after a quiet window.
     let later = now + Duration::from_millis(60);
+    dispatch(&mut dispatcher, &mut port, b"", later);
     dispatcher
         .synchronize(
             &mut ClientView::new(120),

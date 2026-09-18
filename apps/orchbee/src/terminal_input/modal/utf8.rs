@@ -25,4 +25,20 @@ impl Scalar {
     pub(super) const fn complete(&self) -> bool {
         self.length == 0
     }
+
+    /// How many continuation bytes the in-progress scalar still expects.
+    /// After the bounded wait expires the frame keeps that many late bytes
+    /// owned instead of releasing them as fresh input.
+    pub(super) fn remaining(&self) -> usize {
+        if self.length == 0 {
+            return 0;
+        }
+        let expected: usize = match self.bytes[0] {
+            0xc2..=0xdf => 2,
+            0xe0..=0xef => 3,
+            0xf0..=0xf4 => 4,
+            _ => 1,
+        };
+        expected.saturating_sub(self.length)
+    }
 }

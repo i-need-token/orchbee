@@ -457,7 +457,8 @@ fn input_fault_survives_valid_edits_until_explicit_complete_backspace() -> TestR
 }
 
 #[test]
-fn clipped_draw_revokes_token_and_cancelled_paste_keeps_its_frame_until_quiet() -> TestResult {
+fn clipped_draw_revokes_token_and_cancelled_paste_keeps_its_frame_until_the_boundary() -> TestResult
+{
     let geometry = fixture_geometry()?;
     let server = RenameServer::start(geometry)?;
     let (mut session, _) = native_session_with_identity(native_client(&server.server)?, geometry)?;

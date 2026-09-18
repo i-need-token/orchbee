@@ -47,11 +47,25 @@ pub(super) enum ModalInputEvent {
 enum Phase {
     Idle,
     Text,
-    Utf8 { scalar: Scalar, discard: bool },
+    Utf8 {
+        scalar: Scalar,
+        discard: bool,
+        deadline: Instant,
+    },
+    /// A scalar whose bounded wait expired keeps exactly its remaining
+    /// continuation bytes owned; anything else ends the frame.
+    Utf8Tail {
+        remaining: usize,
+        deadline: Instant,
+    },
     Escape(Instant),
     Sequence(Sequence),
     Paste(Paste),
-    Quiet,
+    /// The modal released its lease: every remaining byte of the packet
+    /// that held the decision stays owned, and a frame that starts inside
+    /// it (ESC/C1 lead, UTF-8 scalar) keeps frame ownership across reads.
+    /// Ends only at `begin_packet` — never by clock.
+    Released,
     Suppressed,
 }
 
@@ -60,10 +74,14 @@ struct Sequence {
     length: usize,
     intermediate: bool,
     drain: bool,
+    /// The bounded wait for the next frame byte; `None` once the sequence
+    /// drains, since a drained tail is consumed on arrival with bounded
+    /// memory and needs no further clock.
+    deadline: Option<Instant>,
 }
 
 impl Sequence {
-    fn new(introducer: u8) -> Self {
+    fn new(introducer: u8, now: Instant) -> Self {
         let mut bytes = [0; MAX_SEQUENCE];
         bytes[0] = 0x1b;
         bytes[1] = introducer;
@@ -72,7 +90,24 @@ impl Sequence {
             length: 2,
             intermediate: false,
             drain: false,
+            deadline: now.checked_add(WAIT),
         }
+    }
+
+    fn c1(lead: u8, now: Instant) -> Self {
+        let mut bytes = [0; MAX_SEQUENCE];
+        bytes[0] = lead;
+        Self {
+            bytes,
+            length: 1,
+            intermediate: false,
+            drain: false,
+            deadline: now.checked_add(WAIT),
+        }
+    }
+
+    fn is_paste_opener(&self) -> bool {
+        matches!(&self.bytes[..self.length], b"\x1b[200~" | b"\x9b200~")
     }
 }
 
@@ -80,7 +115,6 @@ pub(super) struct ModalDecoder {
     capacity: ModalCapacity,
     phase: Phase,
     editing: bool,
-    handoff_deadline: Option<Instant>,
     swallow_lf: bool,
 }
 
@@ -90,7 +124,6 @@ impl Default for ModalDecoder {
             capacity: ModalCapacity::Scalars512,
             phase: Phase::Idle,
             editing: false,
-            handoff_deadline: None,
             swallow_lf: false,
         }
     }
@@ -116,42 +149,95 @@ impl ModalDecoder {
         true
     }
 
-    pub(super) fn cancel(&mut self, now: Instant) -> Vec<ModalInputEvent> {
-        let mut events = Vec::new();
+    /// A new read packet begins. The `Released` packet-tail guard ends
+    /// here; an in-flight frame or an open ESC disambiguation keeps
+    /// ownership under its own rules. Called once per `dispatch` before
+    /// the first byte of that packet.
+    pub(super) fn begin_packet(&mut self, now: Instant) -> Vec<ModalInputEvent> {
+        let events = self.tick(now);
+        self.end_released();
+        events
+    }
+
+    /// A boundary without input bytes — an idle `synchronize` — ends the
+    /// `Released` guard too, so a released lease is always returned even
+    /// when no next packet ever arrives.
+    pub(super) fn end_released(&mut self) {
+        if matches!(self.phase, Phase::Released) {
+            self.phase = Phase::Idle;
+        }
+    }
+
+    pub(super) fn cancel(&mut self) -> Vec<ModalInputEvent> {
+        let events = Vec::new();
         if !self.editing {
             return events;
         }
         self.editing = false;
-        if !self.reset_quiet_deadline(now, &mut events) {
-            return events;
-        }
         match &mut self.phase {
             Phase::Paste(paste) => paste.discard(),
             Phase::Sequence(_) => {}
             Phase::Utf8 { discard, .. } => *discard = true,
             Phase::Escape(_) => {}
-            _ => self.phase = Phase::Quiet,
+            _ => self.phase = Phase::Released,
         }
         events
     }
 
     pub(super) fn tick(&mut self, now: Instant) -> Vec<ModalInputEvent> {
         let mut events = Vec::new();
-        if matches!(self.phase, Phase::Escape(deadline) if now >= deadline) {
-            self.phase = Phase::Quiet;
-            if self.editing {
-                self.editing = false;
-                events.push(ModalInputEvent::Cancel);
+        match &mut self.phase {
+            Phase::Escape(deadline) if now >= *deadline => {
+                self.phase = Phase::Released;
+                if self.editing {
+                    self.editing = false;
+                    events.push(ModalInputEvent::Cancel);
+                }
             }
-            self.reset_quiet_deadline(now, &mut events);
-        }
-        if matches!(self.phase, Phase::Quiet)
-            && self
-                .handoff_deadline
-                .is_some_and(|deadline| now >= deadline)
-        {
-            self.phase = Phase::Idle;
-            self.handoff_deadline = None;
+            // A truncated sequence stops waiting at its deadline and drains:
+            // its late tail is still consumed on arrival, never released as
+            // fresh input.
+            Phase::Sequence(sequence) => {
+                if let Some(deadline) = sequence.deadline
+                    && now >= deadline
+                {
+                    sequence.drain = true;
+                    sequence.deadline = None;
+                    if self.editing {
+                        events.push(ModalInputEvent::Fault);
+                    }
+                }
+            }
+            // A truncated scalar ends at its deadline: while editing the
+            // frame faults back to text; after release the tail keeps its
+            // remaining continuation bytes owned rather than leaking them.
+            Phase::Utf8 {
+                scalar, deadline, ..
+            } if now >= *deadline => {
+                if self.editing {
+                    events.push(ModalInputEvent::Fault);
+                    self.phase = Phase::Text;
+                } else if scalar.remaining() > 0 {
+                    self.phase = Phase::Utf8Tail {
+                        remaining: scalar.remaining(),
+                        deadline: now + WAIT,
+                    };
+                } else {
+                    self.phase = Phase::Released;
+                }
+            }
+            Phase::Utf8Tail { deadline, .. } if now >= *deadline => {
+                if self.editing {
+                    events.push(ModalInputEvent::Fault);
+                    self.phase = Phase::Text;
+                } else {
+                    self.phase = Phase::Released;
+                }
+            }
+            Phase::Paste(paste) => {
+                paste.tick(now);
+            }
+            _ => {}
         }
         events
     }
@@ -172,47 +258,72 @@ impl ModalDecoder {
         if !self.owns_input() {
             return (false, events);
         }
-        if !self.editing
-            && !matches!(self.phase, Phase::Suppressed)
-            && !self.reset_quiet_deadline(now, &mut events)
-        {
-            return (true, events);
-        }
-        match std::mem::replace(&mut self.phase, Phase::Suppressed) {
-            Phase::Text => self.text_byte(byte, now, &mut events),
-            Phase::Quiet => {
-                self.phase = Phase::Quiet;
-                if byte == 0x1b {
-                    self.escape(now, &mut events);
-                }
-            }
-            Phase::Escape(_) => match byte {
-                b'[' | b'O' => self.phase = Phase::Sequence(Sequence::new(byte)),
-                0x80..=0xff => self.scalar_byte(Scalar::default(), true, byte, now, &mut events),
-                _ => self.finish_frame(now, &mut events),
-            },
-            Phase::Utf8 { scalar, discard } => {
-                self.scalar_byte(scalar, discard, byte, now, &mut events)
-            }
-            Phase::Sequence(sequence) => {
-                self.sequence_byte(sequence, byte, now, remaining, &mut events)
-            }
-            Phase::Paste(mut paste) => match paste.push(byte) {
-                PasteStep::Pending => self.phase = Phase::Paste(paste),
-                PasteStep::Fault => {
-                    if self.editing {
-                        events.push(ModalInputEvent::Fault);
-                    }
-                    self.phase = Phase::Paste(paste);
-                }
-                PasteStep::Complete(text) => {
-                    self.finish_frame(now, &mut events);
-                    if self.editing {
-                        events.push(text.map_or(ModalInputEvent::Fault, ModalInputEvent::Append));
+        let mut pending = Some(byte);
+        while let Some(byte) = pending.take() {
+            match std::mem::replace(&mut self.phase, Phase::Suppressed) {
+                Phase::Text => self.text_byte(byte, now, &mut events),
+                Phase::Released => {
+                    self.phase = Phase::Released;
+                    match byte {
+                        0x1b => self.escape(now, &mut events),
+                        0x9b | 0x8f => self.phase = Phase::Sequence(Sequence::c1(byte, now)),
+                        0x80..=0xff => {
+                            self.scalar_byte(Scalar::default(), true, byte, now, &mut events)
+                        }
+                        _ => {}
                     }
                 }
-            },
-            Phase::Suppressed | Phase::Idle => self.phase = Phase::Suppressed,
+                Phase::Escape(_) => match byte {
+                    b'[' | b'O' => self.phase = Phase::Sequence(Sequence::new(byte, now)),
+                    0x80..=0xff => {
+                        self.scalar_byte(Scalar::default(), true, byte, now, &mut events)
+                    }
+                    _ => self.finish_frame(now, &mut events),
+                },
+                Phase::Utf8 {
+                    scalar, discard, ..
+                } => self.scalar_byte(scalar, discard, byte, now, &mut events),
+                Phase::Utf8Tail { remaining, .. } => {
+                    if (0x80..=0xbf).contains(&byte) {
+                        // A late tail byte stays owned by the frame it
+                        // belongs to; the wait re-bounds per byte.
+                        let remaining = remaining - 1;
+                        if remaining == 0 {
+                            self.finish_frame(now, &mut events);
+                        } else {
+                            self.phase = Phase::Utf8Tail {
+                                remaining,
+                                deadline: now + WAIT,
+                            };
+                        }
+                    } else {
+                        // The tail never came: this byte belongs to whatever
+                        // the frame resolved into, so it is reprocessed.
+                        self.finish_frame(now, &mut events);
+                        pending = Some(byte);
+                    }
+                }
+                Phase::Sequence(sequence) => {
+                    self.sequence_byte(sequence, byte, now, remaining, &mut events)
+                }
+                Phase::Paste(mut paste) => match paste.push(byte, now) {
+                    PasteStep::Pending => self.phase = Phase::Paste(paste),
+                    PasteStep::Fault => {
+                        if self.editing {
+                            events.push(ModalInputEvent::Fault);
+                        }
+                        self.phase = Phase::Paste(paste);
+                    }
+                    PasteStep::Complete(text) => {
+                        self.finish_frame(now, &mut events);
+                        if self.editing {
+                            events
+                                .push(text.map_or(ModalInputEvent::Fault, ModalInputEvent::Append));
+                        }
+                    }
+                },
+                Phase::Suppressed | Phase::Idle => self.phase = Phase::Suppressed,
+            }
         }
         (true, events)
     }
@@ -251,7 +362,13 @@ impl ModalDecoder {
         events: &mut Vec<ModalInputEvent>,
     ) {
         match scalar.push(byte) {
-            Ok(None) => self.phase = Phase::Utf8 { scalar, discard },
+            Ok(None) => {
+                self.phase = Phase::Utf8 {
+                    scalar,
+                    discard,
+                    deadline: now + WAIT,
+                }
+            }
             Ok(Some(character)) => {
                 self.finish_frame(now, events);
                 if self.editing && !discard {
@@ -288,6 +405,7 @@ impl ModalDecoder {
                 || (!sequence.intermediate && (0x30..=0x3f).contains(&byte));
             if sequence.length == MAX_SEQUENCE || !valid {
                 sequence.drain = true;
+                sequence.deadline = None;
                 if self.editing {
                     events.push(ModalInputEvent::Fault);
                 }
@@ -295,11 +413,13 @@ impl ModalDecoder {
                 sequence.bytes[sequence.length] = byte;
                 sequence.length += 1;
                 sequence.intermediate |= (0x20..=0x2f).contains(&byte);
+                sequence.deadline = now.checked_add(WAIT);
             }
         }
         if final_byte {
-            if !sequence.drain && &sequence.bytes[..sequence.length] == b"\x1b[200~" {
-                let mut paste = Paste::new(self.capacity, remaining);
+            if !sequence.drain && sequence.is_paste_opener() {
+                let mut paste =
+                    Paste::new(self.capacity, remaining, sequence.bytes[0] == 0x9b, now);
                 if !self.editing {
                     paste.discard();
                 }
@@ -312,12 +432,12 @@ impl ModalDecoder {
         }
     }
 
-    fn finish_frame(&mut self, now: Instant, events: &mut Vec<ModalInputEvent>) {
+    fn finish_frame(&mut self, _now: Instant, events: &mut Vec<ModalInputEvent>) {
         if self.editing {
             self.phase = Phase::Text;
             events.push(ModalInputEvent::Completeness(true));
-        } else if self.reset_quiet_deadline(now, events) {
-            self.phase = Phase::Quiet;
+        } else {
+            self.phase = Phase::Released;
         }
     }
 
@@ -327,15 +447,6 @@ impl ModalDecoder {
         } else {
             self.suppress(events);
         }
-    }
-
-    fn reset_quiet_deadline(&mut self, now: Instant, events: &mut Vec<ModalInputEvent>) -> bool {
-        self.handoff_deadline = now.checked_add(WAIT);
-        if self.handoff_deadline.is_none() {
-            self.suppress(events);
-            return false;
-        }
-        true
     }
 
     fn suppress(&mut self, events: &mut Vec<ModalInputEvent>) {

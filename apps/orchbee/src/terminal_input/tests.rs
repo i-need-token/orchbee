@@ -72,6 +72,109 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
     assert_eq!(port.forwarded, [b"before".to_vec(), b"next".to_vec()]);
 }
 
+/// A frame that began inside the captured decision packet stays captured
+/// when it completes in a later read — the tail is consumed, never
+/// forwarded to the pane.
+#[test]
+fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() {
+    struct ConfirmTail {
+        active: bool,
+        forwarded: Vec<Vec<u8>>,
+    }
+    impl TerminalInputPort for ConfirmTail {
+        fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            self.forwarded.push(bytes.to_vec());
+            Ok(())
+        }
+        fn apply_client_action(
+            &mut self,
+            action: ClientAction,
+        ) -> Option<SessionActionDisposition> {
+            if action == ClientAction::RequestCloseTab {
+                self.active = true;
+            }
+            Some(SessionActionDisposition::KeepNavigator)
+        }
+        fn capture_confirmation_key(&mut self, key: crate::client_view::ClientKey) -> bool {
+            if !self.active {
+                return false;
+            }
+            if key == crate::client_view::ClientKey::Plain('y') {
+                self.active = false;
+            }
+            true
+        }
+    }
+    let mut view = ClientView::new(100);
+    let mut dispatcher = InputDispatcher::default();
+    let mut port = ConfirmTail {
+        active: false,
+        forwarded: Vec::new(),
+    };
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"\x02x",
+        &mut port,
+        Instant::now(),
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert!(port.active);
+    // The decision `y` and a bare ESC share the decision packet; the CSI
+    // tail completing in the next read belongs to the captured frame.
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"y\x1b",
+        &mut port,
+        Instant::now(),
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"[A",
+        &mut port,
+        Instant::now(),
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert!(port.forwarded.is_empty());
+    // A paste run opened inside the decision packet drains captured too;
+    // only genuinely later input reaches the pane.
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"\x02x",
+        &mut port,
+        Instant::now(),
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert!(port.active);
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"y\x1b[200~",
+        &mut port,
+        Instant::now(),
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"ab\x1b[201~z",
+        &mut port,
+        Instant::now(),
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert_eq!(port.forwarded, [b"z".to_vec()]);
+}
+
 #[derive(Debug, Eq, PartialEq)]
 enum Recorded {
     Action(ClientAction),

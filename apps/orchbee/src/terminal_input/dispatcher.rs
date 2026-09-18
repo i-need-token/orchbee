@@ -80,6 +80,11 @@ impl InputDispatcher {
         mode: &mut impl FnMut(bool) -> Result<(), Error>,
     ) -> Result<bool, Error> {
         let owned_input = self.decoder.owns_input();
+        // An idle read is a packet boundary too: a `Released` guard left
+        // over from an earlier packet ends here so the lease is returned
+        // even when no further bytes ever arrive. A release produced by
+        // this call's own reconcile still guards the current packet tail.
+        self.decoder.end_released();
         let mut changed = self.reconcile(view, port, now);
         let events = self.decoder.tick(now);
         changed |= !events.is_empty();
@@ -110,6 +115,11 @@ impl InputDispatcher {
         mode: &mut impl FnMut(bool) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         self.synchronize(view, port, now, mode)?;
+        // A new read packet begins: the modal's packet-tail guard ends at
+        // this boundary, while an in-flight frame or an open ESC
+        // disambiguation keeps ownership under its own rules.
+        let events = self.decoder.begin_packet(now);
+        self.apply_events(view, port, events);
         for byte in input.iter().copied() {
             self.reconcile(view, port, now);
             let remaining = match self.epoch {
@@ -134,7 +144,10 @@ impl InputDispatcher {
                     continue;
                 }
             }
-            for item in self.keys.push(byte, now) {
+            // A frame opened inside a captured packet carries `owned`
+            // provenance: it stays captured even when it completes in a
+            // later read, while genuinely later input decodes normally.
+            for item in self.keys.push(byte, now, self.confirm_packet) {
                 if let DispatchOutcome::Exit =
                     self.handle_item(view, port, now, item, &mut after_layout, mode)?
                 {
@@ -161,6 +174,12 @@ impl InputDispatcher {
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<(), Error>,
         mode: &mut impl FnMut(bool) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
+        if item.owned {
+            // The item completes a frame that began inside a captured
+            // packet: consumed by that capture, never forwarded or decided.
+            self.flush_pending(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
         if self.confirm_packet || port.capture_confirmation_key(client_key(&item)) {
             self.flush_pending(view, port);
             self.confirm_packet = true;
@@ -279,7 +298,7 @@ impl InputDispatcher {
         &mut self,
         view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
-        now: Instant,
+        _now: Instant,
     ) -> bool {
         let setup = port.setup_input_context();
         let current = setup
@@ -293,7 +312,7 @@ impl InputDispatcher {
             return false;
         }
         if self.epoch.take().is_some() {
-            let events = self.decoder.cancel(now);
+            let events = self.decoder.cancel();
             self.apply_events(view, port, events);
         }
         let capacity =

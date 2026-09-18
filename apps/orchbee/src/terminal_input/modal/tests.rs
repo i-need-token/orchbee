@@ -174,7 +174,7 @@ fn cancellation_during_a_recognized_paste_opener_keeps_the_complete_payload_owne
         let mut decoder = ModalDecoder::default();
         decoder.start();
         feed(&mut decoder, &opener[..split], now, 512);
-        decoder.cancel(now);
+        decoder.cancel();
         let later = now + Duration::from_secs(60);
         assert!(decoder.tick(later).is_empty());
         assert!(decoder.owns_input());
@@ -184,47 +184,58 @@ fn cancellation_during_a_recognized_paste_opener_keeps_the_complete_payload_owne
         }
         let final_time = later + Duration::from_secs(120);
         feed(&mut decoder, b"~", final_time, 512);
+        // The frame ended inside this packet, so its tail stays owned.
         assert!(decoder.owns_input());
-        decoder.tick(final_time + Duration::from_millis(50));
+        assert!(decoder.push(b'z', final_time, 512).0);
+        // The next packet is free.
+        decoder.begin_packet(final_time);
         assert!(!decoder.owns_input());
-        assert!(
-            !decoder
-                .push(b'z', final_time + Duration::from_millis(50), 512)
-                .0
-        );
+        assert!(!decoder.push(b'z', final_time, 512).0);
     }
 }
 
 #[test]
-fn quiet_guard_resets_and_new_framing_outlives_silence_but_equality_releases_new_input() {
+fn the_released_guard_holds_the_decision_packet_tail_and_ends_only_at_the_boundary() {
     let now = Instant::now();
     let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel(now);
-    feed(&mut decoder, b"x", now + Duration::from_millis(49), 512);
-    decoder.tick(now + Duration::from_millis(98));
+    decoder.cancel();
+    // The tail guard owns the rest of the decision packet regardless of
+    // how much time passes; no clock ends it.
+    feed(&mut decoder, b"xy", now + Duration::from_secs(3600), 512);
+    decoder.tick(now + Duration::from_secs(7200));
     assert!(decoder.owns_input());
-    assert!(!decoder.push(b'z', now + Duration::from_millis(99), 512).0);
+    assert!(
+        decoder
+            .begin_packet(now + Duration::from_secs(7200))
+            .is_empty()
+    );
+    assert!(!decoder.owns_input());
+    assert!(!decoder.push(b'z', now + Duration::from_secs(7200), 512).0);
+    // A frame started inside the released packet outlives the boundary.
+    let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel(now + Duration::from_secs(1));
+    decoder.cancel();
+    feed(&mut decoder, b"\x1b[", now, 512);
+    decoder.begin_packet(now + Duration::from_secs(1));
+    assert!(decoder.owns_input());
     feed(
         &mut decoder,
-        b"\x1b[",
-        now + Duration::from_millis(1049),
+        b"200~\x02xy",
+        now + Duration::from_secs(60),
         512,
     );
-    let later = now + Duration::from_secs(60);
-    feed(&mut decoder, b"200~\x02xy", later, 512);
-    decoder.tick(later + Duration::from_secs(60));
     assert!(decoder.owns_input());
     feed(
         &mut decoder,
         b"\x1b[201~",
-        later + Duration::from_secs(60),
+        now + Duration::from_secs(120),
         512,
     );
-    decoder.tick(later + Duration::from_millis(60050));
+    assert!(decoder.push(b't', now + Duration::from_secs(120), 512).0);
+    decoder.begin_packet(now + Duration::from_secs(180));
     assert!(!decoder.owns_input());
+    assert!(!decoder.push(b'z', now + Duration::from_secs(180), 512).0);
 }
 
 #[test]
@@ -238,11 +249,15 @@ fn escape_classification_and_completed_handoff_have_the_accepted_late_opener_lim
         decoder.tick(now + Duration::from_millis(50)),
         [Event::Cancel]
     );
-    assert!(!decoder.push(b'[', now + Duration::from_millis(100), 512).0);
+    // The released guard owns this packet's tail; a late opener in a new
+    // packet is free after the boundary.
+    assert!(decoder.push(b'[', now + Duration::from_millis(60), 512).0);
+    decoder.begin_packet(now + Duration::from_millis(60));
     assert!(
-        !decoder.owns_input(),
-        "unrecognized late opener is new input after both handoffs"
+        !decoder.push(b'[', now + Duration::from_millis(60), 512).0,
+        "unrecognized late opener is new input after the packet boundary"
     );
+    assert!(!decoder.owns_input());
     decoder.start();
     feed(&mut decoder, b"\x1b", now + Duration::from_secs(1), 512);
     let events = feed(&mut decoder, b"[", now + Duration::from_millis(1050), 512);
@@ -260,15 +275,87 @@ fn recognized_utf8_and_csi_cancellation_drain_across_arbitrary_gaps() {
         let mut decoder = ModalDecoder::default();
         decoder.start();
         feed(&mut decoder, prefix, now, 512);
-        decoder.cancel(now);
+        decoder.cancel();
         let later = now + Duration::from_secs(3600);
         decoder.tick(later);
         assert!(decoder.owns_input());
         assert!(feed(&mut decoder, tail, later, 512).is_empty());
-        decoder.tick(later + Duration::from_millis(49));
+        // The completed frame leaves the rest of its packet owned.
         assert!(decoder.owns_input());
-        assert!(!decoder.push(b'z', later + Duration::from_millis(50), 512).0);
+        assert!(decoder.push(b'z', later, 512).0);
+        decoder.begin_packet(later + Duration::from_secs(3600));
+        assert!(!decoder.owns_input());
+        assert!(!decoder.push(b'z', later + Duration::from_secs(3600), 512).0);
     }
+}
+
+#[test]
+fn a_scalar_lead_in_the_released_packet_keeps_its_continuations_owned() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    decoder.start();
+    decoder.cancel();
+    feed(&mut decoder, b"\xe4", now, 512);
+    decoder.begin_packet(now + Duration::from_secs(3600));
+    // The UTF-8 frame owns the boundary, not a clock.
+    assert!(decoder.owns_input());
+    feed(&mut decoder, b"\xb8", now + Duration::from_secs(3600), 512);
+    feed(&mut decoder, b"\xad", now + Duration::from_secs(3600), 512);
+    assert!(decoder.push(b'x', now + Duration::from_secs(3600), 512).0);
+    decoder.begin_packet(now + Duration::from_secs(7200));
+    assert!(!decoder.owns_input());
+    assert!(!decoder.push(b'z', now + Duration::from_secs(7200), 512).0);
+}
+
+#[test]
+fn escape_disambiguation_owns_the_resolver_but_releases_at_the_boundary() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    decoder.start();
+    decoder.cancel();
+    feed(&mut decoder, b"\x1b", now, 512);
+    // An unexpired ESC wait still owns the next packet's resolver byte.
+    decoder.begin_packet(now + Duration::from_millis(10));
+    assert!(decoder.owns_input());
+    assert!(decoder.push(b'x', now + Duration::from_millis(10), 512).0);
+    // After the frame resolved, the rest of that packet is still owned.
+    assert!(decoder.owns_input());
+    // Once the wait has already expired, the boundary frees the packet.
+    let mut decoder = ModalDecoder::default();
+    decoder.start();
+    decoder.cancel();
+    feed(&mut decoder, b"\x1b", now, 512);
+    decoder.begin_packet(now + Duration::from_millis(60));
+    assert!(!decoder.owns_input());
+    assert!(!decoder.push(b'x', now + Duration::from_millis(60), 512).0);
+}
+
+#[test]
+fn a_c1_lead_in_the_released_packet_opens_a_sequence_that_outlives_the_boundary() {
+    let now = Instant::now();
+    for lead in [0x9b, 0x8f] {
+        let mut decoder = ModalDecoder::default();
+        decoder.start();
+        decoder.cancel();
+        feed(&mut decoder, &[lead], now, 512);
+        decoder.begin_packet(now + Duration::from_secs(1));
+        assert!(decoder.owns_input());
+        feed(&mut decoder, b"1;5", now + Duration::from_secs(1), 512);
+        feed(&mut decoder, b"D", now + Duration::from_secs(1), 512);
+        decoder.begin_packet(now + Duration::from_secs(2));
+        assert!(!decoder.owns_input());
+        assert!(!decoder.push(b'z', now + Duration::from_secs(2), 512).0);
+    }
+    // A C1 paste opener drains the payload rather than leaking it.
+    let mut decoder = ModalDecoder::default();
+    decoder.start();
+    decoder.cancel();
+    feed(&mut decoder, b"\x9b200~xy", now, 512);
+    decoder.begin_packet(now + Duration::from_secs(1));
+    assert!(decoder.owns_input());
+    feed(&mut decoder, b"\x9b201~", now + Duration::from_secs(1), 512);
+    decoder.begin_packet(now + Duration::from_secs(2));
+    assert!(!decoder.push(b'z', now + Duration::from_secs(2), 512).0);
 }
 
 #[test]
@@ -293,31 +380,37 @@ fn checked_clock_overflow_cancels_once_and_permanently_suppresses_forwarding() {
     assert!(feed(&mut decoder, b"\x02q\x1b[201~plain", limit, 512).is_empty());
     assert!(decoder.tick(limit).is_empty());
     assert!(decoder.owns_input());
+    // A packet boundary never revives a suppressed decoder.
+    assert!(decoder.begin_packet(limit).is_empty());
+    assert!(decoder.owns_input());
+    assert!(decoder.push(b'z', limit, 512).0);
 }
 
 #[test]
-fn external_cancel_of_pending_escape_starts_quiet_after_classification() {
+fn external_cancel_of_pending_escape_keeps_the_disambiguation_then_releases_at_the_boundary() {
     let now = Instant::now();
-    for cancel_delay in [0, 40] {
-        let mut decoder = ModalDecoder::default();
-        decoder.start();
-        feed(&mut decoder, b"\x1b", now, 512);
-        decoder.cancel(now + Duration::from_millis(cancel_delay));
-        decoder.tick(now + Duration::from_millis(50));
-        assert!(decoder.owns_input());
-        decoder.tick(now + Duration::from_millis(99));
-        assert!(decoder.owns_input());
-        decoder.tick(now + Duration::from_millis(100));
-        assert!(!decoder.owns_input());
-    }
     let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel(now);
-    feed(&mut decoder, b"\x1b", now + Duration::from_millis(49), 512);
-    decoder.tick(now + Duration::from_millis(99));
+    feed(&mut decoder, b"\x1b", now, 512);
+    decoder.cancel();
+    // The pending ESC still resolves by its own deadline, then the tail
+    // guard holds until a packet boundary — not a second clock.
+    decoder.tick(now + Duration::from_millis(49));
     assert!(decoder.owns_input());
-    decoder.tick(now + Duration::from_millis(148));
+    decoder.tick(now + Duration::from_millis(50));
     assert!(decoder.owns_input());
-    decoder.tick(now + Duration::from_millis(149));
+    decoder.tick(now + Duration::from_millis(3_600_000));
+    assert!(decoder.owns_input());
+    decoder.begin_packet(now + Duration::from_millis(3_600_000));
     assert!(!decoder.owns_input());
+    // An ESC opened inside the released packet still disambiguates the
+    // next packet's first byte.
+    let mut decoder = ModalDecoder::default();
+    decoder.start();
+    decoder.cancel();
+    feed(&mut decoder, b"\x1b", now, 512);
+    decoder.begin_packet(now + Duration::from_millis(10));
+    assert!(decoder.owns_input());
+    feed(&mut decoder, b"[", now + Duration::from_millis(10), 512);
+    assert!(decoder.owns_input());
 }
