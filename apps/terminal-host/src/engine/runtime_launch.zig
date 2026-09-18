@@ -33,8 +33,12 @@ pub const Checked = struct {
 };
 
 /// Validates raw runtime starts before any Ghostty allocation, worker spawn, or
-/// process effect. A launch-supplied zero pixel dimension inherits the runtime
-/// option; an explicit launch value must agree with that option.
+/// process effect. The launch and option cell-pixel dimensions resolve as one
+/// atomic pair: a launch-supplied {0, 0} inherits the complete option pair
+/// verbatim — which may itself be {0, 0} unknown — while an explicit launch
+/// pair must agree with a measured option pair. A public unknown launch can
+/// therefore never gain a fabricated measurement from defaults, and a mixed
+/// pair is rejected rather than silently filled.
 pub fn prepare(
     allocator: std.mem.Allocator,
     launch: pty_process.Launch,
@@ -43,17 +47,15 @@ pub fn prepare(
     if (options.profile) |profile| if (!terminal_profile.valid(profile)) {
         return error.InvalidTerminalProfile;
     };
-    const pixel_width = resolveCellPixelDimension(
+    const pixel_pair = resolveCellPixelPair(
         launch.cell_pixel_width,
-        options.cell_pixel_width,
-    ) orelse return error.InvalidLaunch;
-    const pixel_height = resolveCellPixelDimension(
         launch.cell_pixel_height,
+        options.cell_pixel_width,
         options.cell_pixel_height,
     ) orelse return error.InvalidLaunch;
     const geometry: terminal_geometry.Geometry = .{
-        .cell_pixel_height = pixel_height,
-        .cell_pixel_width = pixel_width,
+        .cell_pixel_height = pixel_pair.height,
+        .cell_pixel_width = pixel_pair.width,
         .columns = launch.columns,
         .rows = launch.rows,
     };
@@ -83,8 +85,8 @@ pub fn prepare(
     return .{
         .process_launch = .{
             .arguments = launch.arguments,
-            .cell_pixel_height = pixel_height,
-            .cell_pixel_width = pixel_width,
+            .cell_pixel_height = pixel_pair.height,
+            .cell_pixel_width = pixel_pair.width,
             .columns = geometry.columns,
             .current_directory = launch.current_directory,
             .environment = launch.environment,
@@ -93,16 +95,38 @@ pub fn prepare(
             .stdin_fd = launch.stdin_fd,
         },
         .runtime_options = .{
-            .cell_pixel_height = pixel_height,
-            .cell_pixel_width = pixel_width,
+            .cell_pixel_height = pixel_pair.height,
+            .cell_pixel_width = pixel_pair.width,
             .profile = options.profile,
             .scrollback_bytes = options.scrollback_bytes,
         },
     };
 }
 
-fn resolveCellPixelDimension(launch_pixel: u16, options_pixel: u16) ?u16 {
-    if (launch_pixel == 0) return options_pixel;
-    if (launch_pixel != options_pixel) return null;
-    return launch_pixel;
+const CellPixelPair = struct {
+    width: u16,
+    height: u16,
+};
+
+fn resolveCellPixelPair(
+    launch_width: u16,
+    launch_height: u16,
+    options_width: u16,
+    options_height: u16,
+) ?CellPixelPair {
+    if (launch_width == 0 and launch_height == 0) {
+        // Unknown launch inherits the complete option pair verbatim. That pair
+        // may itself be unknown, or a measured private-start value; it is never
+        // synthesized here. A mixed option pair is still never admitted.
+        if ((options_width == 0) != (options_height == 0)) return null;
+        return .{ .width = options_width, .height = options_height };
+    }
+    if (launch_width == 0 or launch_height == 0) return null;
+    if (options_width == 0 and options_height == 0) {
+        return .{ .width = launch_width, .height = launch_height };
+    }
+    if (launch_width != options_width or launch_height != options_height) {
+        return null;
+    }
+    return .{ .width = launch_width, .height = launch_height };
 }

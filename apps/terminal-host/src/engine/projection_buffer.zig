@@ -76,10 +76,13 @@ fn preflightGeometry(
     cell_pixel_width: u16,
     cell_pixel_height: u16,
 ) error{ProjectionTooLarge}!usize {
+    // The cell-pixel pair is atomic: {0, 0} marks unknown pixel metrics and is
+    // carried verbatim in the frame header; a mixed pair is malformed.
     if (columns == 0 or columns > protocol.Limits.frame_columns or
         rows == 0 or rows > protocol.Limits.frame_rows or
-        cell_pixel_width == 0 or cell_pixel_width > protocol.Limits.cell_pixel_dimension or
-        cell_pixel_height == 0 or cell_pixel_height > protocol.Limits.cell_pixel_dimension)
+        (cell_pixel_width == 0) != (cell_pixel_height == 0) or
+        cell_pixel_width > protocol.Limits.cell_pixel_dimension or
+        cell_pixel_height > protocol.Limits.cell_pixel_dimension)
     {
         return error.ProjectionTooLarge;
     }

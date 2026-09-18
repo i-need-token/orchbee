@@ -21,6 +21,15 @@ pub fn resizeGeometry(
     cell_pixel_width: u16,
     cell_pixel_height: u16,
 ) !u64 {
+    const next_geometry: terminal_geometry.Geometry = .{
+        .cell_pixel_height = cell_pixel_height,
+        .cell_pixel_width = cell_pixel_width,
+        .columns = columns,
+        .rows = rows,
+    };
+    // Geometry validity is enforced at the engine boundary, not only on the
+    // wire: a mixed zero/positive pixel pair must never reach Ghostty state.
+    if (!terminal_geometry.isValid(next_geometry)) return error.InvalidGeometry;
     self.terminal_mutex.lock();
     failure_ops.ensureRuntimeWorkAvailableLocked(self) catch |err| {
         self.terminal_mutex.unlock();
@@ -35,12 +44,6 @@ pub fn resizeGeometry(
     const cells_changed = old_columns != columns or old_rows != rows;
     const pixels_changed = self.cell_pixel_width != cell_pixel_width or
         self.cell_pixel_height != cell_pixel_height;
-    const next_geometry: terminal_geometry.Geometry = .{
-        .cell_pixel_height = cell_pixel_height,
-        .cell_pixel_width = cell_pixel_width,
-        .columns = columns,
-        .rows = rows,
-    };
     if (!cells_changed and !pixels_changed) {
         // A granted owner is required to submit one measured geometry. Even
         // when canonical geometry already matches, that successful request
@@ -126,7 +129,11 @@ pub fn resizeGeometry(
         if (compensation.failure_fenced) return error.TerminalRuntimeUnavailable;
         return error.RevisionOverflow;
     };
-    if (cells_changed) {
+    if (cells_changed or pixels_changed) {
+        // A pixel-only transition still commits through Terminal.resize:
+        // Ghostty skips grid work when columns/rows are unchanged but applies
+        // the explicit cell_size_px pair, so {0,0} clears stale extents rather
+        // than inheriting them.
         self.terminal.resize(self.allocator, .{
             .cell_size_px = .{
                 .height = cell_pixel_height,

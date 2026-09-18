@@ -305,6 +305,60 @@ test "mode 2048 reports exact mode 40 geometry and fences a dropped restore repo
     try std.testing.expectEqual(@as(u16, 100), runtime.geometry().columns);
 }
 
+test "pixel size queries have no reply while cell queries still answer under unknown pixels" {
+    var probe: GatedPtyProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        probe.probe.copied.release();
+        runtime.destroy();
+    }
+    probe.reader.wait();
+
+    const geometry = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 0), geometry.cell_pixel_width);
+    try std.testing.expectEqual(@as(u16, 0), geometry.cell_pixel_height);
+
+    // CSI 14t and 16t carry only pixel facts; with no measured pair the host
+    // emits no reply rather than reporting zero as if it were a measurement.
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[14t"),
+    );
+    try expectNoQueuedTerminalBytes(runtime);
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[16t"),
+    );
+    try expectNoQueuedTerminalBytes(runtime);
+
+    // CSI 18t stays authoritative for the real cell grid.
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[18t"),
+    );
+    cancelInput(runtime, try expectNextQueuedTerminalBytes(runtime, "\x1b[8;24;80t"));
+
+    // Mode 2048 reports the real cells with honest zero pixel extents.
+    var expected: [128]u8 = undefined;
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?2048h"),
+    );
+    cancelInput(runtime, try expectNextQueuedTerminalBytes(
+        runtime,
+        try inBandSizeReport(&expected, runtime.geometry()),
+    ));
+}
+
+fn expectNoQueuedTerminalBytes(runtime: *TerminalRuntime) !void {
+    const runtime_state = runtimeState(runtime);
+    runtime_state.input_mutex.lock();
+    defer runtime_state.input_mutex.unlock();
+    try std.testing.expect(!runtime_state.input_queue.hasWritableEntry());
+}
+
 fn expectNextQueuedTerminalBytes(runtime: *TerminalRuntime, expected: []const u8) !u64 {
     var buffer: [256]u8 = undefined;
     const runtime_state = runtimeState(runtime);

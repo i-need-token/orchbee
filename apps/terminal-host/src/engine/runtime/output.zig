@@ -17,9 +17,39 @@ const terminal_reply = @import("terminal_reply.zig");
 
 pub fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: []const u8) void {
     const self = runtimeFromHandler(handler);
+    // The pinned Ghostty size callback serves CSI 14t/16t/18t and mode 2048
+    // through one interface, so it cannot withhold only the pixel reports.
+    // XTWINOPS replies are emitted as single writes on this host-owned seam;
+    // while pixels are unknown the exact 14t/16t reply shapes are dropped
+    // rather than answered with fabricated values. Cell geometry stays
+    // authoritative: 18t and mode-2048 reports continue with real cells.
+    if ((self.cell_pixel_width == 0 or self.cell_pixel_height == 0) and
+        isPixelSizeReply(bytes)) return;
     terminal_reply.enqueueLocked(self, bytes) catch {
         self.reply_failure_pending = true;
     };
+}
+
+/// Matches one complete XTWINOPS pixel-size reply: `ESC [ 4 ; h ; w t` (the
+/// CSI 14t response) or `ESC [ 6 ; h ; w t` (the CSI 16t response). Only exact
+/// whole-write matches are suppressed; ordinary program output and every other
+/// reply shape pass through untouched.
+fn isPixelSizeReply(bytes: []const u8) bool {
+    if (bytes.len < "\x1b[4;0;0t".len) return false;
+    if (bytes[bytes.len - 1] != 't') return false;
+    if (!std.mem.startsWith(u8, bytes, "\x1b[4;") and
+        !std.mem.startsWith(u8, bytes, "\x1b[6;")) return false;
+    var fields = std.mem.splitScalar(u8, bytes[4 .. bytes.len - 1], ';');
+    const height = fields.next() orelse return false;
+    const width = fields.next() orelse return false;
+    if (fields.next() != null) return false;
+    return digitsOnly(height) and digitsOnly(width);
+}
+
+fn digitsOnly(field: []const u8) bool {
+    if (field.len == 0) return false;
+    for (field) |byte| if (!std.ascii.isDigit(byte)) return false;
+    return true;
 }
 
 pub fn bellEffect(handler: *ghostty_vt.TerminalStream.Handler) void {

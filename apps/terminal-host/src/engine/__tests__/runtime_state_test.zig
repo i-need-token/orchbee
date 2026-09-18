@@ -588,6 +588,8 @@ test "reader preserves direct Kitty graphics emitted through a real PTY" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
     const runtime = try TerminalRuntime.create(std.testing.allocator, .{
         .arguments = &.{},
+        .cell_pixel_height = 18,
+        .cell_pixel_width = 9,
         .columns = 80,
         .current_directory = null,
         .environment = &.{},
@@ -624,6 +626,32 @@ test "reader preserves direct Kitty graphics emitted through a real PTY" {
     const graphics = &runtime_state.terminal.screens.active.kitty_images;
     try std.testing.expectEqual(@as(usize, 1), graphics.images.count());
     try std.testing.expectEqual(@as(usize, 1), graphics.placements.count());
+}
+test "projection frames carry paired-zero pixel geometry and still validate" {
+    const runtime = try createIdleRuntime(.{});
+    defer destroyRuntimeWithIdentityRetry(runtime);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "cell-only output"),
+    );
+    const frame = try runtime.encodeProjectionFrame(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{0x32} ** 16),
+        .base_generation = null,
+        .base_revision = null,
+        .force_snapshot = true,
+        .host_epoch = HostEpoch.fromBytes([_]u8{0x43} ** 16),
+        .maximum_bytes = protocol.Limits.frame_bytes,
+        .sequence = 1,
+    });
+    defer std.testing.allocator.free(frame.allocation);
+    // The wire validator accepts the paired-zero header as the unknown-pixel
+    // representation while the real cell grid stays authoritative.
+    const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
+    try std.testing.expectEqual(@as(u16, 0), summary.cell_pixel_width);
+    try std.testing.expectEqual(@as(u16, 0), summary.cell_pixel_height);
+    try std.testing.expectEqual(@as(u16, 80), summary.columns);
+    try std.testing.expectEqual(@as(u16, 24), summary.rows);
 }
 test "owned terminal profile releases every partial allocation" {
     try std.testing.checkAllAllocationFailures(
@@ -1765,6 +1793,65 @@ test "reader applies terminal-driven 80 and 132 column modes to the PTY before c
 
     try runtime.forceTerminate();
 }
+test "runtime resize commits pixel-only transitions between known and unknown" {
+    const runtime = try createIdleRuntime(.{
+        .cell_pixel_height = 18,
+        .cell_pixel_width = 9,
+    });
+    defer destroyRuntimeWithIdentityRetry(runtime);
+
+    const initial = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 9), initial.cell_pixel_width);
+    try std.testing.expectEqual(@as(u16, 18), initial.cell_pixel_height);
+
+    // Known → unknown at unchanged cells: the explicit {0, 0} pair clears
+    // Ghostty pixel extents instead of preserving the measured values.
+    const cleared_revision = try runtime.resizeGeometry(80, 24, 0, 0);
+    try std.testing.expectEqual(initial.revision + 1, cleared_revision);
+    const unknown = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 0), unknown.cell_pixel_width);
+    try std.testing.expectEqual(@as(u16, 0), unknown.cell_pixel_height);
+    try std.testing.expectEqual(@as(u16, 80), unknown.columns);
+    try std.testing.expectEqual(@as(u16, 24), unknown.rows);
+    runtimeState(runtime).terminal_mutex.lock();
+    const cleared_width_px = runtimeState(runtime).terminal.width_px;
+    const cleared_height_px = runtimeState(runtime).terminal.height_px;
+    runtimeState(runtime).terminal_mutex.unlock();
+    try std.testing.expectEqual(@as(u32, 0), cleared_width_px);
+    try std.testing.expectEqual(@as(u32, 0), cleared_height_px);
+
+    // Unknown → known installs the newly measured pair in the same runtime.
+    _ = try runtime.resizeGeometry(80, 24, 10, 20);
+    const known = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 10), known.cell_pixel_width);
+    try std.testing.expectEqual(@as(u16, 20), known.cell_pixel_height);
+    runtimeState(runtime).terminal_mutex.lock();
+    const restored_width_px = runtimeState(runtime).terminal.width_px;
+    const restored_height_px = runtimeState(runtime).terminal.height_px;
+    runtimeState(runtime).terminal_mutex.unlock();
+    try std.testing.expectEqual(@as(u32, 800), restored_width_px);
+    try std.testing.expectEqual(@as(u32, 480), restored_height_px);
+}
+
+test "runtime resizeGeometry rejects mixed zero positive pixel pairs" {
+    const runtime = try createIdleRuntime(.{});
+    defer destroyRuntimeWithIdentityRetry(runtime);
+    const initial = runtime.geometry();
+    try std.testing.expectError(
+        error.InvalidGeometry,
+        runtime.resizeGeometry(80, 24, 0, 16),
+    );
+    try std.testing.expectError(
+        error.InvalidGeometry,
+        runtime.resizeGeometry(80, 24, 8, 0),
+    );
+    try std.testing.expectError(
+        error.InvalidGeometry,
+        runtime.resizeGeometry(0, 24, 8, 16),
+    );
+    try std.testing.expectEqualDeep(initial, runtime.geometry());
+}
+
 test "reader ignores 132 column mode while the enabling private mode is disabled" {
     var resize_probe: TerminalDrivenResizeProbe = .{};
     const runtime = try createRuntimeWithHooks(resize_probe.hooks());

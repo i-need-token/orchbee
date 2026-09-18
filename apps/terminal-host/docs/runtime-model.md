@@ -1172,7 +1172,8 @@ retained-row eviction, or a garbage tracked pin instead releases the selection a
 `evicted`, so reflow and content loss are not conflated.
 
 When DEC in-band size-report mode `2048` is enabled, the same reader transaction immediately queues
-`CSI 48 ; rows ; columns ; height-pixels ; width-pixels t` from the committed canonical geometry.
+`CSI 48 ; rows ; columns ; height-pixels ; width-pixels t` from the committed canonical geometry —
+real cell counts with zero pixel fields while the committed geometry is pixel-unknown.
 Every later successful attachment or terminal-driven geometry commit first clears synchronized
 output and then queues another report from that exact committed geometry; no-op and failed resize
 attempts emit none. Report admission uses the independent terminal-reply budget. Failure to admit a
@@ -1296,6 +1297,21 @@ terminal theme, including the revision-zero launch baseline with a null operatio
 A platform resize error is retryable only after the engine has restored the last committed PTY
 geometry. If that compensation cannot be confirmed, the engine is fenced and enters typed resize
 failure containment; Host state never assumes that a failed platform call was side-effect free.
+
+A complete terminal geometry carries positive column and row counts plus one paired cell-pixel
+dimension. Both pixel fields are either measured and positive together or zero together; the
+paired-zero form is the single admitted representation of unknown pixel metrics. It is not an
+estimate, never substitutes `8x16` or `1x1`, and is preserved verbatim across launch resolution,
+engine state, the OS PTY winsize, projection-buffer headers, and encoded frames. A mixed pair —
+one axis measured, the other zero — is malformed and rejected at every admission boundary. Cell
+dimensions stay positive in every state; a pixel-unknown terminal is a normal runnable state,
+never an error, a wait, or a fabricated grid. Every committed geometry fully replaces the pixel
+pair: a known-to-unknown commit explicitly clears engine pixel metrics to zero instead of keeping
+the stale measurement, and a later known commit installs the new one. Pixel-dependent surfaces
+degrade honestly: XTWINOPS `14t`/`16t` pixel-size queries receive no reply while pixels are
+unknown, `18t` still answers real cell counts, mode-`2048` reports carry real cells with zero
+pixel fields, and semantic pixel-position mouse input has no encodable form under unknown pixels
+and produces no PTY bytes. Raw cell-byte input, keyboard, and paste are unaffected.
 
 Geometry has two admitted initiators and one native commit owner. The terminal-scoped viewport
 restore target starts as the complete launch geometry. Every successful request from the current

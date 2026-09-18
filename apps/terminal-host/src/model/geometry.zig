@@ -9,15 +9,29 @@ pub const Geometry = struct {
 };
 
 pub fn isValid(geometry: Geometry) bool {
-    return geometry.columns >= 1 and geometry.columns <= protocol.Limits.frame_columns and
+    if (!(geometry.columns >= 1 and geometry.columns <= protocol.Limits.frame_columns and
         geometry.rows >= 1 and geometry.rows <= protocol.Limits.frame_rows and
-        @as(u32, geometry.columns) * geometry.rows <= protocol.Limits.frame_cells and
-        geometry.cell_pixel_width >= 1 and
-        geometry.cell_pixel_width <= protocol.Limits.cell_pixel_dimension and
-        geometry.cell_pixel_height >= 1 and
+        @as(u32, geometry.columns) * geometry.rows <= protocol.Limits.frame_cells))
+    {
+        return false;
+    }
+    // The cell-pixel pair is atomic: {0, 0} is the admitted representation of
+    // unknown pixel metrics, while a mixed pair is never valid.
+    const width_known = geometry.cell_pixel_width != 0;
+    const height_known = geometry.cell_pixel_height != 0;
+    if (width_known != height_known) return false;
+    if (!width_known) return true;
+    return geometry.cell_pixel_width <= protocol.Limits.cell_pixel_dimension and
         geometry.cell_pixel_height <= protocol.Limits.cell_pixel_dimension and
         @as(u32, geometry.columns) * geometry.cell_pixel_width <= std.math.maxInt(u16) and
         @as(u32, geometry.rows) * geometry.cell_pixel_height <= std.math.maxInt(u16);
+}
+
+/// True when both cell-pixel fields carry a measured positive dimension. The
+/// paired-zero form — the only other valid state — means pixels are unknown;
+/// pixel-dependent features must not fabricate a measurement from it.
+pub fn pixelsKnown(geometry: Geometry) bool {
+    return geometry.cell_pixel_width != 0 and geometry.cell_pixel_height != 0;
 }
 
 pub fn eql(left: Geometry, right: Geometry) bool {

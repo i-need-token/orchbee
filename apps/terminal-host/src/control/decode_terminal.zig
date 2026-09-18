@@ -179,6 +179,7 @@ fn translateEnvironmentOverlay(
 }
 
 pub const testing = struct {
+    pub const optionalLaunchGeometryForTest = optionalLaunchGeometry;
     pub const translateEnvironmentForTest = translateEnvironment;
     pub const translateEnvironmentOverlayForTest = translateEnvironmentOverlay;
 };

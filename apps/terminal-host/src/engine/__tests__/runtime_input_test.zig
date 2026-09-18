@@ -1454,7 +1454,10 @@ test "final aggregate focus release uses its precharged input capacity" {
     try runtime.forceTerminate();
 }
 test "attachment detach repair allocation failure fences the live runtime" {
-    const runtime = try createIdleRuntime(.{});
+    const runtime = try createIdleRuntime(.{
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+    });
     defer runtime.destroy();
     const attachment_id = AttachmentId.fromBytes([_]u8{0x35} ** 16);
     var attachment = try runtime.prepareAttachment(
@@ -1646,6 +1649,41 @@ test "finite mouse coordinates remain bounded across tracking modes and formats"
         representable_pixels.bytes.?,
     );
     representable_pixels.deinit();
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try runtime.forceTerminate();
+}
+test "semantic mouse input emits no bytes while pixel metrics are unknown" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    const geometry = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 0), geometry.cell_pixel_width);
+    try std.testing.expectEqual(@as(u16, 0), geometry.cell_pixel_height);
+    try std.testing.expectEqual(@as(u16, 80), geometry.columns);
+    try std.testing.expectEqual(@as(u16, 24), geometry.rows);
+
+    // Semantic positions arrive in terminal-space pixels, so no tracking mode
+    // or format can encode one without a cell-pixel fact. The zero-output
+    // convention applies uniformly — including 1016, which is never silently
+    // rewritten into a cell format.
+    const modes = [_][]const u8{
+        "\x1b[?1000h",
+        "\x1b[?1002h\x1b[?1006h",
+        "\x1b[?1003h\x1b[?1015h",
+        "\x1b[?1000h\x1b[?1016h",
+    };
+    for (modes) |mode| {
+        parseTerminalInput(runtime, mode);
+        var prepared = try runtime.prepareMouseInput(.{
+            .action = .{ .press = .left },
+            .modifiers = .{},
+            .pressed_buttons = .{},
+            .x = 120,
+            .y = 40,
+        }, std.math.maxInt(usize));
+        try std.testing.expectEqual(@as(usize, 0), prepared.byteCount());
+        prepared.deinit();
+    }
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try runtime.forceTerminate();
 }
@@ -2043,7 +2081,10 @@ test "focus mode reports the aggregate immediately and rejects stale preparation
 
 test "mouse input epoch rejects stale preparation and retires only unstarted hover" {
     {
-        const runtime = try createIdleRuntime(.{});
+        const runtime = try createIdleRuntime(.{
+            .cell_pixel_height = 16,
+            .cell_pixel_width = 8,
+        });
         defer runtime.destroy();
         var stale = try runtime.prepareMouseInput(.{
             .action = .{ .motion = .hover },
@@ -2063,7 +2104,10 @@ test "mouse input epoch rejects stale preparation and retires only unstarted hov
     }
 
     {
-        const runtime = try createIdleRuntime(.{});
+        const runtime = try createIdleRuntime(.{
+            .cell_pixel_height = 16,
+            .cell_pixel_width = 8,
+        });
         defer runtime.destroy();
         try std.testing.expectEqual(
             ReaderBatchOutcome.committed,
@@ -2088,7 +2132,10 @@ test "mouse input epoch rejects stale preparation and retires only unstarted hov
 
     {
         var probe: WriterProbe = .{ .pause_at = .copied };
-        const runtime = try createRuntimeWithHooks(probe.hooks());
+        const runtime = try harness.createIdleRuntimeWithGeometryAndHooks(80, 24, .{
+            .cell_pixel_height = 16,
+            .cell_pixel_width = 8,
+        }, probe.hooks());
         defer {
             probe.copied.release();
             clearTestingHooks(runtime);
@@ -2123,7 +2170,10 @@ test "mouse input epoch rejects stale preparation and retires only unstarted hov
 
 test "started mouse hover completes across a later mode change" {
     var probe: WriterProbe = .{ .pause_at = .started };
-    const runtime = try createRuntimeWithHooks(probe.hooks());
+    const runtime = try harness.createIdleRuntimeWithGeometryAndHooks(80, 24, .{
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+    }, probe.hooks());
     defer {
         probe.started.release();
         clearTestingHooks(runtime);

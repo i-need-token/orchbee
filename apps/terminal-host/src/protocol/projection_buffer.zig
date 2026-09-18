@@ -226,8 +226,9 @@ fn parseProjectionBuffer(bytes: []const u8) contract.ProtocolError!ParsedProject
         cell_count != @as(u32, row_count) * columns or
         cell_count > contract.Limits.frame_cells or sequence == 0 or generation == 0 or
         cursor_column >= columns or cursor_row >= rows or
-        cell_pixel_width == 0 or cell_pixel_width > contract.Limits.cell_pixel_dimension or
-        cell_pixel_height == 0 or cell_pixel_height > contract.Limits.cell_pixel_dimension or
+        (cell_pixel_width == 0) != (cell_pixel_height == 0) or
+        cell_pixel_width > contract.Limits.cell_pixel_dimension or
+        cell_pixel_height > contract.Limits.cell_pixel_dimension or
         @as(u32, columns) * cell_pixel_width > std.math.maxInt(u16) or
         @as(u32, rows) * cell_pixel_height > std.math.maxInt(u16) or
         cursor_shape < 1 or cursor_shape > 3 or active_screen < 1 or active_screen > 2 or

@@ -33,6 +33,62 @@ test "CreateTerminal preflights environment count before translation allocation"
     try std.testing.expect(!failing.has_induced_failure);
 }
 
+test "launch geometry decode admits paired-zero pixels and rejects mixed pairs" {
+    const subject_testing = control_boundary.testing.decode_terminal;
+    const profile: wire.TerminalProfile = .{
+        .colorScheme = "dark",
+        .defaultBackgroundRgb = 0,
+        .defaultCursorRgb = null,
+        .defaultForegroundRgb = 0xffffff,
+        .deviceAttributes = .{
+            .primaryConformanceLevel = 62,
+            .primaryFeatures = &.{22},
+            .secondaryDeviceType = 1,
+            .secondaryFirmwareVersion = 0,
+            .secondaryRomCartridge = 0,
+            .tertiaryUnitId = 0,
+        },
+        .enquiryResponse = "",
+        .palette = &[_]u32{0} ** 256,
+        .versionResponse = "test",
+    };
+    const base: wire.Launch = .{
+        .arguments = &.{},
+        .cellPixelHeight = 0,
+        .cellPixelWidth = 0,
+        .columns = 80,
+        .configuration = null,
+        .currentDirectory = null,
+        .environment = &.{},
+        .executable = "probe",
+        .rows = 24,
+        .terminalProfile = profile,
+    };
+    const paired_zero = try subject_testing.optionalLaunchGeometryForTest(base);
+    try std.testing.expectEqual(@as(u16, 0), paired_zero.?.cell_pixel_height);
+    try std.testing.expectEqual(@as(u16, 0), paired_zero.?.cell_pixel_width);
+    try std.testing.expectEqual(@as(u16, 80), paired_zero.?.columns);
+    try std.testing.expectEqual(@as(u16, 24), paired_zero.?.rows);
+
+    var mixed = base;
+    mixed.cellPixelWidth = 9;
+    try std.testing.expectError(error.InvalidField, subject_testing.optionalLaunchGeometryForTest(mixed));
+    var mixed_height = base;
+    mixed_height.cellPixelHeight = 18;
+    try std.testing.expectError(error.InvalidField, subject_testing.optionalLaunchGeometryForTest(mixed_height));
+    var zero_columns = base;
+    zero_columns.columns = 0;
+    try std.testing.expectError(error.InvalidField, subject_testing.optionalLaunchGeometryForTest(zero_columns));
+    // An entirely absent geometry stays absent rather than materializing one.
+    var absent_launch = base;
+    absent_launch.cellPixelHeight = null;
+    absent_launch.cellPixelWidth = null;
+    absent_launch.columns = null;
+    absent_launch.rows = null;
+    const absent = try subject_testing.optionalLaunchGeometryForTest(absent_launch);
+    try std.testing.expect(absent == null);
+}
+
 test "Hello optional feature names use a bounded UTF-8 byte length" {
     const ascii = [_][]const u8{"a"};
     var hello: wire.Hello = .{

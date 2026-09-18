@@ -544,6 +544,8 @@ Ghostty OSC 133 `C` 和 `D` 语义提示操作使用其 PTY 读取批处理以�
 
 仅当引擎恢复了最后提交的 PTY 几何图形后，平台调整大小错误才可重试。如果无法确认补偿，则引擎将被屏蔽并进入类型调整大小失败收容；主机状态从不假设失败的平台调用没有副作用。
 
+完整终端 geometry 由正的 column 与 row 计数，以及一对 cell-pixel 尺寸组成。两个 pixel 字段要么同时为正的可测量值，要么同时为零；成对零是唯一获准表示"像素度量未知"的形式。它不是估计值，绝不代换 `8x16` 或 `1x1`，并在 launch resolution、引擎状态、OS PTY winsize、projection-buffer header 与编码 frame 中原样保留。混合 pair（一轴有测量值、另一轴为零）是非法形态，在每个准入边界都会被拒绝。Cell 维度在任何状态下都保持为正；pixel-unknown 的终端是正常的可运行状态，绝不是错误、等待或虚构网格。每次提交的 geometry 都完整替换 pixel pair：由已知转为未知的提交会显式把引擎 pixel 度量清零，而不是保留过期测量值；随后转为已知的提交则安装新的测量值。依赖 pixel 的表面会诚实降级：像素未知时 XTWINOPS `14t`/`16t` 像素尺寸查询不获得应答，`18t` 仍回答真实 cell 计数，mode-`2048` 报告携带真实 cell 与零 pixel 字段，而语义化 pixel 坐标 mouse input 在像素未知时没有可编码形式、不产生 PTY 字节。Raw cell-byte 输入、键盘与粘贴不受影响。
+
 Geometry 有两类已准入发起者和一个本机提交所有者。终端范围的视口恢复目标以完整 launch geometry 初始化。当前 resize-lease owner 的每个成功请求都会替换该目标：改变几何的请求只在 PTY 与 Ghostty commit 后替换；已经等于 canonical geometry 的请求仍可替换旧目标，但不产生 platform effect、generation 变化或 geometry revision。Lease transfer 本身绝不合成 measurement，也不改变目标。
 
 PTY 输出也可以请求 Ghostty 启用的 80/132 列模式。Host 流适配器识别已解析 mode action，而不是重新解析字节；它与 attachment resize 串行化，应用新的 OS PTY grid 与 pixel extent，再在 reader batch 仍拥有提交时调用固定 Ghostty 的 DECCOLM。Cell pixel metric 保持不变，DECCOLM 也绝不覆盖 viewport target。每个显式 DEC mode `40` set、reset 或 saved-mode restore 都通过同一 transaction 恢复已保存的完整 viewport grid 与 cell-pixel geometry。目标已相等时，不产生 platform effect 或 geometry revision。改变几何的恢复会释放 synchronized-output suppression，并在 mode `2048` 启用时为已提交 geometry 准入精确报告。同一 batch 内的多个 column-mode 与 mode-40 action 按 parser 顺序执行，只有最终一致的 geometry 可被观察。
@@ -570,7 +572,7 @@ Settled terminal 拒绝 claim，也不会晋升新的 resize owner。
 
 每个接受的操作都会将终端生成和修订精确地推进一次，刷新历史模型，使投影基础和生成固定行或导出工作无效，并释放不再命名保留的 Ghostty 状态的选择或历史锚点。因此，下一个投影帧是每个附件共享的完整规范快照。发起客户端还修复 `reset` 之前浏览器拥有的瞬态：取消 IME 组合，通过普通语义输入释放按键和鼠标状态，通过普通选择命令清除其选择，清除搜索和悬停呈现，并恢复跟随底部。主机操作本身绝不会丢弃已经接受的输入。
 
-启用 DEC 带内尺寸报告模式 `2048` 时，同一 reader 事务会立即从已提交规范几何排入 `CSI 48 ; rows ; columns ; height-pixels ; width-pixels t`。之后每次成功的附件或终端驱动几何提交都会先清除同步输出，再从该次精确提交的几何排入一条报告；无操作与失败的 resize 尝试不发出报告。报告准入使用独立的终端回复预算。无法准入必需报告属于类型化 `terminal_reply` 完整性故障，而不是几何已成功但未报告的 resize。
+启用 DEC 带内尺寸报告模式 `2048` 时，同一 reader 事务会立即从已提交规范几何排入 `CSI 48 ; rows ; columns ; height-pixels ; width-pixels t`——已提交 geometry 为 pixel-unknown 时携带真实 cell 计数与零 pixel 字段。之后每次成功的附件或终端驱动几何提交都会先清除同步输出，再从该次精确提交的几何排入一条报告；无操作与失败的 resize 尝试不发出报告。报告准入使用独立的终端回复预算。无法准入必需报告属于类型化 `terminal_reply` 完整性故障，而不是几何已成功但未报告的 resize。
 
 授权、运行生命周期验证和生成/修订溢出检查在 Ghostty 突变之前完成。一旦突变开始，它的域提交就不会出错。丢失的响应会使结果未知，并且不得自动重播：重复清除或重置可能会收敛到相同的像素，但仍会推进修订和交付身份。投影 `store-reset` 保留对无效编码帧基础的客户端恢复，并且永远不会解释为任一终端操作。
 

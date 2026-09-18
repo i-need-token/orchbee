@@ -124,8 +124,13 @@ pub const State = struct {
         ) = .empty;
         defer virtual_origins.deinit(self.allocator);
 
+        // Pixel metrics may be unknown on cell-only hosts ({0,0} cell pixels).
+        // Placement geometry carries pixel offsets and destination extents that
+        // cannot be expressed honestly without them, so the frame must carry no
+        // graphics rather than fail or reuse stale offsets.
         if (cell_pixel_width == 0 or cell_pixel_height == 0) {
-            return error.ProjectionTooLarge;
+            self.placements.clearRetainingCapacity();
+            return;
         }
         const pages = &terminal.screens.active.pages;
         const top_screen = pages.pointFromPin(.screen, top) orelse

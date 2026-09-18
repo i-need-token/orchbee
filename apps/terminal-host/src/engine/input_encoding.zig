@@ -45,6 +45,13 @@ pub fn encodeMouse(
     cell_pixel_height: u16,
     input: terminal_input.MouseInput,
 ) ![]const u8 {
+    // Semantic mouse positions arrive in terminal-space pixels. With unknown
+    // cell-pixel metrics there is no conversion fact, so the event is not
+    // encodable: emit no bytes rather than fabricate a cell size or emit
+    // coordinates in the wrong unit. This also keeps cell-division and
+    // SGR-pixel restore paths out of the zero-denominator domain. Cell-byte
+    // passthrough, keyboard, and paste are unaffected.
+    if (cell_pixel_width == 0 or cell_pixel_height == 0) return "";
     var options = ghostty_vt.input.MouseEncodeOptions.fromTerminal(terminal, .{
         .screen = .{
             .height = @as(u32, terminal.rows) * cell_pixel_height,

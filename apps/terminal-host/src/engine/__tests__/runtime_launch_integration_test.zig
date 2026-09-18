@@ -421,6 +421,111 @@ test "POSIX PTY child reads TIOCGWINSZ matching the canonical launch geometry" {
     try std.testing.expectEqual(@as(u16, plan.columns * plan.cell_pixel_width), xpixel);
     try std.testing.expectEqual(@as(u16, plan.rows * plan.cell_pixel_height), ypixel);
 }
+test "POSIX PTY child reads TIOCGWINSZ with real cells and zero pixel extents" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const environment = [_]terminal_launch.EnvironmentEntry{};
+    const features = [_]u16{22};
+    const palette = [_]u32{0} ** 256;
+    const canonical_launch: terminal_launch.Launch = .{
+        .arguments = &.{},
+        .configuration = null,
+        .current_directory = null,
+        .environment = &environment,
+        .executable = "probe",
+        .geometry = .{
+            .cell_pixel_height = 0,
+            .cell_pixel_width = 0,
+            .columns = 120,
+            .rows = 40,
+        },
+        .profile = .{
+            .color_scheme = .dark,
+            .default_background_rgb = 0,
+            .default_cursor_rgb = null,
+            .default_foreground_rgb = 0xffffff,
+            .device_primary_conformance_level = 62,
+            .device_primary_features = &features,
+            .device_secondary_type = 1,
+            .device_secondary_firmware_version = 0,
+            .device_secondary_rom_cartridge = 0,
+            .device_tertiary_unit_id = 0,
+            .enquiry_response = "",
+            .palette = &palette,
+            .version_response = "Orchbee test",
+        },
+    };
+    const validated = try terminal_launch.inspect(std.testing.allocator, canonical_launch);
+    var prepared = try terminal_launch.prepareRuntime(validated, std.testing.allocator, .{});
+    defer prepared.deinit(std.testing.allocator);
+    const plan = prepared.processLaunch(validated.launch.geometry.?);
+    try std.testing.expectEqual(@as(u16, 0), plan.cell_pixel_height);
+    try std.testing.expectEqual(@as(u16, 0), plan.cell_pixel_width);
+
+    const posix = std.posix;
+    var pty = try platform_boundary.testing.pty.Pty.open(.{
+        .columns = plan.columns,
+        .pixel_height = plan.rows * plan.cell_pixel_height,
+        .pixel_width = plan.columns * plan.cell_pixel_width,
+        .rows = plan.rows,
+    });
+    defer pty.deinit();
+    try pty.setSize(.{
+        .columns = plan.columns,
+        .pixel_height = plan.rows * plan.cell_pixel_height,
+        .pixel_width = plan.columns * plan.cell_pixel_width,
+        .rows = plan.rows,
+    });
+
+    const TIOCGWINSZ: c_int = comptime if (target_builtin.os.tag == .windows)
+        0
+    else switch (target_builtin.os.tag) {
+        .macos, .freebsd => 0x40087468,
+        .linux => 0x5413,
+        else => @compileError("TIOCGWINSZ is not defined for this POSIX target"),
+    };
+    const report = try posix_compat.pipe2(.{ .CLOEXEC = true });
+    defer posix_compat.close(report[0]);
+    const child_id = try posix_compat.fork();
+    if (child_id == 0) {
+        posix_compat.close(report[0]);
+        pty.childSetup() catch {
+            _ = posix_compat.write(report[1], &.{0}) catch 0;
+            posix_compat.exit(1);
+        };
+        var winsize: posix.winsize = undefined;
+        if (std.c.ioctl(posix.STDIN_FILENO, TIOCGWINSZ, @intFromPtr(&winsize)) < 0) {
+            _ = posix_compat.write(report[1], &.{0}) catch 0;
+            posix_compat.exit(1);
+        }
+        var bytes: [8]u8 = undefined;
+        std.mem.writeInt(u16, bytes[0..2], winsize.row, .little);
+        std.mem.writeInt(u16, bytes[2..4], winsize.col, .little);
+        std.mem.writeInt(u16, bytes[4..6], winsize.xpixel, .little);
+        std.mem.writeInt(u16, bytes[6..8], winsize.ypixel, .little);
+        _ = posix_compat.write(report[1], &bytes) catch 0;
+        posix_compat.exit(0);
+    }
+    posix_compat.close(report[1]);
+    var result: [8]u8 = undefined;
+    var received: usize = 0;
+    while (received < result.len) {
+        const length = try posix.read(report[0], result[received..]);
+        if (length == 0) return error.ChildClosedReportPipe;
+        received += length;
+    }
+    _ = posix_compat.waitpid(child_id, 0);
+    const row = std.mem.readInt(u16, result[0..2], .little);
+    const column = std.mem.readInt(u16, result[2..4], .little);
+    const xpixel = std.mem.readInt(u16, result[4..6], .little);
+    const ypixel = std.mem.readInt(u16, result[6..8], .little);
+    // The kernel winsize carries the real cell grid and honest zero pixel
+    // extents: no fabricated cell size reaches the child process.
+    try std.testing.expectEqual(plan.rows, row);
+    try std.testing.expectEqual(plan.columns, column);
+    try std.testing.expectEqual(@as(u16, 0), xpixel);
+    try std.testing.expectEqual(@as(u16, 0), ypixel);
+}
 test "Linux session descendant with a forged newline comm stays contained until shutdown kills it (THCR-028)" {
     const builtin = @import("builtin");
     if (builtin.os.tag != .linux) return error.SkipZigTest;

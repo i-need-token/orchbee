@@ -150,8 +150,9 @@ pub fn validateTerminalFrame(
     if (columns == 0 or columns > max_frame_columns or rows == 0 or rows > max_frame_rows or
         @as(u32, columns) * rows > max_frame_cells or
         cursor_column >= columns or cursor_row >= rows or sequence == 0 or generation == 0 or
-        cell_pixel_width == 0 or cell_pixel_width > max_cell_pixel_dimension or
-        cell_pixel_height == 0 or cell_pixel_height > max_cell_pixel_dimension or
+        (cell_pixel_width == 0) != (cell_pixel_height == 0) or
+        cell_pixel_width > max_cell_pixel_dimension or
+        cell_pixel_height > max_cell_pixel_dimension or
         @as(u32, columns) * cell_pixel_width > std.math.maxInt(u16) or
         @as(u32, rows) * cell_pixel_height > std.math.maxInt(u16))
     {
