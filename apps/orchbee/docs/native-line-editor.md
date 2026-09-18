@@ -41,7 +41,7 @@ A draft field never sanitizes or window-slices the raw text directly. `field_win
 field_width)` projects the complete raw text once through `terminal_text`'s ANSI-aware
 projection — complete escape sequences are stripped as whole units, forbidden scalars are dropped —
 and keeps the raw-to-visible byte-boundary map from that same parse. The window is then chosen over
-the *visible* text by whole grapheme clusters so a raw cursor inside a stripped sequence lands on a
+the _visible_ text by whole grapheme clusters so a raw cursor inside a stripped sequence lands on a
 display boundary and no mid-sequence raw slice can re-enter the parser. The returned window is the
 drawable text plus the cursor column strictly inside the field width; a zero-width field yields
 `None` rather than a fake position, and a cluster wider than the remaining space is never split.

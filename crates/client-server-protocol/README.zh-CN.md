@@ -13,17 +13,17 @@ Workbench state。
 
 ## Public API
 
-| API                                                                                      | Contract                                                                        |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `RequestId`、`SiteId`、`WorkerId`、`TerminalId`、`ViewerId`、`HostEpoch`、`ControllerId` | 解析独立 typed、nonzero opaque 128-bit 小写十六进制 identity。                  |
-| `WorkingDirectory`                                                                       | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute POSIX UTF-8 path。           |
+| API                                                                                      | Contract                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RequestId`、`SiteId`、`WorkerId`、`TerminalId`、`ViewerId`、`HostEpoch`、`ControllerId` | 解析独立 typed、nonzero opaque 128-bit 小写十六进制 identity。                                                                                             |
+| `WorkingDirectory`                                                                       | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute POSIX UTF-8 path。                                                                                      |
 | `Geometry`                                                                               | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。cell-pixel width 与 height 必须同正（pixel 已知）或同零（pixel 未知）；混合成对值被拒绝。 |
-| `TerminalCreateRequest`、`TerminalStartRequest`                                          | 构造 validated Client request；start 拒绝相同的 start/create request identity。 |
-| `CreateOutcome`、`StartOutcome` 与 result type                                           | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                   |
-| `encode_client_frame`、`decode_client_frame`                                             | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                |
-| `encode_server_frame`、`decode_server_frame`                                             | Encode 或 decode 恰好一个完整 in-memory Server-to-Client frame。                |
-| `read_client_message`、`read_server_message`                                             | 从支持 partial read 的有序 stream 中精确读取一个 frame，并保留后续 frame 未读。 |
-| `write_client_message`、`write_server_message`                                           | 通过 partial write 写出完整 frame，且不 flush caller。                          |
+| `TerminalCreateRequest`、`TerminalStartRequest`                                          | 构造 validated Client request；start 拒绝相同的 start/create request identity。                                                                            |
+| `CreateOutcome`、`StartOutcome` 与 result type                                           | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                                                                                              |
+| `encode_client_frame`、`decode_client_frame`                                             | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                                                                                           |
+| `encode_server_frame`、`decode_server_frame`                                             | Encode 或 decode 恰好一个完整 in-memory Server-to-Client frame。                                                                                           |
+| `read_client_message`、`read_server_message`                                             | 从支持 partial read 的有序 stream 中精确读取一个 frame，并保留后续 frame 未读。                                                                            |
+| `write_client_message`、`write_server_message`                                           | 通过 partial write 写出完整 frame，且不 flush caller。                                                                                                     |
 
 所有 decoded object 与 enum 都是 closed。缺失显式 nullable create field、未知 field 或 tag、重复
 key、BOM、无效 UTF-8、尾随 JSON value、direction mismatch、无效 identity、path 或 geometry，以及

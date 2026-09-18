@@ -14,17 +14,17 @@ project Workbench state.
 
 ## Public API
 
-| API                                                                                      | Contract                                                                                              |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `RequestId`, `SiteId`, `WorkerId`, `TerminalId`, `ViewerId`, `HostEpoch`, `ControllerId` | Parse separately typed nonzero opaque 128-bit lowercase hexadecimal identities.                       |
-| `WorkingDirectory`                                                                       | Validate an absolute POSIX UTF-8 path of at most 4,096 encoded bytes with no NUL.                     |
+| API                                                                                      | Contract                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RequestId`, `SiteId`, `WorkerId`, `TerminalId`, `ViewerId`, `HostEpoch`, `ControllerId` | Parse separately typed nonzero opaque 128-bit lowercase hexadecimal identities.                                                                                                                        |
+| `WorkingDirectory`                                                                       | Validate an absolute POSIX UTF-8 path of at most 4,096 encoded bytes with no NUL.                                                                                                                      |
 | `Geometry`                                                                               | Construct complete geometry only when all scalar and product bounds hold. Cell-pixel width and height are either both positive (pixels known) or both zero (pixels unknown); a mixed pair is rejected. |
-| `TerminalCreateRequest`, `TerminalStartRequest`                                          | Construct validated Client requests; start rejects equal start/create request identities.             |
-| `CreateOutcome`, `StartOutcome` and result types                                         | Represent only the stable Client-visible result combinations admitted by OBCS v1.                     |
-| `encode_client_frame`, `decode_client_frame`                                             | Encode or decode exactly one complete in-memory Client-to-Server frame.                               |
-| `encode_server_frame`, `decode_server_frame`                                             | Encode or decode exactly one complete in-memory Server-to-Client frame.                               |
-| `read_client_message`, `read_server_message`                                             | Read exactly one frame from a partial-read-capable ordered stream and leave a following frame unread. |
-| `write_client_message`, `write_server_message`                                           | Write a complete frame through partial writes without flushing the caller.                            |
+| `TerminalCreateRequest`, `TerminalStartRequest`                                          | Construct validated Client requests; start rejects equal start/create request identities.                                                                                                              |
+| `CreateOutcome`, `StartOutcome` and result types                                         | Represent only the stable Client-visible result combinations admitted by OBCS v1.                                                                                                                      |
+| `encode_client_frame`, `decode_client_frame`                                             | Encode or decode exactly one complete in-memory Client-to-Server frame.                                                                                                                                |
+| `encode_server_frame`, `decode_server_frame`                                             | Encode or decode exactly one complete in-memory Server-to-Client frame.                                                                                                                                |
+| `read_client_message`, `read_server_message`                                             | Read exactly one frame from a partial-read-capable ordered stream and leave a following frame unread.                                                                                                  |
+| `write_client_message`, `write_server_message`                                           | Write a complete frame through partial writes without flushing the caller.                                                                                                                             |
 
 All decoded objects and enums are closed. Missing explicit nullable create fields, unknown fields or
 tags, duplicate keys, BOM, invalid UTF-8, trailing JSON values, direction mismatches, invalid

@@ -29,13 +29,13 @@ Width and height are classified independently and the lower tier wins.
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome      | Full                | Compact                    | Minimal            | TooSmall         |
-| ----------- | ------------------- | -------------------------- | ------------------ | ---------------- |
-| Top strip   | 1 row (tabs)        | 1 row (tabs)               | none               | none             |
-| Status      | 1 row               | 1 row                      | 1 row              | 1 row            |
-| Side panel  | docked 30 columns   | overlay 30 columns, left   | hidden             | hidden           |
-| Panel frame | drawn               | drawn                      | not drawn          | not drawn        |
-| Content     | remainder           | remainder                  | remainder          | notice only      |
+| Chrome      | Full              | Compact                  | Minimal   | TooSmall    |
+| ----------- | ----------------- | ------------------------ | --------- | ----------- |
+| Top strip   | 1 row (tabs)      | 1 row (tabs)             | none      | none        |
+| Status      | 1 row             | 1 row                    | 1 row     | 1 row       |
+| Side panel  | docked 30 columns | overlay 30 columns, left | hidden    | hidden      |
+| Panel frame | drawn             | drawn                    | not drawn | not drawn   |
+| Content     | remainder         | remainder                | remainder | notice only |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;

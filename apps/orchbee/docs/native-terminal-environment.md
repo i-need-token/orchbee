@@ -15,11 +15,11 @@ restated here. Host-reported pixel geometry that arrives as zero is reported hon
 The runtime observation of the inherited terminal distinguishes three outcomes. The distinction
 is made on typed results, never on error text.
 
-| Observation      | Meaning                                                                   | Runtime effect                                                                                     |
-| ---------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Valid geometry   | The host reported nonzero rows and columns                                | A change applies a resize and a redraw; an equal geometry is a no-op                               |
-| Zero or absent   | The host transiently reported zero rows or columns                        | No resize is sent, the Session is not retired, the last valid geometry stays in effect, and the next valid geometry resumes normally |
-| Inspection error | The descriptor or the query itself failed (permission, closed, invalid fd) | Fatal: the failure propagates and the interface exits                                              |
+| Observation      | Meaning                                                                    | Runtime effect                                                                                                                       |
+| ---------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Valid geometry   | The host reported nonzero rows and columns                                 | A change applies a resize and a redraw; an equal geometry is a no-op                                                                 |
+| Zero or absent   | The host transiently reported zero rows or columns                         | No resize is sent, the Session is not retired, the last valid geometry stays in effect, and the next valid geometry resumes normally |
+| Inspection error | The descriptor or the query itself failed (permission, closed, invalid fd) | Fatal: the failure propagates and the interface exits                                                                                |
 
 A pixel extent of zero is a normal observation, not an error: the cell-pixel pair is reported as
 `(0, 0)` — "pixels unknown" — while the character grid keeps working. When the host reports only

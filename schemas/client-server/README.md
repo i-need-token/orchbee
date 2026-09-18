@@ -67,13 +67,13 @@ the selected Worker boundary to resolve its authorized default; omission is inva
 
 Every geometry contains all four integer fields and satisfies every invariant:
 
-| Field or product                                       | Range                     |
-| ------------------------------------------------------ | ------------------------- |
-| `columns`, `rows`                                      | 1 through 4,096 inclusive |
-| `cellPixelWidth`, `cellPixelHeight`                    | 0 through 4,096 inclusive; either both positive (pixels known) or both zero (pixels unknown), never mixed |
-| `columns * rows`                                       | At most 262,144           |
-| `columns * cellPixelWidth`                             | At most 65,535            |
-| `rows * cellPixelHeight`                               | At most 65,535            |
+| Field or product                    | Range                                                                                                     |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `columns`, `rows`                   | 1 through 4,096 inclusive                                                                                 |
+| `cellPixelWidth`, `cellPixelHeight` | 0 through 4,096 inclusive; either both positive (pixels known) or both zero (pixels unknown), never mixed |
+| `columns * rows`                    | At most 262,144                                                                                           |
+| `columns * cellPixelWidth`          | At most 65,535                                                                                            |
+| `rows * cellPixelHeight`            | At most 65,535                                                                                            |
 
 ## Client requests
 
