@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 use super::workbench_projection::project_native_standalone_tabs;
 mod context_selection;
+pub(super) mod line_editor;
 pub(super) mod workspace_setup;
 pub(crate) use context_selection::NativeContextView;
 mod create_membership;

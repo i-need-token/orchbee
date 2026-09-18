@@ -22,6 +22,7 @@ ratatui = { version = "0.30.2", default-features = false, features = [
 ] }
 rustix = { workspace = true, features = ["fs", "termios"] }
 signal-hook = { version = "0.3.18", default-features = false }
+unicode-segmentation = "1.13.3"
 
 [target.'cfg(unix)'.dev-dependencies]
 jsonschema = { version = "0.53.0", default-features = false }
