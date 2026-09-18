@@ -88,6 +88,22 @@ pub(crate) enum Family {
     Completion,
 }
 
+impl Family {
+    /// The family's real help-path spelling, as `help_topic` recognizes it.
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Project => "project",
+            Self::Workspace => "workspace",
+            Self::Tab => "tab",
+            Self::Panel => "panel",
+            Self::Terminal => "terminal",
+            Self::Api => "api",
+            Self::Config => "config",
+            Self::Completion => "completion",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandPath {
     Tui,
@@ -115,6 +131,39 @@ pub(crate) enum CommandPath {
     ApiSnapshot,
     ApiSchema,
     ConfigCheck,
+}
+
+impl CommandPath {
+    /// The command's real help-path spelling, as `help_topic` recognizes it.
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Tui => "tui",
+            Self::Status => "status",
+            Self::ProjectList => "project list",
+            Self::ProjectGet => "project get",
+            Self::WorkspaceList => "workspace list",
+            Self::WorkspaceGet => "workspace get",
+            Self::WorkspaceCreate => "workspace create",
+            Self::WorkspaceRename => "workspace rename",
+            Self::TabList => "tab list",
+            Self::TabGet => "tab get",
+            Self::TabCreate => "tab create",
+            Self::TabRename => "tab rename",
+            Self::TabMove => "tab move",
+            Self::TabClose => "tab close",
+            Self::PanelList => "panel list",
+            Self::PanelGet => "panel get",
+            Self::PanelSplit => "panel split",
+            Self::PanelClose => "panel close",
+            Self::PanelMove => "panel move",
+            Self::TerminalList => "terminal list",
+            Self::TerminalGet => "terminal get",
+            Self::TerminalRead => "terminal read",
+            Self::ApiSnapshot => "api snapshot",
+            Self::ApiSchema => "api schema",
+            Self::ConfigCheck => "config check",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -232,16 +281,124 @@ pub(crate) enum ParseFailureKind {
     InvalidIdentifier { resource: Resource, target: String },
 }
 
+/// The invocation context a usage diagnostic is anchored to. `Path` carries a
+/// real help path ("project list"), so its hint points at `orchbee <path>
+/// --help`; `Literal` carries display text with no such spelling
+/// ("orchbee --version"), so its hint falls back to the root.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UsageContext {
+    Root,
+    Path(&'static str),
+    Literal(&'static str),
+}
+
+/// The bounded vocabulary of value shapes an `invalid-usage` diagnostic may
+/// expect; rendered per locale, never serialized.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ExpectedValue {
+    Format,
+    Label,
+    Dimension,
+    TabDirection,
+    PanelDirection,
+    Shell,
+}
+
+/// Why an `invalid-usage` failure was reached. Carried for the localized
+/// human stderr diagnostic only — never serialized into the machine envelope
+/// and never a second parse.
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum UsageReason {
+    /// Reserved fallback for a real failure without a more precise
+    /// classification; every current exit names its concrete reason.
+    #[expect(
+        dead_code,
+        reason = "fallback kept for exits that cannot honestly name a cause"
+    )]
+    Invalid,
+    /// Non-Unicode argv or argv over the total byte bound; nothing echoes.
+    ArgumentEnvelope,
+    UnknownCommand {
+        context: UsageContext,
+        word: String,
+    },
+    UnknownOption {
+        option: String,
+    },
+    UnexpectedOption {
+        context: UsageContext,
+        option: &'static str,
+    },
+    DuplicateOption {
+        option: &'static str,
+    },
+    ConflictingOptions {
+        context: UsageContext,
+        first: &'static str,
+        second: &'static str,
+    },
+    MissingValue {
+        option: &'static str,
+    },
+    /// `requirement` is the display-ready required form: `'--label'` or
+    /// `<tab>` — flag spellings and operand placeholders are locale-neutral.
+    MissingRequired {
+        context: UsageContext,
+        requirement: &'static str,
+    },
+    /// `tab create` with neither `--workspace` nor `--standalone`.
+    MissingTabContext {
+        context: UsageContext,
+    },
+    UnexpectedArgument {
+        context: UsageContext,
+        value: String,
+    },
+    MissingCommand {
+        context: UsageContext,
+    },
+    UnknownHelpTopic {
+        path: String,
+    },
+    MisplacedFlag {
+        context: UsageContext,
+        flag: &'static str,
+    },
+    InvalidValue {
+        context: UsageContext,
+        option: &'static str,
+        value: String,
+        expected: ExpectedValue,
+    },
+    InvalidGeometry {
+        context: UsageContext,
+        cols: u16,
+        rows: u16,
+        cell_width: u16,
+        cell_height: u16,
+    },
+}
+
+#[derive(Clone, Debug, Eq)]
 pub(crate) struct ParseFailure {
     pub(crate) kind: ParseFailureKind,
     pub(crate) envelope: FailureEnvelope,
+    /// The stderr-only usage classification for `InvalidUsage` failures;
+    /// `None` for other kinds and equality ignores it — the machine contract
+    /// is `kind` plus `envelope`.
+    pub(crate) usage: Option<UsageReason>,
+}
+
+impl PartialEq for ParseFailure {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.envelope == other.envelope
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Token {
     Word(String),
-    HelpFlag,
+    HelpFlag(&'static str),
     VersionFlag,
 }
 
@@ -301,6 +458,7 @@ fn target(
     let identifier = |target: String| ParseFailure {
         kind: ParseFailureKind::InvalidIdentifier { resource, target },
         envelope,
+        usage: None,
     };
     if valid_typed_id(&value) {
         if value == ZERO_IDENTITY {
@@ -315,10 +473,13 @@ fn target(
     }
 }
 
-fn usage(envelope: FailureEnvelope) -> ParseFailure {
+/// An `invalid-usage` failure carrying the concrete reason the original exit
+/// reached; the reason rides the same envelope untouched.
+fn usage_with(reason: UsageReason, envelope: FailureEnvelope) -> ParseFailure {
     ParseFailure {
         kind: ParseFailureKind::InvalidUsage,
         envelope,
+        usage: Some(reason),
     }
 }
 
@@ -326,6 +487,7 @@ fn identifier(resource: Resource, target: String, envelope: FailureEnvelope) -> 
     ParseFailure {
         kind: ParseFailureKind::InvalidIdentifier { resource, target },
         envelope,
+        usage: None,
     }
 }
 
@@ -345,17 +507,17 @@ pub(crate) fn parse_request(
     let mut total_bytes = 0_usize;
     for argument in arguments {
         let Some(text) = argument.to_str() else {
-            return Err(ParseFailure {
-                kind: ParseFailureKind::InvalidUsage,
-                envelope: FailureEnvelope::Silent,
-            });
+            return Err(usage_with(
+                UsageReason::ArgumentEnvelope,
+                FailureEnvelope::Silent,
+            ));
         };
         total_bytes += text.len();
         if total_bytes > MAXIMUM_ARGUMENT_BYTES {
-            return Err(ParseFailure {
-                kind: ParseFailureKind::InvalidUsage,
-                envelope: FailureEnvelope::Silent,
-            });
+            return Err(usage_with(
+                UsageReason::ArgumentEnvelope,
+                FailureEnvelope::Silent,
+            ));
         }
         tokens.push(text.to_owned());
     }
@@ -370,9 +532,28 @@ pub(crate) fn parse_request(
 /// same left-to-right ownership as the option scan below; a bare `--` is never
 /// consumed as a value.
 fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailure> {
-    let silent = || ParseFailure {
-        kind: ParseFailureKind::InvalidUsage,
-        envelope: FailureEnvelope::Silent,
+    let missing = || {
+        usage_with(
+            UsageReason::MissingValue { option: "--format" },
+            FailureEnvelope::Silent,
+        )
+    };
+    let invalid = |value: &str| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context: UsageContext::Root,
+                option: "--format",
+                value: value.to_owned(),
+                expected: ExpectedValue::Format,
+            },
+            FailureEnvelope::Silent,
+        )
+    };
+    let duplicate = || {
+        usage_with(
+            UsageReason::DuplicateOption { option: "--format" },
+            FailureEnvelope::Silent,
+        )
     };
     let mut format = None;
     let mut index = 0;
@@ -383,15 +564,15 @@ fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailu
             "--format" => {
                 let Some(value) = tokens.get(index + 1).filter(|value| value.as_str() != "--")
                 else {
-                    return Err(silent());
+                    return Err(missing());
                 };
                 let selected = match value.as_str() {
                     "text" => OutputFormat::Text,
                     "json" => OutputFormat::Json,
-                    _ => return Err(silent()),
+                    _ => return Err(invalid(value)),
                 };
                 if format.replace(selected).is_some() {
-                    return Err(silent());
+                    return Err(duplicate());
                 }
                 index += 2;
             }
@@ -399,10 +580,10 @@ fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailu
                 let selected = match &token["--format=".len()..] {
                     "text" => OutputFormat::Text,
                     "json" => OutputFormat::Json,
-                    _ => return Err(silent()),
+                    _ => return Err(invalid(&token["--format=".len()..])),
                 };
                 if format.replace(selected).is_some() {
-                    return Err(silent());
+                    return Err(duplicate());
                 }
                 index += 1;
             }
@@ -444,9 +625,17 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
             "--format" => index += 2,
             _ if token.starts_with("--format=") => index += 1,
             _ if VALUE_FLAGS.contains(&token.as_str()) => {
+                // The guard admitted this spelling, so the static name exists.
+                let option = VALUE_FLAGS
+                    .iter()
+                    .copied()
+                    .find(|flag| *flag == token.as_str())
+                    .expect("flag admitted by guard");
                 let value = match tokens.get(index + 1) {
                     Some(value) if value != "--" => value.clone(),
-                    _ => return Err(usage(envelope)),
+                    _ => {
+                        return Err(usage_with(UsageReason::MissingValue { option }, envelope));
+                    }
                 };
                 let slot = match token.as_str() {
                     "--project" => &mut options.project,
@@ -461,24 +650,34 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     _ => &mut options.target_panel,
                 };
                 if slot.replace(value).is_some() {
-                    return Err(usage(envelope));
+                    return Err(usage_with(
+                        UsageReason::DuplicateOption { option },
+                        envelope,
+                    ));
                 }
                 index += 2;
             }
             "--standalone" | "--confirm" => {
-                let seen = if token == "--standalone" {
-                    &mut options.standalone
+                let (seen, option) = if token == "--standalone" {
+                    (&mut options.standalone, "--standalone")
                 } else {
-                    &mut options.confirm
+                    (&mut options.confirm, "--confirm")
                 };
                 if *seen {
-                    return Err(usage(envelope));
+                    return Err(usage_with(
+                        UsageReason::DuplicateOption { option },
+                        envelope,
+                    ));
                 }
                 *seen = true;
                 index += 1;
             }
             "--help" | "-h" => {
-                positionals.push(Token::HelpFlag);
+                positionals.push(Token::HelpFlag(if token == "--help" {
+                    "--help"
+                } else {
+                    "-h"
+                }));
                 index += 1;
             }
             "--version" => {
@@ -486,7 +685,12 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 index += 1;
             }
             _ if token.starts_with('-') && token.len() > 1 => {
-                return Err(usage(envelope));
+                return Err(usage_with(
+                    UsageReason::UnknownOption {
+                        option: token.clone(),
+                    },
+                    envelope,
+                ));
             }
             _ => {
                 positionals.push(Token::Word(token.clone()));
@@ -501,60 +705,93 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
     let envelope = selection_envelope(options.format);
     // `--version` is legal only as the sole root invocation.
     if positionals.len() == 1 && matches!(positionals[0], Token::VersionFlag) {
-        reject_extras(&options, envelope)?;
+        reject_extras(
+            &options,
+            UsageContext::Literal("orchbee --version"),
+            envelope,
+        )?;
         return Ok(Request::Version);
     }
     // A trailing -h/--help applies to a recognized help path only.
     let (path, suffix_help) = match positionals.last() {
-        Some(Token::HelpFlag) => (&positionals[..positionals.len() - 1], true),
+        Some(Token::HelpFlag(_)) => (&positionals[..positionals.len() - 1], true),
         _ => (&positionals[..], false),
     };
     if suffix_help {
         return resolve_help_suffix(path, &options, envelope);
     }
-    if path
-        .iter()
-        .any(|token| matches!(token, Token::HelpFlag | Token::VersionFlag))
-    {
-        return Err(usage(envelope));
+    if let Some(flag) = path.iter().find_map(flag_literal) {
+        let words: Vec<&str> = path.iter().filter_map(word_literal).collect();
+        return Err(usage_with(
+            UsageReason::MisplacedFlag {
+                context: help_context(&words),
+                flag,
+            },
+            envelope,
+        ));
     }
     let words: Vec<&str> = path
         .iter()
         .map(|token| match token {
             Token::Word(word) => word.as_str(),
-            Token::HelpFlag | Token::VersionFlag => unreachable!("flags excluded above"),
+            Token::HelpFlag(_) | Token::VersionFlag => unreachable!("flags excluded above"),
         })
         .collect();
     resolve_words(&words, &options, envelope)
 }
 
+fn flag_literal(token: &Token) -> Option<&'static str> {
+    match token {
+        Token::HelpFlag(literal) => Some(literal),
+        Token::VersionFlag => Some("--version"),
+        Token::Word(_) => None,
+    }
+}
+
+fn word_literal(token: &Token) -> Option<&str> {
+    match token {
+        Token::Word(word) => Some(word.as_str()),
+        Token::HelpFlag(_) | Token::VersionFlag => None,
+    }
+}
+
+/// The help-path context of already-recognized words; unrecognized paths fall
+/// back to the root so a hint never points at a nonexistent topic.
+fn help_context(words: &[&str]) -> UsageContext {
+    match help_topic(words) {
+        Some(HelpTopic::Family(family)) => UsageContext::Path(family.as_str()),
+        Some(HelpTopic::Command(command)) => UsageContext::Path(command.as_str()),
+        None => UsageContext::Root,
+    }
+}
+
 fn resolve_help_suffix(
-    words: &[Token],
+    tokens: &[Token],
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
+    let words: Vec<&str> = tokens.iter().filter_map(word_literal).collect();
+    let context = help_context(&words);
     // -h/--help must be the sole suffix of a recognized help path; other flag
     // tokens, a selected format, filters, or business arguments make it usage.
-    reject_extras(options, envelope)?;
-    if words
-        .iter()
-        .any(|token| matches!(token, Token::HelpFlag | Token::VersionFlag))
-    {
-        return Err(usage(envelope));
+    reject_extras(options, context, envelope)?;
+    if let Some(flag) = tokens.iter().find_map(flag_literal) {
+        return Err(usage_with(
+            UsageReason::MisplacedFlag { context, flag },
+            envelope,
+        ));
     }
-    let path: Vec<&str> = words
-        .iter()
-        .map(|token| match token {
-            Token::Word(word) => word.as_str(),
-            Token::HelpFlag | Token::VersionFlag => unreachable!("flags excluded above"),
-        })
-        .collect();
-    if path.is_empty() {
+    if words.is_empty() {
         return Ok(Request::RootHelp);
     }
-    help_topic(&path)
-        .map(Request::Help)
-        .ok_or_else(|| usage(envelope))
+    help_topic(&words).map(Request::Help).ok_or_else(|| {
+        usage_with(
+            UsageReason::UnknownHelpTopic {
+                path: words.join(" "),
+            },
+            envelope,
+        )
+    })
 }
 
 fn resolve_words(
@@ -572,33 +809,34 @@ fn resolve_words(
                 || options.standalone
                 || business_options(options)
             {
-                return Err(usage(envelope));
+                return Err(missing_command(UsageContext::Root, envelope));
             }
             Ok(Request::Tui)
         }
-        ["tui"] => reject_extras(options, envelope).map(|()| Request::Tui),
+        ["tui"] => {
+            reject_extras(options, UsageContext::Path("tui"), envelope).map(|()| Request::Tui)
+        }
         ["help", rest @ ..] => resolve_help_path(rest, options, envelope),
         ["status"] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("status"), envelope)?;
             Ok(query(QueryCommand::Status, options))
         }
         ["project", "list"] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("project list"), envelope)?;
             Ok(query(QueryCommand::ProjectList, options))
         }
         ["project", "get", value] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("project get"), envelope)?;
             Ok(query(
                 QueryCommand::ProjectGet(target((*value).to_owned(), Resource::Project, envelope)?),
                 options,
             ))
         }
         ["workspace", "list"] => {
-            reject(
-                options.workspace.is_some()
-                    || options.tab.is_some()
-                    || options.standalone
-                    || business_options(options),
+            check_scope(
+                options,
+                WORKSPACE_LIST_SCOPE,
+                UsageContext::Path("workspace list"),
                 envelope,
             )?;
             let project = options
@@ -609,7 +847,7 @@ fn resolve_words(
             Ok(query(QueryCommand::WorkspaceList { project }, options))
         }
         ["workspace", "get", value] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("workspace get"), envelope)?;
             Ok(query(
                 QueryCommand::WorkspaceGet(target(
                     (*value).to_owned(),
@@ -620,35 +858,56 @@ fn resolve_words(
             ))
         }
         ["workspace", "create"] => {
-            check_scope(options, WORKSPACE_CREATE_SCOPE, envelope)?;
+            check_scope(
+                options,
+                WORKSPACE_CREATE_SCOPE,
+                UsageContext::Path("workspace create"),
+                envelope,
+            )?;
             Ok(mutation(
                 MutationCommand::WorkspaceCreate {
                     project: target(
-                        required(&options.project, envelope)?,
+                        required(
+                            &options.project,
+                            UsageContext::Path("workspace create"),
+                            "'--project'",
+                            envelope,
+                        )?,
                         Resource::Project,
                         envelope,
                     )?,
-                    label: label_option(options, envelope)?,
+                    label: label_option(options, UsageContext::Path("workspace create"), envelope)?,
                 },
                 options,
             ))
         }
         ["workspace", "rename", value] => {
-            check_scope(options, LABEL_SCOPE, envelope)?;
+            check_scope(
+                options,
+                LABEL_SCOPE,
+                UsageContext::Path("workspace rename"),
+                envelope,
+            )?;
             Ok(mutation(
                 MutationCommand::WorkspaceRename {
                     target: target((*value).to_owned(), Resource::Workspace, envelope)?,
-                    label: label_option(options, envelope)?,
+                    label: label_option(options, UsageContext::Path("workspace rename"), envelope)?,
                 },
                 options,
             ))
         }
         ["tab", "list"] => {
-            reject(
-                options.project.is_some() || options.tab.is_some() || business_options(options),
+            check_scope(
+                options,
+                TAB_LIST_SCOPE,
+                UsageContext::Path("tab list"),
                 envelope,
             )?;
-            reject(options.standalone && options.workspace.is_some(), envelope)?;
+            reject_conflict(
+                options.standalone && options.workspace.is_some(),
+                UsageContext::Path("tab list"),
+                envelope,
+            )?;
             let workspace = options
                 .workspace
                 .clone()
@@ -663,56 +922,90 @@ fn resolve_words(
             ))
         }
         ["tab", "get", value] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("tab get"), envelope)?;
             Ok(query(
                 QueryCommand::TabGet(target((*value).to_owned(), Resource::Tab, envelope)?),
                 options,
             ))
         }
         ["tab", "create"] => {
-            check_scope(options, TAB_CREATE_SCOPE, envelope)?;
-            reject(options.standalone && options.workspace.is_some(), envelope)?;
+            check_scope(
+                options,
+                TAB_CREATE_SCOPE,
+                UsageContext::Path("tab create"),
+                envelope,
+            )?;
+            reject_conflict(
+                options.standalone && options.workspace.is_some(),
+                UsageContext::Path("tab create"),
+                envelope,
+            )?;
             let context = if options.standalone {
                 TabContext::Standalone
             } else {
-                TabContext::Workspace(target(
-                    required(&options.workspace, envelope)?,
-                    Resource::Workspace,
-                    envelope,
-                )?)
+                let Some(value) = options.workspace.clone() else {
+                    return Err(usage_with(
+                        UsageReason::MissingTabContext {
+                            context: UsageContext::Path("tab create"),
+                        },
+                        envelope,
+                    ));
+                };
+                TabContext::Workspace(target(value, Resource::Workspace, envelope)?)
             };
             Ok(mutation(
                 MutationCommand::TabCreate {
                     context,
-                    label: label_option(options, envelope)?,
-                    geometry: geometry_option(options, envelope)?,
+                    label: label_option(options, UsageContext::Path("tab create"), envelope)?,
+                    geometry: geometry_option(options, UsageContext::Path("tab create"), envelope)?,
                 },
                 options,
             ))
         }
         ["tab", "rename", value] => {
-            check_scope(options, LABEL_SCOPE, envelope)?;
+            check_scope(
+                options,
+                LABEL_SCOPE,
+                UsageContext::Path("tab rename"),
+                envelope,
+            )?;
             Ok(mutation(
                 MutationCommand::TabRename {
                     target: target((*value).to_owned(), Resource::Tab, envelope)?,
-                    label: label_option(options, envelope)?,
+                    label: label_option(options, UsageContext::Path("tab rename"), envelope)?,
                 },
                 options,
             ))
         }
         ["tab", "move", value] => {
-            check_scope(options, TAB_MOVE_SCOPE, envelope)?;
+            check_scope(
+                options,
+                TAB_MOVE_SCOPE,
+                UsageContext::Path("tab move"),
+                envelope,
+            )?;
             Ok(mutation(
                 MutationCommand::TabMove {
                     target: target((*value).to_owned(), Resource::Tab, envelope)?,
-                    direction: tab_direction(options, envelope)?,
+                    direction: tab_direction(options, UsageContext::Path("tab move"), envelope)?,
                 },
                 options,
             ))
         }
         ["tab", "close", value] => {
-            check_scope(options, CONFIRM_SCOPE, envelope)?;
-            reject(!options.confirm, envelope)?;
+            check_scope(
+                options,
+                CONFIRM_SCOPE,
+                UsageContext::Path("tab close"),
+                envelope,
+            )?;
+            if !options.confirm {
+                return Err(missing_required(
+                    UsageContext::Path("tab close"),
+                    "'--confirm'",
+                    envelope,
+                ));
+            }
             Ok(mutation(
                 MutationCommand::TabClose {
                     target: target((*value).to_owned(), Resource::Tab, envelope)?,
@@ -721,11 +1014,10 @@ fn resolve_words(
             ))
         }
         ["panel", "list"] => {
-            reject(
-                options.project.is_some()
-                    || options.workspace.is_some()
-                    || options.standalone
-                    || business_options(options),
+            check_scope(
+                options,
+                PANEL_LIST_SCOPE,
+                UsageContext::Path("panel list"),
                 envelope,
             )?;
             let tab = options
@@ -736,27 +1028,51 @@ fn resolve_words(
             Ok(query(QueryCommand::PanelList { tab }, options))
         }
         ["panel", "get", value] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("panel get"), envelope)?;
             Ok(query(
                 QueryCommand::PanelGet(target((*value).to_owned(), Resource::Panel, envelope)?),
                 options,
             ))
         }
         ["panel", "split", value] => {
-            check_scope(options, PANEL_SPLIT_SCOPE, envelope)?;
+            check_scope(
+                options,
+                PANEL_SPLIT_SCOPE,
+                UsageContext::Path("panel split"),
+                envelope,
+            )?;
             Ok(mutation(
                 MutationCommand::PanelSplit {
                     target: target((*value).to_owned(), Resource::Panel, envelope)?,
-                    direction: panel_direction(options, envelope)?,
-                    label: label_option(options, envelope)?,
-                    geometry: geometry_option(options, envelope)?,
+                    direction: panel_direction(
+                        options,
+                        UsageContext::Path("panel split"),
+                        envelope,
+                    )?,
+                    label: label_option(options, UsageContext::Path("panel split"), envelope)?,
+                    geometry: geometry_option(
+                        options,
+                        UsageContext::Path("panel split"),
+                        envelope,
+                    )?,
                 },
                 options,
             ))
         }
         ["panel", "close", value] => {
-            check_scope(options, CONFIRM_SCOPE, envelope)?;
-            reject(!options.confirm, envelope)?;
+            check_scope(
+                options,
+                CONFIRM_SCOPE,
+                UsageContext::Path("panel close"),
+                envelope,
+            )?;
+            if !options.confirm {
+                return Err(missing_required(
+                    UsageContext::Path("panel close"),
+                    "'--confirm'",
+                    envelope,
+                ));
+            }
             Ok(mutation(
                 MutationCommand::PanelClose {
                     target: target((*value).to_owned(), Resource::Panel, envelope)?,
@@ -765,26 +1081,40 @@ fn resolve_words(
             ))
         }
         ["panel", "move", value] => {
-            check_scope(options, PANEL_MOVE_SCOPE, envelope)?;
+            check_scope(
+                options,
+                PANEL_MOVE_SCOPE,
+                UsageContext::Path("panel move"),
+                envelope,
+            )?;
             Ok(mutation(
                 MutationCommand::PanelMove {
                     target: target((*value).to_owned(), Resource::Panel, envelope)?,
                     into: target(
-                        required(&options.target_panel, envelope)?,
+                        required(
+                            &options.target_panel,
+                            UsageContext::Path("panel move"),
+                            "'--target-panel'",
+                            envelope,
+                        )?,
                         Resource::Panel,
                         envelope,
                     )?,
-                    direction: panel_direction(options, envelope)?,
+                    direction: panel_direction(
+                        options,
+                        UsageContext::Path("panel move"),
+                        envelope,
+                    )?,
                 },
                 options,
             ))
         }
         ["terminal", "list"] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("terminal list"), envelope)?;
             Ok(query(QueryCommand::TerminalList, options))
         }
         ["terminal", "get", value] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("terminal get"), envelope)?;
             Ok(query(
                 QueryCommand::TerminalGet(target(
                     (*value).to_owned(),
@@ -795,7 +1125,7 @@ fn resolve_words(
             ))
         }
         ["terminal", "read", value] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("terminal read"), envelope)?;
             Ok(query(
                 QueryCommand::TerminalRead(target(
                     (*value).to_owned(),
@@ -806,15 +1136,15 @@ fn resolve_words(
             ))
         }
         ["api", "snapshot"] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("api snapshot"), envelope)?;
             Ok(query(QueryCommand::ApiSnapshot, options))
         }
         ["api", "schema"] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("api schema"), envelope)?;
             Ok(query(QueryCommand::ApiSchema { schema_id: None }, options))
         }
         ["api", "schema", schema_id] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("api schema"), envelope)?;
             if schema_id.is_empty() {
                 return Err(identifier(Resource::Schema, String::new(), envelope));
             }
@@ -826,20 +1156,263 @@ fn resolve_words(
             ))
         }
         ["config", "check"] => {
-            reject_filters(options, envelope)?;
+            reject_filters(options, UsageContext::Path("config check"), envelope)?;
             Ok(query(QueryCommand::ConfigCheck, options))
         }
         ["completion", shell] => {
-            reject_extras(options, envelope)?;
+            reject_extras(options, UsageContext::Path("completion"), envelope)?;
             let shell = match *shell {
                 "bash" => CompletionShell::Bash,
                 "zsh" => CompletionShell::Zsh,
                 "fish" => CompletionShell::Fish,
-                _ => return Err(usage(envelope)),
+                _ => {
+                    return Err(usage_with(
+                        UsageReason::InvalidValue {
+                            context: UsageContext::Path("completion"),
+                            option: "<shell>",
+                            value: (*shell).to_owned(),
+                            expected: ExpectedValue::Shell,
+                        },
+                        envelope,
+                    ));
+                }
             };
             Ok(Request::Completion(shell))
         }
-        _ => Err(usage(envelope)),
+        // Command-scoped catch-alls classify the real failure — an extra
+        // positional, a missing operand, a missing subcommand, or an
+        // unrecognized word — after every legal arm has kept precedence.
+        ["tui", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("tui"),
+            extra,
+            envelope,
+        )),
+        ["status", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("status"),
+            extra,
+            envelope,
+        )),
+        ["project"] => Err(missing_command(UsageContext::Path("project"), envelope)),
+        ["project", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("project list"),
+            extra,
+            envelope,
+        )),
+        ["project", "get"] => Err(missing_required(
+            UsageContext::Path("project get"),
+            "<project>",
+            envelope,
+        )),
+        ["project", "get", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("project get"),
+            extra,
+            envelope,
+        )),
+        ["project", verb, ..] => Err(unknown_command(
+            UsageContext::Path("project"),
+            verb,
+            envelope,
+        )),
+        ["workspace"] => Err(missing_command(UsageContext::Path("workspace"), envelope)),
+        ["workspace", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace list"),
+            extra,
+            envelope,
+        )),
+        ["workspace", "get"] => Err(missing_required(
+            UsageContext::Path("workspace get"),
+            "<workspace>",
+            envelope,
+        )),
+        ["workspace", "get", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace get"),
+            extra,
+            envelope,
+        )),
+        ["workspace", "create", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace create"),
+            extra,
+            envelope,
+        )),
+        ["workspace", "rename"] => Err(missing_required(
+            UsageContext::Path("workspace rename"),
+            "<workspace>",
+            envelope,
+        )),
+        ["workspace", "rename", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace rename"),
+            extra,
+            envelope,
+        )),
+        ["workspace", verb, ..] => Err(unknown_command(
+            UsageContext::Path("workspace"),
+            verb,
+            envelope,
+        )),
+        ["tab"] => Err(missing_command(UsageContext::Path("tab"), envelope)),
+        ["tab", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("tab list"),
+            extra,
+            envelope,
+        )),
+        ["tab", "get"] => Err(missing_required(
+            UsageContext::Path("tab get"),
+            "<tab>",
+            envelope,
+        )),
+        ["tab", "get", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("tab get"),
+            extra,
+            envelope,
+        )),
+        ["tab", "create", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("tab create"),
+            extra,
+            envelope,
+        )),
+        ["tab", "rename"] => Err(missing_required(
+            UsageContext::Path("tab rename"),
+            "<tab>",
+            envelope,
+        )),
+        ["tab", "rename", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("tab rename"),
+            extra,
+            envelope,
+        )),
+        ["tab", "move"] => Err(missing_required(
+            UsageContext::Path("tab move"),
+            "<tab>",
+            envelope,
+        )),
+        ["tab", "move", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("tab move"),
+            extra,
+            envelope,
+        )),
+        ["tab", "close"] => Err(missing_required(
+            UsageContext::Path("tab close"),
+            "<tab>",
+            envelope,
+        )),
+        ["tab", "close", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("tab close"),
+            extra,
+            envelope,
+        )),
+        ["tab", verb, ..] => Err(unknown_command(UsageContext::Path("tab"), verb, envelope)),
+        ["panel"] => Err(missing_command(UsageContext::Path("panel"), envelope)),
+        ["panel", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("panel list"),
+            extra,
+            envelope,
+        )),
+        ["panel", "get"] => Err(missing_required(
+            UsageContext::Path("panel get"),
+            "<panel>",
+            envelope,
+        )),
+        ["panel", "get", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("panel get"),
+            extra,
+            envelope,
+        )),
+        ["panel", "split"] => Err(missing_required(
+            UsageContext::Path("panel split"),
+            "<panel>",
+            envelope,
+        )),
+        ["panel", "split", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("panel split"),
+            extra,
+            envelope,
+        )),
+        ["panel", "close"] => Err(missing_required(
+            UsageContext::Path("panel close"),
+            "<panel>",
+            envelope,
+        )),
+        ["panel", "close", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("panel close"),
+            extra,
+            envelope,
+        )),
+        ["panel", "move"] => Err(missing_required(
+            UsageContext::Path("panel move"),
+            "<panel>",
+            envelope,
+        )),
+        ["panel", "move", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("panel move"),
+            extra,
+            envelope,
+        )),
+        ["panel", verb, ..] => Err(unknown_command(UsageContext::Path("panel"), verb, envelope)),
+        ["terminal"] => Err(missing_command(UsageContext::Path("terminal"), envelope)),
+        ["terminal", "list", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("terminal list"),
+            extra,
+            envelope,
+        )),
+        ["terminal", "get"] => Err(missing_required(
+            UsageContext::Path("terminal get"),
+            "<terminal>",
+            envelope,
+        )),
+        ["terminal", "get", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("terminal get"),
+            extra,
+            envelope,
+        )),
+        ["terminal", "read"] => Err(missing_required(
+            UsageContext::Path("terminal read"),
+            "<terminal>",
+            envelope,
+        )),
+        ["terminal", "read", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("terminal read"),
+            extra,
+            envelope,
+        )),
+        ["terminal", verb, ..] => Err(unknown_command(
+            UsageContext::Path("terminal"),
+            verb,
+            envelope,
+        )),
+        ["api"] => Err(missing_command(UsageContext::Path("api"), envelope)),
+        ["api", "snapshot", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("api snapshot"),
+            extra,
+            envelope,
+        )),
+        ["api", "schema", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("api schema"),
+            extra,
+            envelope,
+        )),
+        ["api", verb, ..] => Err(unknown_command(UsageContext::Path("api"), verb, envelope)),
+        ["config"] => Err(missing_command(UsageContext::Path("config"), envelope)),
+        ["config", "check", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("config check"),
+            extra,
+            envelope,
+        )),
+        ["config", verb, ..] => Err(unknown_command(
+            UsageContext::Path("config"),
+            verb,
+            envelope,
+        )),
+        ["completion"] => Err(missing_required(
+            UsageContext::Path("completion"),
+            "<shell>",
+            envelope,
+        )),
+        ["completion", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("completion"),
+            extra,
+            envelope,
+        )),
+        [word, ..] => Err(unknown_command(UsageContext::Root, word, envelope)),
     }
 }
 
@@ -848,13 +1421,25 @@ fn resolve_help_path(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    reject_extras(options, envelope)?;
+    // A recognized topic anchors its own help path; an unrecognized one keeps
+    // the literal `orchbee help` display so no hint points at a fake topic.
+    let context = match help_topic(rest) {
+        Some(HelpTopic::Family(family)) => UsageContext::Path(family.as_str()),
+        Some(HelpTopic::Command(command)) => UsageContext::Path(command.as_str()),
+        None => UsageContext::Literal("orchbee help"),
+    };
+    reject_extras(options, context, envelope)?;
     if rest.is_empty() {
         return Ok(Request::RootHelp);
     }
-    help_topic(rest)
-        .map(Request::Help)
-        .ok_or_else(|| usage(envelope))
+    help_topic(rest).map(Request::Help).ok_or_else(|| {
+        usage_with(
+            UsageReason::UnknownHelpTopic {
+                path: rest.join(" "),
+            },
+            envelope,
+        )
+    })
 }
 
 /// The one recognized-help-path table shared by `help <path>` and a trailing
@@ -941,6 +1526,22 @@ const NO_OPTIONS: Scope = Scope {
     target_panel: false,
 };
 
+const WORKSPACE_LIST_SCOPE: Scope = Scope {
+    project: true,
+    ..NO_OPTIONS
+};
+
+const TAB_LIST_SCOPE: Scope = Scope {
+    workspace: true,
+    standalone: true,
+    ..NO_OPTIONS
+};
+
+const PANEL_LIST_SCOPE: Scope = Scope {
+    tab: true,
+    ..NO_OPTIONS
+};
+
 const WORKSPACE_CREATE_SCOPE: Scope = Scope {
     project: true,
     label: true,
@@ -995,122 +1596,282 @@ fn business_options(options: &Options) -> bool {
         || options.target_panel.is_some()
 }
 
-/// Reject every named option outside the command's admitted set. `--format`
-/// is orthogonal and never scope-checked.
+/// The first named option present but outside `scope`, in the fixed `Options`
+/// declaration order — deterministic without any argv-order state.
+fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
+    if options.project.is_some() && !scope.project {
+        return Some("--project");
+    }
+    if options.workspace.is_some() && !scope.workspace {
+        return Some("--workspace");
+    }
+    if options.tab.is_some() && !scope.tab {
+        return Some("--tab");
+    }
+    if options.standalone && !scope.standalone {
+        return Some("--standalone");
+    }
+    if options.label.is_some() && !scope.label {
+        return Some("--label");
+    }
+    if options.direction.is_some() && !scope.direction {
+        return Some("--direction");
+    }
+    if !scope.geometry {
+        if options.cols.is_some() {
+            return Some("--cols");
+        }
+        if options.rows.is_some() {
+            return Some("--rows");
+        }
+        if options.cell_width.is_some() {
+            return Some("--cell-width");
+        }
+        if options.cell_height.is_some() {
+            return Some("--cell-height");
+        }
+    }
+    if options.confirm && !scope.confirm {
+        return Some("--confirm");
+    }
+    if options.target_panel.is_some() && !scope.target_panel {
+        return Some("--target-panel");
+    }
+    None
+}
+
+/// Reject every named option outside the command's admitted set, naming the
+/// first out-of-scope flag. `--format` is orthogonal and never scope-checked.
 fn check_scope(
     options: &Options,
     scope: Scope,
+    context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<(), ParseFailure> {
-    reject(
-        (options.project.is_some() && !scope.project)
-            || (options.workspace.is_some() && !scope.workspace)
-            || (options.tab.is_some() && !scope.tab)
-            || (options.standalone && !scope.standalone)
-            || (options.label.is_some() && !scope.label)
-            || (options.direction.is_some() && !scope.direction)
-            || ((options.cols.is_some()
-                || options.rows.is_some()
-                || options.cell_width.is_some()
-                || options.cell_height.is_some())
-                && !scope.geometry)
-            || (options.confirm && !scope.confirm)
-            || (options.target_panel.is_some() && !scope.target_panel),
-        envelope,
-    )
+    match first_out_of_scope(options, scope) {
+        Some(option) => Err(usage_with(
+            UsageReason::UnexpectedOption { context, option },
+            envelope,
+        )),
+        None => Ok(()),
+    }
 }
 
-fn required(slot: &Option<String>, envelope: FailureEnvelope) -> Result<String, ParseFailure> {
-    slot.clone().ok_or_else(|| usage(envelope))
+fn required(
+    slot: &Option<String>,
+    context: UsageContext,
+    requirement: &'static str,
+    envelope: FailureEnvelope,
+) -> Result<String, ParseFailure> {
+    slot.clone()
+        .ok_or_else(|| missing_required(context, requirement, envelope))
 }
 
 /// `--label` carries a wire-ready Workbench label: non-empty and at most the
 /// protocol's 512-scalar bound.
 fn label_option(
     options: &Options,
+    context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<WorkbenchLabel, ParseFailure> {
-    WorkbenchLabel::parse(&required(&options.label, envelope)?).map_err(|_| usage(envelope))
+    let value = required(&options.label, context, "'--label'", envelope)?;
+    WorkbenchLabel::parse(&value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--label",
+                value,
+                expected: ExpectedValue::Label,
+            },
+            envelope,
+        )
+    })
 }
 
 /// The four geometry flags parse as u16 dimensions and must satisfy the
-/// protocol geometry bounds (each dimension 1..=4096, grid ≤ 262144 cells,
-/// pixel extents ≤ 65535).
+/// protocol geometry bounds (columns/rows 1..=4096, cell pixel dimensions
+/// 0..=4096 and both zero or both nonzero, grid ≤ 262144 cells, pixel extents
+/// ≤ 65535).
 fn geometry_option(
     options: &Options,
+    context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<WorkbenchTerminalGeometry, ParseFailure> {
-    let dimension = |slot: &Option<String>| -> Result<u16, ParseFailure> {
-        required(slot, envelope)?
-            .parse::<u16>()
-            .map_err(|_| usage(envelope))
+    let dimension = |slot: &Option<String>, flag: &'static str| -> Result<u16, ParseFailure> {
+        let value = required(
+            slot,
+            context,
+            match flag {
+                "--cols" => "'--cols'",
+                "--rows" => "'--rows'",
+                "--cell-width" => "'--cell-width'",
+                _ => "'--cell-height'",
+            },
+            envelope,
+        )?;
+        value.parse::<u16>().map_err(|_| {
+            usage_with(
+                UsageReason::InvalidValue {
+                    context,
+                    option: flag,
+                    value,
+                    expected: ExpectedValue::Dimension,
+                },
+                envelope,
+            )
+        })
     };
-    WorkbenchTerminalGeometry::new(
-        dimension(&options.cols)?,
-        dimension(&options.rows)?,
-        dimension(&options.cell_width)?,
-        dimension(&options.cell_height)?,
-    )
-    .map_err(|_| usage(envelope))
+    let cols = dimension(&options.cols, "--cols")?;
+    let rows = dimension(&options.rows, "--rows")?;
+    let cell_width = dimension(&options.cell_width, "--cell-width")?;
+    let cell_height = dimension(&options.cell_height, "--cell-height")?;
+    WorkbenchTerminalGeometry::new(cols, rows, cell_width, cell_height).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidGeometry {
+                context,
+                cols,
+                rows,
+                cell_width,
+                cell_height,
+            },
+            envelope,
+        )
+    })
 }
 
 fn tab_direction(
     options: &Options,
+    context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<WorkbenchTabMoveDirection, ParseFailure> {
-    match required(&options.direction, envelope)?.as_str() {
+    let value = required(&options.direction, context, "'--direction'", envelope)?;
+    match value.as_str() {
         "previous" => Ok(WorkbenchTabMoveDirection::Previous),
         "next" => Ok(WorkbenchTabMoveDirection::Next),
         "first" => Ok(WorkbenchTabMoveDirection::First),
         "last" => Ok(WorkbenchTabMoveDirection::Last),
-        _ => Err(usage(envelope)),
+        _ => Err(usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--direction",
+                value,
+                expected: ExpectedValue::TabDirection,
+            },
+            envelope,
+        )),
     }
 }
 
 fn panel_direction(
     options: &Options,
+    context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<WorkbenchPanelSplitDirection, ParseFailure> {
-    match required(&options.direction, envelope)?.as_str() {
+    let value = required(&options.direction, context, "'--direction'", envelope)?;
+    match value.as_str() {
         "above" => Ok(WorkbenchPanelSplitDirection::Above),
         "below" => Ok(WorkbenchPanelSplitDirection::Below),
         "left" => Ok(WorkbenchPanelSplitDirection::Left),
         "right" => Ok(WorkbenchPanelSplitDirection::Right),
-        _ => Err(usage(envelope)),
+        _ => Err(usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--direction",
+                value,
+                expected: ExpectedValue::PanelDirection,
+            },
+            envelope,
+        )),
     }
 }
 
-fn reject(condition: bool, envelope: FailureEnvelope) -> Result<(), ParseFailure> {
-    if condition {
-        Err(usage(envelope))
+/// Reject the `--workspace`/`--standalone` combination when it actually fires.
+fn reject_conflict(
+    conflict: bool,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<(), ParseFailure> {
+    if conflict {
+        Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "--workspace",
+                second: "--standalone",
+            },
+            envelope,
+        ))
     } else {
         Ok(())
     }
 }
 
-/// Reject any option/filter/format on commands that accept none.
-fn reject_extras(options: &Options, envelope: FailureEnvelope) -> Result<(), ParseFailure> {
-    reject(
-        options.format.is_some()
-            || options.project.is_some()
-            || options.workspace.is_some()
-            || options.tab.is_some()
-            || options.standalone
-            || business_options(options),
+fn missing_required(
+    context: UsageContext,
+    requirement: &'static str,
+    envelope: FailureEnvelope,
+) -> ParseFailure {
+    usage_with(
+        UsageReason::MissingRequired {
+            context,
+            requirement,
+        },
         envelope,
     )
 }
 
-/// Reject the named filters; `--format` remains legal on data commands.
-fn reject_filters(options: &Options, envelope: FailureEnvelope) -> Result<(), ParseFailure> {
-    reject(
-        options.project.is_some()
-            || options.workspace.is_some()
-            || options.tab.is_some()
-            || options.standalone
-            || business_options(options),
+fn missing_command(context: UsageContext, envelope: FailureEnvelope) -> ParseFailure {
+    usage_with(UsageReason::MissingCommand { context }, envelope)
+}
+
+fn unknown_command(context: UsageContext, word: &str, envelope: FailureEnvelope) -> ParseFailure {
+    usage_with(
+        UsageReason::UnknownCommand {
+            context,
+            word: word.to_owned(),
+        },
         envelope,
     )
+}
+
+fn unexpected_argument(
+    context: UsageContext,
+    value: &str,
+    envelope: FailureEnvelope,
+) -> ParseFailure {
+    usage_with(
+        UsageReason::UnexpectedArgument {
+            context,
+            value: value.to_owned(),
+        },
+        envelope,
+    )
+}
+
+/// Reject any option/filter/format on commands that accept none, naming the
+/// first rejected flag in the fixed declaration order (`--format` last).
+fn reject_extras(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<(), ParseFailure> {
+    match first_out_of_scope(options, NO_OPTIONS)
+        .or_else(|| options.format.is_some().then_some("--format"))
+    {
+        Some(option) => Err(usage_with(
+            UsageReason::UnexpectedOption { context, option },
+            envelope,
+        )),
+        None => Ok(()),
+    }
+}
+
+/// Reject the named filters; `--format` remains legal on data commands.
+fn reject_filters(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<(), ParseFailure> {
+    check_scope(options, NO_OPTIONS, context, envelope)
 }
 
 #[cfg(test)]

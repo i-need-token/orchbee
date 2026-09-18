@@ -138,6 +138,7 @@ fn parse_failure_envelopes_follow_the_recorded_selection() {
     let usage_failure = ParseFailure {
         kind: ParseFailureKind::InvalidUsage,
         envelope: crate::invocation::FailureEnvelope::Json,
+        usage: None,
     };
     let output = super::parse_failure(usage_failure, Locale::EnUs);
     assert_eq!(output.status, 2);
@@ -146,6 +147,7 @@ fn parse_failure_envelopes_follow_the_recorded_selection() {
     let silent = ParseFailure {
         kind: ParseFailureKind::InvalidUsage,
         envelope: crate::invocation::FailureEnvelope::Silent,
+        usage: None,
     };
     let output = super::parse_failure(silent, Locale::EnUs);
     assert_eq!(output.status, 2);
@@ -339,4 +341,36 @@ fn failure_documents_stay_well_below_the_bound() {
     let output = super::failure_output(failure, Some(OutputFormat::Json), Locale::ZhCn);
     assert!(!output.stdout.is_empty(), "json failure envelope emitted");
     assert!(output.stdout.len() < 64 * 1024);
+}
+
+/// The usage reason is a stderr-only diagnostic: the JSON failure document is
+/// byte-identical whether or not a reason rides along.
+#[test]
+fn usage_reason_never_reaches_the_machine_envelope() {
+    let reasoned = ParseFailure {
+        kind: ParseFailureKind::InvalidUsage,
+        envelope: crate::invocation::FailureEnvelope::Json,
+        usage: Some(crate::invocation::UsageReason::UnknownOption {
+            option: "--bogus".to_owned(),
+        }),
+    };
+    let plain = ParseFailure {
+        kind: ParseFailureKind::InvalidUsage,
+        envelope: crate::invocation::FailureEnvelope::Json,
+        usage: None,
+    };
+    let with_reason = super::parse_failure(reasoned, Locale::EnUs);
+    let without = super::parse_failure(plain, Locale::EnUs);
+    assert_eq!(with_reason.status, without.status);
+    assert_eq!(with_reason.stdout, without.stdout);
+    assert_eq!(
+        envelope(&with_reason.stdout)["failure"]["kind"],
+        "invalid-usage"
+    );
+    assert!(with_reason.stdout.iter().all(|byte| byte.is_ascii()));
+    assert_eq!(
+        with_reason.stderr,
+        "Unknown option \"--bogus\". Run 'orchbee --help'.\n"
+    );
+    assert_ne!(with_reason.stderr, without.stderr);
 }

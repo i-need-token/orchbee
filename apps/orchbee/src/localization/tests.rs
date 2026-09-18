@@ -698,3 +698,102 @@ fn native_prebootstrap_retirement_overrides_the_synthetic_starting_phase() {
         );
     }
 }
+
+/// The `invalid-usage` stderr diagnostic names one concrete cause plus a real
+/// help hint in both locales; echoed tokens pass through the quoting/escape
+/// layer with its 256-scalar prefix bound.
+#[test]
+fn cli_usage_diagnostics_are_localized_and_escaped() {
+    use crate::cli::{Failure, FailureKind};
+    use crate::invocation::{UsageContext, UsageReason};
+
+    let usage_failure = |usage: UsageReason| Failure {
+        kind: FailureKind::InvalidUsage,
+        details: None,
+        source: None,
+        usage: Some(Box::new(usage)),
+    };
+
+    // Unknown command echoes the escaped word and keeps the root hint.
+    let failure = usage_failure(UsageReason::UnknownCommand {
+        context: UsageContext::Root,
+        word: "bo\u{1b}gus".to_owned(),
+    });
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "Unknown command \"bo\\u{001b}gus\". Run 'orchbee --help'.\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_failure(&failure),
+        "未知命令 \"bo\\u{001b}gus\"。请运行 ‘orchbee --help’。\n"
+    );
+
+    // Command context anchors the real `<path> --help` hint.
+    let failure = usage_failure(UsageReason::UnexpectedOption {
+        context: UsageContext::Path("workspace list"),
+        option: "--workspace",
+    });
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "'--workspace' is not a valid option for 'orchbee workspace list'. Run 'orchbee workspace list --help'.\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_failure(&failure),
+        "'--workspace' 不是 'orchbee workspace list' 的有效选项。请运行 ‘orchbee workspace list --help’。\n"
+    );
+
+    // The tab-create context requirement localizes its connector.
+    let failure = usage_failure(UsageReason::MissingTabContext {
+        context: UsageContext::Path("tab create"),
+    });
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "'orchbee tab create' requires '--workspace' or '--standalone'. Run 'orchbee tab create --help'.\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_failure(&failure),
+        "'orchbee tab create' 需要 '--workspace' 或 '--standalone'。请运行 ‘orchbee tab create --help’。\n"
+    );
+
+    // The argv-envelope reason never echoes argv content.
+    let failure = usage_failure(UsageReason::ArgumentEnvelope);
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "Invalid invocation: the argument list must be Unicode and its total size may not exceed 64 KiB. Run 'orchbee --help'.\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_failure(&failure),
+        "调用方式无效：参数必须为 Unicode，且总大小不得超过 64 KiB。请运行 ‘orchbee --help’。\n"
+    );
+
+    // A reason-free InvalidUsage keeps the original generic text.
+    let failure = Failure {
+        kind: FailureKind::InvalidUsage,
+        details: None,
+        source: None,
+        usage: None,
+    };
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "Invalid invocation. Run 'orchbee --help'.\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_failure(&failure),
+        "调用方式无效。请运行 ‘orchbee --help’。\n"
+    );
+
+    // Other failure kinds are untouched by the reason path.
+    let failure = Failure {
+        kind: FailureKind::NotFound,
+        details: Some(serde_json::Map::from_iter([
+            ("resource".to_owned(), serde_json::json!("tab")),
+            ("target".to_owned(), serde_json::json!("x")),
+        ])),
+        source: None,
+        usage: None,
+    };
+    assert_eq!(
+        Locale::EnUs.cli_failure(&failure),
+        "No tab matches \"x\".\n"
+    );
+}

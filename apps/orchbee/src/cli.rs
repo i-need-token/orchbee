@@ -110,6 +110,10 @@ pub(crate) struct Failure {
     pub(crate) details: Option<Map<String, Value>>,
     /// An authoritative source only when one genuinely exists.
     pub(crate) source: Option<Value>,
+    /// The parser's concrete usage classification for `InvalidUsage`; carried
+    /// to the localized stderr diagnostic only and never serialized. Boxed so
+    /// the rarely-reached reason does not enlarge every `Result<_, Failure>`.
+    pub(crate) usage: Option<Box<crate::invocation::UsageReason>>,
 }
 
 impl Failure {
@@ -118,6 +122,7 @@ impl Failure {
             kind,
             details: None,
             source: None,
+            usage: None,
         }
     }
 
@@ -201,6 +206,7 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
         kind,
         details,
         source: None,
+        usage: failure.usage.map(Box::new),
     };
     let format = match failure.envelope {
         crate::invocation::FailureEnvelope::Json => Some(OutputFormat::Json),

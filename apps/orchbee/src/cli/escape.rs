@@ -87,9 +87,25 @@ pub(crate) fn table_label(value: &str) -> String {
     format!("\"{escaped}…\"")
 }
 
+/// The longest user-controlled token a diagnostic may echo: quoted, escaped,
+/// first cut to a 256-Unicode-scalar prefix (scalars, not bytes or columns)
+/// marked with `…` when more scalars remain, then to the 80-column cell.
+/// Non-Unicode input never reaches this layer — the argv envelope rejects it
+/// before tokenization.
+const DIAGNOSTIC_TOKEN_SCALARS: usize = 256;
+
+pub(crate) fn diagnostic_token(value: &str) -> String {
+    let mut chars = value.chars();
+    let mut prefix: String = chars.by_ref().take(DIAGNOSTIC_TOKEN_SCALARS).collect();
+    if chars.next().is_some() {
+        prefix.push('…');
+    }
+    table_label(&prefix)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{escape, quoted, table_label};
+    use super::{diagnostic_token, escape, quoted, table_label};
 
     #[test]
     fn escapes_quotes_backslash_and_controls() {
@@ -132,5 +148,55 @@ mod tests {
         let body = &cell[1..cell.len() - "…\"".len()];
         assert!(body.len().is_multiple_of("\\u{001b}".len()), "{body}");
         assert!(cell.matches("\\u{001b}").count() > 0);
+    }
+
+    #[test]
+    fn diagnostic_tokens_quote_escape_and_bound() {
+        // Ordinary tokens render quoted and readable, combining marks intact.
+        assert_eq!(diagnostic_token("bogus"), "\"bogus\"");
+        assert_eq!(diagnostic_token("e\u{301}项目"), "\"e\u{301}项目\"");
+        // Hostile control and bidi input is escaped, never raw.
+        let escaped = diagnostic_token("a\u{1b}[0m\u{202e}z\n");
+        assert_eq!(escaped, "\"a\\u{001b}[0m\\u{202e}z\\n\"");
+        // A token past 256 scalars is cut before display, then to the cell.
+        let long = diagnostic_token(&"x".repeat(300));
+        assert!(long.ends_with("…\""));
+        assert!(super::display_width(&long) <= 80);
+        // A combining cluster survives the scalar cut and the column cut at a
+        // scalar boundary — never mid-escape.
+        let cluster = diagnostic_token(&"e\u{301}".repeat(150));
+        assert!(cluster.ends_with("…\""));
+        assert!(super::display_width(&cluster) <= 80);
+    }
+
+    #[test]
+    fn diagnostic_tokens_mark_scalar_truncation() {
+        // Exactly 256 scalars is complete input: no marker is added.
+        let exact = "\u{200b}".repeat(256);
+        assert_eq!(diagnostic_token(&exact), format!("\"{exact}\""));
+        // Scalar 257 makes the cut explicit even when the dropped tail is
+        // invisible — zero-width and combining input must still mark.
+        assert_eq!(
+            diagnostic_token(&"\u{200b}".repeat(257)),
+            format!("\"{}\u{2026}\"", "\u{200b}".repeat(256))
+        );
+        assert!(diagnostic_token(&"\u{301}".repeat(300)).ends_with("…\""));
+        // Plain long ASCII stays column-bounded.
+        let ascii = diagnostic_token(&"x".repeat(300));
+        assert!(ascii.ends_with("…\""));
+        assert!(super::display_width(&ascii) <= 80);
+        // Escaped scalars are never split: each kept `\u{001b}` or `\"`
+        // fragment is whole, and the marker stays inside the closing quote.
+        let controls = diagnostic_token(&"\u{1b}".repeat(200));
+        assert!(controls.ends_with("…\""));
+        let body = &controls[1..controls.len() - "…\"".len()];
+        assert!(body.len().is_multiple_of("\\u{001b}".len()), "{body}");
+        let quotes = diagnostic_token(&"\"".repeat(200));
+        assert!(quotes.ends_with("…\""));
+        let body = &quotes[1..quotes.len() - "…\"".len()];
+        assert!(body.len().is_multiple_of("\\\"".len()), "{body}");
+        // A bidi escape wider than the remaining column budget yields whole.
+        let bidi = diagnostic_token(&format!("{}\u{202e}", "y".repeat(74)));
+        assert_eq!(bidi, format!("\"{}\u{2026}\"", "y".repeat(74)));
     }
 }

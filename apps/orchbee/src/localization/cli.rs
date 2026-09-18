@@ -11,7 +11,7 @@ impl Locale {
     pub(crate) fn cli_failure(self, failure: &Failure) -> String {
         use crate::cli::FailureKind;
         match failure.kind {
-            FailureKind::InvalidUsage => self.usage_failure().to_owned(),
+            FailureKind::InvalidUsage => self.cli_usage(failure.usage.as_deref()),
             FailureKind::InvalidIdentifier => {
                 let resource = failure
                     .details
@@ -136,6 +136,222 @@ impl Locale {
                 Self::EnUs => "The CLI hit an internal failure; no data was written.\n".to_owned(),
                 Self::ZhCn => "CLI 发生内部错误；未写出任何数据。\n".to_owned(),
             },
+        }
+    }
+
+    /// The localized `invalid-usage` stderr diagnostic: one concrete cause
+    /// plus a help hint that always names a real path. `None` and the
+    /// `Invalid` fallback keep the original generic text.
+    fn cli_usage(self, usage: Option<&crate::invocation::UsageReason>) -> String {
+        use crate::invocation::{ExpectedValue, UsageContext, UsageReason};
+        let Some(reason) = usage else {
+            return self.usage_failure().to_owned();
+        };
+        let echo = |value: &str| crate::cli::escape::diagnostic_token(value);
+        let context = |context: UsageContext| match context {
+            UsageContext::Root => "orchbee".to_owned(),
+            UsageContext::Path(path) => format!("orchbee {path}"),
+            UsageContext::Literal(literal) => literal.to_owned(),
+        };
+        let hint = |context: UsageContext| match context {
+            UsageContext::Path(path) => format!("orchbee {path} --help"),
+            UsageContext::Root | UsageContext::Literal(_) => "orchbee --help".to_owned(),
+        };
+        let expected = |expected: ExpectedValue| match (self, expected) {
+            (Self::EnUs, ExpectedValue::Format) => "'text' or 'json'",
+            (Self::ZhCn, ExpectedValue::Format) => "'text' 或 'json'",
+            (Self::EnUs, ExpectedValue::Label) => "a nonempty label of at most 512 characters",
+            (Self::ZhCn, ExpectedValue::Label) => "1–512 个字符的非空标签",
+            (Self::EnUs, ExpectedValue::Dimension) => "a decimal integer from 0 to 65535",
+            (Self::ZhCn, ExpectedValue::Dimension) => "0–65535 的十进制整数",
+            (Self::EnUs, ExpectedValue::TabDirection) => "'previous', 'next', 'first', or 'last'",
+            (Self::ZhCn, ExpectedValue::TabDirection) => "'previous'、'next'、'first' 或 'last'",
+            (Self::EnUs, ExpectedValue::PanelDirection) => "'above', 'below', 'left', or 'right'",
+            (Self::ZhCn, ExpectedValue::PanelDirection) => "'above'、'below'、'left' 或 'right'",
+            (Self::EnUs, ExpectedValue::Shell) => "'bash', 'zsh', or 'fish'",
+            (Self::ZhCn, ExpectedValue::Shell) => "'bash'、'zsh' 或 'fish'",
+        };
+        let (problem, hint) = match reason {
+            UsageReason::Invalid => return self.usage_failure().to_owned(),
+            UsageReason::ArgumentEnvelope => (
+                match self {
+                    Self::EnUs => "Invalid invocation: the argument list must be Unicode and its total size may not exceed 64 KiB.".to_owned(),
+                    Self::ZhCn => "调用方式无效：参数必须为 Unicode，且总大小不得超过 64 KiB。".to_owned(),
+                },
+                hint(UsageContext::Root),
+            ),
+            UsageReason::UnknownCommand {
+                context: ctx,
+                word,
+            } => (
+                match (self, ctx) {
+                    (Self::EnUs, UsageContext::Root) => {
+                        format!("Unknown command {}.", echo(word))
+                    }
+                    (Self::EnUs, _) => {
+                        format!("Unknown command {} for '{}'.", echo(word), context(*ctx))
+                    }
+                    (Self::ZhCn, UsageContext::Root) => format!("未知命令 {}。", echo(word)),
+                    (Self::ZhCn, _) => {
+                        format!("'{}' 中未知命令 {}。", context(*ctx), echo(word))
+                    }
+                },
+                hint(*ctx),
+            ),
+            UsageReason::UnknownOption { option } => (
+                match self {
+                    Self::EnUs => format!("Unknown option {}.", echo(option)),
+                    Self::ZhCn => format!("未知选项 {}。", echo(option)),
+                },
+                hint(UsageContext::Root),
+            ),
+            UsageReason::UnexpectedOption {
+                context: ctx,
+                option,
+            } => (
+                match self {
+                    Self::EnUs => {
+                        format!("'{option}' is not a valid option for '{}'.", context(*ctx))
+                    }
+                    Self::ZhCn => {
+                        format!("'{option}' 不是 '{}' 的有效选项。", context(*ctx))
+                    }
+                },
+                hint(*ctx),
+            ),
+            UsageReason::DuplicateOption { option } => (
+                match self {
+                    Self::EnUs => format!("Option '{option}' was given more than once."),
+                    Self::ZhCn => format!("选项 '{option}' 被重复提供。"),
+                },
+                hint(UsageContext::Root),
+            ),
+            UsageReason::ConflictingOptions {
+                context: ctx,
+                first,
+                second,
+            } => (
+                match self {
+                    Self::EnUs => {
+                        format!("Options '{first}' and '{second}' cannot be combined.")
+                    }
+                    Self::ZhCn => format!("选项 '{first}' 和 '{second}' 不能组合使用。"),
+                },
+                hint(*ctx),
+            ),
+            UsageReason::MissingValue { option } => (
+                match self {
+                    Self::EnUs => format!("Option '{option}' requires a value."),
+                    Self::ZhCn => format!("选项 '{option}' 需要一个值。"),
+                },
+                hint(UsageContext::Root),
+            ),
+            UsageReason::MissingRequired {
+                context: ctx,
+                requirement,
+            } => (
+                match self {
+                    Self::EnUs => format!("'{}' requires {requirement}.", context(*ctx)),
+                    Self::ZhCn => format!("'{}' 需要 {requirement}。", context(*ctx)),
+                },
+                hint(*ctx),
+            ),
+            UsageReason::MissingTabContext { context: ctx } => (
+                match self {
+                    Self::EnUs => format!(
+                        "'{}' requires '--workspace' or '--standalone'.",
+                        context(*ctx)
+                    ),
+                    Self::ZhCn => format!(
+                        "'{}' 需要 '--workspace' 或 '--standalone'。",
+                        context(*ctx)
+                    ),
+                },
+                hint(*ctx),
+            ),
+            UsageReason::UnexpectedArgument {
+                context: ctx,
+                value,
+            } => (
+                match self {
+                    Self::EnUs => format!(
+                        "'{}' does not take the argument {}.",
+                        context(*ctx),
+                        echo(value)
+                    ),
+                    Self::ZhCn => {
+                        format!("'{}' 不接受参数 {}。", context(*ctx), echo(value))
+                    }
+                },
+                hint(*ctx),
+            ),
+            UsageReason::MissingCommand { context: ctx } => (
+                match (self, ctx) {
+                    (Self::EnUs, UsageContext::Root) => "Missing command.".to_owned(),
+                    (Self::EnUs, _) => format!("Missing command after '{}'.", context(*ctx)),
+                    (Self::ZhCn, UsageContext::Root) => "缺少命令。".to_owned(),
+                    (Self::ZhCn, _) => format!("'{}' 后缺少命令。", context(*ctx)),
+                },
+                hint(*ctx),
+            ),
+            UsageReason::UnknownHelpTopic { path } => (
+                match self {
+                    Self::EnUs => format!("No help topic matches {}.", echo(path)),
+                    Self::ZhCn => format!("没有与 {} 匹配的帮助主题。", echo(path)),
+                },
+                hint(UsageContext::Root),
+            ),
+            UsageReason::MisplacedFlag {
+                context: ctx,
+                flag,
+            } => (
+                match self {
+                    Self::EnUs => format!("'{flag}' is not valid in this position."),
+                    Self::ZhCn => format!("'{flag}' 在此位置无效。"),
+                },
+                hint(*ctx),
+            ),
+            UsageReason::InvalidValue {
+                context: ctx,
+                option,
+                value,
+                expected: shape,
+            } => (
+                match self {
+                    Self::EnUs => format!(
+                        "Invalid value {} for '{option}' (expected {}).",
+                        echo(value),
+                        expected(*shape)
+                    ),
+                    Self::ZhCn => format!(
+                        "'{option}' 的值 {} 无效（应为 {}）。",
+                        echo(value),
+                        expected(*shape)
+                    ),
+                },
+                hint(*ctx),
+            ),
+            UsageReason::InvalidGeometry {
+                context: ctx,
+                cols,
+                rows,
+                cell_width,
+                cell_height,
+            } => (
+                match self {
+                    Self::EnUs => format!(
+                        "Geometry cols={cols} rows={rows} cell-width={cell_width} cell-height={cell_height} does not satisfy the protocol bounds (columns/rows 1-4096, cell pixel dimensions 0-4096 both zero or both nonzero, cells ≤262144, pixel extents ≤65535)."
+                    ),
+                    Self::ZhCn => format!(
+                        "几何参数 cols={cols} rows={rows} cell-width={cell_width} cell-height={cell_height} 不满足协议约束（columns/rows 1-4096、像素维 0-4096 且须同零或同非零、格子总数 ≤262144、像素边长 ≤65535）。"
+                    ),
+                },
+                hint(*ctx),
+            ),
+        };
+        match self {
+            Self::EnUs => format!("{problem} Run '{hint}'.\n"),
+            Self::ZhCn => format!("{problem}请运行 ‘{hint}’。\n"),
         }
     }
 

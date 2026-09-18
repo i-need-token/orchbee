@@ -434,6 +434,18 @@ outcome-unknown/failed-effect: only the command stage can produce an undetermine
 - stdout carries only the contract document: one pretty (2-space) JSON document ending in `\n`
   under `--format json` (and always for `api` commands), or the localized human document under
   text/default. stderr carries localized human diagnostics; query paths print no progress.
+- `invalid-usage` failures write one localized stderr diagnostic naming a single concrete
+  cause — an unknown command or option, an option or argument the command does not take, a
+  duplicated option, conflicting options, a missing option value, a missing required option
+  or operand, a missing command, an unknown help path, a misplaced help/version flag, an
+  invalid option value or geometry set, or a non-Unicode/oversized argument list — and end
+  with a help hint. The hint names `orchbee <path> --help` for a recognized command or
+  family context and falls back to `orchbee --help` otherwise; every emitted hint is a real
+  path that exits 0 without a Site. Echoed untrusted tokens reuse the quoted/escaped
+  rendering below, first cut to a 256-Unicode-scalar prefix marked with an ellipsis when
+  more scalars remain; non-Unicode or oversized
+  argument lists are never echoed. The machine envelope stays unchanged — the diagnostic
+  lives only on stderr.
 - Text renders user-controlled strings as quoted escaped values: backslash and quote use `\\`/
   `\"`; C0/C1 controls (including ESC), U+2028/U+2029, and bidi formatting controls use
   unambiguous `\uXXXX` escapes; other Unicode is preserved. List tables truncate only label

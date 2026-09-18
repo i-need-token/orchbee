@@ -6,9 +6,9 @@ use orchbee_workbench_protocol::{
 };
 
 use super::{
-    CommandPath, CompletionShell, FailureEnvelope, Family, HelpTopic, MutationCommand,
-    OutputFormat, ParseFailure, ParseFailureKind, QueryCommand, Request, Resource, TabContext,
-    Target, parse_request,
+    CommandPath, CompletionShell, ExpectedValue, FailureEnvelope, Family, HelpTopic,
+    MutationCommand, OutputFormat, ParseFailure, ParseFailureKind, QueryCommand, Request, Resource,
+    TabContext, Target, UsageContext, UsageReason, parse_request,
 };
 
 fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
@@ -19,6 +19,7 @@ fn usage(envelope: FailureEnvelope) -> ParseFailure {
     ParseFailure {
         kind: ParseFailureKind::InvalidUsage,
         envelope,
+        usage: None,
     }
 }
 
@@ -29,6 +30,7 @@ fn identifier(resource: Resource, target: &str, envelope: FailureEnvelope) -> Pa
             target: target.to_owned(),
         },
         envelope,
+        usage: None,
     }
 }
 
@@ -612,6 +614,7 @@ fn target_rules_follow_each_resource() {
             Err(ParseFailure {
                 kind: ParseFailureKind::InvalidIdentifier { .. },
                 envelope: FailureEnvelope::Text,
+                ..
             })
         ));
     }
@@ -712,6 +715,7 @@ fn rejects_non_unicode_arguments() {
         Err(ParseFailure {
             kind: ParseFailureKind::InvalidUsage,
             envelope: FailureEnvelope::Silent,
+            usage: Some(UsageReason::ArgumentEnvelope),
         })
     );
 }
@@ -1502,5 +1506,507 @@ fn mutation_failures_follow_the_format_envelope() {
             },
             OutputFormat::Json
         ))
+    );
+}
+
+/// Every parse failure exit carries the concrete reason it reached; the table
+/// pins one representative argv per classification so a regression in the
+/// diagnostic wiring is caught before output.
+#[test]
+fn usage_failures_carry_their_concrete_reason() {
+    let path = |spelling: &'static str| UsageContext::Path(spelling);
+    let cases: &[(&[&str], UsageReason)] = &[
+        // Argument-list and format-envelope failures (Silent envelope).
+        (
+            &["status", "--format"],
+            UsageReason::MissingValue { option: "--format" },
+        ),
+        (
+            &["status", "--format", "--"],
+            UsageReason::MissingValue { option: "--format" },
+        ),
+        (
+            &["status", "--format", "yaml"],
+            UsageReason::InvalidValue {
+                context: UsageContext::Root,
+                option: "--format",
+                value: "yaml".to_owned(),
+                expected: ExpectedValue::Format,
+            },
+        ),
+        (
+            &["status", "--format="],
+            UsageReason::InvalidValue {
+                context: UsageContext::Root,
+                option: "--format",
+                value: String::new(),
+                expected: ExpectedValue::Format,
+            },
+        ),
+        (
+            &["status", "--format", "json", "--format", "text"],
+            UsageReason::DuplicateOption { option: "--format" },
+        ),
+        // Option-scan failures.
+        (
+            &["--bogus"],
+            UsageReason::UnknownOption {
+                option: "--bogus".to_owned(),
+            },
+        ),
+        (
+            &["-x"],
+            UsageReason::UnknownOption {
+                option: "-x".to_owned(),
+            },
+        ),
+        (
+            &["workspace", "list", "--project"],
+            UsageReason::MissingValue {
+                option: "--project",
+            },
+        ),
+        (
+            &["workspace", "list", "--project", "--"],
+            UsageReason::MissingValue {
+                option: "--project",
+            },
+        ),
+        (
+            &["workspace", "list", "--project", "a", "--project", "b"],
+            UsageReason::DuplicateOption {
+                option: "--project",
+            },
+        ),
+        (
+            &["tab", "list", "--standalone", "--standalone"],
+            UsageReason::DuplicateOption {
+                option: "--standalone",
+            },
+        ),
+        // Word-structure failures.
+        (
+            &["bogus"],
+            UsageReason::UnknownCommand {
+                context: UsageContext::Root,
+                word: "bogus".to_owned(),
+            },
+        ),
+        (
+            &["--", "--help"],
+            UsageReason::UnknownCommand {
+                context: UsageContext::Root,
+                word: "--help".to_owned(),
+            },
+        ),
+        (
+            &["terminal", "send-text"],
+            UsageReason::UnknownCommand {
+                context: path("terminal"),
+                word: "send-text".to_owned(),
+            },
+        ),
+        (
+            &["project"],
+            UsageReason::MissingCommand {
+                context: path("project"),
+            },
+        ),
+        (
+            &["config"],
+            UsageReason::MissingCommand {
+                context: path("config"),
+            },
+        ),
+        (
+            &["--format=json"],
+            UsageReason::MissingCommand {
+                context: UsageContext::Root,
+            },
+        ),
+        (
+            &["status", "extra"],
+            UsageReason::UnexpectedArgument {
+                context: path("status"),
+                value: "extra".to_owned(),
+            },
+        ),
+        (
+            &["status", "--", "--format", "json"],
+            UsageReason::UnexpectedArgument {
+                context: path("status"),
+                value: "--format".to_owned(),
+            },
+        ),
+        (
+            &["project", "get"],
+            UsageReason::MissingRequired {
+                context: path("project get"),
+                requirement: "<project>",
+            },
+        ),
+        (
+            &["terminal", "read"],
+            UsageReason::MissingRequired {
+                context: path("terminal read"),
+                requirement: "<terminal>",
+            },
+        ),
+        (
+            &["completion"],
+            UsageReason::MissingRequired {
+                context: path("completion"),
+                requirement: "<shell>",
+            },
+        ),
+        (
+            &["completion", "powershell"],
+            UsageReason::InvalidValue {
+                context: path("completion"),
+                option: "<shell>",
+                value: "powershell".to_owned(),
+                expected: ExpectedValue::Shell,
+            },
+        ),
+        (
+            &["completion", "bash", "extra"],
+            UsageReason::UnexpectedArgument {
+                context: path("completion"),
+                value: "extra".to_owned(),
+            },
+        ),
+        // Help-path failures.
+        (
+            &["help", "bogus"],
+            UsageReason::UnknownHelpTopic {
+                path: "bogus".to_owned(),
+            },
+        ),
+        (
+            &["help", "status", "extra"],
+            UsageReason::UnknownHelpTopic {
+                path: "status extra".to_owned(),
+            },
+        ),
+        (
+            &["bogus", "--help"],
+            UsageReason::UnknownHelpTopic {
+                path: "bogus".to_owned(),
+            },
+        ),
+        (
+            &["status", "--help", "--format", "text"],
+            UsageReason::UnexpectedOption {
+                context: path("status"),
+                option: "--format",
+            },
+        ),
+        (
+            &["status", "--project", "x", "--help"],
+            UsageReason::UnexpectedOption {
+                context: path("status"),
+                option: "--project",
+            },
+        ),
+        (
+            &["help", "status", "--project", "x"],
+            UsageReason::UnexpectedOption {
+                context: path("status"),
+                option: "--project",
+            },
+        ),
+        (
+            &["--version", "--help"],
+            UsageReason::MisplacedFlag {
+                context: UsageContext::Root,
+                flag: "--version",
+            },
+        ),
+        (
+            &["--help", "--version"],
+            UsageReason::MisplacedFlag {
+                context: UsageContext::Root,
+                flag: "--help",
+            },
+        ),
+        (
+            &["-h", "status"],
+            UsageReason::MisplacedFlag {
+                context: path("status"),
+                flag: "-h",
+            },
+        ),
+        (
+            &["--help", "--help"],
+            UsageReason::MisplacedFlag {
+                context: UsageContext::Root,
+                flag: "--help",
+            },
+        ),
+        (
+            &["project", "get", "x", "--help"],
+            UsageReason::UnknownHelpTopic {
+                path: "project get x".to_owned(),
+            },
+        ),
+        // Scope failures name the first out-of-scope flag in declaration order.
+        (
+            &["status", "--workspace", "x"],
+            UsageReason::UnexpectedOption {
+                context: path("status"),
+                option: "--workspace",
+            },
+        ),
+        (
+            &["workspace", "list", "--workspace", "x"],
+            UsageReason::UnexpectedOption {
+                context: path("workspace list"),
+                option: "--workspace",
+            },
+        ),
+        (
+            &["workspace", "list", "--tab", "x"],
+            UsageReason::UnexpectedOption {
+                context: path("workspace list"),
+                option: "--tab",
+            },
+        ),
+        (
+            &["tab", "list", "--project", "x"],
+            UsageReason::UnexpectedOption {
+                context: path("tab list"),
+                option: "--project",
+            },
+        ),
+        (
+            &["tab", "list", "--workspace", "x", "--standalone"],
+            UsageReason::ConflictingOptions {
+                context: path("tab list"),
+                first: "--workspace",
+                second: "--standalone",
+            },
+        ),
+        (
+            &["tui", "--format", "text"],
+            UsageReason::UnexpectedOption {
+                context: path("tui"),
+                option: "--format",
+            },
+        ),
+        (
+            &["--version", "--format", "text"],
+            UsageReason::UnexpectedOption {
+                context: UsageContext::Literal("orchbee --version"),
+                option: "--format",
+            },
+        ),
+        // Required options, values, and geometry.
+        (
+            &["workspace", "create", "--label", "w"],
+            UsageReason::MissingRequired {
+                context: path("workspace create"),
+                requirement: "'--project'",
+            },
+        ),
+        (
+            &["workspace", "rename", ID],
+            UsageReason::MissingRequired {
+                context: path("workspace rename"),
+                requirement: "'--label'",
+            },
+        ),
+        (
+            &["workspace", "rename", ID, "--label", ""],
+            UsageReason::InvalidValue {
+                context: path("workspace rename"),
+                option: "--label",
+                value: String::new(),
+                expected: ExpectedValue::Label,
+            },
+        ),
+        (
+            &["tab", "create", "--label", "t"],
+            UsageReason::MissingTabContext {
+                context: path("tab create"),
+            },
+        ),
+        (
+            &[
+                "tab",
+                "create",
+                "--standalone",
+                "--workspace",
+                "w",
+                "--label",
+                "t",
+                "--cols",
+                "80",
+                "--rows",
+                "24",
+                "--cell-width",
+                "8",
+                "--cell-height",
+                "16",
+            ],
+            UsageReason::ConflictingOptions {
+                context: path("tab create"),
+                first: "--workspace",
+                second: "--standalone",
+            },
+        ),
+        (
+            &["tab", "create", "--standalone", "--label", "t"],
+            UsageReason::MissingRequired {
+                context: path("tab create"),
+                requirement: "'--cols'",
+            },
+        ),
+        (
+            &[
+                "tab",
+                "create",
+                "--standalone",
+                "--label",
+                "t",
+                "--cols",
+                "x",
+            ],
+            UsageReason::InvalidValue {
+                context: path("tab create"),
+                option: "--cols",
+                value: "x".to_owned(),
+                expected: ExpectedValue::Dimension,
+            },
+        ),
+        (
+            &[
+                "tab",
+                "create",
+                "--standalone",
+                "--label",
+                "t",
+                "--cols",
+                "80",
+                "--rows",
+                "24",
+                "--cell-width",
+                "8",
+            ],
+            UsageReason::MissingRequired {
+                context: path("tab create"),
+                requirement: "'--cell-height'",
+            },
+        ),
+        (
+            &[
+                "tab",
+                "create",
+                "--standalone",
+                "--label",
+                "t",
+                "--cols",
+                "80",
+                "--rows",
+                "24",
+                "--cell-width",
+                "0",
+                "--cell-height",
+                "16",
+            ],
+            UsageReason::InvalidGeometry {
+                context: path("tab create"),
+                cols: 80,
+                rows: 24,
+                cell_width: 0,
+                cell_height: 16,
+            },
+        ),
+        (
+            &["tab", "close", ID],
+            UsageReason::MissingRequired {
+                context: path("tab close"),
+                requirement: "'--confirm'",
+            },
+        ),
+        (
+            &["tab", "move", ID],
+            UsageReason::MissingRequired {
+                context: path("tab move"),
+                requirement: "'--direction'",
+            },
+        ),
+        (
+            &["tab", "move", ID, "--direction", "left"],
+            UsageReason::InvalidValue {
+                context: path("tab move"),
+                option: "--direction",
+                value: "left".to_owned(),
+                expected: ExpectedValue::TabDirection,
+            },
+        ),
+        (
+            &[
+                "panel",
+                "move",
+                ID,
+                "--target-panel",
+                ID,
+                "--direction",
+                "next",
+            ],
+            UsageReason::InvalidValue {
+                context: path("panel move"),
+                option: "--direction",
+                value: "next".to_owned(),
+                expected: ExpectedValue::PanelDirection,
+            },
+        ),
+        (
+            &["panel", "move", ID, "--direction", "left"],
+            UsageReason::MissingRequired {
+                context: path("panel move"),
+                requirement: "'--target-panel'",
+            },
+        ),
+        (
+            &["panel", "close", ID],
+            UsageReason::MissingRequired {
+                context: path("panel close"),
+                requirement: "'--confirm'",
+            },
+        ),
+    ];
+    for (arguments, expected) in cases {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(failure.usage.as_ref(), Some(expected), "{arguments:?}");
+    }
+}
+
+/// `--` ownership: a dash-leading token consumed as a value is never an
+/// option, and an equals spelling stays an unknown option.
+#[test]
+fn ownership_and_terminator_keep_their_reasons() {
+    // The equals spelling stays an unknown option even on a command that
+    // declares the flag.
+    let Err(failure) = parse(&["workspace", "list", "--project=x"]) else {
+        panic!("equals spelling must fail");
+    };
+    assert_eq!(
+        failure.usage.as_ref(),
+        Some(&UsageReason::UnknownOption {
+            option: "--project=x".to_owned(),
+        })
+    );
+    // A consumed dash-leading value is never reclassified as an option.
+    let Err(failure) = parse(&["status", "--bogus", "--project", "x"]) else {
+        panic!("unknown option must fail");
+    };
+    assert_eq!(
+        failure.usage.as_ref(),
+        Some(&UsageReason::UnknownOption {
+            option: "--bogus".to_owned(),
+        })
     );
 }

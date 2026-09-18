@@ -140,55 +140,98 @@ fn help_flag_aliases_match_the_help_command_at_every_recognized_path() -> Result
 
 #[test]
 fn help_flag_ownership_terminator_and_conflicts_stay_usage() -> Result<(), Box<dyn Error>> {
-    for arguments in [
+    let cases: &[(&[&str], &str)] = &[
         // A flag value owns the next word: --format consumes --help, leaving
         // an invalid format selection rather than a help request.
-        vec!["--format", "--help"],
-        vec!["tab", "create", "--cols", "--help"],
+        (
+            &["--format", "--help"],
+            "Invalid value \"--help\" for '--format' (expected 'text' or 'json'). Run 'orchbee --help'.\n",
+        ),
+        (
+            &["tab", "create", "--cols", "--help"],
+            "'orchbee tab create' requires '--workspace' or '--standalone'. Run 'orchbee tab create --help'.\n",
+        ),
         // After `--` every word is literal; "--help" is then an unknown path.
-        vec!["--", "--help"],
-        vec!["tab", "--", "--help"],
+        (
+            &["--", "--help"],
+            "Unknown command \"--help\". Run 'orchbee --help'.\n",
+        ),
+        (
+            &["tab", "--", "--help"],
+            "Unknown command \"--help\" for 'orchbee tab'. Run 'orchbee tab --help'.\n",
+        ),
         // Version and help flags conflict; a second help flag is never legal.
-        vec!["--version", "--help"],
-        vec!["--help", "--version"],
-        vec!["--help", "--help"],
-        vec!["-h", "-h"],
+        (
+            &["--version", "--help"],
+            "'--version' is not valid in this position. Run 'orchbee --help'.\n",
+        ),
+        (
+            &["--help", "--version"],
+            "'--help' is not valid in this position. Run 'orchbee --help'.\n",
+        ),
+        (
+            &["--help", "--help"],
+            "'--help' is not valid in this position. Run 'orchbee --help'.\n",
+        ),
+        (
+            &["-h", "-h"],
+            "'-h' is not valid in this position. Run 'orchbee --help'.\n",
+        ),
         // A help flag mid-path is not a suffix.
-        vec!["--help", "status"],
-        vec!["-h", "status"],
+        (
+            &["--help", "status"],
+            "'--help' is not valid in this position. Run 'orchbee status --help'.\n",
+        ),
+        (
+            &["-h", "status"],
+            "'-h' is not valid in this position. Run 'orchbee status --help'.\n",
+        ),
         // Business arguments suppress suffix help.
-        vec!["project", "get", "x", "--help"],
-        vec!["status", "extra", "--help"],
+        (
+            &["project", "get", "x", "--help"],
+            "No help topic matches \"project get x\". Run 'orchbee --help'.\n",
+        ),
+        (
+            &["status", "extra", "--help"],
+            "No help topic matches \"status extra\". Run 'orchbee --help'.\n",
+        ),
         // Format on a help request is a syntax failure.
-        vec!["status", "--help", "--format", "text"],
-    ] {
+        (
+            &["status", "--help", "--format", "text"],
+            "'--format' is not a valid option for 'orchbee status'. Run 'orchbee status --help'.\n",
+        ),
+    ];
+    for (arguments, stderr) in cases {
         let output = run(arguments.iter().copied(), "en_US.UTF-8")?;
         assert_eq!(output.status.code(), Some(2), "{arguments:?}");
         assert!(output.stdout.is_empty(), "{arguments:?}");
-        assert_eq!(
-            String::from_utf8(output.stderr)?,
-            "Invalid invocation. Run 'orchbee --help'.\n",
-            "{arguments:?}"
-        );
+        assert_eq!(String::from_utf8(output.stderr)?, *stderr, "{arguments:?}");
     }
     Ok(())
 }
 
 #[test]
 fn rejects_unknown_short_and_additional_arguments_before_output() -> Result<(), Box<dyn Error>> {
-    for arguments in [
-        vec!["-x"],
-        vec!["workbench"],
-        vec!["--help", "--version"],
-        vec!["status", "--bogus"],
-    ] {
-        let output = run(arguments, "en_US.UTF-8")?;
-        assert_eq!(output.status.code(), Some(2));
-        assert!(output.stdout.is_empty());
-        assert_eq!(
-            String::from_utf8(output.stderr)?,
-            "Invalid invocation. Run 'orchbee --help'.\n"
-        );
+    let cases: &[(&[&str], &str)] = &[
+        (&["-x"], "Unknown option \"-x\". Run 'orchbee --help'.\n"),
+        (
+            &["workbench"],
+            "Unknown command \"workbench\". Run 'orchbee --help'.\n",
+        ),
+        (
+            &["--help", "--version"],
+            "'--help' is not valid in this position. Run 'orchbee --help'.\n",
+        ),
+        (
+            &["status", "--bogus"],
+            "Unknown option \"--bogus\". Run 'orchbee --help'.\n",
+        ),
+    ];
+    for (arguments, stderr) in cases {
+        let output = run(arguments.iter().copied(), "en_US.UTF-8")?;
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(output.stdout.is_empty(), "{arguments:?}");
+        assert_eq!(String::from_utf8(output.stderr)?, *stderr, "{arguments:?}");
     }
     Ok(())
 }
@@ -203,7 +246,7 @@ fn rejects_non_unicode_arguments_at_the_process_boundary() -> Result<(), Box<dyn
     assert!(output.stdout.is_empty());
     assert_eq!(
         String::from_utf8(output.stderr)?,
-        "调用方式无效。请运行 ‘orchbee --help’。\n"
+        "调用方式无效：参数必须为 Unicode，且总大小不得超过 64 KiB。请运行 ‘orchbee --help’。\n"
     );
     Ok(())
 }
