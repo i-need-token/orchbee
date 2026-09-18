@@ -2663,7 +2663,8 @@ fn run_ready_drain_cut(cut: ReadyDrainCut) -> TestResult {
 /// deposit sample):
 ///   * UI-first — the worker is parked at its await sample while the past-cut deposit
 ///     evaluates `ForwardExpired`; releasing it lets the worker consume the expiry and
-///     retire the mailbox as `Deadline` with no Detach and no new wire.
+///     retire the mailbox as `Deadline` without Detach. The harness tolerates idle
+///     publication probes, so this does not assert a completely silent connection.
 ///   * worker-first — the deposit parks at its clock sample until the worker's expired
 ///     await closes the mailbox; a worker-originated close resumes the same deposit so it
 ///     must observe `Closed`, never `ForwardExpired` or `Stale`.
