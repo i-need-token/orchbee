@@ -41,8 +41,11 @@ pub(crate) fn run(locale: Locale) -> Result<(), StartupFailure> {
     let dimensions = inherited
         .window_dimensions()
         .map_err(|_| StartupFailure::Terminal)?;
-    let geometry = tui_shell::terminal_geometry(dimensions, &ClientView::new(dimensions.columns))
-        .map_err(|_| StartupFailure::Terminal)?;
+    let geometry =
+        tui_shell::terminal_geometry(dimensions, &ClientView::new(dimensions.columns), None)
+            .ok()
+            .flatten()
+            .ok_or(StartupFailure::Terminal)?;
     let progress = DelayedProgress::start(locale).map_err(|_| StartupFailure::Runtime)?;
     let cohort =
         NativeCohort::current(deadline).map_err(|error| failure(error, StartupFailure::Cohort))?;

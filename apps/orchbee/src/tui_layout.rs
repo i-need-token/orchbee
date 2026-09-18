@@ -2,7 +2,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 
 use orchbee_workbench_protocol::PanelOrientation;
 
-use crate::client_view::SidebarSurface;
+use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
 
 pub(crate) const DOCKED_SIDEBAR_COLUMNS: u16 = 30;
 pub(crate) const FULL_MINIMUM_COLUMNS: u16 = 100;
@@ -314,16 +314,122 @@ pub(crate) fn divider_glyph(up: bool, down: bool, left: bool, right: bool) -> ch
 #[cfg(test)]
 mod tests;
 
-/// The pane cell geometry projected for the session, inset by the panel frame.
-/// The result is floored at 1×1: a too-small viewport must never emit an
-/// invalid zero-area pane resize, which would kill the retained client.
-pub(crate) const fn terminal_area(panel: Rect) -> Rect {
-    let width = panel.width.saturating_sub(2);
-    let height = panel.height.saturating_sub(2);
-    Rect::new(
-        panel.x.saturating_add(1),
-        panel.y.saturating_add(1),
-        if width == 0 { 1 } else { width },
-        if height == 0 { 1 } else { height },
-    )
+/// The honest terminal content area inside `panel`: inset by one cell only
+/// when the panel frame is actually drawn (`tier.shows_panel_frame()`). At
+/// Minimal and TooSmall no frame exists, so no cells are deducted — the rect
+/// equals what is painted and what the session is resized to. A degenerate
+/// panel yields an empty rect; callers must treat that as "cannot present",
+/// never as a resize target.
+pub(crate) const fn terminal_area(panel: Rect, framed: bool) -> Rect {
+    if framed {
+        Rect::new(
+            panel.x.saturating_add(1),
+            panel.y.saturating_add(1),
+            panel.width.saturating_sub(2),
+            panel.height.saturating_sub(2),
+        )
+    } else {
+        panel
+    }
+}
+
+/// One visible leaf's geometry: the outer rect (including its one-row title)
+/// and the terminal content rect the session may resize to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct LeafArea {
+    pub(crate) panel_index: usize,
+    pub(crate) leaf: Rect,
+    pub(crate) content: Rect,
+}
+
+/// The single source of truth for a panel tree's screen geometry: every
+/// visible leaf and shared divider, projected from the same walk the renderer
+/// paints. Session geometry must consume `leaves` — never a recomputed path —
+/// so a drawn pane and a resized pane cannot diverge.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PanelTreeProjection {
+    pub(crate) leaves: Vec<LeafArea>,
+    pub(crate) dividers: Vec<Rect>,
+}
+
+/// Project `tree` onto `area` exactly the way [`render_panel_tree`] paints it:
+/// recursive 50/50 splits separated by one shared divider cell, falling back
+/// to the active leaf (or the first leaf) when a split cannot fit its minimum
+/// pane size. `active_panel` selects the fallback leaf and identifies which
+/// leaf the live terminal attaches to.
+pub(crate) fn project_panel_tree(
+    area: Rect,
+    tree: &NativePanelTree,
+    active_panel: Option<usize>,
+) -> PanelTreeProjection {
+    let mut projection = PanelTreeProjection::default();
+    collect_panel_tree(area, tree, active_panel, &mut projection);
+    projection
+}
+
+fn collect_panel_tree(
+    area: Rect,
+    tree: &NativePanelTree,
+    active_panel: Option<usize>,
+    projection: &mut PanelTreeProjection,
+) {
+    match tree {
+        NativePanelTree::Panel { panel_index } => projection.leaves.push(LeafArea {
+            panel_index: *panel_index,
+            leaf: area,
+            content: pane_content(area),
+        }),
+        NativePanelTree::Split {
+            first,
+            second,
+            orientation,
+            ..
+        } => match divide_panes(area, *orientation) {
+            Some(division) => {
+                projection.dividers.push(division.divider);
+                collect_panel_tree(division.first, first, active_panel, projection);
+                collect_panel_tree(division.second, second, active_panel, projection);
+            }
+            None => {
+                if let Some(NativePanelTree::Panel { panel_index }) =
+                    active_leaf(tree, active_panel).or_else(|| first_leaf(tree))
+                {
+                    projection.leaves.push(LeafArea {
+                        panel_index: *panel_index,
+                        leaf: area,
+                        content: pane_content(area),
+                    });
+                }
+            }
+        },
+    }
+}
+
+fn active_leaf(tree: &NativePanelTree, active: Option<usize>) -> Option<&NativePanelTree> {
+    match tree {
+        NativePanelTree::Panel { panel_index } => (Some(*panel_index) == active).then_some(tree),
+        NativePanelTree::Split { first, second, .. } => {
+            active_leaf(first, active).or_else(|| active_leaf(second, active))
+        }
+    }
+}
+
+fn first_leaf(tree: &NativePanelTree) -> Option<&NativePanelTree> {
+    match tree {
+        NativePanelTree::Panel { .. } => Some(tree),
+        NativePanelTree::Split { first, .. } => first_leaf(first),
+    }
+}
+
+/// The content rect of the leaf the live terminal attaches to: the active
+/// panel when it is projected, otherwise the first projected leaf (the same
+/// fallback the renderer uses when the active leaf cannot be placed).
+impl PanelTreeProjection {
+    pub(crate) fn active_content(&self, active_panel: Option<usize>) -> Option<Rect> {
+        self.leaves
+            .iter()
+            .find(|leaf| Some(leaf.panel_index) == active_panel)
+            .or_else(|| self.leaves.first())
+            .map(|leaf| leaf.content)
+    }
 }

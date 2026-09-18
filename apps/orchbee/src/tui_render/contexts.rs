@@ -57,18 +57,25 @@ fn navigator_lines<'a>(
     if visible == 0 || width == 0 {
         return Vec::new();
     }
+    // A clipped window always keeps its last row for the current/total
+    // position so hidden entries are presented as clipped, not as absent.
+    let item_rows = if context_count > visible {
+        visible.saturating_sub(1)
+    } else {
+        visible
+    };
 
     let active_index = active_position
         .and_then(|position| position.checked_sub(1))
         .filter(|index| *index < context_count);
-    let max_start = context_count.saturating_sub(visible);
+    let max_start = context_count.saturating_sub(item_rows);
     let start = active_index
-        .map(|index| index.saturating_sub(visible / 2))
+        .map(|index| index.saturating_sub(item_rows / 2))
         .unwrap_or(0)
         .min(max_start);
-    let end = start.saturating_add(visible).min(context_count);
+    let end = start.saturating_add(item_rows).min(context_count);
 
-    (start..end)
+    let mut lines: Vec<Line<'static>> = (start..end)
         .map_while(context_at)
         .map(|context| {
             Line::from(Span::styled(
@@ -76,7 +83,15 @@ fn navigator_lines<'a>(
                 navigator_style(context.active, theme),
             ))
         })
-        .collect()
+        .collect();
+    if context_count > visible {
+        let current = active_index.map_or(end, |index| index.saturating_add(1));
+        lines.push(Line::styled(
+            format!("{current}/{context_count}"),
+            theme.style(Role::TextSecondary),
+        ));
+    }
+    lines
 }
 
 fn context_row(context: ContextDisplay<'_>, width: usize, theme: &Theme) -> String {

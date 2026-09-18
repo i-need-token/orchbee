@@ -219,7 +219,8 @@ const fn dimensions(columns: u16, rows: u16) -> WindowDimensions {
 fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()> {
     let original = dimensions(120, 32);
     let view = ClientView::new(original.columns);
-    let geometry = super::terminal_geometry(original, &view)?;
+    let geometry = super::terminal_geometry(original, &view, None)?
+        .expect("a Full viewport must present a pane");
     assert_eq!((geometry.columns(), geometry.rows()), (88, 28));
     assert_eq!(
         (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
@@ -243,13 +244,13 @@ fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()
             ..original
         },
     ] {
-        assert!(super::terminal_geometry(incomplete, &view).is_err());
+        assert!(super::terminal_geometry(incomplete, &view, None).is_err());
     }
     Ok(())
 }
 
 #[test]
-fn too_small_geometry_floors_the_pane_at_one_cell_instead_of_erroring() -> io::Result<()> {
+fn too_small_geometry_withholds_resize_instead_of_fabricating() -> io::Result<()> {
     for dimensions in [
         dimensions(15, 4),
         dimensions(120, 2),
@@ -257,10 +258,10 @@ fn too_small_geometry_floors_the_pane_at_one_cell_instead_of_erroring() -> io::R
         dimensions(1, 1),
     ] {
         let view = ClientView::new(dimensions.columns);
-        let geometry = super::terminal_geometry(dimensions, &view)?;
+        let geometry = super::terminal_geometry(dimensions, &view, None)?;
         assert!(
-            geometry.columns() >= 1 && geometry.rows() >= 1,
-            "too-small {dimensions:?} must keep a valid nonzero pane geometry"
+            geometry.is_none(),
+            "too-small {dimensions:?} must withhold the resize (Ok(None)), not fabricate one"
         );
     }
     Ok(())
@@ -460,13 +461,15 @@ fn observes_fresh_geometry_before_initial_draw_tick_and_same_batch_effects() -> 
         LoopExit::User
     );
 
-    let docked = super::terminal_geometry(measured, &ClientView::new(measured.columns))?;
+    let docked = super::terminal_geometry(measured, &ClientView::new(measured.columns), None)?
+        .expect("a presentable viewport must produce pane geometry");
     let mut expanded_view = ClientView::new(measured.columns);
     let prefix = expanded_view.decide(crate::client_view::ClientKey::ControlB);
     expanded_view.commit(prefix, SessionActionDisposition::KeepNavigator);
     let toggle = expanded_view.decide(crate::client_view::ClientKey::Plain('b'));
     expanded_view.commit(toggle, SessionActionDisposition::KeepNavigator);
-    let expanded = super::terminal_geometry(measured, &expanded_view)?;
+    let expanded = super::terminal_geometry(measured, &expanded_view, None)?
+        .expect("a presentable viewport must produce pane geometry");
     assert_ne!(docked, expanded);
     assert_eq!(
         surface.events,
@@ -716,10 +719,12 @@ fn outer_resize_invalidates_close_before_input_even_when_terminal_geometry_is_eq
         )?,
         LoopExit::User
     );
-    let geometry = super::terminal_geometry(initial, &ClientView::new(100))?;
+    let geometry = super::terminal_geometry(initial, &ClientView::new(100), None)?
+        .expect("a presentable viewport must produce pane geometry");
     assert_eq!(
         geometry,
-        super::terminal_geometry(resized, &ClientView::new(70))?
+        super::terminal_geometry(resized, &ClientView::new(70), None)?
+            .expect("a presentable viewport must produce pane geometry")
     );
     assert_eq!(
         surface.events,

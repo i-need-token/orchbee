@@ -53,7 +53,10 @@ fn docks_a_fixed_business_sidebar_without_reducing_the_status_width() {
     assert_eq!(areas.tabs, Rect::new(30, 0, 90, 1));
     assert_eq!(areas.panel, Rect::new(30, 1, 90, 38));
     assert_eq!(areas.status, Rect::new(0, 39, 120, 1));
-    assert_eq!(terminal_area(areas.panel), Rect::new(31, 2, 88, 36));
+    assert_eq!(
+        terminal_area(areas.panel, areas.tier.shows_panel_frame()),
+        Rect::new(31, 2, 88, 36)
+    );
 }
 
 #[test]
@@ -96,23 +99,34 @@ fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
     assert_eq!(tiny.sidebar, None);
     assert_eq!(tiny.status, Rect::new(0, 3, 15, 1));
     assert_eq!(tiny.panel, tiny.body);
-    // The projected inner area stays nonzero so the session loop survives.
-    assert_eq!(terminal_area(tiny.panel), Rect::new(1, 1, 13, 1));
+    // TooSmall draws no panel frame, so the honest content area is the panel
+    // itself; `active_pane_area` still withholds it (Ok(None)), so the session
+    // keeps its last valid geometry instead of receiving a fabricated resize.
+    assert_eq!(
+        terminal_area(tiny.panel, tiny.tier.shows_panel_frame()),
+        tiny.panel
+    );
 }
 
 #[test]
-fn terminal_area_floors_degenerate_panels_at_one_cell() {
-    // A too-small body (zero or sub-frame rows/columns) still projects a valid
-    // 1x1 pane so the session never receives an invalid zero-area resize.
+fn terminal_area_reports_degenerate_panels_as_empty_never_fabricated() {
+    // A framed degenerate panel yields an empty rect; callers must treat that
+    // as "cannot present" (Ok(None)) — never floor it to a fake 1x1 resize.
     for panel in [
         Rect::new(0, 0, 0, 0),
         Rect::new(0, 0, 15, 1),
         Rect::new(0, 0, 2, 30),
         Rect::new(4, 2, 30, 2),
     ] {
-        let area = terminal_area(panel);
-        assert!(area.width >= 1 && area.height >= 1, "{panel:?} -> {area:?}");
+        assert!(
+            terminal_area(panel, true).is_empty(),
+            "framed {panel:?} must not fabricate a resize target"
+        );
     }
+    // Without a drawn frame no cells are deducted: the honest rect is the
+    // panel itself.
+    let unframed = Rect::new(0, 0, 15, 3);
+    assert_eq!(terminal_area(unframed, false), unframed);
 }
 
 #[test]

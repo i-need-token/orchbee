@@ -140,16 +140,23 @@ fn navigator_lines<'a>(
     if height == 0 || width == 0 || tab_count == 0 {
         return Vec::new();
     }
+    // A clipped window always keeps its last row for the current/total
+    // position so hidden entries are presented as clipped, not as absent.
+    let item_rows = if tab_count > height {
+        height.saturating_sub(1)
+    } else {
+        height
+    };
     let active_index = active_position
         .and_then(|position| position.checked_sub(1))
         .filter(|index| *index < tab_count);
     let start = active_index
-        .map(|index| index.saturating_sub(height - 1))
+        .map(|index| index.saturating_sub(item_rows.saturating_sub(1)))
         .unwrap_or(0)
-        .min(tab_count.saturating_sub(height));
-    let end = start.saturating_add(height).min(tab_count);
+        .min(tab_count.saturating_sub(item_rows));
+    let end = start.saturating_add(item_rows).min(tab_count);
 
-    (start..end)
+    let mut lines: Vec<Line<'static>> = (start..end)
         .map_while(tab_at)
         .map(|tab| {
             Line::from(Span::styled(
@@ -157,7 +164,15 @@ fn navigator_lines<'a>(
                 navigator_style(tab.active, theme),
             ))
         })
-        .collect()
+        .collect();
+    if tab_count > height {
+        let current = active_index.map_or(end, |index| index.saturating_add(1));
+        lines.push(Line::styled(
+            format!("{current}/{tab_count}"),
+            theme.style(Role::TextSecondary),
+        ));
+    }
+    lines
 }
 
 fn compact_token(tab: TabDisplay<'_>, max_width: usize, theme: &Theme) -> Option<(String, usize)> {

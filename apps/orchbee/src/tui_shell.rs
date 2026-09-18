@@ -170,8 +170,14 @@ fn run_with_client(
     let dimensions = inherited.window_dimensions().map_err(TuiFailure::Runtime)?;
     let terminal_input: Box<dyn TerminalSurface> = match connection {
         Some((client, intent)) => {
-            let geometry = terminal_geometry(dimensions, &ClientView::new(dimensions.columns))
-                .map_err(TuiFailure::Runtime)?;
+            let geometry =
+                terminal_geometry(dimensions, &ClientView::new(dimensions.columns), None)
+                    .and_then(|geometry| {
+                        geometry.ok_or_else(|| {
+                            io::Error::other("viewport too small to present a terminal pane")
+                        })
+                    })
+                    .map_err(TuiFailure::Runtime)?;
             Box::new(
                 crate::terminal_session::TerminalSession::start(client, intent, geometry)
                     .map_err(TuiFailure::Runtime)?,
@@ -387,18 +393,29 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
         view.resize(next.columns);
         *dimensions = next;
     }
-    let geometry = terminal_geometry(*dimensions, view).map_err(LoopFailure::Viewport)?;
-    terminal_input.observe_geometry(geometry);
+    let geometry = terminal_geometry(*dimensions, view, terminal_input.view())
+        .map_err(LoopFailure::Viewport)?;
+    if let Some(geometry) = geometry {
+        terminal_input.observe_geometry(geometry);
+    }
     Ok(changed)
 }
 
+/// The session's real pane geometry, computed from the same pure layout the
+/// renderer paints. `Ok(None)` means the viewport cannot present a pane right
+/// now (too small, or the active leaf is empty): the caller keeps the last
+/// valid geometry instead of resizing — the session is never told a
+/// fabricated size. `Err` means the host geometry honestly cannot be built
+/// (for example zero pixel extents); it is never repaired with fake cells.
 pub(crate) fn terminal_geometry(
     dimensions: WindowDimensions,
     view: &ClientView,
-) -> io::Result<orchbee_client_server_protocol::Geometry> {
-    let panel =
-        crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface()).panel;
-    let area = crate::tui_layout::terminal_area(panel);
+    session: Option<crate::terminal_session::TerminalSessionView<'_>>,
+) -> io::Result<Option<orchbee_client_server_protocol::Geometry>> {
+    let areas = crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface());
+    let Some(area) = active_pane_area(&areas, session) else {
+        return Ok(None);
+    };
     let width = dimensions
         .pixel_width
         .checked_div(dimensions.columns)
@@ -408,7 +425,45 @@ pub(crate) fn terminal_geometry(
         .checked_div(dimensions.rows)
         .unwrap_or(0);
     orchbee_client_server_protocol::Geometry::new(area.width, area.height, width, height)
+        .map(Some)
         .map_err(io::Error::other)
+}
+
+/// The cell rect the live terminal attaches to, identical to what
+/// [`render_terminal_shell`] paints: the whole panel content for a single
+/// pane or a Minimal viewport (active pane only, no tree chrome), otherwise
+/// the active leaf's content inside the projected split tree. `None` when the
+/// viewport cannot present a pane at all — explicit, not inferred from a
+/// returned rect.
+fn active_pane_area(
+    areas: &crate::tui_layout::ShellAreas,
+    session: Option<crate::terminal_session::TerminalSessionView<'_>>,
+) -> Option<Rect> {
+    use crate::terminal_session::TerminalSessionView;
+    if areas.tier == crate::tui_layout::ViewportTier::TooSmall {
+        return None;
+    }
+    let framed = areas.tier.shows_panel_frame();
+    let content = crate::tui_layout::terminal_area(areas.panel, framed);
+    let native = match session {
+        Some(TerminalSessionView::Native(native)) => native,
+        #[cfg(test)]
+        Some(TerminalSessionView::Legacy { .. }) => {
+            return Some(content).filter(|_| !content.is_empty());
+        }
+        None => return Some(content).filter(|_| !content.is_empty()),
+    };
+    let tab = native
+        .active_position()
+        .and_then(|position| position.checked_sub(1))
+        .and_then(|index| native.tab(index))?;
+    let area = if framed && tab.panel_count() > 1 {
+        crate::tui_layout::project_panel_tree(content, tab.panel_tree(), tab.active_panel())
+            .active_content(tab.active_panel())
+    } else {
+        Some(content)
+    }?;
+    Some(area).filter(|_| !area.is_empty())
 }
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {

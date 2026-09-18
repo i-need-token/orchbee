@@ -10,14 +10,13 @@ use crate::{
     client_view::{ClientView, Overlay},
     localization::{Locale, ShellText},
     terminal_session::{
-        NativeCloseStatusToken, NativeDisplayPhase, NativeDrawReceipt, NativePanelTree,
-        NativeProjectionStatus, NativeRefreshStatus, NativeSessionView, NativeTabView,
-        TerminalSessionView,
+        NativeCloseStatusToken, NativeDisplayPhase, NativeDrawReceipt, NativeProjectionStatus,
+        NativeRefreshStatus, NativeSessionView, NativeTabView, TerminalSessionView,
     },
     terminal_text::{sanitize_terminal_text, truncate_display},
     tui_layout::{
-        ShellAreas, SidebarArea, SidebarLayer, ViewportTier, divide_panes, overlay_area,
-        pane_content, place_overlay, project_shell_areas, terminal_area,
+        ShellAreas, SidebarArea, SidebarLayer, ViewportTier, overlay_area, place_overlay,
+        project_shell_areas, terminal_area,
     },
     tui_theme::{Role, Theme},
 };
@@ -132,12 +131,13 @@ pub(crate) fn render_terminal_shell(
         }
 
         let overlay = match view.overlay() {
-            Some(Overlay::ShortcutHelp) => Some(render_shortcut_help(
-                frame,
-                overlay_area(&areas),
-                text,
-                theme,
-            )),
+            Some(Overlay::ShortcutHelp) => Some(
+                // The help page is U5-owned view state; this slice has no
+                // paging input, so help always opens on page 0. The returned
+                // effective page is the write-back seam for U5's dispatcher.
+                render_shortcut_help(frame, overlay_area(&areas), text, 0, theme)
+                    .map(|(area, _page)| area),
+            ),
             Some(Overlay::WorkbenchNavigator) => Some(match session.as_ref() {
                 Some(TerminalSessionView::Native(native)) => render_native_workbench_navigator(
                     frame,
@@ -267,7 +267,7 @@ fn render_unavailable_workbench(
         Line::styled(text.shell_only_detail, theme.style(Role::TextPrimary)),
         Line::styled(text.no_client_session, theme.style(Role::TextSecondary)),
     ];
-    let content_area = terminal_area(areas.panel);
+    let content_area = terminal_area(areas.panel, tier.shows_panel_frame());
     if tier.shows_panel_frame() {
         frame.render_widget(
             Paragraph::new(content)
@@ -306,7 +306,7 @@ fn render_legacy_terminal(
     status: TerminalStatus,
     theme: &Theme,
 ) {
-    let area = terminal_area(panel);
+    let area = terminal_area(panel, true);
     frame.render_widget(Clear, area);
     if let Some(terminal) =
         projection.and_then(crate::terminal_projection::TerminalProjection::frame)
@@ -336,8 +336,9 @@ fn render_native_workbench(
     let location = native_location_label(native, text.standalone);
     render_tab_strip(frame, areas.tabs, native, location.as_deref(), text, theme);
 
-    let content_area = terminal_area(panel_area);
-    if areas.tier.shows_panel_frame() {
+    let framed = areas.tier.shows_panel_frame();
+    let content_area = terminal_area(panel_area, framed);
+    if framed {
         let panel_block = Block::new()
             .borders(Borders::ALL)
             .border_style(theme.style(Role::FrameFocused))
@@ -359,26 +360,30 @@ fn render_native_workbench(
         .active_position()
         .and_then(|position| position.checked_sub(1))
         .and_then(|index| native.tab(index));
-    if let Some(tab) = active_tab.filter(|tab| tab.panel_count() > 1) {
-        let mut dividers = Vec::new();
-        render_panel_tree(
-            frame,
+    if let Some(tab) = active_tab.filter(|tab| framed && tab.panel_count() > 1) {
+        let projection = crate::tui_layout::project_panel_tree(
             content_area,
-            tab,
             tab.panel_tree(),
-            terminal,
-            client_view.overlay().is_none()
-                && native.close_confirmation().is_none()
-                && native.rename_draft().is_none()
-                && native.setup_draft().is_none(),
-            text,
-            phase_status,
-            locale,
-            native,
-            &mut dividers,
-            theme,
+            tab.active_panel(),
         );
-        render_dividers(frame, &dividers, theme);
+        for leaf in &projection.leaves {
+            render_leaf(
+                frame,
+                leaf,
+                tab,
+                terminal,
+                client_view.overlay().is_none()
+                    && native.close_confirmation().is_none()
+                    && native.rename_draft().is_none()
+                    && native.setup_draft().is_none(),
+                text,
+                phase_status,
+                locale,
+                native,
+                theme,
+            );
+        }
+        render_dividers(frame, &projection.dividers, theme);
     } else if let Some(terminal) = terminal {
         terminal_cells::render(
             frame,
@@ -478,117 +483,10 @@ fn render_tab_strip(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn render_panel_tree(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    tab: NativeTabView<'_>,
-    tree: &NativePanelTree,
-    terminal: Option<&orchbee_terminal_protocol::TerminalTextFrame>,
-    input_enabled: bool,
-    text: ShellText,
-    phase_status: &str,
-    locale: Locale,
-    native: &NativeSessionView<'_>,
-    dividers: &mut Vec<Rect>,
-    theme: &Theme,
-) {
-    match tree {
-        NativePanelTree::Panel { panel_index } => {
-            render_leaf(
-                frame,
-                area,
-                tab,
-                *panel_index,
-                terminal,
-                input_enabled,
-                text,
-                phase_status,
-                locale,
-                native,
-                theme,
-            );
-        }
-        NativePanelTree::Split {
-            first,
-            second,
-            orientation,
-            ..
-        } => match divide_panes(area, *orientation) {
-            Some(division) => {
-                dividers.push(division.divider);
-                render_panel_tree(
-                    frame,
-                    division.first,
-                    tab,
-                    first,
-                    terminal,
-                    input_enabled,
-                    text,
-                    phase_status,
-                    locale,
-                    native,
-                    dividers,
-                    theme,
-                );
-                render_panel_tree(
-                    frame,
-                    division.second,
-                    tab,
-                    second,
-                    terminal,
-                    input_enabled,
-                    text,
-                    phase_status,
-                    locale,
-                    native,
-                    dividers,
-                    theme,
-                );
-            }
-            None => {
-                let leaf = active_leaf(tree, tab.active_panel()).or_else(|| first_leaf(tree));
-                if let Some(NativePanelTree::Panel { panel_index }) = leaf {
-                    render_leaf(
-                        frame,
-                        area,
-                        tab,
-                        *panel_index,
-                        terminal,
-                        input_enabled,
-                        text,
-                        phase_status,
-                        locale,
-                        native,
-                        theme,
-                    );
-                }
-            }
-        },
-    }
-}
-
-fn active_leaf(tree: &NativePanelTree, active: Option<usize>) -> Option<&NativePanelTree> {
-    match tree {
-        NativePanelTree::Panel { panel_index } => (Some(*panel_index) == active).then_some(tree),
-        NativePanelTree::Split { first, second, .. } => {
-            active_leaf(first, active).or_else(|| active_leaf(second, active))
-        }
-    }
-}
-
-fn first_leaf(tree: &NativePanelTree) -> Option<&NativePanelTree> {
-    match tree {
-        NativePanelTree::Panel { .. } => Some(tree),
-        NativePanelTree::Split { first, .. } => first_leaf(first),
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
 fn render_leaf(
     frame: &mut Frame<'_>,
-    area: Rect,
+    leaf: &crate::tui_layout::LeafArea,
     tab: NativeTabView<'_>,
-    panel_index: usize,
     terminal: Option<&orchbee_terminal_protocol::TerminalTextFrame>,
     input_enabled: bool,
     text: ShellText,
@@ -597,6 +495,8 @@ fn render_leaf(
     native: &NativeSessionView<'_>,
     theme: &Theme,
 ) {
+    let area = leaf.leaf;
+    let panel_index = leaf.panel_index;
     let active = tab.active_panel() == Some(panel_index);
     let panel = tab.panel(panel_index);
     let title = panel.map_or_else(
@@ -626,7 +526,7 @@ fn render_leaf(
         .style(title_style),
         title_area,
     );
-    let content = pane_content(area);
+    let content = leaf.content;
     if active {
         if let Some(terminal) = terminal {
             terminal_cells::render(frame, content, terminal, input_enabled);
@@ -834,19 +734,56 @@ fn render_sidebar(
     );
 }
 
+/// Rows the help footer always occupies: the dismiss/typing line plus the
+/// paging/position line. Help refuses placement when fewer than
+/// `MINIMUM_HELP_ROWS_PER_PAGE` shortcut rows would remain above it.
+const HELP_FOOTER_ROWS: u16 = 2;
+const MINIMUM_HELP_ROWS_PER_PAGE: u16 = 2;
+
+/// The total shortcut-help pages for `row_count` rows shown
+/// `rows_per_page` at a time. Pure projection shared with the input layer:
+/// the dispatcher clamps its page state with the same count the renderer
+/// uses, so the two can never disagree about the last page.
+pub(crate) fn help_page_count(rows_per_page: usize, row_count: usize) -> usize {
+    row_count.div_ceil(rows_per_page.max(1)).max(1)
+}
+
+/// Render the shortcut-help overlay paged to fit the placed area: the footer
+/// (dismiss key, paging hint, typing purpose, and `page/total`) is always
+/// drawn, and only the current page's rows are shown — content is never
+/// silently clipped. Returns the placed rect and the effective page after
+/// clamping to the page count, or `None` when rows plus footer cannot fit.
 fn render_shortcut_help(
     frame: &mut Frame<'_>,
     area: Rect,
     text: ShellText,
+    page: usize,
     theme: &Theme,
-) -> Option<Rect> {
-    let height = u16::try_from(text.shortcuts.len())
+) -> Option<(Rect, usize)> {
+    let rows = text.shortcuts.len();
+    let height = u16::try_from(rows)
         .unwrap_or(u16::MAX)
-        .saturating_add(4);
+        .saturating_add(HELP_FOOTER_ROWS)
+        .saturating_add(2);
     let area = place_overlay(area, 76, height)?;
+    let inner = overlay_block(text.shortcut_title, theme).inner(area);
+    let rows_per_page = inner.height.saturating_sub(HELP_FOOTER_ROWS);
+    if rows_per_page < MINIMUM_HELP_ROWS_PER_PAGE || inner.width == 0 {
+        return None;
+    }
+    let rows_per_page = usize::from(rows_per_page);
+    let total_pages = help_page_count(rows_per_page, rows);
+    let page = page.min(total_pages - 1);
+    let start = page.saturating_mul(rows_per_page);
+    let end = start.saturating_add(rows_per_page).min(rows);
+
     frame.render_widget(Clear, area);
-    let mut items = text
-        .shortcuts
+    let block = overlay_block(text.shortcut_title, theme);
+    let [rows_area, footer_area] =
+        Layout::vertical([Constraint::Min(0), Constraint::Length(HELP_FOOTER_ROWS)]).areas(inner);
+    frame.render_widget(block, area);
+
+    let items = text.shortcuts[start..end]
         .iter()
         .map(|shortcut| {
             let row = shortcut.split_once("  ").map_or_else(
@@ -861,16 +798,23 @@ fn render_shortcut_help(
             ListItem::new(row)
         })
         .collect::<Vec<_>>();
-    items.push(ListItem::new(""));
-    items.push(ListItem::new(Line::styled(
-        text.help_dismiss_hint,
-        theme.style(Role::HintLabel),
-    )));
-    frame.render_widget(
-        List::new(items).block(overlay_block(text.shortcut_title, theme)),
-        area,
-    );
-    Some(area)
+    frame.render_widget(List::new(items), rows_area);
+
+    let footer = vec![
+        Line::styled(text.help_dismiss_hint, theme.style(Role::HintLabel)),
+        Line::styled(
+            format!(
+                "{} {} {}/{}",
+                text.help_paging_hint,
+                theme.glyphs.middle_dot,
+                page + 1,
+                total_pages
+            ),
+            theme.style(Role::HintLabel),
+        ),
+    ];
+    frame.render_widget(Paragraph::new(footer), footer_area);
+    Some((area, page))
 }
 
 fn render_unavailable_workbench_navigator(
