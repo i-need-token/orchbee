@@ -21,7 +21,9 @@ kind-12 `TerminalCreated` launch controls. Its `inspect_terminal_frame_route` re
 0.0.3 routing prefix: exact framing/version, kind/base-revision relationship, nonzero Host/attachment
 identity, sequence, generation, and revision. It does not validate presentation fields, tables,
 cells, or extensions; Client projection decoding remains a separate boundary. Existing TypeScript
-and real Ghostty fixtures verify this zero-copy route inspection.
+and real Ghostty fixtures verify this zero-copy route inspection. Beyond route inspection, the
+binding decodes bounded OBRW 0.0.3 text-detail row windows into `TerminalTextRowWindow`; a legal
+render window completes full header validation, then fails closed as outside the text-only API.
 The binding also covers the
 bidirectional `FrameApplied` and `NeedSnapshot` projection-feedback controls for kinds 43 and 44,
 the projection-demand request, acceptance, and blocked event for kinds 47 through 49, and the
@@ -61,6 +63,28 @@ applies deltas, sends feedback, or renders. Existing TypeScript and real Ghostty
 owner's malformed-frame corpus and byte-boundary tests maintain conformance. The native TUI owns
 atomic snapshot/delta application, retained-memory admission, escape-safe cell rendering and exact
 feedback after a successful draw. Worker and Server continue to use only route inspection.
+
+## Rust text row-window binding
+
+`decode_terminal_text_row_window` consumes the unchanged OBRW 0.0.3 text detail for the
+planned native history surface. It validates the complete shared header — exact framing and
+version, total and body lengths, required flags and reserved fields, window shape, detail
+section lengths, and non-zero Host/attachment identities — before a legal render window fails
+closed as outside this text-only API; its payload is never interpreted. For text detail it
+validates every row's flags, prompt class, reserved fields, strict UTF-8 text, identity-ASCII
+semantics, canonical mapping order, scalar-boundary byte and UTF-16 offsets, non-overlapping
+columns, adjacent wrap agreement, per-cell span and cumulative entry limits, and exact body
+and entry counts before returning `TerminalTextRowWindow`. The result carries absolute row
+indexes, prompt classes, wrap relationships, identity-ASCII markers with empty mapping tables,
+and explicit mapping fields; byte-order-mark code points are preserved and display width is
+never inferred from text.
+
+This is a text-detail decoder, not a render decoder, a history restoration path, or a client
+state machine. It never parses render payloads, applies rows to a terminal, restores history
+demand, or selects text. The shared malformed row-window corpus, packed projection
+conformance cases, the canonical row-window fixture, and strict-prefix truncation plus
+UTF-8/mapping boundary tests maintain conformance with the TypeScript owner and Zig
+validator.
 
 ## Public API
 

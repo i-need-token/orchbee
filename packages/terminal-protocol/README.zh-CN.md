@@ -19,7 +19,9 @@ liveness 与查看附件 relay behavior 归 Worker 所有。Binding 包含 kind-
 kind-12 `TerminalCreated` launch control。其 `inspect_terminal_frame_route` 只读取 OBTF 0.0.3
 routing prefix：精确 framing/version、kind/base-revision 关系、非零 Host/attachment identity、
 sequence、generation 和 revision。它不校验 presentation field、table、cell 或 extension；Client
-projection decode 仍是独立边界。现有 TypeScript 与真实 Ghostty fixture 验证此零拷贝路由检查。该 binding 还覆盖 kind
+projection decode 仍是独立边界。现有 TypeScript 与真实 Ghostty fixture 验证此零拷贝路由检查。在路由检查之外，该 binding 还把有界的 OBRW
+0.0.3 text-detail 行窗口解码为 `TerminalTextRowWindow`；合法的 render 窗口完成全部
+header 校验后以 text-only API 之外的语义关闭拒绝。该 binding 还覆盖 kind
 43 与 44 的双向 `FrameApplied` 和
 `NeedSnapshot` projection-feedback control、kind 47 到 49 的 projection-demand request、
 acceptance 与 blocked event，以及 kind 51 到 54 的 history-demand、change 与 observation
@@ -55,6 +57,24 @@ hyperlink、产生 clipboard effect、应用 delta、发送 feedback 或渲染�
 Ghostty fixture，以及 owner 的 malformed-frame corpus 和 byte-boundary test 维护一致性。
 原生 TUI 拥有原子的 snapshot/delta 应用、保留内存准入、避免 escape 注入的 cell 呈现，以及
 成功 draw 后的精确 feedback。Worker 和 Server 继续只使用 route inspection。
+
+## Rust 文本行窗口 binding
+
+`decode_terminal_text_row_window` 为规划中的原生历史界面消费未改变的 OBRW 0.0.3 text
+detail。它先校验完整共享 header——精确 framing 与 version、total 与 body 长度、required
+flag 与 reserved field、窗口 shape、detail section 长度，以及非零 Host/attachment
+identity——合法的 render 窗口随后以 text-only API 之外的语义关闭拒绝，其 payload 从不被
+解释。对 text detail，它在返回 `TerminalTextRowWindow` 前校验每一行的 flag、prompt
+class、reserved field、严格 UTF-8 文本、identity-ASCII 语义、canonical mapping 顺序、
+scalar 边界上的 byte 与 UTF-16 offset、不重叠的 column、相邻 wrap 一致性、每 cell span
+与累计 entry 上限，以及精确的 body 与 entry 计数。结果携带绝对行号、prompt class、wrap
+关系、带空 mapping 表的 identity-ASCII 标记，以及显式 mapping 字段；byte-order-mark
+code point 原样保留，显示宽度从不由文本推断。
+
+这是 text-detail decoder，不是 render decoder、历史恢复路径或 client 状态机。它从不解
+析 render payload、把行应用到终端、恢复 history demand 或选择文本。共享的 malformed
+row-window corpus、packed projection conformance 用例、canonical row-window fixture，
+以及严格前缀截断和 UTF-8/mapping 边界测试，与 TypeScript owner 及 Zig validator 保持一致。
 
 ## 公共 API
 

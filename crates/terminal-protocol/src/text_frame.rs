@@ -1,7 +1,7 @@
 //! Bounded OBTF text projection. Optional extension contents are not interpreted.
 use crate::{
-    ProtocolError, ProtocolErrorCode, TerminalFrameRoute, TerminalPixelGeometry,
-    inspect_terminal_frame_route,
+    MAXIMUM_TEXT_CELL_BYTES, ProtocolError, ProtocolErrorCode, TerminalFrameRoute,
+    TerminalPixelGeometry, inspect_terminal_frame_route,
 };
 use std::sync::Arc;
 
@@ -119,7 +119,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
     let mut strings: Vec<Arc<str>> = Vec::new();
     for _ in 0..strings_count {
         let length = header.u32()?;
-        if length > 16 * 1024 {
+        if length as usize > MAXIMUM_TEXT_CELL_BYTES {
             return Err(error(ProtocolErrorCode::LimitExceeded));
         }
         let text = std::str::from_utf8(header.take(length as usize)?)

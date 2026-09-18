@@ -109,6 +109,11 @@ const row_window_conformance_case_names = [_][]const u8{
     "obrw-projection-section-length-mismatch",
     "obrw-graphics-section-length-mismatch",
     "obrw-graphics-update-not-snapshot",
+    "obrw-text-identity-ascii",
+    "obrw-text-aggregate-row-over-16k",
+    "obrw-text-empty-row",
+    "obrw-text-wrap-chain-three-rows",
+    "obrw-text-utf8-bom-leading",
 };
 
 const packed_projection_conformance_case_count =
@@ -116,7 +121,7 @@ const packed_projection_conformance_case_count =
 
 comptime {
     if (projection_conformance_case_names.len != 23) @compileError("expected 23 OBPB cases");
-    if (row_window_conformance_case_names.len != 6) @compileError("expected 6 OBRW cases");
+    if (row_window_conformance_case_names.len != 11) @compileError("expected 11 OBRW cases");
 }
 
 const PackedProjectionCaseRoute = enum {
@@ -855,7 +860,7 @@ test "shared packed projection corpus drives both native strict validators" {
     defer parsed.deinit();
     try std.testing.expectEqual(@as(u8, 1), parsed.value.schemaVersion);
     try std.testing.expectEqualStrings("0.0.3", parsed.value.formatVersion);
-    try std.testing.expectEqual(@as(usize, 29), parsed.value.cases.len);
+    try std.testing.expectEqual(@as(usize, 34), parsed.value.cases.len);
 
     var inventory = PackedProjectionInventory{};
     for (parsed.value.cases) |case| {

@@ -27,6 +27,7 @@ pub const MAXIMUM_ENVIRONMENT_OVERLAY_VALUE_BYTES: usize = 4 * 1024;
 pub const MAXIMUM_FRAME_COLUMNS: usize = 4096;
 pub const MAXIMUM_FRAME_ROWS: usize = 4096;
 pub const MAXIMUM_FRAME_CELLS: usize = 256 * 1024;
+pub const MAXIMUM_TEXT_CELL_BYTES: usize = 16 * 1024;
 pub const MAXIMUM_CELL_PIXEL_DIMENSION: usize = 4096;
 pub const MAXIMUM_TERMINAL_PIXEL_EXTENT: u32 = u16::MAX as u32;
 pub const MAXIMUM_RGB_VALUE: u32 = 0x00ff_ffff;

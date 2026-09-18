@@ -1255,6 +1255,108 @@ function malformedCorpus(frameBytes) {
 	];
 }
 
+const ROW_WINDOW_HEADER_BYTES = 112;
+
+function authoredTextRowWindow({ columns, rows, startRow = 100n, totalRows = 125n }) {
+	return {
+		attachmentId: '22222222222222222222222222222222',
+		columns,
+		detail: 'text',
+		generation: 3n,
+		hostEpoch: '11111111111111111111111111111111',
+		revision: 42n,
+		rows,
+		sequence: 8n,
+		startRow,
+		totalRows,
+	};
+}
+
+function identityCellMappings(length) {
+	return Array.from({ length }, (_, index) => ({
+		byteOffset: index,
+		column: index,
+		utf16Offset: index,
+		width: 1,
+	}));
+}
+
+function encodedTextRowWindow(window, name) {
+	return encodeOrThrow(encodeTerminalRowWindow(window), name);
+}
+
+function textObservation(rowCount) {
+	return {
+		detail: 'text',
+		ignoredOptionalFlags: 0,
+		rowCount,
+	};
+}
+
+/// Hand-assembles a text-detail row window from the wire layout so the corpus can
+/// carry forms the TypeScript encoder legitimately refuses to emit.
+function assembleTextRowWindowBytes({
+	columns,
+	entryCount,
+	rows,
+	startRow = 100n,
+	totalRows = 125n,
+	trailingBytes = 0,
+}) {
+	const rowParts = rows.map((row) => {
+		const part = new Uint8Array(12 + row.text.byteLength + row.mappings.length * 12);
+		const view = new DataView(part.buffer);
+		part[0] = row.flags ?? 0;
+		part[1] = row.promptClass ?? 0;
+		view.setUint16(2, 0, true);
+		view.setUint32(4, row.text.byteLength, true);
+		view.setUint32(8, row.mappings.length, true);
+		part.set(row.text, 12);
+		row.mappings.forEach((mapping, index) => {
+			const offset = 12 + row.text.byteLength + index * 12;
+			view.setUint32(offset, mapping.byteOffset, true);
+			view.setUint32(offset + 4, mapping.utf16Offset, true);
+			view.setUint16(offset + 8, mapping.column, true);
+			part[offset + 10] = mapping.width;
+			part[offset + 11] = 0;
+		});
+		return part;
+	});
+	const bodyLength =
+		rowParts.reduce((total, part) => total + part.byteLength, 0) + trailingBytes;
+	const bytes = new Uint8Array(ROW_WINDOW_HEADER_BYTES + bodyLength);
+	const view = new DataView(bytes.buffer);
+	bytes.set([0x4f, 0x42, 0x52, 0x57], 0);
+	bytes[5] = 0;
+	bytes[6] = 2; // text detail
+	bytes[7] = 0;
+	view.setUint32(8, bytes.byteLength, true);
+	view.setUint16(12, ROW_WINDOW_HEADER_BYTES, true);
+	view.setUint16(14, columns, true);
+	bytes.fill(0x11, 16, 32);
+	bytes.fill(0x22, 32, 48);
+	view.setBigUint64(48, 8n, true);
+	view.setBigUint64(56, 42n, true);
+	view.setBigUint64(64, 3n, true);
+	view.setBigUint64(72, totalRows, true);
+	view.setBigUint64(80, startRow, true);
+	view.setUint16(88, rows.length, true);
+	view.setUint16(90, 0, true);
+	view.setUint32(92, entryCount, true);
+	view.setUint32(96, bodyLength, true);
+	bytes[100] = 3;
+	let offset = ROW_WINDOW_HEADER_BYTES;
+	for (const part of rowParts) {
+		bytes.set(part, offset);
+		offset += part.byteLength;
+	}
+	return bytes;
+}
+
+function rowWindowView(bytes) {
+	return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+}
+
 function malformedRowWindowCorpus(rowWindowBytes, renderRowWindowBytes) {
 	const invalidMagic = rowWindowBytes.slice();
 	invalidMagic[0] = 0;
@@ -1287,7 +1389,7 @@ function malformedRowWindowCorpus(rowWindowBytes, renderRowWindowBytes) {
 	const graphicsUpdateNotSnapshot = renderRowWindowBytes.slice();
 	graphicsUpdateNotSnapshot[112 + projectionLength + 7] = 2;
 
-	return [
+	const cases = [
 		{
 			bytesBase64: Buffer.from(rowWindowBytes.subarray(0, 100)).toString('base64'),
 			code: 'truncated',
@@ -1334,6 +1436,320 @@ function malformedRowWindowCorpus(rowWindowBytes, renderRowWindowBytes) {
 			name: 'render-graphics-update-not-snapshot',
 		},
 	];
+
+	const canonicalView = rowWindowView(rowWindowBytes);
+	const firstRow = ROW_WINDOW_HEADER_BYTES;
+	const firstTextLength = canonicalView.getUint32(firstRow + 4, true);
+	const firstMappings = firstRow + 12 + firstTextLength;
+	const unsupportedVersion = rowWindowBytes.slice();
+	unsupportedVersion[5] = 1;
+
+	const zeroSequence = rowWindowBytes.slice();
+	zeroSequence.fill(0, 48, 56);
+
+	const zeroGeneration = rowWindowBytes.slice();
+	zeroGeneration.fill(0, 64, 72);
+
+	const zeroHostEpoch = rowWindowBytes.slice();
+	zeroHostEpoch.fill(0, 16, 32);
+
+	const windowBeyondTotal = rowWindowBytes.slice();
+	rowWindowView(windowBeyondTotal).setBigUint64(80, 124n, true);
+
+	const invalidDetailCode = rowWindowBytes.slice();
+	invalidDetailCode[6] = 3;
+
+	const columnsZero = rowWindowBytes.slice();
+	rowWindowView(columnsZero).setUint16(14, 0, true);
+
+	const rowCountZero = rowWindowBytes.slice();
+	rowWindowView(rowCountZero).setUint16(88, 0, true);
+
+	const entryCountOverCells = rowWindowBytes.slice();
+	rowWindowView(entryCountOverCells).setUint32(92, 262145, true);
+
+	const entryCountMismatch = rowWindowBytes.slice();
+	rowWindowView(entryCountMismatch).setUint32(92, 5, true);
+
+	const adjacentWrapDisagree = rowWindowBytes.slice();
+	adjacentWrapDisagree[firstRow] &= ~0x01;
+
+	const promptClassRange = rowWindowBytes.slice();
+	promptClassRange[firstRow + 1] = 3;
+
+	const rowReservedFlag = rowWindowBytes.slice();
+	rowWindowView(rowReservedFlag).setUint16(firstRow + 2, 1, true);
+
+	const rowFlagUnknown = rowWindowBytes.slice();
+	rowFlagUnknown[firstRow] |= 0x08;
+
+	const mappingReservedFlag = rowWindowBytes.slice();
+	mappingReservedFlag[firstMappings + 11] = 1;
+
+	const mappingFirstNonzero = rowWindowBytes.slice();
+	rowWindowView(mappingFirstNonzero).setUint32(firstMappings, 1, true);
+
+	const mappingMidScalar = rowWindowBytes.slice();
+	rowWindowView(mappingMidScalar).setUint32(firstMappings + 12, 2, true);
+
+	const mappingUtf16Mismatch = rowWindowBytes.slice();
+	rowWindowView(mappingUtf16Mismatch).setUint32(firstMappings + 28, 3, true);
+
+	const mappingWidthInvalid = rowWindowBytes.slice();
+	mappingWidthInvalid[firstMappings + 10] = 0;
+
+	const mappingColumnOverflow = rowWindowBytes.slice();
+	rowWindowView(mappingColumnOverflow).setUint16(firstMappings + 44, 6, true);
+
+	const mappingByteOrder = rowWindowBytes.slice();
+	rowWindowView(mappingByteOrder).setUint32(firstMappings + 12, 0, true);
+
+	const identityAsciiBytes = encodedTextRowWindow(
+		authoredTextRowWindow({
+			columns: 4,
+			rows: [
+				{
+					index: 100n,
+					mappings: identityCellMappings(4),
+					promptClass: 'none',
+					text: 'ab\u{20}\u{20}',
+					wrap: false,
+					wrapContinuation: false,
+				},
+			],
+		}),
+		'authored identity-ascii row window',
+	);
+
+	const identityNonascii = identityAsciiBytes.slice();
+	identityNonascii[124] = 0xc3;
+	identityNonascii[125] = 0xa9;
+
+	const identityWithMappings = identityAsciiBytes.slice();
+	rowWindowView(identityWithMappings).setUint32(firstRow + 8, 1, true);
+
+	const identityOverColumns = identityAsciiBytes.slice();
+	rowWindowView(identityOverColumns).setUint16(14, 3, true);
+
+	const nonemptyWithoutMapping = identityAsciiBytes.slice();
+	nonemptyWithoutMapping[firstRow] &= ~0x04;
+
+	const mappingCountOverColumns = identityAsciiBytes.slice();
+	rowWindowView(mappingCountOverColumns).setUint32(firstRow + 8, 5, true);
+
+	const overdeclaredTextLength = identityAsciiBytes.slice();
+	rowWindowView(overdeclaredTextLength).setUint32(firstRow + 4, 0xffff_ffff, true);
+
+	const cellSpanOverLimit = assembleTextRowWindowBytes({
+		columns: 6,
+		entryCount: 3,
+		rows: [
+			{
+				mappings: [
+					{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
+					{ byteOffset: 16385, column: 1, utf16Offset: 16385, width: 1 },
+					{ byteOffset: 32768, column: 2, utf16Offset: 32768, width: 1 },
+				],
+				text: new Uint8Array(32769).fill(0x61),
+			},
+		],
+	});
+
+	const trailingSpanOverLimit = assembleTextRowWindowBytes({
+		columns: 6,
+		entryCount: 2,
+		rows: [
+			{
+				mappings: [
+					{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
+					{ byteOffset: 1, column: 1, utf16Offset: 1, width: 1 },
+				],
+				text: new Uint8Array(16386).fill(0x61),
+			},
+		],
+	});
+
+	const trailingGarbage = assembleTextRowWindowBytes({
+		columns: 6,
+		entryCount: 1,
+		rows: [
+			{
+				mappings: [{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 }],
+				text: new Uint8Array([0x61]),
+			},
+		],
+		trailingBytes: 1,
+	});
+
+	const logicalEntriesOverLimit = assembleTextRowWindowBytes({
+		columns: 4096,
+		entryCount: 262144,
+		rows: Array.from({ length: 65 }, () => ({
+			flags: 0x04,
+			mappings: [],
+			text: new Uint8Array(4096).fill(0x61),
+		})),
+		totalRows: 200n,
+	});
+
+	cases.push(
+		{
+			bytesBase64: Buffer.from(unsupportedVersion).toString('base64'),
+			code: 'unsupported-version',
+			name: 'obrw-text-unsupported-version',
+		},
+		{
+			bytesBase64: Buffer.from(zeroSequence).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-zero-sequence',
+		},
+		{
+			bytesBase64: Buffer.from(zeroGeneration).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-zero-generation',
+		},
+		{
+			bytesBase64: Buffer.from(zeroHostEpoch).toString('base64'),
+			code: 'invalid-identifier',
+			name: 'obrw-text-zero-host-epoch',
+		},
+		{
+			bytesBase64: Buffer.from(windowBeyondTotal).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-window-beyond-total',
+		},
+		{
+			bytesBase64: Buffer.from(invalidDetailCode).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-invalid-detail-code',
+		},
+		{
+			bytesBase64: Buffer.from(columnsZero).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-columns-zero',
+		},
+		{
+			bytesBase64: Buffer.from(rowCountZero).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-row-count-zero',
+		},
+		{
+			bytesBase64: Buffer.from(entryCountOverCells).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-entry-count-over-cells',
+		},
+		{
+			bytesBase64: Buffer.from(entryCountMismatch).toString('base64'),
+			code: 'length-mismatch',
+			name: 'obrw-text-entry-count-mismatch',
+		},
+		{
+			bytesBase64: Buffer.from(adjacentWrapDisagree).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-adjacent-wrap-disagree',
+		},
+		{
+			bytesBase64: Buffer.from(promptClassRange).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-prompt-class-range',
+		},
+		{
+			bytesBase64: Buffer.from(rowReservedFlag).toString('base64'),
+			code: 'unknown-required-flag',
+			name: 'obrw-text-row-reserved-flag',
+		},
+		{
+			bytesBase64: Buffer.from(rowFlagUnknown).toString('base64'),
+			code: 'unknown-required-flag',
+			name: 'obrw-text-row-flag-unknown',
+		},
+		{
+			bytesBase64: Buffer.from(mappingReservedFlag).toString('base64'),
+			code: 'unknown-required-flag',
+			name: 'obrw-text-mapping-reserved-flag',
+		},
+		{
+			bytesBase64: Buffer.from(mappingFirstNonzero).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-mapping-first-nonzero',
+		},
+		{
+			bytesBase64: Buffer.from(mappingMidScalar).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-mapping-mid-scalar',
+		},
+		{
+			bytesBase64: Buffer.from(mappingUtf16Mismatch).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-mapping-utf16-mismatch',
+		},
+		{
+			bytesBase64: Buffer.from(mappingWidthInvalid).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-mapping-width-invalid',
+		},
+		{
+			bytesBase64: Buffer.from(mappingColumnOverflow).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-mapping-column-overflow',
+		},
+		{
+			bytesBase64: Buffer.from(mappingByteOrder).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-mapping-byte-order',
+		},
+		{
+			bytesBase64: Buffer.from(identityNonascii).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-identity-nonascii',
+		},
+		{
+			bytesBase64: Buffer.from(identityWithMappings).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-identity-with-mappings',
+		},
+		{
+			bytesBase64: Buffer.from(identityOverColumns).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-identity-over-columns',
+		},
+		{
+			bytesBase64: Buffer.from(nonemptyWithoutMapping).toString('base64'),
+			code: 'invalid-field',
+			name: 'obrw-text-nonempty-without-mapping',
+		},
+		{
+			bytesBase64: Buffer.from(mappingCountOverColumns).toString('base64'),
+			code: 'limit-exceeded',
+			name: 'obrw-text-mapping-count-over-columns',
+		},
+		{
+			bytesBase64: Buffer.from(overdeclaredTextLength).toString('base64'),
+			code: 'truncated',
+			name: 'obrw-text-overdeclared-text-length',
+		},
+		{
+			bytesBase64: Buffer.from(cellSpanOverLimit).toString('base64'),
+			code: 'limit-exceeded',
+			name: 'obrw-text-cell-span-over-16k',
+		},
+		{
+			bytesBase64: Buffer.from(trailingSpanOverLimit).toString('base64'),
+			code: 'limit-exceeded',
+			name: 'obrw-text-trailing-span-over-16k',
+		},
+		{
+			bytesBase64: Buffer.from(trailingGarbage).toString('base64'),
+			code: 'length-mismatch',
+			name: 'obrw-text-trailing-garbage',
+		},
+		{
+			bytesBase64: Buffer.from(logicalEntriesOverLimit).toString('base64'),
+			code: 'limit-exceeded',
+			name: 'obrw-text-logical-entries-over-limit',
+		},
+	);
+	return cases;
 }
 
 function projectionSectionOffset(bytes, section) {
@@ -1666,6 +2082,142 @@ function packedProjectionConformanceCorpus(
 			code: 'invalid-field',
 			codec: 'OBRW',
 			name: 'obrw-graphics-update-not-snapshot',
+			strictBoundary: 'row-window',
+		}),
+	);
+
+	cases.push(
+		packedProjectionSuccessCase({
+			bytes: encodedTextRowWindow(
+				authoredTextRowWindow({
+					columns: 8,
+					rows: [
+						{
+							index: 100n,
+							mappings: identityCellMappings(5),
+							promptClass: 'none',
+							text: 'alpha',
+							wrap: false,
+							wrapContinuation: false,
+						},
+					],
+				}),
+				'conformance identity-ascii row window',
+			),
+			codec: 'OBRW',
+			name: 'obrw-text-identity-ascii',
+			observations: textObservation(1),
+			strictBoundary: 'row-window',
+		}),
+		packedProjectionSuccessCase({
+			bytes: encodedTextRowWindow(
+				authoredTextRowWindow({
+					columns: 4,
+					rows: [
+						{
+							index: 100n,
+							mappings: [
+								{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
+								{ byteOffset: 8192, column: 1, utf16Offset: 8192, width: 1 },
+								{ byteOffset: 16384, column: 2, utf16Offset: 16384, width: 1 },
+							],
+							promptClass: 'none',
+							text: `${'a'.repeat(8192)}${'b'.repeat(8192)}${'c'.repeat(8192)}`,
+							wrap: false,
+							wrapContinuation: false,
+						},
+					],
+				}),
+				'conformance aggregate row window',
+			),
+			codec: 'OBRW',
+			name: 'obrw-text-aggregate-row-over-16k',
+			observations: textObservation(1),
+			strictBoundary: 'row-window',
+		}),
+		packedProjectionSuccessCase({
+			bytes: encodedTextRowWindow(
+				authoredTextRowWindow({
+					columns: 4,
+					rows: [
+						{
+							index: 100n,
+							mappings: [],
+							promptClass: 'none',
+							text: '',
+							wrap: false,
+							wrapContinuation: false,
+						},
+					],
+				}),
+				'conformance empty row window',
+			),
+			codec: 'OBRW',
+			name: 'obrw-text-empty-row',
+			observations: textObservation(1),
+			strictBoundary: 'row-window',
+		}),
+		packedProjectionSuccessCase({
+			bytes: encodedTextRowWindow(
+				authoredTextRowWindow({
+					columns: 4,
+					rows: [
+						{
+							index: 100n,
+							mappings: identityCellMappings(1),
+							promptClass: 'none',
+							text: 'a',
+							wrap: true,
+							wrapContinuation: false,
+						},
+						{
+							index: 101n,
+							mappings: identityCellMappings(1),
+							promptClass: 'none',
+							text: 'b',
+							wrap: true,
+							wrapContinuation: true,
+						},
+						{
+							index: 102n,
+							mappings: identityCellMappings(1),
+							promptClass: 'none',
+							text: 'c',
+							wrap: false,
+							wrapContinuation: true,
+						},
+					],
+				}),
+				'conformance wrap-chain row window',
+			),
+			codec: 'OBRW',
+			name: 'obrw-text-wrap-chain-three-rows',
+			observations: textObservation(3),
+			strictBoundary: 'row-window',
+		}),
+		packedProjectionSuccessCase({
+			bytes: encodedTextRowWindow(
+				authoredTextRowWindow({
+					columns: 4,
+					rows: [
+						{
+							index: 100n,
+							mappings: [
+								{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
+								{ byteOffset: 3, column: 1, utf16Offset: 1, width: 1 },
+							],
+							promptClass: 'none',
+							text: '﻿A',
+							wrap: false,
+							wrapContinuation: false,
+						},
+					],
+				}),
+				'conformance utf-8 leading BOM row window',
+			),
+			codec: 'OBRW',
+			name: 'obrw-text-utf8-bom-leading',
+			observations: textObservation(1),
 			strictBoundary: 'row-window',
 		}),
 	);

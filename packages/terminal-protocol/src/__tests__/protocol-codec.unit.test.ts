@@ -153,6 +153,11 @@ const rowWindowConformanceCaseNames = [
 	'obrw-projection-section-length-mismatch',
 	'obrw-graphics-section-length-mismatch',
 	'obrw-graphics-update-not-snapshot',
+	'obrw-text-identity-ascii',
+	'obrw-text-aggregate-row-over-16k',
+	'obrw-text-empty-row',
+	'obrw-text-wrap-chain-three-rows',
+	'obrw-text-utf8-bom-leading',
 ] as const;
 const packedProjectionConformanceCaseNames = [
 	...projectionConformanceCaseNames,
@@ -176,7 +181,7 @@ const packedProjectionCaseSchema = z.union([
 ]);
 const packedProjectionCorpusSchema = z
 	.strictObject({
-		cases: z.array(packedProjectionCaseSchema).length(29),
+		cases: z.array(packedProjectionCaseSchema).length(34),
 		formatVersion: z.literal('0.0.3'),
 		schemaVersion: z.literal(1),
 	})
@@ -212,10 +217,10 @@ const packedProjectionCorpusSchema = z
 				path: ['cases'],
 			});
 		}
-		if (rowWindowCases !== 6) {
+		if (rowWindowCases !== 11) {
 			context.addIssue({
 				code: 'custom',
-				message: `Expected 6 OBRW cases, received ${rowWindowCases}`,
+				message: `Expected 11 OBRW cases, received ${rowWindowCases}`,
 				path: ['cases'],
 			});
 		}

@@ -17,6 +17,7 @@ mod projection_demand;
 mod projection_feedback;
 mod resize;
 mod row_access;
+mod row_window;
 mod selection;
 mod selection_export;
 mod selection_export_chunk;
@@ -85,7 +86,7 @@ pub use limits::{
     MAXIMUM_SELECTION_PREVIEW_BYTES, MAXIMUM_SEMANTIC_INPUT_PAYLOAD_BYTES,
     MAXIMUM_TERMINAL_APPLICATION_SIGNAL_BYTES, MAXIMUM_TERMINAL_FRAME_BYTES,
     MAXIMUM_TERMINAL_METADATA_TEXT_BYTES, MAXIMUM_TERMINAL_PIXEL_EXTENT,
-    MAXIMUM_TERMINAL_PROFILE_FEATURES, MAXIMUM_TERMINAL_RESPONSE_BYTES,
+    MAXIMUM_TERMINAL_PROFILE_FEATURES, MAXIMUM_TERMINAL_RESPONSE_BYTES, MAXIMUM_TEXT_CELL_BYTES,
     MAXIMUM_TRANSPORT_RECORD_BYTES, MAXIMUM_TYPED_FAILURE_CODE_BYTES,
     MAXIMUM_TYPED_FAILURE_MESSAGE_BYTES, TERMINAL_THEME_PALETTE_ENTRIES,
     TRANSPORT_ENVELOPE_HEADER_BYTES,
@@ -111,6 +112,10 @@ pub use row_access::{
     EncodedRowAccessControl, ReadRows, RowAccessControl, RowRevisionPolicy, RowWindowDetail,
     RowWindowOrigin, RowWindowPurpose, RowsApplied, decode_row_access_control,
     encode_row_access_control,
+};
+pub use row_window::{
+    TERMINAL_ROW_WINDOW_HEADER_BYTES, TerminalRowPromptClass, TerminalTextCellMapping,
+    TerminalTextRowWindow, TerminalTextWindowRow, decode_terminal_text_row_window,
 };
 pub use selection::{
     EncodedSelectionControl, SelectionChanged, SelectionChangedState, SelectionCommand,
