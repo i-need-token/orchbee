@@ -13,8 +13,6 @@ mod tab_rename;
 #[cfg(unix)]
 mod workspace_setup;
 
-const EN_US_HELP: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> list|get [filters] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee <family>     Query projects, workspaces, tabs, panels, terminals\n  orchbee api          Machine snapshot and embedded schema documents\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee --help       Show this help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules.\n";
-const ZH_CN_HELP: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> list|get [filters] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee <family>     查询 project、workspace、tab、panel、terminal\n  orchbee api          机器快照与内嵌 schema 文档\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee --help       显示此帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则。\n";
 const EN_US_TUI_UNAVAILABLE: &str = "The Orchbee TUI is unavailable in this development slice.\n";
 const ZH_CN_TUI_UNAVAILABLE: &str = "Orchbee TUI 在本开发切片中尚不可用。\n";
 const EN_US_USAGE_FAILURE: &str = "Invalid invocation. Run 'orchbee --help'.\n";
@@ -151,10 +149,7 @@ pub(crate) enum Locale {
 
 impl Locale {
     pub(crate) const fn help(self) -> &'static str {
-        match self {
-            Self::EnUs => EN_US_HELP,
-            Self::ZhCn => ZH_CN_HELP,
-        }
+        self.cli_root_help()
     }
 
     pub(crate) const fn shell(self) -> ShellText {
@@ -737,6 +732,7 @@ impl Locale {
                 "The local Site runtime failed its ownership or permission checks.\n"
             }
             (Self::ZhCn, StartupFailure::Runtime) => "本地 Site 运行时未通过所有者或权限检查。\n",
+            (_, StartupFailure::SocketPathTooLong) => self.cli_socket_path_too_long(),
             (Self::EnUs, StartupFailure::RecoveryRequired) => {
                 "The local Site requires explicit recovery. No replacement process was started.\n"
             }

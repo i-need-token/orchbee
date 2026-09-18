@@ -11,23 +11,34 @@
 
 ## 命令面
 
-确切 development surface 是：
-
-```text
-orchbee
-orchbee tui
-orchbee --help
-orchbee --version
-```
-
 Linux 裸调用和显式 `tui` 调用先准入继承的同一输入/输出 TTY 和有效 cell/pixel geometry，再运行下面的
 本地启动流程。两者使用同一 Client 路径；`tui` 不选择另一种模式。其他平台仍返回本地化不可用结果。
-`--help` 与 `--version` 不初始化 TUI 或服务。其他、额外或非 Unicode 参数都是 usage failure；不提供
-缩写、业务命令或远程选择。
+`--help` 与 `--version` 不初始化 TUI 或服务。不提供缩写或远程选择；其他、额外或非 Unicode 参数都是
+usage failure。
+
+```text
+orchbee                          # 本地终端（TUI）
+orchbee tui                      # 显式打开同一终端
+orchbee status                   # 运行中 Site 的 Workbench 快照
+orchbee <family> <command>       # 查询与 Workbench 修改命令
+orchbee api snapshot|schema      # 机器快照与内嵌 schema
+orchbee config check             # 本地运行时检查
+orchbee help [<family>|<command>]
+orchbee completion bash|zsh|fish
+orchbee --help | --version
+```
+
+查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`（`list`/`get`，另有
+`terminal read`）。作用于运行中 Site 的修改命令为 `workspace create`/`rename`、
+`tab create`/`rename`/`move`/`close` 与 `panel split`/`move`/`close`。不存在 `project` 修改命令：
+Project 在 TUI 向导（`Ctrl+B a`）中创建，之后 CLI 修改命令即可作用于其内对象。完整语法、
+target 与 filter 规则、修改结果及含退出分类的 failure matrix 由
+[native CLI query](docs/native-cli-query.zh-CN.md) 持有；`orchbee help <family>` 与
+`orchbee help <family> <command>` 直接从二进制输出同一套语法。
 
 Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关的 `orchbee <version>`。
-正常关闭 TUI、help、version 的开发退出状态为 `0`；启动/运行失败为 `1`；usage failure 为 `2`。
-这些不是未来稳定公开退出状态表。
+正常关闭 TUI、help、version 以及查询、修改、检查成功的开发退出状态为 `0`；usage failure 为 `2`；
+其余失败分类以持有记录的 failure matrix 为准。这些不是未来稳定公开退出状态表。
 
 ## Linux 本地启动
 

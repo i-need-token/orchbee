@@ -10,4 +10,6 @@ pub use codec::{
 };
 
 #[cfg(unix)]
-pub use connection::{ClientSessionConnection, ConnectClientError};
+pub use connection::{
+    ClientSessionConnection, ConnectClientError, UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits,
+};

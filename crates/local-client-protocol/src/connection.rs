@@ -16,6 +16,24 @@ use crate::{
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// Byte capacity of a filesystem-path Unix socket address on this platform's
+/// socket ABI: `sockaddr_un.sun_path` minus the trailing NUL a pathname
+/// address requires. Derived from the ABI struct, not assumed portable —
+/// Linux yields 107 while BSD/Darwin layouts yield 103.
+pub const UNIX_SOCKET_PATH_CAPACITY: usize = std::mem::size_of::<nix::libc::sockaddr_un>()
+    - std::mem::offset_of!(nix::libc::sockaddr_un, sun_path)
+    - 1;
+
+/// Whether `path` fits inside one `sockaddr_un` filesystem address on this
+/// platform — the same `UnixAddr` construction admission performs before it
+/// ever connects, so inspection and startup share one production judgment.
+pub fn unix_socket_path_fits(path: &Path) -> bool {
+    nix::sys::socket::UnixAddr::new(path).is_ok()
+}
+
+#[cfg(target_os = "linux")]
+const _: () = assert!(UNIX_SOCKET_PATH_CAPACITY == 107);
+
 #[cfg(target_os = "linux")]
 mod admission_deadline;
 

@@ -6,7 +6,7 @@ use crate::{
     terminal_session::{TerminalIntent, TerminalSession, TerminalStatus},
     tui_shell,
 };
-use orchbee_local_client_protocol::{ConnectClientError, RejectionReason};
+use orchbee_local_client_protocol::{ConnectClientError, RejectionReason, unix_socket_path_fits};
 use orchbee_local_site_runtime::{
     LockAttempt, ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort, RetainedChild,
     SiteScope,
@@ -25,6 +25,7 @@ pub(crate) enum StartupFailure {
     Terminal,
     Cohort,
     Runtime,
+    SocketPathTooLong,
     RecoveryRequired,
     Incompatible,
     Admission,
@@ -52,6 +53,15 @@ pub(crate) fn run(locale: Locale) -> Result<(), StartupFailure> {
         .map_err(|_| StartupFailure::Runtime)?;
     let site = ModeCheckedLocalSiteRendezvous::prepare_mode_checked(&base, scope)
         .map_err(|_| StartupFailure::Runtime)?;
+    // An endpoint that cannot fit this platform's socket address ABI can
+    // never bind or connect; report the derived-path budget before any
+    // admission attempt collapses it into a generic refusal.
+    if ![site.client_socket_path(), site.worker_socket_path()]
+        .into_iter()
+        .all(unix_socket_path_fits)
+    {
+        return Err(StartupFailure::SocketPathTooLong);
+    }
     let mut client = connect_or_activate(&site, &cohort, deadline)?;
     client.set_submission_deadline(Some(deadline));
     let mut session = TerminalSession::start(client, TerminalIntent::Standalone, geometry)

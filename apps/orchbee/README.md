@@ -13,24 +13,37 @@ English remains canonical.
 
 ## Command surface
 
-The exact development surface is:
-
-```text
-orchbee
-orchbee tui
-orchbee --help
-orchbee --version
-```
-
 Bare and explicit `tui` Linux invocation first admit the same inherited input/output TTY and valid
 cell/pixel geometry, then run the local startup workflow below. They are the same Client route;
 `tui` does not select a different mode. Other platforms return localized unavailability. `--help`
-and `--version` initialize neither TUI nor service. Every other, additional, or non-Unicode argument
-is a usage failure; there are no abbreviations, business commands, or remote selection.
+and `--version` initialize neither TUI nor service. There are no abbreviations or remote selection;
+every other, additional, or non-Unicode argument is a usage failure.
+
+```text
+orchbee                          # local terminal (TUI)
+orchbee tui                      # the same terminal, explicitly
+orchbee status                   # the running Site's Workbench snapshot
+orchbee <family> <command>       # queries and Workbench mutations
+orchbee api snapshot|schema      # machine snapshot and embedded schemas
+orchbee config check             # local runtime inspection
+orchbee help [<family>|<command>]
+orchbee completion bash|zsh|fish
+orchbee --help | --version
+```
+
+Query families are `project`, `workspace`, `tab`, `panel`, and `terminal` (`list`/`get`, plus
+`terminal read`). Mutation commands against the running Site are `workspace create`/`rename`,
+`tab create`/`rename`/`move`/`close`, and `panel split`/`move`/`close`. No `project` mutation
+exists: a Project is created inside the TUI wizard (`Ctrl+B a`), after which the CLI mutations
+operate on it. The complete grammar, target and filter rules, mutation outcomes, and the failure
+matrix with exit classes are owned by [native CLI query](docs/native-cli-query.md);
+`orchbee help <family>` and `orchbee help <family> <command>` print the same grammar from the
+binary itself.
 
 Help writes stdout, failures write stderr, and version writes one locale-neutral
-`orchbee <version>` line. Development status is `0` for normal TUI close/help/version,
-`1` for startup/runtime failure, and `2` for usage failure. This is not a stable public exit table.
+`orchbee <version>` line. Development status is `0` for normal TUI close/help/version and for
+successful queries, mutations, and checks; `2` for usage failure; the remaining failure classes
+follow the owning record's failure matrix. This is not a stable public exit table.
 
 ## Linux local startup
 

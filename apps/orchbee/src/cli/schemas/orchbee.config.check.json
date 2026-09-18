@@ -358,6 +358,24 @@
 						"status": { "const": "not-applicable" },
 						"reason": { "enum": ["runtime-unavailable", "io-error"] }
 					}
+				},
+				{
+					"type": "object",
+					"required": ["presence", "status", "reason", "addressBytes", "addressCapacityBytes"],
+					"additionalProperties": false,
+					"properties": {
+						"presence": { "enum": ["present", "absent", "unchecked"] },
+						"status": { "const": "fail" },
+						"reason": { "const": "address-too-long" },
+						"path": { "type": "string", "minLength": 1 },
+						"pathBytesHex": {
+							"type": "string",
+							"pattern": "^([0-9a-f]{2})+$"
+						},
+						"addressBytes": { "type": "integer", "minimum": 1 },
+						"addressCapacityBytes": { "type": "integer", "minimum": 1 }
+					},
+					"allOf": [{ "$ref": "#/$defs/path" }]
 				}
 			]
 		},

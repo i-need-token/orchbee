@@ -121,6 +121,17 @@ impl ModeCheckedLocalSiteRendezvous {
         &self.paths.worker_socket
     }
 
+    /// The `[client, worker]` socket paths a runtime directory derives. Pure
+    /// path math — it answers even when the runtime directory cannot be
+    /// validated or is absent, which is exactly when address-budget
+    /// inspection still owes a verdict.
+    pub fn socket_paths(runtime_directory: &Path) -> [PathBuf; 2] {
+        [
+            runtime_directory.join(CLIENT_SOCKET_NAME),
+            runtime_directory.join(WORKER_SOCKET_NAME),
+        ]
+    }
+
     pub fn try_acquire_activation_lock(&self) -> Result<LockAttempt, RendezvousError> {
         self.try_acquire(LockKind::Activation)
     }

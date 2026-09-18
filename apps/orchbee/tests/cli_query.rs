@@ -1379,9 +1379,9 @@ fn emitted_documents_validate_and_rejected_variants_fail() -> TestResult {
             "valid check variant at {index}: {check}"
         );
     }
-    // socketEntry: exactly the four (presence,status,reason) combinations.
-    // Both entries and the aggregate status are set together so the aggregate
-    // binding stays honest and only the entry shape is under test.
+    // socketEntry: the four presence combinations plus the address-too-long
+    // variant. Both entries and the aggregate status are set together so the
+    // aggregate binding stays honest and only the entry shape is under test.
     for (entry, valid) in [
         (
             serde_json::json!({"presence":"present","status":"pass"}),
@@ -1397,6 +1397,14 @@ fn emitted_documents_validate_and_rejected_variants_fail() -> TestResult {
         ),
         (
             serde_json::json!({"presence":"unchecked","status":"not-applicable","reason":"runtime-unavailable"}),
+            true,
+        ),
+        (
+            serde_json::json!({"presence":"absent","status":"fail","reason":"address-too-long","path":"/x","addressBytes":108,"addressCapacityBytes":107}),
+            true,
+        ),
+        (
+            serde_json::json!({"presence":"unchecked","status":"fail","reason":"address-too-long","pathBytesHex":"2f78","addressBytes":108,"addressCapacityBytes":107}),
             true,
         ),
         (
@@ -1417,6 +1425,24 @@ fn emitted_documents_validate_and_rejected_variants_fail() -> TestResult {
         ),
         (
             serde_json::json!({"presence":"unchecked","status":"pass","reason":"runtime-unavailable"}),
+            false,
+        ),
+        // The budget variant pins its own required shape: the path fact, both
+        // byte counts, and the closed reason value are all mandatory.
+        (
+            serde_json::json!({"presence":"absent","status":"fail","reason":"address-too-long","addressBytes":108,"addressCapacityBytes":107}),
+            false,
+        ),
+        (
+            serde_json::json!({"presence":"absent","status":"fail","reason":"address-too-long","path":"/x","addressBytes":108}),
+            false,
+        ),
+        (
+            serde_json::json!({"presence":"absent","status":"fail","reason":"address-too-long","path":"/x","addressBytes":108,"addressCapacityBytes":107,"pathBytesHex":"2f78"}),
+            false,
+        ),
+        (
+            serde_json::json!({"presence":"absent","status":"fail","reason":"unsafe","path":"/x","addressBytes":108,"addressCapacityBytes":107}),
             false,
         ),
     ] {
@@ -1515,6 +1541,98 @@ fn config_check_reports_established_path_facts() -> TestResult {
     assert_eq!(runtime_directory["status"], "not-applicable");
     assert_eq!(runtime_directory["details"]["exists"], false);
     assert_eq!(runtime_directory["details"]["reason"], "absent");
+    Ok(())
+}
+
+/// Pad `base` with one extra path component so the derived
+/// `<base>/<scope>/client.sock` reaches `target_len` bytes. Returns `base`
+/// unchanged when the derived path already reaches the target.
+fn padded_base(base: &Path, target_len: usize) -> PathBuf {
+    let current = scope_dir(base)
+        .join("client.sock")
+        .as_os_str()
+        .as_encoded_bytes()
+        .len();
+    if current == target_len {
+        return base.to_owned();
+    }
+    let pad = target_len
+        .checked_sub(current + 1)
+        .unwrap_or_else(|| panic!("base {base:?} already exceeds the {target_len}B socket target"));
+    let padded = base.join("x".repeat(pad));
+    fs::create_dir(&padded).expect("create padded runtime base");
+    fs::set_permissions(&padded, fs::Permissions::from_mode(0o700)).expect("chmod padded base");
+    padded
+}
+
+#[test]
+fn config_check_flags_a_derived_socket_path_that_cannot_fit() -> TestResult {
+    let capacity = support::sun_path_limit();
+
+    // Boundary: a derived path exactly at capacity still fits — the verdict
+    // stays the ordinary absent fact, not a fabricated fault.
+    let base = base_dir("sockfit");
+    let fitted = padded_base(&base, capacity);
+    stage_scope(&fitted);
+    let output = run(&fitted, &["config", "check", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["result"]["ok"], serde_json::json!(true));
+    let sockets = &document["result"]["checks"][4];
+    assert_eq!(sockets["status"], "not-applicable");
+    assert_eq!(sockets["details"]["client"]["presence"], "absent");
+
+    // One byte over with an inspected scope: both endpoints fail
+    // address-too-long with the measured byte counts — the verdict is about
+    // the derived address, independent of the honest absence fact.
+    let base = base_dir("socklong");
+    let over = padded_base(&base, capacity + 1);
+    stage_scope(&over);
+    let output = run(&over, &["config", "check", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(1));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["result"]["ok"], serde_json::json!(false));
+    let sockets = &document["result"]["checks"][4];
+    assert_eq!(sockets["status"], "fail");
+    for name in ["client", "worker"] {
+        let entry = &sockets["details"][name];
+        assert_eq!(entry["presence"], "absent", "{name}: {entry}");
+        assert_eq!(entry["status"], "fail");
+        assert_eq!(entry["reason"], "address-too-long");
+        assert_eq!(entry["addressBytes"], serde_json::json!(capacity + 1));
+        assert_eq!(entry["addressCapacityBytes"], serde_json::json!(capacity));
+        let path = entry["path"].as_str().expect("utf-8 socket path");
+        assert!(path.ends_with(&format!("{name}.sock")), "{name}: {path}");
+    }
+
+    // No Site staged at all under an over-budget base: presence stays
+    // honestly unchecked while the address verdict is still exact.
+    let base = base_dir("socknone");
+    let over = padded_base(&base, capacity + 1);
+    let output = run(&over, &["config", "check", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(1));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let sockets = &document["result"]["checks"][4];
+    assert_eq!(sockets["status"], "fail");
+    for name in ["client", "worker"] {
+        let entry = &sockets["details"][name];
+        assert_eq!(entry["presence"], "unchecked", "{name}: {entry}");
+        assert_eq!(entry["reason"], "address-too-long");
+    }
+
+    // A real bound socket inside the budget still passes: live presence is
+    // reported without confusing it for the address budget.
+    let base = base_dir("socklive");
+    let scope = stage_scope(&base);
+    let _listener = UnixListener::bind(scope.join("client.sock"))?;
+    fs::set_permissions(scope.join("client.sock"), fs::Permissions::from_mode(0o600))?;
+    let output = run(&base, &["config", "check", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["result"]["ok"], serde_json::json!(true));
+    let sockets = &document["result"]["checks"][4];
+    assert_eq!(sockets["status"], "pass");
+    assert_eq!(sockets["details"]["client"]["status"], "pass");
     Ok(())
 }
 

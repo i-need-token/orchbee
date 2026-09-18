@@ -244,6 +244,19 @@ impl Locale {
         }
     }
 
+    /// The startup diagnostic when a derived Site socket path cannot fit one
+    /// socket address on this platform.
+    pub(crate) const fn cli_socket_path_too_long(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "A derived local Site socket path is too long for this platform's socket address limit. Set ORCHBEE_RUNTIME_BASE to a shorter absolute directory.\n"
+            }
+            Self::ZhCn => {
+                "派生出的本地 Site 套接字路径超出本平台的套接字地址长度限制。请将 ORCHBEE_RUNTIME_BASE 设为更短的绝对目录。\n"
+            }
+        }
+    }
+
     /// The text-output marker appended when the read budget omitted frame rows.
     pub(crate) fn cli_read_truncated(self, omitted: usize) -> String {
         match self {
@@ -281,6 +294,16 @@ fn failure_target(failure: &Failure) -> (&'static str, String) {
 // ---- help topics ---------------------------------------------------------
 
 impl Locale {
+    /// Root `--help`/`help` body: the terminal modes, every query family, the
+    /// workspace/tab/panel mutations a running Site accepts, and where each
+    /// topic's own help lives.
+    pub(crate) const fn cli_root_help(self) -> &'static str {
+        match self {
+            Self::EnUs => ROOT_HELP_EN,
+            Self::ZhCn => ROOT_HELP_ZH,
+        }
+    }
+
     pub(crate) fn cli_help(self, topic: HelpTopic) -> &'static str {
         use crate::invocation::Family;
         match (self, topic) {
@@ -379,6 +402,9 @@ impl Locale {
     }
 }
 
+const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read\n  orchbee api          Machine snapshot and embedded schema documents\n\nMutations (one command per invocation, against the running Site):\n  orchbee workspace    create | rename\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  A Project is created inside the TUI: Ctrl+B a opens the Workspace wizard.\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee --help       Show this help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee --help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read\n  orchbee api          机器快照与内嵌 schema 文档\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee workspace    create | rename\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  Project 在 TUI 内创建：Ctrl+B a 打开 Workspace 向导。\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee --help       显示此帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+
 const HELP_TUI_EN: &str = "orchbee tui\n\nOpen the local terminal interface (Linux development cohort).\nA bare 'orchbee' invocation does the same.\n";
 const HELP_TUI_ZH: &str =
     "orchbee tui\n\n打开本地终端界面（Linux 开发 cohort）。\n裸 'orchbee' 调用效果相同。\n";
@@ -404,8 +430,8 @@ const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read\n\n查询本地 S
 const HELP_API_EN: &str = "orchbee api snapshot|schema\n\nMachine introspection of the local Workbench surface.\n  api snapshot           Emit the complete workbench.snapshot document\n  api schema [<id>]      List embedded JSON Schemas, or one schema by ID\nBoth always answer JSON, whatever '--format' was selected.\n";
 const HELP_API_ZH: &str = "orchbee api snapshot|schema\n\n本地 Workbench 面的机器自省。\n  api snapshot           输出完整 workbench.snapshot 文档\n  api schema [<id>]      列出内嵌 JSON Schema，或按 ID 取单个 schema\n两者无论 '--format' 选择如何都输出 JSON。\n";
 
-const HELP_CONFIG_EN: &str = "orchbee config check\n\nInspect local inputs only: runtime base, Site runtime directory, current\ncohort integrity, effective locale, and socket presence. Nothing is\nconnected, started, created, or locked. Any failed check exits 1.\n";
-const HELP_CONFIG_ZH: &str = "orchbee config check\n\n仅检查本地输入：运行时基座、Site 运行时目录、当前 cohort 完整性、生效\nlocale 与套接字存在性。不连接、不启动、不创建、不加锁。任一检查失败\n以 1 退出。\n";
+const HELP_CONFIG_EN: &str = "orchbee config check\n\nInspect local inputs only: runtime base, Site runtime directory, current\ncohort integrity, effective locale, and socket presence plus the socket\naddress budget. Nothing is connected, started, created, or locked. Any\nfailed check exits 1.\n";
+const HELP_CONFIG_ZH: &str = "orchbee config check\n\n仅检查本地输入：运行时基座、Site 运行时目录、当前 cohort 完整性、生效\nlocale、套接字存在性与套接字地址长度预算。不连接、不启动、不创建、\n不加锁。任一检查失败以 1 退出。\n";
 
 const HELP_COMPLETION_EN: &str = "orchbee completion bash|zsh|fish\n\nEmit a static completion script for the implemented grammar to stdout.\nNothing is installed and no user files are written.\n";
 const HELP_COMPLETION_ZH: &str = "orchbee completion bash|zsh|fish\n\n向标准输出生成已实现语法的静态补全脚本。不安装、不写入用户文件。\n";

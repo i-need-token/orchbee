@@ -15,6 +15,8 @@ use crate::invocation::OutputFormat;
 use crate::localization::Locale;
 
 #[cfg(target_os = "linux")]
+use orchbee_local_client_protocol::{UNIX_SOCKET_PATH_CAPACITY, unix_socket_path_fits};
+#[cfg(target_os = "linux")]
 use orchbee_local_site_runtime::{
     ModeCheckedLocalSiteRendezvous, NativeCohort, RendezvousError, SiteScope,
 };
@@ -189,7 +191,7 @@ fn run_checks() -> Result<Vec<CheckReport>, Failure> {
     checks.push(cohort_report(NativeCohort::current(deadline)));
 
     checks.push(locale_check());
-    checks.push(socket_checks(&site));
+    checks.push(socket_checks(&site, &scope_directory));
     Ok(checks)
 }
 
@@ -347,23 +349,30 @@ fn locale_check() -> CheckReport {
     )
 }
 
-/// `sockets` reports presence only; presence never means a live service.
+/// `sockets` reports presence and the derived address budget; presence never
+/// means a live service.
 #[cfg(target_os = "linux")]
-fn socket_checks(site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>) -> CheckReport {
+fn socket_checks(
+    site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>,
+    scope_directory: &Path,
+) -> CheckReport {
+    let [client_path, worker_path] = ModeCheckedLocalSiteRendezvous::socket_paths(scope_directory);
     let mut details = Map::new();
     let mut any_fail = false;
     let mut any_present = false;
-    for (name, exists) in [
+    for (name, path, exists) in [
         (
             "client",
+            client_path,
             site.as_ref().ok().map(|site| site.client_socket_exists()),
         ),
         (
             "worker",
+            worker_path,
             site.as_ref().ok().map(|site| site.worker_socket_exists()),
         ),
     ] {
-        let (entry, present, fail) = socket_entry(exists.as_ref());
+        let (entry, present, fail) = socket_entry(exists.as_ref(), &path);
         any_present |= present;
         any_fail |= fail;
         details.insert(name.to_owned(), Value::Object(entry));
@@ -388,8 +397,40 @@ fn socket_checks(site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>)
 /// socket — presence was established, so the entry is `present`+`fail`. Any
 /// other `fstatat` error means presence itself was never established, so the
 /// entry is honestly `unchecked`; no field invents a definitive state.
+///
+/// The derived endpoint is pure path math, known even when the runtime
+/// directory cannot be inspected: an address that cannot fit this platform's
+/// socket ABI can never be bound or connected, so it fails `address-too-long`
+/// regardless of presence.
 #[cfg(target_os = "linux")]
-fn socket_entry(exists: Option<&std::io::Result<bool>>) -> (Map<String, Value>, bool, bool) {
+fn socket_entry(
+    exists: Option<&std::io::Result<bool>>,
+    path: &Path,
+) -> (Map<String, Value>, bool, bool) {
+    if !unix_socket_path_fits(path) {
+        let presence = match exists {
+            Some(Ok(true)) => "present",
+            Some(Ok(false)) => "absent",
+            Some(Err(error)) if error.kind() == std::io::ErrorKind::PermissionDenied => "present",
+            Some(Err(_)) | None => "unchecked",
+        };
+        let mut details = detail([
+            ("presence".to_owned(), json!(presence)),
+            ("status".to_owned(), json!("fail")),
+            ("reason".to_owned(), json!("address-too-long")),
+            (
+                "addressBytes".to_owned(),
+                json!(path.as_os_str().as_encoded_bytes().len()),
+            ),
+            (
+                "addressCapacityBytes".to_owned(),
+                json!(UNIX_SOCKET_PATH_CAPACITY),
+            ),
+        ]);
+        let (key, value) = path_detail(path);
+        details.insert(key, value);
+        return (details, presence == "present", true);
+    }
     match exists {
         Some(Ok(true)) => (
             detail([
@@ -678,23 +719,27 @@ mod tests {
 
     #[test]
     fn socket_entry_maps_every_inspection_outcome() {
+        let path = Path::new("/tmp/oc-test/orchbee-native-1000/client.sock");
         // Compliant socket: present + pass, aggregate pass bit.
-        let (entry, present, fail) = socket_entry(Some(&Ok(true)));
+        let (entry, present, fail) = socket_entry(Some(&Ok(true)), path);
         assert_eq!(entry["presence"], json!("present"));
         assert_eq!(entry["status"], json!("pass"));
         assert!(!entry.contains_key("reason"));
         assert!(present && !fail);
 
         // Established absence: absent + not-applicable.
-        let (entry, present, fail) = socket_entry(Some(&Ok(false)));
+        let (entry, present, fail) = socket_entry(Some(&Ok(false)), path);
         assert_eq!(entry["presence"], json!("absent"));
         assert_eq!(entry["status"], json!("not-applicable"));
         assert!(!present && !fail);
 
         // The synthesized invalid-entry verdict stays present + fail + unsafe.
-        let (entry, present, fail) = socket_entry(Some(&Err(std::io::Error::from(
-            std::io::ErrorKind::PermissionDenied,
-        ))));
+        let (entry, present, fail) = socket_entry(
+            Some(&Err(std::io::Error::from(
+                std::io::ErrorKind::PermissionDenied,
+            ))),
+            path,
+        );
         assert_eq!(entry["presence"], json!("present"));
         assert_eq!(entry["status"], json!("fail"));
         assert_eq!(entry["reason"], json!("unsafe"));
@@ -702,14 +747,15 @@ mod tests {
 
         // A real fstatat failure establishes nothing: presence is honestly
         // unchecked, never a fabricated definitive field.
-        let (entry, present, fail) = socket_entry(Some(&Err(std::io::Error::from_raw_os_error(5))));
+        let (entry, present, fail) =
+            socket_entry(Some(&Err(std::io::Error::from_raw_os_error(5))), path);
         assert_eq!(entry["presence"], json!("unchecked"));
         assert_eq!(entry["status"], json!("not-applicable"));
         assert_eq!(entry["reason"], json!("io-error"));
         assert!(!present && !fail);
 
         // No runtime directory at all: unchecked + runtime-unavailable.
-        let (entry, present, fail) = socket_entry(None);
+        let (entry, present, fail) = socket_entry(None, path);
         assert_eq!(entry["presence"], json!("unchecked"));
         assert_eq!(entry["status"], json!("not-applicable"));
         assert_eq!(entry["reason"], json!("runtime-unavailable"));
@@ -717,13 +763,92 @@ mod tests {
     }
 
     #[test]
+    fn socket_entry_fails_when_the_derived_address_cannot_fit() {
+        // The budget is path bytes, not Unicode scalars: `capacity + 1`
+        // ASCII bytes fails while a scalar-shorter but byte-longer non-ASCII
+        // path fails identically.
+        let too_long_ascii = PathBuf::from("/".to_owned() + &"a".repeat(UNIX_SOCKET_PATH_CAPACITY));
+        assert_eq!(
+            too_long_ascii.as_os_str().as_encoded_bytes().len(),
+            UNIX_SOCKET_PATH_CAPACITY + 1
+        );
+        for exists in [
+            Some(Ok(true)),
+            Some(Ok(false)),
+            Some(Err(std::io::Error::from(
+                std::io::ErrorKind::PermissionDenied,
+            ))),
+            Some(Err(std::io::Error::from_raw_os_error(5))),
+            None,
+        ] {
+            let (entry, _present, fail) = socket_entry(exists.as_ref(), &too_long_ascii);
+            assert_eq!(entry["status"], json!("fail"), "{exists:?}");
+            assert_eq!(entry["reason"], json!("address-too-long"), "{exists:?}");
+            assert_eq!(
+                entry["addressBytes"],
+                json!(UNIX_SOCKET_PATH_CAPACITY + 1),
+                "{exists:?}"
+            );
+            assert_eq!(
+                entry["addressCapacityBytes"],
+                json!(UNIX_SOCKET_PATH_CAPACITY),
+                "{exists:?}"
+            );
+            assert_eq!(entry["path"], json!(too_long_ascii), "{exists:?}");
+            assert!(fail, "{exists:?}");
+        }
+        // Presence is still reported honestly under the fail verdict.
+        let (entry, present, _) = socket_entry(Some(&Ok(true)), &too_long_ascii);
+        assert_eq!(entry["presence"], json!("present"));
+        assert!(present);
+        let (entry, _, _) = socket_entry(Some(&Ok(false)), &too_long_ascii);
+        assert_eq!(entry["presence"], json!("absent"));
+        let (entry, _, _) = socket_entry(None, &too_long_ascii);
+        assert_eq!(entry["presence"], json!("unchecked"));
+
+        // 40 scalars but 121 bytes: byte length, not char count, is measured.
+        let non_ascii = PathBuf::from("/".to_owned() + &"日".repeat(40));
+        assert_eq!(non_ascii.as_os_str().as_encoded_bytes().len(), 1 + 40 * 3);
+        let (entry, _, fail) = socket_entry(Some(&Ok(false)), &non_ascii);
+        assert_eq!(entry["reason"], json!("address-too-long"));
+        assert_eq!(entry["addressBytes"], json!(121));
+        assert!(fail);
+
+        // The exact boundary still fits — bytes equal to capacity pass.
+        let boundary = PathBuf::from("/".to_owned() + &"a".repeat(UNIX_SOCKET_PATH_CAPACITY - 1));
+        assert_eq!(
+            boundary.as_os_str().as_encoded_bytes().len(),
+            UNIX_SOCKET_PATH_CAPACITY
+        );
+        let (entry, _, fail) = socket_entry(Some(&Ok(false)), &boundary);
+        assert_eq!(entry["status"], json!("not-applicable"));
+        assert!(!fail);
+
+        // A non-UTF-8 overlong path reports its exact bytes, never lossy text.
+        let raw = std::ffi::OsStr::from_bytes(b"/\xff\xfe");
+        let mut weird = PathBuf::from(raw);
+        weird.push("a".repeat(UNIX_SOCKET_PATH_CAPACITY));
+        let (entry, _, fail) = socket_entry(None, &weird);
+        assert_eq!(entry["reason"], json!("address-too-long"));
+        assert!(entry.get("path").is_none());
+        assert_eq!(
+            entry["pathBytesHex"].as_str().unwrap().len(),
+            weird.as_os_str().as_encoded_bytes().len() * 2
+        );
+        assert!(fail);
+    }
+
+    #[test]
     fn socket_checks_aggregate_real_states() {
         // No valid runtime directory: both entries unchecked.
-        let report = socket_checks(&Err(RendezvousError::System {
-            operation: "test",
-            path: BASE.into(),
-            source: std::io::Error::from(std::io::ErrorKind::NotFound),
-        }));
+        let report = socket_checks(
+            &Err(RendezvousError::System {
+                operation: "test",
+                path: BASE.into(),
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            }),
+            Path::new(SCOPE_DIR),
+        );
         assert_eq!(report.status, "not-applicable");
         for name in ["client", "worker"] {
             assert_eq!(report.details[name]["presence"], json!("unchecked"));
@@ -746,7 +871,7 @@ mod tests {
         .expect("prepared scope")
         .runtime_directory()
         .to_owned();
-        let report = socket_checks(&Ok(site()));
+        let report = socket_checks(&Ok(site()), &scope_directory);
         assert_eq!(report.status, "not-applicable");
         assert_eq!(report.details["client"]["presence"], json!("absent"));
         assert_eq!(report.details["worker"]["presence"], json!("absent"));
@@ -758,7 +883,7 @@ mod tests {
             fs::Permissions::from_mode(0o600),
         )
         .unwrap();
-        let report = socket_checks(&Ok(site()));
+        let report = socket_checks(&Ok(site()), &scope_directory);
         assert_eq!(report.status, "pass");
         assert_eq!(report.details["client"]["presence"], json!("present"));
         assert_eq!(report.details["client"]["status"], json!("pass"));
@@ -768,7 +893,7 @@ mod tests {
         // An inspected invalid entry fails: a regular file is not a socket.
         fs::remove_file(scope_directory.join("client.sock")).unwrap();
         fs::write(scope_directory.join("client.sock"), b"not a socket").unwrap();
-        let report = socket_checks(&Ok(site()));
+        let report = socket_checks(&Ok(site()), &scope_directory);
         assert_eq!(report.status, "fail");
         assert_eq!(report.details["client"]["presence"], json!("present"));
         assert_eq!(report.details["client"]["status"], json!("fail"));
