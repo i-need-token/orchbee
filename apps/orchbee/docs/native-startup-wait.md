@@ -14,7 +14,9 @@ behavior is a bug to fix, not a fork to keep.
 
 ## Model
 
-Startup samples the inherited terminal's reported dimensions once after TTY admission.
+TTY admission verifies terminal identity and descriptor safety and probes that the geometry
+query itself works; it does not classify cell drawability. Startup samples the inherited
+terminal's reported dimensions once after admission.
 
 - A drawable report proceeds directly to the existing startup path with no mode transition,
   no extra draw, and no added flicker — the fast path is unchanged.
@@ -60,8 +62,10 @@ mode-owner factory, clock, deadline, prompt, presentability) is injected, so wai
 cancel, timeout, availability, fault, deadline precedence, zero-report retry, mode
 restoration ordering, and non-replay are exercised without a terminal.
 
-The focused PTY journey covers the real path: a too-small spawn shows the localized notice;
-exiting during the wait returns success with terminal modes restored and creates no Site
-processes; resizing to a drawable size continues to the full Ready workbench and exits
-cleanly. The PTY advertises explicit nonzero pixel dimensions; it does not prove behavior
-on real hosts whose drivers report zero pixels.
+The focused PTY journey covers the real path: a too-small or initially zero-cell spawn shows
+the localized notice; exiting during the wait returns success with terminal modes restored and
+creates no Site processes; resizing to a drawable size continues to the full Ready workbench —
+verified on the frame's real last row — and exits cleanly. A drawable spawn that reports zero
+pixels still reaches Ready, covering the legal pixels-unknown state. The PTY observer is a
+fixed-capacity canvas independent of the initial winsize, and witness resizes beyond that
+capacity are refused.

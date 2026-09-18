@@ -425,8 +425,10 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
 /// renderer paints. `Ok(None)` means the viewport cannot present a pane right
 /// now (too small, or the active leaf is empty): the caller keeps the last
 /// valid geometry instead of resizing — the session is never told a
-/// fabricated size. `Err` means the host geometry honestly cannot be built
-/// (for example zero pixel extents); it is never repaired with fake cells.
+/// fabricated size. `Err` means `Geometry` validation rejected the built
+/// value (for example an out-of-range or oversized geometry); a zero cell
+/// pixel pair is legal "pixels unknown" and stays `(0, 0)` — never repaired
+/// with fake cells.
 pub(crate) fn terminal_geometry(
     dimensions: WindowDimensions,
     view: &ClientView,

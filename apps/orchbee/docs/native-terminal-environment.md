@@ -5,10 +5,11 @@
 This reference governs the parts of the host-terminal contract that the native Client owns at
 runtime: viewport observation against transient zero geometry, and synchronized-update framing of
 each drawn frame. Maintain it with `terminal_device.rs`, `terminal_lifecycle.rs`,
-`tui_backend.rs`, and `tui_shell.rs`. Admission-time requirements (interactive TTY on both
-streams, one shared terminal identity, nonzero initial cell geometry) stay unchanged and are not
-restated here. Host-reported pixel geometry that arrives as zero is reported honestly as
-"pixels unknown" — a normal state, never a fabricated one.
+`tui_backend.rs`, and `tui_shell.rs`. Admission verifies TTY identity and descriptor safety
+(interactive TTY on both streams, one shared terminal identity, a working geometry query);
+obtaining a drawable cell geometry is a separate readiness concern governed by
+[`native-startup-wait.md`](native-startup-wait.md). Host-reported pixel geometry that arrives
+as zero is reported honestly as "pixels unknown" — a normal state, never a fabricated one.
 
 ## Viewport observation
 

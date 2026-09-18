@@ -103,7 +103,7 @@ impl InheritedTerminal {
             .map_err(TerminalAdmissionError::Inspect)?;
         let terminal = Self { input, output };
         terminal
-            .window_dimensions()
+            .query_window_dimensions()
             .map_err(TerminalAdmissionError::Inspect)?;
         Ok(terminal)
     }

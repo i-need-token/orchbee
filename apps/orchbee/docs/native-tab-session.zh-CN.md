@@ -764,10 +764,12 @@ split、close 与 move 的总和；同一基线到最终快照的比较即可接
 panel 命令；键位为临时绑定，待输入设计裁决后可能重绑。`-`、`_`、`\`、`|` 对焦点叶子按
 Below / Above / Left / Right 方向提交 `panel.split`——键形遵循 input-vocabulary 草案表——
 沿用叶子现有 presentation label，并使用 Client 真实的控制 cell/pixel 几何，绝不伪造尺寸。
-`X` 对焦点叶子提交叶子作用域的 `panel.close`，无单独确认步骤；被接受的 close 经普通
+`X` 对焦点叶子武装叶子作用域的 panel 关闭确认
+（[原生 panel 关闭确认](native-panel-close-confirmation.zh-CN.md)）：只有已绘制且仍有效的确认
+才对冻结叶子准入普通 `panel.close`——完整绘制后 `y` 确认、`Esc` 取消——被确认的 close 经普通
 publication 路径提交。关闭 Tab 的末叶会移除整个 Tab——其终端被处置，Tab 对每个已挂接
-Client 结束，与 `x` Tab close 所要确认的后果同等——因此 `X` 当前不经过 Tab close 路径要求的
-“所有已挂接 Client”绘制确认即可到达该结果。`H`、`J`、`K`、`L` 对焦点叶子提交 `panel.move`，以方向邻居作为
+Client 结束，与 `x` Tab close 所要确认的后果同等——绘制出的确认在任何 `y` 生效前即指名该
+影响。`H`、`J`、`K`、`L` 对焦点叶子提交 `panel.move`，以方向邻居作为
 `target_panel_id`——它们是草案 `PANEL` 模式 `h`/`j`/`k`/`l` move 的过渡性顶层替身，因为
 模式结构不在本切片范围内；单个 Panel 或边界处没有方向邻居时在准入前即为本地空操作。
 三个操作仅从已结算的 Ready、SelectedWithoutAttachment 或 RetryableAttachUnavailable 阶段准入，

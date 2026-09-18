@@ -928,12 +928,14 @@ pending-commit retention, and publication-refresh recovery used by Tab operation
 are provisional pending the input-design review and may be rebound. `-`, `_`, `\`, and `|` submit
 `panel.split` on the focused leaf in the Below / Above / Left / Right direction — the glyph set
 follows the input-vocabulary draft table — carry the leaf's existing presentation label, and use
-the Client's real controlling cell/pixel geometry rather than a fabricated size. `X` submits the
-leaf-scoped `panel.close` on the focused leaf without a separate confirmation step; the accepted
-close commits through the ordinary publication path. Closing the Tab's last leaf removes the whole
-Tab — its terminals are disposed and the Tab ends for every attached Client, the same blast radius
-the `x` Tab close confirms against — so `X` currently reaches that outcome without the drawn
-all-attached-Clients confirmation the Tab-close path requires. `H`, `J`, `K`, and `L` submit `panel.move` on
+the Client's real controlling cell/pixel geometry rather than a fabricated size. `X` arms the
+leaf-scoped panel-close confirmation on the focused leaf under
+[native panel close confirmation](native-panel-close-confirmation.md): only a drawn, still-valid
+confirmation admits the ordinary `panel.close` on the frozen leaf — `y` confirms after the
+complete draw and `Esc` cancels — and the confirmed close commits through the ordinary
+publication path. Closing the Tab's last leaf removes the whole Tab — its terminals are disposed
+and the Tab ends for every attached Client, the same blast radius the `x` Tab close confirms
+against — and the drawn confirmation names exactly that impact before any `y` can take effect. `H`, `J`, `K`, and `L` submit `panel.move` on
 the focused leaf with the directional neighbor as `target_panel_id` — interim top-level stand-ins
 for the draft's `PANEL`-mode `h`/`j`/`k`/`l` move, since mode structure is out of this slice's
 scope; a single Panel or an edge with no directional neighbor is a local no-op before admission. All three operations admit only from a

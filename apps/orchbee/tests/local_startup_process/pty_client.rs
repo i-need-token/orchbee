@@ -62,8 +62,21 @@ impl Client {
         columns: u16,
         rows: u16,
     ) -> Self {
+        Self::spawn_geometry(fixture, locale, base, columns, rows, true)
+    }
+
+    /// `pixels_known == false` leaves the PTY's reported pixel extents at zero —
+    /// the legal "pixels unknown" report real hosts can produce.
+    pub(super) fn spawn_geometry(
+        fixture: &Fixture,
+        locale: &str,
+        base: &Path,
+        columns: u16,
+        rows: u16,
+        pixels_known: bool,
+    ) -> Self {
         fixture.register_runtime_base(base);
-        let pty = open_outer_pty(columns, rows).unwrap();
+        let pty = open_outer_pty(columns, rows, pixels_known).unwrap();
         let original = tcgetattr(&pty.slave).unwrap();
         let mut child = Command::new(fixture.cohort.join("orchbee"))
             .env("ORCHBEE_RUNTIME_BASE", base)
@@ -84,7 +97,10 @@ impl Client {
             original,
             stderr,
             stderr_bytes: Vec::new(),
-            screen: Screen::new(columns as usize, rows as usize),
+            // The observer keeps a fixed declared canvas independent of the
+            // spawn winsize, so a zero or undersized initial report still
+            // stores every cell the product draws.
+            screen: Screen::new(COLUMNS, ROWS),
         }
     }
 
@@ -361,14 +377,25 @@ impl Client {
 
     // Keep the observer's fixed 120x32 capacity; this witness only shrinks the viewport.
     pub(super) fn resize_rows(&mut self, rows: u16) {
-        assert!(rows > 0 && usize::from(rows) <= ROWS);
+        self.resize(COLUMNS as u16, rows)
+    }
+
+    /// Apply an explicit winsize on the slave. Any axis beyond the observer's
+    /// fixed canvas is refused: a witness must never report a frame it could
+    /// not have stored. Zero axes stay legal so callers can drive zero-cell
+    /// transitions; recovery still has to name a real nonzero size.
+    pub(super) fn resize(&mut self, columns: u16, rows: u16) {
+        assert!(
+            usize::from(columns) <= COLUMNS && usize::from(rows) <= ROWS,
+            "resize {columns}x{rows} exceeds the observer canvas {COLUMNS}x{ROWS}"
+        );
         rustix::termios::tcsetwinsize(
             &self.slave,
             rustix::termios::Winsize {
-                ws_col: COLUMNS as u16,
+                ws_col: columns,
                 ws_row: rows,
-                ws_xpixel: 960,
-                ws_ypixel: rows * 20,
+                ws_xpixel: columns.saturating_mul(8),
+                ws_ypixel: rows.saturating_mul(20),
             },
         )
         .unwrap();
@@ -567,7 +594,7 @@ struct OuterPty {
     slave: OwnedFd,
 }
 
-fn open_outer_pty(columns: u16, rows: u16) -> io::Result<OuterPty> {
+fn open_outer_pty(columns: u16, rows: u16, pixels_known: bool) -> io::Result<OuterPty> {
     let master =
         posix_openpt(OFlag::O_RDWR | OFlag::O_NOCTTY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK)
             .map_err(io::Error::from)?;
@@ -580,15 +607,18 @@ fn open_outer_pty(columns: u16, rows: u16) -> io::Result<OuterPty> {
         Mode::empty(),
     )
     .map_err(io::Error::from)?;
-    // Test PTYs always report explicit nonzero pixel geometry; real hosts that
-    // report zero pixels remain a separately unresolved admission question.
+    let (pixel_width, pixel_height) = if pixels_known {
+        (columns.saturating_mul(8), rows.saturating_mul(20))
+    } else {
+        (0, 0)
+    };
     rustix::termios::tcsetwinsize(
         &slave,
         rustix::termios::Winsize {
             ws_col: columns,
             ws_row: rows,
-            ws_xpixel: columns.saturating_mul(8),
-            ws_ypixel: rows.saturating_mul(20),
+            ws_xpixel: pixel_width,
+            ws_ypixel: pixel_height,
         },
     )?;
     Ok(OuterPty {
@@ -1192,7 +1222,7 @@ mod tests {
 
     #[test]
     fn outer_pty_and_stdio_clones_are_cloexec_from_creation() {
-        let pty = open_outer_pty(COLUMNS as u16, ROWS as u16).unwrap();
+        let pty = open_outer_pty(COLUMNS as u16, ROWS as u16, true).unwrap();
         let stdin = clone_cloexec(&pty.slave).unwrap();
         let stdout = clone_cloexec(&pty.slave).unwrap();
         for descriptor in [&pty.master, &pty.slave, &stdin, &stdout] {

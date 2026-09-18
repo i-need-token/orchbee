@@ -4,9 +4,10 @@
 
 本参考治理原生 Client 在运行时拥有的宿主终端契约的两个部分：面对瞬时零几何的视口观测，
 以及每个绘制帧的同步更新包裹。它与 `terminal_device.rs`、`terminal_lifecycle.rs`、
-`tui_backend.rs`、`tui_shell.rs` 共同维护。准入时要求（两个流上的交互 TTY、同一终端身份、
-非零初始单元几何）保持不变，此处不再重述。宿主以零报告的像素几何被如实报告为
-"pixel 未知"——一种正常状态，绝不伪造。
+`tui_backend.rs`、`tui_shell.rs` 共同维护。准入验证 TTY 身份与描述符安全（两个流上的
+交互 TTY、同一终端身份、几何查询本身可用）；获得可绘制的单元格几何是独立的就绪关注，
+由 [`native-startup-wait.md`](native-startup-wait.md) 治理。宿主以零报告的像素几何被
+如实报告为 "pixel 未知"——一种正常状态，绝不伪造。
 
 ## 视口观测
 

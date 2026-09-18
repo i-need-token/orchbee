@@ -68,7 +68,7 @@ Client 不重启或接管异常 Site。失败/残留运行时明确要求恢复�
 `Ctrl+B q` 或 `Ctrl+B d` 只关闭 Client；再次打开连接同一个保留 shell。
 同时打开的其他 Client 只读，除非它取得独立 controller grant。
 TTY 只准入一次，所有复制描述符均带 CLOEXEC，准备好的 Session 和同一 TTY 交给界面。
-当前要求终端报告真实且有效的 cell/pixel 尺寸；不推测缺失的像素值。
+当前要求终端报告真实且有效的 cell/pixel 尺寸；成对 `(0,0)` 像素上报作为诚实的未知像素声明被准入，绝不虚构缺失的像素值。
 当上报的几何不可绘制时（包括临时零单元格上报），Client 会在原始截止时间之内等待真实
 的可绘制几何，而不是准入失败或虚构几何；[原生启动等待](docs/native-startup-wait.md)
 拥有该有界等待模型、其取消/超时/故障结果以及不执行任何服务工作的保证。
@@ -79,24 +79,24 @@ Linux 是唯一已有公共启动进程证据的平台；尚不承诺发布性�
 原生 Session 呈现当前上下文的有序 Tab 和 canonical 标签。每个 Client 独立拥有活动选择、
 navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication 探测可见，显式刷新仍可用。以下操作沿用 `Ctrl+B` 前缀：
 
-| 按键                   | 已连接原生行为                                                                                       |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- |
-| `c`                    | 请求一次 Server 拥有的 Tab 创建，再选择已验证的提交成员。                                            |
-| `n` / `p`              | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                                                   |
-| `1` … `9`              | 该位置存在时选择它。                                                                                 |
-| `[` / `]`              | 按 Server 导航顺序选择上一个 / 下一个独立上下文或 Workspace。                                        |
-| `a`                    | 通过分步显式提交，在已有或新建 Project 中创建 Workspace。                                            |
-| `e`                    | 配置当前尚未配置且为空的 Workspace 的首个目录。                                                      |
-| `r` / `R`              | 重命名当前 Workspace / 其所属 Project；standalone 没有这两种目标。                                   |
-| `<` / `>`              | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                                                       |
-| `,`                    | 编辑所选 Tab 的共享 label；首次完整绘制后 Enter 提交，Escape 取消。                                  |
-| `x`                    | 确认关闭所选 Tab 对所有已连接 Client 的执行，或取消。                                                |
-| `w`                    | 打开 navigator 并刷新共享 Tab，保留活动终端身份。                                                    |
-| `h` / `j` / `k` / `l`  | 当前 Tab 有分屏树时，将本地焦点移到相邻 Panel。                                                      |
-| `-` / `_` / `\` / `\|` | 将焦点 Panel 向下 / 向上 / 向左 / 向右分屏出第二个叶子（临时键位）。                                 |
-| `X`                    | 关闭焦点 Panel 叶子，无单独确认步骤——作用于末叶时会移除整个 Tab，影响所有已挂接 Client（临时键位）。 |
-| `H` / `J` / `K` / `L`  | 将焦点 Panel 叶子移向其方向邻居（临时键位）。                                                        |
-| `q` / `d`              | 关闭此 Client，保留的执行继续运行。                                                                  |
+| 按键                   | 已连接原生行为                                                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `c`                    | 请求一次 Server 拥有的 Tab 创建，再选择已验证的提交成员。                                                                           |
+| `n` / `p`              | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                                                                                  |
+| `1` … `9`              | 该位置存在时选择它。                                                                                                                |
+| `[` / `]`              | 按 Server 导航顺序选择上一个 / 下一个独立上下文或 Workspace。                                                                       |
+| `a`                    | 通过分步显式提交，在已有或新建 Project 中创建 Workspace。                                                                           |
+| `e`                    | 配置当前尚未配置且为空的 Workspace 的首个目录。                                                                                     |
+| `r` / `R`              | 重命名当前 Workspace / 其所属 Project；standalone 没有这两种目标。                                                                  |
+| `<` / `>`              | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                                                                                      |
+| `,`                    | 编辑所选 Tab 的共享 label；首次完整绘制后 Enter 提交，Escape 取消。                                                                 |
+| `x`                    | 确认关闭所选 Tab 对所有已连接 Client 的执行，或取消。                                                                               |
+| `w`                    | 打开 navigator 并刷新共享 Tab，保留活动终端身份。                                                                                   |
+| `h` / `j` / `k` / `l`  | 当前 Tab 有分屏树时，将本地焦点移到相邻 Panel。                                                                                     |
+| `-` / `_` / `\` / `\|` | 将焦点 Panel 向下 / 向上 / 向左 / 向右分屏出第二个叶子（临时键位）。                                                                |
+| `X`                    | 为焦点 Panel 叶子请求关闭确认——确认完整绘制后 `y` 确认关闭，`Esc` 取消；末叶会指名整个 Tab 对所有已挂接 Client 的影响（临时键位）。 |
+| `H` / `J` / `K` / `L`  | 将焦点 Panel 叶子移向其方向邻居（临时键位）。                                                                                       |
+| `q` / `d`              | 关闭此 Client，保留的执行继续运行。                                                                                                 |
 
 [上下文选择](docs/native-context-selection.zh-CN.md) 在切换位置时保留各终端的执行。
 导航器和 Workbench 标题显示当前 Project/Workspace。可以进入和离开空 Workspace；只有显式 `c`
@@ -123,8 +123,8 @@ Close 要求独立生命周期授权，只读 Client 也适用。关闭最后一
 面板操作复用同一结构变更准入：split 提交实际控制 cell/pixel 几何并沿用叶子 label，close 以
 叶子为作用域并经普通 publication 路径提交，move 将叶子重定位到其方向邻居旁。关闭 Tab 的末叶
 会移除整个 Tab——其终端执行被处置，Tab 对每个已挂接 Client 结束，与显式 `x` Tab close 警告的
-后果相同——而临时 `X` 键位执行该 close 时不经过 Tab close 路径所要求的“所有已挂接 Client”
-绘制确认。Panel 命令是在 Server `WorkbenchGrant` 能力下准入的 Workbench 变更——split 需要
+后果相同——而临时 `X` 键位只能经由已绘制的 [panel 关闭确认](docs/native-panel-close-confirmation.zh-CN.md)
+到达该 close：确认指名被冻结的叶及其影响后，才由精确的 `y` 准入。Panel 命令是在 Server `WorkbenchGrant` 能力下准入的 Workbench 变更——split 需要
 `mutate_navigation` 与 `create_terminal`，move 需要 `mutate_navigation`，close 需要
 `close_terminal`（[Workbench authority](../orchbee-server/docs/workbench-authority.zh-CN.md)）——
 该层独立于终端侧控制：viewer 附件既不授予 input 也不授予 resize 权威——其

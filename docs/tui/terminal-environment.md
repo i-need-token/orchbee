@@ -10,11 +10,22 @@ this standard.
 
 ## Admission
 
-- A full-screen Client requires an interactive TTY on both its input and its output, and a valid
-  cell geometry with nonzero rows and columns. Anything else is a usage failure written to stderr in
-  the effective locale; no terminal mode is changed.
-- Pixel geometry is used only when the host reports it. It is never guessed from a font assumption,
-  and a missing pixel size disables pixel-dependent features rather than estimating them.
+- A full-screen Client requires an interactive TTY on both its input and its output under the
+  current same-terminal identity and descriptor-safety rules. A non-interactive stream or a failed
+  geometry query is a usage failure written to stderr in the effective locale; no terminal mode is
+  changed.
+- A real, nonzero cell geometry must be obtained before the normal interface renders and before
+  any retained terminal work begins. Cell sizes are never guessed.
+- An application may declare a bounded awaiting-geometry phase in its owning contract for a zero
+  or not-yet-drawable cell report. That phase uses only the already-admitted descriptors and the
+  original startup deadline; wait input and its surface stay owned by the terminal mode lifecycle,
+  which may enter and later restore the modes the wait surface needs. The phase starts no site,
+  service, or retained terminal; cancellation, timeout, or a fault restores every acquired mode,
+  and input consumed while waiting is never replayed. A path that does not declare this phase keeps
+  refusing a non-drawable report.
+- Pixel geometry is used only when the host reports it. It is never guessed from a font assumption;
+  a missing pixel size is a legal unknown that disables pixel-dependent features rather than
+  blocking the cell-based interface.
 - The Client admits the TTY once and passes the same descriptors to the interface. It never
   reopens the controlling terminal by path after admission.
 - Help and version output never touch terminal modes.

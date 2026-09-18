@@ -78,6 +78,62 @@ fn admits_matching_real_pty_descriptors_and_rejects_different_ptys()
 }
 
 #[test]
+fn admission_accepts_initially_zero_cells_and_observes_real_recovery()
+-> Result<(), Box<dyn std::error::Error>> {
+    use rustix::termios::{Winsize as RustixWinsize, tcsetwinsize};
+
+    for (columns, rows) in [(0_u16, 0_u16), (0, 24), (80, 0)] {
+        let pty = openpty(
+            Some(&Winsize {
+                ws_col: columns,
+                ws_row: rows,
+                ws_xpixel: 0,
+                ws_ypixel: 0,
+            }),
+            None,
+        )?;
+        let terminal = InheritedTerminal::admit_from(pty.slave.as_fd(), pty.slave.as_fd())?;
+
+        assert_eq!(terminal.observe_window_dimensions()?, None);
+        assert!(terminal.window_dimensions().is_err());
+
+        let other = openpty(
+            Some(&Winsize {
+                ws_col: 80,
+                ws_row: 24,
+                ws_xpixel: 640,
+                ws_ypixel: 384,
+            }),
+            None,
+        )?;
+        assert!(matches!(
+            InheritedTerminal::admit_from(pty.slave.as_fd(), other.slave.as_fd()),
+            Err(TerminalAdmissionError::DifferentTerminals)
+        ));
+
+        tcsetwinsize(
+            pty.slave.as_fd(),
+            RustixWinsize {
+                ws_col: 110,
+                ws_row: 30,
+                ws_xpixel: 880,
+                ws_ypixel: 600,
+            },
+        )?;
+        assert_eq!(
+            terminal.observe_window_dimensions()?,
+            Some(super::WindowDimensions {
+                columns: 110,
+                pixel_height: 600,
+                pixel_width: 880,
+                rows: 30,
+            })
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn runtime_observation_reports_zero_cells_as_absent_and_recovers()
 -> Result<(), Box<dyn std::error::Error>> {
     use rustix::termios::{Winsize as RustixWinsize, tcsetwinsize};
