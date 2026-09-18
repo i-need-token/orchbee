@@ -353,6 +353,8 @@ mod publication_hint_tests;
 mod rename_membership_tests;
 #[cfg(all(test, target_os = "linux"))]
 mod retired_membership_tests;
+#[cfg(all(test, unix))]
+mod u7_probe;
 #[cfg(test)]
 mod workspace_setup_tests;
 

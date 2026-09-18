@@ -90,12 +90,17 @@ impl PasteEnd {
     /// Feeds one payload byte; returns true when the byte completes the
     /// real terminator.
     fn push(&mut self, byte: u8) -> bool {
-        let continuation = self.utf8_need > 0;
-        if continuation {
+        // The suppression window covers only bytes that are real UTF-8
+        // continuations: a non-continuation byte kills the in-flight scalar
+        // and the window ends immediately, so a real `\x9b201~` terminator
+        // arriving after a dead scalar still matches.
+        let continuation = if self.utf8_need > 0 && (0x80..=0xbf).contains(&byte) {
             self.utf8_need -= 1;
-        } else if let Some(need) = utf8_need(byte) {
-            self.utf8_need = need;
-        }
+            true
+        } else {
+            self.utf8_need = utf8_need(byte).unwrap_or(0);
+            false
+        };
         if self.prefix > 0 && byte == self.term[self.prefix] {
             self.prefix += 1;
             return self.prefix == self.term.len();
@@ -143,6 +148,17 @@ enum State {
         raw: Vec<u8>,
         need: u8,
         alt: bool,
+        deadline: Instant,
+        owned: bool,
+    },
+    /// A truncated scalar whose bounded wait expired keeps exactly its
+    /// remaining continuation bytes under the frame's provenance — a late
+    /// `0x9b`/`0x8f` tail byte is never re-decoded as a fresh control
+    /// sequence. A non-continuation byte ends the frame and is reprocessed
+    /// under its own provenance. Same semantics as `ModalDecoder`'s
+    /// `Utf8Tail`.
+    Utf8Tail {
+        remaining: u8,
         deadline: Instant,
         owned: bool,
     },
@@ -239,12 +255,23 @@ impl LegacyDecoder {
             }
             State::Utf8 {
                 raw,
+                need,
                 deadline,
                 owned,
                 ..
             } if now >= deadline => {
                 items.push(DecodedItem::nondecision(&raw, owned));
+                // The scalar's remaining continuation bytes stay owned by
+                // this frame — they are never re-decoded as fresh input.
+                self.state = State::Utf8Tail {
+                    remaining: need,
+                    deadline: now + self.wait,
+                    owned,
+                };
             }
+            // The late tail never arrived inside its bounded wait; the
+            // scalar residue was already emitted, nothing left to forward.
+            State::Utf8Tail { deadline, .. } if now >= deadline => {}
             // A paste whose payload wait expired emits what it collected and
             // drains until the real terminator; the in-flight terminator
             // match survives the boundary.
@@ -271,7 +298,9 @@ impl LegacyDecoder {
         while let Some(byte) = pending.take() {
             match std::mem::replace(&mut self.state, State::Ground) {
                 State::Ground => self.feed_ground(byte, now, owned, items),
-                State::Esc { owned, .. } => self.feed_esc(byte, now, owned, items),
+                State::Esc {
+                    owned: frame_owned, ..
+                } => self.feed_esc(byte, now, frame_owned, owned, items),
                 State::Csi { mut raw, owned, .. } => {
                     if matches!(byte, 0x1b | 0x9b | 0x8f) {
                         // ESC/C1 aborts the sequence; the abort byte is
@@ -345,6 +374,27 @@ impl LegacyDecoder {
                         }
                     } else {
                         items.push(DecodedItem::nondecision(&raw, owned));
+                        pending = Some(byte);
+                    }
+                }
+                State::Utf8Tail {
+                    remaining, owned, ..
+                } => {
+                    if (0x80..=0xbf).contains(&byte) {
+                        // A late tail byte is part of the dead scalar's frame
+                        // — owned, never re-decoded as a control sequence.
+                        items.push(DecodedItem::nondecision(&[byte], owned));
+                        let remaining = remaining - 1;
+                        if remaining > 0 {
+                            self.state = State::Utf8Tail {
+                                remaining,
+                                deadline: now + self.wait,
+                                owned,
+                            };
+                        }
+                    } else {
+                        // Not a continuation: the tail ends here and the byte
+                        // is reprocessed under its own provenance.
                         pending = Some(byte);
                     }
                 }
@@ -502,61 +552,72 @@ impl LegacyDecoder {
         }
     }
 
-    fn feed_esc(&mut self, byte: u8, now: Instant, owned: bool, items: &mut Vec<DecodedItem>) {
+    /// `frame_owned` is the provenance of the frame the pending ESC opened;
+    /// `byte_owned` is the current byte's own provenance. A second ESC ends
+    /// the old frame and re-arms a new one — the re-armed frame belongs to
+    /// the second byte's packet, not to the old frame's.
+    fn feed_esc(
+        &mut self,
+        byte: u8,
+        now: Instant,
+        frame_owned: bool,
+        byte_owned: bool,
+        items: &mut Vec<DecodedItem>,
+    ) {
         match byte {
             b'[' => {
                 self.state = State::Csi {
                     raw: vec![0x1b, byte],
                     deadline: now + self.wait,
-                    owned,
+                    owned: frame_owned,
                 }
             }
             b'O' => {
                 self.state = State::Ss3 {
                     raw: vec![0x1b, byte],
                     deadline: now + self.wait,
-                    owned,
+                    owned: frame_owned,
                 }
             }
             0x1b => {
                 items.push(DecodedItem::key(
                     KeyEvent::press(KeyCode::Esc, Modifiers::NONE),
                     &[0x1b],
-                    owned,
+                    frame_owned,
                 ));
                 self.state = State::Esc {
                     deadline: now + self.wait,
-                    owned,
+                    owned: byte_owned,
                 };
             }
             0x9b => {
                 self.state = State::Csi {
                     raw: vec![0x1b, byte],
                     deadline: now + self.wait,
-                    owned,
+                    owned: frame_owned,
                 }
             }
             0x8f => {
                 self.state = State::Ss3 {
                     raw: vec![0x1b, byte],
                     deadline: now + self.wait,
-                    owned,
+                    owned: frame_owned,
                 }
             }
             0x00..=0x1f => items.push(DecodedItem::key(
                 c0_event(byte, Modifiers::NONE.with_alt()),
                 &[0x1b, byte],
-                owned,
+                frame_owned,
             )),
             0x7f => items.push(DecodedItem::key(
                 KeyEvent::press(KeyCode::Backspace, Modifiers::NONE.with_alt()),
                 &[0x1b, byte],
-                owned,
+                frame_owned,
             )),
             0x20..=0x7e => items.push(DecodedItem::key(
                 KeyEvent::press(KeyCode::Char(byte as char), Modifiers::NONE.with_alt()),
                 &[0x1b, byte],
-                owned,
+                frame_owned,
             )),
             _ => match utf8_need(byte) {
                 Some(need) => {
@@ -565,10 +626,10 @@ impl LegacyDecoder {
                         need,
                         alt: true,
                         deadline: now + self.wait,
-                        owned,
+                        owned: frame_owned,
                     };
                 }
-                None => items.push(DecodedItem::nondecision(&[0x1b, byte], owned)),
+                None => items.push(DecodedItem::nondecision(&[0x1b, byte], frame_owned)),
             },
         }
     }
