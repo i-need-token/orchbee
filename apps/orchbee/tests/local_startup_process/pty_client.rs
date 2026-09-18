@@ -15,8 +15,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-const COLUMNS: usize = 120;
-const ROWS: usize = 32;
+pub(super) const COLUMNS: usize = 120;
+pub(super) const ROWS: usize = 32;
 const MAX_OUTPUT: usize = 8 * 1024 * 1024;
 const COMPLETE_DRAW: &[u8] = b"\x1b[0m\x1b[0m";
 
@@ -52,8 +52,18 @@ impl Client {
     }
 
     pub(super) fn spawn_at(fixture: &Fixture, locale: &str, base: &Path) -> Self {
+        Self::spawn_sized(fixture, locale, base, COLUMNS as u16, ROWS as u16)
+    }
+
+    pub(super) fn spawn_sized(
+        fixture: &Fixture,
+        locale: &str,
+        base: &Path,
+        columns: u16,
+        rows: u16,
+    ) -> Self {
         fixture.register_runtime_base(base);
-        let pty = open_outer_pty().unwrap();
+        let pty = open_outer_pty(columns, rows).unwrap();
         let original = tcgetattr(&pty.slave).unwrap();
         let mut child = Command::new(fixture.cohort.join("orchbee"))
             .env("ORCHBEE_RUNTIME_BASE", base)
@@ -74,7 +84,7 @@ impl Client {
             original,
             stderr,
             stderr_bytes: Vec::new(),
-            screen: Screen::new(COLUMNS, ROWS),
+            screen: Screen::new(columns as usize, rows as usize),
         }
     }
 
@@ -557,7 +567,7 @@ struct OuterPty {
     slave: OwnedFd,
 }
 
-fn open_outer_pty() -> io::Result<OuterPty> {
+fn open_outer_pty(columns: u16, rows: u16) -> io::Result<OuterPty> {
     let master =
         posix_openpt(OFlag::O_RDWR | OFlag::O_NOCTTY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK)
             .map_err(io::Error::from)?;
@@ -570,13 +580,15 @@ fn open_outer_pty() -> io::Result<OuterPty> {
         Mode::empty(),
     )
     .map_err(io::Error::from)?;
+    // Test PTYs always report explicit nonzero pixel geometry; real hosts that
+    // report zero pixels remain a separately unresolved admission question.
     rustix::termios::tcsetwinsize(
         &slave,
         rustix::termios::Winsize {
-            ws_col: COLUMNS as u16,
-            ws_row: ROWS as u16,
-            ws_xpixel: 960,
-            ws_ypixel: 640,
+            ws_col: columns,
+            ws_row: rows,
+            ws_xpixel: columns.saturating_mul(8),
+            ws_ypixel: rows.saturating_mul(20),
         },
     )?;
     Ok(OuterPty {
@@ -1180,7 +1192,7 @@ mod tests {
 
     #[test]
     fn outer_pty_and_stdio_clones_are_cloexec_from_creation() {
-        let pty = open_outer_pty().unwrap();
+        let pty = open_outer_pty(COLUMNS as u16, ROWS as u16).unwrap();
         let stdin = clone_cloexec(&pty.slave).unwrap();
         let stdout = clone_cloexec(&pty.slave).unwrap();
         for descriptor in [&pty.master, &pty.slave, &stdin, &stdout] {

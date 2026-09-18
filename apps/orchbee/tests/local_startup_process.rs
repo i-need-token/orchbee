@@ -16,6 +16,8 @@ mod native_workspace_fixture;
 mod native_workspace_setup;
 #[path = "local_startup_process/pty_client.rs"]
 mod pty_client;
+#[path = "local_startup_process/startup_wait.rs"]
+mod startup_wait;
 
 use native_cohort::{Fixture, ManagedProcess};
 use orchbee_local_client_protocol::ClientSessionConnection;

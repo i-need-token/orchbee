@@ -2,8 +2,14 @@ use crate::{
     client_view::ClientView,
     local_client::{LocalClient, LocalClientConnectError},
     localization::Locale,
+    startup_wait::{
+        self, InheritedWaitInput, InheritedWaitViewport, StartupWait, WaitPrompt,
+        standalone_presentable_area,
+    },
     terminal_device::InheritedTerminal,
+    terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
     terminal_session::{TerminalIntent, TerminalSession, TerminalStatus},
+    termination_signal::TerminationSignal,
     tui_shell,
 };
 use orchbee_local_client_protocol::{ConnectClientError, RejectionReason, unix_socket_path_fits};
@@ -12,6 +18,7 @@ use orchbee_local_site_runtime::{
     SiteScope,
 };
 use std::{
+    fs::File,
     io::{self, Write},
     path::PathBuf,
     process::{Command, Stdio},
@@ -38,9 +45,22 @@ pub(crate) enum StartupFailure {
 pub(crate) fn run(locale: Locale) -> Result<(), StartupFailure> {
     let deadline = Instant::now() + Duration::from_secs(20);
     let inherited = InheritedTerminal::admit().map_err(|_| StartupFailure::Terminal)?;
-    let dimensions = inherited
-        .window_dimensions()
-        .map_err(|_| StartupFailure::Terminal)?;
+    // A temporary zero-cell report is not drawable yet but is not a fault
+    // either; the bounded wait keeps polling instead of failing admission.
+    let reported = match inherited.window_dimensions() {
+        Ok(dimensions) => Some(dimensions),
+        Err(error) if error.kind() == io::ErrorKind::InvalidData => None,
+        Err(_) => return Err(StartupFailure::Terminal),
+    };
+    let dimensions = match reported {
+        Some(dimensions) if standalone_presentable_area(dimensions).is_some() => dimensions,
+        _ => match await_geometry(&inherited, locale, deadline) {
+            StartupWait::Available(dimensions) => dimensions,
+            StartupWait::Cancelled => return Ok(()),
+            StartupWait::TimedOut => return Err(StartupFailure::TimedOut),
+            StartupWait::Fault(error) => return Err(failure(error, StartupFailure::Terminal)),
+        },
+    };
     let geometry =
         tui_shell::terminal_geometry(dimensions, &ClientView::new(dimensions.columns), None)
             .ok()
@@ -197,6 +217,41 @@ fn connect(
         Err(_) => Err(StartupFailure::Admission),
     }
 }
+fn await_geometry(inherited: &InheritedTerminal, locale: Locale, deadline: Instant) -> StartupWait {
+    let (termination, input, output) = match (
+        TerminationSignal::install(),
+        InheritedWaitInput::open(inherited),
+        inherited.duplicate_output(),
+    ) {
+        (Ok(termination), Ok(input), Ok(output)) => (termination, input, File::from(output)),
+        _ => {
+            return StartupWait::Fault(io::Error::other(
+                "the inherited terminal could not arm the startup wait",
+            ));
+        }
+    };
+    let mut input = input;
+    let mut output = output;
+    let mut viewport = InheritedWaitViewport::new(inherited);
+    let mut presentable = standalone_presentable_area;
+    startup_wait::await_presentable_geometry(
+        || TerminalModeGuard::enter(InheritedTerminalModes::new(inherited.clone())),
+        startup_wait::StartupWaitDeps {
+            viewport: &mut viewport,
+            input: &mut input,
+            output: &mut output,
+            termination: &termination,
+            clock: &Instant::now,
+            deadline,
+            prompt: WaitPrompt {
+                notice: locale.startup_wait_notice(),
+                exit_hint: locale.startup_wait_hint(),
+            },
+            presentable: &mut presentable,
+        },
+    )
+}
+
 fn check_deadline(deadline: Instant) -> Result<(), StartupFailure> {
     if Instant::now() >= deadline {
         return Err(StartupFailure::TimedOut);

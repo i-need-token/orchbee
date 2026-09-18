@@ -804,6 +804,18 @@ impl Locale {
             Self::ZhCn => "正在启动本地终端…\n",
         }
     }
+    pub(crate) const fn startup_wait_notice(self) -> &'static str {
+        match self {
+            Self::EnUs => "The terminal window is too small. Resize it to continue.\n",
+            Self::ZhCn => "终端窗口太小。请调整大小后继续。\n",
+        }
+    }
+    pub(crate) const fn startup_wait_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Press Ctrl+B then q to exit.\n",
+            Self::ZhCn => "按 Ctrl+B 再按 q 退出。\n",
+        }
+    }
     pub(crate) const fn startup_failure(
         self,
         failure: crate::local_startup::StartupFailure,

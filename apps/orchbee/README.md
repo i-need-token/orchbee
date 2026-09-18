@@ -76,7 +76,11 @@ recovery and are not deleted automatically. `Ctrl+B q` or `Ctrl+B d` closes only
 reopening attaches to the same retained shell. Additional concurrent Clients are read-only unless
 they acquire an independent controller grant. TTY admission occurs once, every duplicate is
 CLOEXEC, and the prepared Session plus that same TTY are handed to the interface. Terminals must
-report real valid cell/pixel dimensions; missing pixel values are not guessed. Linux is the only
+report real valid cell/pixel dimensions; missing pixel values are not guessed. When the reported
+geometry is not drawable — including a temporary zero-cell report — the Client waits for a real
+drawable geometry inside the original deadline instead of failing admission or inventing one;
+the [native startup wait](docs/native-startup-wait.md) owns that bounded waiting model, its
+cancel/timeout/fault outcomes, and its no-service-work guarantee. Linux is the only
 platform with public startup process evidence; release performance budgets remain unclaimed.
 
 ## Native Tab interactions

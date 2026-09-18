@@ -15,6 +15,8 @@ mod local_startup;
 mod localization;
 mod presentation;
 #[cfg(unix)]
+mod startup_wait;
+#[cfg(unix)]
 mod terminal_device;
 #[cfg(unix)]
 mod terminal_input;

@@ -460,7 +460,7 @@ pub(crate) fn terminal_geometry(
 /// the active leaf's content inside the projected split tree. `None` when the
 /// viewport cannot present a pane at all — explicit, not inferred from a
 /// returned rect.
-fn active_pane_area(
+pub(crate) fn active_pane_area(
     areas: &crate::tui_layout::ShellAreas,
     session: Option<crate::terminal_session::TerminalSessionView<'_>>,
 ) -> Option<Rect> {
