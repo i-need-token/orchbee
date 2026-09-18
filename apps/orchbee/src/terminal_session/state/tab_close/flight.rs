@@ -326,6 +326,7 @@ impl NativeSessionState {
     }
 
     pub(in crate::terminal_session) fn close_carrier_retired(&mut self) {
+        self.close.cancel_confirmation();
         self.close.invalidate_display();
         self.panel_close.invalidate_display();
         self.close.carrier = super::CloseCarrier::Session;

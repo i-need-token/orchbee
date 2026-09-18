@@ -15,22 +15,45 @@ pub(crate) use crate::terminal_session::state::{
     CloseStatusKind as NativeCloseStatusKind, CloseStatusToken as NativeCloseStatusToken,
 };
 
+/// The renderer's typed outcome for a modal surface inside the unified content
+/// area: `Presented` when the complete content was drawn and carries the armed
+/// token, `NotPresented` when the offered area could not present it. The UI
+/// settles a `NotPresented` outcome after the draw — rendering never mutates
+/// Session state itself.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ModalPresentation<T> {
+    Presented(T),
+    NotPresented,
+}
+
+impl<T> ModalPresentation<T> {
+    pub(crate) fn into_presented(self) -> Option<T> {
+        match self {
+            Self::Presented(token) => Some(token),
+            Self::NotPresented => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct NativeDrawReceipt {
-    prompt: Option<NativeCloseConfirmationToken>,
+    prompt: Option<ModalPresentation<NativeCloseConfirmationToken>>,
     status: Option<NativeCloseStatusToken>,
-    rename: Option<super::NativeRenameDraftToken>,
-    setup: Option<super::NativeSetupToken>,
-    panel_prompt: Option<NativePanelCloseConfirmationToken>,
+    rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
+    setup: Option<ModalPresentation<super::NativeSetupToken>>,
+    panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
 }
 
 impl NativeDrawReceipt {
-    pub(crate) const fn with_setup(mut self, setup: Option<super::NativeSetupToken>) -> Self {
+    pub(crate) const fn with_setup(
+        mut self,
+        setup: Option<ModalPresentation<super::NativeSetupToken>>,
+    ) -> Self {
         self.setup = setup;
         self
     }
     pub(crate) const fn new(
-        prompt: Option<NativeCloseConfirmationToken>,
+        prompt: Option<ModalPresentation<NativeCloseConfirmationToken>>,
         status: Option<NativeCloseStatusToken>,
     ) -> Self {
         Self {
@@ -43,14 +66,14 @@ impl NativeDrawReceipt {
     }
     pub(crate) const fn with_rename(
         mut self,
-        rename: Option<super::NativeRenameDraftToken>,
+        rename: Option<ModalPresentation<super::NativeRenameDraftToken>>,
     ) -> Self {
         self.rename = rename;
         self
     }
     pub(crate) const fn with_panel_close(
         mut self,
-        panel_prompt: Option<NativePanelCloseConfirmationToken>,
+        panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
     ) -> Self {
         self.panel_prompt = panel_prompt;
         self
@@ -186,6 +209,13 @@ impl NativeUi {
         {
             return false;
         }
+        if self
+            .state
+            .as_mut()
+            .is_some_and(|state| state.settle_stale_close_confirmations())
+        {
+            return true;
+        }
         match key {
             ClientKey::Plain('y') => {
                 self.apply_client_action(crate::client_view::ClientAction::ConfirmClose);
@@ -296,7 +326,13 @@ impl NativeUi {
 
     pub(in crate::terminal_session) fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
         if let Some(state) = &mut self.state {
-            state.acknowledge_close_draw(receipt.prompt, receipt.status);
+            state.acknowledge_close_draw(
+                receipt.prompt.and_then(ModalPresentation::into_presented),
+                receipt.status,
+            );
+            if matches!(receipt.prompt, Some(ModalPresentation::NotPresented)) {
+                state.settle_close_confirmation_not_presented();
+            }
         }
         self.after_panel_close_draw(receipt.panel_prompt);
         self.after_rename_draw(receipt.rename);

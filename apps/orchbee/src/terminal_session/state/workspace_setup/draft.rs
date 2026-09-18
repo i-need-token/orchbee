@@ -1,6 +1,6 @@
 use super::{
-    NativeContextLocation, NativeContextTabs, NativeSessionState, SessionPhase, WorkbenchLabel,
-    WorkbenchProjectId,
+    NativeContextLocation, NativeContextTabs, NativeSessionState, SessionNotice, SessionPhase,
+    WorkbenchLabel, WorkbenchProjectId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -242,8 +242,16 @@ impl NativeSessionState {
             draft.shown = token == Some(draft.token);
         }
     }
-    pub(in crate::terminal_session::state) fn cancel_setup_on_retirement(&mut self) {
+    pub(in crate::terminal_session) fn cancel_setup_on_retirement(&mut self) {
         self.setup.draft = None;
+    }
+    /// A draw receipt reporting that the draft could not be presented cancels
+    /// the capture with a notice instead of leaving it open swallowing keys.
+    pub(in crate::terminal_session) fn settle_setup_draft_not_presented(&mut self) {
+        if self.setup.draft.is_some() {
+            self.setup.draft = None;
+            self.set_notice(SessionNotice::DraftCancelled);
+        }
     }
     pub(in crate::terminal_session) fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
         if self

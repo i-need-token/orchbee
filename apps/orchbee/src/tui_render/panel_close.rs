@@ -1,9 +1,10 @@
-use super::tab_close::wrapped_text_fits;
+use super::tab_close::{modal_area, wrapped_text_fits};
 use crate::{
     localization::Locale,
-    terminal_session::{NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView},
+    terminal_session::{
+        ModalPresentation, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
+    },
     terminal_text::sanitize_terminal_text,
-    tui_layout::place_overlay,
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -15,16 +16,16 @@ use ratatui::{
 
 pub(super) struct PanelModalDraw {
     pub(super) area: Rect,
-    pub(super) prompt: Option<NativePanelCloseConfirmationToken>,
+    pub(super) prompt: ModalPresentation<NativePanelCloseConfirmationToken>,
 }
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
     confirmation: &NativePanelCloseConfirmationView<'_>,
-    area: Rect,
+    content_area: Rect,
     theme: &Theme,
-) -> Option<PanelModalDraw> {
+) -> PanelModalDraw {
     let target = format!(
         "{} · {}",
         sanitize_terminal_text(confirmation.panel_label()),
@@ -39,24 +40,29 @@ pub(super) fn render(
         Line::from(""),
         Line::from(locale.panel_close_actions()),
     ]);
-    render_content(frame, locale.panel_close_resize_hint(), text, area, theme).map(
-        |(area, complete)| PanelModalDraw {
-            area,
-            prompt: complete.then(|| confirmation.token()),
+    let (area, complete) =
+        render_content(frame, content_area, locale.panel_close_resize_hint(), text, theme);
+    PanelModalDraw {
+        area,
+        prompt: if complete {
+            ModalPresentation::Presented(confirmation.token())
+        } else {
+            ModalPresentation::NotPresented
         },
-    )
+    }
 }
 
 /// A panel close can only be confirmed while its complete warning text fit the
-/// draw: a clipped modal renders the resize hint and yields no prompt token.
+/// draw inside the unified content area: a clipped or unplaceable modal
+/// renders the resize hint and yields a `NotPresented` outcome.
 fn render_content(
     frame: &mut Frame<'_>,
+    content_area: Rect,
     resize_hint: &str,
     text: Text<'_>,
-    area: Rect,
     theme: &Theme,
-) -> Option<(Rect, bool)> {
-    let area = place_overlay(area, u16::MAX, u16::MAX)?;
+) -> (Rect, bool) {
+    let area = modal_area(content_area, &text);
     let block = Block::new()
         .borders(Borders::ALL)
         .padding(Padding::horizontal(2))
@@ -80,7 +86,7 @@ fn render_content(
             inner,
         );
     }
-    Some((area, complete))
+    (area, complete)
 }
 
 #[cfg(test)]

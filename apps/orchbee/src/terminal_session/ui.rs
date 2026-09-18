@@ -44,8 +44,9 @@ pub(crate) use workspace_setup::{
 mod tab_rename;
 pub(crate) use panel_close::{NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView};
 pub(crate) use tab_close::{
-    NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
-    NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDrawReceipt,
+    ModalPresentation, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
+    NativeCloseConfirmationView, NativeCloseStatusKind, NativeCloseStatusToken,
+    NativeCloseStatusView, NativeDrawReceipt,
 };
 pub(crate) use tab_rename::{
     NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit, NativeRenameInputContext,
@@ -95,6 +96,8 @@ pub(crate) enum NativeSessionNotice {
     PanelNotApplied,
     RenameNotRenamed,
     CloseRequestNotApplied,
+    ConfirmationCancelled,
+    DraftCancelled,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -258,6 +261,8 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::PanelNotApplied => NativeSessionNotice::PanelNotApplied,
             SessionNotice::RenameNotRenamed => NativeSessionNotice::RenameNotRenamed,
             SessionNotice::CloseRequestNotApplied => NativeSessionNotice::CloseRequestNotApplied,
+            SessionNotice::ConfirmationCancelled => NativeSessionNotice::ConfirmationCancelled,
+            SessionNotice::DraftCancelled => NativeSessionNotice::DraftCancelled,
         })
     }
 
@@ -557,11 +562,15 @@ impl NativeUi {
                 return true;
             }
         };
-        let changed = match taken {
+        let mut changed = match taken {
             Some(taken) => self.apply_event(&mailbox, taken),
             None => false,
         };
         if self.retirement_failure.is_none() {
+            changed |= self
+                .state
+                .as_mut()
+                .is_some_and(|state| state.settle_stale_close_confirmations());
             self.reconcile_ordinary_poll(&mailbox);
             self.drain_publication_refresh(&mailbox);
             self.schedule_close_reconciliation(&mailbox);
@@ -1675,6 +1684,9 @@ impl NativeUi {
         }
         if let Some(state) = &mut self.state {
             state.close_carrier_retired();
+            state.cancel_panel_close_confirmation();
+            state.cancel_rename_draft();
+            state.cancel_setup_on_retirement();
         }
         let failure = self
             .mailbox

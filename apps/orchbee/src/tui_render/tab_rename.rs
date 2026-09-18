@@ -1,9 +1,8 @@
-use super::tab_close::wrapped_text_fits;
+use super::tab_close::{modal_area, wrapped_text_fits};
 use crate::{
     localization::Locale,
-    terminal_session::{NativeRenameDraftToken, NativeRenameDraftView},
+    terminal_session::{ModalPresentation, NativeRenameDraftToken, NativeRenameDraftView},
     terminal_text::sanitize_terminal_text,
-    tui_layout::centered_overlay,
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -17,19 +16,9 @@ pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
     draft: &NativeRenameDraftView<'_>,
+    content_area: Rect,
     theme: &Theme,
-) -> (Rect, Option<NativeRenameDraftToken>) {
-    let area = centered_overlay(frame.area(), u16::MAX, u16::MAX);
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .padding(Padding::horizontal(2))
-        .style(
-            theme
-                .style(Role::SurfaceOverlay)
-                .fg(theme.color(Role::TextPrimary)),
-        )
-        .border_style(theme.style(Role::AccentFocus));
-    let inner = block.inner(area);
+) -> (Rect, ModalPresentation<NativeRenameDraftToken>) {
     let mut lines = vec![
         Line::from(locale.rename_title()),
         Line::from(""),
@@ -50,12 +39,23 @@ pub(super) fn render(
     }
     lines.push(Line::from(locale.rename_actions()));
     let text = Text::from(lines);
+    let area = modal_area(content_area, &text);
+    let block = Block::new()
+        .borders(Borders::ALL)
+        .padding(Padding::horizontal(2))
+        .style(
+            theme
+                .style(Role::SurfaceOverlay)
+                .fg(theme.color(Role::TextPrimary)),
+        )
+        .border_style(theme.style(Role::AccentFocus));
+    let inner = block.inner(area);
     let complete = wrapped_text_fits(&text, inner);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     if complete {
         frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }), inner);
-        (area, Some(draft.token()))
+        (area, ModalPresentation::Presented(draft.token()))
     } else {
         frame.render_widget(
             Paragraph::new(locale.rename_resize_hint())
@@ -63,6 +63,6 @@ pub(super) fn render(
                 .wrap(Wrap { trim: false }),
             inner,
         );
-        (area, None)
+        (area, ModalPresentation::NotPresented)
     }
 }

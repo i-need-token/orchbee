@@ -60,14 +60,14 @@ fn submit(ui: &mut NativeUi, mailbox: &CommandMailbox, existing: bool) -> Comman
         ui.edit_setup_draft(token, NativeSetupEdit::SelectPreviousProject);
         token = ui.view().setup_draft().unwrap().token();
     }
-    ui.after_setup_draw(Some(token));
+    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
     ui.submit_setup_draft(token);
     token = ui.view().setup_draft().unwrap().token();
     ui.edit_setup_draft(
         token,
         NativeSetupEdit::Append(if existing { "Workspace" } else { "Project" }),
     );
-    ui.after_setup_draw(Some(token));
+    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
     ui.submit_setup_draft(token);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {

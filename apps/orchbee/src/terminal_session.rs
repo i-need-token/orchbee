@@ -31,14 +31,15 @@ mod workbench_projection;
 pub(crate) use workbench_projection::{NativePanel, NativePanelTree};
 
 pub(crate) use ui::{
-    NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
-    NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDisplayController,
-    NativeDisplayPhase, NativeDisplayProvenance, NativeDisplayRetirement, NativeDrawReceipt,
-    NativeLocationLabelStatus, NativeLocationLabelTarget, NativePanelCloseConfirmationToken,
-    NativePanelCloseConfirmationView, NativeProjectionStatus, NativeRefreshStatus,
-    NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit, NativeRenameInputContext,
-    NativeSessionNotice, NativeSessionView, NativeSetupDraftView, NativeSetupEdit,
-    NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken, NativeTabView,
+    ModalPresentation, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
+    NativeCloseConfirmationView, NativeCloseStatusKind, NativeCloseStatusToken,
+    NativeCloseStatusView, NativeDisplayController, NativeDisplayPhase, NativeDisplayProvenance,
+    NativeDisplayRetirement, NativeDrawReceipt, NativeLocationLabelStatus,
+    NativeLocationLabelTarget, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
+    NativeProjectionStatus, NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView,
+    NativeRenameEdit, NativeRenameInputContext, NativeSessionNotice, NativeSessionView,
+    NativeSetupDraftView, NativeSetupEdit, NativeSetupInputContext, NativeSetupStage,
+    NativeSetupStatus, NativeSetupToken, NativeTabView,
 };
 
 #[derive(Clone, Debug)]

@@ -1,4 +1,4 @@
-use super::AttachmentKey;
+use super::{AttachmentKey, SessionNotice};
 use crate::{
     local_client::workbench::WorkbenchTabCloseAccepted,
     terminal_session::workbench_projection::NativeTerminalBinding,
@@ -736,6 +736,84 @@ impl super::NativeSessionState {
     pub(in crate::terminal_session) fn invalidate_close_display(&mut self) {
         self.close.invalidate_display();
     }
+
+    /// Whether the armed confirmation's frozen facts no longer match live
+    /// state. Display flags are deliberately excluded — a transient
+    /// not-yet-redrawn state is recoverable, a drifted identity is not.
+    fn close_confirmation_stale(&self) -> bool {
+        let Some(confirmation) = &self.close.confirmation else {
+            return false;
+        };
+        if let CloseIntent::Resume {
+            selection,
+            operation,
+            generation,
+            status_token,
+        } = &confirmation.intent
+        {
+            let premise = self
+                .close
+                .record_index(&selection.target)
+                .is_some_and(|index| {
+                    let record = &self.close.records[index];
+                    record.resumable()
+                        && record.operation.as_ref() == Some(operation)
+                        && record.generation == Some(*generation)
+                        && record.status_token == Some(*status_token)
+                });
+            if !premise {
+                return true;
+            }
+        }
+        if matches!(self.close.carrier, CloseCarrier::Session) {
+            let selection = confirmation.intent.selection();
+            let Some(selected) = self.active() else {
+                return true;
+            };
+            let Some(tab) = self.cache.tabs().get(selected.index()) else {
+                return true;
+            };
+            let Some(panel) = tab.panel(selected.panel_index()) else {
+                return true;
+            };
+            return self.cache.site_id() != selection.target().site_id()
+                || self.cache.terminal_context_id() != selection.target().terminal_context_id()
+                || self.cache.revision() != selection.base_revision()
+                || tab.tab_id() != selection.target().tab_id()
+                || panel.binding() != selection.binding()
+                || self.attached_key.as_ref() != selection.attachment();
+        }
+        false
+    }
+
+    /// Settle armed close-family confirmations whose frozen premises no longer
+    /// match live state: cancel them and post a bounded localized notice.
+    /// Runs after every applied mutation and before any captured key is
+    /// decided, so a stale capture never lingers armed swallowing input.
+    pub(in crate::terminal_session) fn settle_stale_close_confirmations(&mut self) -> bool {
+        let mut settled = false;
+        if self.close_confirmation_stale() {
+            self.close.cancel_confirmation();
+            self.set_notice(SessionNotice::ConfirmationCancelled);
+            settled = true;
+        }
+        if self.armed_panel_close_stale() {
+            self.cancel_panel_close_confirmation();
+            self.set_notice(SessionNotice::ConfirmationCancelled);
+            settled = true;
+        }
+        settled
+    }
+
+    /// A draw receipt reporting that the confirmation could not be presented
+    /// cancels the capture with a notice instead of leaving it armed.
+    pub(in crate::terminal_session) fn settle_close_confirmation_not_presented(&mut self) {
+        if self.close.confirmation.is_some() {
+            self.close.cancel_confirmation();
+            self.set_notice(SessionNotice::ConfirmationCancelled);
+        }
+    }
+
     pub(in crate::terminal_session) fn acknowledge_close_draw(
         &mut self,
         prompt: Option<CloseConfirmationToken>,

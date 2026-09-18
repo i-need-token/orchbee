@@ -1,17 +1,17 @@
-use super::{projected, ready, workbench_request_id};
+use super::{projected, ready, snapshot, workbench_request_id};
 use crate::client_view::PanelDirection;
 use crate::local_client::workbench::WorkbenchTabCloseAccepted;
 use crate::terminal_session::state::{
-    AttachmentKey, CloseConfirmationKind, CloseIntent, CloseOperation, CloseResult, CloseSelection,
-    CloseState, CloseStateError, CloseStatusKind, CloseTarget, NativeSessionState,
-    PendingCloseResult,
+    AttachmentKey, CarrierFailure, CloseConfirmationKind, CloseIntent, CloseOperation, CloseResult,
+    CloseSelection, CloseState, CloseStateError, CloseStatusKind, CloseTarget, NativeSessionState,
+    PendingCloseResult, SessionNotice,
 };
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding, TerminalId,
     TerminalPresentationId, WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchRevision,
-    WorkbenchSplitId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
-    WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus, WorkbenchTabCloseUnknownPhase,
-    WorkbenchTabCloseUnknownReason, WorkerId,
+    WorkbenchSnapshotOutcome, WorkbenchSplitId, WorkbenchTabCloseAttemptGeneration,
+    WorkbenchTabCloseBlockedReason, WorkbenchTabClosePublicationReason, WorkbenchTabCloseStatus,
+    WorkbenchTabCloseUnknownPhase, WorkbenchTabCloseUnknownReason, WorkerId,
 };
 use std::time::{Duration, Instant};
 mod reconciliation;
@@ -559,4 +559,65 @@ fn late_settled_refusal_cannot_reapply_to_new_queued_close_or_skip_its_settlemen
     );
     assert!(state.view().close_status().is_none());
     state.open_close_confirmation().unwrap();
+}
+
+/// A real refresh mutation bumps the baseline revision the confirmation
+/// froze; the settle pass cancels the armed capture and posts the bounded
+/// notice instead of leaving it armed-but-stale.
+#[test]
+fn drifted_close_confirmation_settles_as_cancelled_with_notice() {
+    let mut state = ready(2);
+    state.open_close_confirmation().unwrap();
+    let token = state.view().close_confirmation().unwrap().token();
+    state.acknowledge_close_draw(Some(token), None);
+
+    assert!(state.start_pending_refresh(2));
+    let prepared = state.prepare_refresh(
+        2,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(2, 2, None),
+        },
+    );
+    state.apply_prepared_refresh(prepared);
+
+    assert!(state.settle_stale_close_confirmations());
+    assert!(state.view().close_confirmation().is_none());
+    assert_eq!(state.notice, Some(SessionNotice::ConfirmationCancelled));
+    assert!(!state.settle_stale_close_confirmations());
+    assert!(state.invariant_holds());
+}
+
+/// A draw receipt reporting the confirmation could not be presented cancels
+/// the capture with the bounded notice; nothing may confirm what was never
+/// fully shown.
+#[test]
+fn unpresentable_close_draw_cancels_with_notice() {
+    let mut state = ready(2);
+    state.open_close_confirmation().unwrap();
+    state.settle_close_confirmation_not_presented();
+    assert!(state.view().close_confirmation().is_none());
+    assert_eq!(state.notice, Some(SessionNotice::ConfirmationCancelled));
+    state.settle_close_confirmation_not_presented();
+    assert!(state.invariant_holds());
+}
+
+/// Session retirement drops the armed confirmation outright.
+#[test]
+fn retirement_drops_the_armed_close_confirmation() {
+    let mut state = ready(2);
+    state.open_close_confirmation().unwrap();
+    state.retire(CarrierFailure::Closed);
+    assert!(state.view().close_confirmation().is_none());
+    assert!(state.invariant_holds());
+}
+
+/// Close-carrier retirement drops the armed confirmation outright — no prompt
+/// survives to keep swallowing keys after the carrier is gone.
+#[test]
+fn close_carrier_retirement_drops_the_armed_confirmation() {
+    let mut state = ready(2);
+    state.open_close_confirmation().unwrap();
+    state.close_carrier_retired();
+    assert!(state.view().close_confirmation().is_none());
+    assert!(state.invariant_holds());
 }

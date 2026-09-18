@@ -14,13 +14,12 @@ fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool,
         .draw(|frame| {
             complete = render_content(
                 frame,
+                frame.area(),
                 locale.panel_close_resize_hint(),
                 Text::from(lines.clone()),
-                frame.area(),
                 &theme,
             )
-            .map(|(_, complete)| complete)
-            .unwrap_or(false);
+            .1;
         })
         .unwrap();
     let text = terminal
@@ -90,4 +89,55 @@ fn panel_close_actions_name_only_the_exact_decision_keys() {
             "the removed n-cancel hint must not linger: {text}"
         );
     }
+}
+
+/// The modal must live inside the offered content area at a finite preferred
+/// size — never spread across the whole frame — and refuse when the content
+/// area cannot present the complete text.
+#[test]
+fn modal_stays_inside_content_area_at_finite_size_and_refuses_too_small() {
+    let lines = confirmation_lines(Locale::EnUs, false);
+    let theme = Theme::rgb_test_dark();
+    let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
+    let content = ratatui::layout::Rect::new(20, 5, 80, 20);
+    let mut result = (ratatui::layout::Rect::default(), false);
+    terminal
+        .draw(|frame| {
+            result = render_content(
+                frame,
+                content,
+                Locale::EnUs.panel_close_resize_hint(),
+                Text::from(lines.clone()),
+                &theme,
+            );
+        })
+        .unwrap();
+    let (area, complete) = result;
+    assert!(complete, "80x20 content area presents the modal");
+    assert!(area.x >= content.x && area.y >= content.y);
+    assert!(area.x + area.width <= content.x + content.width);
+    assert!(area.y + area.height <= content.y + content.height);
+    assert!(
+        area.width < content.width && area.height < content.height,
+        "preferred size is finite, not the whole content area: {area:?}"
+    );
+
+    let mut small = Terminal::new(TestBackend::new(120, 30)).unwrap();
+    let tiny = ratatui::layout::Rect::new(40, 10, 24, 6);
+    let mut small_result = (ratatui::layout::Rect::default(), true);
+    small
+        .draw(|frame| {
+            small_result = render_content(
+                frame,
+                tiny,
+                Locale::EnUs.panel_close_resize_hint(),
+                Text::from(lines.clone()),
+                &theme,
+            );
+        })
+        .unwrap();
+    assert!(
+        !small_result.1,
+        "a content area that cannot fit the text reports not complete"
+    );
 }

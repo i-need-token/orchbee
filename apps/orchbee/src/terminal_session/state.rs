@@ -172,6 +172,8 @@ pub(super) enum SessionNotice {
     RenameNotRenamed,
     CloseRequestNotApplied,
     PanelNotApplied,
+    ConfirmationCancelled,
+    DraftCancelled,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -2022,6 +2024,7 @@ impl NativeSessionState {
 
     pub(super) fn retire(&mut self, failure: CarrierFailure) {
         self.retire_close_reconciliations();
+        self.cancel_close_confirmation();
         self.cancel_panel_close_confirmation();
         self.cancel_rename_draft();
         self.cancel_setup_on_retirement();

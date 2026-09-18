@@ -1829,3 +1829,78 @@ fn panel_close_confirmation_owns_the_modal_slot_exclusively() {
     state.cancel_panel_close_confirmation();
     assert!(state.open_close_confirmation().is_ok());
 }
+
+/// A real refresh mutation bumps the baseline revision the confirmation
+/// froze; the settle pass cancels the armed capture and posts the bounded
+/// notice instead of leaving it armed-but-stale.
+#[test]
+fn drifted_panel_close_confirmation_settles_as_cancelled_with_notice() {
+    let mut state = split_ready();
+    assert!(state.open_panel_close_confirmation().is_ok());
+    let token = state.view().panel_close_confirmation().unwrap().token();
+    state.acknowledge_panel_close_draw(Some(token));
+
+    assert!(state.start_pending_refresh(2));
+    let prepared = state.prepare_refresh(
+        2,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot(2, 2, None),
+        },
+    );
+    state.apply_prepared_refresh(prepared);
+
+    assert!(state.settle_stale_close_confirmations());
+    assert!(state.view().panel_close_confirmation().is_none());
+    assert_eq!(state.notice, Some(SessionNotice::ConfirmationCancelled));
+    assert!(!state.settle_stale_close_confirmations());
+    assert!(state.invariant_holds());
+}
+
+/// The same target changing its last-leaf nature — a sibling leaf appears —
+/// is identity drift: the frozen `dissolves_tab` premise no longer holds and
+/// the armed capture settles as cancelled.
+#[test]
+fn last_leaf_nature_change_stales_the_armed_panel_close() {
+    let mut state = ready(2);
+    assert!(state.open_panel_close_confirmation().is_ok());
+    let view = state.view().panel_close_confirmation().unwrap();
+    assert!(view.dissolves_tab(), "a single-leaf Tab dissolves on close");
+    let token = view.token();
+    state.acknowledge_panel_close_draw(Some(token));
+
+    let mut refresh = split_panel_baseline();
+    refresh.revision = WorkbenchRevision::new(2);
+    assert!(state.start_pending_refresh(2));
+    let prepared =
+        state.prepare_refresh(2, WorkbenchSnapshotOutcome::Available { snapshot: refresh });
+    state.apply_prepared_refresh(prepared);
+
+    assert!(state.settle_stale_close_confirmations());
+    assert!(state.view().panel_close_confirmation().is_none());
+    assert_eq!(state.notice, Some(SessionNotice::ConfirmationCancelled));
+    assert!(state.invariant_holds());
+}
+
+/// A draw receipt reporting the confirmation could not be presented cancels
+/// the capture with the bounded notice; nothing may confirm what was never
+/// fully shown.
+#[test]
+fn unpresentable_panel_close_draw_cancels_with_notice() {
+    let mut state = split_ready();
+    assert!(state.open_panel_close_confirmation().is_ok());
+    state.settle_panel_close_not_presented();
+    assert!(state.view().panel_close_confirmation().is_none());
+    assert_eq!(state.notice, Some(SessionNotice::ConfirmationCancelled));
+    state.settle_panel_close_not_presented();
+    assert!(state.invariant_holds());
+}
+
+/// Session retirement drops the armed confirmation outright.
+#[test]
+fn retirement_drops_the_armed_panel_close_confirmation() {
+    let mut state = split_ready();
+    assert!(state.open_panel_close_confirmation().is_ok());
+    state.retire(CarrierFailure::Closed);
+    assert!(state.view().panel_close_confirmation().is_none());
+    assert!(state.invariant_holds());
+}

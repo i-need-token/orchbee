@@ -373,6 +373,22 @@ fn native_notice_and_refresh_enums_select_the_exact_copy() {
         "Tab not created · previous Tab unchanged"
     );
     assert_eq!(
+        Locale::EnUs.native_notice(NativeSessionNotice::ConfirmationCancelled),
+        "Close confirmation cancelled"
+    );
+    assert_eq!(
+        Locale::ZhCn.native_notice(NativeSessionNotice::ConfirmationCancelled),
+        "关闭确认已取消"
+    );
+    assert_eq!(
+        Locale::EnUs.native_notice(NativeSessionNotice::DraftCancelled),
+        "Draft cancelled"
+    );
+    assert_eq!(
+        Locale::ZhCn.native_notice(NativeSessionNotice::DraftCancelled),
+        "草稿已取消"
+    );
+    assert_eq!(
         Locale::EnUs.native_refresh_status(NativeRefreshStatus::Refreshing),
         "Refreshing Tabs…"
     );

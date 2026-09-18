@@ -3,7 +3,8 @@ mod labels;
 mod projection;
 use super::{
     AttachmentKey, NativeContextTabs, NativeSessionState, NavigatorRefreshStatus,
-    OperationDeadlines, PreparedRefresh, SelectedTab, SessionPhase, validate_canonical_refresh,
+    OperationDeadlines, PreparedRefresh, SelectedTab, SessionNotice, SessionPhase,
+    validate_canonical_refresh,
 };
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupCommit, WorkbenchSetupRequest,

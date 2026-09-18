@@ -92,7 +92,10 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         unreachable!()
     };
     let token = view.close_confirmation().unwrap().token();
-    session.after_close_draw(NativeDrawReceipt::new(Some(token), None));
+    session.after_close_draw(NativeDrawReceipt::new(
+        Some(ModalPresentation::Presented(token)),
+        None,
+    ));
     session.apply_client_action(ClientAction::ConfirmClose);
     assert!(spin_with_draw(&mut session, |session| session
         .task

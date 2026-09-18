@@ -1,4 +1,4 @@
-use super::{ActionBuildError, NativeSessionView, NativeUi};
+use super::{ActionBuildError, ModalPresentation, NativeSessionView, NativeUi};
 use crate::terminal_session::state::{
     NativeSessionState, OPERATION_TOTAL, PanelCloseConfirmationView,
 };
@@ -106,12 +106,21 @@ impl NativeUi {
     /// The armed panel-close confirmation owns input: only the exact lowercase `y`
     /// decides confirm and only `Esc` decides cancel; every other key is a
     /// swallowed non-decision. Returns `false` while no panel-close is armed.
+    /// A confirmation whose frozen target drifted is settled as cancelled with
+    /// a notice before any key is decided.
     pub(in crate::terminal_session) fn capture_panel_confirmation_key(
         &mut self,
         key: ClientKey,
     ) -> bool {
         if !self.panel_close_confirmation_armed() {
             return false;
+        }
+        if self
+            .state
+            .as_mut()
+            .is_some_and(|state| state.settle_stale_close_confirmations())
+        {
+            return true;
         }
         match key {
             ClientKey::Plain('y') => {
@@ -127,10 +136,20 @@ impl NativeUi {
 
     pub(in crate::terminal_session) fn after_panel_close_draw(
         &mut self,
-        prompt: Option<NativePanelCloseConfirmationToken>,
+        prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
     ) {
-        if let Some(state) = &mut self.state {
-            state.acknowledge_panel_close_draw(prompt);
+        let Some(state) = &mut self.state else {
+            return;
+        };
+        match prompt {
+            Some(ModalPresentation::Presented(token)) => {
+                state.acknowledge_panel_close_draw(Some(token));
+            }
+            Some(ModalPresentation::NotPresented) => {
+                state.acknowledge_panel_close_draw(None);
+                state.settle_panel_close_not_presented();
+            }
+            None => state.acknowledge_panel_close_draw(None),
         }
     }
 

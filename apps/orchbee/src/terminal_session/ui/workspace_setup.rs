@@ -1,4 +1,4 @@
-use super::{ActionBuildError, NativeSessionView, NativeUi, finish_action};
+use super::{ActionBuildError, ModalPresentation, NativeSessionView, NativeUi, finish_action};
 use crate::client_view::SessionActionDisposition;
 pub(crate) use crate::terminal_session::state::workspace_setup::{
     NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
@@ -117,10 +117,20 @@ impl NativeUi {
     }
     pub(in crate::terminal_session) fn after_setup_draw(
         &mut self,
-        token: Option<NativeSetupToken>,
+        token: Option<ModalPresentation<NativeSetupToken>>,
     ) {
-        if let Some(state) = self.state.as_mut() {
-            state.acknowledge_setup_draw(token);
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        match token {
+            Some(ModalPresentation::Presented(token)) => {
+                state.acknowledge_setup_draw(Some(token));
+            }
+            Some(ModalPresentation::NotPresented) => {
+                state.acknowledge_setup_draw(None);
+                state.settle_setup_draft_not_presented();
+            }
+            None => state.acknowledge_setup_draw(None),
         }
     }
     pub(in crate::terminal_session) fn invalidate_setup_display(&mut self) {

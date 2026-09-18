@@ -111,10 +111,7 @@ pub(crate) fn render_terminal_shell(
                 || locale.native_status(native),
                 |status| locale.native_close_status(status),
             );
-            secondary_notice = close
-                .as_ref()
-                .and_then(|_| native.notice())
-                .map(|notice| locale.native_notice(notice));
+            secondary_notice = native.notice().map(|notice| locale.native_notice(notice));
             sidebar_status = phase_status.to_owned();
             status_text = status;
             if tier != ViewportTier::TooSmall {
@@ -122,7 +119,6 @@ pub(crate) fn render_terminal_shell(
             }
         }
     }
-<<<<<<< HEAD
 
     if tier == ViewportTier::TooSmall {
         render_too_small_notice(frame, areas.body, text, theme);
@@ -168,9 +164,15 @@ pub(crate) fn render_terminal_shell(
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.close_confirmation()
         {
-            let modal = tab_close::render(frame, locale, &confirmation, theme);
+            let modal = tab_close::render(
+                frame,
+                locale,
+                &confirmation,
+                overlay_area(&areas),
+                theme,
+            );
             status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
-            prompt = modal.prompt;
+            prompt = Some(modal.prompt);
             if let Some(token) = modal.status {
                 status_draw = Some((token, modal.area));
             }
@@ -178,33 +180,43 @@ pub(crate) fn render_terminal_shell(
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.panel_close_confirmation()
         {
-            if let Some(modal) =
-                panel_close::render(frame, locale, &confirmation, overlay_area(&areas), theme)
-            {
-                status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
-                panel_prompt = modal.prompt;
-            }
+            let modal = panel_close::render(
+                frame,
+                locale,
+                &confirmation,
+                overlay_area(&areas),
+                theme,
+            );
+            status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
             prompt = None;
+            panel_prompt = Some(modal.prompt);
         }
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(draft) = native.rename_draft()
         {
-            let (area, token) = tab_rename::render(frame, locale, &draft, theme);
+            let (area, token) =
+                tab_rename::render(frame, locale, &draft, overlay_area(&areas), theme);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
             panel_prompt = None;
-            rename = token;
+            rename = Some(token);
         }
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(draft) = native.setup_draft()
         {
-            let (area, token) =
-                workspace_setup::render(frame, locale, &draft, native.setup_status(), theme);
+            let (area, token) = workspace_setup::render(
+                frame,
+                locale,
+                &draft,
+                native.setup_status(),
+                overlay_area(&areas),
+                theme,
+            );
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
             panel_prompt = None;
             rename = None;
-            setup = token;
+            setup = Some(token);
         }
     } else if view.overlay().is_some() {
         overlay_refused = true;

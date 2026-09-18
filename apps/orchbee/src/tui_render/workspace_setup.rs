@@ -1,12 +1,11 @@
-use super::tab_close::wrapped_text_fits;
+use super::tab_close::{modal_area, wrapped_text_fits};
 use crate::{
     localization::Locale,
     terminal_session::{
-        NativeDisplayPhase, NativeLocationLabelStatus, NativeSetupDraftView, NativeSetupStage,
-        NativeSetupStatus, NativeSetupToken,
+        ModalPresentation, NativeDisplayPhase, NativeLocationLabelStatus, NativeSetupDraftView,
+        NativeSetupStage, NativeSetupStatus, NativeSetupToken,
     },
     terminal_text::sanitize_terminal_text,
-    tui_layout::centered_overlay,
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -35,8 +34,9 @@ pub(super) fn render(
     locale: Locale,
     draft: &NativeSetupDraftView<'_>,
     status: Option<NativeSetupStatus>,
+    content_area: Rect,
     theme: &Theme,
-) -> (Rect, Option<NativeSetupToken>) {
+) -> (Rect, ModalPresentation<NativeSetupToken>) {
     let rename = match draft.stage() {
         NativeSetupStage::ProjectRename => Some(true),
         NativeSetupStage::WorkspaceRename => Some(false),
@@ -121,17 +121,26 @@ pub(super) fn render(
         || locale.setup_resize_hint(),
         |project| locale.location_rename_resize_hint(project),
     );
-    let (area, complete) = render_content(frame, resize_hint, Text::from(lines), theme);
-    (area, complete.then(|| draft.token()))
+    let (area, complete) =
+        render_content(frame, content_area, resize_hint, Text::from(lines), theme);
+    (
+        area,
+        if complete {
+            ModalPresentation::Presented(draft.token())
+        } else {
+            ModalPresentation::NotPresented
+        },
+    )
 }
 
 fn render_content(
     frame: &mut Frame<'_>,
+    content_area: Rect,
     resize_hint: &str,
     text: Text<'_>,
     theme: &Theme,
 ) -> (Rect, bool) {
-    let area = centered_overlay(frame.area(), u16::MAX, u16::MAX);
+    let area = modal_area(content_area, &text);
     let block = Block::new()
         .borders(Borders::ALL)
         .padding(Padding::horizontal(2))

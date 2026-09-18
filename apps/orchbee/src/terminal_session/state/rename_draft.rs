@@ -1,5 +1,5 @@
 use super::rename_text::RenameText;
-use super::{AttachmentKey, NativeContextTabs, NativeSessionState, SessionPhase};
+use super::{AttachmentKey, NativeContextTabs, NativeSessionState, SessionNotice, SessionPhase};
 use orchbee_workbench_protocol::WorkbenchLabel;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -143,6 +143,15 @@ impl NativeSessionState {
 
     pub(in crate::terminal_session) fn cancel_rename_draft(&mut self) {
         self.rename.draft = None;
+    }
+
+    /// A draw receipt reporting that the draft could not be presented cancels
+    /// the capture with a notice instead of leaving it open swallowing keys.
+    pub(in crate::terminal_session) fn settle_rename_draft_not_presented(&mut self) {
+        if self.rename.draft.is_some() {
+            self.rename.draft = None;
+            self.set_notice(SessionNotice::DraftCancelled);
+        }
     }
 
     pub(in crate::terminal_session) fn acknowledge_rename_draw(

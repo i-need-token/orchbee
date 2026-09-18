@@ -19,12 +19,14 @@ never re-shapes it into a `CloseOperation` or any Tab-level intent.
 | Transition                     | Guard and result |
 | ------------------------------ | ---------------- |
 | Arm panel-close confirmation   | A stable Session (`Ready`, `SelectedWithoutAttachment`, or `RetryableAttachUnavailable`) with no pending refresh, no structural mutation, no rename/setup draft, no armed Tab-close confirmation, and no armed panel-close confirmation captures the selected leaf: site, terminal context, Tab id, panel id, panel and Tab labels, leaf binding, whether the leaf is the Tab's last one, and the baseline revision. The prompt is armed but not yet shown. |
-| Draw the prompt                | The renderer draws the localized overlay naming the frozen leaf and its impact — closing the Tab's last leaf ends the Tab for every attached Client; closing any other leaf ends only that leaf's terminal — and reports the armed token in the draw receipt. Content that cannot fit draws only the resize hint and reports no token. |
-| Acknowledge the draw           | Only a receipt carrying the exact armed token marks the confirmation shown; a missing, stale, or mismatched token leaves it unshown. Resize invalidates the shown flag until the next honest draw. |
-| Confirm the close              | A drawn confirmation decides only on the exact lowercase `y`. Confirmation re-validates the frozen target against the live Session — same site, context, revision, selected Tab, selected panel id, and leaf binding — then plans and admits the ordinary `PanelRequestKind::Close` operation. Any drift refuses as stale; the effect can never follow a moved focus onto a different leaf. |
+| Draw the prompt                | The renderer draws the localized overlay inside the unified content area at the surface's preferred finite size, naming the frozen leaf and its impact — closing the Tab's last leaf ends the Tab for every attached Client; closing any other leaf ends only that leaf's terminal. The draw reports a typed outcome: `Presented` with the armed token when the complete content fits, or `NotPresented` when the offered area cannot present it. Rendering never mutates Session state; it only produces the receipt the UI settles after the draw. |
+| Acknowledge the draw           | Only a `Presented` receipt carrying the exact armed token marks the confirmation shown; a `NotPresented`, missing, or mismatched token leaves it unshown. Resize invalidates the shown flag until the next honest draw. |
+| Settle an un-presentable draw  | A `NotPresented` receipt while the confirmation is armed cancels it and posts a bounded localized status notice: a geometry that cannot present the prompt ends the capture instead of holding keys forever. A resize that still fits re-draws and continues normally. |
+| Confirm the close              | A drawn confirmation decides only on the exact lowercase `y`. Confirmation re-validates the frozen target against the live Session — same site, context, revision, selected Tab, selected panel id, leaf binding, and last-leaf nature — then plans and admits the ordinary `PanelRequestKind::Close` operation. Any drift refuses as stale; the effect can never follow a moved focus onto a different leaf. |
 | Cancel the close               | Only `Esc` cancels; every other key is a swallowed non-decision. The default outcome of an abandoned or invalidated prompt is cancel. |
 | Own the decision packet        | While a confirmation is armed it owns keyboard input. The whole input packet carrying the decision byte is captured, so bytes trailing `y` or `Esc` in the same packet never reach the shell or the prefix layer; later independent packets dispatch normally. |
-| Invalidate on drift            | Refresh, leaf selection change, retirement, or any structural drift invalidates or blocks the armed token; the confirm path re-checks the frozen facts at admission and refuses stale ones. |
+| Invalidate on drift            | Refresh, leaf selection change, retirement, or any structural drift makes the armed confirmation stale. Staleness is settled automatically — the armed capture is cancelled and a bounded localized notice is posted — never left armed-but-unshown indefinitely. The confirm path also re-checks the frozen facts at admission as defense in depth. |
+| Retire the Session             | Session retirement and carrier retirement drop any armed confirmation outright; no prompt survives a retired Session to keep swallowing keys. |
 
 ## Invariants and temporal rules
 
@@ -34,6 +36,14 @@ never re-shapes it into a `CloseOperation` or any Tab-level intent.
   no submission exists — undrawn, too-small, or invalidated geometry cannot produce an effect.
 - `FrozenTargetOrRefuse`: the admitted operation always names the frozen leaf and baseline; a
   moved focus or drifted revision refuses instead of redirecting the close.
+- `StaleSettlesCancelled`: a confirmation whose frozen identity no longer matches live state is
+  cancelled automatically and posts a bounded localized notice; it never lingers armed-but-stale
+  swallowing keys.
+- `PresentedOrCancelled`: the draw produces `Presented` with the armed token or `NotPresented`;
+  a `NotPresented` outcome while armed cancels with a notice instead of waiting indefinitely.
+- `RetiredMeansGone`: session or carrier retirement removes the armed confirmation outright.
+- `RenderNeverMutates`: the renderer only returns the typed outcome; all Session mutation
+  happens in the post-draw settlement inside the UI layer.
 - `ExactDecisionKeys`: only `y` confirms and only `Esc` cancels; all other input is captured
   as non-decision while armed, including `n`, `N`, and `Y`.
 - `PacketTailCaptured`: the decision packet is consumed whole; a cancelled or confirmed prompt
@@ -46,9 +56,11 @@ never re-shapes it into a `CloseOperation` or any Tab-level intent.
 
 | Production surface | Model correspondence |
 | ------------------ | -------------------- |
-| `terminal_session/state/panel_close.rs` | Armed/shown state, frozen `PanelCloseSelection`, token issuance, `confirmed_panel_selection`, `plan_panel_close_confirmation`, `begin_panel_close_exchange` |
+| `terminal_session/state/panel_close.rs` | Armed/shown state, frozen `PanelCloseSelection`, token issuance, `confirmed_panel_selection`, `plan_panel_close_confirmation`, `begin_panel_close_exchange`, live-match and not-presented settlement |
+| `terminal_session/state/tab_close.rs` | `settle_stale_close_confirmations`, not-presented settlement, carrier-retirement cancellation |
 | `terminal_session/ui/panel_close.rs` | `NativePanelCloseConfirmationView`, `request_panel_close_confirmation`, `confirm_panel_close`, `cancel_panel_close`, `capture_panel_confirmation_key` |
-| `terminal_session/ui/tab_close.rs` | `NativeDrawReceipt.panel_prompt`, `capture_confirmation_key` routing, exact-key tightening, `after_close_draw`/`invalidate_close_display` fan-out |
-| `tui_render/panel_close.rs` | Overlay draw, fit gate, token-bearing receipt |
+| `terminal_session/ui/tab_close.rs` | `NativeDrawReceipt` typed `ModalPresentation` fields, `capture_confirmation_key` routing and stale settlement, exact-key tightening, `after_close_draw`/`invalidate_close_display` fan-out |
+| `terminal_session/ui.rs` | `NativeUi::tick` post-mutation stale settlement, `NativeSessionNotice::ConfirmationCancelled` |
+| `tui_render/panel_close.rs` | Content-area overlay draw at preferred finite size, fit gate, typed `Presented`/`NotPresented` receipt |
 | `localization/panel_close.rs` | `en-US`/`zh-CN` title, impact warning, action and resize-hint strings |
 | `terminal_session/ui.rs` | `ClientAction::ClosePanel` arm to `request_panel_close_confirmation` |

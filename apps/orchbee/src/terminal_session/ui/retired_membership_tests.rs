@@ -98,11 +98,25 @@ fn stale_poll_close_confirmation_structural_flight_and_missing_return_never_gran
             _ => {}
         }
         retire(&mut ui, Some(evidence), conflict != 4);
-        assert!(
-            ui.begin_retired_membership_recovery().is_none(),
-            "conflict {conflict}"
-        );
-        assert!(ui.mailbox.is_none());
+        if conflict <= 1 {
+            // Retirement drops the armed capture outright — nothing pending
+            // survives to block membership recovery.
+            let state = ui.state.as_ref().unwrap();
+            assert!(match conflict {
+                0 => state.view().close_confirmation().is_none(),
+                _ => !state.rename_draft_blocks_structure(),
+            });
+            assert!(
+                ui.begin_retired_membership_recovery().is_some(),
+                "conflict {conflict}"
+            );
+        } else {
+            assert!(
+                ui.begin_retired_membership_recovery().is_none(),
+                "conflict {conflict}"
+            );
+            assert!(ui.mailbox.is_none());
+        }
     }
 }
 

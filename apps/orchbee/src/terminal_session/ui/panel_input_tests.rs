@@ -6,7 +6,7 @@ use crate::terminal_input::{
     DispatchOutcome, InputDispatcher, TerminalInputPort, TerminalInputUnavailable,
 };
 use crate::terminal_session::state::{CarrierFailure, PanelIntent};
-use orchbee_workbench_protocol::WorkbenchPanelSplitDirection;
+use orchbee_workbench_protocol::{WorkbenchPanelSplitDirection, WorkbenchSnapshotOutcome};
 use std::{io, time::Instant};
 
 /// Delegates `TerminalInputPort` onto `NativeUi` exactly the way the
@@ -114,7 +114,9 @@ fn panel_token(ui: &NativeUi) -> NativePanelCloseConfirmationToken {
 
 fn draw_panel_prompt(ui: &mut NativeUi) {
     let token = panel_token(ui);
-    ui.after_close_draw(NativeDrawReceipt::default().with_panel_close(Some(token)));
+    ui.after_close_draw(
+        NativeDrawReceipt::default().with_panel_close(Some(ModalPresentation::Presented(token))),
+    );
 }
 
 #[test]
@@ -169,7 +171,7 @@ fn open_rename_draft_owns_panel_prefix_bytes_as_draft_text() {
     // The draft retains its own submit path once drawn; the queued command is
     // a Rename.
     let token = ui.rename_input_context().unwrap().token();
-    ui.after_rename_draw(Some(token));
+    ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
     dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     let lease = mailbox.try_recv().unwrap().expect("rename command queued");
     assert!(matches!(lease.record(), QueuedCommand::Rename(_)));
@@ -222,7 +224,10 @@ fn lowercase_n_does_not_cancel_a_drawn_tab_close_confirmation() {
         .close_confirmation()
         .unwrap()
         .token();
-    ui.after_close_draw(NativeDrawReceipt::new(Some(token), None));
+    ui.after_close_draw(NativeDrawReceipt::new(
+        Some(ModalPresentation::Presented(token)),
+        None,
+    ));
     dispatch(&mut dispatcher, &mut view, &mut ui, b"n");
     assert!(
         confirmation_drawn(&ui),
@@ -389,7 +394,7 @@ fn retired_session_drops_the_panel_close_confirmation() {
 }
 
 #[test]
-fn carrier_retirement_blocks_a_drawn_panel_close_token() {
+fn carrier_retirement_drops_the_drawn_panel_close_confirmation() {
     let (mut ui, _mailbox, _clock, _elapsed) = ready_ui();
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
@@ -399,12 +404,11 @@ fn carrier_retirement_blocks_a_drawn_panel_close_token() {
     );
     draw_panel_prompt(&mut ui);
     ui.retire(CarrierFailure::Closed);
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
     assert!(
-        panel_confirmation_drawn(&ui),
-        "carrier retirement blocks the drawn token but keeps the modal cancellable"
+        !panel_confirmation_drawn(&ui),
+        "carrier retirement drops the armed confirmation outright"
     );
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"\x1b");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
     assert!(!panel_confirmation_drawn(&ui));
 }
 
@@ -465,4 +469,187 @@ fn read_only_attachment_admits_panel_operations_while_terminal_input_stays_gated
             assert!(mailbox.try_recv().unwrap().is_none());
         }
     }
+}
+
+/// A projection refresh is a real external mutation: it bumps the baseline
+/// revision the armed confirmation froze, so the next captured key settles
+/// the stale capture as cancelled with a bounded notice rather than deciding.
+#[test]
+fn drifted_panel_close_target_settles_cancelled_before_the_next_key() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::ClosePanel),
+        SessionActionDisposition::DismissNavigator
+    );
+    let state = ui.state.as_mut().unwrap();
+    assert!(state.start_pending_refresh(2));
+    let prepared = state.prepare_refresh(
+        2,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: super::membership_tests::snapshot(2, 2),
+        },
+    );
+    state.apply_prepared_refresh(prepared);
+    assert!(ui.capture_panel_confirmation_key(ClientKey::Plain('y')));
+    assert!(!panel_confirmation_drawn(&ui));
+    assert_eq!(
+        ui.view().notice(),
+        Some(NativeSessionNotice::ConfirmationCancelled)
+    );
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "the stale y never reaches the carrier"
+    );
+}
+
+/// The same stale settlement runs after any applied mutation inside the tick,
+/// before the next frame or key is processed.
+#[test]
+fn tick_settles_a_drifted_panel_close_confirmation() {
+    let (mut ui, _mailbox, _clock, _elapsed) = ready_ui();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::ClosePanel),
+        SessionActionDisposition::DismissNavigator
+    );
+    let state = ui.state.as_mut().unwrap();
+    assert!(state.start_pending_refresh(2));
+    let prepared = state.prepare_refresh(
+        2,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: super::membership_tests::snapshot(2, 2),
+        },
+    );
+    state.apply_prepared_refresh(prepared);
+    ui.tick();
+    assert!(!panel_confirmation_drawn(&ui));
+    assert_eq!(
+        ui.view().notice(),
+        Some(NativeSessionNotice::ConfirmationCancelled)
+    );
+}
+
+/// A `NotPresented` draw outcome cancels the armed capture with a notice; the
+/// renderer itself never touches the confirmation state.
+#[test]
+fn unpresentable_panel_close_draw_cancels_with_notice() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::ClosePanel),
+        SessionActionDisposition::DismissNavigator
+    );
+    ui.after_close_draw(
+        NativeDrawReceipt::default().with_panel_close(Some(ModalPresentation::NotPresented)),
+    );
+    assert!(
+        !panel_confirmation_drawn(&ui),
+        "a draw that cannot present the prompt cancels the capture"
+    );
+    assert_eq!(
+        ui.view().notice(),
+        Some(NativeSessionNotice::ConfirmationCancelled)
+    );
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+/// Arming and deciding inside one input packet can never execute: the `y`
+/// arrives while the confirmation has no drawn receipt yet.
+#[test]
+fn panel_close_arm_and_decision_in_one_packet_cannot_execute() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\x02Xy");
+    assert!(
+        panel_confirmation_drawn(&ui),
+        "the y lands before any draw and stays a swallowed non-decision"
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+/// The Tab-close confirmation settles the same way when its frozen target
+/// drifts: cancel with notice, never an armed-but-stale capture.
+#[test]
+fn drifted_close_target_settles_cancelled_before_the_next_key() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestCloseTab),
+        SessionActionDisposition::DismissNavigator
+    );
+    let state = ui.state.as_mut().unwrap();
+    assert!(state.start_pending_refresh(2));
+    let prepared = state.prepare_refresh(
+        2,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: super::membership_tests::snapshot(2, 2),
+        },
+    );
+    state.apply_prepared_refresh(prepared);
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    assert!(!confirmation_drawn(&ui));
+    assert_eq!(
+        ui.view().notice(),
+        Some(NativeSessionNotice::ConfirmationCancelled)
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+/// A `NotPresented` outcome for the Tab-close prompt cancels it with a notice.
+#[test]
+fn unpresentable_close_draw_cancels_with_notice() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestCloseTab),
+        SessionActionDisposition::DismissNavigator
+    );
+    ui.after_close_draw(NativeDrawReceipt::new(
+        Some(ModalPresentation::NotPresented),
+        None,
+    ));
+    assert!(!confirmation_drawn(&ui));
+    assert_eq!(
+        ui.view().notice(),
+        Some(NativeSessionNotice::ConfirmationCancelled)
+    );
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+/// A `NotPresented` outcome for the rename draft cancels the draft with a
+/// `DraftCancelled` notice instead of holding keys while invisible.
+#[test]
+fn unpresentable_rename_draft_cancels_with_notice() {
+    let (mut ui, _mailbox, _clock, _elapsed) = ready_ui();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestRenameTab),
+        SessionActionDisposition::DismissNavigator
+    );
+    assert!(ui.rename_input_context().is_some());
+    ui.after_rename_draw(Some(ModalPresentation::NotPresented));
+    assert!(ui.rename_input_context().is_none());
+    assert_eq!(
+        ui.view().notice(),
+        Some(NativeSessionNotice::DraftCancelled)
+    );
+}
+
+/// A `NotPresented` outcome for the setup draft cancels the draft with a
+/// `DraftCancelled` notice instead of holding keys while invisible.
+#[test]
+fn unpresentable_setup_draft_cancels_with_notice() {
+    let (mut ui, _mailbox, _clock, _elapsed) = ready_ui();
+    ui.apply_client_action(ClientAction::RequestWorkspaceCreate);
+    assert!(ui.view().setup_draft().is_some());
+    ui.after_setup_draw(Some(ModalPresentation::NotPresented));
+    assert!(ui.view().setup_draft().is_none());
+    assert_eq!(
+        ui.view().notice(),
+        Some(NativeSessionNotice::DraftCancelled)
+    );
 }

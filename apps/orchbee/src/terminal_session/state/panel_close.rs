@@ -1,5 +1,6 @@
 use super::{
-    AttachmentKey, NativeSessionState, PanelIntent, PanelOperation, PanelRequestKind, SessionPhase,
+    AttachmentKey, NativeSessionState, PanelIntent, PanelOperation, PanelRequestKind,
+    SessionNotice, SessionPhase,
 };
 use crate::terminal_session::workbench_projection::NativeTerminalBinding;
 use orchbee_workbench_protocol::{
@@ -226,6 +227,50 @@ impl NativeSessionState {
         self.panel_close.invalidate_display();
     }
 
+    /// Whether the frozen selection still matches live Session identity: same
+    /// site, context, revision, desired attachment, selected Tab and panel id,
+    /// leaf binding, and last-leaf nature.
+    fn panel_close_selection_matches(&self, selection: &PanelCloseSelection) -> bool {
+        let Some(selected) = self.active() else {
+            return false;
+        };
+        let Some(tab) = self.cache.tabs().get(selected.index()) else {
+            return false;
+        };
+        let Some(panel) = tab.panel(selected.panel_index()) else {
+            return false;
+        };
+        self.cache.site_id() == &selection.target.site_id
+            && self.cache.terminal_context_id() == &selection.target.terminal_context_id
+            && self.cache.revision() == selection.base_revision
+            && self.desired.as_ref() == Some(&selection.desired)
+            && tab.tab_id() == &selection.target.tab_id
+            && panel.panel_id() == &selection.target.panel_id
+            && panel.binding() == &selection.binding
+            && (tab.panel_count() == 1) == selection.dissolves_tab
+    }
+
+    /// Whether the armed confirmation's frozen leaf no longer matches live
+    /// Session identity; the UI settles a stale armed capture as cancelled
+    /// rather than leaving it armed-but-stale swallowing keys.
+    pub(super) fn armed_panel_close_stale(&self) -> bool {
+        self.panel_close
+            .confirmation
+            .as_ref()
+            .is_some_and(|confirmation| {
+                !self.panel_close_selection_matches(&confirmation.selection)
+            })
+    }
+
+    /// A draw receipt reporting that the confirmation could not be presented
+    /// cancels the capture with a notice instead of leaving it armed.
+    pub(in crate::terminal_session) fn settle_panel_close_not_presented(&mut self) {
+        if self.panel_close.confirmation.is_some() {
+            self.panel_close.cancel_confirmation();
+            self.set_notice(SessionNotice::ConfirmationCancelled);
+        }
+    }
+
     /// The admitted close always names the frozen leaf: the live Session must
     /// still select the same panel id in the same Tab at the same revision.
     fn validated_panel_close_selection(
@@ -236,25 +281,7 @@ impl NativeSessionState {
             .confirmation()
             .ok_or(PanelCloseStateError::NotDisplayed)?;
         let selection = self.panel_close.confirmed_selection(prompt.token())?;
-        let selected = self
-            .active()
-            .ok_or(PanelCloseStateError::StaleConfirmation)?;
-        let tab = self
-            .cache
-            .tabs()
-            .get(selected.index())
-            .ok_or(PanelCloseStateError::StaleConfirmation)?;
-        let panel = tab
-            .panel(selected.panel_index())
-            .ok_or(PanelCloseStateError::StaleConfirmation)?;
-        if self.cache.site_id() != &selection.target.site_id
-            || self.cache.terminal_context_id() != &selection.target.terminal_context_id
-            || self.cache.revision() != selection.base_revision
-            || self.desired.as_ref() != Some(&selection.desired)
-            || tab.tab_id() != &selection.target.tab_id
-            || panel.panel_id() != &selection.target.panel_id
-            || panel.binding() != &selection.binding
-        {
+        if !self.panel_close_selection_matches(selection) {
             return Err(PanelCloseStateError::StaleConfirmation);
         }
         Ok(selection)

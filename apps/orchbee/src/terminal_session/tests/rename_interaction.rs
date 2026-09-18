@@ -473,27 +473,55 @@ fn clipped_draw_revokes_token_and_cancelled_paste_keeps_its_frame_until_quiet() 
         b"\x02,\x15changed",
         now,
     );
-    let token = session.rename_input_context().unwrap().token();
+    session.rename_input_context().unwrap();
     draw(&mut session, &view, Locale::EnUs, 120, 32)?;
+    // A draw that cannot present the complete draft cancels it outright with a
+    // bounded notice — no hidden capture survives to keep swallowing keys.
     draw(&mut session, &view, Locale::EnUs, 12, 6)?;
-    input(&mut dispatcher, &mut session, &mut view, b"\r", now);
     assert!(server.commands.lock().unwrap().is_empty());
-    assert_eq!(session.rename_input_context().unwrap().token(), token);
+    assert!(session.rename_input_context().is_none());
+    assert!(matches!(
+        session.view(),
+        TerminalSessionView::Native(view)
+            if view.notice()
+                == Some(crate::terminal_session::NativeSessionNotice::DraftCancelled)
+    ));
+    // The released decoder still owns the frame until input goes quiet — a
+    // re-arm attempt inside the kept frame is swallowed wholesale.
     input(
         &mut dispatcher,
         &mut session,
         &mut view,
-        b"\x1b[200~old",
+        b"\x02,\x15changed",
         now,
     );
-    session.cancel_rename_draft(token);
+    assert!(session.rename_input_context().is_none());
+    assert!(server.inputs.lock().unwrap().is_empty());
+    // Past the quiet window the same packet re-arms a fresh draft.
     let later = now + Duration::from_secs(3600);
     input(
         &mut dispatcher,
         &mut session,
         &mut view,
-        b"\x02q\r\x1b[201~tail",
+        b"\x02,\x15changed",
         later,
+    );
+    let token = session.rename_input_context().unwrap().token();
+    input(
+        &mut dispatcher,
+        &mut session,
+        &mut view,
+        b"\x1b[200~old",
+        later,
+    );
+    session.cancel_rename_draft(token);
+    let quiet = later + Duration::from_secs(3600);
+    input(
+        &mut dispatcher,
+        &mut session,
+        &mut view,
+        b"\x02q\r\x1b[201~tail",
+        quiet,
     );
     assert!(server.commands.lock().unwrap().is_empty());
     assert!(server.inputs.lock().unwrap().is_empty());
@@ -502,7 +530,7 @@ fn clipped_draw_revokes_token_and_cancelled_paste_keeps_its_frame_until_quiet() 
         &mut session,
         &mut view,
         b"new",
-        later + Duration::from_millis(50),
+        quiet + Duration::from_millis(50),
     );
     spin(&mut session, |_| !server.inputs.lock().unwrap().is_empty());
     assert_eq!(*server.inputs.lock().unwrap(), b"new");
@@ -564,10 +592,10 @@ fn maximum_atomic_paste_draws_sanitized_cells_but_submits_exact_original_scalars
             .chars()
             .filter(|character| matches!(character, '界' | '\u{fffd}'))
             .collect();
-        assert_eq!(
-            displayed,
-            crate::terminal_text::sanitize_terminal_text(&label)
-        );
+        // The finite modal no longer covers the whole frame — the panel
+        // viewport contributes its own fixture scalars — so the complete
+        // sanitized draft must appear as one contiguous visible run.
+        assert!(displayed.contains(crate::terminal_text::sanitize_terminal_text(&label).as_ref()));
         assert!(!rendered.contains('\x1b'));
     }
     input(&mut dispatcher, &mut session, &mut view, b"\r", now);

@@ -309,27 +309,15 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
         let rendered = draw_close(&mut session, &view, locale, 120, 40)?;
         let compact = rendered.replace([' ', '\n'], "");
         // Wrapped rows contain borders between label segments. Reconstruct only target
-        // scalars and their sanitization replacements inside the modal area (the tab
-        // strip above the modal legitimately shows a truncated copy of the label).
-        let modal = crate::tui_layout::centered_overlay(
-            ratatui::layout::Rect::new(0, 0, 120, 40),
-            u16::MAX,
-            u16::MAX,
-        );
+        // scalars and their sanitization replacements, preserving their displayed order.
+        // The finite modal no longer covers the whole frame — the tab strip shows
+        // the same label truncated — so the complete target must appear as one
+        // contiguous visible run.
         let visible_target: String = rendered
-            .lines()
-            .enumerate()
-            .flat_map(|(y, row)| {
-                row.chars().enumerate().filter_map(move |(x, character)| {
-                    let inside = (x as u16) >= modal.x
-                        && (x as u16) < modal.x.saturating_add(modal.width)
-                        && (y as u16) >= modal.y
-                        && (y as u16) < modal.y.saturating_add(modal.height);
-                    (inside && matches!(character, '界' | '\u{fffd}')).then_some(character)
-                })
-            })
+            .chars()
+            .filter(|character| matches!(character, '界' | '\u{fffd}'))
             .collect();
-        assert_eq!(visible_target, safe);
+        assert!(visible_target.contains(&safe));
         assert!(compact.contains(&locale.close_warning().replace(' ', "")));
         assert!(!rendered.contains('\x1b'));
     }
@@ -381,7 +369,7 @@ fn raw_close_packet_requires_actual_localized_draw_and_emits_one_command() -> Te
 }
 
 #[test]
-fn cancel_and_incomplete_redraw_preserve_prompt_without_sending_input_or_close() -> TestResult {
+fn cancel_packets_swallowed_and_unpresentable_redraw_cancels_prompt_with_notice() -> TestResult {
     let geometry = fixture_geometry()?;
     let commands = Arc::new(AtomicUsize::new(0));
     let input_bytes = Arc::new(AtomicUsize::new(0));
@@ -398,13 +386,23 @@ fn cancel_and_incomplete_redraw_preserve_prompt_without_sending_input_or_close()
     }
     dispatch_close_input(&mut session, &mut view, b"\x02x");
     let _ = draw_close(&mut session, &view, Locale::EnUs, 120, 32)?;
+    // A draw that cannot present the complete prompt cancels it outright with
+    // a bounded notice — `y` then belongs to the terminal, not a hidden modal.
     let _ = draw_close(&mut session, &view, Locale::EnUs, 20, 8)?;
+    assert!(matches!(
+        session.view(),
+        TerminalSessionView::Native(view)
+            if view.close_confirmation().is_none()
+                && view.notice() == Some(NativeSessionNotice::ConfirmationCancelled)
+    ));
     dispatch_close_input(&mut session, &mut view, b"y");
     assert_eq!(commands.load(Ordering::SeqCst), 0);
+    spin(&mut session, |_| input_bytes.load(Ordering::SeqCst) == 1);
+    dispatch_close_input(&mut session, &mut view, b"\x02x");
     let _ = draw_close(&mut session, &view, Locale::EnUs, 120, 32)?;
     dispatch_close_input(&mut session, &mut view, b"y");
     spin(&mut session, |_| commands.load(Ordering::SeqCst) == 1);
-    assert_eq!(input_bytes.load(Ordering::SeqCst), 0);
+    assert_eq!(input_bytes.load(Ordering::SeqCst), 1);
     server.finish(session)?;
     Ok(())
 }

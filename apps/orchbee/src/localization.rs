@@ -554,6 +554,14 @@ impl Locale {
                 Self::EnUs => "Panel operation was not applied".to_owned(),
                 Self::ZhCn => "面板操作未执行".to_owned(),
             },
+            NativeSessionNotice::ConfirmationCancelled => match self {
+                Self::EnUs => "Close confirmation cancelled".to_owned(),
+                Self::ZhCn => "关闭确认已取消".to_owned(),
+            },
+            NativeSessionNotice::DraftCancelled => match self {
+                Self::EnUs => "Draft cancelled".to_owned(),
+                Self::ZhCn => "草稿已取消".to_owned(),
+            },
         }
     }
 

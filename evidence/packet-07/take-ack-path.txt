@@ -1,0 +1,2 @@
+apps/orchbee/src/terminal_session/ui.rs:545:        let acknowledged = if let Some(ack) = mailbox.take_close_acknowledgement()
+apps/orchbee/src/terminal_session/ui.rs:548:            state.acknowledge_close_lease(ack);

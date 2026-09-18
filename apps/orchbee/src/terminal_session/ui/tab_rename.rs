@@ -145,10 +145,20 @@ impl NativeUi {
     }
     pub(in crate::terminal_session) fn after_rename_draw(
         &mut self,
-        token: Option<NativeRenameDraftToken>,
+        token: Option<ModalPresentation<NativeRenameDraftToken>>,
     ) {
-        if let Some(state) = self.state.as_mut() {
-            state.acknowledge_rename_draw(token.map(|token| token.0));
+        let Some(state) = self.state.as_mut() else {
+            return;
+        };
+        match token {
+            Some(ModalPresentation::Presented(token)) => {
+                state.acknowledge_rename_draw(Some(token.0));
+            }
+            Some(ModalPresentation::NotPresented) => {
+                state.acknowledge_rename_draw(None);
+                state.settle_rename_draft_not_presented();
+            }
+            None => state.acknowledge_rename_draw(None),
         }
     }
     pub(in crate::terminal_session) fn invalidate_rename_display(&mut self) {
