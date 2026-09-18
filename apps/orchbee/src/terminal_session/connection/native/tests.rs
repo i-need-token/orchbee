@@ -2656,8 +2656,35 @@ fn run_ready_drain_cut(cut: ReadyDrainCut) -> TestResult {
     harness.finish_after_worker_failure(CarrierFailure::Deadline)
 }
 
+/// Both legal same-tick orders of an ordinary `SetupConfigured` reply expiring past its
+/// forward cutoff while a later Switch is still inside its own deadline — forced by the
+/// `CommandMailbox` test gates (`pause_next_ui_reply_await_sample_for_test` parks the worker
+/// at its reply-await sample; `pause_next_ui_reply_deposit_for_test` parks the UI at its
+/// deposit sample):
+///   * UI-first — the worker is parked at its await sample while the past-cut deposit
+///     evaluates `ForwardExpired`; releasing it lets the worker consume the expiry and
+///     retire the mailbox as `Deadline` with no Detach and no new wire.
+///   * worker-first — the deposit parks at its clock sample until the worker's expired
+///     await closes the mailbox; a worker-originated close resumes the same deposit so it
+///     must observe `Closed`, never `ForwardExpired` or `Stale`.
+///
+/// An unsynchronized `ForwardExpired`-or-`Stale` oracle is not a correctness boundary: a
+/// `Closed` deposit is the legal outcome once the worker's expiry closes the mailbox first.
 #[test]
 fn ordinary_own_deadline_before_later_switch_retires_without_detach() -> TestResult {
+    ordinary_own_deadline_ui_first()?;
+    ordinary_own_deadline_worker_first()
+}
+
+struct OrdinaryDeadlineBoundary {
+    harness: Harness,
+    pending: TakenEvent,
+}
+
+/// Drives an ordinary Resize to a pending `SetupConfigured` handoff whose reply cutoff is
+/// already behind the clock once it reaches 50 seconds, then admits a later Switch whose
+/// forward cutoff stays ahead of that point — the race the expiry order must be forced for.
+fn ordinary_deadline_before_switch() -> TestResult<OrdinaryDeadlineBoundary> {
     let geometry = fixture_geometry()?;
     let changed = Geometry::new(
         geometry.columns(),
@@ -2708,15 +2735,67 @@ fn ordinary_own_deadline_before_later_switch_retires_without_detach() -> TestRes
             .checked_duration_since(harness.ui.clock_now()),
         Some(Duration::from_secs(45))
     );
+    Ok(OrdinaryDeadlineBoundary { harness, pending })
+}
+
+fn ordinary_own_deadline_ui_first() -> TestResult {
+    let OrdinaryDeadlineBoundary {
+        mut harness,
+        pending,
+    } = ordinary_deadline_before_switch()?;
+    let worker_pause = harness.mailbox.pause_next_ui_reply_await_sample_for_test();
+    if !worker_pause.await_reached_before(Instant::now() + WALL_GUARD) {
+        return Err(test_error(
+            "worker did not reach the armed reply-await sample",
+        ));
+    }
+
     harness.elapsed_millis.store(50_000, Ordering::SeqCst);
     let error = match harness.ui.settle_taken(pending, FrameCut::None) {
         Err(error) => error,
         Ok(_) => return Err(test_error("ordinary own deadline must expire its UI event")),
     };
-    assert!(matches!(
-        error.to_string().as_str(),
-        "mailbox event failed: ForwardExpired" | "current UI reply was stale"
-    ));
+    assert_eq!(error.to_string(), "mailbox event failed: ForwardExpired");
+    assert_eq!(harness.mailbox.is_closed(), None);
+    drop(worker_pause);
+
+    harness.finish_after_worker_failure(CarrierFailure::Deadline)
+}
+
+fn ordinary_own_deadline_worker_first() -> TestResult {
+    let OrdinaryDeadlineBoundary {
+        mut harness,
+        pending,
+    } = ordinary_deadline_before_switch()?;
+    let deposit_gate = harness.mailbox.pause_next_ui_reply_deposit_for_test();
+    harness.elapsed_millis.store(50_000, Ordering::SeqCst);
+    let error = {
+        let ui = &mut harness.ui;
+        thread::scope(
+            |scope| -> TestResult<Box<dyn std::error::Error + Send + Sync>> {
+                let parked_deposit = scope.spawn(move || ui.settle_taken(pending, FrameCut::None));
+                if !deposit_gate.await_reached_before(Instant::now() + WALL_GUARD) {
+                    drop(deposit_gate);
+                    return Err(test_error("UI deposit did not reach the armed sample gate"));
+                }
+                match parked_deposit
+                    .join()
+                    .map_err(|_panic| test_error("parked SetupConfigured deposit panicked"))?
+                {
+                    Err(error) => Ok(error),
+                    Ok(_) => {
+                        drop(deposit_gate);
+                        Err(test_error("ordinary own deadline must expire its UI event"))
+                    }
+                }
+            },
+        )?
+    };
+    assert_eq!(
+        error.to_string(),
+        "mailbox event failed: Closed(MailboxClosed { failure: Deadline })"
+    );
+    assert_eq!(harness.mailbox.is_closed(), Some(CarrierFailure::Deadline));
     harness.finish_after_worker_failure(CarrierFailure::Deadline)
 }
 
