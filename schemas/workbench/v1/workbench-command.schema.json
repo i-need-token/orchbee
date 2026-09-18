@@ -283,7 +283,7 @@
 			]
 		},
 		"terminalGeometry": {
-			"$comment": "Semantic validation additionally requires columns * rows <= 262144, columns * cellPixelWidth <= 65535, and rows * cellPixelHeight <= 65535.",
+			"$comment": "Semantic validation additionally requires columns * rows <= 262144, columns * cellPixelWidth <= 65535, and rows * cellPixelHeight <= 65535. The cellPixelWidth/cellPixelHeight pair must be either both positive (pixels known) or both zero (pixels unknown); a mixed pair is invalid.",
 			"type": "object",
 			"properties": {
 				"columns": {
@@ -298,12 +298,12 @@
 				},
 				"cellPixelWidth": {
 					"type": "integer",
-					"minimum": 1,
+					"minimum": 0,
 					"maximum": 4096
 				},
 				"cellPixelHeight": {
 					"type": "integer",
-					"minimum": 1,
+					"minimum": 0,
 					"maximum": 4096
 				}
 			},

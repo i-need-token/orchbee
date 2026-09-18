@@ -48,6 +48,7 @@ import {
 	UpdateTerminalConfigurationSchema,
 	TerminalLaunchSchema,
 	TerminalEnvironmentOverlaySchema,
+	TerminalGeometrySchema,
 	TerminalListSchema,
 	TerminalMetadataChangedSchema,
 	TerminalStartAcceptedSchema,
@@ -526,6 +527,30 @@ describe('control schemas', () => {
 				sequence: '1',
 			}).success,
 		).toBe(false);
+	});
+
+	it('accepts a paired-zero cell-pixel geometry and rejects a mixed pair', () => {
+		const terminalId = '22'.repeat(16);
+		const unknownPixels = {
+			cellPixelHeight: 0,
+			cellPixelWidth: 0,
+			columns: 117,
+			rows: 38,
+		};
+		expect(TerminalGeometrySchema.safeParse(unknownPixels).success).toBe(true);
+		expect(StartTerminalSchema.safeParse({ geometry: unknownPixels, terminalId }).success).toBe(
+			true,
+		);
+		expect(TerminalLaunchSchema.safeParse({ ...launch, ...unknownPixels }).success).toBe(true);
+
+		for (const mixed of [
+			{ ...unknownPixels, cellPixelWidth: 0, cellPixelHeight: 18 },
+			{ ...unknownPixels, cellPixelWidth: 9, cellPixelHeight: 0 },
+		]) {
+			expect(TerminalGeometrySchema.safeParse(mixed).success).toBe(false);
+			expect(StartTerminalSchema.safeParse({ geometry: mixed, terminalId }).success).toBe(false);
+			expect(TerminalLaunchSchema.safeParse({ ...launch, ...mixed }).success).toBe(false);
+		}
 	});
 
 	it('separates visual creation from a geometry-pinned terminal start', () => {

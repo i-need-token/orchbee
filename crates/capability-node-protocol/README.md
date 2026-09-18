@@ -164,8 +164,9 @@ issuer.
 
 The optional current directory is an absolute POSIX UTF-8 path of 1 through 4,096 encoded bytes and
 cannot contain NUL. Its absence is distinct from an empty value. Geometry contains columns, rows,
-cell-pixel width, and cell-pixel height. Each value is in `1..=4096`, the grid is at most 262,144
-cells, and each total pixel extent fits `u16`. These types are Capability Node refinements, not
+cell-pixel width, and cell-pixel height. Columns and rows are in `1..=4096`; cell-pixel width and
+height are in `0..=4096` and must be either both positive (pixels known) or both zero (pixels
+unknown), never mixed. The grid is at most 262,144 cells, and each total pixel extent fits `u16`. These types are Capability Node refinements, not
 imports or re-exports of Terminal Host wire payloads; a future Worker adapter must convert them
 explicitly and preserve validation.
 

@@ -17,7 +17,7 @@ Workbench state。
 | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `RequestId`、`SiteId`、`WorkerId`、`TerminalId`、`ViewerId`、`HostEpoch`、`ControllerId` | 解析独立 typed、nonzero opaque 128-bit 小写十六进制 identity。                  |
 | `WorkingDirectory`                                                                       | 校验最多 4,096 个 encoded byte、无 NUL 的 absolute POSIX UTF-8 path。           |
-| `Geometry`                                                                               | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。               |
+| `Geometry`                                                                               | 仅当所有 scalar 与 product bound 都成立时构造 complete geometry。cell-pixel width 与 height 必须同正（pixel 已知）或同零（pixel 未知）；混合成对值被拒绝。 |
 | `TerminalCreateRequest`、`TerminalStartRequest`                                          | 构造 validated Client request；start 拒绝相同的 start/create request identity。 |
 | `CreateOutcome`、`StartOutcome` 与 result type                                           | 只表示 OBCS v1 准入的稳定 Client-visible result combination。                   |
 | `encode_client_frame`、`decode_client_frame`                                             | Encode 或 decode 恰好一个完整 in-memory Client-to-Server frame。                |

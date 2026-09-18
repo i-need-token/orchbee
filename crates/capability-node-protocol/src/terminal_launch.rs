@@ -620,10 +620,9 @@ fn validate_geometry(geometry: TerminalPixelGeometry) -> Result<(), ProtocolErro
         || geometry.columns > MAXIMUM_DIMENSION
         || geometry.rows == 0
         || geometry.rows > MAXIMUM_DIMENSION
-        || geometry.cell_pixel_width == 0
         || geometry.cell_pixel_width > MAXIMUM_DIMENSION
-        || geometry.cell_pixel_height == 0
         || geometry.cell_pixel_height > MAXIMUM_DIMENSION
+        || (geometry.cell_pixel_width == 0) != (geometry.cell_pixel_height == 0)
         || u32::from(geometry.columns) * u32::from(geometry.rows) > MAXIMUM_CELLS
         || u32::from(geometry.columns) * u32::from(geometry.cell_pixel_width) > MAXIMUM_PIXEL_EXTENT
         || u32::from(geometry.rows) * u32::from(geometry.cell_pixel_height) > MAXIMUM_PIXEL_EXTENT

@@ -218,6 +218,8 @@ describe('Workbench command contract', () => {
 			{ columns: 1, rows: 1, cellPixelWidth: 4096, cellPixelHeight: 4096 },
 			{ columns: 4096, rows: 64, cellPixelWidth: 15, cellPixelHeight: 1023 },
 			{ columns: 255, rows: 255, cellPixelWidth: 257, cellPixelHeight: 257 },
+			{ columns: 80, rows: 24, cellPixelWidth: 0, cellPixelHeight: 0 },
+			{ columns: 4096, rows: 64, cellPixelWidth: 0, cellPixelHeight: 0 },
 		]) {
 			expect({
 				geometry,

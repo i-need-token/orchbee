@@ -208,6 +208,25 @@ fn resize_requests_enforce_grid_and_pixel_extent_bounds() -> Result<(), Box<dyn 
     assert_request_geometry(&fixture, 255, 257, 257, 255, true)?;
     assert_request_geometry(&fixture, 4096, 1, 16, 1, false)?;
     assert_request_geometry(&fixture, 1, 4096, 1, 16, false)?;
+    assert_request_geometry(&fixture, 80, 24, 0, 0, true)?;
+    assert_request_geometry(&fixture, 80, 24, 0, 16, false)?;
+    assert_request_geometry(&fixture, 80, 24, 8, 0, false)?;
+    Ok(())
+}
+
+#[test]
+fn resize_requests_accept_a_paired_zero_cell_pixel_geometry() -> Result<(), Box<dyn Error>> {
+    let fixture = read_fixture()?;
+    let request = fixture_string(&fixture, "/commands/resize_terminal")?;
+    let mut value: Value = serde_json::from_str(request)?;
+    set_pointer(&mut value, "/cellPixelWidth", Value::from(0))?;
+    set_pointer(&mut value, "/cellPixelHeight", Value::from(0))?;
+    let decoded = decode_value(32, MessageRole::Request, value)?;
+    assert!(matches!(
+        decoded,
+        ResizeControl::ResizeTerminal(geometry)
+            if geometry.geometry.cell_pixel_width == 0 && geometry.geometry.cell_pixel_height == 0
+    ));
     Ok(())
 }
 
@@ -226,6 +245,17 @@ fn response_decode_preserves_legacy_dimension_only_compatibility_but_encode_is_s
             ProtocolErrorCode::InvalidField,
         );
     }
+
+    let unknown = geometry_value(response, 80, 24, 0, 0)?;
+    let decoded = decode_value(33, MessageRole::Response, unknown)?;
+    encode_resize_control(&decoded)?;
+
+    let mixed = geometry_value(response, 80, 24, 0, 16)?;
+    let decoded = decode_value(33, MessageRole::Response, mixed)?;
+    assert_code(
+        encode_resize_control(&decoded),
+        ProtocolErrorCode::InvalidField,
+    );
     Ok(())
 }
 

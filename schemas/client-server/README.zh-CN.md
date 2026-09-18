@@ -66,7 +66,8 @@ default；省略该 field 无效。
 
 | Field 或 product                                       | 范围               |
 | ------------------------------------------------------ | ------------------ |
-| `columns`、`rows`、`cellPixelWidth`、`cellPixelHeight` | 1 到 4,096，含边界 |
+| `columns`、`rows`                                      | 1 到 4,096，含边界 |
+| `cellPixelWidth`、`cellPixelHeight`                    | 0 到 4,096，含边界；必须同正（pixel 已知）或同零（pixel 未知），不得混合 |
 | `columns * rows`                                       | 至多 262,144       |
 | `columns * cellPixelWidth`                             | 至多 65,535        |
 | `rows * cellPixelHeight`                               | 至多 65,535        |

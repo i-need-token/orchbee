@@ -192,7 +192,9 @@ The request carries no placement, generation, create reference, cwd, executable,
 
 The independent `WorkbenchTerminalGeometry` value contains `columns`, `rows`, `cellPixelWidth`,
 and `cellPixelHeight`. Each is a decoded finite integer in 1..4096, including equivalent integral
-decimal/exponent JSON spellings. Canonical encoding emits integer tokens. Semantic validation also
+decimal/exponent JSON spellings — except the cell-pixel pair, which ranges 0..4096 and must be
+either both positive (pixels known) or both zero (pixels unknown); a mixed pair is invalid.
+Canonical encoding emits integer tokens. Semantic validation also
 requires `columns*rows <= 262144`, `columns*cellPixelWidth <= 65535`, and
 `rows*cellPixelHeight <= 65535`. JSON Schema owns scalar bounds and closed shape; the bindings own
 these three products, documented by the schema comment and semantic corpus cases. OBWP owns this

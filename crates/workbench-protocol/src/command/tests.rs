@@ -114,6 +114,8 @@ fn terminal_geometry_matches_the_obcs_numeric_boundaries_without_a_protocol_depe
         (1, 1, 4096, 4096),
         (4096, 64, 15, 1023),
         (255, 255, 257, 257),
+        (80, 24, 0, 0),
+        (4096, 64, 0, 0),
     ] {
         let geometry =
             WorkbenchTerminalGeometry::new(columns, rows, cell_pixel_width, cell_pixel_height)
@@ -129,6 +131,8 @@ fn terminal_geometry_matches_the_obcs_numeric_boundaries_without_a_protocol_depe
         (1, 0, 1, 1),
         (1, 1, 0, 1),
         (1, 1, 1, 0),
+        (80, 24, 0, 18),
+        (80, 24, 9, 0),
         (4097, 1, 1, 1),
         (1, 4097, 1, 1),
         (1, 1, 4097, 1),

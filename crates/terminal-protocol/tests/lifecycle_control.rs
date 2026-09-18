@@ -415,6 +415,9 @@ fn full_pixel_geometry_enforces_numeric_grid_and_extent_bounds() -> Result<(), B
     assert_geometry(&fixture, 255, 257, 257, 255, true)?;
     assert_geometry(&fixture, 4096, 1, 16, 1, false)?;
     assert_geometry(&fixture, 1, 4096, 1, 16, false)?;
+    assert_geometry(&fixture, 80, 24, 0, 0, true)?;
+    assert_geometry(&fixture, 80, 24, 0, 16, false)?;
+    assert_geometry(&fixture, 80, 24, 8, 0, false)?;
     Ok(())
 }
 

@@ -29,8 +29,6 @@ fn rejects_every_scalar_bound() {
     for (field, result) in [
         (GeometryField::Columns, Geometry::new(0, 1, 1, 1)),
         (GeometryField::Rows, Geometry::new(1, 0, 1, 1)),
-        (GeometryField::CellPixelWidth, Geometry::new(1, 1, 0, 1)),
-        (GeometryField::CellPixelHeight, Geometry::new(1, 1, 1, 0)),
         (
             GeometryField::Columns,
             Geometry::new(MAXIMUM_GEOMETRY_VALUE + 1, 1, 1, 1),
@@ -84,4 +82,30 @@ fn rejects_each_independent_product_overflow() {
             maximum: MAXIMUM_PIXEL_EXTENT,
         })
     );
+}
+
+#[test]
+fn accepts_paired_zero_cell_pixels_as_unknown() -> Result<(), Box<dyn std::error::Error>> {
+    let unknown = Geometry::new(80, 24, 0, 0)?;
+    assert_eq!(unknown.cell_pixel_width(), 0);
+    assert_eq!(unknown.cell_pixel_height(), 0);
+
+    let bounded_unknown = Geometry::new(512, 512, 0, 0)?;
+    assert_eq!(
+        u32::from(bounded_unknown.columns()) * u32::from(bounded_unknown.rows()),
+        MAXIMUM_TERMINAL_CELLS
+    );
+    Ok(())
+}
+
+#[test]
+fn rejects_a_mixed_cell_pixel_pair() {
+    for result in [
+        Geometry::new(1, 1, 0, 1),
+        Geometry::new(1, 1, 1, 0),
+        Geometry::new(80, 24, 0, 18),
+        Geometry::new(80, 24, 9, 0),
+    ] {
+        assert_eq!(result, Err(GeometryError::MixedCellPixelPair));
+    }
 }

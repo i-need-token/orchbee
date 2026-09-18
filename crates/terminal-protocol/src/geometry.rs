@@ -39,8 +39,8 @@ pub(crate) fn geometry_dimensions_from_wire(
     wire: TerminalPixelGeometryWire,
 ) -> Result<TerminalPixelGeometry, ProtocolError> {
     Ok(TerminalPixelGeometry {
-        cell_pixel_height: bounded_u16(wire.cell_pixel_height, 1, MAXIMUM_CELL_PIXEL_DIMENSION)?,
-        cell_pixel_width: bounded_u16(wire.cell_pixel_width, 1, MAXIMUM_CELL_PIXEL_DIMENSION)?,
+        cell_pixel_height: bounded_u16(wire.cell_pixel_height, 0, MAXIMUM_CELL_PIXEL_DIMENSION)?,
+        cell_pixel_width: bounded_u16(wire.cell_pixel_width, 0, MAXIMUM_CELL_PIXEL_DIMENSION)?,
         columns: bounded_u16(wire.columns, 1, MAXIMUM_FRAME_COLUMNS)?,
         rows: bounded_u16(wire.rows, 1, MAXIMUM_FRAME_ROWS)?,
     })
@@ -60,6 +60,11 @@ pub(crate) fn geometry_to_wire(
 
 pub(crate) fn validate_geometry(value: TerminalPixelGeometry) -> Result<(), ProtocolError> {
     validate_geometry_dimensions(value)?;
+    if (value.cell_pixel_width == 0) != (value.cell_pixel_height == 0) {
+        return Err(invalid_field(
+            "terminal pixel geometry mixes known and unknown cell pixel dimensions",
+        ));
+    }
 
     let columns = u32::from(value.columns);
     let rows = u32::from(value.rows);
@@ -79,9 +84,7 @@ pub(crate) fn validate_geometry(value: TerminalPixelGeometry) -> Result<(), Prot
 }
 
 fn validate_geometry_dimensions(value: TerminalPixelGeometry) -> Result<(), ProtocolError> {
-    if value.cell_pixel_height == 0
-        || usize::from(value.cell_pixel_height) > MAXIMUM_CELL_PIXEL_DIMENSION
-        || value.cell_pixel_width == 0
+    if usize::from(value.cell_pixel_height) > MAXIMUM_CELL_PIXEL_DIMENSION
         || usize::from(value.cell_pixel_width) > MAXIMUM_CELL_PIXEL_DIMENSION
         || value.columns == 0
         || usize::from(value.columns) > MAXIMUM_FRAME_COLUMNS

@@ -69,7 +69,8 @@ Every geometry contains all four integer fields and satisfies every invariant:
 
 | Field or product                                       | Range                     |
 | ------------------------------------------------------ | ------------------------- |
-| `columns`, `rows`, `cellPixelWidth`, `cellPixelHeight` | 1 through 4,096 inclusive |
+| `columns`, `rows`                                      | 1 through 4,096 inclusive |
+| `cellPixelWidth`, `cellPixelHeight`                    | 0 through 4,096 inclusive; either both positive (pixels known) or both zero (pixels unknown), never mixed |
 | `columns * rows`                                       | At most 262,144           |
 | `columns * cellPixelWidth`                             | At most 65,535            |
 | `rows * cellPixelHeight`                               | At most 65,535            |

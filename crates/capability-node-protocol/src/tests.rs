@@ -472,6 +472,9 @@ fn enforces_cwd_and_geometry_boundaries() -> Result<(), Box<dyn std::error::Erro
     assert_eq!(maximum_grid.rows(), 64);
     assert_eq!(maximum_grid.cell_pixel_width(), 15);
     assert_eq!(maximum_grid.cell_pixel_height(), 1023);
+    let unknown_pixels = TerminalPixelGeometry::new(4096, 64, 0, 0)?;
+    assert_eq!(unknown_pixels.cell_pixel_width(), 0);
+    assert_eq!(unknown_pixels.cell_pixel_height(), 0);
     assert_eq!(
         TerminalPixelGeometry::new(4096, 65, 1, 1),
         Err(ProtocolError::InvalidGeometry)
@@ -482,6 +485,14 @@ fn enforces_cwd_and_geometry_boundaries() -> Result<(), Box<dyn std::error::Erro
     );
     assert_eq!(
         TerminalPixelGeometry::new(0, 24, 8, 16),
+        Err(ProtocolError::InvalidGeometry)
+    );
+    assert_eq!(
+        TerminalPixelGeometry::new(80, 24, 0, 16),
+        Err(ProtocolError::InvalidGeometry)
+    );
+    assert_eq!(
+        TerminalPixelGeometry::new(80, 24, 8, 0),
         Err(ProtocolError::InvalidGeometry)
     );
     Ok(())

@@ -18,7 +18,7 @@ project Workbench state.
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `RequestId`, `SiteId`, `WorkerId`, `TerminalId`, `ViewerId`, `HostEpoch`, `ControllerId` | Parse separately typed nonzero opaque 128-bit lowercase hexadecimal identities.                       |
 | `WorkingDirectory`                                                                       | Validate an absolute POSIX UTF-8 path of at most 4,096 encoded bytes with no NUL.                     |
-| `Geometry`                                                                               | Construct complete geometry only when all scalar and product bounds hold.                             |
+| `Geometry`                                                                               | Construct complete geometry only when all scalar and product bounds hold. Cell-pixel width and height are either both positive (pixels known) or both zero (pixels unknown); a mixed pair is rejected. |
 | `TerminalCreateRequest`, `TerminalStartRequest`                                          | Construct validated Client requests; start rejects equal start/create request identities.             |
 | `CreateOutcome`, `StartOutcome` and result types                                         | Represent only the stable Client-visible result combinations admitted by OBCS v1.                     |
 | `encode_client_frame`, `decode_client_frame`                                             | Encode or decode exactly one complete in-memory Client-to-Server frame.                               |

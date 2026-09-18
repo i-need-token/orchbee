@@ -8,6 +8,11 @@
 		},
 		{
 			"direction": "client-to-server",
+			"name": "create-immediate-unknown-pixels",
+			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"66666666666666666666666666666666\",\"workerConstraint\":null,\"cwd\":null,\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":0,\"cellPixelHeight\":0}}}"
+		},
+		{
+			"direction": "client-to-server",
 			"name": "create-immediate-exact-worker",
 			"payload": "{\"kind\":\"terminal.create\",\"protocolVersion\":1,\"requestId\":\"22222222222222222222222222222222\",\"workerConstraint\":{\"kind\":\"exact\",\"workerId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"cwd\":\"/tmp/工作\",\"startMode\":{\"kind\":\"immediate\",\"geometry\":{\"columns\":80,\"rows\":24,\"cellPixelWidth\":9,\"cellPixelHeight\":18}}}"
 		},
@@ -1294,6 +1299,26 @@
 				"cellPixelHeight": 16
 			},
 			"valid": false
+		},
+		{
+			"name": "paired-zero-cell-pixels",
+			"geometry": {
+				"columns": 1,
+				"rows": 1,
+				"cellPixelWidth": 0,
+				"cellPixelHeight": 0
+			},
+			"valid": true
+		},
+		{
+			"name": "paired-zero-cell-pixels-at-bounds",
+			"geometry": {
+				"columns": 512,
+				"rows": 512,
+				"cellPixelWidth": 0,
+				"cellPixelHeight": 0
+			},
+			"valid": true
 		}
 	],
 	"forbiddenClientFields": [

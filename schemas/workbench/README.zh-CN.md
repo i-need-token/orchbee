@@ -174,7 +174,8 @@ canonical standalone Terminal Context。该语义操作追加一个未分组、�
 
 独立的 `WorkbenchTerminalGeometry` 值包含 `columns`、`rows`、`cellPixelWidth` 和
 `cellPixelHeight`。每项都是 1..4096 范围内的已解码有限整数，接受等值的整数型十进制小数和指数
-JSON 写法。Canonical encoding 输出整数 token。语义校验还要求 `columns*rows <= 262144`、
+JSON 写法——cell-pixel 成对字段例外：取值范围 0..4096，且必须同正（pixel 已知）或同零
+（pixel 未知），混合成对值非法。Canonical encoding 输出整数 token。语义校验还要求 `columns*rows <= 262144`、
 `columns*cellPixelWidth <= 65535` 和 `rows*cellPixelHeight <= 65535`。JSON Schema 拥有单值
 边界和封闭结构；binding 拥有这三项乘积约束，由 schema comment 和 semantic corpus case 说明。
 OBWP 独立于 OBCS 拥有该值；runtime adapter 必须验证转换一致性，不能引入协议依赖。

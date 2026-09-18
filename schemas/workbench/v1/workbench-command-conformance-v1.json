@@ -2011,6 +2011,54 @@
 					"targetPanelId": "00000000000000000000000000000007"
 				}
 			}
+		},
+		{
+			"name": "tab-create-unknown-pixels",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-started-unknown-pixels",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "started",
+						"geometry": {
+							"columns": 120,
+							"rows": 36,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 0
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -7106,6 +7154,56 @@
 					"panelId": "00000000000000000000000000000006",
 					"targetPanelId": "00000000000000000000000000000007",
 					"extra": true
+				}
+			}
+		},
+		{
+			"name": "tab-create-mixed-cell-pixel-pair",
+			"direction": "request",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "tab.create",
+					"terminalContextId": "00000000000000000000000000000004",
+					"label": "2",
+					"geometry": {
+						"columns": 120,
+						"rows": 36,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 18
+					}
+				}
+			}
+		},
+		{
+			"name": "tab-created-started-mixed-cell-pixel-pair",
+			"direction": "response",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "tab-created",
+					"revision": "8",
+					"terminalContextId": "00000000000000000000000000000004",
+					"tabId": "00000000000000000000000000000005",
+					"panelId": "00000000000000000000000000000006",
+					"presentationId": "00000000000000000000000000000007",
+					"terminalOutcome": {
+						"kind": "started",
+						"geometry": {
+							"columns": 120,
+							"rows": 36,
+							"cellPixelWidth": 0,
+							"cellPixelHeight": 18
+						}
+					}
 				}
 			}
 		}

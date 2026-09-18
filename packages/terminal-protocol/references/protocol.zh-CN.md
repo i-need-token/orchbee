@@ -57,7 +57,7 @@
 
 `CreateTerminal` 还携带与 `TerminalLaunch` 分离的必填 `environmentOverlay`。它最多包含 16 个条目；每个值都非空值，且最多为 4 KiB UTF-8。名称使用与启动环境名称相同的语法和目标操作系统身份规则，在 overlay 内必须唯一，也不能与任何启动环境名称重叠。Overlay 不是库存数据，也不属于持久启动指纹。Host 仍会为保留的创建 generation 派生经目标规则规范化、与顺序无关的 digest：非空重放必须匹配该 digest；空重放则可以在不重建 capability 的情况下校验一个已经保留的创建。Host runtime contract 拥有这些重放与生命周期语义；本 package 只拥有必填且有界的线协议区分。
 
-四个启动几何字段构成封闭选择。`columns`、`rows`、`cellPixelWidth` 与 `cellPixelHeight` 要么全是合法正整数，要么全是 `null`；混合几何属于畸形输入。数值几何要求立即启动，无头调用方与测试调用方必须提供。空几何会保留延迟终端标识并准备启动，但不隐式提供网格。后续 `StartTerminal` 携带完整 `TerminalGeometry`；线协议契约不定义超时或 80x24 可视回退。
+四个启动几何字段构成封闭选择。`columns`、`rows`、`cellPixelWidth` 与 `cellPixelHeight` 要么全是合法整数，要么全是 `null`；部分缺省属于畸形输入。`columns` 与 `rows` 恒为正；`cellPixelWidth` 与 `cellPixelHeight` 必须同正（pixel 已知）或同零（pixel 未知）——混合 cell-pixel 成对值属于畸形输入。数值几何要求立即启动，无头调用方与测试调用方必须提供。空几何会保留延迟终端标识并准备启动，但不隐式提供网格。后续 `StartTerminal` 携带完整 `TerminalGeometry`；线协议契约不定义超时或 80x24 可视回退。
 
 环境名称在线路上是唯一的，与写入的完全相同：名称与写入相同的两个条目将被拒绝，而仅大小写不同的名称（例如 `Path` 和 `PATH`）仍然是不同的线路名称。环境名称是目标操作系统环境标识符，主机在准备启动时应用目标 OS 的身份规则：在 POSIX 目标上，名称区分大小写，因此 `Path` 和 `PATH` 是不同的变量；在 Windows 上，名称不区分大小写，因此相同的两个条目是重复的，并且主机在任何进程或 PTY 效果之前拒绝 `CreateTerminal`，并键入 `invalid-field` 失败。 `CreationId` 启动指纹使用与目标身份规则相同的归一化，因此等效折叠输入会产生稳定的、平台一致的摘要。
 
@@ -126,7 +126,7 @@ claim terminal 的唯一 lease；当前 owner 的重放是幂等的。一次成�
 
 `ResizeLeaseChanged` 是仅事件的完整所有权事实，包含确切的附件和终端身份以及 `resizeLease`；它从来都不是一个切换。当分离调整大小所有者提升现有观察者时，主机会在成功分离响应之前提交该观察者的事件。消费者在更改可能颁发 `ResizeTerminal` 的人员之前，根据其附件范围验证这两个身份；演示测量本身仍然是客户本地的，并且不需要租用。
 
-`ResizeTerminal` 要求完整 geometry 满足单字段、grid-cell 与 unsigned-16 pixel-extent bound。
+`ResizeTerminal` 要求完整 geometry 满足单字段、cell-pixel 成对、grid-cell 与 unsigned-16 pixel-extent bound。
 `ResizeAccepted` 回显 committed geometry，并增加其 resulting revision。为保持兼容，现行 response
 schema 会执行四个单字段 bound，但不会重复 request schema 的 cross-field refinement。这个 decoder
 boundary 不会授权或描述无效 runtime geometry：Terminal Host 只接受并发出完整有效 geometry。若要

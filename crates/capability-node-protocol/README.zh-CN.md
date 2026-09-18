@@ -148,8 +148,10 @@ authorization 不再 current 后，才能开始新的 producer scope。本 contr
 authority 正确签发为前提，并不声称能够遏制违反 invariant 的 issuer。
 
 可选 current directory 是 1 至 4,096 encoded byte 的 absolute POSIX UTF-8 path，且不能包含 NUL。
-缺省与空值不同。Geometry 包含 column、row、cell-pixel width 与 cell-pixel height。每个值均在
-`1..=4096` 内，grid 最多 262,144 个 cell，且每条 total pixel extent 都可放入 `u16`。这些 type
+缺省与空值不同。Geometry 包含 column、row、cell-pixel width 与 cell-pixel height。column 与 row
+均在 `1..=4096` 内；cell-pixel width 与 height 均在 `0..=4096` 内，且必须同正（pixel 已知）或
+同零（pixel 未知），不得混合。grid 最多 262,144 个 cell，且每条 total pixel extent 都可放入
+`u16`。这些 type
 是 Capability Node refinement，不 import 或 re-export Terminal Host wire payload；未来 Worker
 adapter 必须显式转换并保留 validation。
 

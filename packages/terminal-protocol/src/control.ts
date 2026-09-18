@@ -30,6 +30,11 @@ const boundedTextSchema = z
 	.refine((value) => !value.includes('\0'), 'Launch text cannot contain NUL');
 const gridDimensionSchema = z.number().int().min(1).max(PROTOCOL_LIMITS.maxFrameColumns);
 const cellPixelDimensionSchema = z.number().int().min(1).max(PROTOCOL_LIMITS.maxCellPixelDimension);
+const terminalCellPixelDimensionSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(PROTOCOL_LIMITS.maxCellPixelDimension);
 const rgbSchema = z.number().int().min(0).max(0x00ff_ffff);
 const uint16Schema = z.number().int().min(0).max(0xffff);
 const uint32Schema = z.number().int().min(0).max(0xffff_ffff);
@@ -80,6 +85,14 @@ function validatePixelGeometry(
 	context: z.RefinementCtx,
 ): void {
 	validateGrid(geometry, context);
+	if ((geometry.cellPixelWidth === 0) !== (geometry.cellPixelHeight === 0)) {
+		context.addIssue({
+			code: 'custom',
+			message:
+				'Terminal cell pixel width and height must be both positive or both zero (pixels unknown)',
+			path: ['cellPixelWidth'],
+		});
+	}
 	if (geometry.columns * geometry.cellPixelWidth > 0xffff) {
 		context.addIssue({
 			code: 'custom',
@@ -371,8 +384,8 @@ export const TerminalThemeResultSchema = z
 
 export const TerminalGeometrySchema = z
 	.strictObject({
-		cellPixelHeight: cellPixelDimensionSchema,
-		cellPixelWidth: cellPixelDimensionSchema,
+		cellPixelHeight: terminalCellPixelDimensionSchema,
+		cellPixelWidth: terminalCellPixelDimensionSchema,
 		columns: gridDimensionSchema,
 		rows: gridDimensionSchema,
 	})
@@ -380,8 +393,8 @@ export const TerminalGeometrySchema = z
 
 const immediateTerminalLaunchSchema = z.strictObject({
 	...terminalLaunchShape,
-	cellPixelHeight: cellPixelDimensionSchema,
-	cellPixelWidth: cellPixelDimensionSchema,
+	cellPixelHeight: terminalCellPixelDimensionSchema,
+	cellPixelWidth: terminalCellPixelDimensionSchema,
 	columns: gridDimensionSchema,
 	rows: gridDimensionSchema,
 	terminalProfile: TerminalProfileSchema,
@@ -471,8 +484,8 @@ export const ClaimResizeLeaseSchema = z.strictObject({
 export const ResizeTerminalSchema = z
 	.strictObject({
 		attachmentId: AttachmentIdSchema,
-		cellPixelHeight: cellPixelDimensionSchema,
-		cellPixelWidth: cellPixelDimensionSchema,
+		cellPixelHeight: terminalCellPixelDimensionSchema,
+		cellPixelWidth: terminalCellPixelDimensionSchema,
 		columns: gridDimensionSchema,
 		rows: gridDimensionSchema,
 	})
@@ -1034,8 +1047,8 @@ export const InputAcceptedSchema = z.strictObject({
 
 export const ResizeAcceptedSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
-	cellPixelHeight: cellPixelDimensionSchema,
-	cellPixelWidth: cellPixelDimensionSchema,
+	cellPixelHeight: terminalCellPixelDimensionSchema,
+	cellPixelWidth: terminalCellPixelDimensionSchema,
 	columns: gridDimensionSchema,
 	revision: CanonicalUint64TextSchema,
 	rows: gridDimensionSchema,

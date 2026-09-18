@@ -155,12 +155,13 @@ fn validate_terminal_geometry(value: WorkbenchTerminalGeometry) -> Result<(), &'
         || value.columns > MAXIMUM_TERMINAL_GEOMETRY_DIMENSION
         || value.rows == 0
         || value.rows > MAXIMUM_TERMINAL_GEOMETRY_DIMENSION
-        || value.cell_pixel_width == 0
         || value.cell_pixel_width > MAXIMUM_TERMINAL_GEOMETRY_DIMENSION
-        || value.cell_pixel_height == 0
         || value.cell_pixel_height > MAXIMUM_TERMINAL_GEOMETRY_DIMENSION
     {
         return Err("terminal geometry dimension is outside its protocol bounds");
+    }
+    if (value.cell_pixel_width == 0) != (value.cell_pixel_height == 0) {
+        return Err("terminal geometry mixes known and unknown cell pixel dimensions");
     }
     let columns = u32::from(value.columns);
     let rows = u32::from(value.rows);

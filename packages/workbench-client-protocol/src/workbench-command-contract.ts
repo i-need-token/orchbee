@@ -36,15 +36,24 @@ export const WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES =
 export const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
 
 const terminalGeometryDimensionSchema = z.number().int().min(1).max(4096);
+const terminalCellPixelDimensionSchema = z.number().int().min(0).max(4096);
 
 export const WorkbenchTerminalGeometrySchema = z
 	.strictObject({
 		columns: terminalGeometryDimensionSchema,
 		rows: terminalGeometryDimensionSchema,
-		cellPixelWidth: terminalGeometryDimensionSchema,
-		cellPixelHeight: terminalGeometryDimensionSchema,
+		cellPixelWidth: terminalCellPixelDimensionSchema,
+		cellPixelHeight: terminalCellPixelDimensionSchema,
 	})
 	.superRefine((geometry, context) => {
+		if ((geometry.cellPixelWidth === 0) !== (geometry.cellPixelHeight === 0)) {
+			context.addIssue({
+				code: 'custom',
+				message:
+					'Workbench terminal cell pixel width and height must be both positive or both zero (pixels unknown)',
+				path: ['cellPixelWidth'],
+			});
+		}
 		if (geometry.columns * geometry.rows > 262_144) {
 			context.addIssue({
 				code: 'custom',

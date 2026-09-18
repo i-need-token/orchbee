@@ -108,7 +108,9 @@ reconstructing its capability. The Host runtime contract owns those replay and l
 this package owns only the required bounded wire distinction.
 
 The four launch geometry fields form one closed choice. `columns`, `rows`, `cellPixelWidth`, and
-`cellPixelHeight` are either all valid positive integers or all `null`; mixed geometry is malformed.
+`cellPixelHeight` are either all valid integers or all `null`; mixed presence is malformed.
+`columns` and `rows` are always positive; `cellPixelWidth` and `cellPixelHeight` are either both
+positive (pixels known) or both zero (pixels unknown) — a mixed cell-pixel pair is malformed.
 Numeric geometry requests immediate startup and is required for headless and test callers. Null
 geometry reserves a deferred terminal identity and prepared launch without supplying an implicit
 grid. A later `StartTerminal` carries one complete `TerminalGeometry`; the wire contract defines no
@@ -249,8 +251,8 @@ an existing observer, the Host commits that observer's event before the successf
 Consumers validate both identities against their attachment scope before changing who may issue
 `ResizeTerminal`; presentation measurement itself remains client-local and does not require a lease.
 
-`ResizeTerminal` requires complete geometry within the per-dimension, grid-cell, and unsigned-16
-pixel-extent bounds. `ResizeAccepted` echoes the committed geometry and adds its resulting revision.
+`ResizeTerminal` requires complete geometry within the per-dimension, cell-pixel-pair, grid-cell,
+and unsigned-16 pixel-extent bounds. `ResizeAccepted` echoes the committed geometry and adds its resulting revision.
 For compatibility, the current response schema enforces the four per-dimension bounds but does not
 repeat the request schema's cross-field refinements. This decoder boundary does not authorize or
 describe invalid runtime geometry: Terminal Host accepts and emits only complete valid geometry.

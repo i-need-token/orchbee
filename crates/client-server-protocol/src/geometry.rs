@@ -30,6 +30,7 @@ impl fmt::Display for GeometryField {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GeometryError {
     ValueOutOfRange { field: GeometryField, value: u16 },
+    MixedCellPixelPair,
     TerminalCellCountTooLarge { actual: u32, maximum: u32 },
     PixelWidthTooLarge { actual: u32, maximum: u32 },
     PixelHeightTooLarge { actual: u32, maximum: u32 },
@@ -38,9 +39,19 @@ pub enum GeometryError {
 impl fmt::Display for GeometryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ValueOutOfRange { field, value } => write!(
+            Self::ValueOutOfRange { field, value } => {
+                let minimum = match field {
+                    GeometryField::Columns | GeometryField::Rows => 1,
+                    GeometryField::CellPixelWidth | GeometryField::CellPixelHeight => 0,
+                };
+                write!(
+                    formatter,
+                    "geometry {field} is {value}; expected {minimum} through {MAXIMUM_GEOMETRY_VALUE}"
+                )
+            }
+            Self::MixedCellPixelPair => write!(
                 formatter,
-                "geometry {field} is {value}; expected 1 through {MAXIMUM_GEOMETRY_VALUE}"
+                "geometry cellPixelWidth and cellPixelHeight must be both positive or both zero"
             ),
             Self::TerminalCellCountTooLarge { actual, maximum } => write!(
                 formatter,
@@ -78,8 +89,11 @@ impl Geometry {
     ) -> Result<Self, GeometryError> {
         validate_value(GeometryField::Columns, columns)?;
         validate_value(GeometryField::Rows, rows)?;
-        validate_value(GeometryField::CellPixelWidth, cell_pixel_width)?;
-        validate_value(GeometryField::CellPixelHeight, cell_pixel_height)?;
+        validate_cell_pixel_value(GeometryField::CellPixelWidth, cell_pixel_width)?;
+        validate_cell_pixel_value(GeometryField::CellPixelHeight, cell_pixel_height)?;
+        if (cell_pixel_width == 0) != (cell_pixel_height == 0) {
+            return Err(GeometryError::MixedCellPixelPair);
+        }
 
         let terminal_cell_count = u32::from(columns) * u32::from(rows);
         if terminal_cell_count > MAXIMUM_TERMINAL_CELLS {
@@ -166,6 +180,13 @@ impl<'de> Deserialize<'de> for Geometry {
 
 fn validate_value(field: GeometryField, value: u16) -> Result<(), GeometryError> {
     if value == 0 || value > MAXIMUM_GEOMETRY_VALUE {
+        return Err(GeometryError::ValueOutOfRange { field, value });
+    }
+    Ok(())
+}
+
+fn validate_cell_pixel_value(field: GeometryField, value: u16) -> Result<(), GeometryError> {
+    if value > MAXIMUM_GEOMETRY_VALUE {
         return Err(GeometryError::ValueOutOfRange { field, value });
     }
     Ok(())
