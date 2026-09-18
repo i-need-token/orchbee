@@ -75,6 +75,20 @@ function validateGrid(
 	}
 }
 
+function validatePixelPair(
+	geometry: { readonly cellPixelHeight: number; readonly cellPixelWidth: number },
+	context: z.RefinementCtx,
+): void {
+	if ((geometry.cellPixelWidth === 0) !== (geometry.cellPixelHeight === 0)) {
+		context.addIssue({
+			code: 'custom',
+			message:
+				'Terminal cell pixel width and height must be both positive or both zero (pixels unknown)',
+			path: ['cellPixelWidth'],
+		});
+	}
+}
+
 function validatePixelGeometry(
 	geometry: {
 		readonly cellPixelHeight: number;
@@ -85,14 +99,7 @@ function validatePixelGeometry(
 	context: z.RefinementCtx,
 ): void {
 	validateGrid(geometry, context);
-	if ((geometry.cellPixelWidth === 0) !== (geometry.cellPixelHeight === 0)) {
-		context.addIssue({
-			code: 'custom',
-			message:
-				'Terminal cell pixel width and height must be both positive or both zero (pixels unknown)',
-			path: ['cellPixelWidth'],
-		});
-	}
+	validatePixelPair(geometry, context);
 	if (geometry.columns * geometry.cellPixelWidth > 0xffff) {
 		context.addIssue({
 			code: 'custom',
@@ -1045,14 +1052,16 @@ export const InputAcceptedSchema = z.strictObject({
 	capabilityRevision: positiveCanonicalUint64TextSchema,
 });
 
-export const ResizeAcceptedSchema = z.strictObject({
-	attachmentId: AttachmentIdSchema,
-	cellPixelHeight: terminalCellPixelDimensionSchema,
-	cellPixelWidth: terminalCellPixelDimensionSchema,
-	columns: gridDimensionSchema,
-	revision: CanonicalUint64TextSchema,
-	rows: gridDimensionSchema,
-});
+export const ResizeAcceptedSchema = z
+	.strictObject({
+		attachmentId: AttachmentIdSchema,
+		cellPixelHeight: terminalCellPixelDimensionSchema,
+		cellPixelWidth: terminalCellPixelDimensionSchema,
+		columns: gridDimensionSchema,
+		revision: CanonicalUint64TextSchema,
+		rows: gridDimensionSchema,
+	})
+	.superRefine(validatePixelPair);
 
 export const TerminalControlAcceptedSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,

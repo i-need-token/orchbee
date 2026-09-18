@@ -253,8 +253,10 @@ Consumers validate both identities against their attachment scope before changin
 
 `ResizeTerminal` requires complete geometry within the per-dimension, cell-pixel-pair, grid-cell,
 and unsigned-16 pixel-extent bounds. `ResizeAccepted` echoes the committed geometry and adds its resulting revision.
-For compatibility, the current response schema enforces the four per-dimension bounds but does not
-repeat the request schema's cross-field refinements. This decoder boundary does not authorize or
+For compatibility, the current response schema enforces the four per-dimension bounds plus the
+cell-pixel-pair invariant — a mixed pair was never decodable under the pre-change minimum and
+carries no valid meaning — but does not repeat the request schema's grid-cell and pixel-extent
+cross-field refinements. This decoder boundary does not authorize or
 describe invalid runtime geometry: Terminal Host accepts and emits only complete valid geometry.
 Tightening response admission requires an explicit compatibility decision rather than an incidental
 binding change.

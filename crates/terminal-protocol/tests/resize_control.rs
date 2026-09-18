@@ -231,7 +231,7 @@ fn resize_requests_accept_a_paired_zero_cell_pixel_geometry() -> Result<(), Box<
 }
 
 #[test]
-fn response_decode_preserves_legacy_dimension_only_compatibility_but_encode_is_strict()
+fn response_decode_preserves_legacy_dimension_bounds_and_rejects_mixed_pixel_pairs()
 -> Result<(), Box<dyn Error>> {
     let fixture = read_fixture()?;
     let response = fixture_string(&fixture, "/outputs/resize_accepted")?;
@@ -250,12 +250,13 @@ fn response_decode_preserves_legacy_dimension_only_compatibility_but_encode_is_s
     let decoded = decode_value(33, MessageRole::Response, unknown)?;
     encode_resize_control(&decoded)?;
 
-    let mixed = geometry_value(response, 80, 24, 0, 16)?;
-    let decoded = decode_value(33, MessageRole::Response, mixed)?;
-    assert_code(
-        encode_resize_control(&decoded),
-        ProtocolErrorCode::InvalidField,
-    );
+    for (cell_pixel_width, cell_pixel_height) in [(0, 16), (8, 0)] {
+        let value = geometry_value(response, 80, 24, cell_pixel_width, cell_pixel_height)?;
+        assert_code(
+            decode_value(33, MessageRole::Response, value),
+            ProtocolErrorCode::InvalidField,
+        );
+    }
     Ok(())
 }
 

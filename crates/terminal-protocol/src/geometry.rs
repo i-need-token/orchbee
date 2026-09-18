@@ -38,12 +38,18 @@ pub(crate) fn geometry_from_wire(
 pub(crate) fn geometry_dimensions_from_wire(
     wire: TerminalPixelGeometryWire,
 ) -> Result<TerminalPixelGeometry, ProtocolError> {
-    Ok(TerminalPixelGeometry {
+    let geometry = TerminalPixelGeometry {
         cell_pixel_height: bounded_u16(wire.cell_pixel_height, 0, MAXIMUM_CELL_PIXEL_DIMENSION)?,
         cell_pixel_width: bounded_u16(wire.cell_pixel_width, 0, MAXIMUM_CELL_PIXEL_DIMENSION)?,
         columns: bounded_u16(wire.columns, 1, MAXIMUM_FRAME_COLUMNS)?,
         rows: bounded_u16(wire.rows, 1, MAXIMUM_FRAME_ROWS)?,
-    })
+    };
+    if (geometry.cell_pixel_width == 0) != (geometry.cell_pixel_height == 0) {
+        return Err(invalid_field(
+            "terminal pixel geometry mixes known and unknown cell pixel dimensions",
+        ));
+    }
+    Ok(geometry)
 }
 
 pub(crate) fn geometry_to_wire(

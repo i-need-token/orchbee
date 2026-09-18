@@ -128,7 +128,9 @@ claim terminal 的唯一 lease；当前 owner 的重放是幂等的。一次成�
 
 `ResizeTerminal` 要求完整 geometry 满足单字段、cell-pixel 成对、grid-cell 与 unsigned-16 pixel-extent bound。
 `ResizeAccepted` 回显 committed geometry，并增加其 resulting revision。为保持兼容，现行 response
-schema 会执行四个单字段 bound，但不会重复 request schema 的 cross-field refinement。这个 decoder
+schema 会执行四个单字段 bound 以及 cell-pixel 成对不变量——混合对在变更前的下限之下本就不可
+解码，也没有任何有效含义——但不会重复 request schema 的 grid-cell 与 pixel-extent cross-field
+refinement。这个 decoder
 boundary 不会授权或描述无效 runtime geometry：Terminal Host 只接受并发出完整有效 geometry。若要
 收紧 response admission，必须作出显式 compatibility decision，不能把它夹带在 binding 修改中。
 

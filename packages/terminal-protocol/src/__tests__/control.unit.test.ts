@@ -25,6 +25,7 @@ import {
 	prepareTerminalEnvironmentOverlay,
 	ProcessObservationSchema,
 	ReadRowsSchema,
+	ResizeAcceptedSchema,
 	ResizeLeaseChangedSchema,
 	ResizeTerminalSchema,
 	ResetTerminalSchema,
@@ -550,6 +551,35 @@ describe('control schemas', () => {
 			expect(TerminalGeometrySchema.safeParse(mixed).success).toBe(false);
 			expect(StartTerminalSchema.safeParse({ geometry: mixed, terminalId }).success).toBe(false);
 			expect(TerminalLaunchSchema.safeParse({ ...launch, ...mixed }).success).toBe(false);
+		}
+	});
+
+	it('keeps resize-accepted decode permissive while rejecting mixed pixel pairs', () => {
+		const attachmentId = '22'.repeat(16);
+		const accepted = {
+			attachmentId,
+			revision: '7',
+			cellPixelHeight: 0,
+			cellPixelWidth: 0,
+			columns: 117,
+			rows: 38,
+		};
+		expect(ResizeAcceptedSchema.safeParse(accepted).success).toBe(true);
+		expect(
+			ResizeAcceptedSchema.safeParse({
+				...accepted,
+				cellPixelHeight: 1,
+				cellPixelWidth: 16,
+				columns: 4096,
+				rows: 1,
+			}).success,
+		).toBe(true);
+
+		for (const mixed of [
+			{ ...accepted, cellPixelWidth: 0, cellPixelHeight: 18 },
+			{ ...accepted, cellPixelWidth: 9, cellPixelHeight: 0 },
+		]) {
+			expect(ResizeAcceptedSchema.safeParse(mixed).success).toBe(false);
 		}
 	});
 

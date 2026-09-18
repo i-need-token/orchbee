@@ -450,8 +450,8 @@
 			"zhCnSha256": "d3b05e3b68691ebaa3ef1fc53c12c6267c70e0fac8040dc53f54c5cd0ee1c9af"
 		},
 		"packages/terminal-protocol/references/protocol.md": {
-			"englishSha256": "46ed1545e8632cf8972e090fd7f6d8b2326873befad6859b6aa5df752364d95f",
-			"zhCnSha256": "43ce9be0954d879d8b0e56e8a4e4ed9096a148b4195f33931901ecc5ad78692e"
+			"englishSha256": "882dff27db97665c1ffe7c4cb0198263471aae9381b60ea4fbc2a04b8de68214",
+			"zhCnSha256": "84de062edd852d86f357f3a0519d7c3386e37cad43ff7a2ae2152aa431dacab4"
 		},
 		"packages/terminal/README.md": {
 			"englishSha256": "85deebad2b6759f39f5a0f190bde3744fae6eaf196af5f320ac53a08c6f2f2af",
