@@ -131,7 +131,7 @@ fn compact_strip_keeps_duplicates_and_sanitizes_only_the_temporary_rendering() {
     let (text, _) = rendered(80, 1, &tabs, Some(3), Surface::Compact);
 
     assert!(text.contains("[ 1 same] [ 2 same]"), "{text:?}");
-    assert!(text.contains("[*3 same����������e\u{301}界"), "{text:?}");
+    assert!(text.contains("[*3 samee\u{301}界"), "{text:?}");
     assert_eq!(unsafe_label, canonical);
     assert!(!text.trim_end_matches('\n').chars().any(char::is_control));
 }

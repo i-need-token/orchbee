@@ -128,7 +128,7 @@ fn server_labels_are_sanitized_without_mutating_the_source() {
 
     let text = rendered(80, 1, &contexts, Some(1));
 
-    assert!(text.contains("Project���� / Workspace���"), "{text:?}");
+    assert!(text.contains("Project / Workspace"), "{text:?}");
     assert!(text.lines().all(|line| !line.chars().any(char::is_control)));
     assert_eq!(project, project_copy);
     assert_eq!(workspace, workspace_copy);

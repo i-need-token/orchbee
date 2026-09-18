@@ -36,6 +36,8 @@ mod tui_layout;
 mod tui_render;
 #[cfg(unix)]
 mod tui_shell;
+#[cfg(unix)]
+mod tui_theme;
 
 use std::{
     env,
