@@ -16,7 +16,7 @@ fn appended(events: &[Event]) -> String {
     events
         .iter()
         .filter_map(|event| match event {
-            Event::Append(text) => Some(text.as_str()),
+            Event::Append(text) | Event::Paste(text) => Some(text.as_str()),
             _ => None,
         })
         .collect()
@@ -413,4 +413,103 @@ fn external_cancel_of_pending_escape_keeps_the_disambiguation_then_releases_at_t
     assert!(decoder.owns_input());
     feed(&mut decoder, b"[", now + Duration::from_millis(10), 512);
     assert!(decoder.owns_input());
+}
+
+#[test]
+fn unmodified_navigation_delete_and_word_keys_emit_edit_events() {
+    let now = Instant::now();
+    for (bytes, expected) in [
+        (b"\x1b[D".as_slice(), Event::Left),
+        (b"\x1b[C".as_slice(), Event::Right),
+        (b"\x1b[H".as_slice(), Event::Home),
+        (b"\x1b[F".as_slice(), Event::End),
+        (b"\x1b[1~".as_slice(), Event::Home),
+        (b"\x1b[7~".as_slice(), Event::Home),
+        (b"\x1b[4~".as_slice(), Event::End),
+        (b"\x1b[8~".as_slice(), Event::End),
+        (b"\x1b[3~".as_slice(), Event::Delete),
+        (b"\x1bOD".as_slice(), Event::Left),
+        (b"\x1bOC".as_slice(), Event::Right),
+        (b"\x1bOH".as_slice(), Event::Home),
+        (b"\x1bOF".as_slice(), Event::End),
+        (b"\x9bD".as_slice(), Event::Left),
+        (b"\x9bC".as_slice(), Event::Right),
+        (b"\x9bH".as_slice(), Event::Home),
+        (b"\x9bF".as_slice(), Event::End),
+        (b"\x9b1~".as_slice(), Event::Home),
+        (b"\x9b3~".as_slice(), Event::Delete),
+        (b"\x8fD".as_slice(), Event::Left),
+        (b"\x8fH".as_slice(), Event::Home),
+        (b"\x01".as_slice(), Event::Home),
+        (b"\x05".as_slice(), Event::End),
+        (b"\x17".as_slice(), Event::WordBackspace),
+    ] {
+        let mut decoder = ModalDecoder::default();
+        decoder.start();
+        let events = feed(&mut decoder, bytes, now, 512);
+        assert!(
+            events.contains(&expected),
+            "{bytes:?} should emit {expected:?}, got {events:?}"
+        );
+        assert!(
+            !events.contains(&Event::Cancel),
+            "{bytes:?} must not cancel"
+        );
+        assert!(!events.contains(&Event::Fault), "{bytes:?} must not fault");
+        assert!(decoder.owns_input());
+    }
+}
+
+#[test]
+fn modified_and_unbound_sequences_emit_no_edit_event_and_do_not_cancel() {
+    let now = Instant::now();
+    for bytes in [
+        b"\x1b[1;5D".as_slice(),
+        b"\x1b[1;2H".as_slice(),
+        b"\x1b[3;5~".as_slice(),
+        b"\x1b[1;5~".as_slice(),
+        b"\x1b[A".as_slice(),
+        b"\x1b[B".as_slice(),
+        b"\x1b[2~".as_slice(),
+        b"\x1b[5~".as_slice(),
+        b"\x1b[6~".as_slice(),
+        b"\x1bOA".as_slice(),
+        b"\x1bOB".as_slice(),
+        b"\x1b[Z".as_slice(),
+        b"\x9bA".as_slice(),
+        b"\x1b[201~".as_slice(),
+    ] {
+        let mut decoder = ModalDecoder::default();
+        decoder.start();
+        let events = feed(&mut decoder, bytes, now, 512);
+        assert!(
+            events
+                .iter()
+                .all(|event| matches!(event, Event::Completeness(_))),
+            "{bytes:?} must only bracket the frame, got {events:?}"
+        );
+        assert!(decoder.owns_input(), "{bytes:?} must stay owned");
+        // The next ordinary key still edits: the sequence was consumed, not
+        // released or cancelled.
+        assert_eq!(
+            feed(&mut decoder, b"x", now, 512),
+            [Event::Append("x".to_owned())]
+        );
+    }
+}
+
+#[test]
+fn paste_emits_one_atomic_event_distinct_from_typed_text() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    decoder.start();
+    let events = feed(&mut decoder, b"\x1b[200~a\x02b\x1b[201~", now, 512);
+    assert_eq!(
+        events,
+        [
+            Event::Completeness(false),
+            Event::Completeness(true),
+            Event::Paste("a\x02b".to_owned()),
+        ]
+    );
 }

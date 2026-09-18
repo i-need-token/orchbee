@@ -707,3 +707,73 @@ fn unpresentable_setup_draft_cancels_with_notice() {
         Some(NativeSessionNotice::DraftCancelled)
     );
 }
+
+#[test]
+fn open_rename_draft_consumes_editor_keys_and_atomic_paste_without_corruption() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestRenameTab),
+        SessionActionDisposition::DismissNavigator
+    );
+
+    // Unmodified editing keys reach the real draft as consumed edits: the
+    // flat label buffer has no cursor, so the text and the lease are intact.
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        &mut ui,
+        b"\x1b[D\x1b[C\x1b[H\x1b[F\x1b[3~\x17\x01\x05",
+    );
+    let draft_text = |ui: &NativeUi| {
+        ui.state
+            .as_ref()
+            .unwrap()
+            .rename_draft()
+            .unwrap()
+            .text()
+            .to_owned()
+    };
+    assert_eq!(draft_text(&ui), "Tab 0");
+    assert!(ui.rename_input_context().is_some());
+
+    // Modified and unbound sequences are consumed whole: no fault, no cancel,
+    // no forward.
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        &mut ui,
+        b"\x1b[1;5D\x1b[A\x1b[Z",
+    );
+    assert_eq!(draft_text(&ui), "Tab 0");
+    assert!(
+        !ui.state
+            .as_ref()
+            .unwrap()
+            .rename_draft()
+            .unwrap()
+            .input_fault()
+    );
+    assert!(ui.rename_input_context().is_some());
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    // An atomic paste lands in the draft even when it carries bytes that
+    // would otherwise be prefix, selection, or submit keys.
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        &mut ui,
+        b"\x1b[200~\x02x[]\x1b[201~",
+    );
+    assert_eq!(draft_text(&ui), "Tab 0\x02x[]");
+    assert!(
+        !ui.state
+            .as_ref()
+            .unwrap()
+            .rename_draft()
+            .unwrap()
+            .input_fault()
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+}

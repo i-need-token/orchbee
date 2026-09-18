@@ -35,8 +35,15 @@ pub(crate) enum NativeSetupStatus {
 }
 pub(crate) enum NativeSetupEdit<'a> {
     Append(&'a str),
+    Paste(&'a str),
     Backspace,
     Clear,
+    Left,
+    Right,
+    Home,
+    End,
+    Delete,
+    WordBackspace,
     Fault,
     Completeness(bool),
     SelectPreviousProject,
@@ -298,7 +305,7 @@ impl NativeSessionState {
                 self.setup.last_token = next_token;
                 draft.shown = false;
             }
-            NativeSetupEdit::Append(value)
+            NativeSetupEdit::Append(value) | NativeSetupEdit::Paste(value)
                 if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
             {
                 let fits = if draft.stage == NativeSetupStage::DirectoryPath {
@@ -324,6 +331,16 @@ impl NativeSessionState {
             NativeSetupEdit::Clear if draft.complete => {
                 draft.text.clear();
                 draft.faulted = false;
+            }
+            NativeSetupEdit::Left
+            | NativeSetupEdit::Right
+            | NativeSetupEdit::Home
+            | NativeSetupEdit::End
+            | NativeSetupEdit::Delete
+            | NativeSetupEdit::WordBackspace => {
+                // The flat draft text has no cursor yet; these edits are
+                // consumed here without a state change until the LineEditor
+                // consumer lands.
             }
             _ => return false,
         }

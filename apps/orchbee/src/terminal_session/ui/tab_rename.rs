@@ -41,8 +41,15 @@ impl NativeRenameInputContext {
 
 pub(crate) enum NativeRenameEdit<'a> {
     Append(&'a str),
+    Paste(&'a str),
     Backspace,
     Clear,
+    Left,
+    Right,
+    Home,
+    End,
+    Delete,
+    WordBackspace,
     Fault,
     Completeness(bool),
 }
@@ -123,8 +130,15 @@ impl NativeUi {
                 token.0,
                 match edit {
                     NativeRenameEdit::Append(text) => RenameDraftEdit::Append(text),
+                    NativeRenameEdit::Paste(text) => RenameDraftEdit::Paste(text),
                     NativeRenameEdit::Backspace => RenameDraftEdit::Backspace,
                     NativeRenameEdit::Clear => RenameDraftEdit::Clear,
+                    NativeRenameEdit::Left => RenameDraftEdit::Left,
+                    NativeRenameEdit::Right => RenameDraftEdit::Right,
+                    NativeRenameEdit::Home => RenameDraftEdit::Home,
+                    NativeRenameEdit::End => RenameDraftEdit::End,
+                    NativeRenameEdit::Delete => RenameDraftEdit::Delete,
+                    NativeRenameEdit::WordBackspace => RenameDraftEdit::WordBackspace,
                     NativeRenameEdit::Fault => RenameDraftEdit::Fault,
                     NativeRenameEdit::Completeness(value) => RenameDraftEdit::Completeness(value),
                 },

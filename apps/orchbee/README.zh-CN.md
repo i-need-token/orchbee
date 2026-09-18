@@ -108,8 +108,10 @@ navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication
 移动改变共享顺序，同时保留活动终端及其 viewer/controller。如果 Move 已提交且快照返回明确的 denied/unavailable 结果，
 Client 保留终端交互，并通过 `w` 显式恢复快照后才允许下一次结构操作。
 
-Rename 精确保留最多 512 个 Unicode 标量。Bracketed paste 原子追加，Backspace 删除一个标量，
-Ctrl+U 清空草稿。已知 Rename 提交但投影不可用时，同样通过 `w` 显式恢复，绝不重发命令。
+Rename 精确保留最多 512 个 Unicode 标量。Bracketed paste 作为一次原子编辑落地——payload 内的
+prefix、方括号、换行字节绝不会升级为命令。Backspace 删除一个标量，Ctrl+U 清空草稿；无修饰的
+Left/Right/Home/End/Delete 以及 Ctrl+A/Ctrl+E、Ctrl+W 作为语义编辑到达草稿，而带修饰或未绑定的
+序列被整帧吞掉、不取消草稿。已知 Rename 提交但投影不可用时，同样通过 `w` 显式恢复，绝不重发命令。
 [原生 Session 契约](docs/native-tab-session.zh-CN.md) 定义准入、尺寸、反馈、失败、恢复与证据边界。
 Close 要求独立生命周期授权，只读 Client 也适用。关闭最后一个 Tab 后留下 Empty；显式 `c`
 创建新终端，普通 Client 退出则保留该终端供后续裸 Open 使用。终端被关闭的 peer 通过显式 `w`

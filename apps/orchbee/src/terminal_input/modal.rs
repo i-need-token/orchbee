@@ -35,8 +35,15 @@ impl ModalCapacity {
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum ModalInputEvent {
     Append(String),
+    Paste(String),
     Backspace,
     Clear,
+    Left,
+    Right,
+    Home,
+    End,
+    Delete,
+    WordBackspace,
     Fault,
     Completeness(bool),
     Submit,
@@ -345,7 +352,7 @@ impl ModalDecoder {
                         self.finish_frame(now, &mut events);
                         if self.editing {
                             events
-                                .push(text.map_or(ModalInputEvent::Fault, ModalInputEvent::Append));
+                                .push(text.map_or(ModalInputEvent::Fault, ModalInputEvent::Paste));
                         }
                     }
                 },
@@ -365,8 +372,15 @@ impl ModalDecoder {
                 events.push(ModalInputEvent::Completeness(false));
                 self.escape(now, events);
             }
+            0x9b | 0x8f => {
+                events.push(ModalInputEvent::Completeness(false));
+                self.phase = Phase::Sequence(Sequence::c1(byte, now));
+            }
+            1 => events.push(ModalInputEvent::Home),
+            5 => events.push(ModalInputEvent::End),
             8 | 127 => events.push(ModalInputEvent::Backspace),
             21 => events.push(ModalInputEvent::Clear),
+            23 => events.push(ModalInputEvent::WordBackspace),
             b'\r' | b'\n' => {
                 self.swallow_lf = byte == b'\r';
                 events.push(ModalInputEvent::Submit);
@@ -453,6 +467,12 @@ impl ModalDecoder {
                 self.phase = Phase::Paste(paste);
             } else {
                 self.finish_frame(now, events);
+                if self.editing
+                    && !sequence.drain
+                    && let Some(event) = sequence_edit(&sequence.bytes[..sequence.length])
+                {
+                    events.push(event);
+                }
             }
         } else {
             self.phase = Phase::Sequence(sequence);
@@ -484,6 +504,23 @@ impl ModalDecoder {
         self.phase = Phase::Suppressed;
         events.push(ModalInputEvent::InputFailure);
     }
+}
+
+/// Maps a complete, valid CSI/SS3 frame to its editing event. Only the exact
+/// unmodified forms resolve; a parameterized or modified frame (Ctrl+arrows,
+/// `3;5~`, kitty-style `u` events, unbound Up/Down/Insert/PageUp/PageDown/F1-F4)
+/// returns `None` so it is consumed whole — never simplified to a plain key.
+fn sequence_edit(bytes: &[u8]) -> Option<ModalInputEvent> {
+    Some(match bytes {
+        b"\x1b[D" | b"\x9bD" | b"\x1bOD" | b"\x8fD" => ModalInputEvent::Left,
+        b"\x1b[C" | b"\x9bC" | b"\x1bOC" | b"\x8fC" => ModalInputEvent::Right,
+        b"\x1b[H" | b"\x9bH" | b"\x1bOH" | b"\x8fH" | b"\x1b[1~" | b"\x9b1~" | b"\x1b[7~"
+        | b"\x9b7~" => ModalInputEvent::Home,
+        b"\x1b[F" | b"\x9bF" | b"\x1bOF" | b"\x8fF" | b"\x1b[4~" | b"\x9b4~" | b"\x1b[8~"
+        | b"\x9b8~" => ModalInputEvent::End,
+        b"\x1b[3~" | b"\x9b3~" => ModalInputEvent::Delete,
+        _ => return None,
+    })
 }
 
 #[cfg(test)]

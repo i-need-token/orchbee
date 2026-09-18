@@ -352,8 +352,15 @@ impl InputDispatcher {
             };
             let edit = match event {
                 ModalInputEvent::Append(ref text) => NativeRenameEdit::Append(text),
+                ModalInputEvent::Paste(ref text) => NativeRenameEdit::Paste(text),
                 ModalInputEvent::Backspace => NativeRenameEdit::Backspace,
                 ModalInputEvent::Clear => NativeRenameEdit::Clear,
+                ModalInputEvent::Left => NativeRenameEdit::Left,
+                ModalInputEvent::Right => NativeRenameEdit::Right,
+                ModalInputEvent::Home => NativeRenameEdit::Home,
+                ModalInputEvent::End => NativeRenameEdit::End,
+                ModalInputEvent::Delete => NativeRenameEdit::Delete,
+                ModalInputEvent::WordBackspace => NativeRenameEdit::WordBackspace,
                 ModalInputEvent::Fault => NativeRenameEdit::Fault,
                 ModalInputEvent::Completeness(complete) => NativeRenameEdit::Completeness(complete),
                 ModalInputEvent::Submit => {
@@ -393,8 +400,15 @@ impl InputDispatcher {
                 }
             }
             ModalInputEvent::Append(ref text) => NativeSetupEdit::Append(text),
+            ModalInputEvent::Paste(ref text) => NativeSetupEdit::Paste(text),
             ModalInputEvent::Backspace => NativeSetupEdit::Backspace,
             ModalInputEvent::Clear => NativeSetupEdit::Clear,
+            ModalInputEvent::Left => NativeSetupEdit::Left,
+            ModalInputEvent::Right => NativeSetupEdit::Right,
+            ModalInputEvent::Home => NativeSetupEdit::Home,
+            ModalInputEvent::End => NativeSetupEdit::End,
+            ModalInputEvent::Delete => NativeSetupEdit::Delete,
+            ModalInputEvent::WordBackspace => NativeSetupEdit::WordBackspace,
             ModalInputEvent::Fault => NativeSetupEdit::Fault,
             ModalInputEvent::Completeness(complete) => NativeSetupEdit::Completeness(complete),
             ModalInputEvent::Submit => {

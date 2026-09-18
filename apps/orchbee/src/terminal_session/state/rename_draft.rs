@@ -24,8 +24,15 @@ struct RenameDraft {
 
 pub(in crate::terminal_session) enum RenameDraftEdit<'a> {
     Append(&'a str),
+    Paste(&'a str),
     Backspace,
     Clear,
+    Left,
+    Right,
+    Home,
+    End,
+    Delete,
+    WordBackspace,
     Fault,
     Completeness(bool),
 }
@@ -183,7 +190,7 @@ impl NativeSessionState {
             return false;
         };
         match edit {
-            RenameDraftEdit::Append(text) if draft.complete => {
+            RenameDraftEdit::Append(text) | RenameDraftEdit::Paste(text) if draft.complete => {
                 if draft.text.append(text).is_err() {
                     draft.input_fault = true;
                 }
@@ -195,6 +202,16 @@ impl NativeSessionState {
             RenameDraftEdit::Clear if draft.complete => {
                 draft.text.clear();
                 draft.input_fault = false;
+            }
+            RenameDraftEdit::Left
+            | RenameDraftEdit::Right
+            | RenameDraftEdit::Home
+            | RenameDraftEdit::End
+            | RenameDraftEdit::Delete
+            | RenameDraftEdit::WordBackspace => {
+                // The flat label buffer has no cursor yet; these edits are
+                // consumed here without a state change until the LineEditor
+                // consumer lands.
             }
             RenameDraftEdit::Fault => draft.input_fault = true,
             RenameDraftEdit::Completeness(complete) => draft.complete = complete,

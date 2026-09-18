@@ -13,6 +13,7 @@ struct SetupPort {
     forwarded: Vec<u8>,
     selections: i32,
     fault: bool,
+    edits: Vec<&'static str>,
 }
 
 impl SetupPort {
@@ -28,6 +29,7 @@ impl SetupPort {
             forwarded: Vec::new(),
             selections: 0,
             fault: false,
+            edits: Vec::new(),
         }
     }
 
@@ -87,6 +89,10 @@ impl TerminalInputPort for SetupPort {
         assert_eq!(token, self.token());
         match edit {
             NativeSetupEdit::Append(text) => self.text.push_str(text),
+            NativeSetupEdit::Paste(text) => {
+                self.edits.push("paste");
+                self.text.push_str(text);
+            }
             NativeSetupEdit::Backspace => {
                 let _removed = self.text.pop();
                 self.fault = false;
@@ -95,6 +101,12 @@ impl TerminalInputPort for SetupPort {
                 self.text.clear();
                 self.fault = false;
             }
+            NativeSetupEdit::Left => self.edits.push("left"),
+            NativeSetupEdit::Right => self.edits.push("right"),
+            NativeSetupEdit::Home => self.edits.push("home"),
+            NativeSetupEdit::End => self.edits.push("end"),
+            NativeSetupEdit::Delete => self.edits.push("delete"),
+            NativeSetupEdit::WordBackspace => self.edits.push("word_backspace"),
             NativeSetupEdit::Fault => self.fault = true,
             NativeSetupEdit::Completeness(complete) => self.complete = complete,
             NativeSetupEdit::SelectPreviousProject => {
@@ -530,4 +542,93 @@ fn an_asynchronous_step_reacquires_bracketed_paste_after_the_packet_boundary() {
         .unwrap();
     assert_eq!(modes, [true, false, true]);
     assert_eq!(dispatcher.epoch, Some(ModalEpoch::Setup(port.token())));
+}
+
+#[test]
+fn navigation_delete_and_word_keys_reach_the_draft_as_semantic_edits() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceLabel);
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"\x1b[D\x1b[C\x1b[H\x1b[F\x1b[3~\x1b[1~\x1b[4~\x9bD\x9b3~\x1bOD\x1bOH\x8fF\x01\x05\x17",
+        now,
+    );
+    assert_eq!(
+        port.edits,
+        [
+            "left",
+            "right",
+            "home",
+            "end",
+            "delete",
+            "home",
+            "end",
+            "left",
+            "delete",
+            "left",
+            "home",
+            "end",
+            "home",
+            "end",
+            "word_backspace"
+        ]
+    );
+    assert!(port.text.is_empty());
+    assert!(port.active);
+    assert!(!port.fault);
+    assert!(port.forwarded.is_empty());
+}
+
+#[test]
+fn modified_and_unbound_sequences_reach_no_draft_and_do_not_cancel_or_leak() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceLabel);
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"\x1b[1;5D\x1b[3;5~\x1b[A\x1b[B\x1b[2~\x1b[5~\x1b[6~\x1bOA\x1bOB\x1b[Z\x1b[201~",
+        now,
+    );
+    assert!(port.edits.is_empty());
+    assert!(port.text.is_empty());
+    assert!(port.active);
+    assert!(!port.fault);
+    assert!(port.forwarded.is_empty());
+    // An ordinary key after the consumed sequences still edits the draft.
+    dispatch(&mut dispatcher, &mut port, b"x", now);
+    assert_eq!(port.text, "x");
+}
+
+#[test]
+fn a_paste_is_atomic_to_the_draft_and_cannot_escalate_picker_or_commands() {
+    let now = Instant::now();
+    // A bracket inside a paste payload never selects a project.
+    let mut port = SetupPort::new(NativeSetupStage::ChooseProject);
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\x1b[200~[\x1b[201~", now);
+    assert_eq!(port.edits, ["paste"]);
+    assert_eq!(port.selections, 0);
+    assert_eq!(port.token, 1);
+    assert!(port.submissions.is_empty());
+    assert!(port.forwarded.is_empty());
+
+    // Prefix, selection brackets, and newline bytes stay inside the payload.
+    let mut port = SetupPort::new(NativeSetupStage::WorkspaceLabel);
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b"\x1b[200~\x02x\n[ignored]\x1b[201~",
+        now,
+    );
+    assert_eq!(port.edits, ["paste"]);
+    assert_eq!(port.text, "\x02x\n[ignored]");
+    assert!(port.submissions.is_empty());
+    assert!(port.forwarded.is_empty());
+    // Typed text afterwards is still a separate Append, not part of the paste.
+    dispatch(&mut dispatcher, &mut port, b"y", now);
+    assert_eq!(port.text, "\x02x\n[ignored]y");
 }

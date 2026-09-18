@@ -121,8 +121,11 @@ and its viewer/controller. If a committed Move receives a definite denied/unavai
 keeps terminal interaction available and uses `w` for explicit snapshot recovery before another
 structural operation.
 
-Rename preserves exact text up to 512 Unicode scalars. Bracketed paste is atomic; Backspace removes
-one scalar and Ctrl+U clears the draft. A known rename with unavailable projection uses the same
+Rename preserves exact text up to 512 Unicode scalars. Bracketed paste is atomic and lands as one
+edit — prefix, bracket, and newline bytes inside the payload never escalate to commands. Backspace
+removes one scalar and Ctrl+U clears the draft; unmodified Left/Right/Home/End/Delete, Ctrl+A/Ctrl+E,
+and Ctrl+W reach the draft as semantic edits, while modified or unbound sequences are consumed whole
+without cancelling the draft. A known rename with unavailable projection uses the same
 explicit `w` recovery without resubmitting the command. The [native Session contract](docs/native-tab-session.md)
 owns admission, geometry, feedback, failure, recovery and evidence bounds. Close requires a separate
 lifecycle grant, including for a view-only Client. Closing the last Tab leaves Empty; explicit `c`
