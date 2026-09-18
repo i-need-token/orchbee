@@ -1,6 +1,7 @@
 mod draft;
 mod labels;
 mod projection;
+use super::line_editor::{LengthLimit, LineEditor};
 use super::{
     AttachmentKey, NativeContextTabs, NativeSessionState, NavigatorRefreshStatus,
     OperationDeadlines, PreparedRefresh, SelectedTab, SessionNotice, SessionPhase,
@@ -19,8 +20,9 @@ pub(crate) use draft::{
     NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
 use orchbee_workbench_protocol::{
-    ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand, WorkbenchDirectoryPath,
-    WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId, WorkbenchSnapshotOutcome,
+    MAXIMUM_LABEL_LENGTH, ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand,
+    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchProjectId, WorkbenchRequestId,
+    WorkbenchSnapshotOutcome,
 };
 
 #[derive(Default)]
@@ -189,11 +191,11 @@ impl NativeSessionState {
         }
         let action = match draft.stage {
             NativeSetupStage::ProjectLabel => WorkbenchAction::ProjectCreate {
-                label: WorkbenchLabel::parse(&draft.text).ok()?,
+                label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
             },
             NativeSetupStage::WorkspaceLabel => WorkbenchAction::WorkspaceCreate {
                 project_id: draft.project.clone()?,
-                label: WorkbenchLabel::parse(&draft.text).ok()?,
+                label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
             },
             NativeSetupStage::DirectoryPath => {
                 let NativeContextLocation::Workspace {
@@ -212,7 +214,7 @@ impl NativeSessionState {
                 WorkbenchAction::WorkspacePrimaryDirectoryAccept {
                     project_id: project_id.clone(),
                     workspace_id: workspace_id.clone(),
-                    path: WorkbenchDirectoryPath::parse(&draft.text).ok()?,
+                    path: WorkbenchDirectoryPath::parse(draft.editor.text()).ok()?,
                 }
             }
             NativeSetupStage::ProjectRename | NativeSetupStage::WorkspaceRename => {
@@ -224,7 +226,7 @@ impl NativeSessionState {
                 else {
                     return None;
                 };
-                let label = WorkbenchLabel::parse(&draft.text).ok()?;
+                let label = WorkbenchLabel::parse(draft.editor.text()).ok()?;
                 if draft.stage == NativeSetupStage::ProjectRename {
                     WorkbenchAction::ProjectRename {
                         project_id: project_id.clone(),
@@ -389,7 +391,10 @@ impl NativeSessionState {
                         .unwrap_or(0),
                     project: Some(project_id.clone()),
                     known_project_created: true,
-                    text: String::new(),
+                    editor: LineEditor::new(
+                        String::new(),
+                        LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH),
+                    ),
                     shown: false,
                     complete: true,
                     faulted: false,

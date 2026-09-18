@@ -119,6 +119,26 @@ pub(super) fn wrapped_text_fits(text: &Text<'_>, area: Rect) -> bool {
             <= usize::from(area.height)
 }
 
+/// Places the terminal cursor inside a presented modal: `column` cells into
+/// the wrapped row that `line_index` begins on. The caller attests the column
+/// is already inside the inner width — a field window's cursor column is
+/// always strictly below the field width it was projected for.
+pub(super) fn set_modal_cursor(
+    frame: &mut Frame<'_>,
+    text: &Text<'_>,
+    inner: Rect,
+    line_index: usize,
+    column: usize,
+) {
+    let row = Paragraph::new(Text::from(text.lines[..line_index].to_vec()))
+        .wrap(Wrap { trim: false })
+        .line_count(inner.width);
+    frame.set_cursor_position((
+        inner.x + column as u16,
+        inner.y + u16::try_from(row).unwrap_or(u16::MAX),
+    ));
+}
+
 pub(super) fn unwrapped_text_fits(text: &str, area: Rect) -> bool {
     let text = Text::from(text);
     !area.is_empty()

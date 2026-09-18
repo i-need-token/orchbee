@@ -22,6 +22,16 @@ fn appended(events: &[Event]) -> String {
         .collect()
 }
 
+fn pasted(events: &[Event]) -> String {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            Event::Paste(text) => Some(text.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
 #[test]
 fn directory_paste_limit_counts_utf8_bytes_and_rejects_the_whole_paste() {
     let now = Instant::now();
@@ -38,7 +48,7 @@ fn directory_paste_limit_counts_utf8_bytes_and_rejects_the_whole_paste() {
         for chunk in packet.as_bytes().chunks(7) {
             events.extend(feed(&mut decoder, chunk, now, capacity));
         }
-        assert_eq!(appended(&events), if accepted { text.as_str() } else { "" });
+        assert_eq!(pasted(&events), if accepted { text.as_str() } else { "" });
         assert_eq!(events.contains(&Event::Fault), !accepted);
         assert!(!events.contains(&Event::Submit));
     }
@@ -50,7 +60,7 @@ fn directory_paste_leaves_literal_nul_and_path_validation_to_the_state_owner() {
     let mut decoder = ModalDecoder::default();
     decoder.start_with_capacity(ModalCapacity::Bytes4096);
     let events = feed(&mut decoder, b"\x1b[200~relative\0path\x1b[201~", now, 4096);
-    assert_eq!(appended(&events), "relative\0path");
+    assert_eq!(pasted(&events), "relative\0path");
     assert!(!events.contains(&Event::Fault));
     assert_eq!(appended(&feed(&mut decoder, b"\0", now, 4096)), "\0");
 }
@@ -94,10 +104,10 @@ fn paste_is_atomic_across_every_split_and_keeps_literal_controls_and_nested_open
         decoder.start();
         let mut events = feed(&mut decoder, &bytes.as_bytes()[..split], now, 512);
         if split < bytes.len() {
-            assert!(appended(&events).is_empty());
+            assert!(pasted(&events).is_empty());
         }
         events.extend(feed(&mut decoder, &bytes.as_bytes()[split..], now, 512));
-        assert_eq!(appended(&events), text);
+        assert_eq!(pasted(&events), text);
         assert!(!events.iter().any(|event| matches!(
             event,
             Event::Submit | Event::Cancel | Event::Backspace | Event::Clear | Event::Fault
@@ -118,13 +128,13 @@ fn paste_overflow_and_invalid_utf8_discard_every_pending_scalar_until_the_termin
         let text = "😀".repeat(count);
         let bytes = format!("\x1b[200~{text}");
         let prefix = feed(&mut decoder, bytes.as_bytes(), now, 512);
-        assert!(appended(&prefix).is_empty());
+        assert!(pasted(&prefix).is_empty());
         let end = feed(&mut decoder, b"\x1b[201~", now, 512);
         if count == 512 {
-            assert_eq!(appended(&end), text);
+            assert_eq!(pasted(&end), text);
         } else {
             assert!(prefix.contains(&Event::Fault));
-            assert!(appended(&end).is_empty());
+            assert!(pasted(&end).is_empty());
         }
     }
     let mut decoder = ModalDecoder::default();
@@ -136,7 +146,7 @@ fn paste_overflow_and_invalid_utf8_discard_every_pending_scalar_until_the_termin
         512,
     );
     assert!(events.contains(&Event::Fault));
-    assert!(appended(&events).is_empty());
+    assert!(pasted(&events).is_empty());
     assert!(
         !events
             .iter()

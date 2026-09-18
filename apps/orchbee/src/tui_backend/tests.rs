@@ -82,9 +82,12 @@ fn sanitizes_untrusted_cell_symbols_at_the_final_print_boundary()
     let output = std::str::from_utf8(&backend.writer)?;
     assert!(output.contains("\x1b["));
     assert!(!output.contains("\x1b]52;c;payload"));
+    assert!(output.contains("safe"));
     for forbidden in ['\x07', '\r', '\n', '\u{85}', '\u{2028}', '\u{2029}'] {
         assert!(!output.contains(forbidden));
     }
+    // Forbidden scalars and whole sequences are dropped at the print
+    // boundary — never echoed back as replacement-glyph noise.
     assert_eq!(output.matches('\u{fffd}').count(), 0);
     assert!(output.contains("界e\u{301}"));
     assert_eq!(cell.symbol(), payload);

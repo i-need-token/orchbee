@@ -1,16 +1,16 @@
-use ratatui::text::Line;
 use unicode_segmentation::UnicodeSegmentation;
 
 /// The protocol length budget for one editable field: a scalar count for
 /// workbench labels or a UTF-8 byte count for filesystem paths. The budget is
 /// checked against the exact resulting text, never against grapheme clusters.
+#[derive(Clone, Copy, Debug)]
 pub(in crate::terminal_session) enum LengthLimit {
     Scalars(usize),
     Bytes(usize),
 }
 
 /// An insertion or paste exceeded the field's [`LengthLimit`]. The rejection
-/// is atomic: text, cursor, and scroll are all unchanged.
+/// is atomic: text and cursor are both unchanged.
 #[derive(Debug, PartialEq, Eq)]
 pub(in crate::terminal_session) struct LengthLimitReached;
 
@@ -22,24 +22,15 @@ pub(in crate::terminal_session) struct LengthLimitReached;
 ///   admission is the typed-input boundary's job).
 /// - `cursor` is a byte index that is always a valid extended-grapheme
 ///   boundary, possibly `text.len()`.
-/// - `scroll` is the byte index of the first grapheme in the horizontal
-///   viewport, always a grapheme boundary and never past `cursor`.
 ///
-/// The editor holds no I/O, clock, or session state, and rendering is a pure
-/// projection of this state.
+/// The editor holds no I/O, clock, or session state. The horizontal window a
+/// draft field shows is a pure consumer projection over this state measured
+/// in the chrome-safe display space — the core does not own display layout.
+#[derive(Clone, Debug)]
 pub(in crate::terminal_session) struct LineEditor {
     text: String,
     cursor: usize,
-    scroll: usize,
     limit: LengthLimit,
-}
-
-/// A pure render projection: the window of `text` visible inside a field of
-/// `field_width` cells and the cursor's column inside that window. It attests
-/// that the window and cursor are drawable — not that the whole draft fits.
-pub(in crate::terminal_session) struct EditorViewport<'a> {
-    pub(in crate::terminal_session) text: &'a str,
-    pub(in crate::terminal_session) cursor_column: usize,
 }
 
 impl LineEditor {
@@ -49,7 +40,6 @@ impl LineEditor {
         Self {
             cursor: text.len(),
             text,
-            scroll: 0,
             limit,
         }
     }
@@ -61,18 +51,6 @@ impl LineEditor {
     /// Byte index of the cursor; always an extended-grapheme boundary.
     pub(in crate::terminal_session) fn cursor(&self) -> usize {
         self.cursor
-    }
-
-    /// Byte index where the visible window starts; always a grapheme boundary
-    /// at or before the cursor.
-    pub(in crate::terminal_session) fn scroll(&self) -> usize {
-        self.scroll
-    }
-
-    /// Cursor column relative to the window: the display width of
-    /// `text[scroll..cursor]`, not of the whole prefix.
-    pub(in crate::terminal_session) fn cursor_column(&self) -> usize {
-        cell_width(&self.text[self.scroll..self.cursor])
     }
 
     /// Inserts `inserted` at the cursor; typed input and paste share this one
@@ -96,7 +74,6 @@ impl LineEditor {
         let intent = self.cursor + inserted.len();
         self.text.insert_str(self.cursor, inserted);
         self.cursor = boundary_at_or_after(&self.text, intent);
-        self.clamp_scroll();
         Ok(())
     }
 
@@ -141,7 +118,6 @@ impl LineEditor {
     pub(in crate::terminal_session) fn clear(&mut self) {
         self.text.clear();
         self.cursor = 0;
-        self.scroll = 0;
     }
 
     /// Moves the cursor one grapheme cluster left/right. Returns `false` at
@@ -151,7 +127,6 @@ impl LineEditor {
             return false;
         }
         self.cursor = boundary_before(&self.text, self.cursor);
-        self.clamp_scroll();
         true
     }
 
@@ -161,7 +136,6 @@ impl LineEditor {
             return false;
         }
         self.cursor = next;
-        self.clamp_scroll();
         true
     }
 
@@ -172,7 +146,6 @@ impl LineEditor {
             return false;
         }
         self.cursor = 0;
-        self.clamp_scroll();
         true
     }
 
@@ -181,51 +154,7 @@ impl LineEditor {
             return false;
         }
         self.cursor = self.text.len();
-        self.clamp_scroll();
         true
-    }
-
-    /// Re-clamps `scroll` so the cursor is drawable inside a
-    /// `field_width`-cell window: advances whole grapheme boundaries until the
-    /// cursor column is narrower than the field. A zero-width field is not
-    /// renderable and leaves the state alone — callers render nothing rather
-    /// than a fake cursor position.
-    pub(in crate::terminal_session) fn pin_scroll(&mut self, field_width: usize) {
-        if field_width == 0 {
-            return;
-        }
-        while self.scroll < self.cursor
-            && cell_width(&self.text[self.scroll..self.cursor]) >= field_width
-        {
-            self.scroll = boundary_after(&self.text, self.scroll);
-        }
-    }
-
-    /// Pure render projection for a `field_width`-cell field; `None` when the
-    /// field has no drawable width. The window contains whole grapheme
-    /// clusters only and stops before exceeding the field — a cluster wider
-    /// than the remaining space is never split. Call [`Self::pin_scroll`]
-    /// first so the cursor column fits.
-    pub(in crate::terminal_session) fn viewport(
-        &self,
-        field_width: usize,
-    ) -> Option<EditorViewport<'_>> {
-        if field_width == 0 {
-            return None;
-        }
-        let mut used = 0usize;
-        let mut window_len = 0usize;
-        for (offset, cluster) in self.text[self.scroll..].grapheme_indices(true) {
-            if used + cell_width(cluster) > field_width {
-                break;
-            }
-            used += cell_width(cluster);
-            window_len = offset + cluster.len();
-        }
-        Some(EditorViewport {
-            text: &self.text[self.scroll..self.scroll + window_len],
-            cursor_column: self.cursor_column(),
-        })
     }
 
     /// Removes `range` (grapheme boundaries) with the deletion intent anchored
@@ -235,20 +164,7 @@ impl LineEditor {
         let start = range.start;
         self.text.replace_range(range, "");
         self.cursor = boundary_at_or_after(&self.text, start);
-        self.clamp_scroll();
     }
-
-    /// Re-clamps `scroll` after a mutation to a grapheme boundary at or before
-    /// the cursor; [`Self::pin_scroll`] then advances it for field width.
-    fn clamp_scroll(&mut self) {
-        self.scroll = boundary_at_or_before(&self.text, self.scroll.min(self.cursor));
-    }
-}
-
-/// Display cell width via the project's existing ratatui measure — the same
-/// source chrome truncation uses, so no second width table enters the build.
-fn cell_width(text: &str) -> usize {
-    Line::raw(text).width()
 }
 
 /// The smallest extended-grapheme boundary at or after `index` — snaps an
@@ -262,19 +178,6 @@ fn boundary_at_or_after(text: &str, index: usize) -> usize {
             (offset < index && index < offset + cluster.len()).then_some(offset + cluster.len())
         })
         .unwrap_or(index)
-}
-
-/// The largest grapheme boundary at or before `index` — the start of the
-/// cluster containing `index`, or `index` itself when it is a boundary.
-fn boundary_at_or_before(text: &str, index: usize) -> usize {
-    if index >= text.len() {
-        return text.len();
-    }
-    text.grapheme_indices(true)
-        .find_map(|(offset, cluster)| {
-            (offset <= index && index < offset + cluster.len()).then_some(offset)
-        })
-        .unwrap_or(0)
 }
 
 /// The largest grapheme boundary strictly before `index` — the previous

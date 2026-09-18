@@ -1,6 +1,7 @@
-use super::rename_text::RenameText;
+use super::field_window::{NativeFieldWindow, field_window};
+use super::line_editor::{LengthLimit, LineEditor};
 use super::{AttachmentKey, NativeContextTabs, NativeSessionState, SessionNotice, SessionPhase};
-use orchbee_workbench_protocol::WorkbenchLabel;
+use orchbee_workbench_protocol::{MAXIMUM_LABEL_LENGTH, WorkbenchLabel};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RenameDraftToken(u64);
@@ -16,12 +17,14 @@ struct RenameDraft {
     baseline: NativeContextTabs,
     target: AttachmentKey,
     target_index: usize,
-    text: RenameText,
+    editor: LineEditor,
     shown: bool,
     input_fault: bool,
     complete: bool,
 }
 
+/// The typed edit vocabulary the rename draft applies to its line editor —
+/// the same contract U5's typed-input bridge delivers for text fields.
 pub(in crate::terminal_session) enum RenameDraftEdit<'a> {
     Append(&'a str),
     Paste(&'a str),
@@ -45,8 +48,17 @@ impl<'a> RenameDraftView<'a> {
     pub(in crate::terminal_session) const fn token(&self) -> RenameDraftToken {
         self.draft.token
     }
+    /// The draft's exact raw text — what a submit sends and a cancel discards.
     pub(in crate::terminal_session) fn text(&self) -> &'a str {
-        self.draft.text.as_str()
+        self.draft.editor.text()
+    }
+    /// Pure display-space projection of the draft inside a `field_width`-cell
+    /// field; `None` when the field has no drawable width.
+    pub(in crate::terminal_session) fn field_window(
+        &self,
+        field_width: usize,
+    ) -> Option<NativeFieldWindow<'a>> {
+        field_window(&self.draft.editor, field_width)
     }
     pub(in crate::terminal_session) fn target_label(&self) -> &'a str {
         self.draft.baseline.tabs()[self.draft.target_index]
@@ -54,7 +66,7 @@ impl<'a> RenameDraftView<'a> {
             .as_str()
     }
     pub(in crate::terminal_session) fn label_valid(&self) -> bool {
-        self.draft.text.label().is_ok()
+        WorkbenchLabel::parse(self.draft.editor.text()).is_ok()
     }
     pub(in crate::terminal_session) const fn input_fault(&self) -> bool {
         self.draft.input_fault
@@ -139,7 +151,12 @@ impl NativeSessionState {
             baseline: self.cache.clone(),
             target,
             target_index,
-            text: RenameText::from_label(tab.tab_label()),
+            // Prefill keeps the protocol-legal label byte-exact — including
+            // control scalars chrome cannot show — with the cursor at its end.
+            editor: LineEditor::new(
+                tab.tab_label().as_str().to_owned(),
+                LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH),
+            ),
             shown: false,
             input_fault: false,
             complete: true,
@@ -190,28 +207,40 @@ impl NativeSessionState {
             return false;
         };
         match edit {
+            // Typed input and paste share the editor's one atomic insert path;
+            // a rejected insertion faults the draft without touching its text.
             RenameDraftEdit::Append(text) | RenameDraftEdit::Paste(text) if draft.complete => {
-                if draft.text.append(text).is_err() {
+                if draft.editor.insert(text).is_err() {
                     draft.input_fault = true;
                 }
             }
             RenameDraftEdit::Backspace if draft.complete => {
-                draft.text.remove_last_scalar();
+                draft.editor.backspace();
+                draft.input_fault = false;
+            }
+            RenameDraftEdit::Delete if draft.complete => {
+                draft.editor.delete();
+                draft.input_fault = false;
+            }
+            RenameDraftEdit::WordBackspace if draft.complete => {
+                draft.editor.word_back();
                 draft.input_fault = false;
             }
             RenameDraftEdit::Clear if draft.complete => {
-                draft.text.clear();
+                draft.editor.clear();
                 draft.input_fault = false;
             }
-            RenameDraftEdit::Left
-            | RenameDraftEdit::Right
-            | RenameDraftEdit::Home
-            | RenameDraftEdit::End
-            | RenameDraftEdit::Delete
-            | RenameDraftEdit::WordBackspace => {
-                // The flat label buffer has no cursor yet; these edits are
-                // consumed here without a state change until the LineEditor
-                // consumer lands.
+            RenameDraftEdit::Left if draft.complete => {
+                draft.editor.left();
+            }
+            RenameDraftEdit::Right if draft.complete => {
+                draft.editor.right();
+            }
+            RenameDraftEdit::Home if draft.complete => {
+                draft.editor.home();
+            }
+            RenameDraftEdit::End if draft.complete => {
+                draft.editor.end();
             }
             RenameDraftEdit::Fault => draft.input_fault = true,
             RenameDraftEdit::Completeness(complete) => draft.complete = complete,
@@ -237,7 +266,7 @@ impl NativeSessionState {
             token,
             baseline: draft.baseline.clone(),
             target: draft.target.clone(),
-            label: draft.text.label().ok()?,
+            label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
         })
     }
 }

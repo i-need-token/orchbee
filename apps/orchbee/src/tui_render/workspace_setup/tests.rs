@@ -16,6 +16,7 @@ fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool,
                 frame.area(),
                 locale.setup_resize_hint(),
                 Text::from(lines.clone()),
+                None,
                 &crate::tui_theme::Theme::rgb_test_dark(),
             )
             .1;
@@ -119,6 +120,7 @@ fn location_rename_complete_draw_and_resize_fallback_keep_the_exact_target() {
                         frame.area(),
                         locale.location_rename_resize_hint(project),
                         Text::from(lines.clone()),
+                        None,
                         &crate::tui_theme::Theme::rgb_test_dark(),
                     )
                     .1;

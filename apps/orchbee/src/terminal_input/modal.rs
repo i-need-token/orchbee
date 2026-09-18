@@ -32,18 +32,22 @@ impl ModalCapacity {
     }
 }
 
+/// The frozen typed-input contract shared with U5's bridge: `Append` is one
+/// scalar of typed text, `Paste` one atomic pasted span, and the rest the
+/// editing keys a single-line field consumes. U9 merges this enum with the
+/// authoritative decoder; the names and meanings do not diverge.
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum ModalInputEvent {
     Append(String),
     Paste(String),
-    Backspace,
-    Clear,
     Left,
     Right,
     Home,
     End,
     Delete,
+    Backspace,
     WordBackspace,
+    Clear,
     Fault,
     Completeness(bool),
     Submit,
@@ -101,6 +105,7 @@ impl Sequence {
         }
     }
 
+    /// A sequence opened directly by a C1 initiator (`0x9B` CSI, `0x8F` SS3).
     fn c1(lead: u8, now: Instant) -> Self {
         let mut bytes = [0; MAX_SEQUENCE];
         bytes[0] = lead;
@@ -309,6 +314,7 @@ impl ModalDecoder {
                 }
                 Phase::Escape(_) => match byte {
                     b'[' | b'O' => self.phase = Phase::Sequence(Sequence::new(byte, now)),
+                    0x9b | 0x8f => self.phase = Phase::Sequence(Sequence::c1(byte, now)),
                     0x80..=0xff => {
                         self.scalar_byte(Scalar::default(), true, byte, now, &mut events)
                     }
@@ -376,6 +382,8 @@ impl ModalDecoder {
                 events.push(ModalInputEvent::Completeness(false));
                 self.phase = Phase::Sequence(Sequence::c1(byte, now));
             }
+            // Ctrl+A/Ctrl+E collapse onto Home/End at the input boundary, the
+            // same fold U5's bridge performs.
             1 => events.push(ModalInputEvent::Home),
             5 => events.push(ModalInputEvent::End),
             8 | 127 => events.push(ModalInputEvent::Backspace),

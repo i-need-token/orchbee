@@ -347,7 +347,12 @@ fn draw(
             &crate::tui_theme::Theme::terminal_native(),
         )
     })?;
-    assert!(!terminal.backend().cursor_visible());
+    // A presented text field places the terminal cursor inside the modal; every
+    // other surface leaves it hidden.
+    assert_eq!(
+        terminal.backend().cursor_visible(),
+        receipt.editing_cursor_shown()
+    );
     session.after_close_draw(receipt);
     Ok(terminal
         .backend()
@@ -583,9 +588,8 @@ fn maximum_atomic_paste_draws_sanitized_cells_but_submits_exact_original_scalars
             now,
         );
     }
-    assert!(
-        matches!(session.view(), TerminalSessionView::Native(view) if view.rename_draft().unwrap().text().is_empty())
-    );
+    assert!(matches!(session.view(), TerminalSessionView::Native(view)
+            if view.rename_draft().unwrap().field_window(80).unwrap().display().is_empty()));
     input(&mut dispatcher, &mut session, &mut view, b"\x1b[201~", now);
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let rendered = draw(&mut session, &view, locale, 120, 40)?;
@@ -593,10 +597,20 @@ fn maximum_atomic_paste_draws_sanitized_cells_but_submits_exact_original_scalars
             .chars()
             .filter(|character| matches!(character, '界' | '\u{fffd}'))
             .collect();
-        // The finite modal no longer covers the whole frame — the panel
-        // viewport contributes its own fixture scalars — so the complete
-        // sanitized draft must appear as one contiguous visible run.
-        assert!(displayed.contains(crate::terminal_text::sanitize_terminal_text(&label).as_ref()));
+        // The field draws only the cursor's window over the projection — a
+        // contiguous run of whole graphemes bounded by the inner width —
+        // while the raw draft and its exact submission keep the full text.
+        let projected = crate::terminal_text::sanitize_terminal_text(&label);
+        let tail: String = projected
+            .chars()
+            .rev()
+            .take(10)
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect();
+        assert!(displayed.contains(&tail));
+        assert!(displayed.matches('界').count() < projected.matches('界').count());
         assert!(!rendered.contains('\x1b'));
     }
     input(&mut dispatcher, &mut session, &mut view, b"\r", now);

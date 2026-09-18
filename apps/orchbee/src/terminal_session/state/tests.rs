@@ -16,7 +16,6 @@ mod membership;
 mod move_tab;
 mod panel;
 mod rename_draft;
-mod rename_text;
 mod reorder;
 mod reorder_history;
 mod retirement_handoff;

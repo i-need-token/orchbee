@@ -1,7 +1,9 @@
 use super::*;
+use crate::terminal_session::state::NativeFieldWindow;
 use crate::terminal_session::state::rename_draft::{
     RenameDraftEdit, RenameDraftToken, RenameDraftView,
 };
+use orchbee_workbench_protocol::MAXIMUM_LABEL_LENGTH;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NativeRenameDraftToken(RenameDraftToken);
@@ -14,8 +16,11 @@ impl<'a> NativeRenameDraftView<'a> {
     pub(crate) fn target_label(&self) -> &'a str {
         self.0.target_label()
     }
-    pub(crate) fn text(&self) -> &'a str {
-        self.0.text()
+    /// Pure display-space projection of the draft inside a
+    /// `field_width`-cell field; `None` when the field has no drawable
+    /// width.
+    pub(crate) fn field_window(&self, field_width: usize) -> Option<NativeFieldWindow<'a>> {
+        self.0.field_window(field_width)
     }
     pub(crate) fn input_fault(&self) -> bool {
         self.0.input_fault()
@@ -39,6 +44,8 @@ impl NativeRenameInputContext {
     }
 }
 
+/// The typed edit vocabulary forwarded to the rename draft — the same
+/// contract U5's typed-input bridge emits for text fields.
 pub(crate) enum NativeRenameEdit<'a> {
     Append(&'a str),
     Paste(&'a str),
@@ -117,7 +124,7 @@ impl NativeUi {
         let draft = state.rename_draft()?;
         Some(NativeRenameInputContext {
             token: NativeRenameDraftToken(draft.token()),
-            remaining_scalar_capacity: 512 - draft.text().chars().count(),
+            remaining_scalar_capacity: MAXIMUM_LABEL_LENGTH - draft.text().chars().count(),
         })
     }
     pub(in crate::terminal_session) fn edit_rename_draft(

@@ -15,16 +15,17 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 use super::workbench_projection::project_native_standalone_tabs;
 mod context_selection;
+mod field_window;
 pub(super) mod line_editor;
 pub(super) mod workspace_setup;
 pub(crate) use context_selection::NativeContextView;
+pub(crate) use field_window::NativeFieldWindow;
 mod create_membership;
 mod membership;
 mod move_tab;
 mod panel;
 mod panel_close;
 pub(super) mod rename_draft;
-pub(super) mod rename_text;
 #[cfg(target_os = "linux")]
 pub(super) mod retired_membership;
 mod switch_membership;

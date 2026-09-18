@@ -45,27 +45,71 @@ fn is_forbidden_chrome_scalar(character: char) -> bool {
 /// Format scalars pass through: bidirectional marks and emoji tag sequences
 /// are the program's own content.
 pub(crate) fn sanitize_terminal_symbol(value: &str) -> Cow<'_, str> {
-    sanitize_with(value, is_forbidden_terminal_scalar)
+    project_with(value, is_forbidden_terminal_scalar, false).0
 }
 
 /// [`sanitize_terminal_symbol`] plus the format scalars of
 /// [`is_forbidden_chrome_scalar`], for untrusted chrome labels and titles.
 pub(crate) fn sanitize_terminal_text(value: &str) -> Cow<'_, str> {
-    sanitize_with(value, is_forbidden_chrome_scalar)
+    project_with(value, is_forbidden_chrome_scalar, false).0
 }
 
-/// Shared sanitizer loop. Escape sequences are recognized and consumed whole —
-/// CSI through its final byte, OSC through BEL or either ST form (`ESC \` or
-/// the C1 `U+009C`), DCS/SOS/PM/APC through ST, and nF sequences through their
-/// final byte. The C1 initiators `0x90/0x98/0x9B/0x9D/0x9E/0x9F` take the same
-/// paths. A sequence truncated at end-of-input consumes to the end.
-fn sanitize_with(value: &str, forbidden: impl Fn(char) -> bool + Copy) -> Cow<'_, str> {
+/// The single-pass safe projection of a raw draft text: the chrome-safe
+/// display text plus the raw→visible byte map a field needs to place a raw
+/// cursor inside it. `raw_to_visible[i]` is the display byte index the raw
+/// prefix `value[..i]` projects to under the whole-text parse — bytes inside
+/// a stripped sequence map to the position where its removal landed. `None`
+/// is the identity projection of text that needed no change.
+pub(crate) struct TerminalTextProjection<'a> {
+    display: Cow<'a, str>,
+    raw_to_visible: Option<Vec<usize>>,
+}
+
+impl<'a> TerminalTextProjection<'a> {
+    /// The chrome-safe text the whole raw value projects to.
+    pub(crate) fn display(&self) -> &Cow<'a, str> {
+        &self.display
+    }
+
+    /// The display byte index a raw byte boundary projects to.
+    pub(crate) fn visible_index(&self, raw_index: usize) -> usize {
+        match &self.raw_to_visible {
+            Some(map) => map[raw_index.min(map.len() - 1)],
+            None => raw_index.min(self.display.len()),
+        }
+    }
+}
+
+/// Projects `value` through [`sanitize_terminal_text`]'s single parse and
+/// keeps the raw→visible byte map, so a raw cursor lands inside the display
+/// text exactly where the parse put it — never re-parsing a raw middle
+/// fragment as if from ground state.
+pub(crate) fn project_terminal_text(value: &str) -> TerminalTextProjection<'_> {
+    let (display, raw_to_visible) = project_with(value, is_forbidden_chrome_scalar, true);
+    TerminalTextProjection {
+        display,
+        raw_to_visible,
+    }
+}
+
+/// Shared sanitizer loop, optionally recording the raw→visible byte map of
+/// the same parse. Escape sequences are recognized and consumed whole — CSI
+/// through its final byte, OSC through BEL or either ST form (`ESC \` or the
+/// C1 `U+009C`), DCS/SOS/PM/APC through ST, and nF sequences through their
+/// final byte. The C1 initiators `0x90/0x98/0x9B/0x9D/0x9E/0x9F` take the
+/// same paths. A sequence truncated at end-of-input consumes to the end.
+fn project_with(
+    value: &str,
+    forbidden: impl Fn(char) -> bool + Copy,
+    want_map: bool,
+) -> (Cow<'_, str>, Option<Vec<usize>>) {
     if !value.chars().any(forbidden) {
-        return Cow::Borrowed(value);
+        return (Cow::Borrowed(value), None);
     }
     let mut sanitized = String::with_capacity(value.len());
-    let mut characters = value.chars();
-    while let Some(character) = characters.next() {
+    let mut map = want_map.then(|| vec![0; value.len() + 1]);
+    let mut characters = value.char_indices().peekable();
+    while let Some((start, character)) = characters.next() {
         match character {
             '\u{1b}' => skip_sequence(&mut characters, Sequence::Dispatch),
             '\u{9b}' => skip_sequence(&mut characters, Sequence::Csi),
@@ -73,11 +117,29 @@ fn sanitize_with(value: &str, forbidden: impl Fn(char) -> bool + Copy) -> Cow<'_
             '\u{90}' | '\u{98}' | '\u{9e}' | '\u{9f}' => {
                 skip_sequence(&mut characters, Sequence::String)
             }
-            _ if !forbidden(character) => sanitized.push(character),
+            _ if !forbidden(character) => {
+                if let Some(map) = &mut map {
+                    map[start] = sanitized.len();
+                }
+                sanitized.push(character);
+                if let Some(map) = &mut map {
+                    map[start + 1..start + character.len_utf8()].fill(sanitized.len());
+                }
+                continue;
+            }
             _ => {}
         }
+        // The scalar — alone or with the sequence it started — emitted
+        // nothing: every raw boundary it covered maps to the current end.
+        if let Some(map) = &mut map {
+            let end = characters.peek().map_or(value.len(), |&(index, _)| index);
+            map[start..end].fill(sanitized.len());
+        }
     }
-    Cow::Owned(sanitized)
+    if let Some(map) = &mut map {
+        map[value.len()] = sanitized.len();
+    }
+    (Cow::Owned(sanitized), map)
 }
 
 /// Parse state for one in-flight escape sequence.
@@ -113,9 +175,9 @@ fn abort_state(character: char) -> Option<Sequence> {
 /// payload bytes, which are consumed only through the payload's terminator.
 /// A truncated sequence consumes to the end. The loop stays iterative so
 /// arbitrary interruption runs cannot overflow the stack.
-fn skip_sequence(characters: &mut impl Iterator<Item = char>, mut state: Sequence) {
+fn skip_sequence(characters: &mut impl Iterator<Item = (usize, char)>, mut state: Sequence) {
     let mut escaped = false;
-    for character in characters.by_ref() {
+    for (_, character) in characters.by_ref() {
         match state {
             Sequence::Dispatch => match character {
                 '\u{1b}' => {}

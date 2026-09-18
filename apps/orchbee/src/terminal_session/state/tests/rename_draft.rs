@@ -170,3 +170,53 @@ fn rename_draft_rejects_changed_attachment_generation_independently_of_revision(
     state.acknowledge_rename_draw(Some(token));
     assert!(!state.rename_draft_blocks_structure());
 }
+
+#[test]
+fn rename_draft_edits_graphemes_and_projects_its_cursor_through_the_window() {
+    let mut state = ready(2);
+    let token = state.open_rename_draft().unwrap();
+    state.acknowledge_rename_draw(Some(token));
+    let prefill = state.rename_draft().unwrap().text().to_owned();
+    // Prefill lands the cursor at the exact raw end: an append extends the
+    // label, a left step walks back over the whole appended grapheme, delete
+    // removes it.
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::Append("\u{4e2d}")));
+    let mut text = format!("{prefill}\u{4e2d}");
+    assert_eq!(state.rename_draft().unwrap().text(), text);
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::Left));
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::Delete));
+    assert_eq!(state.rename_draft().unwrap().text(), prefill);
+    // Home + append inserts at the head; End + paste lands atomically at the
+    // tail, keeping literal controls in the raw text.
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::Home));
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::Append("X")));
+    text = format!("X{prefill}");
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::End));
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::Paste(" \u{754c}\x07z")));
+    text.push_str(" \u{754c}\x07z");
+    assert_eq!(state.rename_draft().unwrap().text(), text);
+    // Word-backspace deletes a contiguous suffix back to the last Unicode
+    // word boundary — \x07 breaks words, so the first deletion removes `z`
+    // alone and a second removes the word run before it.
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::WordBackspace));
+    let after_first = state.rename_draft().unwrap().text().to_owned();
+    assert!(text.starts_with(&after_first) && after_first.len() < text.len());
+    assert!(after_first.ends_with('\x07'));
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::WordBackspace));
+    // The second deletion spans from the last word's start to the cursor —
+    // the trailing non-word \x07 goes with it.
+    assert_eq!(state.rename_draft().unwrap().text(), format!("X{prefill} "));
+    // A raw cursor over a stripped control still lands inside the field: the
+    // window's cursor column is a display cell, never a raw byte index.
+    let window = state.rename_draft().unwrap().field_window(6).unwrap();
+    assert!(window.cursor_column() < 6);
+    assert!(crate::terminal_text::display_width(window.display()) <= 6);
+    // Over-limit insertion faults atomically: text and cursor unchanged.
+    let before = state.rename_draft().unwrap().text().to_owned();
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::Append(&"x".repeat(512))));
+    assert_eq!(state.rename_draft().unwrap().text(), before);
+    assert!(state.rename_draft().unwrap().input_fault());
+    assert!(state.edit_rename_draft(token, RenameDraftEdit::Backspace));
+    assert!(!state.rename_draft().unwrap().input_fault());
+    assert!(state.plan_rename_draft(token).is_some());
+}

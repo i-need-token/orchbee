@@ -1,4 +1,4 @@
-use super::tab_close::{modal_area, wrapped_text_fits};
+use super::tab_close::{modal_area, set_modal_cursor, wrapped_text_fits};
 use crate::{
     localization::Locale,
     terminal_session::{
@@ -46,6 +46,9 @@ pub(super) fn render(
         Line::from(locale.setup_title(draft.stage())),
         Line::from(""),
     ];
+    // The editable line's index inside `lines`, when the stage owns a text
+    // field; the picker stage has none.
+    let mut field_index = None;
     if draft.stage() == NativeSetupStage::ChooseProject {
         for index in 0..draft.project_count() {
             if let Some(project) = draft.project_at(index) {
@@ -79,9 +82,10 @@ pub(super) fn render(
             )));
             lines.push(Line::from(""));
         }
-        lines.push(Line::from(
-            sanitize_terminal_text(draft.text()).into_owned(),
-        ));
+        // The field's one visible row is sized like the rest: the windowed
+        // projection never takes more than the inner width it is given.
+        field_index = Some(lines.len());
+        lines.push(Line::from(""));
         lines.push(Line::from(""));
         lines.push(Line::from(rename.map_or_else(
             || locale.setup_input_hint(draft.stage() == NativeSetupStage::DirectoryPath),
@@ -121,8 +125,14 @@ pub(super) fn render(
         || locale.setup_resize_hint(),
         |project| locale.location_rename_resize_hint(project),
     );
-    let (area, complete) =
-        render_content(frame, content_area, resize_hint, Text::from(lines), theme);
+    let (area, complete) = render_content(
+        frame,
+        content_area,
+        resize_hint,
+        Text::from(lines),
+        field_index.map(|index| (index, draft)),
+        theme,
+    );
     (
         area,
         if complete {
@@ -138,6 +148,7 @@ fn render_content(
     content_area: Rect,
     resize_hint: &str,
     text: Text<'_>,
+    field: Option<(usize, &NativeSetupDraftView<'_>)>,
     theme: &Theme,
 ) -> (Rect, bool) {
     let area = modal_area(content_area, &text);
@@ -151,11 +162,26 @@ fn render_content(
         )
         .border_style(theme.style(Role::AccentFocus));
     let inner = block.inner(area);
+    // The raw draft stays exact; what the modal draws is its safe projection
+    // inside the inner width, with the raw cursor mapped through the same
+    // projection — never a raw byte offset applied to sanitized text.
+    let window = field.and_then(|(_, draft)| draft.field_window(usize::from(inner.width)));
+    let mut lines = text.lines;
+    if let (Some((index, _)), Some(window)) = (field, &window) {
+        lines[index] = Line::from(window.display().to_owned());
+    }
+    let text = Text::from(lines);
     let complete = wrapped_text_fits(&text, inner);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     if complete {
-        frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }), inner);
+        frame.render_widget(
+            Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+            inner,
+        );
+        if let (Some((index, _)), Some(window)) = (field, &window) {
+            set_modal_cursor(frame, &text, inner, index, window.cursor_column());
+        }
         (area, true)
     } else {
         frame.render_widget(

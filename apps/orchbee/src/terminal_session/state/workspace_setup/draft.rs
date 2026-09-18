@@ -1,7 +1,10 @@
+use super::super::field_window::{NativeFieldWindow, field_window};
+use super::super::line_editor::{LengthLimit, LineEditor};
 use super::{
     NativeContextLocation, NativeContextTabs, NativeSessionState, SessionNotice, SessionPhase,
     WorkbenchLabel, WorkbenchProjectId,
 };
+use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NativeSetupToken(pub(super) u64);
@@ -33,6 +36,9 @@ pub(crate) enum NativeSetupStatus {
     CommittedNeedRefresh,
     OutcomeUnknown,
 }
+/// The typed edit vocabulary the setup draft applies — the same contract
+/// U5's typed-input bridge delivers. Text operations apply to the stage's
+/// line editor and are inert while the picker owns the draft.
 pub(crate) enum NativeSetupEdit<'a> {
     Append(&'a str),
     Paste(&'a str),
@@ -77,7 +83,7 @@ pub(super) struct SetupDraft {
     pub(super) selected: usize,
     pub(super) project: Option<WorkbenchProjectId>,
     pub(super) known_project_created: bool,
-    pub(super) text: String,
+    pub(super) editor: LineEditor,
     pub(super) shown: bool,
     pub(super) complete: bool,
     pub(super) faulted: bool,
@@ -108,8 +114,16 @@ impl<'a> NativeSetupDraftView<'a> {
     pub(crate) fn stage(&self) -> NativeSetupStage {
         self.draft.stage
     }
+    /// The draft's exact raw text — what a submit sends and a cancel
+    /// discards.
     pub(crate) fn text(&self) -> &'a str {
-        &self.draft.text
+        self.draft.editor.text()
+    }
+    /// Pure display-space projection of the draft inside a
+    /// `field_width`-cell field; `None` when the field has no drawable
+    /// width.
+    pub(crate) fn field_window(&self, field_width: usize) -> Option<NativeFieldWindow<'a>> {
+        field_window(&self.draft.editor, field_width)
     }
     pub(crate) fn faulted(&self) -> bool {
         self.draft.faulted
@@ -180,11 +194,18 @@ impl NativeSessionState {
             NativeContextLocation::Workspace { project_id, .. } => Some(project_id.clone()),
             _ => None,
         };
-        let (stage, text) = match intent {
-            NativeSetupIntent::CreateWorkspace => (NativeSetupStage::ChooseProject, String::new()),
-            NativeSetupIntent::ConfigureDirectory => {
-                (NativeSetupStage::DirectoryPath, String::new())
-            }
+        let (stage, editor) = match intent {
+            NativeSetupIntent::CreateWorkspace => (
+                NativeSetupStage::ChooseProject,
+                LineEditor::new(String::new(), LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
+            ),
+            NativeSetupIntent::ConfigureDirectory => (
+                NativeSetupStage::DirectoryPath,
+                LineEditor::new(
+                    String::new(),
+                    LengthLimit::Bytes(MAXIMUM_DIRECTORY_PATH_BYTES),
+                ),
+            ),
             NativeSetupIntent::RenameLocation(target) => {
                 let Some(label) = super::labels::location_label(&self.cache, target) else {
                     self.setup.status = Some(NativeSetupStatus::LocationLabel {
@@ -198,7 +219,9 @@ impl NativeSessionState {
                         NativeLocationLabelTarget::Project => NativeSetupStage::ProjectRename,
                         NativeLocationLabelTarget::Workspace => NativeSetupStage::WorkspaceRename,
                     },
-                    label.to_owned(),
+                    // Prefill keeps the protocol-legal label byte-exact with
+                    // the cursor at its end.
+                    LineEditor::new(label.to_owned(), LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH)),
                 )
             }
         };
@@ -221,7 +244,7 @@ impl NativeSessionState {
             selected,
             project,
             known_project_created: false,
-            text,
+            editor,
             shown: false,
             complete: true,
             faulted: false,
@@ -308,39 +331,55 @@ impl NativeSessionState {
             NativeSetupEdit::Append(value) | NativeSetupEdit::Paste(value)
                 if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
             {
-                let fits = if draft.stage == NativeSetupStage::DirectoryPath {
-                    draft.text.len().saturating_add(value.len()) <= 4096
-                } else {
-                    draft
-                        .text
-                        .chars()
-                        .count()
-                        .saturating_add(value.chars().count())
-                        <= 512
-                };
-                if fits && !value.contains('\0') {
-                    draft.text.push_str(value);
-                } else {
+                // Typed input and paste share the editor's one atomic insert
+                // path; a rejected insertion faults without touching text.
+                if draft.editor.insert(value).is_err() {
                     draft.faulted = true;
                 }
             }
-            NativeSetupEdit::Backspace if draft.complete => {
-                draft.text.pop();
+            NativeSetupEdit::Backspace
+                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
+            {
+                draft.editor.backspace();
                 draft.faulted = false;
             }
-            NativeSetupEdit::Clear if draft.complete => {
-                draft.text.clear();
+            NativeSetupEdit::Delete
+                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
+            {
+                draft.editor.delete();
+                draft.faulted = false;
+            }
+            NativeSetupEdit::WordBackspace
+                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
+            {
+                draft.editor.word_back();
+                draft.faulted = false;
+            }
+            NativeSetupEdit::Clear
+                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
+            {
+                draft.editor.clear();
                 draft.faulted = false;
             }
             NativeSetupEdit::Left
-            | NativeSetupEdit::Right
-            | NativeSetupEdit::Home
-            | NativeSetupEdit::End
-            | NativeSetupEdit::Delete
-            | NativeSetupEdit::WordBackspace => {
-                // The flat draft text has no cursor yet; these edits are
-                // consumed here without a state change until the LineEditor
-                // consumer lands.
+                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
+            {
+                draft.editor.left();
+            }
+            NativeSetupEdit::Right
+                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
+            {
+                draft.editor.right();
+            }
+            NativeSetupEdit::Home
+                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
+            {
+                draft.editor.home();
+            }
+            NativeSetupEdit::End
+                if draft.complete && draft.stage != NativeSetupStage::ChooseProject =>
+            {
+                draft.editor.end();
             }
             _ => return false,
         }

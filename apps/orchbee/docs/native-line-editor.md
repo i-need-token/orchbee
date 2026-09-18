@@ -13,17 +13,18 @@ The editor is pure state — no I/O, clock, session mutation, terminal read, or 
 Character admission stays with the typed-input boundary and each field's policy; the core never
 filters, normalizes, or rewrites supplied text. Prefill keeps protocol-legal bytes exact, including
 scalars the chrome projection cannot display, so a draft's original value and cancel path stay
-faithful. Rendering remains a pure projection; the chrome-safe display of stored text is a separate
-consumer concern.
+faithful. Rendering is a pure consumer projection owned by
+[`terminal_session/state/field_window.rs`](../src/terminal_session/state/field_window.rs); the core
+does not own display layout.
 
 ## State and editing contract
 
 `LineEditor` holds `text` (exact UTF-8), `cursor` (a byte index that is always an
-extended-grapheme boundary, possibly `text.len()`), `scroll` (the byte index where the visible
-window starts, always a grapheme boundary at or before the cursor), and a `LengthLimit`. The limit
-is `Scalars` for workbench labels (512 scalars) or `Bytes` for filesystem paths (4096 bytes) and
-is checked against the exact resulting text — never against grapheme clusters. An over-limit
-insertion or paste returns `LengthLimitReached` and leaves text, cursor, and scroll unchanged.
+extended-grapheme boundary, possibly `text.len()`), and a `LengthLimit`. The limit is `Scalars`
+for workbench labels (512 scalars) or `Bytes` for filesystem paths (4096 bytes) and is checked
+against the exact resulting text — never against grapheme clusters. An over-limit insertion or
+paste returns `LengthLimitReached` and leaves text and cursor unchanged; the owning draft turns
+that rejection into its visible input fault.
 
 Grapheme movement and deletion use `unicode-segmentation`, already locked at 1.13.3; no
 hand-written UAX #29 or second width table enters the build. Every mutation re-segments the draft
@@ -34,23 +35,28 @@ becoming one flag), the cursor snaps forward to the cluster's end. `Ctrl+W` dele
 Unicode word boundary before the cursor, keeping earlier whitespace runs; punctuation like `foo.bar`
 stays one word under UAX #29 and makes no readline-compat promise.
 
-## Viewport contract
+## Field window contract
 
-Display width is measured with the project's existing `Line::width`, so combining marks cost zero
-cells and wide clusters cost two. `pin_scroll(field_width)` advances `scroll` by whole grapheme
-boundaries until the cursor column — the width of `text[scroll..cursor]`, not the whole prefix —
-is narrower than the field. `viewport(field_width)` returns `None` for a zero-width field rather
-than a fake cursor position, and otherwise yields the drawable window plus cursor column; a cluster
-wider than the remaining space is never split. The projection attests that the window and cursor
-are drawable — not that the whole draft is on screen, and draw tokens built on it carry the same
-honest scope.
+A draft field never sanitizes or window-slices the raw text directly. `field_window(editor,
+field_width)` projects the complete raw text once through `terminal_text`'s ANSI-aware
+projection — complete escape sequences are stripped as whole units, forbidden scalars are dropped —
+and keeps the raw-to-visible byte-boundary map from that same parse. The window is then chosen over
+the *visible* text by whole grapheme clusters so a raw cursor inside a stripped sequence lands on a
+display boundary and no mid-sequence raw slice can re-enter the parser. The returned window is the
+drawable text plus the cursor column strictly inside the field width; a zero-width field yields
+`None` rather than a fake position, and a cluster wider than the remaining space is never split.
+
+Both renderers draw that window inside the modal's padded inner area and place the terminal cursor
+at the field row plus the cursor column; the typed `ModalPresentation` receipt attests the complete
+text fit, and a field that cannot be presented cancels the draft instead of swallowing keys.
 
 ## Correctness evidence
 
 Deterministic unit tests cover five-scalar family emoji, ZWJ and regional-indicator merges,
 combining-mark insertion and deletion, Unicode word deletion over whitespace, punctuation, emoji,
 and mixed Chinese/English, exact scalar and byte limit boundaries, atomic rejection, byte-exact
-prefill, cursor-at-end, zero-width fields, whole-cluster scrolling, unsplittable clusters, and
-repeated mixed operations preserving invariants. These witnesses establish the pure model only —
-wiring the three drafts, modal input decoding, and field rendering is a separate consumer
-integration, and a usable editor surface is not claimed from this core alone.
+prefill, and cursor-at-end. Projection witnesses cover whole-sequence stripping with raw cursors
+inside the removed span, narrow windows with cursor motion, ordinary Chinese, emoji, and combining
+marks, and zero-width fields. Draft-level tests cover prefill-at-end editing, navigation, deletion,
+word-backspace, atomic paste, picker inertness, and fault recovery; renderer and session journeys
+witness the drawn window, the placed cursor, and exact raw submission.

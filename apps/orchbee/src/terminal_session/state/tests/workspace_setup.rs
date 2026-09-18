@@ -469,3 +469,58 @@ fn directory_commit_cannot_claim_an_existing_directory_identity_at_a_later_revis
     assert!(state.workspace_directory_unconfigured());
     assert_eq!(state.setup_status(), Some(Status::CommittedNeedRefresh));
 }
+
+#[test]
+fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
+    use crate::terminal_session::state::workspace_setup::NativeSetupIntent;
+    let mut state = workspace_state();
+    // The picker stage owns no text field: text/paste/nav edits are inert and
+    // project selection only moves through the selection edits.
+    let picker = state
+        .open_setup_draft(NativeSetupIntent::CreateWorkspace)
+        .unwrap();
+    assert!(!state.edit_setup_draft(picker, Edit::Append("x")));
+    assert!(!state.edit_setup_draft(picker, Edit::Paste("[]")));
+    assert!(!state.edit_setup_draft(picker, Edit::Home));
+    assert!(!state.edit_setup_draft(picker, Edit::Backspace));
+    assert_eq!(state.setup_draft().unwrap().text(), "");
+    assert_eq!(state.setup_draft().unwrap().stage(), Stage::ChooseProject);
+    state.cancel_setup_draft(picker);
+
+    // DirectoryPath: byte budget, empty prefill, full editing vocabulary.
+    let token = state
+        .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
+        .unwrap();
+    assert!(state.edit_setup_draft(token, Edit::Append("/var/tmp")));
+    assert!(state.edit_setup_draft(token, Edit::Left));
+    assert!(state.edit_setup_draft(token, Edit::Delete));
+    assert_eq!(state.setup_draft().unwrap().text(), "/var/tm");
+    assert!(state.edit_setup_draft(token, Edit::Home));
+    assert!(state.edit_setup_draft(token, Edit::Append("~")));
+    assert_eq!(state.setup_draft().unwrap().text(), "~/var/tm");
+    assert!(state.edit_setup_draft(token, Edit::End));
+    assert!(state.edit_setup_draft(token, Edit::Paste("/中")));
+    assert_eq!(state.setup_draft().unwrap().text(), "~/var/tm/中");
+    // The window's cursor column is a display cell inside the field width.
+    let window = state.setup_draft().unwrap().field_window(8).unwrap();
+    assert!(window.cursor_column() < 8);
+    // An over-budget paste rejects atomically: text and cursor unchanged.
+    let before = state.setup_draft().unwrap().text().to_owned();
+    assert!(state.edit_setup_draft(token, Edit::Paste(&"x".repeat(4096))));
+    assert_eq!(state.setup_draft().unwrap().text(), before);
+    assert!(state.setup_draft().unwrap().faulted());
+    assert!(state.edit_setup_draft(token, Edit::Backspace));
+    assert!(!state.setup_draft().unwrap().faulted());
+    state.cancel_setup_draft(token);
+
+    // A rename stage prefills the exact label with the cursor at its end.
+    let rename = state
+        .open_setup_draft(NativeSetupIntent::RenameLocation(
+            crate::terminal_session::state::workspace_setup::NativeLocationLabelTarget::Workspace,
+        ))
+        .unwrap();
+    assert_eq!(state.setup_draft().unwrap().stage(), Stage::WorkspaceRename);
+    assert_eq!(state.setup_draft().unwrap().text(), "Workspace");
+    assert!(state.edit_setup_draft(rename, Edit::Append("2")));
+    assert_eq!(state.setup_draft().unwrap().text(), "Workspace2");
+}

@@ -11,6 +11,7 @@ use crate::terminal_session::{
     mailbox::{CommandMailbox, MoveAdmissionError, MutationResult, RefreshSettlement, UiReply},
     state::{CarrierFailure, OperationDeadlines},
 };
+use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
 use std::sync::Arc;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NativeSetupInputContext {
@@ -97,8 +98,8 @@ impl NativeUi {
         Some(NativeSetupInputContext {
             token: draft.token(),
             stage: draft.stage(),
-            remaining_scalars: 512usize.saturating_sub(draft.text().chars().count()),
-            remaining_bytes: 4096usize.saturating_sub(draft.text().len()),
+            remaining_scalars: MAXIMUM_LABEL_LENGTH.saturating_sub(draft.text().chars().count()),
+            remaining_bytes: MAXIMUM_DIRECTORY_PATH_BYTES.saturating_sub(draft.text().len()),
         })
     }
     pub(in crate::terminal_session) fn edit_setup_draft(

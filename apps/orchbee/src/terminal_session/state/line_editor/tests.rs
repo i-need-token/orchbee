@@ -24,13 +24,6 @@ fn assert_invariants(editor: &LineEditor) {
         editor.cursor(),
         editor.text()
     );
-    assert!(editor.scroll() <= editor.cursor());
-    assert!(
-        boundaries(editor.text()).contains(&editor.scroll()),
-        "scroll {} not a grapheme boundary of {:?}",
-        editor.scroll(),
-        editor.text()
-    );
 }
 
 #[test]
@@ -41,7 +34,6 @@ fn prefill_preserves_exact_text_with_cursor_at_end() {
     let editor = labels(text);
     assert_eq!(editor.text(), text);
     assert_eq!(editor.cursor(), text.len());
-    assert_eq!(editor.scroll(), 0);
     assert_invariants(&editor);
 }
 
@@ -93,12 +85,9 @@ fn scalar_limit_boundary_is_exact() {
     let five = "é中á😀"; // 5 scalars (a + combining mark is two)
     assert_eq!(five.chars().count(), 5);
     let mut editor = LineEditor::new(five.to_owned(), LengthLimit::Scalars(5));
-    let before = (editor.text().to_owned(), editor.cursor(), editor.scroll());
+    let before = (editor.text().to_owned(), editor.cursor());
     assert!(editor.insert("y").is_err());
-    assert_eq!(
-        (editor.text().to_owned(), editor.cursor(), editor.scroll()),
-        before
-    );
+    assert_eq!((editor.text().to_owned(), editor.cursor()), before);
     editor.backspace();
     editor.insert("y").unwrap();
     assert_eq!(editor.text().chars().count(), 5);
@@ -117,9 +106,9 @@ fn byte_limit_boundary_is_exact() {
     let nearly_full = "a".repeat(PATH - editor.text().len());
     editor.insert(&nearly_full).unwrap();
     assert_eq!(editor.text().len(), PATH);
-    let state = (editor.cursor(), editor.scroll());
+    let state = editor.cursor();
     assert!(editor.insert("b").is_err());
-    assert_eq!((editor.cursor(), editor.scroll()), state);
+    assert_eq!(editor.cursor(), state);
     assert_invariants(&editor);
 }
 
@@ -161,19 +150,6 @@ fn regional_indicator_merge_on_backspace() {
     assert!(editor.backspace());
     assert_eq!(editor.text(), "🇦🇧");
     assert_eq!(editor.cursor(), editor.text().len());
-    assert_invariants(&editor);
-}
-
-#[test]
-fn scroll_inside_merged_cluster_reclamps_to_boundary() {
-    // Scroll at 🇧's start; backspacing x merges 🇦🇧 around that position.
-    let mut editor = labels("🇦x🇧");
-    editor.pin_scroll(1);
-    assert!(editor.left()); // cursor 🇦x|🇧, scroll clamped to 🇧's start
-    assert_eq!(editor.scroll(), "🇦x".len());
-    assert!(editor.backspace());
-    assert_eq!(editor.text(), "🇦🇧");
-    assert_eq!(editor.scroll(), 0);
     assert_invariants(&editor);
 }
 
@@ -246,11 +222,9 @@ fn word_back_mid_draft_keeps_suffix() {
 #[test]
 fn clear_resets_all_state() {
     let mut editor = labels("draft text");
-    editor.pin_scroll(4);
     editor.clear();
     assert_eq!(editor.text(), "");
     assert_eq!(editor.cursor(), 0);
-    assert_eq!(editor.scroll(), 0);
     assert_invariants(&editor);
 }
 
@@ -291,101 +265,6 @@ fn insert_accepts_what_typed_input_delivered() {
 }
 
 #[test]
-fn cursor_column_measures_window_prefix() {
-    // Cursor column = width(text[scroll..cursor]), not the whole prefix.
-    let mut editor = labels("abcdef");
-    editor.pin_scroll(4);
-    assert_eq!(editor.scroll(), 3);
-    assert_eq!(editor.cursor_column(), 3);
-    assert_invariants(&editor);
-}
-
-#[test]
-fn scroll_pins_whole_clusters() {
-    // 中a in a 3-cell field: the wide cluster scrolls off whole, never splits.
-    let mut editor = labels("中a");
-    editor.pin_scroll(3);
-    assert_eq!(editor.scroll(), "中".len());
-    let viewport = editor.viewport(3).unwrap();
-    assert_eq!(viewport.text, "a");
-    assert_eq!(viewport.cursor_column, 1);
-    assert_invariants(&editor);
-}
-
-#[test]
-fn zero_width_field_is_not_renderable() {
-    let mut editor = labels("ab");
-    assert!(editor.viewport(0).is_none());
-    editor.pin_scroll(0); // no fake cursor position; state untouched
-    assert_eq!(editor.scroll(), 0);
-    assert_invariants(&editor);
-}
-
-#[test]
-fn over_wide_cluster_is_never_split() {
-    // The last cluster does not fit even alone in a 2-cell field; the window
-    // is empty and the cursor sits at column 0 — nothing is split.
-    let mut editor = labels("中中");
-    editor.pin_scroll(2);
-    assert_eq!(editor.scroll(), editor.text().len());
-    let viewport = editor.viewport(2).unwrap();
-    assert_eq!(viewport.text, "");
-    assert_eq!(viewport.cursor_column, 0);
-    assert_invariants(&editor);
-}
-
-#[test]
-fn viewport_stops_before_exceeding_field() {
-    let mut editor = labels("ab中cd");
-    editor.home();
-    let viewport = editor.viewport(4).unwrap();
-    assert_eq!(viewport.text, "ab中"); // a(1)+b(1)+中(2) fills the field
-    assert_eq!(viewport.cursor_column, 0);
-    assert_invariants(&editor);
-}
-
-#[test]
-fn cursor_at_last_visible_cell() {
-    let mut editor = labels("wxyz");
-    editor.pin_scroll(4);
-    let viewport = editor.viewport(4).unwrap();
-    assert_eq!(viewport.text, "xyz");
-    assert_eq!(viewport.cursor_column, 3); // last cell of the field
-    assert_invariants(&editor);
-}
-
-#[test]
-fn scroll_reclamps_after_clear() {
-    let mut editor = labels("abcdef");
-    editor.pin_scroll(3);
-    assert!(editor.scroll() > 0);
-    editor.clear();
-    assert_eq!(editor.scroll(), 0);
-    assert_invariants(&editor);
-}
-
-#[test]
-fn combining_mark_cursor_column_counts_zero_width() {
-    // á = one cell; the cursor column after it is 1, not 2.
-    let mut editor = labels("a\u{301}");
-    editor.pin_scroll(8);
-    assert_eq!(editor.cursor_column(), 1);
-    assert_invariants(&editor);
-}
-
-#[test]
-fn family_emoji_width_comes_from_same_measure() {
-    // No hardcoded cell claim: the cursor column equals the project's own
-    // measured width of the cluster.
-    let family = "👨‍👩‍👧";
-    let mut editor = labels(family);
-    editor.pin_scroll(64);
-    let measured = ratatui::text::Line::raw(family).width();
-    assert_eq!(editor.cursor_column(), measured);
-    assert_invariants(&editor);
-}
-
-#[test]
 fn repeated_mixed_operations_keep_invariants() {
     let mut editor = labels("");
     let operations: &[fn(&mut LineEditor)] = &[
@@ -417,9 +296,6 @@ fn repeated_mixed_operations_keep_invariants() {
             e.end();
         },
         |e| {
-            e.pin_scroll(3);
-        },
-        |e| {
             e.clear();
         },
     ];
@@ -428,18 +304,4 @@ fn repeated_mixed_operations_keep_invariants() {
         assert_invariants(&editor);
     }
     assert_eq!(editor.text(), "");
-}
-
-#[test]
-fn long_ascii_draft_scrolls_and_stays_editable() {
-    let text = "x".repeat(LABEL);
-    let mut editor = labels(&text);
-    editor.pin_scroll(10);
-    assert_eq!(editor.cursor_column(), 9); // last cell of the field
-    let viewport = editor.viewport(10).unwrap();
-    assert_eq!(viewport.text.len(), 9); // only nine cells trail the scroll mark
-    editor.home();
-    editor.pin_scroll(10);
-    assert_eq!(editor.scroll(), 0);
-    assert_invariants(&editor);
 }

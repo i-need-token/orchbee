@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use super::{
-    display_width, is_forbidden_chrome_scalar, is_forbidden_terminal_scalar,
+    display_width, is_forbidden_chrome_scalar, is_forbidden_terminal_scalar, project_terminal_text,
     sanitize_terminal_symbol, sanitize_terminal_text, truncate_display,
 };
 
@@ -250,4 +250,43 @@ fn truncates_on_grapheme_boundaries_with_a_budgeted_marker() {
         assert_eq!(truncate_display(text, budget, marker), expected);
         assert!(display_width(expected) <= budget);
     }
+}
+
+#[test]
+fn clean_text_projects_to_an_identity_map() {
+    let projection = project_terminal_text("abc界");
+    assert_eq!(projection.display().as_ref(), "abc界");
+    for index in 0..="abc界".len() {
+        assert_eq!(projection.visible_index(index), index);
+    }
+}
+
+#[test]
+fn stripped_spans_share_the_removal_position_in_the_byte_map() {
+    // Raw "x\u{1b}[31myz" projects to "xyz": every raw boundary covered by
+    // the stripped CSI maps to the display index where its removal landed.
+    let projection = project_terminal_text("x\u{1b}[31myz");
+    assert_eq!(projection.display().as_ref(), "xyz");
+    for index in 1..="x\u{1b}[31m".len() {
+        assert_eq!(
+            projection.visible_index(index),
+            1,
+            "raw boundary {index} inside the sequence"
+        );
+    }
+    assert_eq!(projection.visible_index("x\u{1b}[31my".len()), 2);
+    assert_eq!(projection.visible_index("x\u{1b}[31myz".len()), 3);
+}
+
+#[test]
+fn dropped_scalars_keep_the_following_texts_position() {
+    // A dropped BEL occupies no display cell: the raw boundary before the
+    // combining mark maps one byte into "a\u{301}", inside its cluster — the
+    // consumer snaps it to the cluster start.
+    let projection = project_terminal_text("a\u{7}\u{301}");
+    assert_eq!(projection.display().as_ref(), "a\u{301}");
+    assert_eq!(projection.visible_index(0), 0);
+    assert_eq!(projection.visible_index(1), 1);
+    assert_eq!(projection.visible_index(2), 1);
+    assert_eq!(projection.visible_index("a\u{7}\u{301}".len()), 3);
 }

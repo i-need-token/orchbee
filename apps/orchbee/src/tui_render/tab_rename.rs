@@ -1,4 +1,4 @@
-use super::tab_close::{modal_area, wrapped_text_fits};
+use super::tab_close::{modal_area, set_modal_cursor, wrapped_text_fits};
 use crate::{
     localization::Locale,
     terminal_session::{ModalPresentation, NativeRenameDraftToken, NativeRenameDraftView},
@@ -11,6 +11,9 @@ use ratatui::{
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap},
 };
+
+/// The draft's editable line inside the modal's line vector.
+const FIELD: usize = 5;
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -25,7 +28,9 @@ pub(super) fn render(
         Line::from(sanitize_terminal_text(draft.target_label()).into_owned()),
         Line::from(""),
         Line::from(locale.rename_label()),
-        Line::from(sanitize_terminal_text(draft.text()).into_owned()),
+        // The field's one visible row is sized like the rest: the windowed
+        // projection never takes more than the inner width it is given.
+        Line::from(""),
         Line::from(""),
         Line::from(locale.rename_warning()),
         Line::from(""),
@@ -50,11 +55,26 @@ pub(super) fn render(
         )
         .border_style(theme.style(Role::AccentFocus));
     let inner = block.inner(area);
+    // The raw draft stays exact; what the modal draws is its safe projection
+    // inside the inner width, with the raw cursor mapped through the same
+    // projection — never a raw byte offset applied to sanitized text.
+    let window = draft.field_window(usize::from(inner.width));
+    let mut lines = text.lines;
+    if let Some(window) = &window {
+        lines[FIELD] = Line::from(window.display().to_owned());
+    }
+    let text = Text::from(lines);
     let complete = wrapped_text_fits(&text, inner);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     if complete {
-        frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }), inner);
+        frame.render_widget(
+            Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+            inner,
+        );
+        if let Some(window) = window {
+            set_modal_cursor(frame, &text, inner, FIELD, window.cursor_column());
+        }
         (area, ModalPresentation::Presented(draft.token()))
     } else {
         frame.render_widget(

@@ -90,6 +90,14 @@ impl NativeDrawReceipt {
         self.panel_prompt = panel_prompt;
         self
     }
+    /// Whether this draw presented an editable text field and therefore placed
+    /// the terminal cursor inside it — the exact assertion a renderer test can
+    /// make without re-deriving modal layout.
+    #[cfg(test)]
+    pub(crate) fn editing_cursor_shown(&self) -> bool {
+        matches!(self.rename, Some(ModalPresentation::Presented(_)))
+            || matches!(self.setup, Some(ModalPresentation::Presented(_)))
+    }
 }
 
 pub(crate) struct NativeCloseConfirmationView<'a> {
