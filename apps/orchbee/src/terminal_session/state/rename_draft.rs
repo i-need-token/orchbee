@@ -83,6 +83,7 @@ impl NativeSessionState {
             && !self.mutation_blocks_structure()
             && self.pending_membership.is_none()
             && self.close.confirmation().is_none()
+            && self.panel_close.confirmation().is_none()
             && matches!(
                 self.phase,
                 SessionPhase::Ready(_)

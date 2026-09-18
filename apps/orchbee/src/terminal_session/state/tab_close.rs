@@ -696,6 +696,7 @@ impl super::NativeSessionState {
             || self.rename_draft_blocks_structure()
             || self.mutation_blocks_structure()
             || self.move_recovery.is_some()
+            || self.panel_close.confirmation().is_some()
             || !matches!(
                 self.phase,
                 super::SessionPhase::Ready(_)

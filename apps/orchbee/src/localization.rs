@@ -7,6 +7,8 @@ pub(crate) use cli::CliLabels;
 #[cfg(unix)]
 mod location_labels;
 #[cfg(unix)]
+mod panel_close;
+#[cfg(unix)]
 mod tab_close;
 #[cfg(unix)]
 mod tab_rename;

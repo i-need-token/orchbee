@@ -1,4 +1,4 @@
-use super::{NativeSessionView, NativeUi};
+use super::{NativePanelCloseConfirmationToken, NativeSessionView, NativeUi};
 use crate::terminal_session::state::{CloseConfirmationView, CloseStatusView};
 use crate::{
     client_view::{ClientKey, SessionActionDisposition},
@@ -21,6 +21,7 @@ pub(crate) struct NativeDrawReceipt {
     status: Option<NativeCloseStatusToken>,
     rename: Option<super::NativeRenameDraftToken>,
     setup: Option<super::NativeSetupToken>,
+    panel_prompt: Option<NativePanelCloseConfirmationToken>,
 }
 
 impl NativeDrawReceipt {
@@ -37,6 +38,7 @@ impl NativeDrawReceipt {
             status,
             rename: None,
             setup: None,
+            panel_prompt: None,
         }
     }
     pub(crate) const fn with_rename(
@@ -44,6 +46,13 @@ impl NativeDrawReceipt {
         rename: Option<super::NativeRenameDraftToken>,
     ) -> Self {
         self.rename = rename;
+        self
+    }
+    pub(crate) const fn with_panel_close(
+        mut self,
+        panel_prompt: Option<NativePanelCloseConfirmationToken>,
+    ) -> Self {
+        self.panel_prompt = panel_prompt;
         self
     }
 }
@@ -167,6 +176,9 @@ impl NativeUi {
     }
 
     pub(in crate::terminal_session) fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
+        if self.capture_panel_confirmation_key(key) {
+            return true;
+        }
         if self
             .state
             .as_ref()
@@ -175,10 +187,10 @@ impl NativeUi {
             return false;
         }
         match key {
-            ClientKey::Plain('y' | 'Y') => {
+            ClientKey::Plain('y') => {
                 self.apply_client_action(crate::client_view::ClientAction::ConfirmClose);
             }
-            ClientKey::Plain('n' | 'N') | ClientKey::Escape => {
+            ClientKey::Escape => {
                 self.apply_client_action(crate::client_view::ClientAction::CancelClose);
             }
             ClientKey::ControlB | ClientKey::Plain(_) | ClientKey::Other => {}
@@ -286,6 +298,7 @@ impl NativeUi {
         if let Some(state) = &mut self.state {
             state.acknowledge_close_draw(receipt.prompt, receipt.status);
         }
+        self.after_panel_close_draw(receipt.panel_prompt);
         self.after_rename_draw(receipt.rename);
         self.after_setup_draw(receipt.setup);
     }
@@ -293,5 +306,6 @@ impl NativeUi {
         if let Some(state) = &mut self.state {
             state.invalidate_close_display();
         }
+        self.invalidate_panel_close_display();
     }
 }

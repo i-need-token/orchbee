@@ -32,6 +32,7 @@ mod close_reconciliation;
 mod membership;
 mod move_membership;
 mod panel;
+mod panel_close;
 #[cfg(target_os = "linux")]
 mod retired_membership;
 mod tab_close;
@@ -41,6 +42,7 @@ pub(crate) use workspace_setup::{
     NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
 mod tab_rename;
+pub(crate) use panel_close::{NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView};
 pub(crate) use tab_close::{
     NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
     NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDrawReceipt,
@@ -762,7 +764,7 @@ impl NativeUi {
             ClientAction::SplitPanel(direction) => {
                 self.panel_operation(PanelRequestKind::Split { direction })
             }
-            ClientAction::ClosePanel => self.panel_operation(PanelRequestKind::Close),
+            ClientAction::ClosePanel => self.request_panel_close_confirmation(),
             ClientAction::MovePanel(direction) => {
                 self.panel_operation(PanelRequestKind::Move { direction })
             }
@@ -916,6 +918,9 @@ impl NativeUi {
     }
 
     fn panel_operation(&mut self, kind: PanelRequestKind) -> SessionActionDisposition {
+        if self.panel_close_confirmation_armed() {
+            return SessionActionDisposition::KeepNavigator;
+        }
         // Capture the entire transport budget before attempting the admission mutex.
         let Some(deadline) = self.clock.now().checked_add(super::state::OPERATION_TOTAL) else {
             return SessionActionDisposition::KeepNavigator;

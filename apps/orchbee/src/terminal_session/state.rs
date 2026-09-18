@@ -21,6 +21,7 @@ mod create_membership;
 mod membership;
 mod move_tab;
 mod panel;
+mod panel_close;
 pub(super) mod rename_draft;
 pub(super) mod rename_text;
 #[cfg(target_os = "linux")]
@@ -42,6 +43,8 @@ pub(super) use panel::{
     PanelCommit, PanelDecision, PanelIntent, PanelOperation, PanelRequestKind, PanelResult,
     PendingPanelCommit,
 };
+pub(crate) use panel_close::PanelCloseConfirmationToken;
+pub(super) use panel_close::{PanelCloseConfirmationView, PanelCloseState};
 use switch_membership::SwitchMembership;
 pub(super) use switch_membership::SwitchRestoreKey;
 pub(crate) use tab_close::{
@@ -683,6 +686,7 @@ pub(super) struct NativeSessionState {
     rename_recovery: Option<tab_rename::PendingRenameCommit>,
     rename_uncertain: Option<tab_rename::RenameOperation>,
     close: CloseState,
+    panel_close: PanelCloseState,
     rename: rename_draft::RenameDraftState,
     setup: workspace_setup::SetupState,
     pending_membership: Option<membership::PendingMembership>,
@@ -737,6 +741,7 @@ impl NativeSessionState {
             rename_recovery: None,
             rename_uncertain: None,
             close: CloseState::default(),
+            panel_close: PanelCloseState::default(),
             rename: rename_draft::RenameDraftState::default(),
             setup: workspace_setup::SetupState::default(),
             pending_membership: None,
@@ -2017,6 +2022,7 @@ impl NativeSessionState {
 
     pub(super) fn retire(&mut self, failure: CarrierFailure) {
         self.retire_close_reconciliations();
+        self.cancel_panel_close_confirmation();
         self.cancel_rename_draft();
         self.cancel_setup_on_retirement();
         if matches!(&self.phase, SessionPhase::Retired(_)) {

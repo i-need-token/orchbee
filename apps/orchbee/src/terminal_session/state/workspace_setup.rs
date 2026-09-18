@@ -143,6 +143,7 @@ impl NativeSessionState {
             && self.rename_recovery.is_none()
             && !self.rename_draft_blocks_structure()
             && self.close.permits_retired_membership()
+            && self.panel_close.confirmation().is_none()
             && matches!(
                 self.phase,
                 SessionPhase::Empty

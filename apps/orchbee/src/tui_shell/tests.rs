@@ -77,7 +77,7 @@ pub(crate) fn run_native_close_resize_confirmation(
     let mut inputs = QueueInputSource {
         inputs: VecDeque::from([
             Ok(Some(b"y".to_vec())),
-            Ok(Some(b"n".to_vec())),
+            Ok(Some(b"\x1b".to_vec())),
             Ok(Some(b"\x02q".to_vec())),
         ]),
     };

@@ -509,7 +509,7 @@ fn real_shell_resize_and_confirm_in_one_iteration_keeps_the_native_prompt_unsubm
     assert_eq!(
         crate::tui_shell::tests::run_native_close_resize_confirmation(&mut session)?,
         [true, true, false],
-        "same-iteration resize+y must preserve the real current prompt until explicit n"
+        "same-iteration resize+y must preserve the real current prompt until explicit Esc"
     );
     assert_eq!(commands.load(Ordering::SeqCst), 0);
     assert_eq!(input_bytes.load(Ordering::SeqCst), 0);

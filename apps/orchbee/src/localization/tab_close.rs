@@ -23,15 +23,15 @@ impl Locale {
 
     pub(crate) const fn close_actions(self) -> &'static str {
         match self {
-            Self::EnUs => "y · confirm    n / Esc · cancel",
-            Self::ZhCn => "y · 确认    n / Esc · 取消",
+            Self::EnUs => "y · confirm    Esc · cancel",
+            Self::ZhCn => "y · 确认    Esc · 取消",
         }
     }
 
     pub(crate) const fn close_resize_hint(self) -> &'static str {
         match self {
-            Self::EnUs => "Enlarge the terminal to read the confirmation. n / Esc · cancel",
-            Self::ZhCn => "请扩大终端以阅读完整确认内容。n / Esc · 取消",
+            Self::EnUs => "Enlarge the terminal to read the confirmation. Esc · cancel",
+            Self::ZhCn => "请扩大终端以阅读完整确认内容。Esc · 取消",
         }
     }
 

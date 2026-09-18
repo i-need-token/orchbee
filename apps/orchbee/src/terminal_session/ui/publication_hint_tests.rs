@@ -517,7 +517,7 @@ fn manual_clean_flight_hint_stays_pending_through_refusal_and_drains_once() {
 /// Builds a ready UI over one tab split into two horizontal panels so panel
 /// focus has a real target: the MovePanelFocus switch moves `desired` to a fresh
 /// generation key without clearing the UI's observed Poll serial.
-fn ready_split_ui() -> (
+pub(super) fn ready_split_ui() -> (
     NativeUi,
     Arc<CommandMailbox>,
     LocalOperationClock,

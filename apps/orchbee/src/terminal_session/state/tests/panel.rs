@@ -11,6 +11,7 @@ use crate::terminal_session::state::panel::{
     PanelCommit, PanelDecision, PanelIntent, PanelOperation, PanelPrecommit, PanelRequestKind,
     PanelResult, PendingPanelCommit,
 };
+use crate::terminal_session::state::panel_close::PanelCloseStateError;
 use orchbee_workbench_protocol::{
     WorkbenchCommandUnavailableReason, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
     WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason, WorkbenchTabMoveDirection,
@@ -1729,4 +1730,102 @@ fn selected_without_attachment_phase_admits_panel_planning() {
     assert!(state.begin_panel(operation));
     assert!(state.pending_panel().is_some());
     assert!(state.invariant_holds());
+}
+
+#[test]
+fn panel_close_confirmation_requires_the_matching_draw_receipt() {
+    let mut state = split_ready();
+    let selected = state.active().unwrap().clone();
+    let leaf = state.cache().tabs()[selected.index()]
+        .panel(selected.panel_index())
+        .unwrap()
+        .panel_id()
+        .clone();
+    let request = workbench_request_id(70_900);
+    let deadline = Instant::now() + OPERATION_TOTAL;
+
+    assert!(state.open_panel_close_confirmation().is_ok());
+    let view = state.view().panel_close_confirmation().unwrap();
+    assert!(!view.dissolves_tab(), "one of two leaves keeps the Tab");
+    assert!(!view.panel_label().is_empty());
+    assert!(!view.tab_label().is_empty());
+    let token = view.token();
+
+    // Undrawn and unmatched-token receipts both refuse to plan the close.
+    assert!(matches!(
+        state.plan_panel_close_confirmation(request.clone(), deadline),
+        Err(PanelCloseStateError::NotDisplayed)
+    ));
+    state.acknowledge_panel_close_draw(None);
+    assert!(matches!(
+        state.plan_panel_close_confirmation(request.clone(), deadline),
+        Err(PanelCloseStateError::NotDisplayed)
+    ));
+
+    state.acknowledge_panel_close_draw(Some(token));
+    let operation = state
+        .plan_panel_close_confirmation(request.clone(), deadline)
+        .expect("the drawn prompt admits the confirmed close");
+    assert_eq!(operation.intent(), &PanelIntent::Close);
+    assert_eq!(operation.panel_id(), &leaf);
+    assert_eq!(operation.target(), selected.key());
+
+    // A dropped receipt blocks execution until the modal draws again.
+    state.invalidate_panel_close_display();
+    assert!(matches!(
+        state.plan_panel_close_confirmation(request, deadline),
+        Err(PanelCloseStateError::NotDisplayed)
+    ));
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn moved_panel_selection_stales_a_drawn_close_confirmation() {
+    let mut state = split_ready();
+    assert!(state.open_panel_close_confirmation().is_ok());
+    let token = state.view().panel_close_confirmation().unwrap().token();
+    state.acknowledge_panel_close_draw(Some(token));
+
+    // The real focus switch the UI drives: the selected leaf moves to the
+    // second panel under a fresh desired generation.
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    let target = state
+        .plan_panel_focus(PanelDirection::Right, 2, deadlines)
+        .unwrap();
+    let marker = target.selected().key().clone();
+    let provenance = target.provenance().clone();
+    assert!(state.begin_switch(target));
+    let fresh = install_switch_candidate(&mut state, &marker);
+    assert_eq!(
+        state.settle_unattached_setup(&fresh, 0, &provenance),
+        Some(CleanupContinuation::Stable)
+    );
+
+    // The frozen leaf is no longer the selection: the drawn token cannot execute.
+    assert!(matches!(
+        state.plan_panel_close_confirmation(
+            workbench_request_id(70_901),
+            Instant::now() + OPERATION_TOTAL
+        ),
+        Err(PanelCloseStateError::StaleConfirmation)
+    ));
+    state.cancel_panel_close_confirmation();
+    assert!(state.view().panel_close_confirmation().is_none());
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn panel_close_confirmation_owns_the_modal_slot_exclusively() {
+    let mut state = split_ready();
+    assert!(state.open_panel_close_confirmation().is_ok());
+    assert!(matches!(
+        state.open_panel_close_confirmation(),
+        Err(PanelCloseStateError::Busy)
+    ));
+    assert!(
+        state.open_close_confirmation().is_err(),
+        "a Tab close cannot arm over a panel confirmation"
+    );
+    state.cancel_panel_close_confirmation();
+    assert!(state.open_close_confirmation().is_ok());
 }

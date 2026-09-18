@@ -141,6 +141,10 @@
 			"englishSha256": "645e685d0bbeed7a48a5f989fe4c95a4346af1d04c08838c4cf90b156ad07a72",
 			"zhCnSha256": "b5a1dececa17f108826426e617944a5a474b240408c77e881cf2b62427027001"
 		},
+		"apps/orchbee/docs/native-panel-close-confirmation.md": {
+			"englishSha256": "facfce5543198b57905ece852c686458c02c6e692a332c634881e90cb146cf84",
+			"zhCnSha256": "6acf7703106fca73dc2d6efed3ca57e7c943a0833082ec3b844e290a16c5404a"
+		},
 		"apps/orchbee/docs/native-panel-lifecycle.md": {
 			"englishSha256": "2cab2bd80e81693b0af827fad7d8c8ee63be9f306fbadddd7b05a26e8c8f3dec",
 			"zhCnSha256": "fadadb16a5d7cf7785487e59bfbb489dd531d1501af39aca5313759e8b600b9d"

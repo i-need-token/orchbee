@@ -24,6 +24,7 @@ use crate::{
 use crate::terminal_session::TerminalStatus;
 
 mod contexts;
+mod panel_close;
 mod tab_close;
 mod tab_rename;
 mod tabs;
@@ -56,6 +57,7 @@ pub(crate) fn render_terminal_shell(
 
     let mut status_draw: Option<(NativeCloseStatusToken, Rect)> = None;
     let mut prompt = None;
+    let mut panel_prompt = None;
     let mut rename = None;
     let mut setup = None;
     let mut overlay_refused = false;
@@ -120,6 +122,7 @@ pub(crate) fn render_terminal_shell(
             }
         }
     }
+<<<<<<< HEAD
 
     if tier == ViewportTier::TooSmall {
         render_too_small_notice(frame, areas.body, text, theme);
@@ -173,11 +176,23 @@ pub(crate) fn render_terminal_shell(
             }
         }
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+            && let Some(confirmation) = native.panel_close_confirmation()
+        {
+            if let Some(modal) =
+                panel_close::render(frame, locale, &confirmation, overlay_area(&areas), theme)
+            {
+                status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
+                panel_prompt = modal.prompt;
+            }
+            prompt = None;
+        }
+        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(draft) = native.rename_draft()
         {
             let (area, token) = tab_rename::render(frame, locale, &draft, theme);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
+            panel_prompt = None;
             rename = token;
         }
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
@@ -187,6 +202,7 @@ pub(crate) fn render_terminal_shell(
                 workspace_setup::render(frame, locale, &draft, native.setup_status(), theme);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
+            panel_prompt = None;
             rename = None;
             setup = token;
         }
@@ -217,6 +233,7 @@ pub(crate) fn render_terminal_shell(
     }
 
     NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
+        .with_panel_close(panel_prompt)
         .with_rename(rename)
         .with_setup(setup)
 }
