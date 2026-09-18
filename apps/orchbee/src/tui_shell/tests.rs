@@ -248,6 +248,24 @@ fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()
     Ok(())
 }
 
+#[test]
+fn too_small_geometry_floors_the_pane_at_one_cell_instead_of_erroring() -> io::Result<()> {
+    for dimensions in [
+        dimensions(15, 4),
+        dimensions(120, 2),
+        dimensions(2, 30),
+        dimensions(1, 1),
+    ] {
+        let view = ClientView::new(dimensions.columns);
+        let geometry = super::terminal_geometry(dimensions, &view)?;
+        assert!(
+            geometry.columns() >= 1 && geometry.rows() >= 1,
+            "too-small {dimensions:?} must keep a valid nonzero pane geometry"
+        );
+    }
+    Ok(())
+}
+
 fn test_terminal(dimensions: WindowDimensions) -> Terminal<TestBackend> {
     match Terminal::with_options(
         TestBackend::new(dimensions.columns, dimensions.rows),
@@ -271,7 +289,10 @@ fn test_loop(
 ) -> io::Result<LoopExit> {
     match run_event_loop(
         terminal,
-        locale,
+        super::Chrome {
+            locale,
+            theme: &crate::tui_theme::Theme::terminal_native(),
+        },
         inputs,
         terminal_input,
         termination,
@@ -526,7 +547,10 @@ fn required_terminal_resize_failure_prevents_dispatch_of_an_already_read_batch()
 
     let result = run_event_loop(
         &mut terminal,
-        Locale::EnUs,
+        super::Chrome {
+            locale: Locale::EnUs,
+            theme: &crate::tui_theme::Theme::terminal_native(),
+        },
         &mut inputs,
         &mut input,
         &FixedTermination(false),
@@ -645,7 +669,10 @@ fn failed_draw_never_acknowledges_the_pending_terminal_frame() {
     assert!(matches!(
         run_event_loop(
             &mut terminal,
-            Locale::EnUs,
+            super::Chrome {
+                locale: Locale::EnUs,
+                theme: &crate::tui_theme::Theme::terminal_native(),
+            },
             &mut inputs,
             &mut surface,
             &FixedTermination(false),

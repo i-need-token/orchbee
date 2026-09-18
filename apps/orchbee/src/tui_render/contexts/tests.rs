@@ -34,6 +34,7 @@ fn rendered(
             contexts.len(),
             active_position,
             context_at,
+            &crate::tui_theme::Theme::rgb_test_dark(),
         );
     }));
 

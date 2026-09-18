@@ -212,10 +212,14 @@ fn run_prepared_surface(
     .map_err(TuiFailure::Runtime)?;
     let input = File::from(inherited.duplicate_input().map_err(TuiFailure::Runtime)?);
     let mut inputs = InheritedInputSource::new(input);
+    let theme = crate::tui_theme::Theme::terminal_native();
 
     let run_result = run_event_loop_with_modes(
         &mut terminal,
-        locale,
+        Chrome {
+            locale,
+            theme: &theme,
+        },
         (&mut inputs, &mut |enabled| {
             modes.set_bracketed_paste(enabled)
         }),
@@ -239,10 +243,18 @@ fn run_prepared_surface(
     }
 }
 
+/// Presentation inputs that travel together through the event loop: the
+/// localized copy and the resolved theme.
+#[derive(Clone, Copy)]
+struct Chrome<'a> {
+    locale: Locale,
+    theme: &'a crate::tui_theme::Theme,
+}
+
 #[cfg(test)]
 fn run_event_loop<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
-    locale: Locale,
+    chrome: Chrome<'_>,
     inputs: &mut impl InputSource,
     terminal_input: &mut (impl TerminalSurface + ?Sized),
     termination: &impl TerminationSource,
@@ -251,7 +263,7 @@ fn run_event_loop<B: Backend + ResizableBackend>(
 ) -> Result<LoopExit, LoopFailure<B::Error>> {
     run_event_loop_with_modes(
         terminal,
-        locale,
+        chrome,
         (inputs, &mut |_enabled| Ok(())),
         terminal_input,
         termination,
@@ -262,7 +274,7 @@ fn run_event_loop<B: Backend + ResizableBackend>(
 
 fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
-    locale: Locale,
+    chrome: Chrome<'_>,
     input_runtime: (
         &mut impl InputSource,
         &mut impl FnMut(bool) -> io::Result<()>,
@@ -286,7 +298,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
         &mut dimensions,
     )?;
     let _changed = terminal_input.tick();
-    draw_surface(terminal, &view, locale, terminal_input)?;
+    draw_surface(terminal, &view, chrome, terminal_input)?;
     loop {
         if termination.requested() {
             return Ok(LoopExit::Signal);
@@ -330,7 +342,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
         }
 
         if redraw {
-            draw_surface(terminal, &view, locale, terminal_input)?;
+            draw_surface(terminal, &view, chrome, terminal_input)?;
         }
     }
 }
@@ -338,13 +350,14 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
 fn draw_surface<B: Backend>(
     terminal: &mut Terminal<B>,
     view: &ClientView,
-    locale: Locale,
+    chrome: Chrome<'_>,
     surface: &mut (impl TerminalSurface + ?Sized),
 ) -> Result<(), LoopFailure<B::Error>> {
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
     terminal
         .draw(|frame| {
-            receipt = render_terminal_shell(frame, view, locale, surface.view());
+            receipt =
+                render_terminal_shell(frame, view, chrome.locale, surface.view(), chrome.theme);
         })
         .map_err(LoopFailure::Terminal)?;
     surface.after_close_draw(receipt);

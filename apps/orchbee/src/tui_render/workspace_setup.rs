@@ -1,4 +1,4 @@
-use super::{EMPHASIS, SIDEBAR_BACKGROUND, TEXT, WARNING, tab_close::wrapped_text_fits};
+use super::tab_close::wrapped_text_fits;
 use crate::{
     localization::Locale,
     terminal_session::{
@@ -7,11 +7,11 @@ use crate::{
     },
     terminal_text::sanitize_terminal_text,
     tui_layout::centered_overlay,
+    tui_theme::{Role, Theme},
 };
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Style,
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap},
 };
@@ -35,6 +35,7 @@ pub(super) fn render(
     locale: Locale,
     draft: &NativeSetupDraftView<'_>,
     status: Option<NativeSetupStatus>,
+    theme: &Theme,
 ) -> (Rect, Option<NativeSetupToken>) {
     let rename = match draft.stage() {
         NativeSetupStage::ProjectRename => Some(true),
@@ -120,17 +121,26 @@ pub(super) fn render(
         || locale.setup_resize_hint(),
         |project| locale.location_rename_resize_hint(project),
     );
-    let (area, complete) = render_content(frame, resize_hint, Text::from(lines));
+    let (area, complete) = render_content(frame, resize_hint, Text::from(lines), theme);
     (area, complete.then(|| draft.token()))
 }
 
-fn render_content(frame: &mut Frame<'_>, resize_hint: &str, text: Text<'_>) -> (Rect, bool) {
+fn render_content(
+    frame: &mut Frame<'_>,
+    resize_hint: &str,
+    text: Text<'_>,
+    theme: &Theme,
+) -> (Rect, bool) {
     let area = centered_overlay(frame.area(), u16::MAX, u16::MAX);
     let block = Block::new()
         .borders(Borders::ALL)
         .padding(Padding::horizontal(2))
-        .style(Style::new().bg(SIDEBAR_BACKGROUND).fg(TEXT))
-        .border_style(Style::new().fg(EMPHASIS));
+        .style(
+            theme
+                .style(Role::SurfaceOverlay)
+                .fg(theme.color(Role::TextPrimary)),
+        )
+        .border_style(theme.style(Role::AccentFocus));
     let inner = block.inner(area);
     let complete = wrapped_text_fits(&text, inner);
     frame.render_widget(Clear, area);
@@ -141,7 +151,7 @@ fn render_content(frame: &mut Frame<'_>, resize_hint: &str, text: Text<'_>) -> (
     } else {
         frame.render_widget(
             Paragraph::new(resize_hint)
-                .style(Style::new().fg(WARNING))
+                .style(theme.style(Role::StatusWarning))
                 .wrap(Wrap { trim: false }),
             inner,
         );

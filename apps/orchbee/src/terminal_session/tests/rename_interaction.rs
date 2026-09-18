@@ -338,8 +338,15 @@ fn draw(
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(TestBackend::new(width, height))?;
     let mut receipt = NativeDrawReceipt::default();
-    terminal
-        .draw(|frame| receipt = render_terminal_shell(frame, view, locale, Some(session.view())))?;
+    terminal.draw(|frame| {
+        receipt = render_terminal_shell(
+            frame,
+            view,
+            locale,
+            Some(session.view()),
+            &crate::tui_theme::Theme::terminal_native(),
+        )
+    })?;
     assert!(!terminal.backend().cursor_visible());
     session.after_close_draw(receipt);
     Ok(terminal

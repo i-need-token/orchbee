@@ -314,11 +314,16 @@ pub(crate) fn divider_glyph(up: bool, down: bool, left: bool, right: bool) -> ch
 #[cfg(test)]
 mod tests;
 
+/// The pane cell geometry projected for the session, inset by the panel frame.
+/// The result is floored at 1×1: a too-small viewport must never emit an
+/// invalid zero-area pane resize, which would kill the retained client.
 pub(crate) const fn terminal_area(panel: Rect) -> Rect {
+    let width = panel.width.saturating_sub(2);
+    let height = panel.height.saturating_sub(2);
     Rect::new(
         panel.x.saturating_add(1),
         panel.y.saturating_add(1),
-        panel.width.saturating_sub(2),
-        panel.height.saturating_sub(2),
+        if width == 0 { 1 } else { width },
+        if height == 0 { 1 } else { height },
     )
 }

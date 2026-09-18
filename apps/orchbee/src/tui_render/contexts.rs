@@ -6,9 +6,10 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-use crate::terminal_text::sanitize_terminal_text;
-
-use super::{EMPHASIS, TEXT};
+use crate::{
+    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    tui_theme::{Role, Theme},
+};
 
 pub(super) const MAX_VISIBLE_CONTEXTS: usize = 9;
 
@@ -27,6 +28,7 @@ pub(super) fn render_navigator<'a>(
     context_count: usize,
     active_position: Option<usize>,
     context_at: impl Fn(usize) -> Option<ContextDisplay<'a>>,
+    theme: &Theme,
 ) {
     let lines = navigator_lines(
         usize::from(area.width),
@@ -34,6 +36,7 @@ pub(super) fn render_navigator<'a>(
         context_count,
         active_position,
         &context_at,
+        theme,
     );
     frame.render_widget(Paragraph::new(lines), area);
 }
@@ -48,6 +51,7 @@ fn navigator_lines<'a>(
     context_count: usize,
     active_position: Option<usize>,
     context_at: &impl Fn(usize) -> Option<ContextDisplay<'a>>,
+    theme: &Theme,
 ) -> Vec<Line<'static>> {
     let visible = height.min(MAX_VISIBLE_CONTEXTS).min(context_count);
     if visible == 0 || width == 0 {
@@ -68,32 +72,32 @@ fn navigator_lines<'a>(
         .map_while(context_at)
         .map(|context| {
             Line::from(Span::styled(
-                context_row(context, width),
-                navigator_style(context.active),
+                context_row(context, width, theme),
+                navigator_style(context.active, theme),
             ))
         })
         .collect()
 }
 
-fn context_row(context: ContextDisplay<'_>, width: usize) -> String {
-    let marker = if context.active { '*' } else { ' ' };
+fn context_row(context: ContextDisplay<'_>, width: usize, theme: &Theme) -> String {
+    let marker = if context.active {
+        theme.glyphs.active_marker
+    } else {
+        " "
+    };
     let prefix = format!("[{marker}{}] ", context.position);
-    let prefix_width = Line::raw(prefix.as_str()).width();
+    let prefix_width = display_width(&prefix);
     let label = context_label(context);
     let row = format!("{prefix}{label}");
-    if Line::raw(row.as_str()).width() <= width {
+    if display_width(&row) <= width {
         return row;
     }
-    let Some(label_budget) = width
-        .checked_sub(prefix_width)
-        .and_then(|rest| rest.checked_sub(1))
-        .filter(|budget| *budget >= 1)
-    else {
-        return super::tabs::truncate_display(&row, width);
+    let Some(label_budget) = width.checked_sub(prefix_width) else {
+        return truncate_display(&row, width, "");
     };
     format!(
-        "{prefix}{}…",
-        super::tabs::truncate_display(&label, label_budget)
+        "{prefix}{}",
+        truncate_display(&label, label_budget, theme.glyphs.ellipsis)
     )
 }
 
@@ -110,11 +114,11 @@ fn context_label(context: ContextDisplay<'_>) -> String {
     }
 }
 
-fn navigator_style(active: bool) -> Style {
+fn navigator_style(active: bool, theme: &Theme) -> Style {
     if active {
-        Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD)
+        theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
     } else {
-        Style::new().fg(TEXT)
+        theme.style(Role::TextPrimary)
     }
 }
 

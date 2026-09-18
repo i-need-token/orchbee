@@ -60,7 +60,13 @@ fn draw_recovery(session: &mut TerminalSession) -> TestResult {
     let mut terminal = Terminal::new(TestBackend::new(120, 32))?;
     let mut receipt = NativeDrawReceipt::default();
     terminal.draw(|frame| {
-        receipt = render_terminal_shell(frame, &view, Locale::EnUs, Some(session.view()));
+        receipt = render_terminal_shell(
+            frame,
+            &view,
+            Locale::EnUs,
+            Some(session.view()),
+            &crate::tui_theme::Theme::terminal_native(),
+        );
     })?;
     session.after_close_draw(receipt);
     Ok(())

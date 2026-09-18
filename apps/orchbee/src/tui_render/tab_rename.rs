@@ -1,14 +1,14 @@
-use super::{EMPHASIS, SIDEBAR_BACKGROUND, TEXT, WARNING, tab_close::wrapped_text_fits};
+use super::tab_close::wrapped_text_fits;
 use crate::{
     localization::Locale,
     terminal_session::{NativeRenameDraftToken, NativeRenameDraftView},
     terminal_text::sanitize_terminal_text,
     tui_layout::centered_overlay,
+    tui_theme::{Role, Theme},
 };
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Style,
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap},
 };
@@ -17,13 +17,18 @@ pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
     draft: &NativeRenameDraftView<'_>,
+    theme: &Theme,
 ) -> (Rect, Option<NativeRenameDraftToken>) {
     let area = centered_overlay(frame.area(), u16::MAX, u16::MAX);
     let block = Block::new()
         .borders(Borders::ALL)
         .padding(Padding::horizontal(2))
-        .style(Style::new().bg(SIDEBAR_BACKGROUND).fg(TEXT))
-        .border_style(Style::new().fg(EMPHASIS));
+        .style(
+            theme
+                .style(Role::SurfaceOverlay)
+                .fg(theme.color(Role::TextPrimary)),
+        )
+        .border_style(theme.style(Role::AccentFocus));
     let inner = block.inner(area);
     let mut lines = vec![
         Line::from(locale.rename_title()),
@@ -54,7 +59,7 @@ pub(super) fn render(
     } else {
         frame.render_widget(
             Paragraph::new(locale.rename_resize_hint())
-                .style(Style::new().fg(WARNING))
+                .style(theme.style(Role::StatusWarning))
                 .wrap(Wrap { trim: false }),
             inner,
         );

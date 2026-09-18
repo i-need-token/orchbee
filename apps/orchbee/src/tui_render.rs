@@ -1,9 +1,9 @@
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::Modifier,
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
 };
 
 use crate::{
@@ -14,10 +14,12 @@ use crate::{
         NativeProjectionStatus, NativeRefreshStatus, NativeSessionView, NativeTabView,
         TerminalSessionView,
     },
+    terminal_text::{sanitize_terminal_text, truncate_display},
     tui_layout::{
         ShellAreas, SidebarArea, SidebarLayer, ViewportTier, divide_panes, overlay_area,
         pane_content, place_overlay, project_shell_areas, terminal_area,
     },
+    tui_theme::{Role, Theme},
 };
 
 use crate::terminal_session::TerminalStatus;
@@ -29,17 +31,14 @@ mod tabs;
 mod terminal_cells;
 mod workspace_setup;
 
-const BACKGROUND: Color = Color::Rgb(11, 14, 20);
-const BORDER: Color = Color::Rgb(52, 61, 78);
-const EMPHASIS: Color = Color::Rgb(122, 162, 247);
-const MUTED: Color = Color::Rgb(133, 146, 171);
-const SIDEBAR_BACKGROUND: Color = Color::Rgb(18, 23, 32);
-const TEXT: Color = Color::Rgb(211, 218, 232);
-const WARNING: Color = Color::Rgb(232, 179, 95);
-
 #[cfg(test)]
-pub(crate) fn render_shell(frame: &mut Frame<'_>, view: &ClientView, locale: Locale) {
-    render_terminal_shell(frame, view, locale, None);
+pub(crate) fn render_shell(
+    frame: &mut Frame<'_>,
+    view: &ClientView,
+    locale: Locale,
+    theme: &Theme,
+) {
+    render_terminal_shell(frame, view, locale, None, theme);
 }
 
 pub(crate) fn render_terminal_shell(
@@ -47,10 +46,11 @@ pub(crate) fn render_terminal_shell(
     view: &ClientView,
     locale: Locale,
     session: Option<TerminalSessionView<'_>>,
+    theme: &Theme,
 ) -> NativeDrawReceipt {
     let area = frame.area();
     let text = locale.shell();
-    frame.render_widget(Block::new().style(Style::new().bg(BACKGROUND)), area);
+    frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), area);
 
     let areas = project_shell_areas(area, view.sidebar_surface());
     let tier = areas.tier;
@@ -69,7 +69,14 @@ pub(crate) fn render_terminal_shell(
             sidebar_status = text.backend_status.to_owned();
             status_text = locale.shell_notice(None).to_owned();
             if tier != ViewportTier::TooSmall {
-                render_unavailable_workbench(frame, &areas, text, text.tabs_unavailable, tier);
+                render_unavailable_workbench(
+                    frame,
+                    &areas,
+                    text,
+                    text.tabs_unavailable,
+                    tier,
+                    theme,
+                );
             }
         }
         #[cfg(test)]
@@ -77,8 +84,23 @@ pub(crate) fn render_terminal_shell(
             sidebar_status = locale.terminal_status(*status).to_owned();
             status_text = sidebar_status.clone();
             if tier != ViewportTier::TooSmall {
-                render_unavailable_workbench(frame, &areas, text, text.workbench_title, tier);
-                render_legacy_terminal(frame, areas.panel, view, locale, *projection, *status);
+                render_unavailable_workbench(
+                    frame,
+                    &areas,
+                    text,
+                    text.workbench_title,
+                    tier,
+                    theme,
+                );
+                render_legacy_terminal(
+                    frame,
+                    areas.panel,
+                    view,
+                    locale,
+                    *projection,
+                    *status,
+                    theme,
+                );
             }
         }
         Some(TerminalSessionView::Native(native)) => {
@@ -95,24 +117,27 @@ pub(crate) fn render_terminal_shell(
             sidebar_status = phase_status.to_owned();
             status_text = status;
             if tier != ViewportTier::TooSmall {
-                render_native_workbench(frame, &areas, view, locale, text, native, &phase_status);
+                render_native_workbench(frame, &areas, view, locale, native, &phase_status, theme);
             }
         }
     }
 
     if tier == ViewportTier::TooSmall {
-        render_too_small_notice(frame, areas.body, text);
+        render_too_small_notice(frame, areas.body, text, theme);
     }
 
     if tier != ViewportTier::TooSmall {
         if let Some(sidebar) = areas.sidebar {
-            render_sidebar(frame, sidebar, text, &sidebar_status);
+            render_sidebar(frame, sidebar, text, &sidebar_status, theme);
         }
 
         let overlay = match view.overlay() {
-            Some(Overlay::ShortcutHelp) => {
-                Some(render_shortcut_help(frame, overlay_area(&areas), text))
-            }
+            Some(Overlay::ShortcutHelp) => Some(render_shortcut_help(
+                frame,
+                overlay_area(&areas),
+                text,
+                theme,
+            )),
             Some(Overlay::WorkbenchNavigator) => Some(match session.as_ref() {
                 Some(TerminalSessionView::Native(native)) => render_native_workbench_navigator(
                     frame,
@@ -120,12 +145,15 @@ pub(crate) fn render_terminal_shell(
                     text,
                     locale,
                     native,
+                    theme,
                 ),
                 #[cfg(test)]
                 Some(TerminalSessionView::Legacy { .. }) => {
-                    render_unavailable_workbench_navigator(frame, overlay_area(&areas), text)
+                    render_unavailable_workbench_navigator(frame, overlay_area(&areas), text, theme)
                 }
-                None => render_unavailable_workbench_navigator(frame, overlay_area(&areas), text),
+                None => {
+                    render_unavailable_workbench_navigator(frame, overlay_area(&areas), text, theme)
+                }
             }),
             Some(Overlay::BusinessSidebar) => Some(areas.sidebar.map(|sidebar| sidebar.area)),
             None => None,
@@ -137,7 +165,7 @@ pub(crate) fn render_terminal_shell(
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.close_confirmation()
         {
-            let modal = tab_close::render(frame, locale, &confirmation);
+            let modal = tab_close::render(frame, locale, &confirmation, theme);
             status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
             prompt = modal.prompt;
             if let Some(token) = modal.status {
@@ -147,7 +175,7 @@ pub(crate) fn render_terminal_shell(
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(draft) = native.rename_draft()
         {
-            let (area, token) = tab_rename::render(frame, locale, &draft);
+            let (area, token) = tab_rename::render(frame, locale, &draft, theme);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
             rename = token;
@@ -156,7 +184,7 @@ pub(crate) fn render_terminal_shell(
             && let Some(draft) = native.setup_draft()
         {
             let (area, token) =
-                workspace_setup::render(frame, locale, &draft, native.setup_status());
+                workspace_setup::render(frame, locale, &draft, native.setup_status(), theme);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
             rename = None;
@@ -180,6 +208,7 @@ pub(crate) fn render_terminal_shell(
         &status_text,
         notice,
         tier,
+        theme,
     );
     if let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(close) = native.close_status()
@@ -192,7 +221,7 @@ pub(crate) fn render_terminal_shell(
         .with_setup(setup)
 }
 
-fn render_too_small_notice(frame: &mut Frame<'_>, body: Rect, text: ShellText) {
+fn render_too_small_notice(frame: &mut Frame<'_>, body: Rect, text: ShellText, theme: &Theme) {
     let row = Rect::new(
         body.x,
         body.y.saturating_add(body.height / 2),
@@ -200,12 +229,13 @@ fn render_too_small_notice(frame: &mut Frame<'_>, body: Rect, text: ShellText) {
         1,
     );
     frame.render_widget(
-        Paragraph::new(tabs::truncate_display(
+        Paragraph::new(truncate_display(
             text.too_small_notice,
             usize::from(body.width),
+            theme.glyphs.ellipsis,
         ))
         .alignment(Alignment::Center)
-        .style(Style::new().fg(WARNING)),
+        .style(theme.style(Role::StatusWarning)),
         row,
     );
 }
@@ -216,31 +246,26 @@ fn render_unavailable_workbench(
     text: ShellText,
     tab_status: &str,
     tier: ViewportTier,
+    theme: &Theme,
 ) {
     if !areas.tabs.is_empty() {
         let tab_line = Line::from(vec![
             Span::styled(
                 format!(" {} ", text.workbench_title),
-                Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD),
+                theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(format!(" {tab_status} "), Style::new().fg(MUTED)),
-            Span::styled(
-                "  !  ",
-                Style::new().fg(WARNING).add_modifier(Modifier::BOLD),
-            ),
+            Span::styled(format!(" {tab_status} "), theme.style(Role::TextSecondary)),
+            Span::styled("  !  ", theme.style(Role::StatusWarning)),
         ]);
         frame.render_widget(Paragraph::new(tab_line), areas.tabs);
     }
 
     let content = vec![
         Line::from(""),
-        Line::styled(
-            text.terminal_unavailable,
-            Style::new().fg(WARNING).add_modifier(Modifier::BOLD),
-        ),
+        Line::styled(text.terminal_unavailable, theme.style(Role::StatusWarning)),
         Line::from(""),
-        Line::styled(text.shell_only_detail, Style::new().fg(TEXT)),
-        Line::styled(text.no_client_session, Style::new().fg(MUTED)),
+        Line::styled(text.shell_only_detail, theme.style(Role::TextPrimary)),
+        Line::styled(text.no_client_session, theme.style(Role::TextSecondary)),
     ];
     let content_area = terminal_area(areas.panel);
     if tier.shows_panel_frame() {
@@ -251,12 +276,12 @@ fn render_unavailable_workbench(
                 .block(
                     Block::new()
                         .borders(Borders::ALL)
-                        .border_style(Style::new().fg(BORDER))
-                        .border_type(BorderType::Rounded)
+                        .border_style(theme.style(Role::FrameFocused))
+                        .border_type(theme.corners)
                         .padding(Padding::vertical(1))
                         .title(Span::styled(
                             format!(" {} ", text.panel_title),
-                            Style::new().fg(TEXT),
+                            theme.style(Role::TextSecondary),
                         )),
                 ),
             areas.panel,
@@ -279,6 +304,7 @@ fn render_legacy_terminal(
     locale: Locale,
     projection: Option<&crate::terminal_projection::TerminalProjection>,
     status: TerminalStatus,
+    theme: &Theme,
 ) {
     let area = terminal_area(panel);
     frame.render_widget(Clear, area);
@@ -289,7 +315,7 @@ fn render_legacy_terminal(
     } else {
         frame.render_widget(
             Paragraph::new(locale.terminal_status(status))
-                .style(Style::new().fg(MUTED))
+                .style(theme.style(Role::TextSecondary))
                 .wrap(Wrap { trim: true }),
             area,
         );
@@ -301,23 +327,24 @@ fn render_native_workbench(
     areas: &ShellAreas,
     client_view: &ClientView,
     locale: Locale,
-    text: ShellText,
     native: &NativeSessionView<'_>,
     phase_status: &str,
+    theme: &Theme,
 ) {
+    let text = locale.shell();
     let panel_area = areas.panel;
     let location = native_location_label(native, text.standalone);
-    render_tab_strip(frame, areas.tabs, native, location.as_deref());
+    render_tab_strip(frame, areas.tabs, native, location.as_deref(), text, theme);
 
     let content_area = terminal_area(panel_area);
     if areas.tier.shows_panel_frame() {
         let panel_block = Block::new()
             .borders(Borders::ALL)
-            .border_style(Style::new().fg(BORDER))
-            .border_type(BorderType::Rounded)
+            .border_style(theme.style(Role::FrameFocused))
+            .border_type(theme.corners)
             .title(Span::styled(
                 format!(" {} ", text.panel_title),
-                Style::new().fg(TEXT),
+                theme.style(Role::TextSecondary),
             ));
         frame.render_widget(panel_block, panel_area);
     }
@@ -349,8 +376,9 @@ fn render_native_workbench(
             locale,
             native,
             &mut dividers,
+            theme,
         );
-        render_dividers(frame, &dividers);
+        render_dividers(frame, &dividers, theme);
     } else if let Some(terminal) = terminal {
         terminal_cells::render(
             frame,
@@ -385,7 +413,7 @@ fn render_native_workbench(
         .unwrap_or_else(|| panel_status.to_owned());
         frame.render_widget(
             Paragraph::new(panel_status)
-                .style(Style::new().fg(MUTED))
+                .style(theme.style(Role::TextSecondary))
                 .wrap(Wrap { trim: true }),
             content_area,
         );
@@ -397,45 +425,54 @@ fn render_tab_strip(
     tabs_area: Rect,
     native: &NativeSessionView<'_>,
     location: Option<&str>,
+    text: ShellText,
+    theme: &Theme,
 ) {
     if tabs_area.is_empty() {
         return;
     }
-    let location = location.map(|location| format!("· {location} "));
-    let (strip, location_area) = location.as_ref().map_or((tabs_area, None), |location| {
-        let width = u16::try_from(Line::raw(location.as_str()).width()).unwrap_or(u16::MAX);
-        if width < tabs_area.width {
-            (
-                Rect::new(
-                    tabs_area.x,
-                    tabs_area.y,
-                    tabs_area.width - width - 1,
-                    tabs_area.height,
-                ),
-                Some(Rect::new(
-                    tabs_area.x + tabs_area.width - width,
-                    tabs_area.y,
-                    width,
-                    tabs_area.height,
-                )),
+    let title = location.map_or_else(
+        || format!("{} ", text.workbench_title),
+        |location| {
+            format!(
+                "{} {} {location} ",
+                text.workbench_title, theme.glyphs.middle_dot
             )
-        } else {
-            (tabs_area, None)
-        }
-    });
+        },
+    );
+    let title_width = u16::try_from(Line::raw(title.as_str()).width()).unwrap_or(u16::MAX);
+    let (strip, title_area) = if title_width < tabs_area.width {
+        (
+            Rect::new(
+                tabs_area.x,
+                tabs_area.y,
+                tabs_area.width - title_width - 1,
+                tabs_area.height,
+            ),
+            Some(Rect::new(
+                tabs_area.x + tabs_area.width - title_width,
+                tabs_area.y,
+                title_width,
+                tabs_area.height,
+            )),
+        )
+    } else {
+        (tabs_area, None)
+    };
     tabs::render_compact(
         frame,
         strip,
         native.tab_count(),
         native.active_position(),
         |index| native_tab(native, index),
+        theme,
     );
-    if let (Some(location), Some(location_area)) = (location, location_area) {
+    if let Some(title_area) = title_area {
         frame.render_widget(
-            Paragraph::new(location)
+            Paragraph::new(title)
                 .alignment(Alignment::Right)
-                .style(Style::new().fg(MUTED)),
-            location_area,
+                .style(theme.style(Role::TextSecondary)),
+            title_area,
         );
     }
 }
@@ -453,6 +490,7 @@ fn render_panel_tree(
     locale: Locale,
     native: &NativeSessionView<'_>,
     dividers: &mut Vec<Rect>,
+    theme: &Theme,
 ) {
     match tree {
         NativePanelTree::Panel { panel_index } => {
@@ -467,6 +505,7 @@ fn render_panel_tree(
                 phase_status,
                 locale,
                 native,
+                theme,
             );
         }
         NativePanelTree::Split {
@@ -489,6 +528,7 @@ fn render_panel_tree(
                     locale,
                     native,
                     dividers,
+                    theme,
                 );
                 render_panel_tree(
                     frame,
@@ -502,6 +542,7 @@ fn render_panel_tree(
                     locale,
                     native,
                     dividers,
+                    theme,
                 );
             }
             None => {
@@ -518,6 +559,7 @@ fn render_panel_tree(
                         phase_status,
                         locale,
                         native,
+                        theme,
                     );
                 }
             }
@@ -553,6 +595,7 @@ fn render_leaf(
     phase_status: &str,
     locale: Locale,
     native: &NativeSessionView<'_>,
+    theme: &Theme,
 ) {
     let active = tab.active_panel() == Some(panel_index);
     let panel = tab.panel(panel_index);
@@ -560,21 +603,27 @@ fn render_leaf(
         || format!(" {} {} ", text.panel_title, panel_index.saturating_add(1)),
         |panel| {
             format!(
-                " {} {} · {} ",
+                " {} {} {} {} ",
                 text.panel_title,
                 panel_index.saturating_add(1),
-                panel.presentation_label().as_str()
+                theme.glyphs.middle_dot,
+                sanitize_terminal_text(panel.presentation_label().as_str())
             )
         },
     );
     let title_style = if active {
-        Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD)
+        theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
     } else {
-        Style::new().fg(MUTED)
+        theme.style(Role::TextSecondary)
     };
     let title_area = Rect::new(area.x, area.y, area.width, 1.min(area.height));
     frame.render_widget(
-        Paragraph::new(tabs::truncate_display(&title, usize::from(area.width))).style(title_style),
+        Paragraph::new(truncate_display(
+            &title,
+            usize::from(area.width),
+            theme.glyphs.ellipsis,
+        ))
+        .style(title_style),
         title_area,
     );
     let content = pane_content(area);
@@ -595,7 +644,7 @@ fn render_leaf(
             };
             frame.render_widget(
                 Paragraph::new(status)
-                    .style(Style::new().fg(MUTED))
+                    .style(theme.style(Role::TextSecondary))
                     .wrap(Wrap { trim: true }),
                 content,
             );
@@ -603,14 +652,14 @@ fn render_leaf(
     } else {
         frame.render_widget(
             Paragraph::new(text.inactive_pane)
-                .style(Style::new().fg(MUTED))
+                .style(theme.style(Role::SurfaceInactive))
                 .wrap(Wrap { trim: true }),
             content,
         );
     }
 }
 
-fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect]) {
+fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect], theme: &Theme) {
     let mut cells = std::collections::BTreeSet::new();
     for divider in dividers {
         for y in divider.y..divider.y.saturating_add(divider.height) {
@@ -628,7 +677,7 @@ fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect]) {
         );
         frame
             .buffer_mut()
-            .set_string(x, y, glyph.to_string(), Style::new().fg(BORDER));
+            .set_string(x, y, glyph.to_string(), theme.style(Role::FrameDivider));
     }
 }
 
@@ -670,19 +719,20 @@ fn render_status(
     status: &str,
     secondary_notice: Option<&str>,
     tier: ViewportTier,
+    theme: &Theme,
 ) -> Option<Rect> {
     if area.is_empty() {
         return None;
     }
     let secondary_notice = secondary_notice.filter(|_| !view.prefix_active());
     let (label, style) = if let Some(notice) = secondary_notice {
-        (notice.to_owned(), Style::new().fg(WARNING))
+        (notice.to_owned(), theme.style(Role::StatusWarning))
     } else if view.prefix_active() {
         (
             text.prefix_active.to_owned(),
-            Style::new()
-                .fg(BACKGROUND)
-                .bg(EMPHASIS)
+            theme
+                .style(Role::TextInverse)
+                .bg(theme.color(Role::AccentFocus))
                 .add_modifier(Modifier::BOLD),
         )
     } else {
@@ -691,7 +741,7 @@ fn render_status(
             ViewportTier::Compact => text.hint_short,
             ViewportTier::Minimal | ViewportTier::TooSmall => text.exit_hint,
         };
-        (hint.to_owned(), Style::new().fg(MUTED))
+        (hint.to_owned(), theme.style(Role::HintLabel))
     };
     let right_width = u16::try_from(Line::raw(label.as_str()).width())
         .unwrap_or(u16::MAX)
@@ -704,7 +754,7 @@ fn render_status(
         |notice| locale.shell_notice(Some(notice)).to_owned(),
     );
     frame.render_widget(
-        Paragraph::new(status_label).style(Style::new().fg(MUTED)),
+        Paragraph::new(status_label).style(theme.style(Role::TextSecondary)),
         status_area,
     );
     frame.render_widget(
@@ -722,6 +772,7 @@ fn render_sidebar(
     sidebar: SidebarArea,
     text: ShellText,
     backend_status: &str,
+    theme: &Theme,
 ) {
     if sidebar.layer == SidebarLayer::Overlay {
         frame.render_widget(Clear, sidebar.area);
@@ -730,53 +781,65 @@ fn render_sidebar(
     let items = [
         ListItem::new(Line::styled(
             text.site_section,
-            Style::new().fg(MUTED).add_modifier(Modifier::BOLD),
+            theme
+                .style(Role::TextSecondary)
+                .add_modifier(Modifier::BOLD),
         )),
         ListItem::new(Line::styled(
-            format!("● {backend_status}"),
-            Style::new().fg(WARNING),
+            format!("{} {backend_status}", theme.glyphs.status_bullet),
+            theme.style(Role::StatusWarning),
         )),
         ListItem::new(""),
         ListItem::new(Line::styled(
             text.business_section,
-            Style::new().fg(MUTED).add_modifier(Modifier::BOLD),
+            theme
+                .style(Role::TextSecondary)
+                .add_modifier(Modifier::BOLD),
         )),
         ListItem::new(Line::styled(
             format!("  {}", text.standalone),
-            Style::new().fg(TEXT),
+            theme.style(Role::TextPrimary),
         )),
         ListItem::new(Line::styled(
             format!("  {}", text.projects),
-            Style::new().fg(MUTED),
+            theme.style(Role::TextSecondary),
         )),
         ListItem::new(Line::styled(
             format!("  {}", text.workspaces),
-            Style::new().fg(MUTED),
+            theme.style(Role::TextSecondary),
         )),
         ListItem::new(Line::styled(
             format!("  {}", text.agents),
-            Style::new().fg(MUTED),
+            theme.style(Role::TextSecondary),
         )),
         ListItem::new(""),
-        ListItem::new(Line::styled(text.sidebar_hint, Style::new().fg(MUTED))),
+        ListItem::new(Line::styled(
+            text.sidebar_hint,
+            theme.style(Role::HintLabel),
+        )),
     ];
     frame.render_widget(
         List::new(items).block(
             Block::new()
                 .borders(Borders::RIGHT)
-                .border_style(Style::new().fg(BORDER))
+                .border_style(theme.style(Role::FrameDivider))
                 .padding(Padding::new(2, 1, 1, 0))
-                .style(Style::new().bg(SIDEBAR_BACKGROUND))
+                .style(theme.style(Role::SurfaceChrome))
                 .title(Span::styled(
                     format!(" {} ", text.app_title),
-                    Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD),
+                    theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
                 )),
         ),
         sidebar.area,
     );
 }
 
-fn render_shortcut_help(frame: &mut Frame<'_>, area: Rect, text: ShellText) -> Option<Rect> {
+fn render_shortcut_help(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    text: ShellText,
+    theme: &Theme,
+) -> Option<Rect> {
     let height = u16::try_from(text.shortcuts.len())
         .unwrap_or(u16::MAX)
         .saturating_add(4);
@@ -785,15 +848,26 @@ fn render_shortcut_help(frame: &mut Frame<'_>, area: Rect, text: ShellText) -> O
     let mut items = text
         .shortcuts
         .iter()
-        .map(|shortcut| ListItem::new(Line::styled(*shortcut, Style::new().fg(TEXT))))
+        .map(|shortcut| {
+            let row = shortcut.split_once("  ").map_or_else(
+                || Line::styled(*shortcut, theme.style(Role::TextPrimary)),
+                |(keys, label)| {
+                    Line::from(vec![
+                        Span::styled(keys, theme.style(Role::HintKey)),
+                        Span::styled(format!("  {label}"), theme.style(Role::TextPrimary)),
+                    ])
+                },
+            );
+            ListItem::new(row)
+        })
         .collect::<Vec<_>>();
     items.push(ListItem::new(""));
     items.push(ListItem::new(Line::styled(
-        text.overlay_input_hint,
-        Style::new().fg(MUTED),
+        text.help_dismiss_hint,
+        theme.style(Role::HintLabel),
     )));
     frame.render_widget(
-        List::new(items).block(overlay_block(text.shortcut_title)),
+        List::new(items).block(overlay_block(text.shortcut_title, theme)),
         area,
     );
     Some(area)
@@ -803,21 +877,22 @@ fn render_unavailable_workbench_navigator(
     frame: &mut Frame<'_>,
     area: Rect,
     text: ShellText,
+    theme: &Theme,
 ) -> Option<Rect> {
     let area = place_overlay(area, 68, 9)?;
     frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(vec![
             Line::from(""),
-            Line::styled(text.backend_status, Style::new().fg(WARNING)),
+            Line::styled(text.backend_status, theme.style(Role::StatusWarning)),
             Line::from(""),
-            Line::styled(text.navigator_detail, Style::new().fg(TEXT)),
+            Line::styled(text.navigator_detail, theme.style(Role::TextPrimary)),
             Line::from(""),
-            Line::styled(text.overlay_input_hint, Style::new().fg(MUTED)),
+            Line::styled(text.overlay_input_hint, theme.style(Role::HintLabel)),
         ])
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
-        .block(overlay_block(text.navigator_title)),
+        .block(overlay_block(text.navigator_title, theme)),
         area,
     );
     Some(area)
@@ -829,10 +904,11 @@ fn render_native_workbench_navigator(
     text: ShellText,
     locale: Locale,
     native: &NativeSessionView<'_>,
+    theme: &Theme,
 ) -> Option<Rect> {
     let area = place_overlay(area, 88, 12)?;
     frame.render_widget(Clear, area);
-    let block = overlay_block(text.navigator_title);
+    let block = overlay_block(text.navigator_title, theme);
     let content = block.inner(area);
     frame.render_widget(block, area);
 
@@ -863,6 +939,7 @@ fn render_native_workbench_navigator(
         native.context_count(),
         native.active_context_position(),
         context_at,
+        theme,
     );
     tabs::render_navigator(
         frame,
@@ -870,13 +947,13 @@ fn render_native_workbench_navigator(
         native.tab_count(),
         native.active_position(),
         |index| native_tab(native, index),
+        theme,
     );
     if let (Some(refresh), Some(status_area)) = (refresh, refresh_area) {
         let style = match refresh {
-            NativeRefreshStatus::Refreshing | NativeRefreshStatus::Success(_) => {
-                Style::new().fg(MUTED)
-            }
-            NativeRefreshStatus::Failure(_) => Style::new().fg(WARNING),
+            NativeRefreshStatus::Refreshing => theme.style(Role::TextSecondary),
+            NativeRefreshStatus::Success(_) => theme.style(Role::StatusSuccess),
+            NativeRefreshStatus::Failure(_) => theme.style(Role::StatusError),
         };
         frame.render_widget(
             Paragraph::new(locale.native_refresh_status(refresh)).style(style),
@@ -886,16 +963,16 @@ fn render_native_workbench_navigator(
     Some(area)
 }
 
-fn overlay_block(title: &'static str) -> Block<'static> {
+fn overlay_block(title: &'static str, theme: &Theme) -> Block<'static> {
     Block::new()
         .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::new().fg(EMPHASIS))
-        .style(Style::new().bg(SIDEBAR_BACKGROUND))
+        .border_type(theme.corners)
+        .border_style(theme.style(Role::AccentFocus))
+        .style(theme.style(Role::SurfaceOverlay))
         .padding(Padding::horizontal(2))
         .title(Span::styled(
             format!(" {title} "),
-            Style::new().fg(EMPHASIS).add_modifier(Modifier::BOLD),
+            theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD),
         ))
 }
 

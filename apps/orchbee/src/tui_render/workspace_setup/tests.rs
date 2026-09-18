@@ -11,8 +11,13 @@ fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool,
     let mut complete = false;
     terminal
         .draw(|frame| {
-            complete =
-                render_content(frame, locale.setup_resize_hint(), Text::from(lines.clone())).1;
+            complete = render_content(
+                frame,
+                locale.setup_resize_hint(),
+                Text::from(lines.clone()),
+                &crate::tui_theme::Theme::rgb_test_dark(),
+            )
+            .1;
         })
         .unwrap();
     let text = terminal
@@ -112,6 +117,7 @@ fn location_rename_complete_draw_and_resize_fallback_keep_the_exact_target() {
                         frame,
                         locale.location_rename_resize_hint(project),
                         Text::from(lines.clone()),
+                        &crate::tui_theme::Theme::rgb_test_dark(),
                     )
                     .1;
                 })

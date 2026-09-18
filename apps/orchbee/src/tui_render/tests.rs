@@ -25,6 +25,7 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
             "terminal · Close cleanup blocked",
             Some("Close request was not applied"),
             ViewportTier::Full,
+            &crate::tui_theme::Theme::rgb_test_dark(),
         );
     }));
     assert!(visible.is_some());
@@ -42,7 +43,14 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
 fn rendered_text(width: u16, height: u16, view: &ClientView, locale: Locale) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = infallible(Terminal::new(backend));
-    infallible(terminal.draw(|frame| render_shell(frame, view, locale)));
+    infallible(terminal.draw(|frame| {
+        render_shell(
+            frame,
+            view,
+            locale,
+            &crate::tui_theme::Theme::rgb_test_dark(),
+        );
+    }));
     let buffer = terminal.backend().buffer();
     let mut text = String::new();
     for y in 0..height {
@@ -122,7 +130,8 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     assert!(help.contains("Ctrl+B c"));
     assert!(help.contains("Ctrl+B ,"));
     assert!(help.contains("Ctrl+B Ctrl+B"));
-    assert!(compact_help.contains("终端输入仍会继续传递"));
+    assert!(compact_help.contains("Ctrl+B?关闭此帮助"));
+    assert!(compact_help.contains("输入仍会传递到终端"));
 }
 
 #[test]

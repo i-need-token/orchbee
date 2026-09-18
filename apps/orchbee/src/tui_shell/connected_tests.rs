@@ -102,12 +102,12 @@ fn real_tui_renders_shell_resizes_and_restores_modes_while_terminal_is_retained(
     )?;
     let dimensions_file = runtime.directory.join("dimensions");
     let command = format!(
-        "while [ \"$(stty size)\" != \"21 68\" ]; do sleep 0.02; done; stty size > '{}'\n",
+        "while [ \"$(stty size)\" != \"24 68\" ]; do sleep 0.02; done; stty size > '{}'\n",
         dimensions_file.display()
     );
     master.write_all(command.as_bytes())?;
     pump_until(&mut master, &mut screen, |_| {
-        fs::read_to_string(&dimensions_file).is_ok_and(|s| s.trim() == "21 68")
+        fs::read_to_string(&dimensions_file).is_ok_and(|s| s.trim() == "24 68")
     })?;
     master.write_all(b"\x02q")?;
     let deadline = Instant::now() + Duration::from_secs(3);

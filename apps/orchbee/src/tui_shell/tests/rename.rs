@@ -53,7 +53,10 @@ pub(crate) fn run_native_rename_resize(
     let mut leases = Vec::new();
     match super::super::run_event_loop_with_modes(
         &mut terminal,
-        Locale::EnUs,
+        super::super::Chrome {
+            locale: Locale::EnUs,
+            theme: &crate::tui_theme::Theme::terminal_native(),
+        },
         (&mut inputs, &mut |enabled| {
             leases.push(enabled);
             Ok(())

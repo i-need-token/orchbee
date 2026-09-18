@@ -5,108 +5,156 @@ use ratatui::{
     text::{Line, Span},
 };
 
-/// Returns `true` when the scalar must never be painted into the cell grid:
-/// control characters, line/paragraph separators, and format controls that
-/// reorder or hide text (bidirectional overrides, tag and interlinear
-/// annotation characters, and the byte-order mark). Zero-width joiners and
-/// combining marks are legal — removing them breaks legitimate graphemes.
+/// The shared never-paint criterion for pane cells and terminal output:
+/// control characters and line/paragraph separators. Deliberately minimal —
+/// program content may legitimately carry bidirectional marks, tag letters,
+/// and other format scalars, so chrome-only exclusions live in
+/// [`is_forbidden_chrome_scalar`].
 pub(crate) fn is_forbidden_terminal_scalar(character: char) -> bool {
-    character.is_control()
-        || matches!(
-            character,
-            '\u{2028}' | '\u{2029}'
-                | '\u{061c}'
-                | '\u{200e}' | '\u{200f}'
-                | '\u{202a}'..='\u{202e}'
-                | '\u{2066}'..='\u{206f}'
-                | '\u{feff}'
-                | '\u{fff9}'..='\u{fffb}'
-                | '\u{e0001}'
-                | '\u{e0020}'..='\u{e007f}'
-        )
+    character.is_control() || matches!(character, '\u{2028}' | '\u{2029}')
 }
 
-/// Strips control characters and whole ANSI escape sequences (CSI, OSC
-/// terminated by BEL or ST, and the ST-terminated DCS/SOS/PM/APC family) so
-/// untrusted titles and labels cannot inject terminal commands or leave
-/// printable residue like `31m` behind. Borrows when the input is already
-/// safe.
+/// Format scalars that reorder or hide text: bidirectional marks, embeddings,
+/// overrides, and isolates; the byte-order mark; interlinear annotation
+/// anchors; and the tag block. Zero-width joiners stay legal — removing them
+/// merges or re-shapes legitimate grapheme clusters.
+fn is_reorder_or_hide_format(character: char) -> bool {
+    matches!(
+        character,
+        '\u{061c}'
+            | '\u{200e}' | '\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2066}'..='\u{206f}'
+            | '\u{feff}'
+            | '\u{fff9}'..='\u{fffb}'
+            | '\u{e0001}'
+            | '\u{e0020}'..='\u{e007f}'
+    )
+}
+
+/// The chrome criterion: the pane criterion plus format scalars that reorder
+/// or hide text. Applies to external labels and titles only — never to a
+/// program's own pane cells.
+fn is_forbidden_chrome_scalar(character: char) -> bool {
+    is_forbidden_terminal_scalar(character) || is_reorder_or_hide_format(character)
+}
+
+/// Strips control characters and whole ANSI escape sequences from a pane cell
+/// symbol before it reaches the terminal writer, so program output cannot
+/// inject terminal commands or leave printable residue like `31m` behind.
+/// Format scalars pass through: bidirectional marks and emoji tag sequences
+/// are the program's own content.
+pub(crate) fn sanitize_terminal_symbol(value: &str) -> Cow<'_, str> {
+    sanitize_with(value, is_forbidden_terminal_scalar)
+}
+
+/// [`sanitize_terminal_symbol`] plus the format scalars of
+/// [`is_forbidden_chrome_scalar`], for untrusted chrome labels and titles.
 pub(crate) fn sanitize_terminal_text(value: &str) -> Cow<'_, str> {
-    if !value.chars().any(is_forbidden_terminal_scalar) {
+    sanitize_with(value, is_forbidden_chrome_scalar)
+}
+
+/// Shared sanitizer loop. Escape sequences are recognized and consumed whole —
+/// CSI through its final byte, OSC through BEL or either ST form (`ESC \` or
+/// the C1 `U+009C`), DCS/SOS/PM/APC through ST, and nF sequences through their
+/// final byte. The C1 initiators `0x90/0x98/0x9B/0x9D/0x9E/0x9F` take the same
+/// paths. A sequence truncated at end-of-input consumes to the end.
+fn sanitize_with(value: &str, forbidden: impl Fn(char) -> bool + Copy) -> Cow<'_, str> {
+    if !value.chars().any(forbidden) {
         return Cow::Borrowed(value);
     }
     let mut sanitized = String::with_capacity(value.len());
     let mut characters = value.chars();
     while let Some(character) = characters.next() {
         match character {
-            '\u{1b}' => skip_escape(&mut characters),
-            '\u{9b}' => skip_csi(&mut characters),
-            '\u{9d}' => skip_osc(&mut characters),
-            '\u{90}' | '\u{98}' | '\u{9e}' | '\u{9f}' => skip_string(&mut characters),
-            _ if !is_forbidden_terminal_scalar(character) => sanitized.push(character),
+            '\u{1b}' => skip_sequence(&mut characters, Sequence::Dispatch),
+            '\u{9b}' => skip_sequence(&mut characters, Sequence::Csi),
+            '\u{9d}' => skip_sequence(&mut characters, Sequence::Osc),
+            '\u{90}' | '\u{98}' | '\u{9e}' | '\u{9f}' => {
+                skip_sequence(&mut characters, Sequence::String)
+            }
+            _ if !forbidden(character) => sanitized.push(character),
             _ => {}
         }
     }
     Cow::Owned(sanitized)
 }
 
-/// Consumes the bytes after `ESC`: an intermediate-byte (nF) sequence ending in
-/// one final byte, or one of the bracket/string families. A truncated sequence
-/// consumes to the end.
-fn skip_escape(characters: &mut impl Iterator<Item = char>) {
-    match characters.next() {
-        Some('[') => skip_csi(characters),
-        Some(']') => skip_osc(characters),
-        Some('P' | 'X' | '^' | '_') => skip_string(characters),
-        Some(mut current @ '\u{20}'..='\u{2f}') => {
-            while ('\u{20}'..='\u{2f}').contains(&current) {
-                match characters.next() {
-                    Some(next) => current = next,
-                    None => return,
-                }
-            }
-        }
-        _ => {}
+/// Parse state for one in-flight escape sequence.
+enum Sequence {
+    /// Just after `ESC` — awaiting the dispatch byte.
+    Dispatch,
+    /// Inside nF intermediates (`0x20..=0x2f`); the next byte ends it.
+    Intermediates,
+    /// Inside CSI; ends at a final byte (`0x40..=0x7e`).
+    Csi,
+    /// Inside OSC; ends at BEL or ST.
+    Osc,
+    /// Inside DCS/SOS/PM/APC; ends at ST.
+    String,
+}
+
+/// Maps a byte that aborts a control-function sequence to the state the new
+/// sequence enters: `ESC` re-enters dispatch, a C1 initiator starts its own
+/// family. Anything else is sequence content.
+fn abort_state(character: char) -> Option<Sequence> {
+    match character {
+        '\u{1b}' => Some(Sequence::Dispatch),
+        '\u{9b}' => Some(Sequence::Csi),
+        '\u{9d}' => Some(Sequence::Osc),
+        '\u{90}' | '\u{98}' | '\u{9e}' | '\u{9f}' => Some(Sequence::String),
+        _ => None,
     }
 }
 
-/// Consumes CSI parameters and intermediates through the final byte
-/// (`0x40..=0x7e`).
-fn skip_csi(characters: &mut impl Iterator<Item = char>) {
-    for character in characters.by_ref() {
-        if ('\u{40}'..='\u{7e}').contains(&character) {
-            return;
-        }
-    }
-}
-
-/// Consumes an OSC payload through BEL or ST (`ESC \`).
-fn skip_osc(characters: &mut impl Iterator<Item = char>) {
-    skip_until_terminator(characters, true);
-}
-
-/// Consumes a DCS/SOS/PM/APC payload through ST.
-fn skip_string(characters: &mut impl Iterator<Item = char>) {
-    skip_until_terminator(characters, false);
-}
-
-fn skip_until_terminator(characters: &mut impl Iterator<Item = char>, bel_terminates: bool) {
+/// Consumes an escape sequence starting in `state`. A fresh `ESC` or C1
+/// initiator inside dispatch, intermediates, or CSI aborts the sequence in
+/// progress and re-dispatches; inside an OSC/string payload they remain
+/// payload bytes, which are consumed only through the payload's terminator.
+/// A truncated sequence consumes to the end. The loop stays iterative so
+/// arbitrary interruption runs cannot overflow the stack.
+fn skip_sequence(characters: &mut impl Iterator<Item = char>, mut state: Sequence) {
     let mut escaped = false;
     for character in characters.by_ref() {
-        if escaped && character == '\\' {
-            return;
+        match state {
+            Sequence::Dispatch => match character {
+                '\u{1b}' => {}
+                '[' | '\u{9b}' => state = Sequence::Csi,
+                ']' | '\u{9d}' => state = Sequence::Osc,
+                'P' | 'X' | '^' | '_' | '\u{90}' | '\u{98}' | '\u{9e}' | '\u{9f}' => {
+                    state = Sequence::String
+                }
+                '\u{20}'..='\u{2f}' => state = Sequence::Intermediates,
+                _ => return,
+            },
+            Sequence::Intermediates | Sequence::Csi => match abort_state(character) {
+                Some(next) => {
+                    state = next;
+                    escaped = false;
+                }
+                None => match state {
+                    Sequence::Intermediates if ('\u{20}'..='\u{2f}').contains(&character) => {}
+                    Sequence::Intermediates => return,
+                    _ if ('\u{40}'..='\u{7e}').contains(&character) => return,
+                    _ => {}
+                },
+            },
+            Sequence::Osc | Sequence::String => {
+                if (escaped && character == '\\')
+                    || character == '\u{9c}'
+                    || (matches!(state, Sequence::Osc) && character == '\u{7}')
+                {
+                    return;
+                }
+                escaped = character == '\u{1b}';
+            }
         }
-        if bel_terminates && character == '\u{7}' {
-            return;
-        }
-        escaped = character == '\u{1b}';
     }
 }
 
 /// Display width in terminal cells: East Asian wide characters count as two,
 /// combining marks as zero. This is the one canonical measure — the same
 /// function for measuring, truncating, and laying out chrome text.
-#[cfg_attr(not(test), allow(dead_code))] // render consumers land in a later slice
 pub(crate) fn display_width(text: &str) -> usize {
     Line::raw(text).width()
 }
@@ -115,7 +163,6 @@ pub(crate) fn display_width(text: &str) -> usize {
 /// budgeted before the text. Returns `text` unchanged when it already fits and
 /// an empty string when even the marker exceeds the budget. Splits only on
 /// grapheme boundaries, so a wide character or combining sequence is never cut.
-#[cfg_attr(not(test), allow(dead_code))] // render consumers land in a later slice
 pub(crate) fn truncate_display(text: &str, budget: usize, marker: &str) -> String {
     if display_width(text) <= budget {
         return text.to_owned();

@@ -39,10 +39,13 @@ fn rendered(
             })
         };
         let area = Rect::new(0, 0, width, height);
+        let theme = crate::tui_theme::Theme::rgb_test_dark();
         match surface {
-            Surface::Compact => render_compact(frame, area, tabs.len(), active_position, tab_at),
+            Surface::Compact => {
+                render_compact(frame, area, tabs.len(), active_position, tab_at, &theme)
+            }
             Surface::Navigator => {
-                render_navigator(frame, area, tabs.len(), active_position, tab_at)
+                render_navigator(frame, area, tabs.len(), active_position, tab_at, &theme)
             }
         }
     }));
@@ -131,7 +134,7 @@ fn compact_strip_keeps_duplicates_and_sanitizes_only_the_temporary_rendering() {
     let (text, _) = rendered(80, 1, &tabs, Some(3), Surface::Compact);
 
     assert!(text.contains("[ 1 same] [ 2 same]"), "{text:?}");
-    assert!(text.contains("[*3 samee\u{301}界"), "{text:?}");
+    assert!(text.contains("[*3 same]"), "{text:?}");
     assert_eq!(unsafe_label, canonical);
     assert!(!text.trim_end_matches('\n').chars().any(char::is_control));
 }
@@ -147,8 +150,8 @@ fn compact_strip_clips_without_splitting_a_double_width_cell() {
     let (clipped, buffer) = rendered(5, 1, &tabs, Some(1), Surface::Compact);
 
     assert_eq!(prefix, "[*1 \n");
-    assert_eq!(clipped, "[*1  \n");
-    assert_eq!(buffer[(4, 0)].symbol(), " ");
+    assert_eq!(clipped, "[*1 ]\n");
+    assert_eq!(buffer[(4, 0)].symbol(), "]");
 }
 
 #[test]
@@ -231,7 +234,14 @@ fn rendering_is_bounded_by_its_rect_and_marks_the_active_token_style() {
                 label: tab.label,
             })
         };
-        render_compact(frame, Rect::new(3, 0, 1, 1), 2, Some(2), tab_at);
+        render_compact(
+            frame,
+            Rect::new(3, 0, 1, 1),
+            2,
+            Some(2),
+            tab_at,
+            &crate::tui_theme::Theme::rgb_test_dark(),
+        );
     }));
     let bounded = terminal.backend().buffer();
     assert_eq!(bounded[(2, 0)].symbol(), ".");
@@ -239,8 +249,14 @@ fn rendering_is_bounded_by_its_rect_and_marks_the_active_token_style() {
     assert_eq!(bounded[(4, 0)].symbol(), ".");
 
     let (_, styled) = rendered(16, 1, &tabs, Some(2), Surface::Compact);
-    assert_eq!(styled[(0, 0)].fg, super::super::MUTED);
-    assert_eq!(styled[(7, 0)].fg, super::super::EMPHASIS);
+    assert_eq!(
+        styled[(0, 0)].fg,
+        crate::tui_theme::Theme::rgb_test_dark().color(crate::tui_theme::Role::TextSecondary)
+    );
+    assert_eq!(
+        styled[(7, 0)].fg,
+        crate::tui_theme::Theme::rgb_test_dark().color(crate::tui_theme::Role::AccentFocus)
+    );
     assert!(styled[(7, 0)].modifier.contains(Modifier::BOLD));
 }
 
@@ -252,8 +268,9 @@ fn token_formatting_is_usize_safe() {
         label: "label",
     };
 
-    let (compact, _) = compact_token(tab, usize::MAX).unwrap();
-    let navigator = navigator_row(tab, usize::MAX);
+    let (compact, _) =
+        compact_token(tab, usize::MAX, &crate::tui_theme::Theme::rgb_test_dark()).unwrap();
+    let navigator = navigator_row(tab, usize::MAX, &crate::tui_theme::Theme::rgb_test_dark());
 
     assert_eq!(compact, format!("[*{} label]", usize::MAX));
     assert_eq!(navigator, format!("[*{}] label", usize::MAX));

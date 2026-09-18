@@ -71,7 +71,7 @@ fn sanitizes_untrusted_cell_symbols_at_the_final_print_boundary()
     for forbidden in ['\x07', '\r', '\n', '\u{85}', '\u{2028}', '\u{2029}'] {
         assert!(!output.contains(forbidden));
     }
-    assert_eq!(output.matches('\u{fffd}').count(), 7);
+    assert_eq!(output.matches('\u{fffd}').count(), 0);
     assert!(output.contains("界e\u{301}"));
     assert_eq!(cell.symbol(), payload);
     Ok(())

@@ -50,7 +50,13 @@ fn draw_close(
     let mut terminal = Terminal::new(TestBackend::new(width, height))?;
     let mut receipt = NativeDrawReceipt::default();
     terminal.draw(|frame| {
-        receipt = render_terminal_shell(frame, view, locale, Some(session.view()));
+        receipt = render_terminal_shell(
+            frame,
+            view,
+            locale,
+            Some(session.view()),
+            &crate::tui_theme::Theme::terminal_native(),
+        );
     })?;
     if matches!(session.view(), TerminalSessionView::Native(view) if view.close_confirmation().is_some())
     {
@@ -303,10 +309,25 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
         let rendered = draw_close(&mut session, &view, locale, 120, 40)?;
         let compact = rendered.replace([' ', '\n'], "");
         // Wrapped rows contain borders between label segments. Reconstruct only target
-        // scalars and their sanitization replacements, preserving their displayed order.
+        // scalars and their sanitization replacements inside the modal area (the tab
+        // strip above the modal legitimately shows a truncated copy of the label).
+        let modal = crate::tui_layout::centered_overlay(
+            ratatui::layout::Rect::new(0, 0, 120, 40),
+            u16::MAX,
+            u16::MAX,
+        );
         let visible_target: String = rendered
-            .chars()
-            .filter(|character| matches!(character, '界' | '\u{fffd}'))
+            .lines()
+            .enumerate()
+            .flat_map(|(y, row)| {
+                row.chars().enumerate().filter_map(move |(x, character)| {
+                    let inside = (x as u16) >= modal.x
+                        && (x as u16) < modal.x.saturating_add(modal.width)
+                        && (y as u16) >= modal.y
+                        && (y as u16) < modal.y.saturating_add(modal.height);
+                    (inside && matches!(character, '界' | '\u{fffd}')).then_some(character)
+                })
+            })
             .collect();
         assert_eq!(visible_target, safe);
         assert!(compact.contains(&locale.close_warning().replace(' ', "")));

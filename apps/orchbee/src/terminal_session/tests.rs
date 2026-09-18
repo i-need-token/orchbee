@@ -600,7 +600,13 @@ fn render_native_session(
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend)?;
     terminal.draw(|frame| {
-        render_terminal_shell(frame, view, Locale::EnUs, Some(session.view()));
+        render_terminal_shell(
+            frame,
+            view,
+            Locale::EnUs,
+            Some(session.view()),
+            &crate::tui_theme::Theme::terminal_native(),
+        );
     })?;
     let buffer = terminal.backend().buffer();
     let mut text = String::new();

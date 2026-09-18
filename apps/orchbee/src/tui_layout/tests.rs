@@ -101,6 +101,21 @@ fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
 }
 
 #[test]
+fn terminal_area_floors_degenerate_panels_at_one_cell() {
+    // A too-small body (zero or sub-frame rows/columns) still projects a valid
+    // 1x1 pane so the session never receives an invalid zero-area resize.
+    for panel in [
+        Rect::new(0, 0, 0, 0),
+        Rect::new(0, 0, 15, 1),
+        Rect::new(0, 0, 2, 30),
+        Rect::new(4, 2, 30, 2),
+    ] {
+        let area = terminal_area(panel);
+        assert!(area.width >= 1 && area.height >= 1, "{panel:?} -> {area:?}");
+    }
+}
+
+#[test]
 fn keeps_overlay_geometry_inside_the_content_area_and_never_the_status() {
     let viewport = Rect::new(0, 0, 120, 40);
     let areas = project_shell_areas(viewport, SidebarSurface::Docked);
