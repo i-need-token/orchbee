@@ -718,8 +718,10 @@ fn open_rename_draft_consumes_editor_keys_and_atomic_paste_without_corruption() 
         SessionActionDisposition::DismissNavigator
     );
 
-    // Unmodified editing keys reach the real draft as consumed edits: the
-    // flat label buffer has no cursor, so the text and the lease are intact.
+    // Unmodified editing keys reach the real draft as consumed LineEditor
+    // edits: the cursor moves for the arrows/Home/End, Delete is a no-op at
+    // the end, and Ctrl+W word-backspace removes the trailing word. The
+    // lease stays armed — none of this cancels or forwards.
     dispatch(
         &mut dispatcher,
         &mut view,
@@ -735,7 +737,7 @@ fn open_rename_draft_consumes_editor_keys_and_atomic_paste_without_corruption() 
             .text()
             .to_owned()
     };
-    assert_eq!(draft_text(&ui), "Tab 0");
+    assert_eq!(draft_text(&ui), "Tab ");
     assert!(ui.rename_input_context().is_some());
 
     // Modified and unbound sequences are consumed whole: no fault, no cancel,
@@ -746,7 +748,7 @@ fn open_rename_draft_consumes_editor_keys_and_atomic_paste_without_corruption() 
         &mut ui,
         b"\x1b[1;5D\x1b[A\x1b[Z",
     );
-    assert_eq!(draft_text(&ui), "Tab 0");
+    assert_eq!(draft_text(&ui), "Tab ");
     assert!(
         !ui.state
             .as_ref()
@@ -766,7 +768,7 @@ fn open_rename_draft_consumes_editor_keys_and_atomic_paste_without_corruption() 
         &mut ui,
         b"\x1b[200~\x02x[]\x1b[201~",
     );
-    assert_eq!(draft_text(&ui), "Tab 0\x02x[]");
+    assert_eq!(draft_text(&ui), "Tab \x02x[]");
     assert!(
         !ui.state
             .as_ref()
