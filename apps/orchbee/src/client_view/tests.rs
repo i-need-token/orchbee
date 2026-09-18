@@ -1,17 +1,29 @@
 use super::{
-    BackendAction, ClientAction, ClientKey, ClientTransition, ClientView, Notice, Overlay,
-    PanelDirection, SessionActionDisposition, ShellCommand, SidebarSurface, ViewportClass,
-    WIDE_VIEWPORT_MINIMUM_COLUMNS,
+    BackendAction, ClientAction, ClientTransition, ClientView, KeyCode, KeyEvent, Modifiers,
+    Notice, Overlay, PanelDirection, PrefixInput, SessionActionDisposition, ShellCommand,
+    SidebarSurface, ViewportClass, WIDE_VIEWPORT_MINIMUM_COLUMNS,
 };
 
-fn commit(view: &mut ClientView, key: ClientKey) -> ClientTransition {
-    let transition = view.decide(key);
+fn key(code: KeyCode) -> PrefixInput {
+    PrefixInput::Key(KeyEvent::press(code, Modifiers::NONE))
+}
+
+fn plain(c: char) -> PrefixInput {
+    key(KeyCode::Char(c))
+}
+
+fn ctrl_b() -> PrefixInput {
+    PrefixInput::Key(KeyEvent::press(KeyCode::Char('b'), Modifiers::CTRL))
+}
+
+fn commit(view: &mut ClientView, input: PrefixInput) -> ClientTransition {
+    let transition = view.decide(input);
     view.commit(transition, SessionActionDisposition::KeepNavigator);
     transition
 }
 
 fn enter_prefix(view: &mut ClientView) {
-    let transition = commit(view, ClientKey::ControlB);
+    let transition = commit(view, ctrl_b());
     assert_eq!(transition.action(), None);
     assert_eq!(transition.shell(), ShellCommand::None);
     assert!(view.prefix_active());
@@ -41,7 +53,7 @@ fn resizes_without_turning_a_docked_sidebar_into_an_automatic_overlay() {
     assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
 
     enter_prefix(&mut view);
-    let transition = commit(&mut view, ClientKey::Plain('b'));
+    let transition = commit(&mut view, plain('b'));
     assert_eq!(transition.shell(), ShellCommand::None);
     assert!(!transition.layout_changed());
     assert_eq!(view.sidebar_surface(), SidebarSurface::Overlay);
@@ -55,13 +67,13 @@ fn resizes_without_turning_a_docked_sidebar_into_an_automatic_overlay() {
 fn marks_only_wide_sidebar_reflow_as_a_layout_change() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
-    let transition = commit(&mut view, ClientKey::Plain('b'));
+    let transition = commit(&mut view, plain('b'));
     assert!(transition.layout_changed());
     assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
 
     view.resize(WIDE_VIEWPORT_MINIMUM_COLUMNS - 1);
     enter_prefix(&mut view);
-    let transition = commit(&mut view, ClientKey::Plain('b'));
+    let transition = commit(&mut view, plain('b'));
     assert!(!transition.layout_changed());
     assert_eq!(view.sidebar_surface(), SidebarSurface::Overlay);
 
@@ -72,95 +84,75 @@ fn marks_only_wide_sidebar_reflow_as_a_layout_change() {
 #[test]
 fn decides_each_completed_prefix_without_mutating_the_view() {
     let fixed_cases = [
+        (plain('r'), ClientAction::RequestWorkspaceRename, None),
+        (plain('R'), ClientAction::RequestProjectRename, None),
+        (plain('a'), ClientAction::RequestWorkspaceCreate, None),
+        (plain('e'), ClientAction::RequestWorkspaceDirectory, None),
+        (plain('c'), ClientAction::CreateTab, None),
+        (plain('<'), ClientAction::MovePreviousTab, None),
+        (plain('>'), ClientAction::MoveNextTab, None),
+        (plain('n'), ClientAction::SelectNextTab, None),
+        (plain('p'), ClientAction::SelectPreviousTab, None),
+        (plain('['), ClientAction::SelectPreviousContext, None),
+        (plain(']'), ClientAction::SelectNextContext, None),
         (
-            ClientKey::Plain('r'),
-            ClientAction::RequestWorkspaceRename,
-            None,
-        ),
-        (
-            ClientKey::Plain('R'),
-            ClientAction::RequestProjectRename,
-            None,
-        ),
-        (
-            ClientKey::Plain('a'),
-            ClientAction::RequestWorkspaceCreate,
-            None,
-        ),
-        (
-            ClientKey::Plain('e'),
-            ClientAction::RequestWorkspaceDirectory,
-            None,
-        ),
-        (ClientKey::Plain('c'), ClientAction::CreateTab, None),
-        (ClientKey::Plain('<'), ClientAction::MovePreviousTab, None),
-        (ClientKey::Plain('>'), ClientAction::MoveNextTab, None),
-        (ClientKey::Plain('n'), ClientAction::SelectNextTab, None),
-        (ClientKey::Plain('p'), ClientAction::SelectPreviousTab, None),
-        (
-            ClientKey::Plain('['),
-            ClientAction::SelectPreviousContext,
-            None,
-        ),
-        (ClientKey::Plain(']'), ClientAction::SelectNextContext, None),
-        (
-            ClientKey::Plain('h'),
+            plain('h'),
             ClientAction::MovePanelFocus(PanelDirection::Left),
             None,
         ),
         (
-            ClientKey::Plain('j'),
+            plain('j'),
             ClientAction::MovePanelFocus(PanelDirection::Down),
             None,
         ),
         (
-            ClientKey::Plain('k'),
+            plain('k'),
             ClientAction::MovePanelFocus(PanelDirection::Up),
             None,
         ),
         (
-            ClientKey::Plain('l'),
+            plain('l'),
             ClientAction::MovePanelFocus(PanelDirection::Right),
             None,
         ),
         (
-            ClientKey::Plain('-'),
+            plain('-'),
             ClientAction::SplitPanel(PanelDirection::Down),
             None,
         ),
         (
-            ClientKey::Plain('_'),
+            plain('_'),
             ClientAction::SplitPanel(PanelDirection::Up),
             None,
         ),
         (
-            ClientKey::Plain('\\'),
+            plain('\\'),
             ClientAction::SplitPanel(PanelDirection::Left),
             None,
         ),
         (
-            ClientKey::Plain('|'),
+            plain('|'),
             ClientAction::SplitPanel(PanelDirection::Right),
             None,
         ),
-        (ClientKey::Plain('X'), ClientAction::ClosePanel, None),
+        (plain('X'), ClientAction::ClosePanel, None),
         (
-            ClientKey::Plain('H'),
+            plain('H'),
             ClientAction::MovePanel(PanelDirection::Left),
             None,
         ),
         (
-            ClientKey::Plain('J'),
+            plain('J'),
             ClientAction::MovePanel(PanelDirection::Down),
             None,
         ),
         (
-            ClientKey::Plain('K'),
+            plain('K'),
             ClientAction::MovePanel(PanelDirection::Up),
             None,
         ),
         (
-            ClientKey::Plain('L'),
+            plain('L'),
             ClientAction::MovePanel(PanelDirection::Right),
             None,
         ),
@@ -183,7 +175,7 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
         let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
         enter_prefix(&mut view);
         let key = char::from(b'0' + position);
-        let transition = commit(&mut view, ClientKey::Plain(key));
+        let transition = commit(&mut view, plain(key));
         assert_eq!(transition.action(), Some(ClientAction::SelectTab(position)));
         assert_eq!(transition.shell(), ShellCommand::None);
         assert_eq!(view.notice(), None);
@@ -194,20 +186,20 @@ fn decides_each_completed_prefix_without_mutating_the_view() {
 fn toggles_the_navigator_and_replaces_other_overlays() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
-    let opened = commit(&mut view, ClientKey::Plain('w'));
+    let opened = commit(&mut view, plain('w'));
     assert_eq!(opened.action(), Some(ClientAction::OpenWorkbenchNavigator));
     assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 
     enter_prefix(&mut view);
-    let closed = commit(&mut view, ClientKey::Plain('w'));
+    let closed = commit(&mut view, plain('w'));
     assert_eq!(closed.action(), Some(ClientAction::CloseWorkbenchNavigator));
     assert_eq!(view.overlay(), None);
 
     enter_prefix(&mut view);
-    commit(&mut view, ClientKey::Plain('?'));
+    commit(&mut view, plain('?'));
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
     enter_prefix(&mut view);
-    let replaced = commit(&mut view, ClientKey::Plain('w'));
+    let replaced = commit(&mut view, plain('w'));
     assert_eq!(
         replaced.action(),
         Some(ClientAction::OpenWorkbenchNavigator)
@@ -219,11 +211,11 @@ fn toggles_the_navigator_and_replaces_other_overlays() {
 fn wide_sidebar_toggle_replaces_an_open_overlay() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
-    commit(&mut view, ClientKey::Plain('w'));
+    commit(&mut view, plain('w'));
     assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 
     enter_prefix(&mut view);
-    let toggle = commit(&mut view, ClientKey::Plain('b'));
+    let toggle = commit(&mut view, plain('b'));
     assert_eq!(toggle.action(), Some(ClientAction::ToggleBusinessSidebar));
     assert!(toggle.layout_changed());
     assert_eq!(view.overlay(), None);
@@ -231,20 +223,48 @@ fn wide_sidebar_toggle_replaces_an_open_overlay() {
 }
 
 #[test]
+fn question_mark_toggles_the_shortcut_help_without_capturing_input() {
+    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+    enter_prefix(&mut view);
+    let opened = commit(&mut view, plain('?'));
+    assert_eq!(opened.action(), Some(ClientAction::OpenShortcutHelp));
+    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+
+    // The help overlay never captures: ordinary keys and Esc keep
+    // forwarding so the program's own Esc stays untouched.
+    assert_eq!(
+        commit(&mut view, plain('x')).shell(),
+        ShellCommand::ForwardTerminal
+    );
+    assert_eq!(
+        commit(&mut view, key(KeyCode::Esc)).shell(),
+        ShellCommand::ForwardTerminal
+    );
+    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+
+    // The same binding closes the overlay it opened.
+    enter_prefix(&mut view);
+    let closed = commit(&mut view, plain('?'));
+    assert_eq!(closed.action(), Some(ClientAction::CloseShortcutHelp));
+    assert_eq!(view.overlay(), None);
+    assert!(!view.prefix_active());
+}
+
+#[test]
 fn overlays_never_make_ordinary_or_escape_input_modal() {
-    for key in [ClientKey::Plain('w'), ClientKey::Plain('?')] {
+    for input in [plain('w'), plain('?')] {
         let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
         enter_prefix(&mut view);
-        commit(&mut view, key);
+        commit(&mut view, input);
         let expected = view.overlay();
 
         assert_eq!(
-            commit(&mut view, ClientKey::Plain('x')).shell(),
+            commit(&mut view, plain('x')).shell(),
             ShellCommand::ForwardTerminal
         );
         assert_eq!(view.overlay(), expected);
         assert_eq!(
-            commit(&mut view, ClientKey::Escape).shell(),
+            commit(&mut view, key(KeyCode::Esc)).shell(),
             ShellCommand::ForwardTerminal
         );
         assert_eq!(view.overlay(), expected);
@@ -255,16 +275,16 @@ fn overlays_never_make_ordinary_or_escape_input_modal() {
 fn forwards_only_ordinary_input_and_the_literal_prefix_binding() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     assert_eq!(
-        commit(&mut view, ClientKey::Plain('x')).shell(),
+        commit(&mut view, plain('x')).shell(),
         ShellCommand::ForwardTerminal
     );
     assert_eq!(
-        commit(&mut view, ClientKey::Other).shell(),
+        commit(&mut view, PrefixInput::NonKey).shell(),
         ShellCommand::ForwardTerminal
     );
 
     enter_prefix(&mut view);
-    let literal = commit(&mut view, ClientKey::ControlB);
+    let literal = commit(&mut view, ctrl_b());
     assert_eq!(literal.action(), Some(ClientAction::ForwardLiteralPrefix));
     assert_eq!(literal.shell(), ShellCommand::ForwardTerminal);
     assert!(!view.prefix_active());
@@ -277,12 +297,12 @@ fn completed_prefix_replaces_parser_notice_but_first_prefix_does_not() {
     enter_prefix(&mut view);
     assert_eq!(view.notice(), Some(Notice::TerminalInputUnavailable));
 
-    let unknown = commit(&mut view, ClientKey::Plain('z'));
+    let unknown = commit(&mut view, plain('z'));
     assert_eq!(unknown.action(), Some(ClientAction::UnknownPrefix));
     assert_eq!(view.notice(), Some(Notice::UnknownPrefix));
 
     enter_prefix(&mut view);
-    commit(&mut view, ClientKey::Escape);
+    commit(&mut view, key(KeyCode::Esc));
     assert_eq!(view.notice(), None);
 }
 
@@ -290,15 +310,15 @@ fn completed_prefix_replaces_parser_notice_but_first_prefix_does_not() {
 fn only_a_success_disposition_dismisses_an_open_navigator() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
-    commit(&mut view, ClientKey::Plain('w'));
+    commit(&mut view, plain('w'));
 
     enter_prefix(&mut view);
-    let selection = view.decide(ClientKey::Plain('n'));
+    let selection = view.decide(plain('n'));
     view.commit(selection, SessionActionDisposition::KeepNavigator);
     assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 
     enter_prefix(&mut view);
-    let selection = view.decide(ClientKey::Plain('n'));
+    let selection = view.decide(plain('n'));
     view.commit(selection, SessionActionDisposition::DismissNavigator);
     assert_eq!(view.overlay(), None);
 }
@@ -386,14 +406,14 @@ fn exits_only_for_the_two_accepted_prefixed_keys() {
     for key in ['q', 'd'] {
         let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
         enter_prefix(&mut view);
-        let transition = commit(&mut view, ClientKey::Plain(key));
+        let transition = commit(&mut view, plain(key));
         assert_eq!(transition.action(), Some(ClientAction::Exit));
         assert_eq!(transition.shell(), ShellCommand::Exit);
     }
 
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     assert_eq!(
-        commit(&mut view, ClientKey::Plain('q')).shell(),
+        commit(&mut view, plain('q')).shell(),
         ShellCommand::ForwardTerminal
     );
 }

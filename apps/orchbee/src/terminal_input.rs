@@ -1,14 +1,11 @@
-use crate::client_view::{
-    ClientAction, ClientKey, ClientView, SessionActionDisposition, ShellCommand,
-};
+use crate::client_view::{ClientAction, ClientKey, ClientView, SessionActionDisposition};
 use crate::terminal_session::{NativeRenameDraftToken, NativeRenameEdit, NativeRenameInputContext};
 use crate::terminal_session::{
     NativeSetupEdit, NativeSetupInputContext, NativeSetupStage, NativeSetupToken,
 };
 use orchbee_client_server_protocol::Geometry;
 
-const CONTROL_B: u8 = 0x02;
-
+mod decoder;
 mod dispatcher;
 mod modal;
 pub(crate) use dispatcher::InputDispatcher;
@@ -86,69 +83,26 @@ pub(crate) enum DispatchOutcome {
     Exit,
 }
 
+/// Test helper: drives the real `InputDispatcher` path so tests exercise the
+/// same decode → ownership → dispatch rules as production, instead of a
+/// parallel byte-level loop.
 #[cfg(test)]
 pub(crate) fn dispatch_input<Port: TerminalInputPort + ?Sized, LayoutError>(
+    dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
     input: &[u8],
     terminal_input: &mut Port,
-    mut after_layout_change: impl FnMut(&mut ClientView, &mut Port) -> Result<(), LayoutError>,
+    now: std::time::Instant,
+    after_layout_change: impl FnMut(&mut ClientView, &mut Port) -> Result<(), LayoutError>,
 ) -> Result<DispatchOutcome, LayoutError> {
-    let mut ordinary_start = 0;
-    let mut offset = 0;
-    let mut modal_packet = false;
-
-    while let Some(byte) = input.get(offset).copied() {
-        if terminal_input.capture_confirmation_key(normalize_byte(byte)) || modal_packet {
-            if let Some(ordinary) = input.get(ordinary_start..offset)
-                && !ordinary.is_empty()
-            {
-                forward_or_report(view, ordinary, terminal_input);
-            }
-            modal_packet = true;
-            offset += 1;
-            ordinary_start = offset;
-            continue;
-        }
-        if !view.prefix_active() && byte != CONTROL_B {
-            offset += 1;
-            continue;
-        }
-
-        if let Some(ordinary) = input.get(ordinary_start..offset)
-            && !ordinary.is_empty()
-        {
-            forward_or_report(view, ordinary, terminal_input);
-        }
-        let transition = view.decide(normalize_byte(byte));
-        let action = transition.action();
-        let applied = action.and_then(|action| terminal_input.apply_client_action(action));
-        let disposition = applied.unwrap_or(SessionActionDisposition::KeepNavigator);
-        view.commit(transition, disposition);
-        if applied.is_none()
-            && let Some(action) = action.and_then(ClientAction::backend_action)
-        {
-            view.report_backend_unavailable(action);
-        }
-        if transition.layout_changed() {
-            after_layout_change(view, terminal_input)?;
-        }
-        match transition.shell() {
-            ShellCommand::Exit => return Ok(DispatchOutcome::Exit),
-            ShellCommand::ForwardTerminal => {
-                forward_or_report(view, std::slice::from_ref(&byte), terminal_input);
-            }
-            ShellCommand::None => {}
-        }
-        offset += 1;
-        ordinary_start = offset;
-    }
-
-    if let Some(ordinary) = input.get(ordinary_start..)
-        && !ordinary.is_empty()
-    {
-        forward_or_report(view, ordinary, terminal_input);
-    }
-    Ok(DispatchOutcome::Continue)
+    dispatcher.dispatch(
+        view,
+        input,
+        terminal_input,
+        now,
+        after_layout_change,
+        &mut |_| Ok(()),
+    )
 }
 
 fn forward_or_report(
@@ -158,15 +112,6 @@ fn forward_or_report(
 ) {
     if terminal_input.forward(input).is_err() {
         view.report_terminal_input_unavailable();
-    }
-}
-
-const fn normalize_byte(byte: u8) -> ClientKey {
-    match byte {
-        CONTROL_B => ClientKey::ControlB,
-        0x1b => ClientKey::Escape,
-        byte if byte.is_ascii() => ClientKey::Plain(byte as char),
-        _ => ClientKey::Other,
     }
 }
 

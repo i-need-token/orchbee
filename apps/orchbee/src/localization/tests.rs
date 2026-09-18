@@ -64,8 +64,8 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(english.shortcuts.len(), 21);
-    assert_eq!(chinese.shortcuts.len(), english.shortcuts.len());
+    assert_eq!(english.shortcut_rows().len(), 22);
+    assert_eq!(chinese.shortcut_rows().len(), english.shortcut_rows().len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
 
@@ -80,47 +80,54 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
         "Ctrl+B < / >",
         "Ctrl+B n / p",
         "Ctrl+B [ / ]",
-        "Ctrl+B 1 … 9",
+        "Ctrl+B 1..9",
         "Ctrl+B w",
     ] {
         assert!(
             english
-                .shortcuts
+                .shortcut_rows()
                 .iter()
                 .any(|line| line.starts_with(shortcut))
         );
         assert!(
             chinese
-                .shortcuts
+                .shortcut_rows()
                 .iter()
                 .any(|line| line.starts_with(shortcut))
         );
     }
     assert!(
         english
-            .shortcuts
-            .contains(&"Ctrl+B w       Toggle Workbench navigator")
+            .shortcut_rows()
+            .iter()
+            .any(|row| row == "Ctrl+B w       Toggle Workbench navigator")
     );
     assert!(
         chinese
-            .shortcuts
-            .contains(&"Ctrl+B w       切换 Workbench 导航器")
+            .shortcut_rows()
+            .iter()
+            .any(|row| row == "Ctrl+B w       切换 Workbench 导航器")
     );
-    assert!(english.shortcuts.contains(
-        &"Ctrl+B [ / ]   Select previous / next Workbench location (wraps; requires Site)"
+    assert!(english.shortcut_rows().iter().any(|row| row
+        == "Ctrl+B [ / ]   Select previous / next Workbench location (wraps; requires Site)"));
+    assert!(chinese.shortcut_rows().iter().any(
+        |row| row == "Ctrl+B [ / ]   选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）"
     ));
-    assert!(
-        chinese
-            .shortcuts
-            .contains(&"Ctrl+B [ / ]   选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）")
-    );
 }
 
 #[test]
 fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
     use crate::client_view::{
-        ClientAction, ClientKey, ClientView, PanelDirection, SessionActionDisposition,
+        ClientAction, ClientView, KeyCode, KeyEvent, KeyKind, Modifiers, PanelDirection,
+        PrefixInput, SessionActionDisposition,
     };
+    fn key(code: KeyCode, mods: Modifiers) -> PrefixInput {
+        PrefixInput::Key(KeyEvent {
+            code,
+            mods,
+            kind: KeyKind::Press,
+        })
+    }
 
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
@@ -129,46 +136,88 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
             "Ctrl+B h/j/k/l Move between Panels (requires Site)",
             "Ctrl+B h/j/k/l 在 Panel 之间移动（需要 Site）",
             &[
-                ('h', ClientAction::MovePanelFocus(PanelDirection::Left)),
-                ('j', ClientAction::MovePanelFocus(PanelDirection::Down)),
-                ('k', ClientAction::MovePanelFocus(PanelDirection::Up)),
-                ('l', ClientAction::MovePanelFocus(PanelDirection::Right)),
+                (
+                    KeyCode::Char('h'),
+                    ClientAction::MovePanelFocus(PanelDirection::Left),
+                ),
+                (
+                    KeyCode::Char('j'),
+                    ClientAction::MovePanelFocus(PanelDirection::Down),
+                ),
+                (
+                    KeyCode::Char('k'),
+                    ClientAction::MovePanelFocus(PanelDirection::Up),
+                ),
+                (
+                    KeyCode::Char('l'),
+                    ClientAction::MovePanelFocus(PanelDirection::Right),
+                ),
             ][..],
         ),
         (
             "Ctrl+B - _ \\ | Split focused Panel below/above/left/right (requires Site)",
             "Ctrl+B - _ \\ | 将焦点 Panel 向下/上/左/右分屏（需要 Site）",
             &[
-                ('-', ClientAction::SplitPanel(PanelDirection::Down)),
-                ('_', ClientAction::SplitPanel(PanelDirection::Up)),
-                ('\\', ClientAction::SplitPanel(PanelDirection::Left)),
-                ('|', ClientAction::SplitPanel(PanelDirection::Right)),
+                (
+                    KeyCode::Char('-'),
+                    ClientAction::SplitPanel(PanelDirection::Down),
+                ),
+                (
+                    KeyCode::Char('_'),
+                    ClientAction::SplitPanel(PanelDirection::Up),
+                ),
+                (
+                    KeyCode::Char('\\'),
+                    ClientAction::SplitPanel(PanelDirection::Left),
+                ),
+                (
+                    KeyCode::Char('|'),
+                    ClientAction::SplitPanel(PanelDirection::Right),
+                ),
             ][..],
         ),
         (
             "Ctrl+B X       Close focused Panel (requires Site)",
             "Ctrl+B X       关闭焦点 Panel（需要 Site）",
-            &[('X', ClientAction::ClosePanel)][..],
+            &[(KeyCode::Char('X'), ClientAction::ClosePanel)][..],
         ),
         (
             "Ctrl+B H/J/K/L Move focused Panel to that side (requires Site)",
             "Ctrl+B H/J/K/L 将焦点 Panel 移向该侧（需要 Site）",
             &[
-                ('H', ClientAction::MovePanel(PanelDirection::Left)),
-                ('J', ClientAction::MovePanel(PanelDirection::Down)),
-                ('K', ClientAction::MovePanel(PanelDirection::Up)),
-                ('L', ClientAction::MovePanel(PanelDirection::Right)),
+                (
+                    KeyCode::Char('H'),
+                    ClientAction::MovePanel(PanelDirection::Left),
+                ),
+                (
+                    KeyCode::Char('J'),
+                    ClientAction::MovePanel(PanelDirection::Down),
+                ),
+                (
+                    KeyCode::Char('K'),
+                    ClientAction::MovePanel(PanelDirection::Up),
+                ),
+                (
+                    KeyCode::Char('L'),
+                    ClientAction::MovePanel(PanelDirection::Right),
+                ),
             ][..],
         ),
     ] {
-        assert!(english.shortcuts.contains(&en), "en-US row: {en}");
-        assert!(chinese.shortcuts.contains(&zh), "zh-CN row: {zh}");
-        for (key, expected) in bindings {
+        assert!(
+            english.shortcut_rows().iter().any(|row| row.as_str() == en),
+            "en-US row: {en}"
+        );
+        assert!(
+            chinese.shortcut_rows().iter().any(|row| row.as_str() == zh),
+            "zh-CN row: {zh}"
+        );
+        for (code, expected) in bindings {
             let mut view = ClientView::new(120);
-            let prefix = view.decide(ClientKey::ControlB);
+            let prefix = view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
             view.commit(prefix, SessionActionDisposition::KeepNavigator);
-            let transition = view.decide(ClientKey::Plain(*key));
-            assert_eq!(transition.action(), Some(*expected), "Ctrl+B {key}");
+            let transition = view.decide(key(*code, Modifiers::NONE));
+            assert_eq!(transition.action(), Some(*expected), "Ctrl+B {code:?}");
         }
     }
 

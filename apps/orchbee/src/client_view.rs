@@ -1,5 +1,13 @@
 pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 = 96;
 
+mod bindings;
+mod keys;
+
+pub(crate) use bindings::{
+    PREFIX_CHORD, PREFIX_GROUPS, PrefixAction, PrefixDesc, PrefixGroup, match_prefix,
+};
+pub(crate) use keys::{KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportClass {
     Narrow,
@@ -67,6 +75,7 @@ pub(crate) enum ClientAction {
     MoveNextTab,
     ToggleBusinessSidebar,
     OpenShortcutHelp,
+    CloseShortcutHelp,
     OpenWorkbenchNavigator,
     CloseWorkbenchNavigator,
     CreateTab,
@@ -98,6 +107,15 @@ pub(crate) enum ClientKey {
     Escape,
     Plain(char),
     Other,
+}
+
+/// What the decision layer consumes: one typed key event, or a non-key
+/// complete sequence (`NonKey`, e.g. an unknown CSI run under an armed
+/// prefix). Owners never see raw bytes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PrefixInput {
+    Key(KeyEvent),
+    NonKey,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -160,6 +178,7 @@ impl ClientAction {
             | Self::ConfirmClose
             | Self::CancelClose
             | Self::OpenShortcutHelp
+            | Self::CloseShortcutHelp
             | Self::OpenWorkbenchNavigator
             | Self::CloseWorkbenchNavigator
             | Self::ForwardLiteralPrefix
@@ -235,10 +254,10 @@ impl ClientView {
         self.notice = Some(Notice::TerminalInputUnavailable);
     }
 
-    pub(crate) fn decide(&self, key: ClientKey) -> ClientTransition {
+    pub(crate) fn decide(&self, input: PrefixInput) -> ClientTransition {
         let mut next = *self;
         if self.prefix_active {
-            let (action, shell) = next.decide_prefix(key);
+            let (action, shell) = next.decide_prefix(input);
             return ClientTransition {
                 next,
                 action: Some(action),
@@ -248,7 +267,9 @@ impl ClientView {
             };
         }
 
-        if key == ClientKey::ControlB {
+        if let PrefixInput::Key(event) = input
+            && PREFIX_CHORD.matches(event)
+        {
             next.prefix_active = true;
             return ClientTransition {
                 next,
@@ -280,21 +301,35 @@ impl ClientView {
         *self = next;
     }
 
-    fn decide_prefix(&mut self, key: ClientKey) -> (ClientAction, ShellCommand) {
+    fn decide_prefix(&mut self, input: PrefixInput) -> (ClientAction, ShellCommand) {
         self.prefix_active = false;
         self.notice = None;
 
-        match key {
-            ClientKey::ControlB => (
-                ClientAction::ForwardLiteralPrefix,
-                ShellCommand::ForwardTerminal,
-            ),
-            ClientKey::Escape => (ClientAction::DismissPrefix, ShellCommand::None),
-            ClientKey::Plain('b') => {
+        let member = match input {
+            PrefixInput::Key(event) => match_prefix(event),
+            PrefixInput::NonKey => None,
+        };
+        let Some(member) = member else {
+            self.notice = Some(Notice::UnknownPrefix);
+            return (ClientAction::UnknownPrefix, ShellCommand::None);
+        };
+        match member.action {
+            PrefixAction::Client(action) => (action, member.shell),
+            PrefixAction::SelectTabDigit => {
+                let number = match input {
+                    PrefixInput::Key(event) => match event.normalized() {
+                        (KeyCode::Char(c), _) => c as u8 - b'0',
+                        _ => 1,
+                    },
+                    PrefixInput::NonKey => 1,
+                };
+                (ClientAction::SelectTab(number), member.shell)
+            }
+            PrefixAction::SidebarToggle => {
                 self.toggle_sidebar();
                 (ClientAction::ToggleBusinessSidebar, ShellCommand::None)
             }
-            ClientKey::Plain('w') => {
+            PrefixAction::NavigatorToggle => {
                 if self.overlay == Some(Overlay::WorkbenchNavigator) {
                     self.overlay = None;
                     (ClientAction::CloseWorkbenchNavigator, ShellCommand::None)
@@ -303,82 +338,17 @@ impl ClientView {
                     (ClientAction::OpenWorkbenchNavigator, ShellCommand::None)
                 }
             }
-            ClientKey::Plain('?') => {
-                self.overlay = Some(Overlay::ShortcutHelp);
-                (ClientAction::OpenShortcutHelp, ShellCommand::None)
-            }
-            ClientKey::Plain('q' | 'd') => (ClientAction::Exit, ShellCommand::Exit),
-            ClientKey::Plain('a') => (ClientAction::RequestWorkspaceCreate, ShellCommand::None),
-            ClientKey::Plain('e') => (ClientAction::RequestWorkspaceDirectory, ShellCommand::None),
-            ClientKey::Plain('r') => (ClientAction::RequestWorkspaceRename, ShellCommand::None),
-            ClientKey::Plain('R') => (ClientAction::RequestProjectRename, ShellCommand::None),
-            ClientKey::Plain('c') => (ClientAction::CreateTab, ShellCommand::None),
-            ClientKey::Plain('x') => (ClientAction::RequestCloseTab, ShellCommand::None),
-            ClientKey::Plain(',') => (ClientAction::RequestRenameTab, ShellCommand::None),
-            ClientKey::Plain('<') => (ClientAction::MovePreviousTab, ShellCommand::None),
-            ClientKey::Plain('>') => (ClientAction::MoveNextTab, ShellCommand::None),
-            ClientKey::Plain('n') => (ClientAction::SelectNextTab, ShellCommand::None),
-            ClientKey::Plain('p') => (ClientAction::SelectPreviousTab, ShellCommand::None),
-            ClientKey::Plain('[') => (ClientAction::SelectPreviousContext, ShellCommand::None),
-            ClientKey::Plain(']') => (ClientAction::SelectNextContext, ShellCommand::None),
-            ClientKey::Plain(character @ '1'..='9') => {
-                let number = character as u8 - b'0';
-                (ClientAction::SelectTab(number), ShellCommand::None)
-            }
-            ClientKey::Plain('h') => (
-                ClientAction::MovePanelFocus(PanelDirection::Left),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('j') => (
-                ClientAction::MovePanelFocus(PanelDirection::Down),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('k') => (
-                ClientAction::MovePanelFocus(PanelDirection::Up),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('l') => (
-                ClientAction::MovePanelFocus(PanelDirection::Right),
-                ShellCommand::None,
-            ),
-            // Provisional panel-operation bindings aligned with the input-vocabulary
-            // draft table; see the README shortcut table.
-            ClientKey::Plain('-') => (
-                ClientAction::SplitPanel(PanelDirection::Down),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('_') => (
-                ClientAction::SplitPanel(PanelDirection::Up),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('\\') => (
-                ClientAction::SplitPanel(PanelDirection::Left),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('|') => (
-                ClientAction::SplitPanel(PanelDirection::Right),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('X') => (ClientAction::ClosePanel, ShellCommand::None),
-            ClientKey::Plain('H') => (
-                ClientAction::MovePanel(PanelDirection::Left),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('J') => (
-                ClientAction::MovePanel(PanelDirection::Down),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('K') => (
-                ClientAction::MovePanel(PanelDirection::Up),
-                ShellCommand::None,
-            ),
-            ClientKey::Plain('L') => (
-                ClientAction::MovePanel(PanelDirection::Right),
-                ShellCommand::None,
-            ),
-            ClientKey::Other | ClientKey::Plain(_) => {
-                self.notice = Some(Notice::UnknownPrefix);
-                (ClientAction::UnknownPrefix, ShellCommand::None)
+            PrefixAction::ShowHelp => {
+                // The same binding opens and closes the help overlay so the
+                // overlay is always exit-discoverable; ordinary keys keep
+                // reaching the pane because nothing captures input here.
+                if self.overlay == Some(Overlay::ShortcutHelp) {
+                    self.overlay = None;
+                    (ClientAction::CloseShortcutHelp, ShellCommand::None)
+                } else {
+                    self.overlay = Some(Overlay::ShortcutHelp);
+                    (ClientAction::OpenShortcutHelp, ShellCommand::None)
+                }
             }
         }
     }

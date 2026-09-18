@@ -1,6 +1,9 @@
 use std::ffi::OsString;
 
-use crate::client_view::{BackendAction, Notice};
+use crate::client_view::{
+    BackendAction, LabelStyle, Notice, PREFIX_CHORD, PREFIX_GROUPS, PrefixDesc, PrefixGroup,
+    format_binding,
+};
 
 mod cli;
 pub(crate) use cli::CliLabels;
@@ -20,54 +23,87 @@ const ZH_CN_TUI_UNAVAILABLE: &str = "Orchbee TUI 在本开发切片中尚不可�
 const EN_US_USAGE_FAILURE: &str = "Invalid invocation. Run 'orchbee --help'.\n";
 const ZH_CN_USAGE_FAILURE: &str = "调用方式无效。请运行 ‘orchbee --help’。\n";
 
-const EN_US_SHORTCUTS: &[&str] = &[
-    "Ctrl+B a       Create a Workspace in an existing or new Project",
-    "Ctrl+B e       Configure an empty Workspace's first directory",
-    "Ctrl+B r       Rename current Workspace",
-    "Ctrl+B R       Rename current Workspace's Project",
-    "Ctrl+B ,       Rename current Tab",
-    "Ctrl+B x       Close current Tab / retry Close (confirms for all Clients)",
-    "Ctrl+B c       Create a Tab (requires Site)",
-    "Ctrl+B < / >   Move current Tab left / right (wraps)",
-    "Ctrl+B n / p   Select next / previous Tab (requires Site)",
-    "Ctrl+B [ / ]   Select previous / next Workbench location (wraps; requires Site)",
-    "Ctrl+B 1 … 9   Select ordered Tab (requires Site)",
-    "Ctrl+B h/j/k/l Move between Panels (requires Site)",
-    "Ctrl+B - _ \\ | Split focused Panel below/above/left/right (requires Site)",
-    "Ctrl+B X       Close focused Panel (requires Site)",
-    "Ctrl+B H/J/K/L Move focused Panel to that side (requires Site)",
-    "Ctrl+B b       Toggle business sidebar",
-    "Ctrl+B w       Toggle Workbench navigator",
-    "Ctrl+B ?       Open this shortcut help",
-    "Ctrl+B q / d   Close this shell",
-    "Ctrl+B Ctrl+B  Send literal Ctrl+B to the terminal input port",
-    "Other keys     Send to the terminal input port",
-];
-const ZH_CN_SHORTCUTS: &[&str] = &[
-    "Ctrl+B a       在现有或新建 Project 中创建 Workspace",
-    "Ctrl+B e       配置空 Workspace 的首个目录",
-    "Ctrl+B r       重命名当前 Workspace",
-    "Ctrl+B R       重命名当前 Workspace 所属的 Project",
-    "Ctrl+B ,       重命名当前 Tab",
-    "Ctrl+B x       关闭当前 Tab / 重试关闭（确认后影响所有 Client）",
-    "Ctrl+B c       创建 Tab（需要 Site）",
-    "Ctrl+B < / >   向左 / 右移动当前 Tab（首尾循环）",
-    "Ctrl+B n / p   选择下一个 / 上一个 Tab（需要 Site）",
-    "Ctrl+B [ / ]   选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）",
-    "Ctrl+B 1 … 9   选择对应顺序的 Tab（需要 Site）",
-    "Ctrl+B h/j/k/l 在 Panel 之间移动（需要 Site）",
-    "Ctrl+B - _ \\ | 将焦点 Panel 向下/上/左/右分屏（需要 Site）",
-    "Ctrl+B X       关闭焦点 Panel（需要 Site）",
-    "Ctrl+B H/J/K/L 将焦点 Panel 移向该侧（需要 Site）",
-    "Ctrl+B b       切换业务侧边栏",
-    "Ctrl+B w       切换 Workbench 导航器",
-    "Ctrl+B ?       打开此快捷键帮助",
-    "Ctrl+B q / d   关闭此 shell",
-    "Ctrl+B Ctrl+B  向终端输入端口发送字面 Ctrl+B",
-    "其他按键       发送到终端输入端口",
-];
+fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
+    match desc {
+        PrefixDesc::WorkspaceCreate => "Create a Workspace in an existing or new Project",
+        PrefixDesc::WorkspaceDirectory => "Configure an empty Workspace's first directory",
+        PrefixDesc::WorkspaceRename => "Rename current Workspace",
+        PrefixDesc::ProjectRename => "Rename current Workspace's Project",
+        PrefixDesc::RenameTab => "Rename current Tab",
+        PrefixDesc::CloseTab => "Close current Tab / retry Close (confirms for all Clients)",
+        PrefixDesc::CreateTab => "Create a Tab (requires Site)",
+        PrefixDesc::MoveTab => "Move current Tab left / right (wraps)",
+        PrefixDesc::SelectTabWrap => "Select next / previous Tab (requires Site)",
+        PrefixDesc::SelectContext => {
+            "Select previous / next Workbench location (wraps; requires Site)"
+        }
+        PrefixDesc::SelectTabDigit => "Select ordered Tab (requires Site)",
+        PrefixDesc::PanelFocus => "Move between Panels (requires Site)",
+        PrefixDesc::SplitPanel => "Split focused Panel below/above/left/right (requires Site)",
+        PrefixDesc::ClosePanel => "Close focused Panel (requires Site)",
+        PrefixDesc::MovePanel => "Move focused Panel to that side (requires Site)",
+        PrefixDesc::SidebarToggle => "Toggle business sidebar",
+        PrefixDesc::NavigatorToggle => "Toggle Workbench navigator",
+        PrefixDesc::ShowHelp => "Open or close this shortcut help",
+        PrefixDesc::Exit => "Close this shell",
+        PrefixDesc::LiteralPrefix => "Send literal Ctrl+B to the terminal input port",
+        PrefixDesc::DismissPrefix => "Dismiss the prefix without an action",
+        PrefixDesc::OtherKeys => "Send to the terminal input port",
+    }
+}
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
+    match desc {
+        PrefixDesc::WorkspaceCreate => "在现有或新建 Project 中创建 Workspace",
+        PrefixDesc::WorkspaceDirectory => "配置空 Workspace 的首个目录",
+        PrefixDesc::WorkspaceRename => "重命名当前 Workspace",
+        PrefixDesc::ProjectRename => "重命名当前 Workspace 所属的 Project",
+        PrefixDesc::RenameTab => "重命名当前 Tab",
+        PrefixDesc::CloseTab => "关闭当前 Tab / 重试关闭（确认后影响所有 Client）",
+        PrefixDesc::CreateTab => "创建 Tab（需要 Site）",
+        PrefixDesc::MoveTab => "向左 / 右移动当前 Tab（首尾循环）",
+        PrefixDesc::SelectTabWrap => "选择下一个 / 上一个 Tab（需要 Site）",
+        PrefixDesc::SelectContext => "选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）",
+        PrefixDesc::SelectTabDigit => "选择对应顺序的 Tab（需要 Site）",
+        PrefixDesc::PanelFocus => "在 Panel 之间移动（需要 Site）",
+        PrefixDesc::SplitPanel => "将焦点 Panel 向下/上/左/右分屏（需要 Site）",
+        PrefixDesc::ClosePanel => "关闭焦点 Panel（需要 Site）",
+        PrefixDesc::MovePanel => "将焦点 Panel 移向该侧（需要 Site）",
+        PrefixDesc::SidebarToggle => "切换业务侧边栏",
+        PrefixDesc::NavigatorToggle => "切换 Workbench 导航器",
+        PrefixDesc::ShowHelp => "打开或关闭此快捷键帮助",
+        PrefixDesc::Exit => "关闭此 shell",
+        PrefixDesc::LiteralPrefix => "向终端输入端口发送字面 Ctrl+B",
+        PrefixDesc::DismissPrefix => "取消前缀而不执行动作",
+        PrefixDesc::OtherKeys => "发送到终端输入端口",
+    }
+}
+
+/// The chord column for one binding group: the prefix label plus the member
+/// key labels, joined by the group separator. Derived from the registry, so
+/// help can never drift from dispatch.
+fn group_chord(group: &PrefixGroup) -> String {
+    let style = LabelStyle::for_host();
+    let prefix = format_binding(&PREFIX_CHORD, style);
+    let labels: Vec<String> = group
+        .members
+        .iter()
+        .map(|member| member.keys.label(style))
+        .collect();
+    let separator = if labels.len() == 2 {
+        " / "
+    } else if labels
+        .iter()
+        .any(|label| matches!(label.as_str(), "\\" | "|" | "/"))
+    {
+        " "
+    } else {
+        "/"
+    };
+    format!("{prefix} {}", labels.join(separator))
+}
+
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct ShellText {
     pub(crate) agents: &'static str,
     pub(crate) app_title: &'static str,
@@ -76,6 +112,7 @@ pub(crate) struct ShellText {
     pub(crate) exit_hint: &'static str,
     pub(crate) hint_short: &'static str,
     pub(crate) inactive_pane: &'static str,
+    pub(crate) other_keys_label: &'static str,
     pub(crate) overlay_input_hint: &'static str,
     pub(crate) help_dismiss_hint: &'static str,
     pub(crate) help_paging_hint: &'static str,
@@ -85,11 +122,11 @@ pub(crate) struct ShellText {
     pub(crate) no_client_session: &'static str,
     pub(crate) panel_title: &'static str,
     pub(crate) prefix_active: &'static str,
+    pub(crate) prefix_desc: fn(PrefixDesc) -> &'static str,
     pub(crate) prefix_idle: &'static str,
     pub(crate) projects: &'static str,
     pub(crate) shell_only_detail: &'static str,
     pub(crate) shortcut_title: &'static str,
-    pub(crate) shortcuts: &'static [&'static str],
     pub(crate) sidebar_hint: &'static str,
     pub(crate) site_section: &'static str,
     pub(crate) standalone: &'static str,
@@ -98,6 +135,32 @@ pub(crate) struct ShellText {
     pub(crate) too_small_notice: &'static str,
     pub(crate) workbench_title: &'static str,
     pub(crate) workspaces: &'static str,
+}
+
+impl ShellText {
+    /// Builds the help rows from the same prefix binding registry that
+    /// dispatch matches: `<chord><padding><localized description>`, with the
+    /// localized "other keys" passthrough row appended last.
+    pub(crate) fn shortcut_rows(&self) -> Vec<String> {
+        let chords: Vec<String> = PREFIX_GROUPS.iter().map(group_chord).collect();
+        let width = chords
+            .iter()
+            .map(|chord| chord.chars().count())
+            .max()
+            .unwrap_or(0)
+            + 1;
+        let mut rows: Vec<String> = PREFIX_GROUPS
+            .iter()
+            .zip(&chords)
+            .map(|(group, chord)| format!("{chord:<width$}{}", (self.prefix_desc)(group.desc)))
+            .collect();
+        rows.push(format!(
+            "{:<width$}{}",
+            self.other_keys_label,
+            (self.prefix_desc)(PrefixDesc::OtherKeys)
+        ));
+        rows
+    }
 }
 
 const EN_US_SHELL: ShellText = ShellText {
@@ -112,16 +175,17 @@ const EN_US_SHELL: ShellText = ShellText {
     navigator_detail: "A Site connection is required before Workbench locations can be shown.",
     navigator_title: "Workbench navigator",
     no_client_session: "No Site or Client Session is connected.",
+    other_keys_label: "Other keys",
     overlay_input_hint: "Terminal input continues while this overlay is visible.",
     help_dismiss_hint: "Ctrl+B ? closes help · typing still reaches the terminal",
     help_paging_hint: "Ctrl+B PgUp/PgDn turns pages",
     panel_title: "Panel · Terminal",
     prefix_active: "PREFIX Ctrl+B",
+    prefix_desc: en_us_prefix_desc,
     prefix_idle: "Ctrl+B · shortcuts",
     projects: "Projects",
     shell_only_detail: "This development slice renders only the Client-local shell.",
     shortcut_title: "Keyboard shortcuts",
-    shortcuts: EN_US_SHORTCUTS,
     sidebar_hint: "Ctrl+B b · sidebar",
     site_section: "SITE",
     standalone: "Standalone terminal",
@@ -144,16 +208,17 @@ const ZH_CN_SHELL: ShellText = ShellText {
     navigator_detail: "连接 Site 后才能显示 Workbench 位置。",
     navigator_title: "Workbench 导航器",
     no_client_session: "当前未连接 Site 或 Client Session。",
+    other_keys_label: "其他按键",
     overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
     help_dismiss_hint: "Ctrl+B ? 关闭此帮助 · 输入仍会传递到终端",
     help_paging_hint: "Ctrl+B PgUp/PgDn 翻页",
     panel_title: "Panel · 终端",
     prefix_active: "前缀 Ctrl+B",
+    prefix_desc: zh_cn_prefix_desc,
     prefix_idle: "Ctrl+B · 快捷键",
     projects: "项目",
     shell_only_detail: "此开发切片只渲染 Client-local shell。",
     shortcut_title: "键盘快捷键",
-    shortcuts: ZH_CN_SHORTCUTS,
     sidebar_hint: "Ctrl+B b · 侧边栏",
     site_section: "站点",
     standalone: "独立终端",

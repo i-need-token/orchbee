@@ -780,6 +780,7 @@ impl NativeUi {
             ClientAction::OpenWorkbenchNavigator => self.open_navigator(),
             ClientAction::ToggleBusinessSidebar
             | ClientAction::OpenShortcutHelp
+            | ClientAction::CloseShortcutHelp
             | ClientAction::CloseWorkbenchNavigator
             | ClientAction::ForwardLiteralPrefix
             | ClientAction::DismissPrefix

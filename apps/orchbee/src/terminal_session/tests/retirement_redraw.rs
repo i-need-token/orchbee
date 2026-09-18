@@ -52,9 +52,14 @@ fn poll_unavailable_retirement_during_geometry_requests_one_redraw() -> TestResu
         assert!(!session.tick(), "unchanged Ready needs no redraw");
         let mut view = ClientView::new(120);
         if refreshing {
-            dispatch_input(&mut view, b"\x02w", &mut session, |_, _| {
-                Ok::<(), io::Error>(())
-            })?;
+            dispatch_input(
+                &mut InputDispatcher::default(),
+                &mut view,
+                b"\x02w",
+                &mut session,
+                Instant::now(),
+                |_, _| Ok::<(), io::Error>(()),
+            )?;
         }
         let before = render_native_session(&session, &view)?;
         if refreshing {

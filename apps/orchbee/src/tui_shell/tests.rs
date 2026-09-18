@@ -532,9 +532,11 @@ fn observes_fresh_geometry_before_initial_draw_tick_and_same_batch_effects() -> 
     let docked = super::terminal_geometry(measured, &ClientView::new(measured.columns), None)?
         .expect("a presentable viewport must produce pane geometry");
     let mut expanded_view = ClientView::new(measured.columns);
-    let prefix = expanded_view.decide(crate::client_view::ClientKey::ControlB);
+    use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput};
+    let key = |code, mods| PrefixInput::Key(KeyEvent::press(code, mods));
+    let prefix = expanded_view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
     expanded_view.commit(prefix, SessionActionDisposition::KeepNavigator);
-    let toggle = expanded_view.decide(crate::client_view::ClientKey::Plain('b'));
+    let toggle = expanded_view.decide(key(KeyCode::Char('b'), Modifiers::NONE));
     expanded_view.commit(toggle, SessionActionDisposition::KeepNavigator);
     let expanded = super::terminal_geometry(measured, &expanded_view, None)?
         .expect("a presentable viewport must produce pane geometry");

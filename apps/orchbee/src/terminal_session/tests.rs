@@ -10,10 +10,10 @@ mod retired_membership;
 mod retirement_redraw;
 use super::*;
 use crate::{
-    client_view::{ClientKey, ClientView, SessionActionDisposition},
+    client_view::{ClientView, SessionActionDisposition},
     local_client::test_server::FakeServer,
     localization::Locale,
-    terminal_input::{DispatchOutcome, dispatch_input},
+    terminal_input::{DispatchOutcome, InputDispatcher, dispatch_input},
     tui_render::render_terminal_shell,
 };
 use orchbee_client_server_protocol::{
@@ -620,9 +620,11 @@ fn render_native_session(
 }
 
 fn open_navigator(view: &mut ClientView) {
-    let prefix = view.decide(ClientKey::ControlB);
+    use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput};
+    let key = |code, mods| PrefixInput::Key(KeyEvent::press(code, mods));
+    let prefix = view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
     view.commit(prefix, SessionActionDisposition::KeepNavigator);
-    let open = view.decide(ClientKey::Plain('w'));
+    let open = view.decide(key(KeyCode::Char('w'), Modifiers::NONE));
     view.commit(open, SessionActionDisposition::KeepNavigator);
 }
 
@@ -740,10 +742,13 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     assert!(ready.contains("Tab 1 · Ready · controlling"));
 
     open_navigator(&mut client_view);
+    let mut input_dispatcher = InputDispatcher::default();
     let outcome = dispatch_input(
+        &mut input_dispatcher,
         &mut client_view,
         b"\x02c",
         &mut session,
+        Instant::now(),
         |_view, _session| Ok::<(), std::convert::Infallible>(()),
     )?;
     assert_eq!(outcome, DispatchOutcome::Continue);
@@ -984,9 +989,15 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
         poll_seen.recv_timeout(Duration::from_secs(1))?;
         let mut view = ClientView::new(120);
         open_navigator(&mut view);
-        dispatch_input(&mut view, b"\x02<", &mut session, |_, _| {
-            Ok::<(), std::convert::Infallible>(())
-        })?;
+        let mut input_dispatcher = InputDispatcher::default();
+        dispatch_input(
+            &mut input_dispatcher,
+            &mut view,
+            b"\x02<",
+            &mut session,
+            Instant::now(),
+            |_, _| Ok::<(), std::convert::Infallible>(()),
+        )?;
         assert_eq!(view.overlay(), None);
         release_poll.send(())?;
         assert!(spin_with_draw(
@@ -1019,9 +1030,15 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             assert!(spin_with_draw(&mut session, |_| resize_seen
                 .try_recv()
                 .is_ok()));
-            dispatch_input(&mut view, b"\x02w", &mut session, |_, _| {
-                Ok::<(), std::convert::Infallible>(())
-            })?;
+            let mut input_dispatcher = InputDispatcher::default();
+            dispatch_input(
+                &mut input_dispatcher,
+                &mut view,
+                b"\x02w",
+                &mut session,
+                Instant::now(),
+                |_, _| Ok::<(), std::convert::Infallible>(()),
+            )?;
             assert!(spin_with_draw(
                 &mut session,
                 |session| matches!(session.view(), TerminalSessionView::Native(native) if native.phase() == NativeDisplayPhase::Ready && native.active_position() == Some(2))
@@ -1141,9 +1158,11 @@ fn taken_forward_expiry_fixture() -> Result<TakenForwardExpiryFixture, Box<dyn s
     let mut client_view = ClientView::new(120);
     assert_eq!(
         dispatch_input(
+            &mut InputDispatcher::default(),
             &mut client_view,
             b"\x02c",
             &mut session,
+            Instant::now(),
             |_view, _session| Ok::<(), std::convert::Infallible>(()),
         )?,
         DispatchOutcome::Continue
@@ -1409,9 +1428,11 @@ fn native_worker_commit_survives_ui_deadline_retirement_and_join() -> TestResult
     let mut client_view = ClientView::new(120);
     assert_eq!(
         dispatch_input(
+            &mut InputDispatcher::default(),
             &mut client_view,
             b"\x02c",
             &mut session,
+            Instant::now(),
             |_view, _session| Ok::<(), std::convert::Infallible>(()),
         )?,
         DispatchOutcome::Continue
@@ -1532,9 +1553,11 @@ fn semantic_create_retirement_finishes_before_the_tick_returns() -> TestResult {
     let mut client_view = ClientView::new(120);
     assert_eq!(
         dispatch_input(
+            &mut InputDispatcher::default(),
             &mut client_view,
             b"\x02c",
             &mut session,
+            Instant::now(),
             |_view, _session| Ok::<(), std::convert::Infallible>(()),
         )?,
         DispatchOutcome::Continue
@@ -1673,9 +1696,11 @@ fn closed_action_admission_preserves_a_worker_pending_commit() -> TestResult {
     let mut client_view = ClientView::new(120);
     assert_eq!(
         dispatch_input(
+            &mut InputDispatcher::default(),
             &mut client_view,
             b"\x02c",
             &mut session,
+            Instant::now(),
             |_view, _session| Ok::<(), std::convert::Infallible>(()),
         )?,
         DispatchOutcome::Continue

@@ -31,9 +31,11 @@ fn peer_disconnected(error: &(dyn std::error::Error + 'static)) -> bool {
 fn dispatch_close_input(session: &mut TerminalSession, view: &mut ClientView, bytes: &[u8]) {
     assert_eq!(
         dispatch_input(
+            &mut InputDispatcher::default(),
             view,
             bytes,
             session,
+            Instant::now(),
             |_, _| Ok::<_, std::convert::Infallible>(())
         ),
         Ok(DispatchOutcome::Continue),

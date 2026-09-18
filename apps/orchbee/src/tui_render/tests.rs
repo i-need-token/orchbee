@@ -3,7 +3,10 @@ use std::convert::Infallible;
 use ratatui::{Terminal, backend::TestBackend};
 
 use crate::{
-    client_view::{BackendAction, ClientKey, ClientView, SessionActionDisposition},
+    client_view::{
+        BackendAction, ClientView, KeyCode, KeyEvent, Modifiers, PrefixInput,
+        SessionActionDisposition,
+    },
     localization::Locale,
     tui_layout::ViewportTier,
 };
@@ -80,13 +83,21 @@ fn without_cell_padding(value: &str) -> String {
     value.replace(' ', "")
 }
 
-fn prefix(view: &mut ClientView, key: ClientKey) {
-    commit(view, ClientKey::ControlB);
-    commit(view, key);
+fn plain(c: char) -> PrefixInput {
+    PrefixInput::Key(KeyEvent::press(KeyCode::Char(c), Modifiers::NONE))
 }
 
-fn commit(view: &mut ClientView, key: ClientKey) {
-    let transition = view.decide(key);
+fn ctrl_b() -> PrefixInput {
+    PrefixInput::Key(KeyEvent::press(KeyCode::Char('b'), Modifiers::CTRL))
+}
+
+fn prefix(view: &mut ClientView, input: PrefixInput) {
+    commit(view, ctrl_b());
+    commit(view, input);
+}
+
+fn commit(view: &mut ClientView, input: PrefixInput) {
+    let transition = view.decide(input);
     view.commit(transition, SessionActionDisposition::KeepNavigator);
 }
 
@@ -110,7 +121,7 @@ fn narrow_render_hides_then_overlays_the_business_sidebar() {
     assert!(!hidden.contains("Projects"));
     assert!(hidden.contains("WORKBENCH"));
 
-    prefix(&mut view, ClientKey::Plain('b'));
+    prefix(&mut view, plain('b'));
     let overlaid = rendered_text(70, 24, &view, Locale::EnUs);
     assert!(overlaid.contains("Projects"));
     assert!(overlaid.contains("Backend unavailable"));
@@ -119,12 +130,12 @@ fn narrow_render_hides_then_overlays_the_business_sidebar() {
 #[test]
 fn renders_visible_prefix_and_localized_shortcut_overlays() {
     let mut view = ClientView::new(120);
-    commit(&mut view, ClientKey::ControlB);
-    let prefix_mode = rendered_text(120, 40, &view, Locale::ZhCn);
+    commit(&mut view, ctrl_b());
+    let prefix_mode = rendered_text(120, 32, &view, Locale::ZhCn);
     assert!(without_cell_padding(&prefix_mode).contains("前缀Ctrl+B"));
 
-    commit(&mut view, ClientKey::Plain('?'));
-    let help = rendered_text(120, 40, &view, Locale::ZhCn);
+    commit(&mut view, plain('?'));
+    let help = rendered_text(120, 32, &view, Locale::ZhCn);
     let compact_help = without_cell_padding(&help);
     assert!(compact_help.contains("键盘快捷键"));
     assert!(help.contains("Ctrl+B c"));
