@@ -174,7 +174,7 @@ fn cancellation_during_a_recognized_paste_opener_keeps_the_complete_payload_owne
         let mut decoder = ModalDecoder::default();
         decoder.start();
         feed(&mut decoder, &opener[..split], now, 512);
-        decoder.cancel();
+        decoder.cancel(now);
         let later = now + Duration::from_secs(60);
         assert!(decoder.tick(later).is_empty());
         assert!(decoder.owns_input());
@@ -199,7 +199,7 @@ fn the_released_guard_holds_the_decision_packet_tail_and_ends_only_at_the_bounda
     let now = Instant::now();
     let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel();
+    decoder.cancel(now);
     // The tail guard owns the rest of the decision packet regardless of
     // how much time passes; no clock ends it.
     feed(&mut decoder, b"xy", now + Duration::from_secs(3600), 512);
@@ -215,7 +215,7 @@ fn the_released_guard_holds_the_decision_packet_tail_and_ends_only_at_the_bounda
     // A frame started inside the released packet outlives the boundary.
     let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel();
+    decoder.cancel(now);
     feed(&mut decoder, b"\x1b[", now, 512);
     decoder.begin_packet(now + Duration::from_secs(1));
     assert!(decoder.owns_input());
@@ -275,7 +275,7 @@ fn recognized_utf8_and_csi_cancellation_drain_across_arbitrary_gaps() {
         let mut decoder = ModalDecoder::default();
         decoder.start();
         feed(&mut decoder, prefix, now, 512);
-        decoder.cancel();
+        decoder.cancel(now);
         let later = now + Duration::from_secs(3600);
         decoder.tick(later);
         assert!(decoder.owns_input());
@@ -294,7 +294,7 @@ fn a_scalar_lead_in_the_released_packet_keeps_its_continuations_owned() {
     let now = Instant::now();
     let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel();
+    decoder.cancel(now);
     feed(&mut decoder, b"\xe4", now, 512);
     decoder.begin_packet(now + Duration::from_secs(3600));
     // The UTF-8 frame owns the boundary, not a clock.
@@ -312,7 +312,7 @@ fn escape_disambiguation_owns_the_resolver_but_releases_at_the_boundary() {
     let now = Instant::now();
     let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel();
+    decoder.cancel(now);
     feed(&mut decoder, b"\x1b", now, 512);
     // An unexpired ESC wait still owns the next packet's resolver byte.
     decoder.begin_packet(now + Duration::from_millis(10));
@@ -323,7 +323,7 @@ fn escape_disambiguation_owns_the_resolver_but_releases_at_the_boundary() {
     // Once the wait has already expired, the boundary frees the packet.
     let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel();
+    decoder.cancel(now);
     feed(&mut decoder, b"\x1b", now, 512);
     decoder.begin_packet(now + Duration::from_millis(60));
     assert!(!decoder.owns_input());
@@ -336,7 +336,7 @@ fn a_c1_lead_in_the_released_packet_opens_a_sequence_that_outlives_the_boundary(
     for lead in [0x9b, 0x8f] {
         let mut decoder = ModalDecoder::default();
         decoder.start();
-        decoder.cancel();
+        decoder.cancel(now);
         feed(&mut decoder, &[lead], now, 512);
         decoder.begin_packet(now + Duration::from_secs(1));
         assert!(decoder.owns_input());
@@ -349,7 +349,7 @@ fn a_c1_lead_in_the_released_packet_opens_a_sequence_that_outlives_the_boundary(
     // A C1 paste opener drains the payload rather than leaking it.
     let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel();
+    decoder.cancel(now);
     feed(&mut decoder, b"\x9b200~xy", now, 512);
     decoder.begin_packet(now + Duration::from_secs(1));
     assert!(decoder.owns_input());
@@ -392,7 +392,7 @@ fn external_cancel_of_pending_escape_keeps_the_disambiguation_then_releases_at_t
     let mut decoder = ModalDecoder::default();
     decoder.start();
     feed(&mut decoder, b"\x1b", now, 512);
-    decoder.cancel();
+    decoder.cancel(now);
     // The pending ESC still resolves by its own deadline, then the tail
     // guard holds until a packet boundary — not a second clock.
     decoder.tick(now + Duration::from_millis(49));
@@ -407,7 +407,7 @@ fn external_cancel_of_pending_escape_keeps_the_disambiguation_then_releases_at_t
     // next packet's first byte.
     let mut decoder = ModalDecoder::default();
     decoder.start();
-    decoder.cancel();
+    decoder.cancel(now);
     feed(&mut decoder, b"\x1b", now, 512);
     decoder.begin_packet(now + Duration::from_millis(10));
     assert!(decoder.owns_input());

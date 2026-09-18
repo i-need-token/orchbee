@@ -84,7 +84,7 @@ impl InputDispatcher {
         // over from an earlier packet ends here so the lease is returned
         // even when no further bytes ever arrive. A release produced by
         // this call's own reconcile still guards the current packet tail.
-        self.decoder.end_released();
+        self.decoder.end_released(now);
         let mut changed = self.reconcile(view, port, now);
         let events = self.decoder.tick(now);
         changed |= !events.is_empty();
@@ -298,7 +298,7 @@ impl InputDispatcher {
         &mut self,
         view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
-        _now: Instant,
+        now: Instant,
     ) -> bool {
         let setup = port.setup_input_context();
         let current = setup
@@ -312,7 +312,7 @@ impl InputDispatcher {
             return false;
         }
         if self.epoch.take().is_some() {
-            let events = self.decoder.cancel();
+            let events = self.decoder.cancel(now);
             self.apply_events(view, port, events);
         }
         let capacity =

@@ -7,7 +7,10 @@ use crate::terminal_input::{
 };
 use crate::terminal_session::state::{CarrierFailure, PanelIntent};
 use orchbee_workbench_protocol::{WorkbenchPanelSplitDirection, WorkbenchSnapshotOutcome};
-use std::{io, time::Instant};
+use std::{
+    io,
+    time::{Duration, Instant},
+};
 
 /// Delegates `TerminalInputPort` onto `NativeUi` exactly the way the
 /// `TerminalSession` production impl does, so these witnesses run the real
@@ -77,17 +80,43 @@ fn dispatch(
     ui: &mut NativeUi,
     bytes: &[u8],
 ) -> DispatchOutcome {
+    dispatch_at(dispatcher, view, ui, bytes, Instant::now())
+}
+
+fn dispatch_at(
+    dispatcher: &mut InputDispatcher,
+    view: &mut ClientView,
+    ui: &mut NativeUi,
+    bytes: &[u8],
+    now: Instant,
+) -> DispatchOutcome {
     let mut port = NativePort(ui);
     dispatcher
         .dispatch(
             view,
             bytes,
             &mut port,
-            Instant::now(),
+            now,
             |_, _| Ok::<_, io::Error>(()),
             &mut |_| Ok(()),
         )
         .unwrap()
+}
+
+/// The decoder holds a lone `0x1b` for a bounded wait to disambiguate it from
+/// Alt chords and CSI/SS3 frames; only a later packet boundary past the
+/// deadline emits the Esc item. Tests advance the supplied timestamp instead
+/// of sleeping.
+fn settle(
+    dispatcher: &mut InputDispatcher,
+    view: &mut ClientView,
+    ui: &mut NativeUi,
+    now: Instant,
+) {
+    let mut port = NativePort(ui);
+    dispatcher
+        .synchronize(view, &mut port, now, &mut |_| Ok::<(), io::Error>(()))
+        .unwrap();
 }
 
 fn confirmation_drawn(ui: &NativeUi) -> bool {
@@ -138,8 +167,13 @@ fn drawn_close_confirmation_captures_panel_prefix_keys_and_the_cancel_packet_tai
         "panel prefix keys must not reach the mailbox while the close confirmation owns input"
     );
 
-    // The packet tail stays captured after the answer byte disarms the prompt.
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"\x1b\x02X");
+    // The lone Esc resolves once its bounded wait elapses at the next packet
+    // boundary; the tail of the packet it lands with stays captured and
+    // cannot re-arm the prefix.
+    let mut now = Instant::now();
+    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x1b", now);
+    now += Duration::from_millis(60);
+    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x02X", now);
     assert!(!confirmation_drawn(&ui));
     assert!(!view.prefix_active());
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -233,7 +267,14 @@ fn lowercase_n_does_not_cancel_a_drawn_tab_close_confirmation() {
         confirmation_drawn(&ui),
         "n is a non-decision key: the drawn confirmation must stay armed"
     );
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"\x1b");
+    let now = Instant::now();
+    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x1b", now);
+    settle(
+        &mut dispatcher,
+        &mut view,
+        &mut ui,
+        now + Duration::from_millis(60),
+    );
     assert!(!confirmation_drawn(&ui));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
@@ -344,14 +385,19 @@ fn panel_close_confirmation_swallows_non_decision_keys_and_the_cancel_packet_tai
     assert!(!view.prefix_active());
     assert!(mailbox.try_recv().unwrap().is_none());
 
-    // Esc cancels; the same packet's tail stays captured and cannot re-arm.
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"\x1b\x02X");
+    // Esc cancels once its bounded wait resolves at the next packet boundary;
+    // the tail of the packet it lands with stays captured and cannot re-arm.
+    let mut now = Instant::now();
+    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x1b", now);
+    now += Duration::from_millis(60);
+    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x02X", now);
     assert!(!panel_confirmation_drawn(&ui));
     assert!(!view.prefix_active());
     assert!(mailbox.try_recv().unwrap().is_none());
 
     // A later independent packet dispatches normally: X re-arms cleanly.
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"\x02X");
+    now += Duration::from_millis(60);
+    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x02X", now);
     assert!(panel_confirmation_drawn(&ui));
 }
 
@@ -372,9 +418,17 @@ fn resize_invalidation_blocks_a_drawn_panel_close_until_redrawn() {
     assert!(panel_confirmation_drawn(&ui));
     assert!(mailbox.try_recv().unwrap().is_none());
 
-    // A fresh matching draw re-arms execution; Esc still cancels instead.
+    // A fresh matching draw re-arms execution; Esc still cancels instead,
+    // resolving after its bounded wait at the next packet boundary.
     draw_panel_prompt(&mut ui);
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"\x1b");
+    let now = Instant::now();
+    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x1b", now);
+    settle(
+        &mut dispatcher,
+        &mut view,
+        &mut ui,
+        now + Duration::from_millis(60),
+    );
     assert!(!panel_confirmation_drawn(&ui));
     assert!(mailbox.try_recv().unwrap().is_none());
 }

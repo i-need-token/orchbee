@@ -246,7 +246,8 @@ fn help_paginates_rows_and_clamps_the_requested_page() {
     let mut terminal = infallible(Terminal::new(TestBackend::new(60, 12)));
     let mut placed = None;
 
-    // 21 shortcut rows in a 6-row window -> 4 pages; page 99 clamps to 3.
+    // 23 registry-backed shortcut rows in a 6-row window -> 4 pages; page 99
+    // clamps to 3.
     infallible(terminal.draw(|frame| {
         placed = super::render_shortcut_help(frame, frame.area(), text, 99, &theme);
     }));
@@ -254,7 +255,13 @@ fn help_paginates_rows_and_clamps_the_requested_page() {
     assert_eq!(page, 3);
     let rows = buffer_rows(&terminal, 60, 12);
     // The clamped last page starts at shortcut row 18.
-    assert!(rows[2].contains("Ctrl+B q / d"), "{:?}", rows[2]);
+    assert!(
+        rows[2].contains("Ctrl+B PageUp / PageDown"),
+        "{:?}",
+        rows[2]
+    );
+    assert!(rows[5].contains("Ctrl+B q / d"), "{:?}", rows[5]);
+    assert!(rows[6].contains("Other keys"), "{:?}", rows[6]);
     assert!(rows[8].contains("Ctrl+B ? closes help"), "{:?}", rows[8]);
     assert!(rows[9].contains("4/4"), "{:?}", rows[9]);
     // Rows from earlier pages are not drawn.

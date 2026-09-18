@@ -508,7 +508,10 @@ fn real_shell_resize_and_confirm_in_one_iteration_keeps_the_native_prompt_unsubm
     dispatch_close_input(&mut session, &mut ClientView::new(100), b"\x02x");
     assert_eq!(
         crate::tui_shell::tests::run_native_close_resize_confirmation(&mut session)?,
-        [true, true, false],
+        // armed at the loop-entry draw, still armed after the invalidated y,
+        // still armed while the lone Esc waits out its decode deadline, gone
+        // once the wait resolves at the next packet boundary.
+        [true, true, true, false],
         "same-iteration resize+y must preserve the real current prompt until explicit Esc"
     );
     assert_eq!(commands.load(Ordering::SeqCst), 0);

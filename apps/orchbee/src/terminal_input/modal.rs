@@ -116,6 +116,12 @@ pub(super) struct ModalDecoder {
     phase: Phase,
     editing: bool,
     swallow_lf: bool,
+    /// `Some(boundary)` — armed by boundary reconciliation (`cancel`): the
+    /// guard covers the packet processed at that boundary instant and ends
+    /// at the first strictly later one. `None` — armed inside a packet or
+    /// by an expired frame: the guard covers only the rest of that packet
+    /// and ends at the next `end_released` regardless of its instant.
+    released_at: Option<Instant>,
 }
 
 impl Default for ModalDecoder {
@@ -125,6 +131,7 @@ impl Default for ModalDecoder {
             phase: Phase::Idle,
             editing: false,
             swallow_lf: false,
+            released_at: None,
         }
     }
 }
@@ -146,29 +153,33 @@ impl ModalDecoder {
         self.editing = true;
         self.capacity = capacity;
         self.phase = Phase::Text;
+        self.released_at = None;
         true
     }
 
-    /// A new read packet begins. The `Released` packet-tail guard ends
-    /// here; an in-flight frame or an open ESC disambiguation keeps
-    /// ownership under its own rules. Called once per `dispatch` before
-    /// the first byte of that packet.
+    /// A new read packet begins. A `Released` guard armed at an earlier
+    /// boundary ends here; an in-flight frame or an open ESC disambiguation
+    /// keeps ownership under its own rules. Called once per `dispatch`
+    /// before the first byte of that packet.
     pub(super) fn begin_packet(&mut self, now: Instant) -> Vec<ModalInputEvent> {
         let events = self.tick(now);
-        self.end_released();
+        self.end_released(now);
         events
     }
 
-    /// A boundary without input bytes — an idle `synchronize` — ends the
-    /// `Released` guard too, so a released lease is always returned even
-    /// when no next packet ever arrives.
-    pub(super) fn end_released(&mut self) {
-        if matches!(self.phase, Phase::Released) {
+    /// A boundary without input bytes — an idle `synchronize` — ends a
+    /// `Released` guard armed before this boundary, so a released lease is
+    /// always returned even when no next packet ever arrives. A guard armed
+    /// at this same boundary still covers the packet being processed.
+    pub(super) fn end_released(&mut self, now: Instant) {
+        if matches!(self.phase, Phase::Released) && self.released_at.is_none_or(|armed| armed < now)
+        {
             self.phase = Phase::Idle;
+            self.released_at = None;
         }
     }
 
-    pub(super) fn cancel(&mut self) -> Vec<ModalInputEvent> {
+    pub(super) fn cancel(&mut self, now: Instant) -> Vec<ModalInputEvent> {
         let events = Vec::new();
         if !self.editing {
             return events;
@@ -179,16 +190,32 @@ impl ModalDecoder {
             Phase::Sequence(_) => {}
             Phase::Utf8 { discard, .. } => *discard = true,
             Phase::Escape(_) => {}
-            _ => self.phase = Phase::Released,
+            _ => self.release_at(now),
         }
         events
+    }
+
+    /// Armed by boundary reconciliation: the guard covers the packet
+    /// processed at this boundary and ends at the first later one.
+    fn release_at(&mut self, now: Instant) {
+        self.phase = Phase::Released;
+        self.released_at = Some(now);
+    }
+
+    /// Armed inside a packet or by an expired frame: the guard covers only
+    /// the rest of that packet and ends at the next boundary.
+    fn release_tail(&mut self) {
+        self.phase = Phase::Released;
+        self.released_at = None;
     }
 
     pub(super) fn tick(&mut self, now: Instant) -> Vec<ModalInputEvent> {
         let mut events = Vec::new();
         match &mut self.phase {
             Phase::Escape(deadline) if now >= *deadline => {
-                self.phase = Phase::Released;
+                // An expired frame owns nothing beyond its own packet: the
+                // next boundary frees this guard regardless of its instant.
+                self.release_tail();
                 if self.editing {
                     self.editing = false;
                     events.push(ModalInputEvent::Cancel);
@@ -223,7 +250,7 @@ impl ModalDecoder {
                         deadline: now + WAIT,
                     };
                 } else {
-                    self.phase = Phase::Released;
+                    self.release_tail();
                 }
             }
             Phase::Utf8Tail { deadline, .. } if now >= *deadline => {
@@ -231,7 +258,7 @@ impl ModalDecoder {
                     events.push(ModalInputEvent::Fault);
                     self.phase = Phase::Text;
                 } else {
-                    self.phase = Phase::Released;
+                    self.release_tail();
                 }
             }
             Phase::Paste(paste) => {
@@ -437,7 +464,7 @@ impl ModalDecoder {
             self.phase = Phase::Text;
             events.push(ModalInputEvent::Completeness(true));
         } else {
-            self.phase = Phase::Released;
+            self.release_tail();
         }
     }
 

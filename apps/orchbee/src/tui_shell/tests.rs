@@ -6,7 +6,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use ratatui::{Terminal, TerminalOptions, Viewport, backend::TestBackend};
@@ -75,16 +75,24 @@ pub(crate) fn run_native_close_resize_confirmation(
     let initial = dimensions(100, 24);
     let resized = dimensions(70, 24);
     let mut terminal = test_terminal(initial);
-    let mut inputs = QueueInputSource {
-        inputs: VecDeque::from([
-            Ok(Some(b"y".to_vec())),
-            Ok(Some(b"\x1b".to_vec())),
-            Ok(Some(b"\x02q".to_vec())),
-        ]),
+    // The lone `Esc` packet resolves at the next loop iteration once the
+    // decoder's bounded wait elapses; the idle poll in between advances the
+    // clocked sample time past the deadline.
+    let mut inputs = ClockedInputSource {
+        inputs: QueueInputSource {
+            inputs: VecDeque::from([
+                Ok(Some(b"y".to_vec())),
+                Ok(Some(b"\x1b".to_vec())),
+                Ok(None),
+                Ok(Some(b"\x02q".to_vec())),
+            ]),
+        },
+        now: std::cell::Cell::new(Instant::now()),
     };
     let viewport = QueueViewportSource {
         dimensions: std::cell::RefCell::new(VecDeque::from([
             Ok(Some(initial)),
+            Ok(Some(resized)),
             Ok(Some(resized)),
             Ok(Some(resized)),
             Ok(Some(resized)),
@@ -115,6 +123,26 @@ impl InputSource for QueueInputSource {
             Some(input) => input,
             None => Err(io::Error::other("test input queue exhausted")),
         }
+    }
+}
+
+/// A queued source whose `sample_time` advances past the decoder's bounded
+/// lone-Esc wait on every call: a queued `Esc` packet resolves at the next
+/// loop iteration without real sleeps.
+struct ClockedInputSource {
+    inputs: QueueInputSource,
+    now: std::cell::Cell<Instant>,
+}
+
+impl InputSource for ClockedInputSource {
+    fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>> {
+        self.inputs.next_input(timeout)
+    }
+
+    fn sample_time(&self) -> Instant {
+        let now = self.now.get();
+        self.now.set(now + Duration::from_millis(60));
+        now
     }
 }
 

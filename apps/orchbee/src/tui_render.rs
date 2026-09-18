@@ -10,8 +10,9 @@ use crate::{
     client_view::{ClientView, Overlay},
     localization::{Locale, ShellText},
     terminal_session::{
-        NativeCloseStatusToken, NativeDisplayPhase, NativeDrawReceipt, NativeProjectionStatus,
-        NativeRefreshStatus, NativeSessionView, NativeTabView, TerminalSessionView,
+        ModalPresentation, NativeCloseStatusToken, NativeDisplayPhase, NativeDrawReceipt,
+        NativeProjectionStatus, NativeRefreshStatus, NativeSessionView, NativeTabView,
+        TerminalSessionView,
     },
     terminal_text::{sanitize_terminal_text, truncate_display},
     tui_layout::{
@@ -216,8 +217,34 @@ pub(crate) fn render_terminal_shell(
             rename = None;
             setup = Some(token);
         }
-    } else if view.overlay().is_some() {
-        overlay_refused = true;
+    } else {
+        if view.overlay().is_some() {
+            overlay_refused = true;
+        }
+        // A too-small viewport cannot present any armed modal, but the draw
+        // still owes the state machine an outcome: the topmost armed capture
+        // reports NotPresented so it settles cancelled with a notice instead
+        // of surviving as an invisible key capture.
+        if let Some(TerminalSessionView::Native(native)) = session.as_ref() {
+            if native.close_confirmation().is_some() {
+                prompt = Some(ModalPresentation::NotPresented);
+            }
+            if native.panel_close_confirmation().is_some() {
+                prompt = None;
+                panel_prompt = Some(ModalPresentation::NotPresented);
+            }
+            if native.rename_draft().is_some() {
+                prompt = None;
+                panel_prompt = None;
+                rename = Some(ModalPresentation::NotPresented);
+            }
+            if native.setup_draft().is_some() {
+                prompt = None;
+                panel_prompt = None;
+                rename = None;
+                setup = Some(ModalPresentation::NotPresented);
+            }
+        }
     }
 
     let notice = if overlay_refused {
