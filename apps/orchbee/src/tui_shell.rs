@@ -436,14 +436,19 @@ pub(crate) fn terminal_geometry(
     let Some(area) = active_pane_area(&areas, session) else {
         return Ok(None);
     };
-    let width = dimensions
-        .pixel_width
-        .checked_div(dimensions.columns)
-        .unwrap_or(0);
-    let height = dimensions
-        .pixel_height
-        .checked_div(dimensions.rows)
-        .unwrap_or(0);
+    let (width, height) = match (
+        dimensions
+            .pixel_width
+            .checked_div(dimensions.columns)
+            .unwrap_or(0),
+        dimensions
+            .pixel_height
+            .checked_div(dimensions.rows)
+            .unwrap_or(0),
+    ) {
+        (0, _) | (_, 0) => (0, 0),
+        cell_pixels => cell_pixels,
+    };
     orchbee_client_server_protocol::Geometry::new(area.width, area.height, width, height)
         .map(Some)
         .map_err(io::Error::other)

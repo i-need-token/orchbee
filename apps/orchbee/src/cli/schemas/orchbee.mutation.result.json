@@ -89,8 +89,8 @@
 			"properties": {
 				"columns": { "type": "integer", "minimum": 1 },
 				"rows": { "type": "integer", "minimum": 1 },
-				"cellPixelWidth": { "type": "integer", "minimum": 1 },
-				"cellPixelHeight": { "type": "integer", "minimum": 1 }
+				"cellPixelWidth": { "type": "integer", "minimum": 0 },
+				"cellPixelHeight": { "type": "integer", "minimum": 0 }
 			}
 		},
 		"commandSource": {

@@ -1251,6 +1251,35 @@ fn mutation_values_are_bounded() {
             OutputFormat::Text
         ))
     );
+    // A paired-zero cell-pixel geometry is the explicit unknown-pixel form
+    // and parses like any other legal geometry.
+    let arguments = [
+        "tab",
+        "create",
+        "--standalone",
+        "--label",
+        "t",
+        "--cols",
+        "80",
+        "--rows",
+        "24",
+        "--cell-width",
+        "0",
+        "--cell-height",
+        "0",
+    ];
+    assert_eq!(
+        parse(&arguments),
+        Ok(mutation(
+            MutationCommand::TabCreate {
+                context: TabContext::Standalone,
+                label: label("t"),
+                geometry: WorkbenchTerminalGeometry::new(80, 24, 0, 0)
+                    .expect("paired-zero geometry is protocol-valid"),
+            },
+            OutputFormat::Text
+        ))
+    );
 }
 
 #[test]

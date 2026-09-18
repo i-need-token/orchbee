@@ -245,7 +245,7 @@ const fn dimensions(columns: u16, rows: u16) -> WindowDimensions {
 }
 
 #[test]
-fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()> {
+fn connected_geometry_requires_real_cell_dimensions() -> io::Result<()> {
     let original = dimensions(120, 32);
     let view = ClientView::new(original.columns);
     let geometry = super::terminal_geometry(original, &view, None)?
@@ -255,19 +255,6 @@ fn connected_geometry_requires_real_cell_and_pixel_dimensions() -> io::Result<()
         (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
         (8, 20)
     );
-    // Missing pixel extents are an honest host failure: Err, never faked.
-    for incomplete in [
-        WindowDimensions {
-            pixel_width: 0,
-            ..original
-        },
-        WindowDimensions {
-            pixel_height: 0,
-            ..original
-        },
-    ] {
-        assert!(super::terminal_geometry(incomplete, &view, None).is_err());
-    }
     // Zero cell counts classify as TooSmall: the resize is withheld (Ok(None))
     // rather than erroring or fabricating a 1x1 pane.
     for empty in [
@@ -299,6 +286,36 @@ fn too_small_geometry_withholds_resize_instead_of_fabricating() -> io::Result<()
             geometry.is_none(),
             "too-small {dimensions:?} must withhold the resize (Ok(None)), not fabricate one"
         );
+    }
+    Ok(())
+}
+
+#[test]
+fn connected_geometry_reports_unknown_when_any_cell_pixel_axis_is_missing() -> io::Result<()> {
+    let original = dimensions(120, 32);
+    let view = ClientView::new(original.columns);
+    for measured in [
+        WindowDimensions {
+            pixel_width: 0,
+            pixel_height: 0,
+            ..original
+        },
+        WindowDimensions {
+            pixel_width: 0,
+            ..original
+        },
+        WindowDimensions {
+            pixel_height: 0,
+            ..original
+        },
+    ] {
+        let geometry = super::terminal_geometry(measured, &view, None)?
+            .expect("a Full viewport still presents a pane");
+        assert_eq!(
+            (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
+            (0, 0)
+        );
+        assert_eq!((geometry.columns(), geometry.rows()), (88, 28));
     }
     Ok(())
 }

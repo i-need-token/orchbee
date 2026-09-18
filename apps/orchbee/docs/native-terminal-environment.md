@@ -7,8 +7,8 @@ runtime: viewport observation against transient zero geometry, and synchronized-
 each drawn frame. Maintain it with `terminal_device.rs`, `terminal_lifecycle.rs`,
 `tui_backend.rs`, and `tui_shell.rs`. Admission-time requirements (interactive TTY on both
 streams, one shared terminal identity, nonzero initial cell geometry) stay unchanged and are not
-restated here. Host-reported pixel geometry that arrives as zero is a distinct unresolved
-question; this record never fabricates it.
+restated here. Host-reported pixel geometry that arrives as zero is reported honestly as
+"pixels unknown" — a normal state, never a fabricated one.
 
 ## Viewport observation
 
@@ -21,10 +21,14 @@ is made on typed results, never on error text.
 | Zero or absent   | The host transiently reported zero rows or columns                        | No resize is sent, the Session is not retired, the last valid geometry stays in effect, and the next valid geometry resumes normally |
 | Inspection error | The descriptor or the query itself failed (permission, closed, invalid fd) | Fatal: the failure propagates and the interface exits                                              |
 
-A pixel extent of zero is not "absent geometry"; it is an unresolved host fact. A cell-size
-change whose pixel extent reads zero is not resolved by reusing the previous pixel values — old
-pixels are never a measure of a new size. The zero-pixel startup and pixel-drop cases remain
-explicitly unresolved.
+A pixel extent of zero is a normal observation, not an error: the cell-pixel pair is reported as
+`(0, 0)` — "pixels unknown" — while the character grid keeps working. When the host reports only
+one pixel axis, or a derived cell-pixel axis rounds down to zero, the whole pair is reported
+unknown rather than fabricating the missing axis. A cell-size change whose pixel extent reads
+zero is likewise never resolved by reusing the previous pixel values — old pixels are never a
+measure of a new size. Known → unknown → known transitions ride the same geometry path; every
+state is reported as measured, and downstream pixel-dependent features gate on the pair being
+known rather than on any estimate.
 
 ## Synchronized frame output
 
