@@ -4,7 +4,7 @@ export type SemanticCommandCliLocale = 'en-US' | 'zh-CN';
 
 export type SemanticCommandCliShell = 'bash' | 'fish' | 'zsh';
 
-export const SEMANTIC_COMMAND_CLI_SHELLS: readonly SemanticCommandCliShell[] = [
+const SEMANTIC_COMMAND_CLI_SHELLS: readonly SemanticCommandCliShell[] = [
 	'bash',
 	'zsh',
 	'fish',
@@ -268,7 +268,7 @@ export type SemanticCommandCliHelpTopic =
 	| { readonly kind: 'family'; readonly name: string }
 	| { readonly kind: 'command'; readonly command: SemanticCommandCliGrammarCommand };
 
-export function resolveSemanticCommandCliHelpTopic(
+function resolveSemanticCommandCliHelpTopic(
 	path: readonly string[],
 ): SemanticCommandCliHelpTopic | null {
 	if (path.length === 0) return { kind: 'root' };

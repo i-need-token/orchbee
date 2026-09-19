@@ -175,7 +175,7 @@ function optionUsage(option: SemanticCommandCliGrammarOption): string {
 		: ` [--${option.name} ${valueName}]${option.repeatable ? '...' : ''}`;
 }
 
-export function semanticCommandCliUsageLine(command: SemanticCommandCliGrammarCommand): string {
+function semanticCommandCliUsageLine(command: SemanticCommandCliGrammarCommand): string {
 	const base = `orchbee-cli ${command.path.join(' ')}`;
 	const operand = command.operand === undefined ? '' : ` ${command.operand}`;
 	const location = command.location
