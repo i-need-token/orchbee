@@ -29,10 +29,13 @@ orchbee --help | --version
 ```
 
 查询 family 为 `project`、`workspace`、`tab`、`panel`、`terminal`（`list`/`get`，另有
-`terminal read`）。作用于运行中 Site 的修改命令为 `project create`、`workspace create`/`rename`、
-`tab create`/`rename`/`move`/`close` 与 `panel split`/`move`/`close`。`project create`
+`terminal read`）。作用于运行中 Site 的修改命令为 `project create`、
+`workspace create`/`rename`/`accept-directory`、`tab create`/`rename`/`move`/`close` 与
+`panel split`/`move`/`close`。`project create`
 提交既有 `ProjectCreate` 动作——一条导航记录，无目录或文件系统副作用——并返回
-Server 分配的 project id，供 `workspace create`/`tab create` 链使用。完整语法、
+Server 分配的 project id，供 `workspace create`/`tab create` 链使用；
+`workspace accept-directory` 提交既有 `WorkspacePrimaryDirectoryAccept` 动作——由
+Server 权威探测该字面绝对路径——使 CLI 创建的 Workspace 无需 TUI 目录向导即可接纳 Tab。完整语法、
 target 与 filter 规则、修改结果及含退出分类的 failure matrix 由
 [native CLI query](docs/native-cli-query.zh-CN.md) 持有；`orchbee help <family>` 与
 `orchbee help <family> <command>` 直接从二进制输出同一套语法。

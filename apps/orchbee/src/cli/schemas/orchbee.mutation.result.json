@@ -24,6 +24,7 @@
 						"tab.create",
 						"tab.move",
 						"tab.rename",
+						"workspace.accept-directory",
 						"workspace.create",
 						"workspace.rename"
 					]
@@ -43,10 +44,13 @@
 				"firstSlotId": { "$ref": "#/$defs/id" },
 				"secondSlotId": { "$ref": "#/$defs/id" },
 				"presentationId": { "$ref": "#/$defs/id" },
+				"directoryId": { "$ref": "#/$defs/id" },
+				"workerId": { "$ref": "#/$defs/id" },
 				"direction": {
 					"enum": ["above", "below", "first", "last", "left", "next", "previous", "right"]
 				},
 				"label": { "type": "string" },
+				"path": { "type": "string" },
 				"terminal": {
 					"type": "object",
 					"required": ["outcome"],

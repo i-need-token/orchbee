@@ -1,8 +1,8 @@
 use std::ffi::OsString;
 
 use orchbee_workbench_protocol::{
-    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchTabMoveDirection,
-    WorkbenchTerminalGeometry,
+    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 /// Legacy three-variant invocation consumed by `presentation::present`.
@@ -115,6 +115,7 @@ pub(crate) enum CommandPath {
     WorkspaceGet,
     WorkspaceCreate,
     WorkspaceRename,
+    WorkspaceAcceptDirectory,
     TabList,
     TabGet,
     TabCreate,
@@ -147,6 +148,7 @@ impl CommandPath {
             Self::WorkspaceGet => "workspace get",
             Self::WorkspaceCreate => "workspace create",
             Self::WorkspaceRename => "workspace rename",
+            Self::WorkspaceAcceptDirectory => "workspace accept-directory",
             Self::TabList => "tab list",
             Self::TabGet => "tab get",
             Self::TabCreate => "tab create",
@@ -224,6 +226,10 @@ pub(crate) enum MutationCommand {
     WorkspaceRename {
         target: Target,
         label: WorkbenchLabel,
+    },
+    WorkspaceAcceptDirectory {
+        target: Target,
+        path: WorkbenchDirectoryPath,
     },
     TabCreate {
         context: TabContext,
@@ -313,6 +319,7 @@ pub(crate) enum ExpectedValue {
     PanelDirection,
     Shell,
     HistoryRows,
+    DirectoryPath,
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -429,6 +436,7 @@ struct Options {
     confirm: bool,
     target_panel: Option<String>,
     history: bool,
+    path: Option<String>,
 }
 
 /// Every named option that owns the next argv token as its value, used by
@@ -440,6 +448,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--cols",
     "--direction",
     "--label",
+    "--path",
     "--project",
     "--rows",
     "--tab",
@@ -659,6 +668,7 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     "--rows" => &mut options.rows,
                     "--cell-width" => &mut options.cell_width,
                     "--cell-height" => &mut options.cell_height,
+                    "--path" => &mut options.path,
                     _ => &mut options.target_panel,
                 };
                 if slot.replace(value).is_some() {
@@ -920,6 +930,25 @@ fn resolve_words(
                 MutationCommand::WorkspaceRename {
                     target: target((*value).to_owned(), Resource::Workspace, envelope)?,
                     label: label_option(options, UsageContext::Path("workspace rename"), envelope)?,
+                },
+                options,
+            ))
+        }
+        ["workspace", "accept-directory", value] => {
+            check_scope(
+                options,
+                ACCEPT_DIRECTORY_SCOPE,
+                UsageContext::Path("workspace accept-directory"),
+                envelope,
+            )?;
+            Ok(mutation(
+                MutationCommand::WorkspaceAcceptDirectory {
+                    target: target((*value).to_owned(), Resource::Workspace, envelope)?,
+                    path: path_option(
+                        options,
+                        UsageContext::Path("workspace accept-directory"),
+                        envelope,
+                    )?,
                 },
                 options,
             ))
@@ -1294,6 +1323,16 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["workspace", "accept-directory"] => Err(missing_required(
+            UsageContext::Path("workspace accept-directory"),
+            "<workspace>",
+            envelope,
+        )),
+        ["workspace", "accept-directory", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("workspace accept-directory"),
+            extra,
+            envelope,
+        )),
         ["workspace", verb, ..] => Err(unknown_command(
             UsageContext::Path("workspace"),
             verb,
@@ -1514,6 +1553,9 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
         ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),
         ["workspace", "rename"] => HelpTopic::Command(CommandPath::WorkspaceRename),
+        ["workspace", "accept-directory"] => {
+            HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory)
+        }
         ["tab", "list"] => HelpTopic::Command(CommandPath::TabList),
         ["tab", "get"] => HelpTopic::Command(CommandPath::TabGet),
         ["tab", "create"] => HelpTopic::Command(CommandPath::TabCreate),
@@ -1566,6 +1608,9 @@ struct Scope {
     /// `terminal read --history --rows <n>`: admits the flag and the
     /// history-row meaning of the shared `--rows` value option.
     history: bool,
+    /// `workspace accept-directory --path <p>`: admits the literal directory
+    /// path value option.
+    path: bool,
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -1579,6 +1624,7 @@ const NO_OPTIONS: Scope = Scope {
     confirm: false,
     target_panel: false,
     history: false,
+    path: false,
 };
 
 const WORKSPACE_LIST_SCOPE: Scope = Scope {
@@ -1605,6 +1651,11 @@ const WORKSPACE_CREATE_SCOPE: Scope = Scope {
 
 const LABEL_SCOPE: Scope = Scope {
     label: true,
+    ..NO_OPTIONS
+};
+
+const ACCEPT_DIRECTORY_SCOPE: Scope = Scope {
+    path: true,
     ..NO_OPTIONS
 };
 
@@ -1655,6 +1706,7 @@ fn business_options(options: &Options) -> bool {
         || options.confirm
         || options.target_panel.is_some()
         || options.history
+        || options.path.is_some()
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -1701,6 +1753,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.history && !scope.history {
         return Some("--history");
     }
+    if options.path.is_some() && !scope.path {
+        return Some("--path");
+    }
     None
 }
 
@@ -1746,6 +1801,29 @@ fn label_option(
                 option: "--label",
                 value,
                 expected: ExpectedValue::Label,
+            },
+            envelope,
+        )
+    })
+}
+
+/// `--path` carries a wire-ready Workbench directory path: the literal
+/// absolute POSIX path, at most the protocol's 4,096-byte bound. The CLI
+/// never expands `~`/`$`, never creates the directory, and never probes a
+/// filesystem — a malformed value is a usage failure at this boundary.
+fn path_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<WorkbenchDirectoryPath, ParseFailure> {
+    let value = required(&options.path, context, "'--path'", envelope)?;
+    WorkbenchDirectoryPath::parse(&value).map_err(|_| {
+        usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--path",
+                value,
+                expected: ExpectedValue::DirectoryPath,
             },
             envelope,
         )

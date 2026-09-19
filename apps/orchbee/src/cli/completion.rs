@@ -108,7 +108,10 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("project", &["create", "get", "list"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read"]),
-    ("workspace", &["create", "get", "list", "rename"]),
+    (
+        "workspace",
+        &["accept-directory", "create", "get", "list", "rename"],
+    ),
 ];
 
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
@@ -127,12 +130,14 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--confirm",
     "--target-panel",
     "--history",
+    "--path",
 ];
 
 /// `<family>:<verb>` → the business flags that command admits. Commands not
 /// listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("project:create", &["--label"]),
+    ("workspace:accept-directory", &["--path"]),
     ("workspace:list", &["--project"]),
     ("workspace:create", &["--project", "--label"]),
     ("workspace:rename", &["--label"]),
@@ -191,6 +196,7 @@ const OPERAND_PATHS: &[&str] = &[
     "tab:rename",
     "terminal:get",
     "terminal:read",
+    "workspace:accept-directory",
     "workspace:get",
     "workspace:rename",
 ];
@@ -218,7 +224,10 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("project", &["create", "get", "list"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read"]),
-    ("workspace", &["create", "get", "list", "rename"]),
+    (
+        "workspace",
+        &["accept-directory", "create", "get", "list", "rename"],
+    ),
 ];
 
 const SHELLS: &[&str] = &["bash", "fish", "zsh"];
@@ -248,6 +257,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--confirm" => "seen_confirm",
         "--target-panel" => "seen_target_panel",
         "--history" => "seen_history",
+        "--path" => "seen_path",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
 }

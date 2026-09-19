@@ -63,6 +63,12 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   `workspace rename`, `tab create`, `tab rename`, and `panel split`. The value is a Workbench
   label under protocol validation (nonempty, within the protocol label bound); a missing,
   empty, or overlong label is `invalid-usage`.
+- `--path <path>`: single-use value flag, required on `workspace accept-directory` and valid
+  nowhere else. The value is a `WorkbenchDirectoryPath`: a literal absolute POSIX path
+  (leading `/`) of at most 4,096 UTF-8 bytes without NUL. The CLI never expands `~` or `$`,
+  never creates or repairs the directory, and never probes the filesystem — a missing,
+  relative, NUL-bearing, or overlong value is `invalid-usage` before any runtime access, and
+  every filesystem fact is the Server's authority after submission.
 - `--direction <word>`: single-use value flag, required on `tab move`
   (`previous|next|first|last`), `panel split`, and `panel move` (`above|below|left|right`).
   Each word set is closed; a panel word on `tab move` or a missing/unknown word is
@@ -96,6 +102,7 @@ orchbee project create --label <label>
 orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
+orchbee workspace accept-directory <target> --path <path>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry>
 orchbee tab rename <target> --label <label>
@@ -344,9 +351,10 @@ platform socket-address capacity). No cross-file atomic health claim is made.
 
 ## Mutations
 
-Ten commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
-`project create`, `workspace create`/`rename`, `tab create`/`rename`/`move`/`close`, and
-`panel split`/`close`/`move`. Each invocation runs the query state machine's stages 1–5
+Eleven commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
+`project create`, `workspace create`/`rename`/`accept-directory`,
+`tab create`/`rename`/`move`/`close`, and `panel split`/`close`/`move`. Each invocation runs
+the query state machine's stages 1–5
 unchanged — one cohort check, one discovery and admission, one bounded snapshot read — then
 performs two further stages under the same 5-second deadline:
 
@@ -395,6 +403,23 @@ action carries just the label, the Server allocates the new `projectId` and retu
 `committed` receipt, and the created Project starts with no directory or Workspace. Duplicate
 labels are legal — the label never uniquely identifies the new Project; the receipt's
 `projectId` does.
+
+`workspace accept-directory` submits the existing `WorkspacePrimaryDirectoryAccept` action —
+the same operation the TUI directory wizard uses — so a headless
+`project create → workspace create → workspace accept-directory → tab create` sequence needs
+no TUI. The target resolves like any Workspace (typed ID first, then exact label; ambiguous
+labels are rejected), and the true `projectId` comes from the same snapshot row as the
+resolved Workspace. `--path` is parsed at the CLI boundary into a `WorkbenchDirectoryPath`
+(literal absolute path, ≤4,096 UTF-8 bytes, no NUL; `~`/`$` stay literal) — the CLI never
+creates, repairs, canonicalizes, or probes it, so an absent or non-directory path submits
+normally and surfaces through the Server's `DirectoryUnavailable` precommit as
+`service-unavailable` (exit 4). The Server remains authoritative over navigation mutation,
+directory association, worker probing and generation, optimistic revision, and resource
+limits: a Workspace that already holds a directory — including the same path — is rejected
+(`workspace-directory-conflict`, exit 3), and the CLI neither pre-checks `primary_directory_id`
+nor infers an idempotent success. A `committed` receipt carries the new `revision`, the
+Server-allocated `directoryId` and `workerId`, the resolved `projectId` and `workspaceId`,
+and the request's literal `path` (never a canonicalized form).
 
 Geometry is always explicit: a non-TTY invocation cannot inherit terminal dimensions, so
 `tab create` and `panel split` require all four flags. `--cols`/`--rows` are grid cells and

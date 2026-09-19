@@ -50,6 +50,11 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
 - `--label <label>`：带值 flag，单次使用，`project create`、`workspace create`、`workspace rename`、
   `tab create`、`tab rename` 与 `panel split` 上必填。值为经协议校验的 Workbench label
   （非空且在协议 label 上限内）；缺失、空串或超长均为 `invalid-usage`。
+- `--path <path>`：带值 flag，单次使用，`workspace accept-directory` 上必填、其他任何命令
+  上均非法。值为 `WorkbenchDirectoryPath`：字面绝对 POSIX 路径（以 `/` 开头），至多
+  4,096 UTF-8 字节且不含 NUL。CLI 从不展开 `~` 或 `$`，从不创建或修复目录，也从不探测
+  文件系统——缺失、相对、含 NUL 或超长的值在任何运行时访问之前即为 `invalid-usage`，
+  一切文件系统事实均由 Server 在提交后权威判定。
 - `--direction <word>`：带值 flag，单次使用，`tab move`
   （`previous|next|first|last`）、`panel split` 与 `panel move`
   （`above|below|left|right`）上必填。词集各自封闭；`tab move` 上出现 panel 方向词或
@@ -80,6 +85,7 @@ orchbee project create --label <label>
 orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
+orchbee workspace accept-directory <target> --path <path>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee tab create (--workspace <target> | --standalone) --label <label> <geometry>
 orchbee tab rename <target> --label <label>
@@ -304,9 +310,9 @@ runtime-unavailable,address-too-long,presence-not-inspected}`。`clientPending`/
 
 ## Mutations
 
-十条命令经已 admitted 的 OBWP `workbench.command` 通道修改 Workbench 状态：
-`project create`、`workspace create`/`rename`、`tab create`/`rename`/`move`/`close`、
-`panel split`/`close`/`move`。每次调用原样执行查询状态机的第 1–5 阶段——一次 cohort 检查、
+十一条命令经已 admitted 的 OBWP `workbench.command` 通道修改 Workbench 状态：
+`project create`、`workspace create`/`rename`/`accept-directory`、
+`tab create`/`rename`/`move`/`close`、`panel split`/`close`/`move`。每次调用原样执行查询状态机的第 1–5 阶段——一次 cohort 检查、
 一次 discovery 与 admission、一次有界快照读取——然后在同一 5 秒 deadline 下再执行两个阶段：
 
 6. **Resolve** —— 把已验证快照纯函数式地投影为 wire action：每个 target 以查询 resolver
@@ -343,6 +349,20 @@ move——报告当前 revision；`accepted`——两条 close——报告 `acce
 `project create` 是唯一无 target 操作数、无文件系统副作用的修改命令：动作只携带 label，
 由 Server 分配新 `projectId` 并在 `committed` 收据中返回，新建 Project 无目录、无 Workspace。
 label 允许重复——label 无法唯一标识新 Project；收据中的 `projectId` 可以。
+
+`workspace accept-directory` 提交既有 `WorkspacePrimaryDirectoryAccept` 动作——与 TUI
+目录向导所用操作相同——因此 `project create → workspace create → workspace
+accept-directory → tab create` 整条序列无需 TUI。target 按普通 Workspace 规则解析（先
+按 typed ID、再按精确 label；歧义 label 拒绝），真正的 `projectId` 取自与已解析
+Workspace 相同的快照行。`--path` 在 CLI 边界解析为 `WorkbenchDirectoryPath`（字面绝对
+路径，≤4,096 UTF-8 字节，不含 NUL；`~`/`$` 保持字面）——CLI 从不创建、修复、规范化
+或探测它，故不存在或非目录路径仍正常提交，经 Server 的 `DirectoryUnavailable`
+precommit 呈现为 `service-unavailable`（exit 4）。Server 对导航修改、目录关联、
+worker 探测与 generation、乐观修订、资源上限保持权威：已持有目录的 Workspace——包括
+相同路径——被拒绝（`workspace-directory-conflict`，exit 3），CLI 既不预检
+`primary_directory_id` 也不推断幂等成功。`committed` 收据携带新 `revision`、Server
+分配的 `directoryId` 与 `workerId`、已解析的 `projectId` 与 `workspaceId`，以及请求的
+字面 `path`（永不为规范化形式）。
 
 几何永远显式：非 TTY 调用无法继承终端尺寸，故 `tab create` 与 `panel split` 要求四个 flag
 全部给出。`--cols`/`--rows` 为格数，`--cell-width`/`--cell-height` 为每格像素尺寸；每个

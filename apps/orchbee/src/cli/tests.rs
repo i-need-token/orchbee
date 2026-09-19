@@ -248,6 +248,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::TerminalList,
         CommandPath::TerminalRead,
         CommandPath::Tui,
+        CommandPath::WorkspaceAcceptDirectory,
         CommandPath::WorkspaceCreate,
         CommandPath::WorkspaceGet,
         CommandPath::WorkspaceList,
@@ -281,7 +282,17 @@ fn fixed_outputs_are_far_below_the_bound() {
         "workspace",
     ];
     let verbs = [
-        "check", "close", "create", "get", "list", "move", "read", "rename", "schema", "snapshot",
+        "accept-directory",
+        "check",
+        "close",
+        "create",
+        "get",
+        "list",
+        "move",
+        "read",
+        "rename",
+        "schema",
+        "snapshot",
         "split",
     ];
     let mut topics: Vec<CommandPath> = Vec::new();

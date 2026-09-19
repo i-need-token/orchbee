@@ -33,10 +33,13 @@ orchbee --help | --version
 
 Query families are `project`, `workspace`, `tab`, `panel`, and `terminal` (`list`/`get`, plus
 `terminal read`). Mutation commands against the running Site are `project create`,
-`workspace create`/`rename`, `tab create`/`rename`/`move`/`close`, and
+`workspace create`/`rename`/`accept-directory`, `tab create`/`rename`/`move`/`close`, and
 `panel split`/`move`/`close`. `project create` submits the existing `ProjectCreate` action —
 one navigation record, no directory or filesystem effect — and returns the Server-allocated
-project id for the `workspace create`/`tab create` chain. The complete grammar, target and
+project id for the `workspace create`/`tab create` chain; `workspace accept-directory`
+submits the existing `WorkspacePrimaryDirectoryAccept` action — the Server authoritatively
+probes the literal absolute path — which makes a CLI-created Workspace tab-admissible
+without the TUI directory wizard. The complete grammar, target and
 filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
 [native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
 `orchbee help <family> <command>` print the same grammar from the binary itself.

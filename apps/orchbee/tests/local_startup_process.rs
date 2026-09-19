@@ -16,6 +16,8 @@ mod native_history;
 mod native_location_labels;
 #[path = "local_startup_process/native_project_create.rs"]
 mod native_project_create;
+#[path = "local_startup_process/native_workspace_accept_directory.rs"]
+mod native_workspace_accept_directory;
 #[path = "local_startup_process/native_workspace_fixture.rs"]
 mod native_workspace_fixture;
 #[path = "local_startup_process/native_workspace_setup.rs"]

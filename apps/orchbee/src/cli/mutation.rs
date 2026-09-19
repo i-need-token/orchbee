@@ -30,6 +30,7 @@ pub(super) struct Receipt {
     ids: Vec<(&'static str, String)>,
     direction: Option<&'static str>,
     label: Option<String>,
+    path: Option<String>,
     terminal: Option<TerminalFact>,
 }
 
@@ -64,6 +65,9 @@ impl Receipt {
         }
         if let Some(label) = &self.label {
             result.insert("label".to_owned(), json!(label));
+        }
+        if let Some(path) = &self.path {
+            result.insert("path".to_owned(), json!(path));
         }
         if let Some(terminal) = &self.terminal {
             result.insert("terminal".to_owned(), terminal.document());
@@ -102,6 +106,13 @@ impl Receipt {
         self
     }
 
+    /// The literal path the request carried — echoed verbatim, never
+    /// canonicalized, resolved, or probed by the CLI.
+    fn path(mut self, path: &str) -> Self {
+        self.path = Some(path.to_owned());
+        self
+    }
+
     fn terminal(mut self, terminal: TerminalFact) -> Self {
         self.terminal = Some(terminal);
         self
@@ -135,6 +146,9 @@ impl Receipt {
         }
         if let Some(label) = &self.label {
             rows.push(("label", label.clone()));
+        }
+        if let Some(path) = &self.path {
+            rows.push(("path", path.clone()));
         }
         rows
     }
@@ -413,6 +427,14 @@ mod linux {
                     label: label.clone(),
                 })
             }
+            MutationCommand::WorkspaceAcceptDirectory { target, path } => {
+                let (project, workspace) = resolve_workspace(snapshot, target)?;
+                Ok(WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+                    project_id: project.project_id.clone(),
+                    workspace_id: workspace.workspace_id.clone(),
+                    path: path.clone(),
+                })
+            }
             MutationCommand::TabCreate {
                 context,
                 label,
@@ -610,7 +632,8 @@ mod linux {
         match &resolved.action {
             WorkbenchAction::ProjectCreate { .. }
             | WorkbenchAction::WorkspaceCreate { .. }
-            | WorkbenchAction::WorkspaceRename { .. } => {
+            | WorkbenchAction::WorkspaceRename { .. }
+            | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } => {
                 let request = WorkbenchSetupRequest::try_from(command).map_err(|_| internal())?;
                 match client.submit_workbench_setup(request, deadline) {
                     WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::ProjectCreated {
@@ -653,6 +676,27 @@ mod linux {
                         .id("projectId", project_id.as_str())
                         .id("workspaceId", workspace_id.as_str())
                         .label(resolved_label(&resolved.action)))
+                    }
+                    WorkbenchSetupSubmission::Committed(
+                        WorkbenchSetupCommit::WorkspacePrimaryDirectoryAccepted {
+                            revision,
+                            directory_id,
+                            worker_id,
+                        },
+                    ) if matches!(
+                        &resolved.action,
+                        WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
+                    ) =>
+                    {
+                        Ok(
+                            receipt(&resolved, "workspace.accept-directory", "committed")
+                                .revision(revision)
+                                .id("projectId", resolved_project_id(&resolved.action))
+                                .id("workspaceId", resolved_workspace_id(&resolved.action))
+                                .id("directoryId", directory_id.as_str())
+                                .id("workerId", worker_id.as_str())
+                                .path(resolved_path(&resolved.action)),
+                        )
                     }
                     // Other setup commits are action-incompatible here; the
                     // transport already classifies them as unknown.
@@ -977,7 +1021,28 @@ mod linux {
 
     fn resolved_project_id(action: &WorkbenchAction) -> &str {
         match action {
-            WorkbenchAction::WorkspaceCreate { project_id, .. } => project_id.as_str(),
+            WorkbenchAction::WorkspaceCreate { project_id, .. }
+            | WorkbenchAction::WorkspacePrimaryDirectoryAccept { project_id, .. } => {
+                project_id.as_str()
+            }
+            _ => "",
+        }
+    }
+
+    fn resolved_workspace_id(action: &WorkbenchAction) -> &str {
+        match action {
+            WorkbenchAction::WorkspacePrimaryDirectoryAccept { workspace_id, .. } => {
+                workspace_id.as_str()
+            }
+            _ => "",
+        }
+    }
+
+    /// The literal `--path` value the request carried: echoed for correlation
+    /// only, never canonicalized or probed by the CLI.
+    fn resolved_path(action: &WorkbenchAction) -> &str {
+        match action {
+            WorkbenchAction::WorkspacePrimaryDirectoryAccept { path, .. } => path.as_str(),
             _ => "",
         }
     }
@@ -1007,6 +1072,7 @@ mod linux {
             ids: Vec::new(),
             direction: None,
             label: None,
+            path: None,
             terminal: None,
         }
     }

@@ -2061,6 +2061,436 @@ fn project_create_wrong_outcome_is_not_success() -> TestResult {
     Ok(())
 }
 
+// ---- workspace accept-directory ---------------------------------------------
+//
+// The literal path `LITERAL_PATH` deliberately contains '~' and '$'
+// fragments so the wire and receipt assertions prove the CLI never expands,
+// canonicalizes, or probes the value.
+const LITERAL_PATH: &str = "/srv/$HOME/~/repo";
+const DIRECTORY: &str = "00000000000000000000000000000044";
+const WORKER: &str = "00000000000000000000000000000045";
+
+fn accept_directory_args(target: &str) -> Vec<&str> {
+    vec![
+        "workspace",
+        "accept-directory",
+        target,
+        "--path",
+        LITERAL_PATH,
+    ]
+}
+
+#[test]
+fn workspace_accept_directory_commits_under_a_fresh_request() -> TestResult {
+    let base = base_dir("accept-dir");
+    let scope = stage_scope(&base);
+    let submitted = Arc::new(Mutex::new(String::new()));
+    let seen = submitted.clone();
+    let peer = spawn_peer_n(&scope, 2, move |stream| {
+        let snapshot_request = admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        assert_command_base(&command, snapshot_request.as_str());
+        let WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+            project_id,
+            workspace_id,
+            path,
+        } = &command.action
+        else {
+            panic!(
+                "expected workspace.primary-directory.accept, got {:?}",
+                command.action
+            )
+        };
+        assert_eq!(project_id.as_str(), PROJECT, "owning project resolved");
+        assert_eq!(workspace_id.as_str(), WORKSPACE, "label 'main' resolved");
+        assert_eq!(
+            path.as_str(),
+            LITERAL_PATH,
+            "the literal path reaches the wire unexpanded"
+        );
+        *seen.lock().unwrap() = command.request_id.as_str().to_owned();
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted {
+                revision: revision(8),
+                directory_id: orchbee_workbench_protocol::WorkbenchDirectoryId::parse(DIRECTORY)
+                    .unwrap(),
+                worker_id: orchbee_workbench_protocol::WorkerId::parse(WORKER).unwrap(),
+            },
+        );
+    });
+    let mut argv = accept_directory_args("main");
+    argv.push("--format=json");
+    let output = run(&base, &argv);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["schema"], "orchbee.mutation.result");
+    assert_eq!(document["source"]["kind"], "workbench-command");
+    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["expectedRevision"], "7");
+    assert_eq!(document["result"]["action"], "workspace.accept-directory");
+    assert_eq!(document["result"]["outcome"], "committed");
+    assert_eq!(document["result"]["revision"], "8");
+    assert_eq!(document["result"]["projectId"], PROJECT);
+    assert_eq!(document["result"]["workspaceId"], WORKSPACE);
+    assert_eq!(document["result"]["directoryId"], DIRECTORY);
+    assert_eq!(document["result"]["workerId"], WORKER);
+    assert_eq!(
+        document["result"]["path"], LITERAL_PATH,
+        "the receipt echoes the literal request path"
+    );
+    assert_eq!(
+        document["source"]["requestId"].as_str().unwrap(),
+        submitted.lock().unwrap().as_str()
+    );
+    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+
+    // Text output renders the same committed fields, path included.
+    let text = run(&base, &accept_directory_args(WORKSPACE));
+    assert_eq!(
+        text.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&text.stderr)
+    );
+    let stdout = String::from_utf8(text.stdout)?;
+    assert!(stdout.contains("workspace.accept-directory"), "{stdout}");
+    assert!(stdout.contains("committed"), "{stdout}");
+    assert!(stdout.contains(DIRECTORY), "{stdout}");
+    assert!(stdout.contains(WORKER), "{stdout}");
+    assert!(stdout.contains(LITERAL_PATH), "{stdout}");
+    assert!(text.stderr.is_empty(), "clean success has no stderr");
+    peer.join().expect("peer finished");
+    Ok(())
+}
+
+#[test]
+fn workspace_accept_directory_conflict_and_unavailable_map_matrix() -> TestResult {
+    let base = base_dir("accept-dir-matrix");
+    let scope = stage_scope(&base);
+    // A Workspace that already holds a directory — even the same path — is the
+    // Server's `WorkspaceDirectoryConflict` rejection, never a client-side
+    // idempotent success.
+    let conflict_peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        let WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } = &command.action else {
+            panic!(
+                "expected workspace.primary-directory.accept, got {:?}",
+                command.action
+            )
+        };
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Rejected {
+                revision: revision(7),
+                reason: WorkbenchRejectionReason::WorkspaceDirectoryConflict,
+            },
+        );
+    });
+    let mut argv = accept_directory_args("main");
+    argv.push("--format=json");
+    let output = run(&base, &argv);
+    conflict_peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(3));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "rejected");
+    assert_eq!(document["failure"]["details"]["stage"], "command");
+    assert_eq!(
+        document["failure"]["details"]["reason"],
+        "workspace-directory-conflict"
+    );
+    assert_eq!(document["failure"]["details"]["revision"], "7");
+    assert!(compiled_schema(&base, "orchbee.cli.failure").is_valid(&document));
+
+    // A path the Server's probe cannot accept as a directory is the
+    // `DirectoryUnavailable` precommit — service-unavailable, exit 4.
+    let unavailable_peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Unavailable {
+                reason: WorkbenchCommandUnavailableReason::DirectoryUnavailable,
+            },
+        );
+    });
+    let output = run(&base, &argv);
+    unavailable_peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(4));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "service-unavailable");
+    assert_eq!(document["failure"]["details"]["stage"], "command");
+    assert_eq!(
+        document["failure"]["details"]["reason"],
+        "directory-unavailable"
+    );
+    assert!(compiled_schema(&base, "orchbee.cli.failure").is_valid(&document));
+    Ok(())
+}
+
+#[test]
+fn workspace_accept_directory_dropped_response_is_unknown_without_replay() -> TestResult {
+    let base = base_dir("accept-dir-drop");
+    let scope = stage_scope(&base);
+    // Same mid-flight drop as the other mutation arms: the listener stays
+    // bound, so any second accept is a replay attempt.
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    let submitted = Arc::new(Mutex::new(String::new()));
+    let seen = submitted.clone();
+    let peer = thread::spawn(move || {
+        let stream = accept_bounded(&listener);
+        stream
+            .set_read_timeout(Some(PEER_IO_DEADLINE))
+            .expect("peer read timeout");
+        stream
+            .set_write_timeout(Some(PEER_IO_DEADLINE))
+            .expect("peer write timeout");
+        admit(&stream);
+        let request_id = read_snapshot_request(&stream);
+        snapshot_response(
+            &stream,
+            request_id,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: parse_snapshot(fixture_document()).expect("fixture"),
+            },
+        );
+        let command = read_command(&stream);
+        let WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } = &command.action else {
+            panic!(
+                "expected workspace.primary-directory.accept, got {:?}",
+                command.action
+            )
+        };
+        *seen.lock().unwrap() = command.request_id.as_str().to_owned();
+        drop(stream);
+        thread::sleep(Duration::from_millis(300));
+        match listener.accept() {
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+            Ok(_) => panic!("the CLI must never replay a submitted command"),
+            Err(error) => panic!("listener accept failed: {error}"),
+        }
+    });
+    let mut argv = accept_directory_args("main");
+    argv.push("--format=json");
+    let output = run(&base, &argv);
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(8));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "outcome-unknown");
+    assert_eq!(document["failure"]["details"]["stage"], "command");
+    assert_eq!(document["failure"]["details"]["reason"], "response-loss");
+    assert_eq!(
+        document["failure"]["details"]["requestId"]
+            .as_str()
+            .unwrap(),
+        submitted.lock().unwrap().as_str(),
+        "the typed unknown reports the submitted request identity"
+    );
+    assert!(
+        compiled_schema(&base, "orchbee.cli.failure").is_valid(&document),
+        "outcome-unknown envelope validates"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("not retried"), "{stderr}");
+    Ok(())
+}
+
+#[test]
+fn workspace_accept_directory_wrong_outcome_is_not_success() -> TestResult {
+    let base = base_dir("accept-dir-wrong-outcome");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        let WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. } = &command.action else {
+            panic!(
+                "expected workspace.primary-directory.accept, got {:?}",
+                command.action
+            )
+        };
+        // A wire-valid but action-incompatible outcome: Renamed for an
+        // accept-directory must never build a committed receipt.
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Renamed {
+                revision: revision(8),
+            },
+        );
+    });
+    let mut argv = accept_directory_args("main");
+    argv.push("--format=json");
+    let output = run(&base, &argv);
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(8));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "outcome-unknown");
+    assert_eq!(
+        document["failure"]["details"]["reason"],
+        "action-incompatible"
+    );
+    Ok(())
+}
+
+#[test]
+fn workspace_accept_directory_ambiguous_label_but_id_resolves() -> TestResult {
+    let base = base_dir("accept-dir-ambiguous");
+    let scope = stage_scope(&base);
+    // Two projects each own a workspace labelled "dup": the label is
+    // ambiguous across the snapshot, while each typed id still resolves to
+    // its own row — and to the true owning project on that row.
+    let dup_fixture: &[u8] = br#"{
+  "kind": "workbench.snapshot",
+  "protocolVersion": 1,
+  "revision": "7",
+  "siteId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "navigation": {
+    "projects": [
+      {
+        "projectId": "00000000000000000000000000000010",
+        "label": "pa",
+        "directories": [],
+        "workspaces": [
+          {
+            "workspaceId": "00000000000000000000000000000012",
+            "label": "dup",
+            "primaryDirectoryId": null,
+            "terminalContextId": "00000000000000000000000000000020"
+          }
+        ]
+      },
+      {
+        "projectId": "00000000000000000000000000000011",
+        "label": "pb",
+        "directories": [],
+        "workspaces": [
+          {
+            "workspaceId": "00000000000000000000000000000013",
+            "label": "dup",
+            "primaryDirectoryId": null,
+            "terminalContextId": "00000000000000000000000000000021"
+          }
+        ]
+      }
+    ],
+    "standaloneTerminalContextId": "00000000000000000000000000000001"
+  },
+  "terminalContexts": [
+    {
+      "terminalContextId": "00000000000000000000000000000001",
+      "groups": [],
+      "tabs": []
+    },
+    {
+      "terminalContextId": "00000000000000000000000000000020",
+      "groups": [],
+      "tabs": []
+    },
+    {
+      "terminalContextId": "00000000000000000000000000000021",
+      "groups": [],
+      "tabs": []
+    }
+  ]
+}"#;
+    let peer = spawn_peer_n(&scope, 2, move |stream| {
+        admit(&stream);
+        let request_id = read_snapshot_request(&stream);
+        snapshot_response(
+            &stream,
+            request_id,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: parse_snapshot(dup_fixture).expect("dup fixture"),
+            },
+        );
+        static CALL: Mutex<u32> = Mutex::new(0);
+        let call = {
+            let mut guard = CALL.lock().unwrap();
+            *guard += 1;
+            *guard
+        };
+        if call == 1 {
+            // The ambiguous label must stop before any command: nothing more
+            // arrives on this connection.
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .expect("read timeout");
+            if let Ok(request) = read_workbench_request(&mut &stream) {
+                panic!("unexpected request after ambiguity: {request:?}");
+            }
+            return;
+        }
+        let command = read_command(&stream);
+        let WorkbenchAction::WorkspacePrimaryDirectoryAccept {
+            project_id,
+            workspace_id,
+            path,
+        } = &command.action
+        else {
+            panic!(
+                "expected workspace.primary-directory.accept, got {:?}",
+                command.action
+            )
+        };
+        // The typed id resolved to its own snapshot row — and to the true
+        // project on that row, not the sibling workspace's owner.
+        assert_eq!(workspace_id.as_str(), id(0x12));
+        assert_eq!(project_id.as_str(), id(0x10), "owning project of the row");
+        assert_eq!(path.as_str(), LITERAL_PATH);
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::WorkspacePrimaryDirectoryAccepted {
+                revision: revision(8),
+                directory_id: orchbee_workbench_protocol::WorkbenchDirectoryId::parse(&id(0x50))
+                    .unwrap(),
+                worker_id: orchbee_workbench_protocol::WorkerId::parse(&id(0x51)).unwrap(),
+            },
+        );
+    });
+    let mut argv = accept_directory_args("dup");
+    argv.push("--format=json");
+    let output = run(&base, &argv);
+    assert_eq!(output.status.code(), Some(3));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "ambiguous");
+    assert_eq!(document["failure"]["details"]["resource"], "workspace");
+
+    let workspace_id = id(0x12);
+    let mut argv = accept_directory_args(&workspace_id);
+    argv.push("--format=json");
+    let output = run(&base, &argv);
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["result"]["projectId"], id(0x10));
+    assert_eq!(document["result"]["workspaceId"], id(0x12));
+    assert_eq!(document["result"]["directoryId"], id(0x50));
+    assert_eq!(document["result"]["workerId"], id(0x51));
+    assert_eq!(document["result"]["path"], LITERAL_PATH);
+    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+    Ok(())
+}
+
 // ---- failures that must precede any command --------------------------------
 
 #[test]
@@ -2301,6 +2731,25 @@ fn mutation_usage_failures_precede_runtime_access() -> TestResult {
             "18",
         ],
         &["workspace", "rename", "w", "--label", "x", "--confirm"],
+        &["workspace", "accept-directory", "w"],
+        &["workspace", "accept-directory", "w", "--path", "rel/dir"],
+        &["workspace", "accept-directory", "w", "--path=/a"],
+        &[
+            "workspace",
+            "accept-directory",
+            "w",
+            "--path",
+            "/a",
+            "--label",
+            "x",
+        ],
+        &[
+            "workspace",
+            "accept-directory",
+            "00000000000000000000000000000000",
+            "--path",
+            "/a",
+        ],
         &["status", "--label", "x"],
     ];
     for arguments in cases {

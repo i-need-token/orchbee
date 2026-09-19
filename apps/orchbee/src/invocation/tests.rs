@@ -1,8 +1,8 @@
 use std::ffi::OsString;
 
 use orchbee_workbench_protocol::{
-    WorkbenchLabel, WorkbenchPanelSplitDirection, WorkbenchTabMoveDirection,
-    WorkbenchTerminalGeometry,
+    WorkbenchDirectoryPath, WorkbenchLabel, WorkbenchPanelSplitDirection,
+    WorkbenchTabMoveDirection, WorkbenchTerminalGeometry,
 };
 
 use super::{
@@ -739,6 +739,10 @@ fn label(value: &str) -> WorkbenchLabel {
     WorkbenchLabel::parse(value).expect("test label is protocol-valid")
 }
 
+fn directory_path(value: &str) -> WorkbenchDirectoryPath {
+    WorkbenchDirectoryPath::parse(value).expect("test path is protocol-valid")
+}
+
 fn geometry() -> WorkbenchTerminalGeometry {
     WorkbenchTerminalGeometry::new(80, 24, 9, 18).expect("test geometry is protocol-valid")
 }
@@ -782,6 +786,26 @@ fn accepts_every_mutation_path() {
             MutationCommand::WorkspaceRename {
                 target: Target::Label("main".into()),
                 label: label("ops"),
+            },
+        ),
+        (
+            &[
+                "workspace",
+                "accept-directory",
+                "main",
+                "--path",
+                "/srv/repo",
+            ],
+            MutationCommand::WorkspaceAcceptDirectory {
+                target: Target::Label("main".into()),
+                path: directory_path("/srv/repo"),
+            },
+        ),
+        (
+            &["workspace", "accept-directory", ID, "--path", "/srv/repo"],
+            MutationCommand::WorkspaceAcceptDirectory {
+                target: Target::Id(ID.into()),
+                path: directory_path("/srv/repo"),
             },
         ),
         (
@@ -1036,6 +1060,7 @@ fn mutation_required_options_cannot_be_dropped() {
         &["workspace", "create", "--label", "x"],
         &["workspace", "create", "--project", "p"],
         &["workspace", "rename", "w"],
+        &["workspace", "accept-directory", "w"],
         &["tab", "rename", "t"],
         &["tab", "move", "t"],
         &["panel", "split", ID, "--label", "p"],
@@ -1092,6 +1117,49 @@ fn mutation_options_stay_inside_their_command_scope() {
             "t",
         ],
         &["workspace", "rename", "w", "--label", "x", "--project", "p"],
+        &[
+            "workspace",
+            "rename",
+            "w",
+            "--label",
+            "x",
+            "--path",
+            "/srv/repo",
+        ],
+        &[
+            "workspace",
+            "accept-directory",
+            "w",
+            "--path",
+            "/srv/repo",
+            "--label",
+            "x",
+        ],
+        &[
+            "workspace",
+            "accept-directory",
+            "w",
+            "--path",
+            "/srv/repo",
+            "--project",
+            "p",
+        ],
+        &[
+            "workspace",
+            "accept-directory",
+            "w",
+            "--path",
+            "/srv/repo",
+            "--confirm",
+        ],
+        &[
+            "workspace",
+            "accept-directory",
+            "w",
+            "--path",
+            "/srv/repo",
+            "--standalone",
+        ],
         &["tab", "rename", "t", "--label", "x", "--workspace", "w"],
         &["tab", "move", "t", "--direction", "next", "--label", "x"],
         &[
@@ -1157,6 +1225,9 @@ fn mutation_options_stay_inside_their_command_scope() {
             "18",
         ],
         &["--target-panel", ID],
+        &["--path", "/srv/repo"],
+        &["status", "--path", "/srv/repo"],
+        &["workspace", "list", "--path", "/srv/repo"],
     ];
     for arguments in cases {
         assert_eq!(
@@ -1320,6 +1391,120 @@ fn mutation_values_are_bounded() {
 }
 
 #[test]
+fn accept_directory_path_is_a_literal_protocol_value() {
+    // Relative, empty, NUL-bearing, and overlong values are usage failures
+    // at the CLI boundary; '~'/'$' lead no special expansion.
+    let overlong = format!("/{}", "x".repeat(4096));
+    for arguments in [
+        &["workspace", "accept-directory", "w", "--path", ""][..],
+        &["workspace", "accept-directory", "w", "--path", "srv/repo"][..],
+        &["workspace", "accept-directory", "w", "--path", "~/repo"][..],
+        &["workspace", "accept-directory", "w", "--path", "$HOME/repo"][..],
+        &["workspace", "accept-directory", "w", "--path", "/a\0b"][..],
+        &[
+            "workspace",
+            "accept-directory",
+            "w",
+            "--path",
+            overlong.as_str(),
+        ][..],
+    ] {
+        assert_eq!(
+            parse(arguments),
+            Err(usage(FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    }
+    // The protocol maximum (4,096 UTF-8 bytes including the leading slash)
+    // parses, and a repeated or equals-spelled flag is usage.
+    let maximum = format!("/{}", "x".repeat(4095));
+    assert_eq!(
+        parse(&[
+            "workspace",
+            "accept-directory",
+            "w",
+            "--path",
+            maximum.as_str()
+        ]),
+        Ok(mutation(
+            MutationCommand::WorkspaceAcceptDirectory {
+                target: Target::Label("w".into()),
+                path: directory_path(maximum.as_str()),
+            },
+            OutputFormat::Text
+        ))
+    );
+    // A literal path that merely contains '~' or '$' parses unchanged — the
+    // CLI never expands anything inside the value.
+    for literal in ["/~/repo", "/srv/$HOME/repo", "/srv/r$epo"] {
+        assert_eq!(
+            parse(&["workspace", "accept-directory", "w", "--path", literal]),
+            Ok(mutation(
+                MutationCommand::WorkspaceAcceptDirectory {
+                    target: Target::Label("w".into()),
+                    path: directory_path(literal),
+                },
+                OutputFormat::Text
+            )),
+            "{literal:?}"
+        );
+    }
+    for arguments in [
+        &[
+            "workspace",
+            "accept-directory",
+            "w",
+            "--path",
+            "/a",
+            "--path",
+            "/b",
+        ][..],
+        &["workspace", "accept-directory", "w", "--path=/srv/repo"][..],
+        &["workspace", "accept-directory", "w", "--path"][..],
+        &["workspace", "accept-directory", "w", "--path", "--"][..],
+        &["workspace", "accept-directory"][..],
+        &[
+            "workspace",
+            "accept-directory",
+            "w",
+            "extra",
+            "--path",
+            "/a",
+        ][..],
+    ] {
+        assert_eq!(
+            parse(arguments),
+            Err(usage(FailureEnvelope::Text)),
+            "{arguments:?}"
+        );
+    }
+    // The workspace target follows the ordinary rule: typed ID or exact
+    // label; a zero ID shape is an identifier failure, and a valid
+    // --format json selection parses.
+    assert_eq!(
+        parse(&["workspace", "accept-directory", ZERO, "--path", "/a"]),
+        Err(identifier(Resource::Workspace, ZERO, FailureEnvelope::Text))
+    );
+    assert_eq!(
+        parse(&[
+            "--format=json",
+            "workspace",
+            "accept-directory",
+            "w",
+            "--path",
+            "/a"
+        ]),
+        Ok(mutation(
+            MutationCommand::WorkspaceAcceptDirectory {
+                target: Target::Label("w".into()),
+                path: directory_path("/a"),
+            },
+            OutputFormat::Json
+        ))
+    );
+}
+
+#[test]
 fn mutation_targets_follow_each_resource_rule() {
     // Label-capable resources take ids or exact labels on their operand.
     assert_eq!(
@@ -1426,6 +1611,10 @@ fn mutation_help_paths_resolve_both_forms() {
             HelpTopic::Command(CommandPath::WorkspaceRename),
         ),
         (
+            &["workspace", "accept-directory", "--help"],
+            HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory),
+        ),
+        (
             &["tab", "create", "--help"],
             HelpTopic::Command(CommandPath::TabCreate),
         ),
@@ -1460,6 +1649,10 @@ fn mutation_help_paths_resolve_both_forms() {
         (
             &["help", "workspace", "rename"],
             HelpTopic::Command(CommandPath::WorkspaceRename),
+        ),
+        (
+            &["help", "workspace", "accept-directory"],
+            HelpTopic::Command(CommandPath::WorkspaceAcceptDirectory),
         ),
         (
             &["help", "tab", "create"],
@@ -1843,6 +2036,28 @@ fn usage_failures_carry_their_concrete_reason() {
                 option: "--label",
                 value: String::new(),
                 expected: ExpectedValue::Label,
+            },
+        ),
+        (
+            &["workspace", "accept-directory", ID],
+            UsageReason::MissingRequired {
+                context: path("workspace accept-directory"),
+                requirement: "'--path'",
+            },
+        ),
+        (
+            &[
+                "workspace",
+                "accept-directory",
+                ID,
+                "--path",
+                "relative/dir",
+            ],
+            UsageReason::InvalidValue {
+                context: path("workspace accept-directory"),
+                option: "--path",
+                value: "relative/dir".to_owned(),
+                expected: ExpectedValue::DirectoryPath,
             },
         ),
         (
