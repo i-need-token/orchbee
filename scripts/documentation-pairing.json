@@ -214,8 +214,8 @@
 			"zhCnSha256": "5ccca5175749f4737ab1b303e4ef6e97d7707463429d893db277ead2c6ea45ff"
 		},
 		"crates/client-server-protocol/README.md": {
-			"englishSha256": "e3cbc0a2fe60ac23a0b6a9a5082f4871db01a78ff7f51afec58e2b58a12f23a9",
-			"zhCnSha256": "ead71b5a23ba772f331503f3ee1aed0f7e685d7cb8239defa6b3ceaf3c4330d2"
+			"englishSha256": "7f7125f7ea35820e40a8df99b90bde9ab9c6b3a5aa99def6460991a448fba6e0",
+			"zhCnSha256": "006024f3f46137a6d04b1560d1b9fd1304533931b357d11b78b95ceb0a1e61b9"
 		},
 		"crates/local-client-protocol/README.md": {
 			"englishSha256": "e8fdba4dad981980e7723291584e93b2b951a0374c290078b28669d543548bd2",
