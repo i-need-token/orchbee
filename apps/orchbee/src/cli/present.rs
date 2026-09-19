@@ -245,6 +245,14 @@ pub(crate) fn render(
             }
             Ok(())
         }
+        // `terminal wait-output` prints the matching logical line's excerpt:
+        // the bounded slice that always contains the complete pattern,
+        // escaped like every other user-controlled value.
+        Projection::TerminalWaitOutput(doc) => {
+            out.push(&escape(&doc.matched.excerpt))?;
+            out.push("\n")?;
+            Ok(())
+        }
         Projection::TerminalGet(row) => {
             field(out, text.terminal, &row.terminal_id)?;
             field(out, text.worker, &row.worker_id)?;

@@ -49,6 +49,7 @@
 						"orchbee.terminal.history",
 						"orchbee.terminal.list",
 						"orchbee.terminal.read",
+						"orchbee.terminal.wait-output",
 						"orchbee.workspace.get",
 						"orchbee.workspace.list"
 					],
@@ -77,6 +78,7 @@
 				"orchbee.terminal.history",
 				"orchbee.terminal.list",
 				"orchbee.terminal.read",
+				"orchbee.terminal.wait-output",
 				"orchbee.workspace.get",
 				"orchbee.workspace.list"
 			]

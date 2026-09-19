@@ -65,6 +65,14 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
   均在任何运行时访问之前报 `invalid-usage`。
 - `--confirm`：无值布尔 flag，`tab close` 与 `panel close` 上必填；该处缺失或出现在任何
   其他命令上均为 `invalid-usage`。
+- `--match <text>`：带值 flag，单次使用，`terminal wait-output` 上必填；非空 UTF-8
+  字面量，最长 4096 字节，匹配时区分大小写。缺失、空、非 UTF-8 或超长值均为
+  `invalid-usage`。
+- `--timeout <ms>`：带值 flag，单次使用，`terminal wait-output` 上可选（默认
+  `30000`）；取一个 `1..=3600000` 的十进制 `u32`。重复、非数值或越界值均为
+  `invalid-usage`。
+- `terminal wait-output` 上的 `--rows <n>` 是被搜索的保留行窗口 `1..=1000`（默认
+  `1000`），把最近的可见行与历史行作为同一范围覆盖——与同名的几何 flag 无关。
 - `--target-panel <target>`：带值 flag，单次使用，`panel move` 上必填；按 `panel` 的
   target 规则解析（仅完整 typed ID），并在被移动 panel 自身所在 tab 内解析。
 - `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
@@ -96,6 +104,7 @@ orchbee panel split <target> --direction above|below|left|right --label <label> 
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
+orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee config check
@@ -208,6 +217,45 @@ checked 5 秒预算。非 Linux 平台对网络查询与 mutation 产出 `servic
   `resource-exhausted`、`invalid-phase`）为 `service-unavailable`（4），details 为
   `{stage:"viewer",operation:"read-history",reason}`；固定请求形状不可能产生的 reason 为
   `protocol-invalid`。不重试，也绝不为此读取发送 `RowsApplied`/feedback 锚点。
+
+`terminal wait-output` 沿用同一快照准入与 attach 前导，但只读 viewer 在单次帧之后继续
+保持存活，进入有界观察循环：
+
+- **期限**——在命令开始时取一个绝对 deadline `T0 + --timeout`（默认 30000ms，准入范围
+  `1..=3600000`）。cohort、discovery、connect、snapshot 以及每次 `terminal.viewer` 请求
+  都在 `min(5 秒本地预算, 剩余 deadline)` 内运行；每个等待步骤返回后都复查 deadline，
+  因此迟到完成仍算 `timeout`（退出 7）。该 deadline 是协作式的：同步文件系统调用无法
+  在系统调用中途打断，最坏超出量是一次已开始的本地操作。
+- **观察**——`Poll` 在 deadline 内重复：`Empty` 先睡 10ms，连续空回退到 100ms，收到
+  record 即复位（每次睡眠以剩余 deadline 为上限——安静等待绝不忙等）；`record` 喂给
+  projection，对**每个**已应用帧发送真实 `FrameApplied` feedback，并在下次 poll 前确认
+  `FeedbackAccepted`；`NeedSnapshot` 按原 feedback 规则；`ProjectionBlocked` 被消费并忽略。
+- **检查**——每个已应用帧钉住一次 `ReadRows`，覆盖统一缓冲窗口
+  `startRow = max(0, totalRows − K)`、`rowCount = K`，其中
+  `K = min(--rows, totalRows, 262144/columns)`、`totalRows = scrollback + screenRows`，
+  revision 与 generation 为该帧的 `.exact` 值，`maximumBytes` 为 8 MiB。
+  `requestSequence` 每附件严格递增、从 1 开始（`checked_add`；重试也取新值，且绝不与
+  transport requestId、frame sequence、history-event sequence 混用）；解码窗口必须回显
+  所发 sequence 及全部钉住字段，否则为 `protocol-invalid`。
+  `stale-revision`/`stale-generation`/`history-evicted` 舍弃本次观察并在同一 deadline 内
+  继续轮询——绝不匹配半窗口；其余 `rows-rejected` reason 按与 `read-history` 相同的
+  typed 词汇映射（operation `"wait-output"`）。行编码器无法编码的载荷以 typed
+  `rows-rejected` 失败——绝不静默截断。
+- **匹配**——仅当 `wrap` 与 `wrap_continuation` 两两一致时窗口行才拼成逻辑行；不一致即
+  硬边界，窗口边缘的残缺行保持诚实的部分行（绝不拿窗口外文本补齐）。首个包含 `--match`
+  字面量（区分大小写）的逻辑行胜出；返回的 `excerpt` 是该行内始终包含完整 pattern 的
+  ≤4096 字节片段，附 `excerptTruncated` 及其在逻辑行内的字节偏移。命中后命令返回物理
+  `rowStart`/`rowEnd`（仅观察期有效，不是游标）、帧 `revision`/`generation`、已解析的
+  terminal/worker/site 身份，以及观察到的 `hostEpoch`/`attachmentId`；
+  `observed.completedObservations` 只计一致的窗口+匹配通过次数，
+  `observed.windowTruncated` 记录被容量钳制的 `K`。
+- **取消**——等待期间的 HUP/INT/QUIT/TERM 是本地 `cancelled` 失败（退出 130）：不伪造
+  match，也不向终端发送输入、语义取消或 kill。检查点在网络步骤之间与每次 poll 睡眠
+  前后，延迟以一次已开始的本地请求为界。
+- **释放**——成功时在产出文档前确认 `Detach` 结果；清理未确认则保留真实失败类别并上报
+  `{matchObserved:true,cleanup:"unconfirmed"}`，绝不转换。timeout、载具失败与取消保留其
+  主失败及清理状态；session drop 总会执行，当没有剩余 Detach 预算时上报为
+  `cleanup:"requested"`——绝不谎称已释放。
 
 ## Canonical 数据与结果
 
@@ -380,8 +428,9 @@ Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:1`，
 
 退出码：0 成功（含空表）；1 本地配置/输出/内部确定失败；2 usage/非法 target；3
 not-found/ambiguous/denied/rejected；4 service-unavailable（含 `session-capacity`）；5
-transport-loss/protocol-invalid；6 incompatible；8 outcome-unknown；130 默认 SIGINT 语义。
-7 保留且在本切片内不可达。
+transport-loss/protocol-invalid；6 incompatible；7 `timeout`（`terminal wait-output`
+期限耗尽未命中）；8 outcome-unknown；130 `cancelled`（`terminal wait-output` 期间收到
+HUP/INT/QUIT/TERM）。
 
 | 来源                                                                                                                         | `failure.kind`                       | 退出 | `details`                                                                                 |
 | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ---- | ----------------------------------------------------------------------------------------- |
@@ -423,13 +472,18 @@ transport-loss/protocol-invalid；6 incompatible；8 outcome-unknown；130 默�
 | stdout 写/flush 失败                                                                                                         | `output-failed`                      | 1    | 不追加第二份 stdout 文档                                                                  |
 | `config check` 完成但存在失败项                                                                                              | 成功 schema `ok:false`               | 1    | 五项全部保留                                                                              |
 | 非 Linux 网络查询、mutation 或 `config check`                                                                                | `service-unavailable`/`check-failed` | 4/1  | `{stage:"platform",reason:"unsupported-platform"}`                                        |
+| `terminal wait-output` 期限耗尽未命中                                                                                          | `timeout`                            | 7    | `{stage:"wait",timeoutMs,observed}`                                                        |
+| `terminal wait-output` 期间收到 HUP/INT/QUIT/TERM                                                                                | `cancelled`                          | 130  | `{stage:"wait",cleanup}`                                                                   |
+| `terminal wait-output` 命中但 `Detach` 未确认                                                                                  | 类型化 viewer-stage 失败             | *    | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                                |
 
 `resource` ∈ `project|workspace|tab|panel|terminal|schema`；`stage` ∈
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|platform`。
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|platform|wait`。
 stage 与 reason 是有限 schema 值；任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
 `{resource,target,candidates≤8,totalCount}`、`{stage[,reason]}`、
 `{stage:"command",reason,revision}`、`{stage:"command",requestId,reason}`、
-`{stage:"viewer",operation:"read-history",reason}` 或
+`{stage:"viewer",operation:"read-history"|"wait-output",reason}`、
+`{stage:"wait",timeoutMs,observed}`、`{stage:"wait",cleanup}`、
+`{stage:"viewer",matchObserved,cleanup}` 或
 `{limitBytes}`——内嵌 schema 拒绝超出这些形状的文档。读路径错误永不归类为
 outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效果；
 `rejected`/`denied`/`unavailable` precommit 答案都是确定的——Server 未应用任何效果。
@@ -463,12 +517,17 @@ outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效
 - 离线命令（`help`、`--version`、`completion`、`api schema`）绝不执行平台、运行、cohort 或
   Site 发现。
 - 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求——唯一
-  例外是 `terminal read`，其只读能力 viewer attachment 是唯一被认可的读路径副作用，最小化
-  持有并在输出前释放。至多持有一个短暂 Client Session，且绝不带入输出阶段。
+  例外是 `terminal read`/`terminal wait-output`，其只读能力 viewer attachment 是唯一被
+  认可的读路径副作用，最小化持有并在输出前释放。至多持有一个短暂 Client Session，且绝不
+  带入输出阶段。
 - Mutation 每次调用在全新 `WorkbenchRequestId` 下至多提交一次 `workbench.command`；绝不
   重试或重放，结果不可判定时报告 `outcome-unknown` 而非猜测。
 - 每次调用至多一次快照读取、一次准入，且读取与命令共用一个网络 deadline；`terminal read`
   的 viewer 交换复用同一 session 与同一 deadline——绝无第二次准入或续期预算。
+  `terminal wait-output` 保持同一次准入，并把固定 5 秒预算替换为命令开始时取的用户
+  `--timeout` deadline；其每附件 `requestSequence` 在全部 `read-rows` 中从 1 严格递增。
+- match 只证明该文本在本次观察的搜索窗口内被找到——绝不证明命令完成、新 turn 或没有
+  其他输出；轮询间隙滚过 Host 保留区的输出对任何消费者都不可见。
 - 没有可信来源的字段不存在；`null` 表示来源确定地表达"无"，`"unknown"` 表示来源无法回答——
   两者绝不混用。
 - 失败 envelope 绝不虚构 `source`：siteId/revision 只来自已验证快照。
@@ -493,6 +552,9 @@ outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效
 | 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                             | 按矩阵 typed kind；绝不冒称真实 Server 证据       | `tests/cli_query.rs`                                      |
 | 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连 | `terminal read` 成功 + typed viewer-stage 失败    | `tests/cli_query.rs`                                      |
 | 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试  | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试   | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS viewer peer + 手工 OBTF/OBRW record：递增 `requestSequence`、可见/历史边界窗口、每帧真实 `FrameApplied`、stale 重钉、行尾 excerpt 命中、含 preamble 的总期限 | `terminal wait-output` 成功 + typed 失败          | `tests/cli_query.rs`                                      |
+| 真实 staged-cohort Server + 活跃 TUI 终端：`wait-output` 命中已有/后到/滚出屏/UTF-8 输出，短期限退出 7，取消后槽位可复用       | 公共等待观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                    | 真实只读观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
 | Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                     | 运行时访问前的精确 parse/失败类别                 | `src/invocation` 测试                                     |
 | Mutation 脚本化 peer：全部十条命令、precommit 判定、不可判定与未提交结果                                                   | 每次调用一条命令；`outcome-unknown` 绝不重放      | `tests/cli_mutation.rs`                                   |
@@ -503,5 +565,7 @@ outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效
 
 模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/OBCS/Client
 模型——`terminal read` 复用既有 `terminal.viewer` attach/poll/detach 生命周期，`--history`
-在其内新增一次有界 `read-rows`/`rows-rejected` 交换——故不需要新的 TLA+ 模型。触发范围覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试路径的
-已注册模型仍须真实运行；inventory 输出不替代执行。
+在其中加一次有界 `read-rows`/`rows-rejected` 交换，`terminal wait-output` 则循环同一
+poll 并对每个已应用帧加一次有界 `read-rows`——因此无需新 TLA+ 模型。已注册模型中触发器
+覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试路径者仍须实际运行；
+清单输出不能替代执行。

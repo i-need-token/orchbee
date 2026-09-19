@@ -2438,3 +2438,236 @@ fn terminal_read_history_grammar() {
         assert_eq!(failure.usage.as_ref(), Some(&expected), "{arguments:?}");
     }
 }
+
+/// `terminal wait-output --match <t> [--rows <n>] [--timeout <ms>]`: `--match`
+/// is required literal text (1..=4096 bytes), `--rows` is the searched
+/// retained-row window 1..=1000 (default 1000), and `--timeout` the total
+/// millisecond budget 1..=3600000 (default 30000). All three flags stay
+/// illegal on every other command, including `terminal read`.
+#[test]
+fn terminal_wait_output_grammar() {
+    let wait = |match_text: &str, rows: u16, timeout_ms: u32| {
+        query(
+            QueryCommand::TerminalWaitOutput {
+                target: Target::Id(ID.into()),
+                match_text: match_text.to_owned(),
+                rows,
+                timeout_ms,
+            },
+            OutputFormat::Text,
+        )
+    };
+    // Required flag plus the two defaults; option order is free.
+    for (arguments, expected) in [
+        (
+            &["terminal", "wait-output", ID, "--match", "ready"][..],
+            wait("ready", 1000, 30_000),
+        ),
+        (
+            &[
+                "terminal",
+                "wait-output",
+                ID,
+                "--match",
+                "ready",
+                "--rows",
+                "1",
+            ][..],
+            wait("ready", 1, 30_000),
+        ),
+        (
+            &[
+                "terminal",
+                "wait-output",
+                ID,
+                "--timeout",
+                "3600000",
+                "--rows",
+                "1000",
+                "--match",
+                "ready",
+            ][..],
+            wait("ready", 1000, 3_600_000),
+        ),
+        // `--match` owns its next word whole — flag-looking text is a value.
+        (
+            &["terminal", "wait-output", ID, "--match", "--rows"][..],
+            wait("--rows", 1000, 30_000),
+        ),
+    ] {
+        assert_eq!(parse(arguments), Ok(expected), "{arguments:?}");
+    }
+    // Format selection composes.
+    assert_eq!(
+        parse(&[
+            "terminal",
+            "wait-output",
+            ID,
+            "--match",
+            "ready",
+            "--format",
+            "json"
+        ]),
+        Ok(Request::Query {
+            command: QueryCommand::TerminalWaitOutput {
+                target: Target::Id(ID.into()),
+                match_text: "ready".into(),
+                rows: 1000,
+                timeout_ms: 30_000,
+            },
+            format: OutputFormat::Json,
+        })
+    );
+    // `--match` is required — never a default.
+    for arguments in [
+        &["terminal", "wait-output", ID][..],
+        &["terminal", "wait-output", ID, "--rows", "5"][..],
+        &["terminal", "wait-output", ID, "--format", "json"][..],
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::MissingRequired {
+                context: UsageContext::Path("terminal wait-output"),
+                requirement: "'--match'",
+            }),
+            "{arguments:?}"
+        );
+    }
+    // `--match` value shape: non-empty, ≤4096 bytes (a 4097-byte value fails).
+    let over = "x".repeat(4097);
+    for value in ["", over.as_str()] {
+        let arguments = ["terminal", "wait-output", ID, "--match", value];
+        let Err(failure) = parse(&arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::InvalidValue {
+                context: UsageContext::Path("terminal wait-output"),
+                option: "--match",
+                value: value.to_owned(),
+                expected: ExpectedValue::MatchText,
+            }),
+            "{arguments:?}"
+        );
+    }
+    // `--rows` under wait-output shares the 1..=1000 retained-row shape.
+    for value in ["0", "1001", "abc", "-1", "5.0"] {
+        let arguments = [
+            "terminal",
+            "wait-output",
+            ID,
+            "--match",
+            "m",
+            "--rows",
+            value,
+        ];
+        let Err(failure) = parse(&arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::InvalidValue {
+                context: UsageContext::Path("terminal wait-output"),
+                option: "--rows",
+                value: value.to_owned(),
+                expected: ExpectedValue::HistoryRows,
+            }),
+            "{arguments:?}"
+        );
+    }
+    // `--timeout` value shape: 1..=3600000 milliseconds.
+    for value in ["0", "3600001", "abc", "-1", "1.5", ""] {
+        let arguments = [
+            "terminal",
+            "wait-output",
+            ID,
+            "--match",
+            "m",
+            "--timeout",
+            value,
+        ];
+        let Err(failure) = parse(&arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::InvalidValue {
+                context: UsageContext::Path("terminal wait-output"),
+                option: "--timeout",
+                value: value.to_owned(),
+                expected: ExpectedValue::WaitTimeout,
+            }),
+            "{arguments:?}"
+        );
+    }
+    // All three flags are out of scope elsewhere, named in declaration order.
+    for (arguments, context) in [
+        (
+            &["terminal", "read", ID, "--match", "m"][..],
+            "terminal read",
+        ),
+        (
+            &["terminal", "get", ID, "--timeout", "5"][..],
+            "terminal get",
+        ),
+        (&["status", "--match", "m"][..], "status"),
+        (&["panel", "list", "--timeout", "5"][..], "panel list"),
+    ] {
+        let option = if arguments.contains(&"--match") {
+            "--match"
+        } else {
+            "--timeout"
+        };
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::UnexpectedOption {
+                context: UsageContext::Path(context),
+                option,
+            }),
+            "{arguments:?}"
+        );
+    }
+    // Repeated flags stay duplicates before resolution.
+    for (arguments, expected) in [
+        (
+            &[
+                "terminal",
+                "wait-output",
+                ID,
+                "--match",
+                "a",
+                "--match",
+                "b",
+            ][..],
+            UsageReason::DuplicateOption { option: "--match" },
+        ),
+        (
+            &[
+                "terminal",
+                "wait-output",
+                ID,
+                "--match",
+                "a",
+                "--timeout",
+                "5",
+                "--timeout",
+                "6",
+            ][..],
+            UsageReason::DuplicateOption {
+                option: "--timeout",
+            },
+        ),
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(failure.usage.as_ref(), Some(&expected), "{arguments:?}");
+    }
+}

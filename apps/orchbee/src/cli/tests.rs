@@ -247,6 +247,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::TerminalGet,
         CommandPath::TerminalList,
         CommandPath::TerminalRead,
+        CommandPath::TerminalWaitOutput,
         CommandPath::Tui,
         CommandPath::WorkspaceAcceptDirectory,
         CommandPath::WorkspaceCreate,
@@ -294,6 +295,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         "schema",
         "snapshot",
         "split",
+        "wait-output",
     ];
     let mut topics: Vec<CommandPath> = Vec::new();
     let mut collect = |arguments: &[&str]| {
@@ -385,4 +387,64 @@ fn usage_reason_never_reaches_the_machine_envelope() {
         "Unknown option \"--bogus\". Run 'orchbee --help'.\n"
     );
     assert_ne!(with_reason.stderr, without.stderr);
+}
+
+/// `terminal wait-output` reserves two failure kinds: timeout exits 7 and a
+/// signal-cancelled wait exits 130, each serializing its own `kind` string.
+/// The whole matrix stays pinned so no existing kind can drift.
+#[test]
+fn wait_failure_kinds_map_to_their_exit_codes() {
+    use super::FailureKind;
+    let cases: &[(FailureKind, &str, u8)] = &[
+        (FailureKind::Ambiguous, "ambiguous", 3),
+        (FailureKind::Cancelled, "cancelled", 130),
+        (FailureKind::CheckFailed, "check-failed", 1),
+        (FailureKind::Denied, "denied", 3),
+        (FailureKind::Incompatible, "incompatible", 6),
+        (FailureKind::InternalFailure, "internal-failure", 1),
+        (FailureKind::InvalidIdentifier, "invalid-identifier", 2),
+        (FailureKind::InvalidUsage, "invalid-usage", 2),
+        (FailureKind::NotFound, "not-found", 3),
+        (FailureKind::OutcomeUnknown, "outcome-unknown", 8),
+        (FailureKind::OutputTooLarge, "output-too-large", 1),
+        (FailureKind::ProtocolInvalid, "protocol-invalid", 5),
+        (FailureKind::Rejected, "rejected", 3),
+        (FailureKind::ServiceUnavailable, "service-unavailable", 4),
+        (FailureKind::SessionCapacity, "session-capacity", 4),
+        (FailureKind::Timeout, "timeout", 7),
+        (FailureKind::TransportLoss, "transport-loss", 5),
+    ];
+    for (kind, name, code) in cases {
+        assert_eq!(kind.as_str(), *name, "{kind:?}");
+        assert_eq!(kind.exit_code(), *code, "{kind:?}");
+    }
+    // Both new kinds emit their typed JSON envelope and localized stderr.
+    for (kind, name, code) in [
+        (FailureKind::Timeout, "timeout", 7_u8),
+        (FailureKind::Cancelled, "cancelled", 130_u8),
+    ] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let output =
+                super::failure_output(super::Failure::new(kind), Some(OutputFormat::Json), locale);
+            assert_eq!(output.status, code, "{kind:?} {locale:?}");
+            assert_eq!(envelope(&output.stdout)["failure"]["kind"], name);
+            assert!(!output.stderr.is_empty(), "localized diagnostic");
+        }
+    }
+    // The wait result schema is registered under its published id.
+    let document = super::schema::answer(
+        Some("orchbee.terminal.wait-output"),
+        OutputFormat::Json,
+        Locale::EnUs,
+    );
+    assert_eq!(document.status, 0);
+    let body = envelope(&document.stdout);
+    assert_eq!(
+        body["result"]["schema"]["schemaId"],
+        "orchbee.terminal.wait-output"
+    );
+    assert_eq!(
+        body["result"]["schema"]["document"]["$id"],
+        "orchbee.terminal.wait-output"
+    );
 }

@@ -53,6 +53,7 @@ pub(crate) fn process_result(result: ProcessResult, locale: Locale) -> Output {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum FailureKind {
     Ambiguous,
+    Cancelled,
     CheckFailed,
     Denied,
     Incompatible,
@@ -66,6 +67,7 @@ pub(crate) enum FailureKind {
     Rejected,
     ServiceUnavailable,
     SessionCapacity,
+    Timeout,
     TransportLoss,
 }
 
@@ -73,6 +75,7 @@ impl FailureKind {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Ambiguous => "ambiguous",
+            Self::Cancelled => "cancelled",
             Self::CheckFailed => "check-failed",
             Self::Denied => "denied",
             Self::Incompatible => "incompatible",
@@ -86,6 +89,7 @@ impl FailureKind {
             Self::Rejected => "rejected",
             Self::ServiceUnavailable => "service-unavailable",
             Self::SessionCapacity => "session-capacity",
+            Self::Timeout => "timeout",
             Self::TransportLoss => "transport-loss",
         }
     }
@@ -97,7 +101,9 @@ impl FailureKind {
             Self::ServiceUnavailable | Self::SessionCapacity => 4,
             Self::TransportLoss | Self::ProtocolInvalid => 5,
             Self::Incompatible => 6,
+            Self::Timeout => 7,
             Self::OutcomeUnknown => 8,
+            Self::Cancelled => 130,
             Self::CheckFailed | Self::InternalFailure | Self::OutputTooLarge => 1,
         }
     }
@@ -268,6 +274,20 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 }
             }
         }
+        // `terminal wait-output` couples the snapshot to one bounded
+        // read-only observation on the same session; its answer arrives
+        // already projected, like `terminal read`.
+        QueryCommand::TerminalWaitOutput {
+            target,
+            match_text,
+            rows,
+            timeout_ms,
+        } => match query::wait_output(target, match_text, *rows, *timeout_ms) {
+            Err(failure) => failure_output(failure, Some(format), locale),
+            Ok((source, projection)) => {
+                success_output(projection, source, &command, format, locale)
+            }
+        },
         _ => network_query(&command, format, locale),
     }
 }

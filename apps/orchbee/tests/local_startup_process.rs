@@ -20,6 +20,8 @@ mod native_project_create;
 mod native_send;
 #[path = "local_startup_process/native_workspace_accept_directory.rs"]
 mod native_workspace_accept_directory;
+#[path = "local_startup_process/native_wait.rs"]
+mod native_wait;
 #[path = "local_startup_process/native_workspace_fixture.rs"]
 mod native_workspace_fixture;
 #[path = "local_startup_process/native_workspace_setup.rs"]

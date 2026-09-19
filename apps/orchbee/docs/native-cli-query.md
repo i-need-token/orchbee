@@ -80,6 +80,15 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   out-of-range set is `invalid-usage` before any runtime access.
 - `--confirm`: valueless boolean, required on `tab close` and `panel close`; absent there or
   present on any other command is `invalid-usage`.
+- `--match <text>`: single-use value flag, required on `terminal wait-output`; a nonempty
+  UTF-8 literal up to 4096 bytes, matched case-sensitively. A missing, empty, non-UTF-8, or
+  oversized value is `invalid-usage`.
+- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (default
+  `30000`); one decimal `u32` in `1..=3600000`. A repeated, non-numeric, or out-of-range
+  value is `invalid-usage`.
+- `--rows <n>` on `terminal wait-output` is the searched retained-row window `1..=1000`
+  (default `1000`) covering the most recent visible+history rows as one range — unrelated
+  to the geometry flag of the same name.
 - `--target-panel <target>`: single-use value flag, required on `panel move`; parsed with
   the `panel` target rule (a complete typed ID only) and resolved inside the moved panel's
   own tab.
@@ -113,6 +122,7 @@ orchbee panel split <target> --direction above|below|left|right --label <label> 
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
+orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee config check
@@ -243,6 +253,54 @@ min(n, scrollback, 262144/columns)` and `startRow = scrollback - rowCount`, so t
   `{stage:"viewer",operation:"read-history",reason}`; reasons the fixed request shape cannot
   produce are `protocol-invalid`. There is no retry, and no `RowsApplied`/feedback anchor is
   ever sent for the read.
+
+`terminal wait-output` reuses the same snapshot admission and attach preamble, then keeps the
+read-only viewer alive for a bounded observation loop instead of a single frame:
+
+- **Deadline** — one absolute deadline `T0 + --timeout` is taken at command start
+  (default 30000 ms, admitted range `1..=3600000`). Cohort, discovery, connect, snapshot, and
+  every `terminal.viewer` request each run under `min(5 s local budget, remaining deadline)`;
+  the deadline is re-checked after every awaited step, so a late success is still `timeout`
+  (exit 7). The deadline is cooperative: synchronous filesystem calls cannot be interrupted
+  mid-syscall, so the worst-case overshoot is one in-flight local operation.
+- **Observe** — `Poll` repeats inside the deadline: `Empty` sleeps 10 ms, backing off to
+  100 ms on consecutive empties and resetting on any record (each sleep is capped by the
+  remaining deadline — a quiet wait never busy-loops); a `record` feeds the projection, whose
+  `FrameApplied` feedback is sent for **every** applied frame and confirmed with
+  `FeedbackAccepted` before the next poll; `NeedSnapshot` follows the original feedback rule;
+  `ProjectionBlocked` is consumed and ignored.
+- **Inspect** — each applied frame pins one `ReadRows` over the unified buffer window
+  `startRow = max(0, totalRows − K)`, `rowCount = K` where `K = min(--rows, totalRows,
+  262144/columns)` and `totalRows = scrollback + screenRows`, at `.exact` revision and
+  generation of that frame, `maximumBytes` 8 MiB. `requestSequence` is strictly increasing per
+  attachment starting at 1 (`checked_add`; a retry consumes a fresh value, and
+  `transport requestId`, frame sequence, and history-event sequence are never mixed in); the
+  decoded window must echo the issued sequence plus every pinned field, otherwise
+  `protocol-invalid`. `stale-revision`/`stale-generation`/`history-evicted` discard that
+  observation and resume polling inside the same deadline — no half-window is ever matched;
+  other `rows-rejected` reasons map through the same typed vocabulary as `read-history`
+  (operation `"wait-output"`). A payload the row codec cannot encode fails as a typed
+  `rows-rejected` — it is never silently truncated.
+- **Match** — window rows join into logical lines only when `wrap` and `wrap_continuation`
+  agree pairwise; disagreement is a hard boundary and window-edge fragments stay honest
+  partials (never padded from outside the window). The first logical line containing the
+  literal, case-sensitive `--match` text wins; the returned `excerpt` is a ≤4096-byte slice
+  of that line that always contains the complete pattern, with `excerptTruncated` and its
+  byte offset inside the logical line. A match ends the command with the physical
+  `rowStart`/`rowEnd` (observation-scoped, not a cursor), the frame `revision`/`generation`,
+  the resolved terminal/worker/site identity, and the observed `hostEpoch`/`attachmentId`;
+  `observed.completedObservations` counts only consistent window+match passes, and
+  `observed.windowTruncated` records a capacity-clamped `K`.
+- **Cancel** — HUP/INT/QUIT/TERM during the wait is a local `cancelled` failure (exit 130):
+  no match is fabricated and no input, semantic cancel, or kill is sent to the terminal.
+  Checks run between network steps and around each poll sleep, so latency is bounded by one
+  in-flight local request.
+- **Release** — on success the `Detach` outcome is confirmed before the document is emitted;
+  an unconfirmed cleanup keeps the real failure kind and reports
+  `{matchObserved:true,cleanup:"unconfirmed"}` instead of converting it. Timeout, carrier
+  failure, and cancel keep their primary failure plus the cleanup state; the session drop
+  always runs and is reported as `cleanup:"requested"` when no Detach budget remains —
+  never claimed as released.
 
 ## Canonical data and results
 
@@ -440,8 +498,9 @@ commands, and every remote operation.
 
 Exit codes: 0 success (empty lists included); 1 local config/output/internal determinate failure;
 2 usage/invalid target; 3 not-found/ambiguous/denied/rejected; 4 service-unavailable (including
-`session-capacity`); 5 transport-loss/protocol-invalid; 6 incompatible; 8 outcome-unknown; 130
-default SIGINT semantics. 7 stays reserved and unreachable in this slice.
+`session-capacity`); 5 transport-loss/protocol-invalid; 6 incompatible; 7 `timeout`
+(`terminal wait-output` deadline exhausted without a match); 8 outcome-unknown; 130
+`cancelled` (a HUP/INT/QUIT/TERM during `terminal wait-output`).
 
 | Source                                                                                                                                    | `failure.kind`                       | exit | `details`                                                                                 |
 | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ---- | ----------------------------------------------------------------------------------------- |
@@ -483,14 +542,19 @@ default SIGINT semantics. 7 stays reserved and unreachable in this slice.
 | stdout write/flush failure                                                                                                                | `output-failed`                      | 1    | no second stdout document                                                                 |
 | `config check` finishes with failures                                                                                                     | success schema `ok:false`            | 1    | all five checks preserved                                                                 |
 | non-Linux network query, mutation, or `config check`                                                                                      | `service-unavailable`/`check-failed` | 4/1  | `{stage:"platform",reason:"unsupported-platform"}`                                        |
+| `terminal wait-output` deadline exhausted without a match                                                                                  | `timeout`                            | 7    | `{stage:"wait",timeoutMs,observed}`                                                        |
+| HUP/INT/QUIT/TERM during `terminal wait-output`                                                                                            | `cancelled`                          | 130  | `{stage:"wait",cleanup}`                                                                   |
+| `terminal wait-output` match with unconfirmed `Detach`                                                                                     | typed viewer-stage failure           | *    | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                                |
 
 `resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|platform`.
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|platform|wait`.
 Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
 is a closed per-kind vocabulary — `{resource,target}`,
 `{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`,
 `{stage:"command",reason,revision}`, `{stage:"command",requestId,reason}`,
-`{stage:"viewer",operation:"read-history",reason}`, or `{limitBytes}` —
+`{stage:"viewer",operation:"read-history"|"wait-output",reason}`,
+`{stage:"wait",timeoutMs,observed}`, `{stage:"wait",cleanup}`,
+`{stage:"viewer",matchObserved,cleanup}`, or `{limitBytes}` —
 and the embedded schemas reject documents outside those shapes. Read-path errors never become
 outcome-unknown/failed-effect: only the command stage can produce an undetermined effect, and
 `rejected`/`denied`/`unavailable` precommit answers are definite — the Server applied nothing.
@@ -531,15 +595,22 @@ outcome-unknown/failed-effect: only the command stage can produce an undetermine
 - Offline commands (`help`, `--version`, `completion`, `api schema`) never perform platform,
   runtime, cohort, or Site discovery.
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
-  or second request — except `terminal read`, whose read-capability viewer attachment is the
-  single sanctioned read-path side effect, held minimally and released before output. At most
-  one short-lived Client Session is held, and none survives into output.
+  or second request — except `terminal read`/`terminal wait-output`, whose read-capability
+  viewer attachment is the single sanctioned read-path side effect, held minimally and
+  released before output. At most one short-lived Client Session is held, and none survives
+  into output.
 - A mutation submits at most one `workbench.command` per invocation under a fresh
   `WorkbenchRequestId`; it is never retried or replayed, and an ambiguous outcome is reported
   as `outcome-unknown`, not guessed.
 - There is at most one snapshot read per invocation, one admission per invocation, and one
   network deadline covering read and command; `terminal read`'s viewer exchanges ride on that
   same session and deadline — never a second admission or a renewed budget.
+  `terminal wait-output` keeps the same single admission and replaces the fixed 5-second
+  budget with the user `--timeout` deadline taken at command start; its per-attachment
+  `requestSequence` strictly increases from 1 across every `read-rows` it issues.
+- A match proves only that the text was found inside the searched window during the
+  observation — never command completion, a new turn, or the absence of other output; output
+  scrolled past Host retention between polls is unobservable to every consumer.
 - No result field exists without a trusted source; `null` means the source says "none" and
   `"unknown"` means the source cannot say — the two never mix.
 - Failure envelopes never invent `source`: siteId/revision appear only from a validated snapshot.
@@ -571,10 +642,20 @@ outcome-unknown/failed-effect: only the command stage can produce an undetermine
 | `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                                                                           | five typed checks always reported                               | `tests/cli_query.rs` + `src/cli/config` tests                      |
 | Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                                                      | positive and negative contexts; no runtime enumeration          | `tests/cli_query.rs`                                               |
 | Bilingual text/failure output                                                                                                                                           | exact en-US/zh-CN strings                                       | `tests/process.rs` + `tests/cli_query.rs`                          |
+| Scripted OBCS viewer peer + hand-built OBTF/OBRW records: increasing `requestSequence`, visible/history boundary window, real `FrameApplied` per frame, stale re-pin, excerpt tail match, deadline incl. preamble | `terminal wait-output` success + typed failures | `tests/cli_query.rs`                                        |
+| Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot | public wait observation coexisting with the TUI's own viewer | `tests/local_startup_process`                             |
+| Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                         | real read-only observation coexisting with the TUI's own viewer | `tests/local_startup_process`                                      |
+| Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                     | exact parse/failure kinds before runtime access                 | `src/invocation` tests                                             |
+| Mutation scripted peers: all nine commands, precommit verdicts, ambiguous and unapplied outcomes                                             | one command per call; `outcome-unknown` never replayed          | `tests/cli_mutation.rs`                                            |
+| Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure                                | documented exits; transport owners dropped before blocking      | `tests/local_startup_process` + emit unit tests                    |
+| `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                                                | five typed checks always reported                               | `tests/cli_query.rs` + `src/cli/config` tests                      |
+| Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                           | positive and negative contexts; no runtime enumeration          | `tests/cli_query.rs`                                               |
+| Bilingual text/failure output                                                                                                                | exact en-US/zh-CN strings                                       | `tests/process.rs` + `tests/cli_query.rs`                          |
 
 Model obligations: this slice adds no new Server state machine, persistence, or retry and reuses
 the registered OBLC/OBWP/OBCS/Client models — `terminal read` rides the existing
 `terminal.viewer` attach/poll/detach lifecycle, with `--history` adding one bounded
-`read-rows`/`rows-rejected` exchange inside it — so no new TLA+ model is required.
+`read-rows`/`rows-rejected` exchange inside it, and `terminal wait-output` looping that same
+poll plus one bounded `read-rows` per applied frame — so no new TLA+ model is required.
 Registered models whose triggers cover `apps/orchbee` source, manifest, project scope, README,
 and test paths must still actually run; the inventory output is not a substitute.

@@ -74,6 +74,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.terminal.read.json"),
     ),
     (
+        "orchbee.terminal.wait-output",
+        include_str!("schemas/orchbee.terminal.wait-output.json"),
+    ),
+    (
         "orchbee.workspace.get",
         include_str!("schemas/orchbee.workspace.get.json"),
     ),

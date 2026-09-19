@@ -38,6 +38,8 @@ use crate::local_client::workbench::{SnapshotReadError, SnapshotReadFailure};
 use crate::local_client::{LocalClient, OutcomeUnknownReason, SubmissionError};
 #[cfg(target_os = "linux")]
 use crate::terminal_projection::TerminalProjection;
+#[cfg(target_os = "linux")]
+use crate::termination_signal::{TerminationSignal, TerminationSource};
 
 #[cfg(target_os = "linux")]
 const COHORT_BUDGET: Duration = Duration::from_secs(5);
@@ -47,6 +49,10 @@ const NETWORK_BUDGET: Duration = Duration::from_secs(5);
 /// cadence stays coarse enough that a quiet host is never hammered.
 #[cfg(target_os = "linux")]
 const EMPTY_POLL_INTERVAL: Duration = Duration::from_millis(10);
+/// A quiet wait backs off on consecutive `Empty` answers up to this ceiling;
+/// any real frame record resets the cadence to `EMPTY_POLL_INTERVAL`.
+#[cfg(target_os = "linux")]
+const WAIT_POLL_BACKOFF: Duration = Duration::from_millis(100);
 
 /// One admitted Client Session plus the shared network deadline every
 /// request on it must finish before. The caller owns the session's drop.
@@ -111,13 +117,57 @@ pub(crate) fn read_terminal(
 /// the still admitted session; on any failure the session is already dropped.
 #[cfg(target_os = "linux")]
 pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Failure> {
-    let cohort_deadline = Instant::now()
-        .checked_add(COHORT_BUDGET)
-        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-    let cohort = NativeCohort::current(cohort_deadline)
+    snapshot_session_inner(None)
+}
+
+/// The same preamble gated by the wait command's clock/cancel control:
+/// every step gets the earlier of its own budget and the remaining total,
+/// and the gate settles after each step's return — success *and* failure —
+/// so a cohort, rendezvous, socket, connect, or snapshot step that
+/// outlasted the total reports timeout (or cancelled) rather than its own
+/// late classification. Filesystem steps stay cooperative: the gate checks
+/// between calls and cannot interrupt one. Expiry surfaces as bare
+/// `FailureKind::Timeout`/`Cancelled`; the caller maps it into its
+/// detailed report.
+#[cfg(target_os = "linux")]
+fn snapshot_session_before(
+    gate: &WaitGate<'_>,
+) -> Result<(LocalClient, Instant, Snapshot), Failure> {
+    snapshot_session_inner(Some(gate))
+}
+
+#[cfg(target_os = "linux")]
+fn snapshot_session_inner(
+    gate: Option<&WaitGate<'_>>,
+) -> Result<(LocalClient, Instant, Snapshot), Failure> {
+    // Without a gate the shared preamble keeps its fixed budgets and its
+    // original classifications; with one, every step is settled against the
+    // total deadline and the pending termination signal first.
+    let budget = |allowance: Duration| -> Result<Instant, Failure> {
+        match gate {
+            Some(gate) => gate.budget(allowance),
+            None => Instant::now()
+                .checked_add(allowance)
+                .ok_or_else(|| Failure::new(FailureKind::InternalFailure)),
+        }
+    };
+    let settle = || -> Result<(), Failure> {
+        match gate {
+            Some(gate) => gate.settle(),
+            None => Ok(()),
+        }
+    };
+    let cohort_deadline = budget(COHORT_BUDGET)?;
+    let cohort = NativeCohort::current(cohort_deadline);
+    settle()?;
+    let cohort = cohort
         .map_err(|_| Failure::new(FailureKind::CheckFailed).details(stage_details("cohort")))?;
-    let site = rendezvous()?;
-    match site.client_socket_exists() {
+    let site = rendezvous();
+    settle()?;
+    let site = site?;
+    let socket_exists = site.client_socket_exists();
+    settle()?;
+    match socket_exists {
         Ok(true) => {}
         Ok(false) => {
             return Err(
@@ -128,17 +178,32 @@ pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Fai
             return Err(Failure::new(FailureKind::CheckFailed).details(stage_details("socket")));
         }
     }
-    let deadline = Instant::now()
-        .checked_add(NETWORK_BUDGET)
-        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-    let mut client =
-        LocalClient::connect_before(site.client_socket_path(), cohort.identity(), deadline)
-            .map_err(classify_connect)?;
+    // A slow filesystem step may already have spent the whole wait budget;
+    // the network deadline is priced only from what remains.
+    let deadline = budget(NETWORK_BUDGET)?;
+    let connected =
+        LocalClient::connect_before(site.client_socket_path(), cohort.identity(), deadline);
+    if let Err(failure) = settle() {
+        drop(connected);
+        return Err(failure);
+    }
+    let mut client = match connected {
+        Ok(client) => client,
+        Err(error) => return Err(classify_connect(error)),
+    };
     let intent = SnapshotReadIntent {
         protocol_version: ProtocolVersion,
         request_id: request_id()?,
     };
-    let result = match client.submit_workbench_snapshot_read_before(intent, deadline) {
+    let result = client.submit_workbench_snapshot_read_before(intent, deadline);
+    // A snapshot answer that arrives past the total deadline — or under a
+    // pending cancel — is still settled as timeout/cancelled, never a late
+    // success.
+    if let Err(failure) = settle() {
+        drop(client);
+        return Err(failure);
+    }
+    let result = match result {
         Err(error) => {
             drop(client);
             return Err(classify_read(error));
@@ -346,11 +411,19 @@ fn read_history_window(
         .submit_terminal_viewer_before(request, deadline)
         .map_err(classify_viewer)?;
     match result.outcome() {
-        TerminalViewerOutcome::Record(record) => {
-            decode_history_window(record.clone(), attachment, epoch, frame, start_row, count)
-                .map(Some)
+        TerminalViewerOutcome::Record(record) => decode_history_window(
+            record.clone(),
+            attachment,
+            epoch,
+            frame,
+            start_row,
+            count,
+            std::num::NonZeroU64::MIN,
+        )
+        .map(Some),
+        TerminalViewerOutcome::RowsRejected { reason } => {
+            Err(classify_rows_rejected(*reason, "read-history"))
         }
-        TerminalViewerOutcome::RowsRejected { reason } => Err(classify_rows_rejected(*reason)),
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
         TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
         _ => Err(viewer_protocol_invalid()),
@@ -369,6 +442,7 @@ fn decode_history_window(
     frame: &TerminalTextFrame,
     start_row: u64,
     count: u64,
+    request_sequence: std::num::NonZeroU64,
 ) -> Result<orchbee_terminal_protocol::TerminalTextRowWindow, Failure> {
     let envelope = orchbee_terminal_protocol::decode_transport_envelope(&record)
         .map_err(|_| viewer_protocol_invalid())?;
@@ -391,7 +465,7 @@ fn decode_history_window(
         .ok_or_else(viewer_protocol_invalid)?;
     if window.attachment_id != attachment
         || window.host_epoch != epoch
-        || window.sequence != std::num::NonZeroU64::MIN
+        || window.sequence != request_sequence
         || window.revision != frame.route.revision
         || window.generation != frame.route.generation
         || window.columns != frame.geometry.columns
@@ -411,6 +485,7 @@ fn decode_history_window(
 #[cfg(target_os = "linux")]
 fn classify_rows_rejected(
     reason: orchbee_client_server_protocol::ViewerRowsRejectedReason,
+    operation: &'static str,
 ) -> Failure {
     use orchbee_client_server_protocol::ViewerRowsRejectedReason as Reason;
     let (kind, detail) = match reason {
@@ -427,18 +502,18 @@ fn classify_rows_rejected(
     };
     let failure = Failure::new(kind);
     match detail {
-        Some(reason) => failure.details(history_details(reason)),
+        Some(reason) => failure.details(rows_details(operation, reason)),
         None => failure.details(stage_details("viewer")),
     }
 }
 
-/// `read-history` failure details: the typed reason the Host carried, under
-/// the viewer stage the read belongs to.
+/// Row-read failure details: the typed reason the Host carried, under the
+/// viewer stage and the operation the read belongs to.
 #[cfg(target_os = "linux")]
-fn history_details(reason: &str) -> serde_json::Map<String, serde_json::Value> {
+fn rows_details(operation: &str, reason: &str) -> serde_json::Map<String, serde_json::Value> {
     serde_json::Map::from_iter([
         ("stage".to_owned(), serde_json::json!("viewer")),
-        ("operation".to_owned(), serde_json::json!("read-history")),
+        ("operation".to_owned(), serde_json::json!(operation)),
         ("reason".to_owned(), serde_json::json!(reason)),
     ])
 }
@@ -504,6 +579,507 @@ fn poll_terminal_frame(
             _ => return Err(viewer_protocol_invalid()),
         }
     }
+}
+
+/// The clock `wait-output` consults for deadline evaluation and quiet-poll
+/// sleeping. The real command uses `SystemWaitClock`; tests inject fakes so
+/// deadline and backoff behavior is deterministic.
+#[cfg(target_os = "linux")]
+trait WaitClock {
+    fn now(&self) -> Instant;
+    fn sleep(&self, duration: Duration);
+}
+
+#[cfg(target_os = "linux")]
+struct SystemWaitClock;
+
+#[cfg(target_os = "linux")]
+impl WaitClock for SystemWaitClock {
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+    fn sleep(&self, duration: Duration) {
+        std::thread::sleep(duration);
+    }
+}
+
+/// The wait command's controlled clock/cancel gate, shared by the
+/// deadline-clamped preamble and the observation loop: a step that finishes
+/// after the total deadline — success or failure — settles as timeout, and
+/// a pending termination signal settles as cancelled.
+#[cfg(target_os = "linux")]
+struct WaitGate<'a> {
+    clock: &'a dyn WaitClock,
+    signal: &'a dyn TerminationSource,
+    deadline_total: Instant,
+}
+
+#[cfg(target_os = "linux")]
+impl WaitGate<'_> {
+    /// Cancellation wins over a same-instant expiry; both beat any step
+    /// classification that completed late.
+    fn settle(&self) -> Result<(), Failure> {
+        if self.signal.requested() {
+            return Err(Failure::new(FailureKind::Cancelled));
+        }
+        if self.clock.now() >= self.deadline_total {
+            return Err(Failure::new(FailureKind::Timeout));
+        }
+        Ok(())
+    }
+
+    /// The earlier of `allowance` and the remaining total, settled first.
+    fn budget(&self, allowance: Duration) -> Result<Instant, Failure> {
+        let now = self.clock.now();
+        now.checked_add(self.remaining()?.min(allowance))
+            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))
+    }
+
+    /// Remaining total time after settling; past the deadline there is none.
+    fn remaining(&self) -> Result<Duration, Failure> {
+        self.settle()?;
+        Ok(self
+            .deadline_total
+            .saturating_duration_since(self.clock.now()))
+    }
+}
+
+/// One `wait-output` run: the shared gate, the completed-observation count
+/// the timeout report carries, the quiet-poll backoff, and the
+/// per-attachment `request_sequence` the Host requires to be strictly
+/// increasing.
+#[cfg(target_os = "linux")]
+struct WaitRun<'a> {
+    gate: WaitGate<'a>,
+    timeout_ms: u32,
+    observations: u64,
+    next_row_sequence: u64,
+    poll_interval: Duration,
+}
+
+#[cfg(target_os = "linux")]
+impl WaitRun<'_> {
+    /// A gate failure becomes the detailed wait failure with the current
+    /// observation count; any other kind passes through.
+    fn map_clock_failure(&self, failure: Failure) -> Failure {
+        match failure.kind {
+            FailureKind::Timeout => self.timeout(),
+            FailureKind::Cancelled => self.cancelled(),
+            _ => failure,
+        }
+    }
+
+    /// The earlier of the shared network budget and the absolute wait
+    /// deadline; past the deadline there is no further budget.
+    fn step_deadline(&self) -> Result<Instant, Failure> {
+        self.gate
+            .budget(NETWORK_BUDGET)
+            .map_err(|failure| self.map_clock_failure(failure))
+    }
+
+    /// Settle cancellation and expiry against the wait's own detailed kinds.
+    fn check(&self) -> Result<(), Failure> {
+        self.gate
+            .settle()
+            .map_err(|failure| self.map_clock_failure(failure))
+    }
+
+    fn timeout(&self) -> Failure {
+        wait_timeout_failure(self.timeout_ms, self.observations)
+    }
+
+    fn cancelled(&self) -> Failure {
+        wait_cancelled_failure()
+    }
+
+    /// `ReadRows.request_sequence`: per attachment, from 1, strictly
+    /// increasing on every attempt — including the retries a stale answer
+    /// forced — and never related to transport request IDs or frame
+    /// sequences. Overflow is a real failure, never a reset.
+    fn next_sequence(&mut self) -> Result<std::num::NonZeroU64, Failure> {
+        let sequence = self.next_row_sequence;
+        self.next_row_sequence = sequence
+            .checked_add(1)
+            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+        std::num::NonZeroU64::new(sequence)
+            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))
+    }
+
+    /// A quiet poll sleeps one clamped interval: never past the deadline,
+    /// never a busy loop. Cancellation and expiry are re-checked first.
+    fn sleep(&mut self) -> Result<(), Failure> {
+        self.check()?;
+        let remaining = self
+            .gate
+            .remaining()
+            .map_err(|failure| self.map_clock_failure(failure))?;
+        self.gate.clock.sleep(self.poll_interval.min(remaining));
+        self.poll_interval = (self.poll_interval * 2).min(WAIT_POLL_BACKOFF);
+        Ok(())
+    }
+
+    /// Any real frame record resets the backoff.
+    fn note_record(&mut self) {
+        self.poll_interval = EMPTY_POLL_INTERVAL;
+    }
+}
+
+/// `terminal wait-output`: resolve the binding, attach one read-only viewer
+/// on the admitted session, then observe — poll → project → `FrameApplied`
+/// for every applied frame → one absolute `ReadRows` over the most recent
+/// `--rows` retained window → literal match — until the text appears, the
+/// total deadline expires, or a termination signal cancels the wait. The
+/// deadline starts at command start and is re-checked after every awaited
+/// step; cleanup is an explicit `Detach` inside the remaining budget plus
+/// the session drop, never a new budget.
+#[cfg(target_os = "linux")]
+pub(crate) fn wait_output(
+    target: &Target,
+    match_text: &str,
+    rows: u16,
+    timeout_ms: u32,
+) -> Result<(serde_json::Value, Projection), Failure> {
+    let started = Instant::now();
+    let deadline_total = started
+        .checked_add(Duration::from_millis(u64::from(timeout_ms)))
+        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+    let clock = SystemWaitClock;
+    let signal =
+        TerminationSignal::install().map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let gate = WaitGate {
+        clock: &clock,
+        signal: &signal,
+        deadline_total,
+    };
+    let (mut client, _deadline, snapshot) = match snapshot_session_before(&gate) {
+        Ok(session) => session,
+        Err(failure) => {
+            return Err(match failure.kind {
+                // The preamble expired or was cancelled before any
+                // observation could run.
+                FailureKind::Timeout => wait_timeout_failure(timeout_ms, 0),
+                FailureKind::Cancelled => wait_cancelled_failure(),
+                _ => failure,
+            });
+        }
+    };
+    let source = super::results::snapshot_source(&snapshot);
+    let mut run = WaitRun {
+        gate,
+        timeout_ms,
+        observations: 0,
+        next_row_sequence: 1,
+        poll_interval: EMPTY_POLL_INTERVAL,
+    };
+    let attached = run.check().and_then(|()| {
+        let deadline = run.step_deadline()?;
+        attach_viewer(&mut client, deadline, &snapshot, target)
+    });
+    let (row, viewer_id, attachment, epoch, projection) = match attached {
+        Ok(attached) => attached,
+        // The attach exchange failed — possibly after the total deadline or
+        // a pending cancel landed during it. Settle the gate before the
+        // step's own classification: a late timeout/cancel outranks it. The
+        // session drop is still the whole cleanup — a lost exchange may
+        // have attached — so no cleanup field is claimed either way.
+        Err(failure) => {
+            drop(client);
+            return Err(run.check().err().unwrap_or(failure).source(source));
+        }
+    };
+    // From here a real viewer attachment exists: every exit — including a
+    // deadline or cancel that lands before the first poll — releases it
+    // through the same confirmed-detach discipline, so the cleanup fact is
+    // always honest.
+    let outcome = run.check().and_then(|()| {
+        wait_observe(
+            &mut client,
+            &mut run,
+            &viewer_id,
+            projection,
+            match_text,
+            rows,
+        )
+    });
+    // Every exit releases the viewer the same way: an explicit `Detach`
+    // inside the remaining budget, then the session drop. When nothing
+    // remains, the drop alone is the cleanup and `requested` says so.
+    let detach = match run.step_deadline() {
+        Ok(deadline) => wait_detach(&mut client, deadline, &viewer_id),
+        Err(failure) => Err(failure),
+    };
+    let cleanup = match &detach {
+        Ok(()) => "confirmed",
+        Err(failure) if failure.kind == FailureKind::Timeout => "requested",
+        Err(_) => "unconfirmed",
+    };
+    // A confirmed `Detached` is a fact — but a cancel or expiry landing
+    // during that exchange still wins the answer, carrying the real cleanup
+    // state instead of an invented one.
+    let late = if detach.is_ok() {
+        run.check().err()
+    } else {
+        None
+    };
+    drop(client);
+    match (outcome, detach) {
+        (Ok(observed), Ok(())) if late.is_none() => {
+            let elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+            Ok((
+                source.clone(),
+                Projection::TerminalWaitOutput(super::results::terminal_wait_output_doc(
+                    row,
+                    attachment,
+                    epoch,
+                    observed,
+                    super::results::WaitReport {
+                        observations: run.observations,
+                        requested_rows: rows,
+                        timeout_ms,
+                        elapsed_ms,
+                    },
+                )),
+            ))
+        }
+        // A match without a clean exit: the detach's own typed failure — or
+        // the late cancel/expiry after a confirmed one — is the answer,
+        // still honestly carrying that the match was observed.
+        (Ok(_), detach_result) => Err(wait_cleanup_details(
+            late.or_else(|| detach_result.err())
+                .expect("a detach or late failure is present"),
+            cleanup,
+            true,
+        )
+        .source(source)),
+        (Err(failure), _) => {
+            Err(wait_cleanup_details(late.unwrap_or(failure), cleanup, false).source(source))
+        }
+    }
+}
+
+/// The observation loop: poll on the shared quiet cadence (10 ms backing
+/// off to 100 ms on consecutive `Empty` answers, reset by any record),
+/// decode every record through the projection, send the real feedback —
+/// including `FrameApplied` for every applied frame — and confirm
+/// `FeedbackAccepted`. After each applied frame, one `ReadRows` pins that
+/// exact revision+generation; a match completes the wait, an aged pin is
+/// abandoned for a fresh frame, and every awaited step is followed by a
+/// cancel+deadline re-check. No frame is skipped: the Host's single record
+/// slot demands full consumption.
+#[cfg(target_os = "linux")]
+fn wait_observe(
+    client: &mut LocalClient,
+    run: &mut WaitRun<'_>,
+    viewer_id: &ViewerId,
+    mut projection: TerminalProjection,
+    match_text: &str,
+    rows: u16,
+) -> Result<super::results::WaitObservation, Failure> {
+    loop {
+        run.check()?;
+        let poll = TerminalViewerRequest::new(
+            obcs_request_id()?,
+            TerminalViewerAction::Poll {
+                attachment_id: viewer_id.clone(),
+            },
+        );
+        let deadline = run.step_deadline()?;
+        let result = client.submit_terminal_viewer_before(poll, deadline);
+        run.check()?;
+        let result = result.map_err(classify_viewer)?;
+        match result.outcome() {
+            TerminalViewerOutcome::Empty {} => run.sleep()?,
+            TerminalViewerOutcome::Record(record) => {
+                run.note_record();
+                match projection.receive_for_geometry(record, None) {
+                    Ok(Some(feedback)) => {
+                        let applied = matches!(feedback, TerminalViewerAction::FrameApplied { .. });
+                        let request = TerminalViewerRequest::new(obcs_request_id()?, feedback);
+                        let deadline = run.step_deadline()?;
+                        let result = client.submit_terminal_viewer_before(request, deadline);
+                        run.check()?;
+                        let result = result.map_err(classify_viewer)?;
+                        match result.outcome() {
+                            TerminalViewerOutcome::FeedbackAccepted {} => {}
+                            TerminalViewerOutcome::Rejected { reason } => {
+                                return Err(classify_viewer_rejected(*reason));
+                            }
+                            TerminalViewerOutcome::Unavailable { .. } => {
+                                return Err(viewer_unavailable());
+                            }
+                            _ => return Err(viewer_protocol_invalid()),
+                        }
+                        if applied {
+                            // The just-applied frame pins this read's exact
+                            // revision and generation; nothing from another
+                            // revision is ever matched.
+                            let frame = projection
+                                .frame()
+                                .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+                            if let Some(window) =
+                                wait_read_window(client, run, viewer_id, frame, rows)?
+                            {
+                                run.observations += 1;
+                                if let Some(matched) =
+                                    super::results::match_window(&window, match_text)
+                                {
+                                    return Ok(super::results::WaitObservation {
+                                        matched,
+                                        revision: window.revision,
+                                        generation: window.generation.get(),
+                                        window_start: window.start_row,
+                                        window_rows: u64::try_from(window.rows.len())
+                                            .unwrap_or(u64::MAX),
+                                        total_rows: window.total_rows,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    // Same as the one-shot read: a consumed ProjectionBlocked
+                    // keeps polling for an applicable frame.
+                    Ok(None) => {}
+                    Err(()) => return Err(viewer_protocol_invalid()),
+                }
+            }
+            TerminalViewerOutcome::Rejected { reason } => {
+                return Err(classify_viewer_rejected(*reason));
+            }
+            TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
+            _ => return Err(viewer_protocol_invalid()),
+        }
+    }
+}
+
+/// One consistent `ReadRows` over the pinned frame's most recent retained
+/// window: `[max(0, total − K), total)` in the unified screen+scrollback
+/// absolute space, `K = min(requested, total, MAXIMUM_FRAME_CELLS/columns)`.
+/// `Some(window)` is a fully validated consistent answer; `None` means the
+/// pinned snapshot aged between frame and read — stale revision, stale
+/// generation, or history eviction — and the caller resumes polling for a
+/// fresh consistent frame instead of splicing half windows.
+#[cfg(target_os = "linux")]
+fn wait_read_window(
+    client: &mut LocalClient,
+    run: &mut WaitRun<'_>,
+    viewer_id: &ViewerId,
+    frame: &TerminalTextFrame,
+    requested: u16,
+) -> Result<Option<orchbee_terminal_protocol::TerminalTextRowWindow>, Failure> {
+    let total_rows = frame
+        .scrollback_rows
+        .checked_add(u64::from(frame.geometry.rows))
+        .ok_or_else(viewer_protocol_invalid)?;
+    let capacity = u64::try_from(orchbee_terminal_protocol::MAXIMUM_FRAME_CELLS)
+        .unwrap_or(u64::MAX)
+        / u64::from(frame.geometry.columns);
+    let count = u64::from(requested).min(total_rows).min(capacity);
+    let start_row = total_rows - count;
+    let row_count = u16::try_from(count).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let request_sequence = run.next_sequence()?;
+    let request = TerminalViewerRequest::new(
+        obcs_request_id()?,
+        TerminalViewerAction::ReadRows {
+            attachment_id: viewer_id.clone(),
+            start_row,
+            row_count,
+            revision: frame.route.revision,
+            generation: frame.route.generation,
+            request_sequence,
+            maximum_bytes: orchbee_client_server_protocol::MAXIMUM_READ_ROWS_BYTES,
+        },
+    );
+    let deadline = run.step_deadline()?;
+    let result = client.submit_terminal_viewer_before(request, deadline);
+    run.check()?;
+    let result = result.map_err(classify_viewer)?;
+    match result.outcome() {
+        TerminalViewerOutcome::Record(record) => decode_history_window(
+            record.clone(),
+            frame.route.attachment_id,
+            frame.route.host_epoch,
+            frame,
+            start_row,
+            count,
+            request_sequence,
+        )
+        .map(Some),
+        TerminalViewerOutcome::RowsRejected { reason } => {
+            use orchbee_client_server_protocol::ViewerRowsRejectedReason as Reason;
+            match reason {
+                Reason::StaleRevision | Reason::StaleGeneration | Reason::HistoryEvicted => {
+                    Ok(None)
+                }
+                other => Err(classify_rows_rejected(*other, "wait-output")),
+            }
+        }
+        TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
+        TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
+        _ => Err(viewer_protocol_invalid()),
+    }
+}
+
+/// The confirmed-`Detach` exit `wait-output` requires: the real outcome is
+/// inspected, unlike the best-effort send a one-shot read uses.
+#[cfg(target_os = "linux")]
+fn wait_detach(
+    client: &mut LocalClient,
+    deadline: Instant,
+    viewer_id: &ViewerId,
+) -> Result<(), Failure> {
+    let request = TerminalViewerRequest::new(
+        obcs_request_id()?,
+        TerminalViewerAction::Detach {
+            attachment_id: viewer_id.clone(),
+        },
+    );
+    let result = client
+        .submit_terminal_viewer_before(request, deadline)
+        .map_err(classify_viewer)?;
+    match result.outcome() {
+        TerminalViewerOutcome::Detached {} => Ok(()),
+        TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
+        TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
+        _ => Err(viewer_protocol_invalid()),
+    }
+}
+
+/// The timeout report: the wait stage, the caller's total budget, and the
+/// completed-observation count — successful consistent window reads that
+/// also completed a match pass, never a frame or revision count.
+#[cfg(target_os = "linux")]
+fn wait_timeout_failure(timeout_ms: u32, observations: u64) -> Failure {
+    Failure::new(FailureKind::Timeout).details(serde_json::Map::from_iter([
+        ("stage".to_owned(), serde_json::json!("wait")),
+        ("timeoutMs".to_owned(), serde_json::json!(timeout_ms)),
+        (
+            "observed".to_owned(),
+            serde_json::json!({ "completedObservations": observations }),
+        ),
+    ]))
+}
+
+/// The cancelled report: the wait stage under the fixed kind.
+#[cfg(target_os = "linux")]
+fn wait_cancelled_failure() -> Failure {
+    Failure::new(FailureKind::Cancelled).details(stage_details("wait"))
+}
+
+/// Merge the honest cleanup state into a failure's details — plus
+/// `matchObserved: true` when the text had already matched but the exit is
+/// still a failure.
+#[cfg(target_os = "linux")]
+fn wait_cleanup_details(
+    mut failure: Failure,
+    cleanup: &'static str,
+    match_observed: bool,
+) -> Failure {
+    let details = failure.details.get_or_insert_with(serde_json::Map::new);
+    if match_observed {
+        details.insert("matchObserved".to_owned(), serde_json::json!(true));
+    }
+    details.insert("cleanup".to_owned(), serde_json::json!(cleanup));
+    failure
 }
 
 #[cfg(target_os = "linux")]
@@ -718,4 +1294,202 @@ pub(crate) fn read_terminal(
             super::stage_reason_details("platform", "unsupported-platform"),
         ),
     )
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn wait_output(
+    _target: &crate::invocation::Target,
+    _match_text: &str,
+    _rows: u16,
+    _timeout_ms: u32,
+) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
+    Err(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+    )
+}
+
+/// Deterministic wait-path evidence: an injectable clock and flag make the
+/// deadline, cancel, backoff, and per-attachment sequence behavior exact.
+#[cfg(all(test, target_os = "linux"))]
+mod wait_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    /// A `WaitClock` whose `now` only moves when the test says so; `sleep`
+    /// records and advances the requested duration instead of blocking.
+    struct FakeWaitClock {
+        now: Cell<Instant>,
+        slept: Cell<Duration>,
+    }
+
+    impl FakeWaitClock {
+        fn new() -> Self {
+            Self {
+                now: Cell::new(Instant::now()),
+                slept: Cell::new(Duration::ZERO),
+            }
+        }
+        fn advance(&self, duration: Duration) {
+            self.now.set(self.now.get() + duration);
+        }
+    }
+
+    impl WaitClock for FakeWaitClock {
+        fn now(&self) -> Instant {
+            self.now.get()
+        }
+        fn sleep(&self, duration: Duration) {
+            self.slept.set(self.slept.get() + duration);
+            self.now.set(self.now.get() + duration);
+        }
+    }
+
+    struct FlaggedTermination(Cell<bool>);
+
+    impl TerminationSource for FlaggedTermination {
+        fn requested(&self) -> bool {
+            self.0.get()
+        }
+    }
+
+    fn fake_run<'a>(
+        clock: &'a FakeWaitClock,
+        flag: &'a FlaggedTermination,
+        deadline_total: Instant,
+    ) -> WaitRun<'a> {
+        WaitRun {
+            gate: WaitGate {
+                clock,
+                signal: flag,
+                deadline_total,
+            },
+            timeout_ms: 30_000,
+            observations: 0,
+            next_row_sequence: 1,
+            poll_interval: EMPTY_POLL_INTERVAL,
+        }
+    }
+
+    #[test]
+    fn settle_reports_cancel_before_expiry() {
+        let clock = FakeWaitClock::new();
+        let flag = FlaggedTermination(Cell::new(false));
+        let deadline = clock.now() + Duration::from_secs(1);
+        let gate = WaitGate {
+            clock: &clock,
+            signal: &flag,
+            deadline_total: deadline,
+        };
+        assert!(gate.settle().is_ok());
+        flag.0.set(true);
+        // A pending cancel wins even while budget remains — and also when
+        // the deadline already passed at the same instant.
+        assert_eq!(gate.settle().unwrap_err().kind, FailureKind::Cancelled);
+        clock.advance(Duration::from_secs(2));
+        assert_eq!(gate.settle().unwrap_err().kind, FailureKind::Cancelled);
+    }
+
+    #[test]
+    fn settle_reports_timeout_only_after_deadline() {
+        let clock = FakeWaitClock::new();
+        let flag = FlaggedTermination(Cell::new(false));
+        let deadline = clock.now() + Duration::from_millis(50);
+        let gate = WaitGate {
+            clock: &clock,
+            signal: &flag,
+            deadline_total: deadline,
+        };
+        assert!(gate.settle().is_ok());
+        clock.advance(Duration::from_millis(50));
+        assert_eq!(gate.settle().unwrap_err().kind, FailureKind::Timeout);
+    }
+
+    #[test]
+    fn budget_is_the_earlier_of_allowance_and_remaining() {
+        let clock = FakeWaitClock::new();
+        let flag = FlaggedTermination(Cell::new(false));
+        let deadline = clock.now() + Duration::from_millis(100);
+        let gate = WaitGate {
+            clock: &clock,
+            signal: &flag,
+            deadline_total: deadline,
+        };
+        let step = gate.budget(NETWORK_BUDGET).expect("budget");
+        assert_eq!(step, clock.now() + Duration::from_millis(100));
+        clock.advance(Duration::from_millis(100));
+        assert_eq!(
+            gate.budget(NETWORK_BUDGET).unwrap_err().kind,
+            FailureKind::Timeout
+        );
+    }
+
+    #[test]
+    fn row_sequences_increase_strictly_and_overflow_is_real() {
+        let clock = FakeWaitClock::new();
+        let flag = FlaggedTermination(Cell::new(false));
+        let deadline = clock.now() + Duration::from_secs(60);
+        let mut run = fake_run(&clock, &flag, deadline);
+        assert_eq!(run.next_sequence().unwrap().get(), 1);
+        assert_eq!(run.next_sequence().unwrap().get(), 2);
+        assert_eq!(run.next_sequence().unwrap().get(), 3);
+        run.next_row_sequence = u64::MAX;
+        assert_eq!(
+            run.next_sequence().unwrap_err().kind,
+            FailureKind::InternalFailure
+        );
+        // Overflow never resets: the counter stays where it failed.
+        assert_eq!(run.next_row_sequence, u64::MAX);
+    }
+
+    #[test]
+    fn sleep_backs_off_to_ceiling_and_clamps_to_deadline() {
+        let clock = FakeWaitClock::new();
+        let flag = FlaggedTermination(Cell::new(false));
+        let deadline = clock.now() + Duration::from_millis(290);
+        let mut run = fake_run(&clock, &flag, deadline);
+        // 10 → 20 → 40 → 80 → 100 (cap) → clamped 60 to the deadline.
+        run.sleep().expect("sleep 1");
+        run.sleep().expect("sleep 2");
+        run.sleep().expect("sleep 3");
+        run.sleep().expect("sleep 4");
+        run.sleep().expect("sleep 5");
+        run.sleep().expect("sleep 6");
+        assert_eq!(
+            clock.slept.get(),
+            Duration::from_millis(10 + 20 + 40 + 80 + 100 + 40)
+        );
+        // 40ms of headroom remained after the 100ms-cap sleep; the last
+        // sleep consumed it, so the next sleep sees an expired deadline.
+        assert_eq!(run.sleep().unwrap_err().kind, FailureKind::Timeout);
+    }
+
+    #[test]
+    fn sleep_honors_cancel_before_any_sleep() {
+        let clock = FakeWaitClock::new();
+        let flag = FlaggedTermination(Cell::new(true));
+        let deadline = clock.now() + Duration::from_secs(60);
+        let mut run = fake_run(&clock, &flag, deadline);
+        assert_eq!(run.sleep().unwrap_err().kind, FailureKind::Cancelled);
+        assert_eq!(clock.slept.get(), Duration::ZERO);
+    }
+
+    #[test]
+    fn check_maps_expiry_to_detailed_timeout() {
+        let clock = FakeWaitClock::new();
+        let flag = FlaggedTermination(Cell::new(false));
+        let deadline = clock.now() + Duration::ZERO;
+        let mut run = fake_run(&clock, &flag, deadline);
+        run.observations = 7;
+        let failure = run.check().unwrap_err();
+        assert_eq!(failure.kind, FailureKind::Timeout);
+        let details = failure.details.expect("timeout details");
+        assert_eq!(details["stage"], serde_json::json!("wait"));
+        assert_eq!(details["timeoutMs"], serde_json::json!(30_000));
+        assert_eq!(
+            details["observed"]["completedObservations"],
+            serde_json::json!(7)
+        );
+    }
 }

@@ -130,6 +130,7 @@ pub(crate) enum CommandPath {
     TerminalList,
     TerminalGet,
     TerminalRead,
+    TerminalWaitOutput,
     ApiSnapshot,
     ApiSchema,
     ConfigCheck,
@@ -163,6 +164,7 @@ impl CommandPath {
             Self::TerminalList => "terminal list",
             Self::TerminalGet => "terminal get",
             Self::TerminalRead => "terminal read",
+            Self::TerminalWaitOutput => "terminal wait-output",
             Self::ApiSnapshot => "api snapshot",
             Self::ApiSchema => "api schema",
             Self::ConfigCheck => "config check",
@@ -195,6 +197,16 @@ pub(crate) enum QueryCommand {
         /// `Some(n)` selects the `--history --rows n` form: retained
         /// scrollback rows instead of the visible frame.
         history: Option<u16>,
+    },
+    TerminalWaitOutput {
+        target: Target,
+        /// The literal, case-sensitive text the wait searches for.
+        match_text: String,
+        /// The searched retained-row window (visible + history as one
+        /// range), 1..=1000 — `--rows` defaults to 1000.
+        rows: u16,
+        /// Total wait budget in milliseconds from command start, 1..=3600000.
+        timeout_ms: u32,
     },
     ApiSnapshot,
     ApiSchema {
@@ -320,6 +332,8 @@ pub(crate) enum ExpectedValue {
     Shell,
     HistoryRows,
     DirectoryPath,
+    MatchText,
+    WaitTimeout,
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -437,6 +451,8 @@ struct Options {
     target_panel: Option<String>,
     history: bool,
     path: Option<String>,
+    match_text: Option<String>,
+    timeout: Option<String>,
 }
 
 /// Every named option that owns the next argv token as its value, used by
@@ -449,10 +465,12 @@ const VALUE_FLAGS: &[&str] = &[
     "--direction",
     "--label",
     "--path",
+    "--match",
     "--project",
     "--rows",
     "--tab",
     "--target-panel",
+    "--timeout",
     "--workspace",
 ];
 
@@ -669,6 +687,8 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     "--cell-width" => &mut options.cell_width,
                     "--cell-height" => &mut options.cell_height,
                     "--path" => &mut options.path,
+                    "--match" => &mut options.match_text,
+                    "--timeout" => &mut options.timeout,
                     _ => &mut options.target_panel,
                 };
                 if slot.replace(value).is_some() {
@@ -1209,6 +1229,27 @@ fn resolve_words(
                 options,
             ))
         }
+        ["terminal", "wait-output", value] => {
+            check_scope(
+                options,
+                TERMINAL_WAIT_OUTPUT_SCOPE,
+                UsageContext::Path("terminal wait-output"),
+                envelope,
+            )?;
+            let context = UsageContext::Path("terminal wait-output");
+            // `--match` is required; `--rows` and `--timeout` carry their
+            // documented defaults. Everything resolves before any cohort,
+            // socket, session, viewer, or terminal effect.
+            Ok(query(
+                QueryCommand::TerminalWaitOutput {
+                    target: target((*value).to_owned(), Resource::Terminal, envelope)?,
+                    match_text: wait_match_option(options, context, envelope)?,
+                    rows: wait_rows_option(options, context, envelope)?,
+                    timeout_ms: wait_timeout_option(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
         ["api", "snapshot"] => {
             reject_filters(options, UsageContext::Path("api snapshot"), envelope)?;
             Ok(query(QueryCommand::ApiSnapshot, options))
@@ -1463,6 +1504,16 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["terminal", "wait-output"] => Err(missing_required(
+            UsageContext::Path("terminal wait-output"),
+            "<terminal>",
+            envelope,
+        )),
+        ["terminal", "wait-output", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("terminal wait-output"),
+            extra,
+            envelope,
+        )),
         ["terminal", verb, ..] => Err(unknown_command(
             UsageContext::Path("terminal"),
             verb,
@@ -1570,6 +1621,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "list"] => HelpTopic::Command(CommandPath::TerminalList),
         ["terminal", "get"] => HelpTopic::Command(CommandPath::TerminalGet),
         ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
+        ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
         ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
@@ -1611,6 +1663,9 @@ struct Scope {
     /// `workspace accept-directory --path <p>`: admits the literal directory
     /// path value option.
     path: bool,
+    /// `terminal wait-output --match <t> [--rows <n>] [--timeout <ms>]`:
+    /// admits all three flags and the wait-window meaning of `--rows`.
+    wait: bool,
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -1625,6 +1680,7 @@ const NO_OPTIONS: Scope = Scope {
     target_panel: false,
     history: false,
     path: false,
+    wait: false,
 };
 
 const WORKSPACE_LIST_SCOPE: Scope = Scope {
@@ -1695,6 +1751,11 @@ const TERMINAL_READ_SCOPE: Scope = Scope {
     ..NO_OPTIONS
 };
 
+const TERMINAL_WAIT_OUTPUT_SCOPE: Scope = Scope {
+    wait: true,
+    ..NO_OPTIONS
+};
+
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
     options.label.is_some()
@@ -1707,6 +1768,8 @@ fn business_options(options: &Options) -> bool {
         || options.target_panel.is_some()
         || options.history
         || options.path.is_some()
+        || options.match_text.is_some()
+        || options.timeout.is_some()
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -1733,9 +1796,10 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.cols.is_some() && !scope.geometry {
         return Some("--cols");
     }
-    // `--rows` is a geometry dimension under `geometry` scope and the paired
-    // history row count under `history` scope; both spellings share the flag.
-    if options.rows.is_some() && !scope.geometry && !scope.history {
+    // `--rows` is a geometry dimension under `geometry` scope, the paired
+    // history row count under `history` scope, and the searched window under
+    // `wait` scope; all three spellings share the flag.
+    if options.rows.is_some() && !scope.geometry && !scope.history && !scope.wait {
         return Some("--rows");
     }
     if options.cell_width.is_some() && !scope.geometry {
@@ -1755,6 +1819,11 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.path.is_some() && !scope.path {
         return Some("--path");
+    if options.match_text.is_some() && !scope.wait {
+        return Some("--match");
+    }
+    if options.timeout.is_some() && !scope.wait {
+        return Some("--timeout");
     }
     None
 }
@@ -1897,6 +1966,66 @@ fn history_rows_option(
                 option: "--rows",
                 value,
                 expected: ExpectedValue::HistoryRows,
+            },
+            envelope,
+        )),
+    }
+}
+
+/// `--match` under `wait-output` is required: literal, case-sensitive,
+/// non-empty UTF-8 text of at most 4096 bytes. Nothing is interpreted — no
+/// regex, escape sequences, or ANSI processing.
+fn wait_match_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<String, ParseFailure> {
+    let value = required(&options.match_text, context, "'--match'", envelope)?;
+    if value.is_empty() || value.len() > 4096 {
+        return Err(usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--match",
+                value,
+                expected: ExpectedValue::MatchText,
+            },
+            envelope,
+        ));
+    }
+    Ok(value)
+}
+
+/// `--rows` under `wait-output`: the searched retained-row window spanning
+/// visible plus scrollback as one range. 1..=1000, defaulting to 1000.
+fn wait_rows_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<u16, ParseFailure> {
+    match options.rows.is_some() {
+        true => history_rows_option(options, context, envelope),
+        false => Ok(1000),
+    }
+}
+
+/// `--timeout` under `wait-output`: the total wait budget in milliseconds
+/// measured from command start. 1..=3600000, defaulting to 30000.
+fn wait_timeout_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<u32, ParseFailure> {
+    let Some(value) = options.timeout.clone() else {
+        return Ok(30_000);
+    };
+    match value.parse::<u32>() {
+        Ok(timeout) if (1..=3_600_000).contains(&timeout) => Ok(timeout),
+        _ => Err(usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--timeout",
+                value,
+                expected: ExpectedValue::WaitTimeout,
             },
             envelope,
         )),

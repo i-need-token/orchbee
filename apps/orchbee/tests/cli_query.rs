@@ -2979,6 +2979,20 @@ fn budget_obtf_scrolled(
     strings: &[&str],
     scrollback_rows: u64,
 ) -> Vec<u8> {
+    budget_obtf_scrolled_at(columns, rows, strings, scrollback_rows, 1, 1)
+}
+
+/// `budget_obtf_scrolled` carrying an explicit record `sequence` and
+/// `revision`: a wait run pins each row read to the frame it just applied,
+/// so a second applied frame must arrive with genuinely newer coordinates.
+fn budget_obtf_scrolled_at(
+    columns: u16,
+    rows: &[(u8, &[u32])],
+    strings: &[&str],
+    scrollback_rows: u64,
+    sequence: u64,
+    revision: u64,
+) -> Vec<u8> {
     let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
     let row_count = u16::try_from(rows.len()).expect("row count fits u16");
     let mut frame = Vec::new();
@@ -2991,9 +3005,9 @@ fn budget_obtf_scrolled(
     frame.extend_from_slice(&[0; 2]); // reserved
     frame.extend_from_slice(route.host_epoch.as_bytes());
     frame.extend_from_slice(route.attachment_id.as_bytes());
-    frame.extend_from_slice(&1_u64.to_le_bytes()); // sequence
+    frame.extend_from_slice(&sequence.to_le_bytes()); // sequence
     frame.extend_from_slice(&u64::MAX.to_le_bytes()); // base revision: none
-    frame.extend_from_slice(&1_u64.to_le_bytes()); // revision
+    frame.extend_from_slice(&revision.to_le_bytes()); // revision
     frame.extend_from_slice(&1_u64.to_le_bytes()); // generation
     frame.extend_from_slice(&scrollback_rows.to_le_bytes()); // captured scrollback
     frame.extend_from_slice(&columns.to_le_bytes());
@@ -4180,5 +4194,671 @@ fn terminal_read_history_text_output_marks_omitted_rows() -> TestResult {
     assert_eq!(lines.len(), 525, "524 rows plus the marker");
     assert!(lines[..524].iter().all(|line| *line == "x"));
     assert_eq!(lines[524], "… 76 more rows truncated at the read limit");
+    Ok(())
+}
+
+// ---- terminal wait-output ---------------------------------------------------
+//
+// `terminal wait-output` holds one read-only viewer through a bounded
+// observation loop: every applied frame is acknowledged by a real
+// `FrameApplied` whose `FeedbackAccepted` is confirmed, then one absolute
+// `ReadRows` pins that exact revision+generation over the unified
+// retained-row window. `request_sequence` starts at 1 and strictly increases
+// on every attempt — the Host rejects a repeat. These peers script the
+// whole exchange, so request shape, feedback ordering, stale re-pinning,
+// typed rejections, deadline mapping, and the confirmed-detach cleanup all
+// run against production code.
+
+/// Consume one request asserting it is `FrameApplied` for `attachment`, and
+/// answer `FeedbackAccepted` — the complete feedback exchange the wait loop
+/// runs for every applied frame.
+fn take_frame_applied(stream: &UnixStream, attachment: &ViewerId) {
+    let request = viewer_request(stream);
+    match request.action() {
+        TerminalViewerAction::FrameApplied {
+            attachment_id,
+            sequence,
+            generation,
+            revision,
+        } => {
+            assert_eq!(attachment_id, attachment);
+            assert_eq!(sequence.get(), 1);
+            assert_eq!(generation.get(), 1);
+            assert_eq!(*revision, 1);
+        }
+        action => panic!("peer expected frame-applied, got {action:?}"),
+    }
+    viewer_reply(stream, &request, TerminalViewerOutcome::FeedbackAccepted {});
+}
+
+/// `take_frame_applied` for the second applied frame: the acknowledgement
+/// carries the newer record's own coordinates, never the first frame's.
+fn take_frame_applied_at(stream: &UnixStream, attachment: &ViewerId, sequence: u64, revision: u64) {
+    let request = viewer_request(stream);
+    match request.action() {
+        TerminalViewerAction::FrameApplied {
+            attachment_id,
+            sequence: request_sequence,
+            generation,
+            revision: request_revision,
+        } => {
+            assert_eq!(attachment_id, attachment);
+            assert_eq!(request_sequence.get(), sequence);
+            assert_eq!(generation.get(), 1);
+            assert_eq!(*request_revision, revision);
+        }
+        action => panic!("peer expected frame-applied, got {action:?}"),
+    }
+    viewer_reply(stream, &request, TerminalViewerOutcome::FeedbackAccepted {});
+}
+
+/// Consume one `ReadRows` asserting every pinned field plus the expected
+/// strictly-increasing `request_sequence`, and return the request plus
+/// `(start_row, row_count)` for the script's answer.
+fn take_wait_read_rows(
+    stream: &UnixStream,
+    attachment: &ViewerId,
+    revision: u64,
+    generation: u64,
+    request_sequence: u64,
+) -> (TerminalViewerRequest, u64, u16) {
+    let request = viewer_request(stream);
+    let bounds = match request.action() {
+        TerminalViewerAction::ReadRows {
+            attachment_id,
+            start_row,
+            row_count,
+            revision: request_revision,
+            generation: request_generation,
+            request_sequence: sequence,
+            maximum_bytes,
+        } => {
+            assert_eq!(attachment_id, attachment);
+            assert_eq!(*request_revision, revision);
+            assert_eq!(request_generation.get(), generation);
+            assert_eq!(sequence.get(), request_sequence);
+            assert_eq!(*maximum_bytes, MAXIMUM_READ_ROWS_BYTES);
+            (*start_row, *row_count)
+        }
+        action => panic!("peer expected read-rows, got {action:?}"),
+    };
+    (request, bounds.0, bounds.1)
+}
+
+/// Keep answering `Empty` to every `Poll` until the CLI drops the session:
+/// the deadline-driven timeout path never sends `Detach` once nothing of the
+/// budget remains, so the peer only ever sees polls then EOF.
+fn answer_empty_polls_until_eof(stream: &UnixStream, attachment: &ViewerId) {
+    loop {
+        let request = match read_client_message(&mut &*stream) {
+            Ok(ClientMessage::TerminalViewer(request)) => request,
+            Ok(other) => panic!("peer expected a terminal.viewer request, got {other:?}"),
+            Err(_) => return,
+        };
+        match request.action() {
+            TerminalViewerAction::Poll { attachment_id } if attachment_id == attachment => {}
+            action => panic!("peer expected poll, got {action:?}"),
+        }
+        viewer_reply(stream, &request, TerminalViewerOutcome::Empty {});
+    }
+}
+
+/// The happy path over the unified window: `--rows 5` on `3+2` retained rows
+/// prices `[0,5)` in one absolute read, and a soft-wrap chain crossing the
+/// history/visible boundary joins before the literal match — no single
+/// physical row holds the pattern. The result envelope carries the honest
+/// observation record and validates against its published schema.
+#[test]
+fn terminal_wait_matches_a_wrap_chain_across_the_window() -> TestResult {
+    let base = base_dir("twait-match");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells), (0, &cells)], &["s"], 3);
+    let record = frame_record(&frame);
+    // Indices 0..5 of total 5: history rows 0-2, visible rows 3-4. Row 2
+    // wraps into row 3 — the match "cdef" spans the boundary.
+    let obrw = obrw_window(
+        0,
+        5,
+        8,
+        1,
+        1,
+        1,
+        &[
+            (0x00, "line0"),
+            (0x00, "line1"),
+            (0x01, "abc"),
+            (0x02, "def-done"),
+            (0x00, "other"),
+        ],
+    );
+    let answer = history_record(&obrw);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        take_frame_applied(stream, &attachment);
+        let (request, start_row, row_count) = take_wait_read_rows(stream, &attachment, 1, 1, 1);
+        assert_eq!(start_row, 0);
+        assert_eq!(row_count, 5);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "cdef",
+            "--rows",
+            "5",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["schema"], "orchbee.terminal.wait-output");
+    assert_eq!(document["source"]["kind"], "workbench-snapshot");
+    let result = &document["result"];
+    assert_eq!(result["terminal"]["terminalId"], TERMINAL_ID);
+    assert_eq!(result["matched"], true);
+    let matched = &result["match"];
+    assert_eq!(matched["excerpt"], "abcdef-done");
+    assert_eq!(matched["excerptTruncated"], false);
+    assert_eq!(matched["matchOffset"], "2");
+    assert_eq!(matched["rowStart"], "2");
+    assert_eq!(matched["rowEnd"], "3");
+    assert_eq!(matched["revision"], "1");
+    assert_eq!(matched["generation"], "1");
+    let observed = &result["observed"];
+    assert_eq!(observed["completedObservations"], 1);
+    assert_eq!(observed["windowStart"], "0");
+    assert_eq!(observed["windowRows"], "5");
+    assert_eq!(observed["windowTruncated"], false);
+    assert_eq!(observed["totalRows"], "5");
+    assert_eq!(observed["requestedRows"], 5);
+    assert_eq!(observed["timeoutMs"], 30_000);
+    assert!(observed["elapsedMs"].as_u64().is_some());
+    let route = inspect_terminal_frame_route(OBTF)?;
+    assert_eq!(observed["attachmentId"], route.attachment_id.to_text());
+    assert_eq!(observed["hostEpoch"], route.host_epoch.to_text());
+    let schema = compiled_schema(&base, "orchbee.terminal.wait-output");
+    assert!(schema.is_valid(&document), "wait document: {document}");
+    Ok(())
+}
+
+/// A quiet window is not a result: the wait keeps polling, the second applied
+/// frame carries strictly newer coordinates, its `ReadRows` uses
+/// `request_sequence` 2 — the Host refuses a repeat — and the second
+/// consistent window finally matches.
+#[test]
+fn terminal_wait_polls_until_the_text_appears() -> TestResult {
+    let base = base_dir("twait-later");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 16];
+    let first = budget_obtf_scrolled(16, &[(0, &cells)], &["s"], 2);
+    let first_record = frame_record(&first);
+    let second = budget_obtf_scrolled_at(16, &[(0, &cells), (0, &cells)], &["s"], 2, 2, 2);
+    let second_record = frame_record(&second);
+    // First window (total 3): nothing. Second window (total 4): the marker.
+    let quiet = history_record(&obrw_window(
+        0,
+        3,
+        16,
+        1,
+        1,
+        1,
+        &[(0x00, "line0"), (0x00, "line1"), (0x00, "line2")],
+    ));
+    let found = history_record(&obrw_window(
+        0,
+        4,
+        16,
+        2,
+        2,
+        1,
+        &[
+            (0x00, "line0"),
+            (0x00, "line1"),
+            (0x00, "line2"),
+            (0x00, "marker-yes"),
+        ],
+    ));
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(first_record.clone()),
+        );
+        take_frame_applied(stream, &attachment);
+        let (request, start_row, row_count) = take_wait_read_rows(stream, &attachment, 1, 1, 1);
+        assert_eq!(start_row, 0);
+        assert_eq!(row_count, 3);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(quiet.clone()),
+        );
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(second_record.clone()),
+        );
+        take_frame_applied_at(stream, &attachment, 2, 2);
+        let (request, start_row, row_count) = take_wait_read_rows(stream, &attachment, 2, 1, 2);
+        assert_eq!(start_row, 0);
+        assert_eq!(row_count, 4);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(found.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "marker-yes",
+            "--rows",
+            "10",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let matched = &document["result"]["match"];
+    assert_eq!(matched["excerpt"], "marker-yes");
+    assert_eq!(matched["rowStart"], "3");
+    assert_eq!(matched["rowEnd"], "3");
+    assert_eq!(matched["revision"], "2");
+    let observed = &document["result"]["observed"];
+    assert_eq!(observed["completedObservations"], 2);
+    assert_eq!(observed["totalRows"], "4");
+    let schema = compiled_schema(&base, "orchbee.terminal.wait-output");
+    assert!(schema.is_valid(&document), "wait document: {document}");
+    Ok(())
+}
+
+/// A stale answer to the pinned read is not a failure and never a partial
+/// window: `stale-revision` abandons that read, the next applied frame
+/// re-pins the coordinates, and the retried read uses `request_sequence` 2.
+#[test]
+fn terminal_wait_stale_rows_answer_repins_and_retries() -> TestResult {
+    let base = base_dir("twait-stale");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 16];
+    let first = budget_obtf_scrolled(16, &[(0, &cells)], &["s"], 2);
+    let first_record = frame_record(&first);
+    let second = budget_obtf_scrolled_at(16, &[(0, &cells), (0, &cells)], &["s"], 2, 2, 2);
+    let second_record = frame_record(&second);
+    let found = history_record(&obrw_window(
+        0,
+        4,
+        16,
+        2,
+        2,
+        1,
+        &[
+            (0x00, "line0"),
+            (0x00, "line1"),
+            (0x00, "line2"),
+            (0x00, "late-marker"),
+        ],
+    ));
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(first_record.clone()),
+        );
+        take_frame_applied(stream, &attachment);
+        let (request, _, _) = take_wait_read_rows(stream, &attachment, 1, 1, 1);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::RowsRejected {
+                reason: ViewerRowsRejectedReason::StaleRevision,
+            },
+        );
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(second_record.clone()),
+        );
+        take_frame_applied_at(stream, &attachment, 2, 2);
+        let (request, _, _) = take_wait_read_rows(stream, &attachment, 2, 1, 2);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(found.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "late-marker",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["result"]["match"]["excerpt"], "late-marker");
+    // The stale answer completed no observation pass; only the retried one did.
+    assert_eq!(document["result"]["observed"]["completedObservations"], 1);
+    Ok(())
+}
+
+/// A non-stale `rows-rejected` keeps its typed classification — the wait
+/// treats it like the one-shot read does — and the viewer is still released
+/// through the confirmed detach, so `cleanup` reports `confirmed`.
+#[test]
+fn terminal_wait_rows_rejection_maps_typed_failure_and_detaches() -> TestResult {
+    let base = base_dir("twait-rejected");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 2);
+    let record = frame_record(&frame);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        take_frame_applied(stream, &attachment);
+        let (request, _, _) = take_wait_read_rows(stream, &attachment, 1, 1, 1);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::RowsRejected {
+                reason: ViewerRowsRejectedReason::LimitExceeded,
+            },
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "never",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(3));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "rejected");
+    assert_eq!(failure["failure"]["details"]["reason"], "limit-exceeded");
+    assert_eq!(failure["failure"]["details"]["cleanup"], "confirmed");
+    assert!(failure["failure"]["details"].get("matchObserved").is_none());
+    Ok(())
+}
+
+/// Deadline mapping: `Empty` polls never produce a match, the total budget
+/// is measured from command start, and once nothing remains the viewer
+/// release is the session drop alone — the failure honestly says
+/// `cleanup: "requested"` with zero completed observations.
+#[test]
+fn terminal_wait_deadline_is_exit_seven_with_honest_details() -> TestResult {
+    let base = base_dir("twait-timeout");
+    let scope = stage_scope(&base);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        answer_empty_polls_until_eof(stream, &attachment);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "never-appears",
+            "--timeout",
+            "3000",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(7));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "timeout");
+    let details = &failure["failure"]["details"];
+    assert_eq!(details["stage"], "wait");
+    assert_eq!(details["timeoutMs"], 3000);
+    assert_eq!(details["observed"]["completedObservations"], 0);
+    assert_eq!(details["cleanup"], "requested");
+    assert!(details.get("matchObserved").is_none());
+    Ok(())
+}
+
+/// A match whose detach is refused is still a failure, never a clean exit:
+/// the answer is the detach's own typed failure honestly carrying
+/// `matchObserved: true` and `cleanup: "unconfirmed"`.
+#[test]
+fn terminal_wait_match_with_refused_detach_reports_match_observed() -> TestResult {
+    let base = base_dir("twait-detach-fail");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 1);
+    let record = frame_record(&frame);
+    let obrw = obrw_window(0, 2, 8, 1, 1, 1, &[(0x00, "hit"), (0x00, "tail")]);
+    let answer = history_record(&obrw);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        take_frame_applied(stream, &attachment);
+        let (request, _, _) = take_wait_read_rows(stream, &attachment, 1, 1, 1);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
+        );
+        // The real Detach request arrives; the answer refuses it.
+        let request = viewer_request(stream);
+        match request.action() {
+            TerminalViewerAction::Detach { attachment_id } if attachment_id == &attachment => {}
+            action => panic!("peer expected detach, got {action:?}"),
+        }
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Unavailable {
+                reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+            },
+        );
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "hit",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(4));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "service-unavailable");
+    let details = &failure["failure"]["details"];
+    assert_eq!(details["matchObserved"], true);
+    assert_eq!(details["cleanup"], "unconfirmed");
+    Ok(())
+}
+
+/// The default text answer is the matching logical line itself, escaped like
+/// `terminal read` content — one line plus the newline, nothing else.
+#[test]
+fn terminal_wait_text_output_prints_the_matched_line() -> TestResult {
+    let base = base_dir("twait-text");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 16];
+    let frame = budget_obtf_scrolled(16, &[(0, &cells)], &["s"], 1);
+    let record = frame_record(&frame);
+    let obrw = obrw_window(0, 2, 16, 1, 1, 1, &[(0x00, "pre marker"), (0x00, "post")]);
+    let answer = history_record(&obrw);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        take_frame_applied(stream, &attachment);
+        let (request, _, _) = take_wait_read_rows(stream, &attachment, 1, 1, 1);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &["terminal", "wait-output", TERMINAL_ID, "--match", "marker"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let body = String::from_utf8(output.stdout).expect("utf8 output");
+    assert_eq!(body, "pre marker\n");
+    Ok(())
+}
+
+/// A late `Attached` answer never outranks the total deadline: the peer
+/// holds the reply until the wait's own budget is spent, so the failed
+/// exchange must settle as `timeout` — not the transport classification a
+/// missing settlement would report. The session drop is the whole cleanup,
+/// so no cleanup field is claimed.
+#[test]
+fn terminal_wait_late_attach_answer_settles_as_timeout() -> TestResult {
+    let base = base_dir("twait-attach-late");
+    let scope = stage_scope(&base);
+    let peer = read_peer(&scope, move |stream| {
+        let request = viewer_request(stream);
+        match request.action() {
+            TerminalViewerAction::AttachBinding { .. } => {}
+            action => panic!("peer expected attach-binding, got {action:?}"),
+        }
+        // Hold the reply past the wait's 5000 ms budget. The remaining
+        // budget at attach time is always below the 5 s step ceiling
+        // (preamble > 0), so the attach exchange dies at the total
+        // deadline — never at the step's own budget. The late write and
+        // the closed session afterwards are both expected.
+        thread::sleep(Duration::from_millis(6000));
+        let (attachment, epoch) = attached_identity();
+        let _ = write_server_message(
+            &mut &*stream,
+            &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                request.request_id().clone(),
+                TerminalViewerOutcome::Attached {
+                    attachment_id: attachment,
+                    host_epoch: epoch,
+                },
+            )),
+        );
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "x",
+            "--timeout",
+            "5000",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    peer.join().expect("peer finished");
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "timeout");
+    let details = &failure["failure"]["details"];
+    assert_eq!(details["stage"], "wait");
+    assert!(details.get("cleanup").is_none());
     Ok(())
 }

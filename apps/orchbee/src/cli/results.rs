@@ -34,6 +34,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
                 "orchbee.terminal.read"
             }
         }
+        QueryCommand::TerminalWaitOutput { .. } => "orchbee.terminal.wait-output",
         QueryCommand::ApiSnapshot => "orchbee.api.snapshot",
         QueryCommand::ApiSchema { .. } => "orchbee.api.schema",
         QueryCommand::ConfigCheck => "orchbee.config.check",
@@ -369,6 +370,199 @@ pub(crate) fn terminal_history_doc(
     })
 }
 
+/// One literal-substring hit inside a joined logical line, plus the bounded
+/// excerpt that always contains the complete match.
+#[derive(Clone, Debug)]
+pub(crate) struct WaitMatch {
+    pub(crate) excerpt: String,
+    pub(crate) excerpt_truncated: bool,
+    /// Byte offset of the excerpt within the matched logical line.
+    pub(crate) excerpt_offset: u64,
+    /// Byte offset of the pattern within the matched logical line.
+    pub(crate) match_offset: u64,
+    /// First and last physical rows the matched logical line spans.
+    pub(crate) row_start: u64,
+    pub(crate) row_end: u64,
+}
+
+/// The observed-window facts a successful wait reports: the consistent
+/// window's own routing and extent, not a frame-ack or revision count.
+#[derive(Debug)]
+pub(crate) struct WaitObservation {
+    pub(crate) matched: WaitMatch,
+    pub(crate) revision: u64,
+    pub(crate) generation: u64,
+    pub(crate) window_start: u64,
+    pub(crate) window_rows: u64,
+    pub(crate) total_rows: u64,
+}
+
+/// `terminal wait-output`: the resolved binding plus the honest match and
+/// observation record. Nothing here claims command completion, a new turn,
+/// or complete output capture.
+#[derive(Debug)]
+pub(crate) struct TerminalWaitOutputDoc {
+    pub(crate) terminal: TerminalRow,
+    pub(crate) attachment_id: String,
+    pub(crate) host_epoch: String,
+    pub(crate) matched: WaitMatch,
+    pub(crate) revision: u64,
+    pub(crate) generation: u64,
+    pub(crate) window_start: u64,
+    pub(crate) window_rows: u64,
+    /// `true` when the byte-capacity clamp — not the requested rows or the
+    /// retained total — bound the searched window.
+    pub(crate) window_truncated: bool,
+    pub(crate) total_rows: u64,
+    pub(crate) requested_rows: u16,
+    /// Successful complete row-window reads that each also completed one
+    /// full match pass.
+    pub(crate) observations: u64,
+    pub(crate) timeout_ms: u32,
+    pub(crate) elapsed_ms: u64,
+}
+
+/// The match excerpt bound: at most this many UTF-8 bytes, always
+/// containing the complete pattern.
+pub(crate) const MAXIMUM_EXCERPT_BYTES: usize = 4096;
+
+/// Join every wrap-compatible row pair into logical lines — the decoder
+/// already proved `wrap`/`wrap_continuation` agree on every adjacent pair —
+/// then find the first logical line containing `pattern` as a literal,
+/// case-sensitive substring. Window-edge fragments never reach outside the
+/// window and a hard boundary never joins.
+#[cfg(unix)]
+pub(crate) fn match_window(
+    window: &orchbee_terminal_protocol::TerminalTextRowWindow,
+    pattern: &str,
+) -> Option<WaitMatch> {
+    let mut text = String::new();
+    let mut row_start = 0_u64;
+    let mut row_end = 0_u64;
+    for row in &window.rows {
+        if !row.wrap_continuation && !text.is_empty() {
+            // A hard boundary completes the previous logical line; it is
+            // matched before the new one accumulates.
+            if let Some(matched) = match_line(&text, row_start, row_end, pattern) {
+                return Some(matched);
+            }
+            text.clear();
+        }
+        if text.is_empty() {
+            // A hard boundary — or a window opening mid-line on a
+            // continuation fragment — starts the visible logical line here.
+            row_start = row.index;
+        }
+        text.push_str(&row.text);
+        row_end = row.index;
+    }
+    if !text.is_empty() {
+        return match_line(&text, row_start, row_end, pattern);
+    }
+    None
+}
+
+/// The literal position of `pattern` inside one complete logical line, plus
+/// the bounded excerpt around it.
+#[cfg(unix)]
+fn match_line(text: &str, row_start: u64, row_end: u64, pattern: &str) -> Option<WaitMatch> {
+    text.find(pattern).map(|offset| {
+        let (excerpt, truncated, excerpt_offset) = match_excerpt(text, offset, pattern.len());
+        WaitMatch {
+            excerpt,
+            excerpt_truncated: truncated,
+            excerpt_offset,
+            match_offset: u64::try_from(offset).unwrap_or(u64::MAX),
+            row_start,
+            row_end,
+        }
+    })
+}
+
+/// A ≤4096-byte slice of `line` that always contains the complete match at
+/// `match_start..match_start+pattern_len`, on UTF-8 boundaries: the match
+/// is centered inside the budget, and the window re-anchors on the match
+/// when a tail hit would otherwise lose bytes to boundary alignment. No
+/// code point is ever split.
+#[cfg(unix)]
+fn match_excerpt(line: &str, match_start: usize, pattern_len: usize) -> (String, bool, u64) {
+    if line.len() <= MAXIMUM_EXCERPT_BYTES {
+        return (line.to_owned(), false, 0);
+    }
+    let match_end = match_start + pattern_len;
+    let context = (MAXIMUM_EXCERPT_BYTES - pattern_len) / 2;
+    let mut start = match_start.saturating_sub(context);
+    while !line.is_char_boundary(start) {
+        start -= 1;
+    }
+    let mut end = start + MAXIMUM_EXCERPT_BYTES;
+    if end > line.len() {
+        end = line.len();
+        start = end - MAXIMUM_EXCERPT_BYTES;
+        while !line.is_char_boundary(start) {
+            start += 1;
+        }
+    } else {
+        while !line.is_char_boundary(end) {
+            end -= 1;
+        }
+        if end < match_end {
+            // The match touches the aligned end; re-anchor on its boundary.
+            end = match_end;
+            start = end - MAXIMUM_EXCERPT_BYTES;
+            while !line.is_char_boundary(start) {
+                start += 1;
+            }
+        }
+    }
+    (
+        line[start..end].to_owned(),
+        true,
+        u64::try_from(start).unwrap_or(u64::MAX),
+    )
+}
+
+/// The run facts a wait answer reports beyond the matched window: how many
+/// consistent reads completed a match pass, what the caller asked for, and
+/// how long the whole wait took.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct WaitReport {
+    pub(crate) observations: u64,
+    pub(crate) requested_rows: u16,
+    pub(crate) timeout_ms: u32,
+    pub(crate) elapsed_ms: u64,
+}
+
+/// Project the confirmed observation into the answer document; every field
+/// already carries validated transport facts, so the projection itself
+/// cannot fail.
+#[cfg(unix)]
+pub(crate) fn terminal_wait_output_doc(
+    terminal: TerminalRow,
+    attachment: orchbee_terminal_protocol::AttachmentId,
+    epoch: orchbee_terminal_protocol::HostEpoch,
+    observed: WaitObservation,
+    report: WaitReport,
+) -> TerminalWaitOutputDoc {
+    TerminalWaitOutputDoc {
+        terminal,
+        attachment_id: attachment.to_text(),
+        host_epoch: epoch.to_text(),
+        matched: observed.matched,
+        revision: observed.revision,
+        generation: observed.generation,
+        window_start: observed.window_start,
+        window_rows: observed.window_rows,
+        window_truncated: observed.window_rows
+            < u64::from(report.requested_rows).min(observed.total_rows),
+        total_rows: observed.total_rows,
+        requested_rows: report.requested_rows,
+        observations: report.observations,
+        timeout_ms: report.timeout_ms,
+        elapsed_ms: report.elapsed_ms,
+    }
+}
+
 /// The bound terminal row for a typed identity, or `None` when no
 /// presentation binds it — the same visibility rule as `terminal get`.
 pub(crate) fn terminal_binding(snapshot: &Snapshot, identity: &str) -> Option<TerminalRow> {
@@ -392,6 +586,7 @@ pub(crate) enum Projection {
     TerminalGet(TerminalRow),
     TerminalRead(TerminalReadDoc),
     TerminalHistory(TerminalHistoryDoc),
+    TerminalWaitOutput(TerminalWaitOutputDoc),
     ApiSnapshot(Value),
 }
 
@@ -602,6 +797,32 @@ impl Projection {
                         "rows": MAXIMUM_HISTORY_ROWS,
                         "textBytes": READ_TEXT_BYTES,
                     },
+                },
+            }),
+            Self::TerminalWaitOutput(doc) => json!({
+                "terminal": terminal_row_json(&doc.terminal),
+                "matched": true,
+                "match": {
+                    "excerpt": doc.matched.excerpt,
+                    "excerptTruncated": doc.matched.excerpt_truncated,
+                    "excerptOffset": doc.matched.excerpt_offset.to_string(),
+                    "matchOffset": doc.matched.match_offset.to_string(),
+                    "rowStart": doc.matched.row_start.to_string(),
+                    "rowEnd": doc.matched.row_end.to_string(),
+                    "revision": doc.revision.to_string(),
+                    "generation": doc.generation.to_string(),
+                },
+                "observed": {
+                    "attachmentId": doc.attachment_id,
+                    "hostEpoch": doc.host_epoch,
+                    "completedObservations": doc.observations,
+                    "windowStart": doc.window_start.to_string(),
+                    "windowRows": doc.window_rows.to_string(),
+                    "windowTruncated": doc.window_truncated,
+                    "totalRows": doc.total_rows.to_string(),
+                    "requestedRows": doc.requested_rows,
+                    "timeoutMs": doc.timeout_ms,
+                    "elapsedMs": doc.elapsed_ms,
                 },
             }),
             Self::ApiSnapshot(document) => json!({ "snapshot": document }),
@@ -971,10 +1192,12 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             serde_json::to_value(WorkbenchProtocolDocument::Snapshot(snapshot.clone()))
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
         )),
-        // `terminal read` projects a live frame, not snapshot data alone; its
-        // answer is built by the query layer. `api schema`/`config check`
-        // never reach a snapshot projection.
+        // `terminal read`/`terminal wait-output` project live viewer
+        // observations, not snapshot data alone; their answers are built by
+        // the query layer. `api schema`/`config check` never reach a
+        // snapshot projection.
         QueryCommand::TerminalRead { .. }
+        | QueryCommand::TerminalWaitOutput { .. }
         | QueryCommand::ApiSchema { .. }
         | QueryCommand::ConfigCheck => Err(Failure::new(FailureKind::InternalFailure)),
     }
@@ -2065,6 +2288,231 @@ mod tests {
             assert!(body.contains("head\\u{001b}row"));
             assert!(!body.contains("tail-marker-row"));
             assert!(body.ends_with("… 2 more rows truncated at the read limit\n"));
+        }
+    }
+
+    /// `terminal wait-output` matching: soft-wrapped rows join into logical
+    /// lines before the literal substring check, the excerpt always contains
+    /// the complete pattern within 4096 UTF-8 bytes on char boundaries, and
+    /// the observed-window projection reports the honest truncation flag.
+    #[cfg(unix)]
+    mod terminal_wait {
+        use super::super::{
+            MAXIMUM_EXCERPT_BYTES, TerminalRow, WaitMatch, WaitObservation, match_window,
+            terminal_wait_output_doc,
+        };
+        use orchbee_terminal_protocol::{
+            AttachmentId, HostEpoch, TerminalRowPromptClass, TerminalTextRowWindow,
+            TerminalTextWindowRow,
+        };
+        use std::num::NonZeroU64;
+
+        fn row(index: u64, wrap: bool, continuation: bool, text: &str) -> TerminalTextWindowRow {
+            TerminalTextWindowRow {
+                index,
+                prompt_class: TerminalRowPromptClass::None,
+                wrap,
+                wrap_continuation: continuation,
+                identity_ascii: true,
+                text: text.into(),
+                mappings: Vec::new(),
+            }
+        }
+
+        fn window(rows: Vec<TerminalTextWindowRow>, total_rows: u64) -> TerminalTextRowWindow {
+            TerminalTextRowWindow {
+                attachment_id: AttachmentId::from_bytes([7; 16]).expect("attachment"),
+                host_epoch: HostEpoch::from_bytes([9; 16]).expect("epoch"),
+                sequence: NonZeroU64::new(1).expect("sequence"),
+                revision: 4,
+                generation: NonZeroU64::new(2).expect("generation"),
+                total_rows,
+                start_row: rows.first().map(|row| row.index).unwrap_or(0),
+                columns: 80,
+                ignored_optional_flags: 0,
+                rows,
+            }
+        }
+
+        /// A match that only exists inside the joined logical line: no single
+        /// physical row contains the pattern, so a per-row search would miss.
+        #[test]
+        fn wrap_chain_joins_before_matching() {
+            let hit = match_window(
+                &window(
+                    vec![
+                        row(5, true, false, "prompt$ echo abc"),
+                        row(6, false, true, "def done"),
+                        row(7, false, false, "unrelated"),
+                    ],
+                    8,
+                ),
+                "abcdef",
+            )
+            .expect("joined line matches");
+            assert_eq!(hit.row_start, 5);
+            assert_eq!(hit.row_end, 6);
+            assert_eq!(hit.excerpt, "prompt$ echo abcdef done");
+            assert!(!hit.excerpt_truncated);
+            assert_eq!(hit.match_offset, 13);
+            assert_eq!(hit.excerpt_offset, 0);
+        }
+
+        /// The first matching logical line wins; hard boundaries never join.
+        #[test]
+        fn first_logical_line_wins_across_hard_boundaries() {
+            let hit = match_window(
+                &window(
+                    vec![
+                        row(0, false, false, "first hit here"),
+                        row(1, true, false, "second "),
+                        row(2, false, true, "hit joined"),
+                    ],
+                    3,
+                ),
+                "hit",
+            )
+            .expect("earliest line matches");
+            assert_eq!(hit.row_start, 0);
+            assert_eq!(hit.row_end, 0);
+            assert_eq!(hit.excerpt, "first hit here");
+        }
+
+        /// Matching is a literal, case-sensitive substring: regex syntax and
+        /// case folds never match.
+        #[test]
+        fn literal_case_sensitive_substring() {
+            let window = window(vec![row(0, false, false, "Foo a.b")], 1);
+            assert!(match_window(&window, "foo").is_none());
+            assert!(match_window(&window, "a.b").is_some());
+            assert!(match_window(&window, "a[x]b").is_none());
+            assert!(match_window(&window, "a.*b").is_none());
+        }
+
+        /// A window that opens mid-line (leading `wrap_continuation`) still
+        /// joins that fragment with the following continuation rows.
+        #[test]
+        fn leading_continuation_fragment_joins() {
+            let hit = match_window(
+                &window(
+                    vec![
+                        row(9, true, true, "tail of earlier "),
+                        row(10, false, true, "marker"),
+                        row(11, false, false, "other"),
+                    ],
+                    12,
+                ),
+                "earlier marker",
+            )
+            .expect("fragment plus continuation matches");
+            assert_eq!(hit.row_start, 9);
+            assert_eq!(hit.row_end, 10);
+        }
+
+        /// Long lines excerpt to ≤4096 bytes with the complete pattern kept;
+        /// a tail hit re-anchors instead of losing the match to alignment.
+        #[test]
+        fn excerpt_keeps_complete_pattern_within_budget() {
+            let padding = "x".repeat(6000);
+            let line = format!("{padding} needle");
+            let (excerpt, truncated, offset) =
+                super::super::match_excerpt(&line, 6001, "needle".len());
+            assert!(truncated);
+            assert!(excerpt.len() <= MAXIMUM_EXCERPT_BYTES);
+            assert!(excerpt.contains("needle"));
+            let start = usize::try_from(offset).expect("offset");
+            assert!(start <= 6001);
+            assert!(6001 + "needle".len() <= start + excerpt.len());
+
+            // Under the bound the whole line is the excerpt.
+            let short = "short line with needle";
+            let (excerpt, truncated, offset) =
+                super::super::match_excerpt(short, 17, "needle".len());
+            assert!(!truncated);
+            assert_eq!(excerpt, short);
+            assert_eq!(offset, 0);
+        }
+
+        /// Excerpt slicing never splits a UTF-8 code point: a CJK-dense line
+        /// still yields a valid, pattern-containing window.
+        #[test]
+        fn excerpt_respects_char_boundaries() {
+            let line = format!("{}目标", "中".repeat(2000));
+            let start = line.find("目标").expect("pattern");
+            let (excerpt, truncated, offset) = super::super::match_excerpt(&line, start, 6);
+            assert!(truncated);
+            assert!(excerpt.len() <= MAXIMUM_EXCERPT_BYTES);
+            assert!(excerpt.contains("目标"));
+            assert!(line.is_char_boundary(usize::try_from(offset).expect("offset")));
+        }
+
+        /// Review F3: the re-anchor arm is reachable — a 3-byte CJK prefix
+        /// pushes the centered start down to 0, so the aligned end lands at
+        /// 4096 < 4097 below the match end. Re-anchoring on the match
+        /// boundary keeps the complete 4094-byte pattern inside the budget.
+        #[test]
+        fn excerpt_reanchors_when_cjk_prefix_drops_the_aligned_end() {
+            let pattern = "a".repeat(4094);
+            let line = format!("中{pattern}{}", "z".repeat(10));
+            let match_start = line.find(&pattern).expect("pattern");
+            assert_eq!(match_start, 3);
+            let (excerpt, truncated, offset) =
+                super::super::match_excerpt(&line, match_start, pattern.len());
+            assert!(truncated);
+            assert!(excerpt.len() <= MAXIMUM_EXCERPT_BYTES);
+            // The re-anchored excerpt is exactly the whole pattern.
+            assert_eq!(excerpt, pattern);
+            assert_eq!(usize::try_from(offset).expect("offset"), 3);
+            assert!(line.is_char_boundary(3));
+        }
+
+        /// `windowTruncated` is the byte-capacity clamp fact: true only when
+        /// the searched window is smaller than the requested-or-retained
+        /// extent, never a guess.
+        #[test]
+        fn doc_reports_window_truncation_honestly() {
+            let matched = WaitMatch {
+                excerpt: "hit".to_owned(),
+                excerpt_truncated: false,
+                excerpt_offset: 0,
+                match_offset: 0,
+                row_start: 3,
+                row_end: 3,
+            };
+            let doc = |window_rows, total_rows, requested| {
+                terminal_wait_output_doc(
+                    TerminalRow {
+                        terminal_id: "0".repeat(32),
+                        worker_id: "0".repeat(32),
+                        presentation_id: "0".repeat(32),
+                        panel_id: "0".repeat(32),
+                        tab_id: "0".repeat(32),
+                        terminal_context_id: "0".repeat(32),
+                    },
+                    AttachmentId::from_bytes([7; 16]).expect("attachment"),
+                    HostEpoch::from_bytes([9; 16]).expect("epoch"),
+                    WaitObservation {
+                        matched: matched.clone(),
+                        revision: 4,
+                        generation: 2,
+                        window_start: 0,
+                        window_rows,
+                        total_rows,
+                    },
+                    super::super::WaitReport {
+                        observations: 1,
+                        requested_rows: requested,
+                        timeout_ms: 30_000,
+                        elapsed_ms: 12,
+                    },
+                )
+            };
+            // 500 rows searched but 1000 requested and 1000 retained: clamped.
+            assert!(doc(500, 2000, 1000).window_truncated);
+            // The full retained window was searched.
+            assert!(!doc(24, 24, 1000).window_truncated);
+            // Fewer requested rows than retained: the request bound the window.
+            assert!(!doc(10, 24, 10).window_truncated);
         }
     }
 }
