@@ -586,8 +586,8 @@
 			"zhCnSha256": "ce2bdd8802acca9c3375adb2a3f9ff4ac7041b2f17f9b822bc06a526a401a93f"
 		},
 		"schemas/client-server/README.md": {
-			"englishSha256": "35c8ff2e56c4539e1c5a1a9e8e58bd184be7685bf5b4f55c8dbe66a4fbd08ffc",
-			"zhCnSha256": "5565b95d1b9b35ee2ca089a2ba93b2cafe09d57d116cb0498b27ebde6bfcf998"
+			"englishSha256": "ce3388e952ecc9fdb3434a6a27891c53823081051d29a28c1e3fbb96154d7d9a",
+			"zhCnSha256": "d40ae7a9bc9daac848506272b8a53037b16f6b182970a7326d61b85274aef68e"
 		},
 		"schemas/workbench/README.md": {
 			"englishSha256": "71ca33e62480f425be53d4d5ca0550c97c202a4a6227d0c0ff79fe9cc9865fe3",

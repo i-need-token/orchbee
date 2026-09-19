@@ -210,16 +210,16 @@ fn rows_peer(mut peer: UnixStream, payload_bytes: usize, sent: Sender<Vec<u8>>) 
     }
 }
 
-fn rows_session(
-    payload_bytes: usize,
-) -> (
+type RowsSession = (
     LocalTerminalService,
     WorkerRequestHandle,
     Receiver<Vec<u8>>,
     thread::JoinHandle<crate::worker_obcn_carrier::WorkerWireExit>,
     thread::JoinHandle<()>,
     UnixStream,
-) {
+);
+
+fn rows_session(payload_bytes: usize) -> RowsSession {
     let service = service();
     let carrier = create_worker_carrier(WORKER_ID, NonZeroU64::MIN);
     let handle = carrier.request_handle();

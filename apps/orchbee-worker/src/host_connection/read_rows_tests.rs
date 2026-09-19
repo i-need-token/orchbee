@@ -133,15 +133,17 @@ fn host_peer(
     })
 }
 
+type RowExchangeOutcome = (
+    Result<TerminalViewerOutcome, Box<dyn Error>>,
+    JoinHandle<PeerResult>,
+    Receiver<u32>,
+);
+
 fn row_exchange(
     request_maximum: u32,
     negotiated_maximum: u32,
     payload_bytes: usize,
-) -> TestResult<(
-    Result<TerminalViewerOutcome, Box<dyn Error>>,
-    JoinHandle<PeerResult>,
-    Receiver<u32>,
-)> {
+) -> TestResult<RowExchangeOutcome> {
     let (host, peer) = host(negotiated_maximum)?;
     host.viewers
         .borrow_mut()

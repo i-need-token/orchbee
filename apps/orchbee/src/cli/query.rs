@@ -383,7 +383,7 @@ fn decode_history_window(
     {
         return Err(viewer_protocol_invalid());
     }
-    let window = orchbee_terminal_protocol::decode_terminal_text_row_window(&envelope.payload)
+    let window = orchbee_terminal_protocol::decode_terminal_text_row_window(envelope.payload)
         .map_err(|_| viewer_protocol_invalid())?;
     let total_rows = frame
         .scrollback_rows
