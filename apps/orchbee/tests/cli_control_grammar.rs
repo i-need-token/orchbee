@@ -5,19 +5,20 @@
 //! `workspace accept-directory` — against the shared option rules the native
 //! parser already enforces.
 //!
-//! Environment discipline: the unadorned build-tree binary carries no
-//! `cohort.json`, and `ORCHBEE_RUNTIME_BASE` points at a freshly minted empty
-//! directory with no Site inside. Any argv the grammar admits must therefore
-//! fail at cohort or Site discovery — a `2` exit can only come from the
-//! parser. New-command admission and per-path help are expected to fail at
-//! this base (`f468be0e` does not yet know the commands); negative controls
-//! already pass because unknown words are grammar failures too.
+//! Environment discipline: each probe runs a private copy of the just-built
+//! binary staged inside an exclusively created mode-0700 directory that holds
+//! nothing else — `NativeCohort::current` inspects the running executable's
+//! siblings, so a `cohort.json` left beside the build-tree original by a
+//! developer or a staging step can never ride into the oracle.
+//! `ORCHBEE_RUNTIME_BASE` points at a freshly minted empty directory with no
+//! Site inside. Any argv the grammar admits must therefore fail at cohort or
+//! Site discovery — a `2` exit can only come from the parser. New-command
+//! admission and per-path help are expected to fail at this base (`f468be0e`
+//! does not yet know the commands); negative controls already pass because
+//! unknown words are grammar failures too.
 #![cfg(target_os = "linux")]
 
-use std::{
-    path::{Path, PathBuf},
-    process::Output,
-};
+use std::{fs, path::PathBuf, process::Output};
 
 // The shared support module also carries helpers only other suites use.
 #[allow(dead_code)]
@@ -58,18 +59,82 @@ fn base() -> PathBuf {
     support::runtime_base("grammar-witness")
 }
 
-/// Spawn the unadorned binary under the unavailable runtime with the shared
-/// deterministic locale and wall-clock backstop.
-fn run(base: &Path, arguments: &[&str]) -> Output {
-    support::run(Path::new(env!("CARGO_BIN_EXE_orchbee")), base, arguments)
+/// The owned directory holding exactly one file — a private copy of the
+/// just-built `orchbee`. `NativeCohort::current` resolves the running
+/// executable's parent and opens `cohort.json` there, so a cohort staged
+/// beside the build-tree original would silently ride into the oracle: the
+/// same admitted argv could pass the cohort check and fail at Site discovery
+/// instead, no longer proving grammar admission. Staging the copy makes the
+/// empty-siblings invariant explicit rather than assumed. Dropping removes
+/// the directory; every child spawned from the copy is already reaped by
+/// `support::run`'s bounded wait before that can happen.
+struct FixtureDir(PathBuf);
+
+impl FixtureDir {
+    /// Copy the build-tree binary once into a freshly minted mode-0700
+    /// directory, then verify by directory listing that the fixture holds
+    /// exactly that one file — the structural evidence that no `cohort.json`
+    /// or other program sits beside the binary the group will run.
+    fn stage() -> (Self, PathBuf) {
+        let directory = Self(support::runtime_base("grammar-binary"));
+        let binary = directory.0.join("orchbee");
+        fs::copy(env!("CARGO_BIN_EXE_orchbee"), &binary)
+            .expect("copy the just-built orchbee into the isolated fixture directory");
+        let names: Vec<String> = fs::read_dir(&directory.0)
+            .expect("list the isolated fixture directory")
+            .map(|entry| {
+                entry
+                    .expect("fixture directory entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        assert_eq!(
+            names,
+            ["orchbee"],
+            "the fixture directory must hold the copied binary and nothing else"
+        );
+        (directory, binary)
+    }
 }
 
-/// The grammar admitted the argv: with no cohort staged, the only honest
-/// post-parse outcome is the cohort safety check — `check-failed` at exit 1.
-/// Anything else (usage 2, a panic, a signal) fails the witness, so a bare
-/// `!= 2` is never enough.
-fn admitted(base: &Path, arguments: &[&str]) {
-    let output = run(base, arguments);
+impl Drop for FixtureDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// One test group's owned environment: the unavailable runtime base plus the
+/// isolated binary copy every argv in the group runs against.
+struct Probe {
+    base: PathBuf,
+    binary: PathBuf,
+    _fixture: FixtureDir,
+}
+
+/// Mint the probe environment — one binary copy per test group.
+fn probe() -> Probe {
+    let (fixture, binary) = FixtureDir::stage();
+    Probe {
+        base: base(),
+        binary,
+        _fixture: fixture,
+    }
+}
+
+/// Spawn the isolated binary copy under the unavailable runtime with the
+/// shared deterministic locale and wall-clock backstop.
+fn run(probe: &Probe, arguments: &[&str]) -> Output {
+    support::run(&probe.binary, &probe.base, arguments)
+}
+
+/// The grammar admitted the argv: with no cohort beside the isolated binary,
+/// the only honest post-parse outcome is the cohort safety check —
+/// `check-failed` at exit 1. Anything else (usage 2, a panic, a signal) fails
+/// the witness, so a bare `!= 2` is never enough.
+fn admitted(probe: &Probe, arguments: &[&str]) {
+    let output = run(probe, arguments);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(
         output.status.code(),
@@ -89,8 +154,8 @@ fn admitted(base: &Path, arguments: &[&str]) {
 /// A grammar-admitted argv under a selected JSON envelope still stops at the
 /// cohort check: exit 1, and the failure document records kind `check-failed`
 /// at stage `cohort`.
-fn admitted_json(base: &Path, arguments: &[&str]) {
-    let output = run(base, arguments);
+fn admitted_json(probe: &Probe, arguments: &[&str]) {
+    let output = run(probe, arguments);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(
         output.status.code(),
@@ -112,8 +177,8 @@ fn admitted_json(base: &Path, arguments: &[&str]) {
 
 /// A grammar failure is classified before any runtime discovery: the only
 /// observable contract is the public usage exit.
-fn usage(base: &Path, arguments: &[&str]) {
-    let output = run(base, arguments);
+fn usage(probe: &Probe, arguments: &[&str]) {
+    let output = run(probe, arguments);
     assert_eq!(
         output.status.code(),
         Some(2),
@@ -124,8 +189,8 @@ fn usage(base: &Path, arguments: &[&str]) {
 }
 
 /// Format-envelope and argv-envelope failures keep stdout empty.
-fn usage_silent(base: &Path, arguments: &[&str]) {
-    let output = run(base, arguments);
+fn usage_silent(probe: &Probe, arguments: &[&str]) {
+    let output = run(probe, arguments);
     assert_eq!(output.status.code(), Some(2), "{arguments:?}");
     assert!(
         output.stdout.is_empty(),
@@ -136,8 +201,8 @@ fn usage_silent(base: &Path, arguments: &[&str]) {
 
 /// A grammar failure after a unique valid `--format json` keeps the selected
 /// envelope: a JSON failure document whose kind is `invalid-usage`.
-fn usage_json(base: &Path, arguments: &[&str]) {
-    let output = run(base, arguments);
+fn usage_json(probe: &Probe, arguments: &[&str]) {
+    let output = run(probe, arguments);
     assert_eq!(output.status.code(), Some(2), "{arguments:?}");
     let document: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("json-envelope failure is JSON");
@@ -149,8 +214,8 @@ fn usage_json(base: &Path, arguments: &[&str]) {
 
 /// Per-path help answers with zero runtime: exit 0 and a non-empty body even
 /// though no cohort or Site exists.
-fn help_ok(base: &Path, arguments: &[&str]) {
-    let output = run(base, arguments);
+fn help_ok(probe: &Probe, arguments: &[&str]) {
+    let output = run(probe, arguments);
     assert_eq!(output.status.code(), Some(0), "{arguments:?}");
     assert!(
         !output.stdout.is_empty(),
@@ -166,7 +231,7 @@ fn help_ok(base: &Path, arguments: &[&str]) {
 /// and options are legal in any position before `--`.
 #[test]
 fn terminal_send_admitted_forms() -> TestResult {
-    let base = base();
+    let probe = probe();
     let text_at_bound = "t".repeat(4096);
     let text_with_cr_at_bound = "t".repeat(4095);
     for arguments in [
@@ -218,11 +283,11 @@ fn terminal_send_admitted_forms() -> TestResult {
         // UTF-8 payloads beyond ASCII are literal bytes, never expanded.
         ["terminal", "send", TERMINAL_ID, "--text", "多 字节"].as_slice(),
     ] {
-        admitted(&base, arguments);
+        admitted(&probe, arguments);
     }
     // The separated `--format json` selector keeps the JSON failure envelope.
     admitted_json(
-        &base,
+        &probe,
         &[
             "terminal",
             "send",
@@ -235,14 +300,14 @@ fn terminal_send_admitted_forms() -> TestResult {
     );
     // Every member of the closed key vocabulary is individually legal.
     for key in SEND_KEYS {
-        admitted(&base, &["terminal", "send", TERMINAL_ID, "--key", key]);
+        admitted(&probe, &["terminal", "send", TERMINAL_ID, "--key", key]);
     }
     Ok(())
 }
 
 #[test]
 fn terminal_send_usage_failures() -> TestResult {
-    let base = base();
+    let probe = probe();
     let text_over_bound = "t".repeat(4097);
     let text_at_bound = "t".repeat(4096);
     for arguments in [
@@ -342,11 +407,11 @@ fn terminal_send_usage_failures() -> TestResult {
         ["terminal", "send", TERMINAL_ID, "--", "--key", "enter"].as_slice(),
         ["terminal", "send", TERMINAL_ID, "--text", "x", "-"].as_slice(),
     ] {
-        usage(&base, arguments);
+        usage(&probe, arguments);
     }
     // A selected `--format json` survives grammar failures as the envelope.
     usage_json(
-        &base,
+        &probe,
         &[
             "terminal",
             "send",
@@ -370,7 +435,7 @@ fn terminal_send_usage_failures() -> TestResult {
 /// 1..=3600000 (default 30000).
 #[test]
 fn terminal_wait_output_admitted_forms() -> TestResult {
-    let base = base();
+    let probe = probe();
     let match_at_bound = "m".repeat(4096);
     for arguments in [
         ["terminal", "wait-output", TERMINAL_ID, "--match", "ready"].as_slice(),
@@ -394,6 +459,9 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
             "1000",
         ]
         .as_slice(),
+        // The minimal 1ms deadline is admitted grammar; the timeout exit (7)
+        // belongs to a real wait against an admitted session, unreachable
+        // without a cohort — the oracle still observes stage=cohort.
         [
             "terminal",
             "wait-output",
@@ -434,10 +502,10 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
         ]
         .as_slice(),
     ] {
-        admitted(&base, arguments);
+        admitted(&probe, arguments);
     }
     admitted_json(
-        &base,
+        &probe,
         &[
             "terminal",
             "wait-output",
@@ -453,7 +521,7 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
 
 #[test]
 fn terminal_wait_output_usage_failures() -> TestResult {
-    let base = base();
+    let probe = probe();
     let match_over_bound = "m".repeat(4097);
     for arguments in [
         ["terminal", "wait-output"].as_slice(),
@@ -650,10 +718,10 @@ fn terminal_wait_output_usage_failures() -> TestResult {
         ["terminal", "wait-output", TERMINAL_ID, "--match=x"].as_slice(),
         ["terminal", "wait-output", TERMINAL_ID, "--match", "x", "-"].as_slice(),
     ] {
-        usage(&base, arguments);
+        usage(&probe, arguments);
     }
     usage_json(
-        &base,
+        &probe,
         &[
             "terminal",
             "wait-output",
@@ -676,7 +744,7 @@ fn terminal_wait_output_usage_failures() -> TestResult {
 /// option is admitted, `--confirm` included.
 #[test]
 fn workspace_accept_directory_admitted_forms() -> TestResult {
-    let base = base();
+    let probe = probe();
     let path_at_bound = format!("/{}", "p".repeat(4095));
     for arguments in [
         ["workspace", "accept-directory", WORKSPACE_ID, "--path", "/"].as_slice(),
@@ -732,10 +800,10 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
         ]
         .as_slice(),
     ] {
-        admitted(&base, arguments);
+        admitted(&probe, arguments);
     }
     admitted_json(
-        &base,
+        &probe,
         &[
             "workspace",
             "accept-directory",
@@ -751,7 +819,7 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
 
 #[test]
 fn workspace_accept_directory_usage_failures() -> TestResult {
-    let base = base();
+    let probe = probe();
     let path_over_bound = format!("/{}", "p".repeat(4096));
     for arguments in [
         ["workspace", "accept-directory"].as_slice(),
@@ -869,10 +937,10 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
         ]
         .as_slice(),
     ] {
-        usage(&base, arguments);
+        usage(&probe, arguments);
     }
     usage_json(
-        &base,
+        &probe,
         &[
             "workspace",
             "accept-directory",
@@ -891,7 +959,7 @@ fn workspace_accept_directory_usage_failures() -> TestResult {
 /// runtime discovery; the family controls already pass at this base.
 #[test]
 fn help_paths_answer_without_runtime() -> TestResult {
-    let base = base();
+    let probe = probe();
     // Already-admitted family and root paths: the zero-runtime mechanism is
     // pinned green so the new-path failures below cannot be blamed on the
     // environment.
@@ -904,7 +972,7 @@ fn help_paths_answer_without_runtime() -> TestResult {
         ["help", "terminal", "read"].as_slice(),
         ["help", "workspace", "create"].as_slice(),
     ] {
-        help_ok(&base, arguments);
+        help_ok(&probe, arguments);
     }
     // The composed matrix's new command paths must answer identically.
     for arguments in [
@@ -916,7 +984,7 @@ fn help_paths_answer_without_runtime() -> TestResult {
         ["help", "workspace", "accept-directory"].as_slice(),
         ["workspace", "accept-directory", "--help"].as_slice(),
     ] {
-        help_ok(&base, arguments);
+        help_ok(&probe, arguments);
     }
     Ok(())
 }
@@ -929,44 +997,44 @@ fn help_paths_answer_without_runtime() -> TestResult {
 /// commands land.
 #[test]
 fn shared_option_rules_on_existing_commands() -> TestResult {
-    let base = base();
+    let probe = probe();
     // `--` ends option scanning; a post-terminator `--format` is a positional.
-    usage(&base, &["status", "--", "--format", "json"]);
+    usage(&probe, &["status", "--", "--format", "json"]);
     // The format envelope is global and silent on failure: missing, invalid,
     // or duplicated selections anywhere before `--` exit 2 with empty stdout.
-    usage_silent(&base, &["status", "--format"]);
-    usage_silent(&base, &["status", "--format", "bogus"]);
-    usage_silent(&base, &["status", "--format", "json", "--format", "text"]);
-    usage_silent(&base, &["status", "--format=json", "--format=json"]);
-    usage_silent(&base, &["status", "--format", "--"]);
+    usage_silent(&probe, &["status", "--format"]);
+    usage_silent(&probe, &["status", "--format", "bogus"]);
+    usage_silent(&probe, &["status", "--format", "json", "--format", "text"]);
+    usage_silent(&probe, &["status", "--format=json", "--format=json"]);
+    usage_silent(&probe, &["status", "--format", "--"]);
     // Value flags own the next token but never `--`.
-    usage(&base, &["project", "create", "--label"]);
-    usage(&base, &["project", "create", "--label", "--"]);
+    usage(&probe, &["project", "create", "--label"]);
+    usage(&probe, &["project", "create", "--label", "--"]);
     // Joined `--flag=value` exists only for `--format`.
     usage(
-        &base,
+        &probe,
         &["workspace", "create", "--project", "p", "--label=x"],
     );
-    usage(&base, &["workspace", "list", "--project=p"]);
+    usage(&probe, &["workspace", "list", "--project=p"]);
     // `--version` is the sole root invocation.
-    let output = run(&base, &["--version"]);
+    let output = run(&probe, &["--version"]);
     assert_eq!(output.status.code(), Some(0));
-    usage(&base, &["--version", "--format", "json"]);
-    usage(&base, &["status", "--version"]);
+    usage(&probe, &["--version", "--format", "json"]);
+    usage(&probe, &["status", "--version"]);
     // A business flag on a query path is a usage failure.
-    usage(&base, &["status", "--text", "x"]);
-    usage(&base, &["status", "--confirm"]);
-    usage(&base, &["project", "list", "--path", "/x"]);
-    usage(&base, &["terminal", "read", TERMINAL_ID, "--text", "x"]);
-    usage(&base, &["terminal", "read", TERMINAL_ID, "--match", "x"]);
-    usage(&base, &["terminal", "read", TERMINAL_ID, "--key", "enter"]);
-    usage(&base, &["--text", "x"]);
+    usage(&probe, &["status", "--text", "x"]);
+    usage(&probe, &["status", "--confirm"]);
+    usage(&probe, &["project", "list", "--path", "/x"]);
+    usage(&probe, &["terminal", "read", TERMINAL_ID, "--text", "x"]);
+    usage(&probe, &["terminal", "read", TERMINAL_ID, "--match", "x"]);
+    usage(&probe, &["terminal", "read", TERMINAL_ID, "--key", "enter"]);
+    usage(&probe, &["--text", "x"]);
     // The same envelope rule applies inside the new commands' scope: a valid
     // unique json selection shapes the grammar failure.
-    usage_json(&base, &["status", "--frobnicate", "--format", "json"]);
+    usage_json(&probe, &["status", "--frobnicate", "--format", "json"]);
     // A trailing `--` on a complete argv changes nothing: `status` is formed
     // at this base, so admission is proven by the same cohort-check outcome.
-    admitted(&base, &["status", "--"]);
+    admitted(&probe, &["status", "--"]);
     Ok(())
 }
 
@@ -975,7 +1043,7 @@ fn shared_option_rules_on_existing_commands() -> TestResult {
 /// grammar failures rather than runtime lookups.
 #[test]
 fn cross_command_scope_and_help_boundaries() -> TestResult {
-    let base = base();
+    let probe = probe();
     for arguments in [
         ["terminal", "read", TERMINAL_ID, "--enter"].as_slice(),
         ["terminal", "read", TERMINAL_ID, "--timeout", "5"].as_slice(),
@@ -1000,10 +1068,10 @@ fn cross_command_scope_and_help_boundaries() -> TestResult {
         ["terminal", "send", TERMINAL_ID, "--help"].as_slice(),
         ["help", "terminal", "send", TERMINAL_ID].as_slice(),
     ] {
-        usage(&base, arguments);
+        usage(&probe, arguments);
     }
     // `help` never selects a format; the rejected selection keeps the
     // requested envelope.
-    usage_json(&base, &["help", "terminal", "--format", "json"]);
+    usage_json(&probe, &["help", "terminal", "--format", "json"]);
     Ok(())
 }
