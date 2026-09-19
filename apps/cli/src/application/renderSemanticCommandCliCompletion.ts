@@ -104,33 +104,35 @@ const REPEATABLES = [
 const CLOSED_PENDING_ARMS = [
 	...CLOSED_VALUES.map((closed) => {
 		const repeatable = REPEATABLES.find((candidate) => candidate.option === closed.option);
-		const track =
-			repeatable === undefined ? '' : `${repeatable.variable}="$${repeatable.variable} $tok"; `;
-		return `\t\t\t\t${closed.option})\t${track}case " ${closed.values.join(' ')} " in *" $tok "*) ;; *)\tbad=1 ;; esac ;;`;
+		if (repeatable === undefined) {
+			return `\t\t\t\t${closed.option})\tcase " ${closed.values.join(' ')} " in *" $tok "*) ;; *)\tbad=1 ;; esac ;;`;
+		}
+		return `\t\t\t\t${closed.option})\tcase " $${repeatable.variable} " in *" $tok "*)\tbad=1 ;; *)\tcase " ${closed.values.join(' ')} " in *" $tok "*)\t${repeatable.variable}="$${repeatable.variable} $tok" ;; *)\tbad=1 ;; esac ;; esac ;;`;
 	}),
 	...REPEATABLES.filter(
 		(repeatable) => !CLOSED_VALUES.some((closed) => closed.option === repeatable.option),
 	).map(
 		(repeatable) =>
-			`\t\t\t\t${repeatable.option})\t${repeatable.variable}="$${repeatable.variable} $tok" ;;`,
+			`\t\t\t\t${repeatable.option})\tcase "$tok" in --*)\tbad=1 ;; *)\tcase " $${repeatable.variable} " in *" $tok "*)\tbad=1 ;; *)\t${repeatable.variable}="$${repeatable.variable} $tok" ;; esac ;; esac ;;`,
 	),
+	'\t\t\t\t*)\tcase "$tok" in --*)\tbad=1 ;; esac ;;',
 ].join('\n');
 
 const CLOSED_PENDING_ARMS_FISH = [
 	...CLOSED_VALUES.map((closed) => {
 		const repeatable = REPEATABLES.find((candidate) => candidate.option === closed.option);
-		const track =
-			repeatable === undefined
-				? ''
-				: `\n                    set ${repeatable.variable} "$${repeatable.variable} $tok"`;
-		return `                case ${closed.option}${track}\n                    if not string match -q "* $tok *" " ${closed.values.join(' ')} "\n                        set bad 1\n                    end`;
+		if (repeatable === undefined) {
+			return `                case ${closed.option}\n                    if not string match -q "* $tok *" " ${closed.values.join(' ')} "\n                        set bad 1\n                    end`;
+		}
+		return `                case ${closed.option}\n                    if string match -q "* $tok *" " $${repeatable.variable} "\n                        set bad 1\n                    else if string match -q "* $tok *" " ${closed.values.join(' ')} "\n                        set ${repeatable.variable} "$${repeatable.variable} $tok"\n                    else\n                        set bad 1\n                    end`;
 	}),
 	...REPEATABLES.filter(
 		(repeatable) => !CLOSED_VALUES.some((closed) => closed.option === repeatable.option),
 	).map(
 		(repeatable) =>
-			`                case ${repeatable.option}\n                    set ${repeatable.variable} "$${repeatable.variable} $tok"`,
+			`                case ${repeatable.option}\n                    if string match -q -- '--*' $tok\n                        set bad 1\n                    else if string match -q "* $tok *" " $${repeatable.variable} "\n                        set bad 1\n                    else\n                        set ${repeatable.variable} "$${repeatable.variable} $tok"\n                    end`,
 	),
+	`                case '*'\n                    if string match -q -- '--*' $tok\n                        set bad 1\n                    end`,
 ].join('\n');
 
 export function renderSemanticCommandCliCompletion(shell: SemanticCommandCliShell): string {
@@ -146,6 +148,15 @@ export function renderSemanticCommandCliCompletion(shell: SemanticCommandCliShel
 
 const VALUE_OPTION_WORDS = VALUE_OPTIONS.join(' ');
 const REPEATABLE_WORDS = REPEATABLES.map((repeatable) => repeatable.option).join(' ');
+const ALL_LOCATION_WORDS = [
+	...new Set(
+		ALL_OPTIONS.filter((option) => option.location === true).map((option) => `--${option.name}`),
+	),
+].join(' ');
+
+const PREPATH_ROWS = PATHS.map(
+	(projection) => `${projection.key.split(' ')[0]}| ${projection.offerableOptions.join(' ')} `,
+);
 
 function pathCases(
 	indent: string,
@@ -198,7 +209,7 @@ function renderBash(): string {
 	return `# bash completion for orchbee-cli — generated from the declarative command table.
 _orchbee_cli() {
 	local cur fam p2 extra used pending tok bad key operand cap sub
-	local opts valopts locopts opvals out o u v scope vals usedv union
+	local opts valopts locopts opvals out o u v scope vals usedv union wok row vopts seen
 ${repDeclares}
 	COMPREPLY=()
 	cur="\${COMP_WORDS[COMP_CWORD]}"
@@ -249,7 +260,8 @@ ${repUsedSelect}
 	if [[ -n "$pending" ]]; then
 		scope=""
 		case "$fam" in
-			""|help)\treturn ;;
+			"")\tscope=" $pending " ;;
+			help)\treturn ;;
 			${FAMILY_NAMES.join('|')})
 				if [[ -z "$p2" ]]; then
 					case "$fam" in
@@ -278,8 +290,42 @@ ${valueScopeCases}
 
 	case "$fam" in
 		"")
-			[[ -n "$used" ]] && return
-			COMPREPLY=( $(compgen -W "${TOP_WORDS.join(' ')} --skill --version --help -h" -- "$cur") )
+			out=""
+			if [[ -n "$used" ]]; then
+				local -a pt
+				pt=(
+${PREPATH_ROWS.map((row) => `\t\t\t\t\t"${row}"`).join('\n')}
+				)
+				vopts=""; seen=""
+				for row in "\${pt[@]}"; do
+					w="\${row%%|*}"; scope="\${row#*|}"
+					wok=1
+					for u in $used; do
+						case "$scope" in *" $u "*) ;; *)\twok="" ;; esac
+					done
+					if [[ -n "$wok" ]]; then
+						case " $out " in *" $w "*) ;; *)\tout="$out $w" ;; esac
+						vopts="$vopts $scope"
+					fi
+				done
+				[[ -z "$out" ]] && return
+				for o in $vopts; do
+					case " $used " in *" $o "*) continue ;; esac
+					case " $seen " in *" $o "*) continue ;; esac
+					seen="$seen $o"
+					case " $used " in *" --standalone "*)
+						case " ${ALL_LOCATION_WORDS} " in *" $o "*) continue ;; esac ;;
+					esac
+					case " $used " in
+						*" --project "*|*" --workspace "*)
+							[[ "$o" == "--standalone" ]] && continue ;;
+					esac
+					out="$out $o"
+				done
+			else
+				out="${TOP_WORDS.join(' ')} --skill --version --help -h"
+			fi
+			COMPREPLY=( $(compgen -W "$out" -- "$cur") )
 			return ;;
 		help)
 			[[ -n "$used" || $extra -gt 1 ]] && return
@@ -380,7 +426,7 @@ _orchbee_cli() {
 	local -a candidates
 	candidates=()
 	local cur fam p2 extra used pending tok bad key operand cap sub
-	local opts valopts locopts opvals out o u v scope vals usedv union
+	local opts valopts locopts opvals out o u v scope vals usedv union wok row vopts seen
 ${repDeclares}
 	cur="\${words[CURRENT]}"
 	fam=""; p2=""; extra=0; used=""; pending=""; bad=""; key=""; operand=0
@@ -430,7 +476,8 @@ ${repUsedSelect}
 	if [[ -n "$pending" ]]; then
 		scope=""
 		case "$fam" in
-			""|help)\treturn ;;
+			"")\tscope=" $pending " ;;
+			help)\treturn ;;
 			${FAMILY_NAMES.join('|')})
 				if [[ -z "$p2" ]]; then
 					case "$fam" in
@@ -460,8 +507,42 @@ ${valueScopeCases}
 
 	case "$fam" in
 		"")
-			[[ -n "$used" ]] && return
-			candidates=(${TOP_WORDS.join(' ')} --skill --version --help -h) ;;
+			out=""
+			if [[ -n "$used" ]]; then
+				local -a pt
+				pt=(
+${PREPATH_ROWS.map((row) => `\t\t\t\t\t"${row}"`).join('\n')}
+				)
+				vopts=""; seen=""
+				for row in "\${pt[@]}"; do
+					w="\${row%%|*}"; scope="\${row#*|}"
+					wok=1
+					for u in \${(z)used}; do
+						case "$scope" in *" $u "*) ;; *)\twok="" ;; esac
+					done
+					if [[ -n "$wok" ]]; then
+						case " $out " in *" $w "*) ;; *)\tout="$out $w" ;; esac
+						vopts="$vopts $scope"
+					fi
+				done
+				[[ -z "$out" ]] && return
+				for o in \${(z)vopts}; do
+					case " $used " in *" $o "*) continue ;; esac
+					case " $seen " in *" $o "*) continue ;; esac
+					seen="$seen $o"
+					case " $used " in *" --standalone "*)
+						case " ${ALL_LOCATION_WORDS} " in *" $o "*) continue ;; esac ;;
+					esac
+					case " $used " in
+						*" --project "*|*" --workspace "*)
+							[[ "$o" == "--standalone" ]] && continue ;;
+					esac
+					out="$out $o"
+				done
+				for o in \${(z)out}; do candidates+=("$o"); done
+			else
+				candidates=(${TOP_WORDS.join(' ')} --skill --version --help -h)
+			fi ;;
 		help)
 			[[ -n "$used" || $extra -gt 1 ]] && return
 			if [[ -z "$p2" ]]; then
@@ -544,22 +625,18 @@ function renderFish(): string {
 		(closed) =>
 			`            case ${closed.option}\n                set vals ${closed.values.join(' ')}`,
 	).join('\n');
-	const valueScopeCases = pathCases('\t\t\t\t', (p) =>
-		p.valueOptions.length === 0 ? 'set scope' : `set scope ${p.valueOptions.join(' ')}`,
-	).replaceAll('\t', '    ');
+	const valueScopeCases = PATHS.map(
+		(projection) =>
+			`                case '${projection.key}'\n                    set scope${projection.valueOptions.length === 0 ? '' : ` ${projection.valueOptions.join(' ')}`}`,
+	).join('\n');
 	const familyUnionValueCases = FAMILIES.map(
 		(family) =>
 			`                        case ${family.name}\n                            set scope ${family.unionValue.join(' ')}`,
 	).join('\n');
-	const offerCases = pathCases('\t\t', (p) => {
-		const parts = [
-			`set opts ${p.offerableOptions.join(' ')}`,
-			p.locationOptions.length === 0 ? 'set locopts' : `set locopts ${p.locationOptions.join(' ')}`,
-			`set cap ${p.cap}`,
-			p.operandValues.length === 0 ? 'set opvals' : `set opvals ${p.operandValues.join(' ')}`,
-		];
-		return parts.join('; ');
-	}).replaceAll('\t', '    ');
+	const offerCases = PATHS.map(
+		(projection) =>
+			`        case '${projection.key}'\n            set opts${projection.offerableOptions.length === 0 ? '' : ` ${projection.offerableOptions.join(' ')}`}\n            set locopts${projection.locationOptions.length === 0 ? '' : ` ${projection.locationOptions.join(' ')}`}\n            set cap ${projection.cap}\n            set opvals${projection.operandValues.length === 0 ? '' : ` ${projection.operandValues.join(' ')}`}`,
+	).join('\n');
 	const familyUnionOfferCases = FAMILIES.map(
 		(family) =>
 			`                    case ${family.name}\n                        set union ${family.unionOfferable.join(' ')}`,
@@ -621,7 +698,9 @@ ${CLOSED_PENDING_ARMS_FISH}
     if test -n "$pending"
         set -l scope
         switch $fam
-            case '' help
+            case ''
+                set scope $pending
+            case help
                 return
             case ${FAMILY_NAMES.join(' ')}
                 if test -z "$p2"
@@ -668,10 +747,54 @@ ${repUsedSelect}
 
     switch $fam
         case ''
-            if test -n "$used"
+            if test -z "$used"
+                printf '%s\\n' ${TOP_WORDS.join(' ')} --skill --version --help -h
                 return
             end
-            printf '%s\\n' ${TOP_WORDS.join(' ')} --skill --version --help -h
+            set -l out
+            set -l vopts ""
+            set -l seen ""
+            for row in ${PREPATH_ROWS.map((row) => `'${row}'`).join(' ')}
+                set -l parts (string split -m1 '|' -- $row)
+                set -l w $parts[1]
+                set -l scope $parts[2]
+                set -l wok 1
+                for u in (string split ' ' -- (string trim -- $used))
+                    test -z "$u"; and continue
+                    if not string match -q "* $u *" "$scope"
+                        set wok ""
+                    end
+                end
+                if test -n "$wok"
+                    if not string match -q "* $w *" " $out "
+                        set -a out $w
+                    end
+                    set vopts "$vopts$scope"
+                end
+            end
+            test (count $out) -eq 0; and return
+            for o in (string split ' ' -- $vopts)
+                test -z "$o"; and continue
+                if string match -q "* $o *" " $used "
+                    continue
+                end
+                if string match -q "* $o *" " $seen "
+                    continue
+                end
+                set seen "$seen $o"
+                if string match -q "* --standalone *" " $used "
+                    if string match -q "* $o *" " ${ALL_LOCATION_WORDS} "
+                        continue
+                    end
+                end
+                if string match -qr ' --(project|workspace) ' " $used "
+                    if test "$o" = --standalone
+                        continue
+                    end
+                end
+                set -a out $o
+            end
+            printf '%s\\n' $out
             return
         case help
             if test -n "$used"; or test $extra -gt 1

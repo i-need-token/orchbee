@@ -69,6 +69,137 @@ const PROBES: readonly CompletionProbe[] = [
 		expected: ['list', 'get', 'explain', 'changes', 'wait'],
 		line: 'orchbee-cli help agent ',
 	},
+	{ expected: ['agent'], line: 'orchbee-cli --output json a' },
+	{ expected: ['json', 'text'], line: 'orchbee-cli --output ' },
+	{ expected: [], line: 'orchbee-cli --bogus ' },
+	{ expected: [], line: 'orchbee-cli --output json help ' },
+	{ expected: [], line: 'orchbee-cli --output json h' },
+	{
+		expected: [
+			'status',
+			'operation',
+			'execution',
+			'agent',
+			'project',
+			'directory',
+			'workspace',
+			'tab',
+			'panel',
+			'terminal',
+			'--target',
+			'--input-file',
+			'--detach',
+			'--request-id',
+			'--all',
+			'--limit',
+			'--cursor',
+			'--timeout',
+			'--until',
+			'--after-revision',
+			'--project',
+			'--standalone',
+			'--workspace',
+			'--tab',
+			'--rows',
+			'--directory',
+		],
+		line: 'orchbee-cli --output json ',
+	},
+	{
+		expected: [
+			'agent',
+			'project',
+			'directory',
+			'workspace',
+			'tab',
+			'panel',
+			'terminal',
+			'--output',
+			'--target',
+			'--request-id',
+			'--all',
+			'--limit',
+			'--timeout',
+			'--detach',
+			'--project',
+			'--standalone',
+			'--workspace',
+			'--tab',
+		],
+		line: 'orchbee-cli --cursor x ',
+	},
+	{
+		expected: [
+			'agent',
+			'--output',
+			'--target',
+			'--request-id',
+			'--timeout',
+			'--after-revision',
+			'--detach',
+		],
+		line: 'orchbee-cli --until idle ',
+	},
+	{
+		expected: [
+			'tab',
+			'panel',
+			'terminal',
+			'--output',
+			'--target',
+			'--request-id',
+			'--limit',
+			'--cursor',
+			'--detach',
+			'--tab',
+			'--directory',
+		],
+		line: 'orchbee-cli --standalone ',
+	},
+	{
+		expected: [
+			'directory',
+			'workspace',
+			'tab',
+			'panel',
+			'terminal',
+			'--output',
+			'--target',
+			'--request-id',
+			'--limit',
+			'--cursor',
+			'--detach',
+			'--workspace',
+			'--tab',
+			'--directory',
+		],
+		line: 'orchbee-cli --project p ',
+	},
+	{
+		expected: [
+			'needs-attention',
+			'failed',
+			'succeeded',
+			'canceled',
+			'interrupted',
+			'working',
+			'unknown',
+			'ended',
+			'fresh',
+			'stale',
+			'disconnected',
+		],
+		line: 'orchbee-cli --until idle --until ',
+	},
+	{ expected: [], line: 'orchbee-cli --cursor --output ' },
+	{ expected: [], line: 'orchbee-cli agent list --cursor --output ' },
+	{ expected: [], line: 'orchbee-cli agent list --limit --all ' },
+	{ expected: [], line: 'orchbee-cli agent wait session-1 --until idle --until idle ' },
+	{ expected: [], line: 'orchbee-cli --until idle --until idle ' },
+	{ expected: ['interrupted'], line: 'orchbee-cli agent wait session-1 --until idle --until i' },
+	{ expected: ['interrupted'], line: 'orchbee-cli --until idle --until i' },
+	{ expected: ['list'], line: 'orchbee-cli --output json agent l' },
+	{ expected: ['--limit'], line: 'orchbee-cli --output json agent list --l' },
 ];
 
 function probeAll(
@@ -97,7 +228,12 @@ function probeAll(
   words=( \${(z)1} )
   [[ "$1" =~ [[:space:]]$ ]] && words+=("")
   CURRENT=\${#words}
-  _orchbee_cli
+  local out
+  out=$(_orchbee_cli)
+  local candidate
+  for candidate in \${(f)out}; do
+    [[ "$candidate" == "\${words[CURRENT]}"* ]] && print -l -- "$candidate"
+  done
   true
 }`;
 		const quoted = lines
@@ -175,5 +311,8 @@ describe('generated shell completion semantics', () => {
 		expect(script).toContain('complete -f -c orchbee-cli');
 		expect(script).toContain('--until');
 		expect(script).toContain('bash zsh fish');
+		expect(script).toContain("case 'agent list'");
+		expect(script).not.toMatch(/"[^"\n]+"\)\s/);
+		expect(script).not.toContain(';;');
 	});
 });
