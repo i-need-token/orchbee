@@ -229,13 +229,13 @@
 					"failure": {
 						"required": ["details"],
 						"properties": {
-									"details": {
-										"oneOf": [
-											{ "$ref": "#/$defs/rejectedDetails" },
-											{ "$ref": "#/$defs/historyReadRejectedDetails" }
-										]
-									}
-								}
+							"details": {
+								"oneOf": [
+									{ "$ref": "#/$defs/rejectedDetails" },
+									{ "$ref": "#/$defs/historyReadRejectedDetails" }
+								]
+							}
+						}
 					}
 				}
 			}
