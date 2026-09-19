@@ -2804,8 +2804,8 @@
 				"crates/terminal-protocol/src/**",
 				"apps/orchbee/docs/native-panel-lifecycle.zh-CN.md"
 			],
-			"timeoutMilliseconds": 600000,
-			"workers": 1,
+			"timeoutMilliseconds": 1800000,
+			"workers": 2,
 			"requiredCoverage": [
 				"MintPane",
 				"VanishLeaf",
@@ -2824,11 +2824,26 @@
 				"ExecuteControl",
 				"ExecutePoll",
 				"ExpireInflight",
+				"DrawPendingFrame",
 				"SettleFrameAck",
 				"RejectStaleFrameAck",
 				"SettlePaneFault",
 				"RejectStalePaneFault",
 				"ClosePane"
+			],
+			"variants": [
+				{
+					"name": "default",
+					"constants": {
+						"MaxViewers": 2
+					}
+				},
+				{
+					"name": "viewer-contention",
+					"constants": {
+						"MaxViewers": 1
+					}
+				}
 			]
 		},
 		{

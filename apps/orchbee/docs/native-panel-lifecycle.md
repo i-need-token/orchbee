@@ -91,108 +91,61 @@ only its own `PaneRef` settles (`settle_pane_detached`). Anchor-level teardown
 (`drop_anchor_panes`) replaces a whole epoch atomically through `PreparedDesiredInstall`, while a
 same-Tab focus move is local and never departs or re-mints a record.
 
-During the first `Starting` phase a leaf-geometry observation still runs `sync_pane_set` —
-records, panel indexes, latest observed geometry and the divergence's episode budget are all
-written — but ordinary convergence work defers: `schedule_pane_reconcile` enqueues no
-`ReconcilePanes` and the observation admits no ordinary `Resize`, preserving the startup
-poll-key allocator's queue-empty/lease-empty guard while `reconcile_pending` keeps the debt
-visible. Once Ready installs, the next ordinary tick or observation delivers the deferred work
-under the same `PaneRef`, the same minted deadline and the latest recorded geometry — an
-identical membership never renews that deadline, and `last_admitted_geometry` is recorded only
-when a `Resize` enqueue actually succeeds. Setup-owned Acquire/Resize/setup-Poll/FrameApplied/
-ReadyCandidate commands keep their own order throughout, and phases other than `Starting`
-admit ordinary work exactly as before.
-
-Mailbox admission partitions by command scope: input and resize admit only the logical focus pane;
-polls admit every exact non-departing incarnation of the desired set. Commands or worker events
+Mailbox admission partitions by command scope: input and resize admit only while their pane is
+the logical focus at enqueue time; polls admit every exact non-departing incarnation of the
+desired set. An admitted command keeps the `PaneRef` it captured at enqueue — dispatch fences on
+that exact reference and does not re-check focus, so accepted input still lands on its original
+pane after a focus move and never migrates to the newly focused pane. Commands or worker events
 that arrive tagged with a retired incarnation — queued before a rebind or settled late — are
-dropped or refused at the exact `PaneRef` and never migrate to the focused pane nor replay onto
-the re-bound attachment. `FrameApplied` commits only onto the record that staged the frame, and
-readiness follows the focus pane alone while background panes attach and render independently. The
+dropped or refused at the exact `PaneRef` and never replay onto the re-bound attachment. A poll
+result waits as a pending draw until a completed draw on the exact live record stages it;
+`FrameApplied` commits only onto the record that staged the frame — a pending draw whose pane
+departed settles without feedback rather than fabricating an acknowledgement — and readiness
+follows the focus pane alone while background panes attach and render independently. The
 shared HostViewers capacity of 8 applies across all visible panes, and read-only panes never
 acquire control or resize.
 
-Between `Attached` and `SetupConfigured` a pane record carries no settled controller mode. The
-ordinary-poll rotation admits only attached, projected, non-departing records whose mode has
-resolved — a still-configuring leaf is excluded, while its own setup pipeline keeps polling it
-unaffected. A local focus move, whether planned by direction or by direct panel identity, applies
-the same boundary: the plan refuses an unconfigured leaf, and an admitted move installs the leaf's
-own granted mode rather than inventing `ReadOnly`. A `ReadOnly`-configured leaf is a first-class
-settled mode: it displays, joins the ordinary poll rotation, and takes focus without ever claiming
-input control or resize.
-
-The session's global `ReadyCandidate` publication belongs to the setup that owns the Ready phase:
-`Startup` and operation-`Lease` setups whose target still holds focus. A `Reconcile`-owned setup is
-background convergence — it completes its own record's attach/configure/draw/feedback chain and
-returns through the record-only tail, publishing no global candidate even when its target takes
-focus inside the feedback-settle window, so an already-`Ready` session is never pushed into a
-second Ready. Focus moves before, during, or after that window do not rewrite the recorded
-incarnation, controller, or sequence, and inputs already accepted stay routed to their original
-exact `PaneRef`.
-
 `NativeClientPaneMembership` is the bounded collection witness. Over two panes, two anchors and
 two incarnations per pane it enforces that live records always belong to the current anchor
-(`LiveRecordsShareCurrentAnchor`), departing records carry no frame work
-(`DepartingCarriesNoFrameWork`), an accepted frame is always the frame that record itself staged
-(`AcceptedFrameIsOwnStaged`) and only lands on a live attached projected record
-(`AcceptedImpliesAttachedLiveProjected`), a host viewer always equals its record's exact
-incarnation (`ViewerIsExactLiveIncarnation`) within the shared budget (`ViewerBudget`), and
-delivered inputs always reached the exact attachment incarnation they were tagged for while that
-pane held focus (`InputsDeliverOnlyToTaggedLiveFocus`). Under weak fairness of disposal and
-reappearance a departed pane settles (`DepartedEventuallyDisposesOrReappears`).
-
-### Explicit refresh after convergence expiry
-
-A pane that has no attachment and is parked with `ConvergenceExpired` stays parked under repeated
-geometry observations and automatic publication drains. A user refresh is a separate, generation-
-bound intent: admission alone does not grant another attach attempt. Only that flight's successful
-`Append` installation of the current authoritative snapshot may open one new bounded convergence
-episode for attachable, non-departing, unattached expired panes of the current anchor. Internal
-workspace or context recovery is not a user refresh.
-
-The refresh flight stores its source together with its generation. Refusal before admission creates
-no flight; definite failure, retirement, and a stale or superseded result cannot reopen an episode.
-The successful installation uses the reply transaction's observation from the existing
-`LocalOperationClock` to mint its one budget. A live episode is never extended, a repeated result
-cannot mint another budget, and another expiry is terminal until new accepted evidence arrives.
-Other faults, healthy attachments, control grants, queued input, frame identities, and departing
-viewers awaiting exact disposal proof remain unchanged.
-
-Losing a viewer also clears that attachment's accepted geometry, including on a background pane;
-an unattached record cannot retain an accepted resize from the lost viewer. The pane's identity,
-observed leaf geometry and `ViewerLost` fault remain, without an automatic re-attach.
-
-This source/generation/install/expiry transition group is covered by deterministic state and reply-
-transaction tests. `NativeClientPaneMembership` abstracts away time and refresh cause; its bounded
-model results do not establish this recovery policy.
+(`LiveRecordsShareCurrentAnchor`), departing records carry no pending draw, staged or accepted
+frame work (`DepartingCarriesNoFrameWork`), a received-but-undrawn frame exists only on a live
+attached projected record (`PendingFrameIsLiveAttachedProjected`), an accepted frame is always
+the frame that record itself completed drawing (`AcceptedFrameIsOwnStaged`) and only lands on a
+live attached projected record (`AcceptedImpliesAttachedLiveProjected`), a host viewer always
+equals its record's exact incarnation (`ViewerIsExactLiveIncarnation`) within the shared budget
+(`ViewerBudget`), and delivered inputs always reached the exact attachment incarnation they were
+tagged for by a command enqueued while that pane held focus
+(`InputsDeliverOnlyToTaggedLiveFocus`). Under weak fairness of disposal and reappearance a
+departed pane settles (`DepartedEventuallyDisposesOrReappears`).
 
 ## Source correspondence
 
-| Production surface                                                                                                                                                      | Model correspondence                                                                                                                                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PanelMarker::barrier`, admission windows (`terminal_session/state/panel.rs`)                                                                                           | `SamplePanel`, `RefusePanelAdmission`, `RefusePanelAfterLockExpiry`, `RefuseMoveNoNeighbor`                                                                                      |
-| `try_enqueue_panel_for_using` admission and structural exclusion                                                                                                        | `AdmitPanel`, `StructuralExclusion`, `OtherStructuralExcludesPanel`                                                                                                              |
-| Mailbox flight queue/in-flight stages (`terminal_session/mailbox/panel.rs`)                                                                                             | `stage = "queued"/"in-flight"`, `SubmitPanel`, `ExpirePanelFlight`                                                                                                               |
-| `run_panel` outcome classification (definite precommit/unchanged, close receipt, committed, unknown)                                                                    | `Receive*` actions, `ReceiveAmbiguousOutcome`, `NoReplayAfterAmbiguous`                                                                                                          |
-| `place_panel_result` identity/serial/deadline correlation                                                                                                               | `PlaceResult`, `OnlyCurrentResultPlaced`, `DepositCorrelatesCurrent`, `RejectStaleResultDeposit`                                                                                 |
-| `panel_reply_current` stale request/serial/target rejection                                                                                                             | `ResultCurrent` gating of all `Consume*` actions, `RejectStaleResultDeposit`, `RejectStaleMembershipReply`, `RejectStaleRefreshConsume`, `StaleRejectionPreservesState`          |
-| `prepare_panel`, `prepare_panel_candidate` exact vs superseding validation                                                                                              | `ReadCommitSnapshot*`, `ConsumeCommittedMerge`, `ConsumeCommittedUnavailable`, `ConsumeCommittedDivergent`                                                                       |
-| `prepare_panel` tab-unavailable snapshot classification (older/divergent, Tab-gone, newer canonical Tab)                                                                | `ReadTabUnavailableSnapshot`, `ConsumeTabUnavailableMembership`/`Divergent`/`NotApplied`/`Refused`                                                                               |
-| `validate_split_panel`, `validate_moved_panel` exact `r+1` graft vs relaxed superseding                                                                                 | `ReceiveCommitted` validity, `ConsumeInvalidGraftCommit`, `ReadCommitSnapshotExact`/`Superseding`                                                                                |
-| `merge_projection` requiring the prior selected leaf                                                                                                                    | `ConsumeCommittedMerge` vs `ConsumeCommittedLeaflessRepair` partition                                                                                                            |
-| `apply_prepared_panel`, `retain_prepared_panel_membership` commit retention                                                                                             | `commitHeld`/`commitExpected`, `EnterMembership`, `RecoveryRetainsCommit`                                                                                                        |
-| `stage_panel_membership_cleanup`, `prepare_panel_membership_install` release-before-install ordering                                                                    | `ReleaseOldAttachment`, `InstallMembership*`, `AttachRequiresReleasedOld`                                                                                                        |
-| `retain_pending_panel`, `PanelProjectionUnavailable` recovery                                                                                                           | `ConsumeCommittedUnavailable`, `stage = "recovery"`, `AdmitRefresh`, `ApplyRefresh*`                                                                                             |
-| `apply_panel_event` UI settlement including unattached and Empty install                                                                                                | `InstallMembershipAttach`, `InstallMembershipSelect`, `InstallMembershipEmpty`, `CompleteAttach`                                                                                 |
-| `setup_target` attach outcome classification and `settle_without_attachment` (`SessionPhaseKind::RetryableAttachUnavailable`)                                           | `OfferAttachReply`, `CompleteAttach`, `ParkAttachUnavailable`, `FailAttach`, `ExpireAttach`, `ParkedHasNoAttachment`, `RejectedAttachNeverRetires`, `ParkedSettlesViaMembership` |
-| Close `Accepted` receipt vs later publication/removal                                                                                                                   | `ReceiveCloseAccepted`, `ConsumeCloseAccepted`, `PeerCloseLeaf`, `CloseReceiptKeepsSelection`                                                                                    |
-| `PaneKey`/`PaneRef`/`PaneRecord`, `sync_pane_set`, `depart_all_panes`, `drop_anchor_panes`, `settle_pane_detached` (`terminal_session/state.rs`, `state/membership.rs`) | `rec[p]`, `MintPane`, `VanishLeaf`, `ReappearLeaf`, `SettleDetachProof`, `AdvanceAnchorEpoch`, `LiveRecordsShareCurrentAnchor`, `DepartingCarriesNoFrameWork`                    |
-| Mailbox admission split — logical focus for input/resize, exact incarnation for polls (`terminal_session/mailbox.rs` `admits`)                                          | `Admitted`, `EnqueueFocusControl`, `EnqueuePoll`, `EnqueueStaleCommand`, `DequeueAdmit`, `DropStaleQueueCommand`                                                                 |
-| Executor exact-incarnation fence in `run_input`/`run_resize`/`run_poll` (`terminal_session/connection/native.rs`)                                                       | `ExecuteControl` delivery gate, `ExecutePoll` stage gate, `ExpireInflight`                                                                                                       |
-| Per-record `stage_drawn_frame` / `mark_feedback_accepted` / `invalidate_projection_frame`                                                                               | `SettleFrameAck`, `AcceptedFrameIsOwnStaged`, `AcceptedImpliesAttachedLiveProjected`                                                                                             |
-| `settle_pane_fault` known-refusal parking; `settle_attached_event` / `record_setup_configuration` exact-`PaneRef` settlement                                            | `SettlePaneFault`, `RejectStalePaneFault`, `RejectStaleDetachProof`, `RejectStaleFrameAck`                                                                                       |
-| `plan_panel_focus_local` same-Tab focus move                                                                                                                            | `MoveFocusLocal`                                                                                                                                                                 |
-| Shared HostViewers capacity admission (`host_viewers` limit 8)                                                                                                          | `ViewerBudget`, `AttachPane` capacity gate                                                                                                                                       |
+| Production surface                                                                                                            | Model correspondence                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PanelMarker::barrier`, admission windows (`terminal_session/state/panel.rs`)                                                 | `SamplePanel`, `RefusePanelAdmission`, `RefusePanelAfterLockExpiry`, `RefuseMoveNoNeighbor`                                                                                      |
+| `try_enqueue_panel_for_using` admission and structural exclusion                                                              | `AdmitPanel`, `StructuralExclusion`, `OtherStructuralExcludesPanel`                                                                                                              |
+| Mailbox flight queue/in-flight stages (`terminal_session/mailbox/panel.rs`)                                                   | `stage = "queued"/"in-flight"`, `SubmitPanel`, `ExpirePanelFlight`                                                                                                               |
+| `run_panel` outcome classification (definite precommit/unchanged, close receipt, committed, unknown)                          | `Receive*` actions, `ReceiveAmbiguousOutcome`, `NoReplayAfterAmbiguous`                                                                                                          |
+| `place_panel_result` identity/serial/deadline correlation                                                                     | `PlaceResult`, `OnlyCurrentResultPlaced`, `DepositCorrelatesCurrent`, `RejectStaleResultDeposit`                                                                                 |
+| `panel_reply_current` stale request/serial/target rejection                                                                   | `ResultCurrent` gating of all `Consume*` actions, `RejectStaleResultDeposit`, `RejectStaleMembershipReply`, `RejectStaleRefreshConsume`, `StaleRejectionPreservesState`          |
+| `prepare_panel`, `prepare_panel_candidate` exact vs superseding validation                                                    | `ReadCommitSnapshot*`, `ConsumeCommittedMerge`, `ConsumeCommittedUnavailable`, `ConsumeCommittedDivergent`                                                                       |
+| `prepare_panel` tab-unavailable snapshot classification (older/divergent, Tab-gone, newer canonical Tab)                      | `ReadTabUnavailableSnapshot`, `ConsumeTabUnavailableMembership`/`Divergent`/`NotApplied`/`Refused`                                                                               |
+| `validate_split_panel`, `validate_moved_panel` exact `r+1` graft vs relaxed superseding                                       | `ReceiveCommitted` validity, `ConsumeInvalidGraftCommit`, `ReadCommitSnapshotExact`/`Superseding`                                                                                |
+| `merge_projection` requiring the prior selected leaf                                                                          | `ConsumeCommittedMerge` vs `ConsumeCommittedLeaflessRepair` partition                                                                                                            |
+| `apply_prepared_panel`, `retain_prepared_panel_membership` commit retention                                                   | `commitHeld`/`commitExpected`, `EnterMembership`, `RecoveryRetainsCommit`                                                                                                        |
+| `stage_panel_membership_cleanup`, `prepare_panel_membership_install` release-before-install ordering                          | `ReleaseOldAttachment`, `InstallMembership*`, `AttachRequiresReleasedOld`                                                                                                        |
+| `retain_pending_panel`, `PanelProjectionUnavailable` recovery                                                                 | `ConsumeCommittedUnavailable`, `stage = "recovery"`, `AdmitRefresh`, `ApplyRefresh*`                                                                                             |
+| `apply_panel_event` UI settlement including unattached and Empty install                                                      | `InstallMembershipAttach`, `InstallMembershipSelect`, `InstallMembershipEmpty`, `CompleteAttach`                                                                                 |
+| `setup_target` attach outcome classification and `settle_without_attachment` (`SessionPhaseKind::RetryableAttachUnavailable`) | `OfferAttachReply`, `CompleteAttach`, `ParkAttachUnavailable`, `FailAttach`, `ExpireAttach`, `ParkedHasNoAttachment`, `RejectedAttachNeverRetires`, `ParkedSettlesViaMembership` |
+| Close `Accepted` receipt vs later publication/removal                                                                         | `ReceiveCloseAccepted`, `ConsumeCloseAccepted`, `PeerCloseLeaf`, `CloseReceiptKeepsSelection`                                                                                    |
+| `PaneKey`/`PaneRef`/`PaneRecord`, `sync_pane_set`, `depart_all_panes`, `drop_anchor_panes`, `settle_pane_detached` (`terminal_session/state.rs`, `state/membership.rs`) | `rec[p]`, `MintPane`, `VanishLeaf`, `ReappearLeaf`, `SettleDetachProof`, `AdvanceAnchorEpoch`, `LiveRecordsShareCurrentAnchor`, `DepartingCarriesNoFrameWork` |
+| Mailbox admission split — input/resize bind the logical focus pane at enqueue, polls the exact incarnation (`terminal_session/mailbox.rs` `admits`)  | `Admitted`, `EnqueueFocusControl`, `EnqueuePoll`, `EnqueueStaleCommand`, `DequeueAdmit`, `DropStaleQueueCommand`                                                                 |
+| Executor exact-incarnation fence in `run_input`/`run_resize`/`run_poll` (`terminal_session/connection/native.rs`) — dispatch keeps the frozen `PaneRef` and never re-checks focus | `ExecuteControl` delivery gate, `ExecutePoll` pending deposit, `ExpireInflight`                                                                                                   |
+| Poll result causal settlement pending the draw pass (`publish_poll_result_before`/`take_causal_before`, `CausalSettlement::NoFeedback` on depart)   | `rec[p].pending` deposit, `PendingFrameIsLiveAttachedProjected`, depart clearing `pending`                                                                                        |
+| Per-record `stage_drawn_frame` / `mark_feedback_accepted` / `invalidate_projection_frame`                                       | `DrawPendingFrame`, `SettleFrameAck`, `AcceptedFrameIsOwnStaged`, `AcceptedImpliesAttachedLiveProjected`                                                                          |
+| `settle_pane_fault` known-refusal parking; `settle_attached_event` / `record_setup_configuration` exact-`PaneRef` settlement     | `SettlePaneFault`, `RejectStalePaneFault`, `RejectStaleDetachProof`, `RejectStaleFrameAck`                                                                                        |
+| `plan_panel_focus_local` same-Tab focus move                                                                                   | `MoveFocusLocal`                                                                                                                                                                 |
+| Shared HostViewers capacity admission (`host_viewers` limit 8)                                                                  | `ViewerBudget`, `AttachPane` capacity gate                                                                                                                                       |
 
 The models abstract away byte-level transport, exact OS/PTY behavior, rendering, worker joins,
 allocation of real terminal identities, and move direction/geometry. Existing real tests cover the
@@ -229,17 +182,81 @@ actions across the family.
 
 `NativeClientPaneMembership` is a bounded design witness for the collection, not a proof of the
 unbounded system. It covers two panes `{p0, p1}`, two selection anchors (one epoch switch), two
-attachment incarnations per pane, `MaxQueue = 2`, `MaxFrame = 2`, `MaxReject = 4`,
-`MaxViewers = 2`, and `MaxLog = 3`. Adversarial enqueued commands and worker events may carry any
-stale or cross-wired incarnation tag by construction, so rejection paths are reachable witnesses
-rather than assumed guards. Run
+attachment incarnations per pane, `MaxQueue = 2`, `MaxFrame = 2`, `MaxReject = 4`, and
+`MaxLog = 3`. Adversarial enqueued commands carry strictly retired or never-held incarnation
+tags — incarnation numbers only grow, so a forged tag can never collide with a not-yet-minted
+attachment — keeping rejection paths reachable witnesses rather than assumed guards. Run
 `node scripts/tla/run-models.mjs --models native-client-pane-membership --jobs 1` with pinned
-TLA+ tools 1.7.4 and one worker; the single `default` configuration must complete with empty
-queues and positive generated coverage for all 22 registered actions.
+TLA+ tools 1.7.4; the registered entry uses two TLC workers and a 1800000ms per-configuration
+timeout while each TLC process still receives the shared 2048 MiB heap and the batch-wide
+single-job heavy lock — an execution-resource revision only, not a change to any variable,
+guard, bound, fairness clause, or checked property, and not evidence of completion. Both
+configurations must complete with empty queues and
+positive generated coverage for all 23 registered actions across the family. The
+`viewer-contention` configuration shrinks the shared viewer budget below the pane count so
+`ViewerBudget` is exercised as a real constraint rather than a vacuous one. Server-busy timing,
+per-step lease yield, deadline arithmetic, and non-`Detached` outcome classification stay
+unmodeled — deterministic reducer and scripted-carrier tests own those claims.
 
-| Configuration | Finite role                                                   | Generated / distinct / depth | Model/configuration SHA-256 |
-| ------------- | ------------------------------------------------------------- | ---------------------------- | --------------------------- |
-| `default`     | two panes, two anchors, two incarnations, adversarial fencing | —                            | —                           |
+| Configuration       | Finite role                                                       | Generated / distinct / depth | Model/configuration SHA-256 |
+| ------------------- | ----------------------------------------------------------------- | ---------------------------- | --------------------------- |
+| `default`           | two panes, two anchors, two incarnations, `MaxViewers = 2`        | —                            | —                           |
+| `viewer-contention` | same bounds with `MaxViewers = 1` — real shared-budget contention | —                            | —                           |
+
+The delivered-input witness is kept as a summary rather than a sequence. The model
+once carried `appliedInputs`, a ghost log of every delivered control input whose only
+readers were its `MaxLog` length bound, the `Len < MaxLog` append guard inside
+`ExecuteControl`, and the per-entry `tag = delivered` safety check — entry pane fields,
+order, and duplicates had no consumers. The model therefore stores the abstraction
+`alpha(X, L) = (X, Len(L), forall l in L: l.tag = l.delivered)` as
+`(appliedCount, allTaggedValid)`: `Init` maps the empty log to `(0, TRUE)`; the 22
+actions that left the log unchanged commute trivially with `alpha`; and
+`ExecuteControl`, the only writer, keeps its guard on `appliedCount < MaxLog` and folds
+each delivery into the assigned conjunction with the actual
+`inflight.incarnation = viewer[p]` comparison — written
+`allTaggedValid' = (allTaggedValid /\ (...))` with explicit parentheses, never a
+constant `TRUE`. The parentheses are load-bearing, not stylistic: equality binds
+tighter than `/\`, so the unparenthesized form parses as
+`(allTaggedValid' = allTaggedValid) /\ comparison` and turns the comparison into an
+extra enablement guard — a FALSE comparison then makes the whole action produce no
+successor (it does not fall through to the `ELSE` branch), so a mismatched delivery
+could never be recorded. The saturated path (`appliedCount = MaxLog`) still consumes
+the command without recording, exactly as the sequence version skipped the append, so
+the post-saturation blind spot is identical in both representations. Fairness is
+unchanged: every weak-fairness guard reads only preserved state, and any step that
+changed the log already changed the summary, so enabled-ness and non-stuttering
+survive the quotient. `InputsDeliverOnlyToTaggedLiveFocus` is now exactly
+`allTaggedValid`; the other invariants and the liveness property never read the log.
+The correspondence is an exact bisimulation on reachable states, not a one-way safety
+over-approximation: every summary state has a concrete lift, and each quotient step is
+implementable from any lift because guards read only `X` and the count.
+
+The control-command kind is likewise a quotient, not a payload model. Everywhere the
+model reads a kind it only asks membership (`in ControlKinds`), the `"poll"` equality,
+or the `Idle` sentinel — nothing ever distinguishes `input` from `resize`, so the
+model carries a single `control` label and `CommandKinds = {"control", "poll"}`. The
+mapping `beta(input) = beta(resize) = control`, `beta(poll) = poll`,
+`beta(idle) = idle` preserves every variable field (pane, incarnation, `focusAdmitted`), every
+action's enablement, all seven weak-fairness guards and the non-stuttering relation —
+no action only flips the sub-label — and every quotient step lifts back to a same-named
+concrete step at either `input` or `resize`. The real Rust `Input` and `Resize`
+commands stay fully distinct; this model claims nothing about their respective
+payloads, geometry, or byte encodings.
+
+The three `RejectStale*` actions are written with their bounded guard lifted out
+of the existential: `rejections < MaxReject` conjoined with
+`IF (\E d : G(d)) THEN rejections' = rejections + 1 /\ UNCHANGED X ELSE FALSE`
+rather than `\E d : G(d) /\ update`. The two forms denote the same transition
+relation — for every current state `s` and successor `t`,
+`(\E d : G(s,d) /\ U(s,t))` iff `((\E d : G(s,d)) /\ U(s,t))` because the primed
+update `U` never mentions the bound `p`/`i`/`f` variables, and this holds even for
+empty domains. Writing the guard this way asks TLC to evaluate the existential
+once per state instead of regenerating the identical successor once per
+`(p, i, f)` instantiation — the observed coverage dumps showed the three reject
+actions accounting for roughly 52M of 73M evaluations while producing almost no
+new states. Enabled-ness, the non-stuttering relation, weak fairness, liveness,
+the rejection-saturation semantics, and all checked properties are unchanged;
+the existential is never folded to `TRUE`.
 
 The generated Rust state model (`terminal_session/state/tests/generated.rs`) exercises the same
 contract against the real reducers: its `ReincarnationFence` adversarial class mints a second
@@ -265,6 +282,16 @@ Temporary mutants (kept outside the repository) confirm the checked properties a
   violates `AttachRequiresReleasedOld`.
 - Converting the retryable park into retirement violates `RejectedAttachNeverRetires`; replaying
   or auto re-attaching from the parked stage violates `ParkedSettlesViaMembership`.
+- Acknowledging a received-but-undrawn poll frame directly — removing the completed-draw gate so
+  `SettleFrameAck` commits `accepted` from `pending` — violates `AcceptedFrameIsOwnStaged`: the
+  acknowledged frame was never staged by a draw on that record.
+- Letting `ExecuteControl` record a delivery attributed to the sibling pane's viewer — a
+  wrong-delivery mutant — is the intended control for `InputsDeliverOnlyToTaggedLiveFocus`: the
+  first legal delivery to `p0` then folds `inflight.incarnation = viewer[p1]` (`1 = 0`) into
+  `allTaggedValid` as `FALSE` through the parenthesized conjunction while the count still
+  increments and the real admission gate is preserved. With the earlier unparenthesized
+  expression this mutant could not surface a violation: the FALSE comparison acted as an extra
+  guard and produced no successor rather than a FALSE flag.
 
 These results establish only the finite panel-operation interface described above. Known
 boundaries, disclosed rather than silently claimed: `commitValid = FALSE` and noncanonical
