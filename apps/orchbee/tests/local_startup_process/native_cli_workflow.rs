@@ -8,13 +8,11 @@
 //! Read and wait-output steps only observe produced output; they can never
 //! fabricate command completion.
 //!
-//! EXPECTED-RED on this base: `workspace accept-directory` (a4 slice),
-//! `terminal send` (a1 slice), and `terminal wait-output` (a5 slice) do not
-//! exist yet, so the chain stops at the first missing command. Frozen
-//! contracts asserted here come from CLI-WORKSPACE-DIRECTORY-ACCEPTED,
-//! CLI-SEND-IMPLEMENT-FINAL, and CLI-WAIT-IMPLEMENT-FINAL/CLI-FIRST-FLOW;
-//! result field names whose schemas are not frozen are marked `SEAM` and only
-//! the exit/envelope contract is asserted.
+//! Frozen contracts asserted here come from CLI-WORKSPACE-DIRECTORY-ACCEPTED,
+//! CLI-SEND-IMPLEMENT-FINAL, and CLI-WAIT-IMPLEMENT-FINAL/CLI-FIRST-FLOW; the
+//! send and wait-output receipts are bound against their registered
+//! `orchbee.terminal.send` / `orchbee.terminal.wait-output` schemas, and the
+//! send receipt is cross-checked against the wait receipt's observed source.
 
 use super::{
     native_cli_query::{run_json, spawn_real_server, validate, validators},
@@ -40,8 +38,11 @@ const GEOMETRY: [&str; 8] = [
 ];
 
 /// `terminal list` until `tab_id` carries a bound terminal; the create receipt
-/// is a commit, not a live shell, so binding is polled with a bounded deadline.
-fn bind_terminal(fixture: &Fixture, tab_id: &str) -> String {
+/// is a commit, not a live shell, so binding is polled with a bounded
+/// deadline. Returns the row's `(terminalId, workerId)` plus the envelope's
+/// `source.siteId` so later receipts are cross-checked against the same list
+/// observation instead of a second lookup.
+fn bind_terminal(fixture: &Fixture, tab_id: &str) -> (String, String, String) {
     let deadline = Instant::now() + BIND_DEADLINE;
     loop {
         let (output, terminals) = run_json(fixture, &["terminal", "list", "--format", "json"]);
@@ -52,7 +53,14 @@ fn bind_terminal(fixture: &Fixture, tab_id: &str) -> String {
             .iter()
             .find(|row| row["boundTo"]["tabId"] == tab_id)
         {
-            return row["terminalId"].as_str().expect("terminalId").to_owned();
+            return (
+                row["terminalId"].as_str().expect("terminalId").to_owned(),
+                row["workerId"].as_str().expect("workerId").to_owned(),
+                terminals["source"]["siteId"]
+                    .as_str()
+                    .expect("siteId")
+                    .to_owned(),
+            );
         }
         assert!(
             Instant::now() < deadline,
@@ -192,8 +200,14 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
         assert_eq!(tab["result"]["action"], "tab.create");
         tab_ids.push(tab["result"]["tabId"].as_str().expect("tabId").to_owned());
     }
-    let terminal_a = bind_terminal(&fixture, &tab_ids[0]);
-    let terminal_b = bind_terminal(&fixture, &tab_ids[1]);
+    let binding_a = bind_terminal(&fixture, &tab_ids[0]);
+    let binding_b = bind_terminal(&fixture, &tab_ids[1]);
+    let terminal_a = binding_a.0.clone();
+    let terminal_b = binding_b.0.clone();
+    assert_eq!(
+        binding_a.2, binding_b.2,
+        "both bindings observe the same Site"
+    );
     assert_ne!(terminal_a, terminal_b, "independent terminal identities");
 
     // 5. One `terminal send` per terminal. The command never `cd`s: the shell
@@ -212,9 +226,12 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     let marker_b = format!("WB22-{nonce}");
     let proof_a = "proof-a.txt";
     let proof_b = "proof-b.txt";
-    for (terminal, marker, proof) in [
-        (terminal_a.as_str(), marker_a.as_str(), proof_a),
-        (terminal_b.as_str(), marker_b.as_str(), proof_b),
+    // Each send receipt is kept: the wait step below cross-checks its observed
+    // source against the same receipt instead of re-querying or resending.
+    let mut receipts = Vec::new();
+    for (terminal, marker, proof, binding) in [
+        (terminal_a.as_str(), marker_a.as_str(), proof_a, &binding_a),
+        (terminal_b.as_str(), marker_b.as_str(), proof_b, &binding_b),
     ] {
         let (prefix, tag) = marker.split_at(4);
         let text = format!(
@@ -239,14 +256,54 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             "terminal send: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        // SEAM(a1): exit 0 alone is NOT the receipt validation — the frozen
-        // contract additionally requires the receipt to record the
-        // actually-selected physical target. Assert the receipt's
-        // input-status/accepted-bytes/cleanup axes and the echoed physical
-        // identity (worker id+generation, hostEpoch, hostTerminalId) once the
-        // send result schema is frozen; A9's final combination must bind
-        // these against the actual registered schema, not guessed names.
-        let _ = sent;
+        // The frozen `orchbee.terminal.send` receipt: the mutation selected
+        // the same physical target the binding list row reported, the host
+        // accepted every submitted byte (UTF-8 text plus the --enter CR), and
+        // cleanup is confirmed — the attachment did not linger.
+        validate(&validators, "orchbee.terminal.send", &output);
+        let result = &sent["result"];
+        assert_eq!(result["action"], "terminal.send");
+        assert_eq!(
+            result["terminalId"], terminal,
+            "receipt targets the sent terminal"
+        );
+        assert_eq!(
+            result["workerId"],
+            binding.1.as_str(),
+            "receipt worker matches the binding list row"
+        );
+        assert_eq!(
+            result["siteId"],
+            binding.2.as_str(),
+            "receipt site matches the list envelope source"
+        );
+        assert_eq!(result["inputStatus"], "accepted");
+        assert_eq!(result["cleanupStatus"], "confirmed");
+        let record_bytes = text.len() + 1;
+        assert_eq!(
+            result["recordBytes"].as_u64(),
+            Some(record_bytes as u64),
+            "recordBytes is the UTF-8 text plus the --enter CR"
+        );
+        assert_eq!(
+            result["acceptedBytes"].as_u64(),
+            Some(record_bytes as u64),
+            "host accepted exactly the submitted record"
+        );
+        let target = &result["target"];
+        assert_ne!(
+            target["workerGeneration"], "0",
+            "echoed worker generation is a real positive id"
+        );
+        for field in ["hostEpoch", "hostTerminalId"] {
+            assert!(
+                target[field]
+                    .as_str()
+                    .is_some_and(|id| { id.len() == 32 && id.bytes().any(|byte| byte != b'0') }),
+                "target {field} is a real nonzero identity: {sent}"
+            );
+        }
+        receipts.push((terminal.to_owned(), sent.clone()));
     }
 
     // 6. One `terminal wait-output --match` per terminal: the match observes
@@ -276,13 +333,49 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             "terminal wait-output: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        // SEAM(a5): exit 0 alone is NOT the match validation — assert the
-        // observed source identity (terminalId, resolved worker/site,
-        // hostEpoch/attachment), the bounded excerpt, and
-        // completedObservations once the wait result schema is frozen; A9's
-        // final combination must bind these against the actual registered
-        // schema, not guessed names.
-        let _ = matched;
+        // The frozen `orchbee.terminal.wait-output` receipt, cross-checked
+        // against the send receipt saved above: the observed source is the
+        // same terminal/worker/site the send receipt recorded, hostEpoch is
+        // the send's actual target epoch (one same-source scenario), the
+        // match excerpt carries this run's marker, and at least one
+        // observation completed. Row-window offsets stay unasserted — they
+        // are frame geometry, not stable identities.
+        validate(&validators, "orchbee.terminal.wait-output", &output);
+        let result = &matched["result"];
+        let (_, sent) = receipts
+            .iter()
+            .find(|(sent_terminal, _)| sent_terminal.as_str() == terminal)
+            .expect("send receipt saved for this terminal");
+        let sent_result = &sent["result"];
+        assert_eq!(
+            result["terminal"]["terminalId"], terminal,
+            "wait observed the sent terminal"
+        );
+        assert_eq!(
+            result["terminal"]["workerId"], sent_result["workerId"],
+            "wait observed the same worker the send receipt recorded"
+        );
+        assert_eq!(
+            matched["source"]["siteId"], sent_result["siteId"],
+            "wait source site matches the send receipt's site"
+        );
+        assert_eq!(
+            result["observed"]["hostEpoch"], sent_result["target"]["hostEpoch"],
+            "wait attached on the same host epoch the send targeted"
+        );
+        assert!(
+            result["match"]["excerpt"]
+                .as_str()
+                .expect("match excerpt")
+                .contains(marker),
+            "match excerpt carries this run's marker: {matched}"
+        );
+        assert!(
+            result["observed"]["completedObservations"]
+                .as_u64()
+                .is_some_and(|done| done >= 1),
+            "at least one observation completed before the match: {matched}"
+        );
     }
 
     // 7. Independent producer evidence: each proof file was written by the

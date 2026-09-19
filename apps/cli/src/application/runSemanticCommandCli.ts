@@ -33,7 +33,7 @@ import {
 } from './parseSemanticCommandCliArguments';
 import { renderSemanticCommandCliCompletion } from './renderSemanticCommandCliCompletion';
 import type { SemanticCommandCliLocale } from './semantic-command-cli-grammar';
-import { renderSemanticCommandCliHelp } from './semantic-command-cli-help';
+import { renderSemanticCommandCliHelp } from './renderSemanticCommandCliHelp';
 import {
 	cliErrorResult,
 	cliFailureResult,

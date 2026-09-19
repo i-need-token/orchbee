@@ -18,11 +18,27 @@
 //! unknown words are grammar failures too.
 #![cfg(target_os = "linux")]
 
-use std::{fs, path::PathBuf, process::Output};
+use std::{
+    fs,
+    path::PathBuf,
+    process::Output,
+    sync::{Mutex, MutexGuard},
+};
 
 // The shared support module also carries helpers only other suites use.
 #[allow(dead_code)]
 mod support;
+
+/// One process-internal guard serializes this pure-grammar suite's stage,
+/// spawn, reap, and fixture-cleanup window. The observed first scene is an
+/// intermittent ETXTBSY(26) at spawn that only reproduces while several
+/// test threads stage copies and fork/exec concurrently; serial runs are
+/// clean. Each probe takes the guard before staging and holds it until
+/// drop — after `support::run`'s bounded wait has reaped every child and
+/// `FixtureDir::drop` has removed the directory. This seals the window
+/// inside the fixture without an exec retry, without touching product
+/// code, and without constraining the real concurrent functional suites.
+static STAGE_SERIAL: Mutex<()> = Mutex::new(());
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -111,15 +127,20 @@ struct Probe {
     base: PathBuf,
     binary: PathBuf,
     _fixture: FixtureDir,
+    _serial: MutexGuard<'static, ()>,
 }
 
-/// Mint the probe environment — one binary copy per test group.
+/// Mint the probe environment — one binary copy per test group, staged only
+/// after the serialization guard is taken so the copy, every spawn, every
+/// reap, and the fixture cleanup share one serialized window.
 fn probe() -> Probe {
+    let serial = STAGE_SERIAL.lock().expect("grammar staging serialization");
     let (fixture, binary) = FixtureDir::stage();
     Probe {
         base: base(),
         binary,
         _fixture: fixture,
+        _serial: serial,
     }
 }
 
@@ -459,19 +480,13 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
             "1000",
         ]
         .as_slice(),
-        // The minimal 1ms deadline is admitted grammar; the timeout exit (7)
-        // belongs to a real wait against an admitted session, unreachable
-        // without a cohort — the oracle still observes stage=cohort.
-        [
-            "terminal",
-            "wait-output",
-            TERMINAL_ID,
-            "--match",
-            "ready",
-            "--timeout",
-            "1",
-        ]
-        .as_slice(),
+        // The minimal 1ms deadline argv is handled by
+        // `admitted_wait_min_timeout` below: the total Wait budget includes
+        // the preamble, so which honest outcome settles first is timing —
+        // never something a flat `admitted` assertion may flatten.
+        //
+        // `--timeout 3600000` stays in the flat list: hours cannot elapse
+        // during the cohort check, so the cohort-stage failure is stable.
         [
             "terminal",
             "wait-output",
@@ -516,7 +531,60 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
             "json",
         ],
     );
+    admitted_wait_min_timeout(&probe);
     Ok(())
+}
+
+/// The minimal 1ms deadline is admitted grammar — and the WaitGate's
+/// command-start clock is a total budget that also covers the preamble, so
+/// two honest outcomes exist and which one settles first is timing. The
+/// oracle therefore admits exactly those two outcomes under a JSON
+/// envelope, each pinned to its real failure document instead of a loose
+/// exit set: either the cohort check settles first (`check-failed`, stage
+/// `cohort`, exit 1) or the gate's original clock settles first
+/// (`timeout`, stage `wait`, `timeoutMs` equal to the admitted 1ms bound,
+/// `completedObservations` 0 because the viewer loop never ran, exit 7).
+/// Usage (2), a panic (101), a signal, a non-JSON stdout, or any other
+/// failure kind still fails the witness.
+fn admitted_wait_min_timeout(probe: &Probe) {
+    let arguments = [
+        "terminal",
+        "wait-output",
+        TERMINAL_ID,
+        "--match",
+        "ready",
+        "--timeout",
+        "1",
+        "--format",
+        "json",
+    ];
+    let output = run(probe, &arguments);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let document: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("minimal-timeout failure document is JSON");
+    match output.status.code() {
+        Some(1) => {
+            assert_eq!(document["failure"]["kind"], "check-failed", "{arguments:?}");
+            assert_eq!(
+                document["failure"]["details"]["stage"], "cohort",
+                "{arguments:?}"
+            );
+        }
+        Some(7) => {
+            let details = &document["failure"]["details"];
+            assert_eq!(document["failure"]["kind"], "timeout", "{arguments:?}");
+            assert_eq!(details["stage"], "wait", "{arguments:?}");
+            assert_eq!(details["timeoutMs"], 1, "{arguments:?}");
+            assert_eq!(
+                details["observed"]["completedObservations"], 0,
+                "{arguments:?}"
+            );
+        }
+        other => panic!(
+            "{arguments:?} must exit 1 (cohort check) or 7 (wait clock); \
+             got {other:?}; stderr: {stderr}"
+        ),
+    }
 }
 
 #[test]
