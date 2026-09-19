@@ -56,9 +56,12 @@ Child owners reap exits without killing retained services; no reaper grants rest
 The Worker registers without starting a Host. Its authorization kernel admits the first Launch
 and prepares launch facts before spawning one exact cohort Host in a private `host` directory.
 Invalid authorization produces the existing typed result without a Host. The admitted dispatch
-and kernel survive Host startup; the Host handoff revalidates authorization. Preparation or
-startup failure settles a pre-handoff failure when deliverable and retires the Worker. Any
-existing Host endpoint is an explicit recovery failure. No Host reconnect/adoption is allowed.
+and kernel survive Host startup; the Host handoff revalidates authorization. The absolute Host
+endpoint address is checked against the platform socket-address ABI before the `host` directory
+or the Host process exists; an address that cannot fit settles the same pre-handoff failure
+without either side effect. Preparation or startup failure settles a pre-handoff failure when
+deliverable and retires the Worker. Any existing Host endpoint is an explicit recovery failure.
+No Host reconnect/adoption is allowed.
 
 ## Development cohort contract
 
@@ -113,13 +116,23 @@ platform-dependent encoding.
 For one trusted, existing, exactly normalized absolute per-user runtime base, the exact derived
 paths are:
 
-| Role               | Stable path                                      |
-| ------------------ | ------------------------------------------------ |
-| Scope directory    | `<runtime-base>/<site-scope>`                    |
-| Activation lock    | `<runtime-base>/<site-scope>/activation.lock`    |
-| Site lifetime lock | `<runtime-base>/<site-scope>/site-lifetime.lock` |
-| Client socket      | `<runtime-base>/<site-scope>/client.sock`        |
-| Worker socket      | `<runtime-base>/<site-scope>/worker.sock`        |
+| Role                | Stable path                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| Scope directory     | `<runtime-base>/<site-scope>`                                         |
+| Activation lock     | `<runtime-base>/<site-scope>/activation.lock`                         |
+| Site lifetime lock  | `<runtime-base>/<site-scope>/site-lifetime.lock`                      |
+| Client socket       | `<runtime-base>/<site-scope>/client.sock`                             |
+| Client pending name | `<runtime-base>/<site-scope>/client-pending.sock`                     |
+| Worker socket       | `<runtime-base>/<site-scope>/worker.sock`                             |
+| Host scope          | `<runtime-base>/<site-scope>/host`                                    |
+| Host endpoint       | `<runtime-base>/<site-scope>/host/00000000000000000000000000000001.s` |
+
+The pending name is the transient pre-publish bind the Server renames to `client.sock`; the Host
+endpoint is the absolute address the Worker dials while the Host binds it relatively inside the
+`host` scope. The pending leaf, `host` scope, and endpoint filename are shared constants, and the
+derived paths are pure joins that answer even when the directories cannot be inspected — so every
+derived socket address can be budget-checked against the platform `sockaddr_un` capacity before any
+directory, marker, or process side effect.
 
 `ModeCheckedLocalSiteRendezvous` retains its mode-checked name for other Unix targets. Preparation
 creates only the scope directory when absent. Preparation and validation open `/` as the trusted

@@ -10,8 +10,8 @@ mod retained_child;
 pub use cohort::{NativeArtifact, NativeCohort};
 #[cfg(unix)]
 pub use rendezvous::{
-    LockAttempt, LockKind, ModeCheckedLocalSiteRendezvous, ModeCheckedSiteLock, RendezvousError,
-    SiteScope,
+    CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME, HOST_SCOPE_NAME, LockAttempt,
+    LockKind, ModeCheckedLocalSiteRendezvous, ModeCheckedSiteLock, RendezvousError, SiteScope,
 };
 #[cfg(unix)]
 pub use retained_child::RetainedChild;

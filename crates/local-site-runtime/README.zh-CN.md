@@ -51,6 +51,8 @@ Client 退出不会向子进程发信号或杀死它们。子进程所有者回�
 Worker 注册时不启动 Host。授权内核先准入首个 Launch、准备启动事实，再在私有 `host`
 目录中启动一个精确 cohort Host。无效授权返回已有类型化结果且不启动 Host。
 已准入 dispatch 和内核跨 Host 启动保留；Host 交接时重新校验授权。
+Host 端点的绝对地址在 `host` 目录或 Host 进程出现之前先按平台 socket 地址 ABI 检查；
+无法容纳的地址以同一交接前失败结算，且不产生这两种副作用。
 准备或启动失败在可交付时结算交接前失败并退出 Worker。任何已有 Host 端点均明确要求恢复。
 不允许重新连接或接管 Host。
 
@@ -103,13 +105,22 @@ separator、dot component 或依赖平台的 encoding。
 对于一个可信、已存在且为 exactly normalized absolute 的 per-user runtime base，确切 derived
 path 是：
 
-| 角色               | 稳定路径                                         |
-| ------------------ | ------------------------------------------------ |
-| Scope directory    | `<runtime-base>/<site-scope>`                    |
-| Activation lock    | `<runtime-base>/<site-scope>/activation.lock`    |
-| Site lifetime lock | `<runtime-base>/<site-scope>/site-lifetime.lock` |
-| Client socket      | `<runtime-base>/<site-scope>/client.sock`        |
-| Worker socket      | `<runtime-base>/<site-scope>/worker.sock`        |
+| 角色                | 稳定路径                                                              |
+| ------------------- | --------------------------------------------------------------------- |
+| Scope directory     | `<runtime-base>/<site-scope>`                                         |
+| Activation lock     | `<runtime-base>/<site-scope>/activation.lock`                         |
+| Site lifetime lock  | `<runtime-base>/<site-scope>/site-lifetime.lock`                      |
+| Client socket       | `<runtime-base>/<site-scope>/client.sock`                             |
+| Client pending name | `<runtime-base>/<site-scope>/client-pending.sock`                     |
+| Worker socket       | `<runtime-base>/<site-scope>/worker.sock`                             |
+| Host scope          | `<runtime-base>/<site-scope>/host`                                    |
+| Host endpoint       | `<runtime-base>/<site-scope>/host/00000000000000000000000000000001.s` |
+
+pending name 是 Server 在原子 rename 发布为 `client.sock` 之前使用的瞬态绑定名；Host endpoint
+是 Worker 以绝对地址拨号的端点，Host 在 `host` scope 内以相对地址绑定它。pending 叶名、
+`host` scope 与 endpoint 文件名是共享常量，派生路径是纯拼接——即使目录无法检查也能回答——
+因此每个派生 socket 地址都能在任何目录、marker 或进程副作用之前按平台 `sockaddr_un` 容量
+做预算检查。
 
 `ModeCheckedLocalSiteRendezvous` 为其他 Unix target 保留 mode-checked 名称。Preparation 只会在
 scope directory 不存在时创建它。Preparation 与 validation 把 `/` 作为 trusted root 打开，然后用

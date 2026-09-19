@@ -76,12 +76,12 @@ pub(crate) fn run(locale: Locale) -> Result<(), StartupFailure> {
         .map_err(|_| StartupFailure::Runtime)?;
     let site = ModeCheckedLocalSiteRendezvous::prepare_mode_checked(&base, scope)
         .map_err(|_| StartupFailure::Runtime)?;
-    // An endpoint that cannot fit this platform's socket address ABI can
-    // never bind or connect; report the derived-path budget before any
-    // admission attempt collapses it into a generic refusal.
-    if ![site.client_socket_path(), site.worker_socket_path()]
-        .into_iter()
-        .all(unix_socket_path_fits)
+    // Every endpoint a Site derives that cannot fit this platform's socket
+    // address ABI can never bind or connect; report the derived-path budget
+    // before any admission attempt collapses it into a generic refusal.
+    if !ModeCheckedLocalSiteRendezvous::socket_budget_paths(site.runtime_directory())
+        .iter()
+        .all(|path| unix_socket_path_fits(path))
     {
         return Err(StartupFailure::SocketPathTooLong);
     }

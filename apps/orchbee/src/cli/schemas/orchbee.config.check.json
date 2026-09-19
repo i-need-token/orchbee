@@ -379,6 +379,58 @@
 				}
 			]
 		},
+		"socketBudgetEntry": {
+			"oneOf": [
+				{
+					"type": "object",
+					"required": [
+						"presence",
+						"status",
+						"reason",
+						"addressBytes",
+						"addressCapacityBytes"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"presence": { "const": "unchecked" },
+						"status": { "const": "not-applicable" },
+						"reason": { "const": "presence-not-inspected" },
+						"path": { "type": "string", "minLength": 1 },
+						"pathBytesHex": {
+							"type": "string",
+							"pattern": "^([0-9a-f]{2})+$"
+						},
+						"addressBytes": { "type": "integer", "minimum": 1 },
+						"addressCapacityBytes": { "type": "integer", "minimum": 1 }
+					},
+					"allOf": [{ "$ref": "#/$defs/path" }]
+				},
+				{
+					"type": "object",
+					"required": [
+						"presence",
+						"status",
+						"reason",
+						"addressBytes",
+						"addressCapacityBytes"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"presence": { "const": "unchecked" },
+						"status": { "const": "fail" },
+						"reason": { "const": "address-too-long" },
+						"path": { "type": "string", "minLength": 1 },
+						"pathBytesHex": {
+							"type": "string",
+							"pattern": "^([0-9a-f]{2})+$"
+						},
+						"addressBytes": { "type": "integer", "minimum": 1 },
+						"addressCapacityBytes": { "type": "integer", "minimum": 1 }
+					},
+					"allOf": [{ "$ref": "#/$defs/path" }]
+				}
+			]
+		},
 		"socketFail": {
 			"type": "object",
 			"required": ["status"],
@@ -398,11 +450,13 @@
 				"status": { "enum": ["pass", "fail", "not-applicable"] },
 				"details": {
 					"type": "object",
-					"required": ["client", "worker"],
+					"required": ["client", "worker", "clientPending", "host"],
 					"additionalProperties": false,
 					"properties": {
 						"client": { "$ref": "#/$defs/socketEntry" },
-						"worker": { "$ref": "#/$defs/socketEntry" }
+						"worker": { "$ref": "#/$defs/socketEntry" },
+						"clientPending": { "$ref": "#/$defs/socketBudgetEntry" },
+						"host": { "$ref": "#/$defs/socketBudgetEntry" }
 					}
 				}
 			},
@@ -419,6 +473,16 @@
 									{
 										"properties": { "worker": { "$ref": "#/$defs/socketFail" } },
 										"required": ["worker"]
+									},
+									{
+										"properties": {
+											"clientPending": { "$ref": "#/$defs/socketFail" }
+										},
+										"required": ["clientPending"]
+									},
+									{
+										"properties": { "host": { "$ref": "#/$defs/socketFail" } },
+										"required": ["host"]
 									}
 								]
 							}
@@ -446,6 +510,20 @@
 														"worker": { "$ref": "#/$defs/socketFail" }
 													},
 													"required": ["worker"]
+												},
+												{
+													"properties": {
+														"clientPending": {
+															"$ref": "#/$defs/socketFail"
+														}
+													},
+													"required": ["clientPending"]
+												},
+												{
+													"properties": {
+														"host": { "$ref": "#/$defs/socketFail" }
+													},
+													"required": ["host"]
 												}
 											]
 										}
@@ -500,6 +578,28 @@
 												}
 											},
 											"required": ["worker"]
+										},
+										{
+											"properties": {
+												"clientPending": {
+													"properties": {
+														"status": { "enum": ["fail", "pass"] }
+													},
+													"required": ["status"]
+												}
+											},
+											"required": ["clientPending"]
+										},
+										{
+											"properties": {
+												"host": {
+													"properties": {
+														"status": { "enum": ["fail", "pass"] }
+													},
+													"required": ["status"]
+												}
+											},
+											"required": ["host"]
 										}
 									]
 								}

@@ -9,12 +9,15 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    AbsoluteCwd, CapabilityNodeMessage, OperationId, TerminalCwdValidationOutcome,
-    TerminalCwdValidationRequest, WorkerGeneration, WorkerId as CapabilityWorkerId, read_message,
+    AbsoluteCwd, AuthorizedTerminalLaunch, CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds,
+    LeaseId, OperationId, TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalCwdValidationOutcome,
+    TerminalCwdValidationRequest, TerminalFence, TerminalId, TerminalLaunchFailure,
+    TerminalLaunchMode, TerminalLaunchOutcome, TerminalOperationAuthorization,
+    TerminalOperationLease, WorkerGeneration, WorkerId as CapabilityWorkerId, read_message,
     write_message,
 };
 use orchbee_local_site_protocol::WorkerId;
-use orchbee_local_site_runtime::NativeCohort;
+use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort};
 
 use super::run;
 
@@ -26,7 +29,6 @@ const ARTIFACTS: [&str; 4] = [
 ];
 const ARTIFACT_CONTENT: &[u8] = b"native fixture\n";
 const ARTIFACT_SHA256: &str = "396cfec2d1c795ce71dce2d9c92f29cddec638632050c17861d771936a99282d";
-const HOST_ENDPOINT_ID: &str = "00000000000000000000000000000001";
 const WORKER_ID: WorkerId = WorkerId::from_bytes([7; 16]);
 const GENERATION: NonZeroU64 = NonZeroU64::MIN;
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
@@ -43,8 +45,8 @@ fn validation_before_first_launch_uses_real_socket_and_never_creates_host_runtim
     let site_runtime = fixture.path().join("runtime");
     fs::create_dir(&site_runtime)?;
     fs::set_permissions(&site_runtime, fs::Permissions::from_mode(0o700))?;
-    let host_runtime = site_runtime.join("host");
-    let host_endpoint = host_runtime.join(format!("{HOST_ENDPOINT_ID}.s"));
+    let host_runtime = ModeCheckedLocalSiteRendezvous::host_runtime_directory(&site_runtime);
+    let host_endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&site_runtime);
     let (mut server, worker) = UnixStream::pair()?;
     server.set_read_timeout(Some(Duration::from_secs(2)))?;
     server.set_write_timeout(Some(Duration::from_secs(2)))?;
@@ -88,6 +90,70 @@ fn validation_before_first_launch_uses_real_socket_and_never_creates_host_runtim
     );
     assert!(!host_runtime.exists());
     assert!(!host_endpoint.exists());
+    Ok(())
+}
+
+#[test]
+fn overlong_host_endpoint_fails_before_host_directory_or_spawn() -> TestResult {
+    let fixture = TestCohort::new()?;
+    let cohort = NativeCohort::load(fixture.path(), Instant::now() + Duration::from_secs(2))?;
+    // Pad the Site runtime until the derived `host/<id>.s` endpoint cannot fit
+    // one socket address, while the Site directory itself is still creatable.
+    let mut site_runtime = fixture.path().join("runtime");
+    while nix::sys::socket::UnixAddr::new(&ModeCheckedLocalSiteRendezvous::host_endpoint_path(
+        &site_runtime,
+    ))
+    .is_ok()
+    {
+        site_runtime = site_runtime.join("x");
+    }
+    fs::create_dir_all(&site_runtime)?;
+    fs::set_permissions(&site_runtime, fs::Permissions::from_mode(0o700))?;
+    let host_runtime = ModeCheckedLocalSiteRendezvous::host_runtime_directory(&site_runtime);
+    let (mut server, worker) = UnixStream::pair()?;
+    server.set_read_timeout(Some(Duration::from_secs(2)))?;
+    server.set_write_timeout(Some(Duration::from_secs(2)))?;
+    let worker_runtime = site_runtime.clone();
+    let worker_thread = thread::spawn(move || {
+        run(&worker, WORKER_ID, GENERATION, &cohort, &worker_runtime).is_err()
+    });
+
+    // A fully valid authorized Launch must still be refused by the endpoint
+    // budget — before the Host directory exists and before any Host spawn.
+    let authorization = TerminalOperationAuthorization::new(
+        TerminalId::from_bytes([1; 16])?,
+        OperationId::from_bytes([2; 16])?,
+        CapabilityWorkerId::from_bytes(WORKER_ID.as_bytes())?,
+        WorkerGeneration::new(GENERATION),
+        TerminalFence::new(NonZeroU64::MIN),
+        TerminalOperationLease::new(
+            LeaseId::from_bytes([3; 16])?,
+            LeaseExpiresAtUnixMilliseconds::new(NonZeroU64::MAX),
+        ),
+        TERMINAL_LAUNCH_CAPABILITY_VERSION,
+    );
+    write_message(
+        &mut server,
+        &CapabilityNodeMessage::AuthorizedTerminalLaunch(AuthorizedTerminalLaunch::new(
+            authorization,
+            None,
+            TerminalLaunchMode::Deferred,
+        )),
+    )?;
+    let CapabilityNodeMessage::TerminalLaunchResult(result) = read_message(&mut server)? else {
+        return Err(io::Error::other("Worker returned the wrong launch message").into());
+    };
+    assert_eq!(
+        result.outcome(),
+        TerminalLaunchOutcome::Failed(TerminalLaunchFailure::HostUnavailableBeforeHandoff)
+    );
+    drop(server);
+    assert!(
+        worker_thread
+            .join()
+            .map_err(|_panic| io::Error::other("lazy Worker test thread panicked"))?
+    );
+    assert!(!host_runtime.exists());
     Ok(())
 }
 

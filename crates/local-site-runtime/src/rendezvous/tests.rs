@@ -89,6 +89,69 @@ fn derives_exact_stable_paths_from_the_typed_scope() -> TestResult {
 }
 
 #[test]
+fn derives_pending_and_host_paths_from_one_runtime_directory() -> TestResult {
+    let runtime = Path::new("/run/user/501/orchbee-dev-a1b2c3");
+
+    assert_eq!(
+        ModeCheckedLocalSiteRendezvous::client_pending_socket_path(runtime),
+        Path::new("/run/user/501/orchbee-dev-a1b2c3/client-pending.sock")
+    );
+    assert_eq!(
+        ModeCheckedLocalSiteRendezvous::host_runtime_directory(runtime),
+        Path::new("/run/user/501/orchbee-dev-a1b2c3/host")
+    );
+    assert_eq!(
+        ModeCheckedLocalSiteRendezvous::host_endpoint_path(runtime),
+        Path::new("/run/user/501/orchbee-dev-a1b2c3/host/00000000000000000000000000000001.s")
+    );
+    // `socket_paths` keeps its original two-address contract: exactly
+    // `[client, worker]`, in that order.
+    let [client, worker] = ModeCheckedLocalSiteRendezvous::socket_paths(runtime);
+    assert_eq!(
+        client,
+        Path::new("/run/user/501/orchbee-dev-a1b2c3/client.sock")
+    );
+    assert_eq!(
+        worker,
+        Path::new("/run/user/501/orchbee-dev-a1b2c3/worker.sock")
+    );
+    // The budget view is that same pair followed by the pending and Host
+    // endpoints, in stable `[client, worker, client-pending, host]` order.
+    assert_eq!(
+        ModeCheckedLocalSiteRendezvous::socket_budget_paths(runtime),
+        [
+            client.clone(),
+            worker.clone(),
+            PathBuf::from("/run/user/501/orchbee-dev-a1b2c3/client-pending.sock"),
+            PathBuf::from(
+                "/run/user/501/orchbee-dev-a1b2c3/host/00000000000000000000000000000001.s"
+            ),
+        ]
+    );
+    // The shared names are the same facts every consumer derives from: the
+    // pending leaf, the Host scope, and the Host endpoint id/name.
+    assert_eq!(CLIENT_PENDING_SOCKET_NAME, "client-pending.sock");
+    assert_eq!(HOST_SCOPE_NAME, "host");
+    assert_eq!(HOST_ENDPOINT_ID, "00000000000000000000000000000001");
+    assert_eq!(HOST_ENDPOINT_NAME, "00000000000000000000000000000001.s");
+    assert_eq!(HOST_ENDPOINT_NAME, format!("{HOST_ENDPOINT_ID}.s"));
+
+    // Pure derivation answers for relative, absent, or non-inspectable
+    // directories — path math never touches the filesystem.
+    let relative = Path::new("not/absolute");
+    assert_eq!(
+        ModeCheckedLocalSiteRendezvous::host_endpoint_path(relative),
+        relative.join("host").join(HOST_ENDPOINT_NAME)
+    );
+    let missing = Path::new("/definitely/absent/runtime");
+    assert_eq!(
+        ModeCheckedLocalSiteRendezvous::client_pending_socket_path(missing),
+        missing.join(CLIENT_PENDING_SOCKET_NAME)
+    );
+    Ok(())
+}
+
+#[test]
 fn rejects_non_normal_runtime_base_forms_before_filesystem_resolution() -> TestResult {
     let fixture = TestDirectory::new("runtime-base-lexical")?;
     fs::create_dir(fixture.path().join("nested"))?;

@@ -46,6 +46,7 @@ pub(crate) fn start_managed(
 #[cfg(target_os = "linux")]
 fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
     use nix::fcntl::{OFlag, RenameFlags, open, renameat2};
+    use orchbee_local_site_runtime::CLIENT_PENDING_SOCKET_NAME;
     let parent = endpoint.parent().ok_or(io::ErrorKind::InvalidInput)?;
     let name = endpoint.file_name().ok_or(io::ErrorKind::InvalidInput)?;
     let directory = open(
@@ -53,12 +54,12 @@ fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
         OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
         nix::sys::stat::Mode::empty(),
     )?;
-    let pending = parent.join("client-pending.sock");
+    let pending = parent.join(CLIENT_PENDING_SOCKET_NAME);
     let listener = UnixListener::bind(&pending)?;
     fs::set_permissions(&pending, fs::Permissions::from_mode(0o600))?;
     renameat2(
         &directory,
-        "client-pending.sock",
+        CLIENT_PENDING_SOCKET_NAME,
         &directory,
         name,
         RenameFlags::RENAME_NOREPLACE,

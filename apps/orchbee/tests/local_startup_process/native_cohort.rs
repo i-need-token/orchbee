@@ -3,7 +3,9 @@ use nix::{
     poll::{PollFd, PollFlags, PollTimeout, poll},
     unistd::{Pid, geteuid},
 };
-use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort, SiteScope};
+use orchbee_local_site_runtime::{
+    HOST_ENDPOINT_ID, ModeCheckedLocalSiteRendezvous, NativeCohort, SiteScope,
+};
 use rustix::process::{Pid as RustixPid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};
 use sha2::{Digest, Sha256};
 use std::{
@@ -34,7 +36,6 @@ const BINARIES: [&str; 4] = [
 static NEXT: AtomicU64 = AtomicU64::new(0);
 const CLEANUP_TIMEOUT: Duration = Duration::from_secs(3);
 const GRACEFUL_CLEANUP_TIMEOUT: Duration = Duration::from_secs(1);
-const HOST_ENDPOINT_ID: &str = "00000000000000000000000000000001";
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum ManagedRole {
@@ -276,7 +277,8 @@ impl Fixture {
                     executable.clone(),
                     OsString::from("serve"),
                     OsString::from("--runtime-directory"),
-                    runtime.join("host").into_os_string(),
+                    ModeCheckedLocalSiteRendezvous::host_runtime_directory(runtime)
+                        .into_os_string(),
                     OsString::from("--endpoint-id"),
                     OsString::from(HOST_ENDPOINT_ID),
                 ],
@@ -314,7 +316,7 @@ fn reserve_fixture_directories(cohort: &Path, base: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn runtime_for_base(base: &Path) -> PathBuf {
+pub(super) fn runtime_for_base(base: &Path) -> PathBuf {
     base.join(format!("orchbee-native-{}", geteuid()))
 }
 

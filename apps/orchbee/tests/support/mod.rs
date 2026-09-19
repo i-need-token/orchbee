@@ -17,6 +17,7 @@ use std::{
 };
 
 use nix::fcntl::{FcntlArg, OFlag, fcntl};
+use orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous;
 use sha2::{Digest, Sha256};
 
 /// Wall-clock backstop on every spawned CLI child. A healthy run retires on
@@ -401,16 +402,22 @@ pub fn runtime_base(tag: &str) -> PathBuf {
         .canonicalize()
         .expect("canonicalize TMPDIR for the cli runtime base");
     let uid = nix::unistd::geteuid().as_raw();
-    // Worst socket the rendezvous can bind/connect is `client.sock` under the
-    // euid scope; `worker.sock` has the same length.
-    let suffix_len = format!("/{SCOPE_PREFIX}{uid}/client.sock").len();
+    // Worst socket the rendezvous can derive is the Host endpoint
+    // `<scope>/host/<endpoint-id>.s` — deeper than client/worker/pending.
+    let probe_scope = tmp
+        .join("x".repeat(BASE_LEAF_LEN))
+        .join(format!("{SCOPE_PREFIX}{uid}"));
+    let worst_len = ModeCheckedLocalSiteRendezvous::host_endpoint_path(&probe_scope)
+        .as_os_str()
+        .as_encoded_bytes()
+        .len();
     let limit = sun_path_limit();
     let tmp_len = tmp.as_os_str().as_encoded_bytes().len();
     assert!(
-        tmp_len + 1 + BASE_LEAF_LEN + suffix_len <= limit,
+        worst_len <= limit,
         "canonical TMPDIR {tmp:?} ({tmp_len}B) leaves no unix-socket margin for \
-         an {BASE_LEAF_LEN}B leaf plus {suffix_len}B scope/socket suffix \
-         (sun_path limit {limit}B) — point TMPDIR at a shorter real directory",
+         the deepest derived socket address ({worst_len}B against a \
+         {limit}B sun_path limit) — point TMPDIR at a shorter real directory",
     );
     let pid = std::process::id();
     static SEQUENCE: AtomicU32 = AtomicU32::new(0);

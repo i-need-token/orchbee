@@ -7,7 +7,8 @@ use crate::{
 use orchbee_capability_node_protocol::CapabilityNodeMessage;
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_local_site_runtime::{
-    ModeCheckedLocalSiteRendezvous, NativeArtifact, NativeCohort, RetainedChild, SiteScope,
+    HOST_ENDPOINT_ID, HOST_SCOPE_NAME, ModeCheckedLocalSiteRendezvous, NativeArtifact,
+    NativeCohort, RetainedChild, SiteScope,
 };
 use std::{
     error::Error,
@@ -22,8 +23,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-
-const HOST_ENDPOINT_ID: &str = "00000000000000000000000000000001";
 
 pub(crate) fn run(
     server: &UnixStream,
@@ -109,11 +108,16 @@ fn start_host(
     runtime: &Path,
 ) -> Result<HostBrokerConnection, Box<dyn Error>> {
     let deadline = Instant::now() + Duration::from_secs(5);
-    let directory =
-        ModeCheckedLocalSiteRendezvous::prepare_mode_checked(runtime, SiteScope::parse("host")?)?;
-    let endpoint = directory
-        .runtime_directory()
-        .join(format!("{HOST_ENDPOINT_ID}.s"));
+    // The Host binds `<id>.s` relatively inside `host/` — a 34-byte leaf that
+    // always fits — while the Worker connects through the derived absolute
+    // path. That absolute address can outgrow this platform's socket ABI, so
+    // validate it before the Host directory or process can appear.
+    let endpoint = ModeCheckedLocalSiteRendezvous::host_endpoint_path(runtime);
+    nix::sys::socket::UnixAddr::new(&endpoint)?;
+    let directory = ModeCheckedLocalSiteRendezvous::prepare_mode_checked(
+        runtime,
+        SiteScope::parse(HOST_SCOPE_NAME)?,
+    )?;
     match std::fs::symlink_metadata(&endpoint) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Ok(_) => {

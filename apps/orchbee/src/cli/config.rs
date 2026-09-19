@@ -356,7 +356,8 @@ fn socket_checks(
     site: &Result<ModeCheckedLocalSiteRendezvous, RendezvousError>,
     scope_directory: &Path,
 ) -> CheckReport {
-    let [client_path, worker_path] = ModeCheckedLocalSiteRendezvous::socket_paths(scope_directory);
+    let [client_path, worker_path, client_pending_path, host_path] =
+        ModeCheckedLocalSiteRendezvous::socket_budget_paths(scope_directory);
     let mut details = Map::new();
     let mut any_fail = false;
     let mut any_present = false;
@@ -377,6 +378,15 @@ fn socket_checks(
         any_fail |= fail;
         details.insert(name.to_owned(), Value::Object(entry));
     }
+    // `clientPending`/`host` are derived-address budget entries only: presence
+    // is never probed, so a fitting address honestly reports
+    // `presence-not-inspected` instead of an invented state — while an
+    // over-budget address still fails on its own.
+    for (name, path) in [("clientPending", client_pending_path), ("host", host_path)] {
+        let (entry, fail) = socket_budget_entry(&path);
+        any_fail |= fail;
+        details.insert(name.to_owned(), Value::Object(entry));
+    }
     let status = if any_fail {
         "fail"
     } else if any_present {
@@ -389,6 +399,40 @@ fn socket_checks(
         status,
         details,
     }
+}
+
+/// One derived-address budget entry: `presence` is always `unchecked`, the
+/// path fact and both byte counts are always reported, and only the ABI fit
+/// decides between `presence-not-inspected` and `address-too-long`.
+#[cfg(target_os = "linux")]
+fn socket_budget_entry(path: &Path) -> (Map<String, Value>, bool) {
+    let fits = unix_socket_path_fits(path);
+    let mut details = detail([
+        ("presence".to_owned(), json!("unchecked")),
+        (
+            "status".to_owned(),
+            json!(if fits { "not-applicable" } else { "fail" }),
+        ),
+        (
+            "reason".to_owned(),
+            json!(if fits {
+                "presence-not-inspected"
+            } else {
+                "address-too-long"
+            }),
+        ),
+        (
+            "addressBytes".to_owned(),
+            json!(path.as_os_str().as_encoded_bytes().len()),
+        ),
+        (
+            "addressCapacityBytes".to_owned(),
+            json!(UNIX_SOCKET_PATH_CAPACITY),
+        ),
+    ]);
+    let (key, value) = path_detail(path);
+    details.insert(key, value);
+    (details, !fits)
 }
 
 /// One socket's inspection result → its typed entry plus the aggregate
@@ -839,6 +883,69 @@ mod tests {
     }
 
     #[test]
+    fn socket_checks_report_derived_budget_entries() {
+        // `clientPending` and `host` are derived-address budget entries only:
+        // presence is never probed, so every fitting path reports
+        // `presence-not-inspected` — never a claim that the endpoint exists.
+        let report = socket_checks(
+            &Err(RendezvousError::System {
+                operation: "test",
+                path: BASE.into(),
+                source: std::io::Error::from(std::io::ErrorKind::NotFound),
+            }),
+            Path::new(SCOPE_DIR),
+        );
+        for name in ["clientPending", "host"] {
+            let entry = &report.details[name];
+            assert_eq!(entry["presence"], json!("unchecked"), "{name}: {entry}");
+            assert_eq!(entry["status"], json!("not-applicable"), "{name}: {entry}");
+            assert_eq!(
+                entry["reason"],
+                json!("presence-not-inspected"),
+                "{name}: {entry}"
+            );
+            assert_eq!(
+                entry["addressCapacityBytes"],
+                json!(UNIX_SOCKET_PATH_CAPACITY),
+                "{name}: {entry}"
+            );
+            assert!(
+                entry["addressBytes"].as_u64().unwrap() > 0,
+                "{name}: {entry}"
+            );
+            assert!(
+                entry.get("path").is_some() || entry.get("pathBytesHex").is_some(),
+                "{name}: {entry}"
+            );
+        }
+        // A fitting unchecked budget never promotes the aggregate to pass.
+        assert_eq!(report.status, "not-applicable");
+
+        // An over-budget derived address fails on its own: only the budget
+        // verdict changes, `presence` stays honestly unchecked.
+        let long_dir = PathBuf::from("/".to_owned() + &"a".repeat(UNIX_SOCKET_PATH_CAPACITY));
+        let report = socket_checks(&Err(RendezvousError::InvalidSiteScope), &long_dir);
+        assert_eq!(report.status, "fail");
+        for name in ["clientPending", "host"] {
+            let entry = &report.details[name];
+            assert_eq!(entry["presence"], json!("unchecked"), "{name}: {entry}");
+            assert_eq!(entry["status"], json!("fail"), "{name}: {entry}");
+            assert_eq!(
+                entry["reason"],
+                json!("address-too-long"),
+                "{name}: {entry}"
+            );
+            assert_eq!(
+                entry["addressCapacityBytes"],
+                json!(UNIX_SOCKET_PATH_CAPACITY),
+                "{name}: {entry}"
+            );
+            let bytes = entry["addressBytes"].as_u64().unwrap() as usize;
+            assert!(bytes > UNIX_SOCKET_PATH_CAPACITY, "{name}: {entry}");
+        }
+    }
+
+    #[test]
     fn socket_checks_aggregate_real_states() {
         // No valid runtime directory: both entries unchecked.
         let report = socket_checks(
@@ -855,8 +962,23 @@ mod tests {
             assert_eq!(report.details[name]["reason"], json!("runtime-unavailable"));
         }
 
-        // A real prepared scope without sockets: absent + not-applicable.
-        let base = scratch("sockets");
+        // A real prepared scope without sockets: absent + not-applicable. The
+        // base must stay short — the derived Host endpoint is the deepest
+        // budget fact and a deep scratch would itself trip `address-too-long`.
+        let base = {
+            let directory = std::env::temp_dir().join(format!(
+                "obsc-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos()
+            ));
+            fs::create_dir(&directory).expect("create short socket base");
+            fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))
+                .expect("chmod short socket base");
+            directory
+        };
         let site = || {
             ModeCheckedLocalSiteRendezvous::validate_mode_checked(
                 &base,

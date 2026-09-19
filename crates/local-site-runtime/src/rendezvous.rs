@@ -19,6 +19,16 @@ const ACTIVATION_LOCK_NAME: &str = "activation.lock";
 const SITE_LIFETIME_LOCK_NAME: &str = "site-lifetime.lock";
 const CLIENT_SOCKET_NAME: &str = "client.sock";
 const WORKER_SOCKET_NAME: &str = "worker.sock";
+/// The pending leaf the Server binds before atomically renaming it onto
+/// `client.sock`; the name is shared so binders and reporters derive one fact.
+pub const CLIENT_PENDING_SOCKET_NAME: &str = "client-pending.sock";
+/// The Site scope name whose runtime directory the Host owns.
+pub const HOST_SCOPE_NAME: &str = "host";
+/// The fixed Host endpoint identity the lazy Worker passes to a spawned Host.
+pub const HOST_ENDPOINT_ID: &str = "00000000000000000000000000000001";
+/// The endpoint leaf the Host binds inside its own runtime directory — always
+/// `{HOST_ENDPOINT_ID}.s`; the rendezvous tests pin that identity.
+pub const HOST_ENDPOINT_NAME: &str = "00000000000000000000000000000001.s";
 const RUNTIME_DIRECTORY_MODE: u32 = 0o700;
 const LOCK_FILE_MODE: u32 = 0o600;
 
@@ -121,14 +131,49 @@ impl ModeCheckedLocalSiteRendezvous {
         &self.paths.worker_socket
     }
 
+    /// The pending client socket path a runtime directory derives — the leaf
+    /// the Server binds before atomically renaming it onto `client.sock`.
+    /// Pure path math, like [`socket_paths`](Self::socket_paths).
+    pub fn client_pending_socket_path(runtime_directory: &Path) -> PathBuf {
+        runtime_directory.join(CLIENT_PENDING_SOCKET_NAME)
+    }
+
+    /// The Host runtime directory a Site runtime directory derives. The Host
+    /// binds its endpoint relatively inside this directory while the Worker
+    /// connects through this derived absolute path.
+    pub fn host_runtime_directory(runtime_directory: &Path) -> PathBuf {
+        runtime_directory.join(HOST_SCOPE_NAME)
+    }
+
+    /// The Host endpoint path a Site runtime directory derives — the absolute
+    /// address the Worker connects to. Pure path math.
+    pub fn host_endpoint_path(runtime_directory: &Path) -> PathBuf {
+        Self::host_runtime_directory(runtime_directory).join(HOST_ENDPOINT_NAME)
+    }
+
     /// The `[client, worker]` socket paths a runtime directory derives. Pure
     /// path math — it answers even when the runtime directory cannot be
-    /// validated or is absent, which is exactly when address-budget
-    /// inspection still owes a verdict.
+    /// validated or is absent.
     pub fn socket_paths(runtime_directory: &Path) -> [PathBuf; 2] {
         [
             runtime_directory.join(CLIENT_SOCKET_NAME),
             runtime_directory.join(WORKER_SOCKET_NAME),
+        ]
+    }
+
+    /// Every socket path a runtime directory derives, in stable
+    /// `[client, worker, client-pending, host]` order — the two-address
+    /// contract above plus the pending and Host helpers. Pure path math that
+    /// answers even when the runtime directory cannot be validated or is
+    /// absent, which is exactly when address-budget inspection still owes a
+    /// verdict.
+    pub fn socket_budget_paths(runtime_directory: &Path) -> [PathBuf; 4] {
+        let [client, worker] = Self::socket_paths(runtime_directory);
+        [
+            client,
+            worker,
+            Self::client_pending_socket_path(runtime_directory),
+            Self::host_endpoint_path(runtime_directory),
         ]
     }
 

@@ -8,6 +8,8 @@ mod native_close;
 mod native_cohort;
 #[path = "local_startup_process/native_context.rs"]
 mod native_context;
+#[path = "local_startup_process/native_endpoint_budget.rs"]
+mod native_endpoint_budget;
 #[path = "local_startup_process/native_location_labels.rs"]
 mod native_location_labels;
 #[path = "local_startup_process/native_workspace_fixture.rs"]

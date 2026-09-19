@@ -57,8 +57,10 @@ startup. Typed invalid-lease/generation rejection creates no Host. Generation-pi
 may complete before that Launch without starting a Host; any other non-Launch traffic retires the
 connection. The admitted dispatch and same kernel survive Host startup, and authorization is
 checked again before handoff. The Host directory is `host` under the runtime, with fixed endpoint ID
-`00000000000000000000000000000001`. Any pre-existing endpoint immediately requires recovery; only
-the newly spawned Host may be awaited for its final 0600 socket.
+`00000000000000000000000000000001`. The absolute endpoint address under that directory is checked
+against the platform socket-address ABI before the directory or the Host process is created; an
+address that cannot fit produces the same pre-handoff failure without either side effect. Any pre-existing endpoint immediately requires recovery; only the
+newly spawned Host may be awaited for its final 0600 socket.
 Host startup, its one dial, and strict OBTP handshake share five seconds without renewal or retry.
 Preparation/startup failure returns a pre-handoff failure when deliverable and retires Worker;
 uncertain handed-off outcomes are never replayed. Later operations use the same serialized loop
