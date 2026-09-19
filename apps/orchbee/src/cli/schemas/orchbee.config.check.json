@@ -383,13 +383,7 @@
 			"oneOf": [
 				{
 					"type": "object",
-					"required": [
-						"presence",
-						"status",
-						"reason",
-						"addressBytes",
-						"addressCapacityBytes"
-					],
+					"required": ["presence", "status", "reason", "addressBytes", "addressCapacityBytes"],
 					"additionalProperties": false,
 					"properties": {
 						"presence": { "const": "unchecked" },
@@ -407,13 +401,7 @@
 				},
 				{
 					"type": "object",
-					"required": [
-						"presence",
-						"status",
-						"reason",
-						"addressBytes",
-						"addressCapacityBytes"
-					],
+					"required": ["presence", "status", "reason", "addressBytes", "addressCapacityBytes"],
 					"additionalProperties": false,
 					"properties": {
 						"presence": { "const": "unchecked" },

@@ -1322,8 +1322,7 @@ function assembleTextRowWindowBytes({
 		});
 		return part;
 	});
-	const bodyLength =
-		rowParts.reduce((total, part) => total + part.byteLength, 0) + trailingBytes;
+	const bodyLength = rowParts.reduce((total, part) => total + part.byteLength, 0) + trailingBytes;
 	const bytes = new Uint8Array(ROW_WINDOW_HEADER_BYTES + bodyLength);
 	const view = new DataView(bytes.buffer);
 	bytes.set([0x4f, 0x42, 0x52, 0x57], 0);
