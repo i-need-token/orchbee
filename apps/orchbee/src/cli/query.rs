@@ -813,14 +813,11 @@ pub(crate) fn wait_output(
         Err(failure) if failure.kind == FailureKind::Timeout => "requested",
         Err(_) => "unconfirmed",
     };
-    // A confirmed `Detached` is a fact — but a cancel or expiry landing
-    // during that exchange still wins the answer, carrying the real cleanup
-    // state instead of an invented one.
-    let late = if detach.is_ok() {
-        run.check().err()
-    } else {
-        None
-    };
+    // Whatever the detach outcome, a cancel or expiry that landed during
+    // that exchange still wins the answer — over a confirmed `Detached`
+    // and over the detach's own typed failure — while `cleanup` keeps the
+    // real outcome instead of an invented one.
+    let late = run.check().err();
     drop(client);
     match (outcome, detach) {
         (Ok(observed), Ok(())) if late.is_none() => {
