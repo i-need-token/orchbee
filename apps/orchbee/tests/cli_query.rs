@@ -2193,7 +2193,11 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     }
     assert_eq!(
         sorted(complete(&["help", "project", ""])),
-        sorted(vec!["get".to_owned(), "list".to_owned()]),
+        sorted(vec![
+            "create".to_owned(),
+            "get".to_owned(),
+            "list".to_owned()
+        ]),
         "{engine} help children"
     );
     assert_eq!(
