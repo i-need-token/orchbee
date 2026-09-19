@@ -1939,10 +1939,18 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert_eq!(
         sorted(complete(&["workspace", ""])),
         sorted(
-            ["create", "get", "list", "rename", "--format", "--format="]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
+            [
+                "accept-directory",
+                "create",
+                "get",
+                "list",
+                "rename",
+                "--format",
+                "--format=",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
         ),
         "{engine} workspace verbs"
     );
