@@ -565,5 +565,8 @@ fn connect_observer(endpoint: &Path) -> TestResult<(UnixStream, HostEpoch)> {
 #[path = "terminal_operations/viewers.rs"]
 mod viewers;
 
+#[path = "terminal_operations/send.rs"]
+mod send;
+
 #[path = "terminal_operations/controllers.rs"]
 mod controllers;

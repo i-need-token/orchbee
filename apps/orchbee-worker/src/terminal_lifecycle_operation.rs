@@ -144,7 +144,7 @@ impl PreparedLifecycleOperation {
             TerminalLifecycleOutcome::OutcomeUnknown(reason),
         )?;
         Ok(match failure {
-            PeerFailure::Host => HostOperationDisposition::HostClosed,
+            PeerFailure::Host | PeerFailure::Protocol => HostOperationDisposition::HostClosed,
             PeerFailure::Server => HostOperationDisposition::ServerClosed,
         })
     }

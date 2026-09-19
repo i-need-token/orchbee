@@ -182,7 +182,7 @@ impl PreparedHostOperation {
         exchange.close(failure);
         kernel.record_outcome_unknown(&self.dispatch)?;
         Ok(match failure {
-            PeerFailure::Host => HostOperationDisposition::HostClosed,
+            PeerFailure::Host | PeerFailure::Protocol => HostOperationDisposition::HostClosed,
             PeerFailure::Server => HostOperationDisposition::ServerClosed,
         })
     }

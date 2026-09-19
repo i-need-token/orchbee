@@ -21,6 +21,10 @@ use crate::host_connection::{HostBrokerConnection, consume_event};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PeerFailure {
     Host,
+    /// The peer emitted bytes that violate the terminal protocol itself —
+    /// a malformed frame or an envelope that fails contract validation —
+    /// distinct from a carrier that simply stopped answering.
+    Protocol,
     Server,
 }
 
@@ -98,7 +102,7 @@ impl<'a> HostExchange<'a> {
         }
         loop {
             let record = self.read_record(maximum_response_payload)?;
-            let envelope = decode_transport_envelope(&record).map_err(|_| PeerFailure::Host)?;
+            let envelope = decode_transport_envelope(&record).map_err(|_| PeerFailure::Protocol)?;
             if envelope.role != MessageRole::Event {
                 return Ok(record);
             }
@@ -125,9 +129,9 @@ impl<'a> HostExchange<'a> {
             } else {
                 maximum_response_payload
             })
-            .ok_or(PeerFailure::Host)?;
+            .ok_or(PeerFailure::Protocol)?;
         if !(TRANSPORT_ENVELOPE_HEADER_BYTES..=bound).contains(&length) {
-            return Err(PeerFailure::Host);
+            return Err(PeerFailure::Protocol);
         }
         let mut record = vec![0; length];
         record[..TRANSPORT_ENVELOPE_HEADER_BYTES].copy_from_slice(&header);

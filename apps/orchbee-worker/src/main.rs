@@ -16,6 +16,8 @@ mod terminal_lifecycle_operation;
 #[cfg(unix)]
 mod terminal_operations;
 #[cfg(unix)]
+mod terminal_send_operation;
+#[cfg(unix)]
 mod terminal_viewer_operation;
 #[cfg(unix)]
 mod worker_connection;

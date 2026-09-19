@@ -125,6 +125,23 @@ pub(crate) fn run_admitted(
             }
             continue;
         }
+        if let CapabilityNodeMessage::TerminalSendRequest(request) = request {
+            let execution = crate::terminal_send_operation::execute(
+                request, worker_id, generation, host, server,
+            )?;
+            // A failed Host carrier still gets its result written; that write
+            // is the last record this session produces and the loop exits
+            // explicitly instead of discovering the dead stream later.
+            let host_closed = server_transport::send(
+                server,
+                (!execution.host_failed).then_some(&*host),
+                &CapabilityNodeMessage::TerminalSendResult(execution.result),
+            )?;
+            if host_closed || execution.host_failed {
+                return Err(peer_closed().into());
+            }
+            continue;
+        }
         let now = unix_milliseconds();
         let admission = match request {
             CapabilityNodeMessage::AuthorizedTerminalLaunch(launch) => {
@@ -140,6 +157,8 @@ pub(crate) fn run_admitted(
             | CapabilityNodeMessage::TerminalLifecycleResult(_)
             | CapabilityNodeMessage::TerminalControlResult(_)
             | CapabilityNodeMessage::TerminalLaunchResult(_)
+            | CapabilityNodeMessage::TerminalSendRequest(_)
+            | CapabilityNodeMessage::TerminalSendResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_)
             | CapabilityNodeMessage::TerminalViewerRequest(_)
             | CapabilityNodeMessage::TerminalViewerResult(_) => {
