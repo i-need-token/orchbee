@@ -32,13 +32,14 @@ orchbee --help | --version
 ```
 
 Query families are `project`, `workspace`, `tab`, `panel`, and `terminal` (`list`/`get`, plus
-`terminal read`). Mutation commands against the running Site are `workspace create`/`rename`,
-`tab create`/`rename`/`move`/`close`, and `panel split`/`move`/`close`. No `project` mutation
-exists: a Project is created inside the TUI wizard (`Ctrl+B a`), after which the CLI mutations
-operate on it. The complete grammar, target and filter rules, mutation outcomes, and the failure
-matrix with exit classes are owned by [native CLI query](docs/native-cli-query.md);
-`orchbee help <family>` and `orchbee help <family> <command>` print the same grammar from the
-binary itself.
+`terminal read`). Mutation commands against the running Site are `project create`,
+`workspace create`/`rename`, `tab create`/`rename`/`move`/`close`, and
+`panel split`/`move`/`close`. `project create` submits the existing `ProjectCreate` action —
+one navigation record, no directory or filesystem effect — and returns the Server-allocated
+project id for the `workspace create`/`tab create` chain. The complete grammar, target and
+filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
+[native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
+`orchbee help <family> <command>` print the same grammar from the binary itself.
 
 Help writes stdout, failures write stderr, and version writes one locale-neutral
 `orchbee <version>` line. Development status is `0` for normal TUI close/help/version and for

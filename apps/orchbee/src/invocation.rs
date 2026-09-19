@@ -110,6 +110,7 @@ pub(crate) enum CommandPath {
     Status,
     ProjectList,
     ProjectGet,
+    ProjectCreate,
     WorkspaceList,
     WorkspaceGet,
     WorkspaceCreate,
@@ -141,6 +142,7 @@ impl CommandPath {
             Self::Status => "status",
             Self::ProjectList => "project list",
             Self::ProjectGet => "project get",
+            Self::ProjectCreate => "project create",
             Self::WorkspaceList => "workspace list",
             Self::WorkspaceGet => "workspace get",
             Self::WorkspaceCreate => "workspace create",
@@ -212,6 +214,9 @@ pub(crate) enum TabContext {
 /// never re-validates argv.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MutationCommand {
+    ProjectCreate {
+        label: WorkbenchLabel,
+    },
     WorkspaceCreate {
         project: Target,
         label: WorkbenchLabel,
@@ -841,6 +846,20 @@ fn resolve_words(
                 options,
             ))
         }
+        ["project", "create"] => {
+            check_scope(
+                options,
+                LABEL_SCOPE,
+                UsageContext::Path("project create"),
+                envelope,
+            )?;
+            Ok(mutation(
+                MutationCommand::ProjectCreate {
+                    label: label_option(options, UsageContext::Path("project create"), envelope)?,
+                },
+                options,
+            ))
+        }
         ["workspace", "list"] => {
             check_scope(
                 options,
@@ -1234,6 +1253,11 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["project", "create", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("project create"),
+            extra,
+            envelope,
+        )),
         ["project", verb, ..] => Err(unknown_command(
             UsageContext::Path("project"),
             verb,
@@ -1485,6 +1509,7 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["completion"] => HelpTopic::Family(Family::Completion),
         ["project", "list"] => HelpTopic::Command(CommandPath::ProjectList),
         ["project", "get"] => HelpTopic::Command(CommandPath::ProjectGet),
+        ["project", "create"] => HelpTopic::Command(CommandPath::ProjectCreate),
         ["workspace", "list"] => HelpTopic::Command(CommandPath::WorkspaceList),
         ["workspace", "get"] => HelpTopic::Command(CommandPath::WorkspaceGet),
         ["workspace", "create"] => HelpTopic::Command(CommandPath::WorkspaceCreate),

@@ -445,6 +445,70 @@ fn assert_command_base(command: &WorkbenchCommand, snapshot_request: &str) {
 // ---- committed commands -----------------------------------------------------
 
 #[test]
+fn project_create_commits_under_a_fresh_request() -> TestResult {
+    let base = base_dir("project-create");
+    let scope = stage_scope(&base);
+    let submitted = Arc::new(Mutex::new(String::new()));
+    let seen = submitted.clone();
+    let peer = spawn_peer(&scope, move |stream| {
+        let snapshot_request = admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        assert_command_base(&command, snapshot_request.as_str());
+        *seen.lock().unwrap() = command.request_id.as_str().to_owned();
+        let WorkbenchAction::ProjectCreate { label } = &command.action else {
+            panic!("expected project.create, got {:?}", command.action)
+        };
+        assert_eq!(label.as_str(), "平台-api");
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::ProjectCreated {
+                revision: revision(8),
+                project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&id(0x60))
+                    .unwrap(),
+            },
+        );
+    });
+    let output = run(
+        &base,
+        &[
+            "project",
+            "create",
+            "--label",
+            "平台-api",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document = envelope(&output);
+    assert_eq!(document["schema"], "orchbee.mutation.result");
+    assert_eq!(document["version"], 1);
+    assert_eq!(document["source"]["kind"], "workbench-command");
+    assert_eq!(document["source"]["siteId"], SITE);
+    assert_eq!(document["source"]["expectedRevision"], "7");
+    assert_eq!(document["result"]["action"], "project.create");
+    assert_eq!(document["result"]["outcome"], "committed");
+    assert_eq!(document["result"]["revision"], "8");
+    // The committed id is the Server-allocated one from the outcome, never a
+    // resolved target — project create has no target operand.
+    assert_eq!(document["result"]["projectId"], id(0x60));
+    assert_eq!(document["result"]["label"], "平台-api");
+    assert_eq!(
+        document["source"]["requestId"].as_str().unwrap(),
+        submitted.lock().unwrap().as_str()
+    );
+    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
+    Ok(())
+}
+
+#[test]
 fn workspace_create_commits_under_a_fresh_request() -> TestResult {
     let base = base_dir("ws-create");
     let scope = stage_scope(&base);
@@ -1182,6 +1246,43 @@ fn rejected_command_maps_to_exit_three() -> TestResult {
 }
 
 #[test]
+fn project_create_rejected_maps_to_exit_three() -> TestResult {
+    let base = base_dir("project-rejected");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        let WorkbenchAction::ProjectCreate { .. } = &command.action else {
+            panic!("expected project.create, got {:?}", command.action)
+        };
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::Rejected {
+                revision: revision(7),
+                reason: WorkbenchRejectionReason::ResourceLimit,
+            },
+        );
+    });
+    let output = run(
+        &base,
+        &["project", "create", "--label", "x", "--format", "json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(3));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "rejected");
+    assert_eq!(document["failure"]["details"]["stage"], "command");
+    assert_eq!(document["failure"]["details"]["reason"], "resource-limit");
+    assert_eq!(document["failure"]["details"]["revision"], "7");
+    assert!(
+        compiled_schema(&base, "orchbee.cli.failure").is_valid(&document),
+        "rejected envelope validates"
+    );
+    Ok(())
+}
+
+#[test]
 fn denied_and_unavailable_map_to_the_existing_matrix() -> TestResult {
     let base = base_dir("precommit");
     let scope = stage_scope(&base);
@@ -1836,6 +1937,118 @@ fn incompatible_outcome_is_outcome_unknown() -> TestResult {
     let output = run(
         &base,
         &["tab", "rename", "ops", "--label", "x", "--format=json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(8));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "outcome-unknown");
+    assert_eq!(
+        document["failure"]["details"]["reason"],
+        "action-incompatible"
+    );
+    Ok(())
+}
+
+#[test]
+fn project_create_dropped_response_is_unknown_without_replay() -> TestResult {
+    let base = base_dir("project-drop");
+    let scope = stage_scope(&base);
+    // Same mid-flight drop as `dropped_response_is_outcome_unknown_without_replay`,
+    // against the project arm: the listener stays bound so a replay would need a
+    // fresh connection — any accept after the drop is a retry attempt.
+    let socket = scope.join("client.sock");
+    let listener = UnixListener::bind(&socket).expect("bind client socket");
+    fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).expect("chmod socket");
+    listener
+        .set_nonblocking(true)
+        .expect("listener nonblocking");
+    let submitted = Arc::new(Mutex::new(String::new()));
+    let seen = submitted.clone();
+    let peer = thread::spawn(move || {
+        let stream = accept_bounded(&listener);
+        stream
+            .set_read_timeout(Some(PEER_IO_DEADLINE))
+            .expect("peer read timeout");
+        stream
+            .set_write_timeout(Some(PEER_IO_DEADLINE))
+            .expect("peer write timeout");
+        admit(&stream);
+        let request_id = read_snapshot_request(&stream);
+        snapshot_response(
+            &stream,
+            request_id,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: parse_snapshot(fixture_document()).expect("fixture"),
+            },
+        );
+        let command = read_command(&stream);
+        let WorkbenchAction::ProjectCreate { .. } = &command.action else {
+            panic!("expected project.create, got {:?}", command.action)
+        };
+        *seen.lock().unwrap() = command.request_id.as_str().to_owned();
+        drop(stream);
+        thread::sleep(Duration::from_millis(300));
+        match listener.accept() {
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {}
+            Ok(_) => panic!("the CLI must never replay a submitted command"),
+            Err(error) => panic!("listener accept failed: {error}"),
+        }
+    });
+    let output = run(
+        &base,
+        &["project", "create", "--label", "x", "--format=json"],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(8));
+    let document = envelope(&output);
+    assert_eq!(document["failure"]["kind"], "outcome-unknown");
+    assert_eq!(document["failure"]["details"]["stage"], "command");
+    assert_eq!(document["failure"]["details"]["reason"], "response-loss");
+    assert_eq!(
+        document["failure"]["details"]["requestId"]
+            .as_str()
+            .unwrap(),
+        submitted.lock().unwrap().as_str(),
+        "the typed unknown reports the submitted request identity"
+    );
+    assert!(
+        compiled_schema(&base, "orchbee.cli.failure").is_valid(&document),
+        "outcome-unknown envelope validates"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("not retried"), "{stderr}");
+    Ok(())
+}
+
+#[test]
+fn project_create_wrong_outcome_is_not_success() -> TestResult {
+    let base = base_dir("project-wrong-outcome");
+    let scope = stage_scope(&base);
+    let peer = spawn_peer(&scope, |stream| {
+        admit_and_serve_snapshot(&stream);
+        let command = read_command(&stream);
+        let WorkbenchAction::ProjectCreate { .. } = &command.action else {
+            panic!("expected project.create, got {:?}", command.action)
+        };
+        // A wire-valid but action-incompatible outcome: WorkspaceCreated for a
+        // project create must never build a committed receipt.
+        command_response(
+            &stream,
+            command.request_id,
+            WorkbenchCommandOutcome::WorkspaceCreated {
+                revision: revision(8),
+                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&id(0x61))
+                    .unwrap(),
+                terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
+                    &id(0x62),
+                )
+                .unwrap(),
+            },
+        );
+    });
+    let output = run(
+        &base,
+        &["project", "create", "--label", "x", "--format=json"],
     );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(8));

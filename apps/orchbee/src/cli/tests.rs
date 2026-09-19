@@ -234,6 +234,7 @@ fn fixed_outputs_are_far_below_the_bound() {
         CommandPath::PanelList,
         CommandPath::PanelMove,
         CommandPath::PanelSplit,
+        CommandPath::ProjectCreate,
         CommandPath::ProjectGet,
         CommandPath::ProjectList,
         CommandPath::Status,

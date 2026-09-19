@@ -59,7 +59,7 @@ Option scan runs left to right over tokens before `--`; `--` terminates option r
   `workspace list` rejects `--workspace`, `--tab`, and `--standalone`.
 - `--standalone`: valueless boolean flag, single use, only on `tab list` and `tab create`;
   mutually exclusive with `--workspace` on both.
-- `--label <label>`: single-use value flag, required on `workspace create`,
+- `--label <label>`: single-use value flag, required on `project create`, `workspace create`,
   `workspace rename`, `tab create`, `tab rename`, and `panel split`. The value is a Workbench
   label under protocol validation (nonempty, within the protocol label bound); a missing,
   empty, or overlong label is `invalid-usage`.
@@ -92,6 +92,7 @@ orchbee --version               # version line (unchanged)
 orchbee -h|--help | orchbee help   # root help
 orchbee status
 orchbee project list | project get <target>
+orchbee project create --label <label>
 orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
@@ -343,8 +344,8 @@ platform socket-address capacity). No cross-file atomic health claim is made.
 
 ## Mutations
 
-Nine commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
-`workspace create`/`rename`, `tab create`/`rename`/`move`/`close`, and
+Ten commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
+`project create`, `workspace create`/`rename`, `tab create`/`rename`/`move`/`close`, and
 `panel split`/`close`/`move`. Each invocation runs the query state machine's stages 1–5
 unchanged — one cohort check, one discovery and admission, one bounded snapshot read — then
 performs two further stages under the same 5-second deadline:
@@ -389,6 +390,12 @@ that changed nothing — reports the current revision; `accepted` — both close
 still owes a spawn, or the typed spawn outcome (`started` with the echoed `geometry`,
 `unavailable`/`failed` with a reason, `unknown`).
 
+`project create` is the only mutation with no target operand and no filesystem effect: the
+action carries just the label, the Server allocates the new `projectId` and returns it on the
+`committed` receipt, and the created Project starts with no directory or Workspace. Duplicate
+labels are legal — the label never uniquely identifies the new Project; the receipt's
+`projectId` does.
+
 Geometry is always explicit: a non-TTY invocation cannot inherit terminal dimensions, so
 `tab create` and `panel split` require all four flags. `--cols`/`--rows` are grid cells and
 `--cell-width`/`--cell-height` are per-cell pixel extents; every dimension is a `u16`
@@ -400,9 +407,9 @@ Mutation results use `schema:"orchbee.mutation.result"`, `version:1`, with
 typed IDs, and `direction`/`label`/`terminal` where the command has them. Text output
 renders the same fields one per line under the same escaping rules as queries.
 
-Deliberately not delivered: `workspace close`/`workspace focus`, `tab focus`,
-`panel resize`/`panel focus`, terminal open/send operations, Site lifecycle commands, and
-every remote operation.
+Deliberately not delivered: `project rename`/`project close`, `workspace close`/`workspace focus`,
+`tab focus`, `panel resize`/`panel focus`, terminal open/send operations, Site lifecycle
+commands, and every remote operation.
 
 ## Failure matrix
 
@@ -534,7 +541,7 @@ outcome-unknown/failed-effect: only the command stage can produce an undetermine
 | Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, window mismatch, oversized record, no retry | `terminal read --history` success + typed failures              | `tests/cli_query.rs`                                               |
 | Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                         | real read-only observation coexisting with the TUI's own viewer | `tests/local_startup_process`                                      |
 | Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                     | exact parse/failure kinds before runtime access                 | `src/invocation` tests                                             |
-| Mutation scripted peers: all nine commands, precommit verdicts, ambiguous and unapplied outcomes                                             | one command per call; `outcome-unknown` never replayed          | `tests/cli_mutation.rs`                                            |
+| Mutation scripted peers: all ten commands, precommit verdicts, ambiguous and unapplied outcomes                                             | one command per call; `outcome-unknown` never replayed          | `tests/cli_mutation.rs`                                            |
 | Non-TTY; stdout blocked after the session is gone; >8 MiB prepared output on every format; real write failure                                | documented exits; transport owners dropped before blocking      | `tests/local_startup_process` + emit unit tests                    |
 | `config check` matrix: pass/fail/not-applicable per check, `exists` semantics                                                                | five typed checks always reported                               | `tests/cli_query.rs` + `src/cli/config` tests                      |
 | Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                           | positive and negative contexts; no runtime enumeration          | `tests/cli_query.rs`                                               |

@@ -14,6 +14,8 @@ mod native_endpoint_budget;
 mod native_history;
 #[path = "local_startup_process/native_location_labels.rs"]
 mod native_location_labels;
+#[path = "local_startup_process/native_project_create.rs"]
+mod native_project_create;
 #[path = "local_startup_process/native_workspace_fixture.rs"]
 mod native_workspace_fixture;
 #[path = "local_startup_process/native_workspace_setup.rs"]

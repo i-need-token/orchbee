@@ -19,6 +19,7 @@
 						"panel.close",
 						"panel.move",
 						"panel.split",
+						"project.create",
 						"tab.close",
 						"tab.create",
 						"tab.move",

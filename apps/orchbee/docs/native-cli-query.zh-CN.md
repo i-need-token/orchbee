@@ -47,7 +47,7 @@ Agent、Worker、进程或 PTY 状态，也不要求 TTY。这是未发布的本
   `--standalone`。
 - `--standalone`：无值布尔 flag，单次使用，仅 `tab list` 与 `tab create`；两处均与
   `--workspace` 互斥。
-- `--label <label>`：带值 flag，单次使用，`workspace create`、`workspace rename`、
+- `--label <label>`：带值 flag，单次使用，`project create`、`workspace create`、`workspace rename`、
   `tab create`、`tab rename` 与 `panel split` 上必填。值为经协议校验的 Workbench label
   （非空且在协议 label 上限内）；缺失、空串或超长均为 `invalid-usage`。
 - `--direction <word>`：带值 flag，单次使用，`tab move`
@@ -76,6 +76,7 @@ orchbee --version               # 版本行（不变）
 orchbee -h|--help | orchbee help   # 根帮助
 orchbee status
 orchbee project list | project get <target>
+orchbee project create --label <label>
 orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
@@ -303,8 +304,8 @@ runtime-unavailable,address-too-long,presence-not-inspected}`。`clientPending`/
 
 ## Mutations
 
-九条命令经已 admitted 的 OBWP `workbench.command` 通道修改 Workbench 状态：
-`workspace create`/`rename`、`tab create`/`rename`/`move`/`close`、
+十条命令经已 admitted 的 OBWP `workbench.command` 通道修改 Workbench 状态：
+`project create`、`workspace create`/`rename`、`tab create`/`rename`/`move`/`close`、
 `panel split`/`close`/`move`。每次调用原样执行查询状态机的第 1–5 阶段——一次 cohort 检查、
 一次 discovery 与 admission、一次有界快照读取——然后在同一 5 秒 deadline 下再执行两个阶段：
 
@@ -339,6 +340,10 @@ move——报告当前 revision；`accepted`——两条 close——报告 `acce
 仍欠 spawn 时为 `pending`，否则为类型化 spawn 结果（`started` 带回显的 `geometry`，
 `unavailable`/`failed` 带 reason，`unknown`）。
 
+`project create` 是唯一无 target 操作数、无文件系统副作用的修改命令：动作只携带 label，
+由 Server 分配新 `projectId` 并在 `committed` 收据中返回，新建 Project 无目录、无 Workspace。
+label 允许重复——label 无法唯一标识新 Project；收据中的 `projectId` 可以。
+
 几何永远显式：非 TTY 调用无法继承终端尺寸，故 `tab create` 与 `panel split` 要求四个 flag
 全部给出。`--cols`/`--rows` 为格数，`--cell-width`/`--cell-height` 为每格像素尺寸；每个
 维度都是 `u16`，并在任何运行时访问之前经协议 `WorkbenchTerminalGeometry` 校验。
@@ -348,8 +353,8 @@ Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:1`，
 （点分命令名）、`outcome`、该结果的 revision 字段、已解析 typed ID，以及命令具备时的
 `direction`/`label`/`terminal`。文本输出按与查询相同的转义规则逐行渲染同样字段。
 
-明确不交付：`workspace close`/`workspace focus`、`tab focus`、`panel resize`/`panel focus`、
-终端 open/send 操作、Site 生命周期命令，以及一切远端操作。
+明确不交付：`project rename`/`project close`、`workspace close`/`workspace focus`、`tab focus`、
+`panel resize`/`panel focus`、终端 open/send 操作、Site 生命周期命令，以及一切远端操作。
 
 ## 失败矩阵
 
@@ -470,7 +475,7 @@ outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效
 | 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试   | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                    | 真实只读观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
 | Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                     | 运行时访问前的精确 parse/失败类别                 | `src/invocation` 测试                                     |
-| Mutation 脚本化 peer：全部九条命令、precommit 判定、不可判定与未提交结果                                                   | 每次调用一条命令；`outcome-unknown` 绝不重放      | `tests/cli_mutation.rs`                                   |
+| Mutation 脚本化 peer：全部十条命令、precommit 判定、不可判定与未提交结果                                                   | 每次调用一条命令；`outcome-unknown` 绝不重放      | `tests/cli_mutation.rs`                                   |
 | 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                                                    | 文档化退出；阻塞前 transport 句柄已 drop          | `tests/local_startup_process` + emit 单元测试             |
 | `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                                                          | 五项 typed 检查齐全                               | `tests/cli_query.rs` + `src/cli/config` 测试              |
 | 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                                                         | 正/负上下文；无运行时枚举                         | `tests/cli_query.rs`                                      |

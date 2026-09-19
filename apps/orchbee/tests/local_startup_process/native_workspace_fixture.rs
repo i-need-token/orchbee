@@ -10,13 +10,14 @@ use std::os::{fd::AsFd, unix::net::UnixStream};
 pub(super) const STANDALONE_HEADER: &str = "WORKBENCH · Standalone terminal";
 pub(super) const WORKSPACE_HEADER: &str = "WORKBENCH · Setup process / Chosen workspace";
 pub(super) const EMPTY: &str = "No terminal tabs";
-const DIRECTORY_NEEDED: &str = "No directory configured. Ctrl+B e · configure the first directory";
-const DIRECTORY_READY: &str = "Ctrl+B c · launch a terminal in this directory";
+pub(super) const DIRECTORY_NEEDED: &str =
+    "No directory configured. Ctrl+B e · configure the first directory";
+pub(super) const DIRECTORY_READY: &str = "Ctrl+B c · launch a terminal in this directory";
 pub(super) const PROJECT_CREATED: &str = "Project created · the committed Project is retained";
 pub(super) const CHOOSE_PROJECT: &str = "Create Workspace · choose Project";
 const PROJECT_NAME: &str = "Create Workspace · new Project name";
 pub(super) const WORKSPACE_NAME: &str = "Create Workspace · Workspace name";
-const DIRECTORY_PATH: &str = "Configure Workspace directory";
+pub(super) const DIRECTORY_PATH: &str = "Configure Workspace directory";
 pub(super) const LABEL_HINT: &str = "Use 1–512 characters. Submit each step separately.";
 pub(super) const TEXT_ACTIONS: &str =
     "Enter · submit    Esc · cancel    Backspace · delete    Ctrl+U · clear";

@@ -249,6 +249,12 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["project"],
         &["project", "get"],
         &["project", "get", "a", "b"],
+        &["project", "create"],
+        &["project", "create", "--label"],
+        &["project", "create", "--bogus"],
+        &["project", "create", "--label", "x", "--label", "y"],
+        &["project", "create", "--label", "x", "extra"],
+        &["project", "create", "--", "--label", "x"],
         &["-x"],
         &["--unknown"],
         &["status", "--unknown"],
@@ -759,6 +765,12 @@ fn tab_create_args(context: &str) -> Vec<&str> {
 fn accepts_every_mutation_path() {
     let cases: &[(&[&str], MutationCommand)] = &[
         (
+            &["project", "create", "--label", "api"],
+            MutationCommand::ProjectCreate {
+                label: label("api"),
+            },
+        ),
+        (
             &["workspace", "create", "--project", "web", "--label", "api"],
             MutationCommand::WorkspaceCreate {
                 project: Target::Label("web".into()),
@@ -1020,6 +1032,7 @@ fn mutation_required_options_cannot_be_dropped() {
     let mut full_split = vec!["panel", "split", ID, "--direction", "right", "--label", "p"];
     full_split.extend(GEOMETRY_ARGS);
     let cases: &[&[&str]] = &[
+        &["project", "create"],
         &["workspace", "create", "--label", "x"],
         &["workspace", "create", "--project", "p"],
         &["workspace", "rename", "w"],
@@ -1056,6 +1069,9 @@ fn mutation_options_stay_inside_their_command_scope() {
     let mut create = vec!["workspace", "create", "--project", "p", "--label", "x"];
     let cases: &[&[&str]] = &[
         // Query-only filters are not mutation flags, and vice versa.
+        &["project", "create", "--label", "x", "--project", "p"],
+        &["project", "create", "--label", "x", "--standalone"],
+        &["project", "create", "--label", "x", "--confirm"],
         &[
             "workspace",
             "create",
@@ -1169,6 +1185,8 @@ fn mutation_values_are_bounded() {
     // Labels: empty and overlong are usage; the protocol maximum passes.
     let overlong = "x".repeat(513);
     for arguments in [
+        &["project", "create", "--label", ""][..],
+        &["project", "create", "--label", overlong.as_str()][..],
         &["workspace", "rename", "w", "--label", ""][..],
         &["workspace", "rename", "w", "--label", overlong.as_str()][..],
         &["workspace", "create", "--project", "p", "--label", ""][..],

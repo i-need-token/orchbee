@@ -16,7 +16,7 @@ const BLOCKED_STDOUT_DEADLINE: Duration = Duration::from_secs(25);
 
 /// A spawned child that is always reaped: any `?` early return still kills
 /// and waits it instead of leaking a zombie.
-struct Reap(Child);
+pub(super) struct Reap(Child);
 
 impl Reap {
     fn spawn(command: &mut Command) -> io::Result<Self> {
@@ -99,7 +99,7 @@ pub(super) fn validate(
 
 /// Start a real managed Server on the fixture scope and wait for its client
 /// socket. No Worker or Host: a query only needs the Server surface.
-fn spawn_real_server(fixture: &Fixture) -> Reap {
+pub(super) fn spawn_real_server(fixture: &Fixture) -> Reap {
     let site = fixture.site();
     site.commit_activation().expect("fixture activation");
     let mut server = Reap(

@@ -395,6 +395,9 @@ mod linux {
     /// semantics.
     fn action(command: &MutationCommand, snapshot: &Snapshot) -> Result<WorkbenchAction, Failure> {
         match command {
+            MutationCommand::ProjectCreate { label } => Ok(WorkbenchAction::ProjectCreate {
+                label: label.clone(),
+            }),
             MutationCommand::WorkspaceCreate { project, label } => {
                 let project = resolve_project(snapshot, project)?;
                 Ok(WorkbenchAction::WorkspaceCreate {
@@ -605,21 +608,34 @@ mod linux {
         };
         let internal = || Failure::new(FailureKind::InternalFailure);
         match &resolved.action {
-            WorkbenchAction::WorkspaceCreate { .. } | WorkbenchAction::WorkspaceRename { .. } => {
+            WorkbenchAction::ProjectCreate { .. }
+            | WorkbenchAction::WorkspaceCreate { .. }
+            | WorkbenchAction::WorkspaceRename { .. } => {
                 let request = WorkbenchSetupRequest::try_from(command).map_err(|_| internal())?;
                 match client.submit_workbench_setup(request, deadline) {
+                    WorkbenchSetupSubmission::Committed(WorkbenchSetupCommit::ProjectCreated {
+                        revision,
+                        project_id,
+                    }) if matches!(&resolved.action, WorkbenchAction::ProjectCreate { .. }) => {
+                        Ok(receipt(&resolved, "project.create", "committed")
+                            .revision(revision)
+                            .id("projectId", project_id.as_str())
+                            .label(resolved_label(&resolved.action)))
+                    }
                     WorkbenchSetupSubmission::Committed(
                         WorkbenchSetupCommit::WorkspaceCreated {
                             revision,
                             workspace_id,
                             terminal_context_id,
                         },
-                    ) => Ok(receipt(&resolved, "workspace.create", "committed")
-                        .revision(revision)
-                        .id("projectId", resolved_project_id(&resolved.action))
-                        .id("workspaceId", workspace_id.as_str())
-                        .id("terminalContextId", terminal_context_id.as_str())
-                        .label(resolved_label(&resolved.action))),
+                    ) if matches!(&resolved.action, WorkbenchAction::WorkspaceCreate { .. }) => {
+                        Ok(receipt(&resolved, "workspace.create", "committed")
+                            .revision(revision)
+                            .id("projectId", resolved_project_id(&resolved.action))
+                            .id("workspaceId", workspace_id.as_str())
+                            .id("terminalContextId", terminal_context_id.as_str())
+                            .label(resolved_label(&resolved.action)))
+                    }
                     WorkbenchSetupSubmission::Committed(
                         WorkbenchSetupCommit::WorkspaceRenamed {
                             revision,
@@ -627,15 +643,17 @@ mod linux {
                             workspace_id,
                             unchanged,
                         },
-                    ) => Ok(receipt(
-                        &resolved,
-                        "workspace.rename",
-                        if unchanged { "unchanged" } else { "committed" },
-                    )
-                    .revision(revision)
-                    .id("projectId", project_id.as_str())
-                    .id("workspaceId", workspace_id.as_str())
-                    .label(resolved_label(&resolved.action))),
+                    ) if matches!(&resolved.action, WorkbenchAction::WorkspaceRename { .. }) => {
+                        Ok(receipt(
+                            &resolved,
+                            "workspace.rename",
+                            if unchanged { "unchanged" } else { "committed" },
+                        )
+                        .revision(revision)
+                        .id("projectId", project_id.as_str())
+                        .id("workspaceId", workspace_id.as_str())
+                        .label(resolved_label(&resolved.action)))
+                    }
                     // Other setup commits are action-incompatible here; the
                     // transport already classifies them as unknown.
                     WorkbenchSetupSubmission::Committed(_) => Err(internal()),
@@ -966,7 +984,8 @@ mod linux {
 
     fn resolved_label(action: &WorkbenchAction) -> &str {
         match action {
-            WorkbenchAction::WorkspaceCreate { label, .. }
+            WorkbenchAction::ProjectCreate { label, .. }
+            | WorkbenchAction::WorkspaceCreate { label, .. }
             | WorkbenchAction::WorkspaceRename { label, .. }
             | WorkbenchAction::TabCreate { label, .. }
             | WorkbenchAction::TabRename { label, .. }

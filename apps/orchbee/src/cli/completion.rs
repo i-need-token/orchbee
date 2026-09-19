@@ -105,7 +105,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("api", &["schema", "snapshot"]),
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
-    ("project", &["get", "list"]),
+    ("project", &["create", "get", "list"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read"]),
     ("workspace", &["create", "get", "list", "rename"]),
@@ -132,6 +132,7 @@ const BUSINESS_FLAGS: &[&str] = &[
 /// `<family>:<verb>` → the business flags that command admits. Commands not
 /// listed here admit none.
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    ("project:create", &["--label"]),
     ("workspace:list", &["--project"]),
     ("workspace:create", &["--project", "--label"]),
     ("workspace:rename", &["--label"]),
@@ -214,7 +215,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("api", &["schema", "snapshot"]),
     ("config", &["check"]),
     ("panel", &["close", "get", "list", "move", "split"]),
-    ("project", &["get", "list"]),
+    ("project", &["create", "get", "list"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
     ("terminal", &["get", "list", "read"]),
     ("workspace", &["create", "get", "list", "rename"]),
