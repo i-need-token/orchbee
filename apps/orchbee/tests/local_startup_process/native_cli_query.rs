@@ -49,7 +49,7 @@ impl Drop for Reap {
 
 /// Run one query invocation of the staged `orchbee` binary. stdin is null and
 /// both streams are pipes: every witness here is non-TTY.
-fn run_cli(fixture: &Fixture, arguments: &[&str]) -> Output {
+pub(super) fn run_cli(fixture: &Fixture, arguments: &[&str]) -> Output {
     Command::new(fixture.cohort.join("orchbee"))
         .args(arguments)
         .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
@@ -61,7 +61,7 @@ fn run_cli(fixture: &Fixture, arguments: &[&str]) -> Output {
         .unwrap_or_else(|error| panic!("spawn query CLI {arguments:?}: {error}"))
 }
 
-fn run_json(fixture: &Fixture, arguments: &[&str]) -> (Output, serde_json::Value) {
+pub(super) fn run_json(fixture: &Fixture, arguments: &[&str]) -> (Output, serde_json::Value) {
     let output = run_cli(fixture, arguments);
     let document: serde_json::Value = serde_json::from_slice(&output.stdout)
         .unwrap_or_else(|error| panic!("{arguments:?} JSON document: {error}"));
@@ -69,7 +69,7 @@ fn run_json(fixture: &Fixture, arguments: &[&str]) -> (Output, serde_json::Value
 }
 
 /// One `api schema` call returns every embedded schema; compile them all once.
-fn validators(fixture: &Fixture) -> BTreeMap<String, jsonschema::Validator> {
+pub(super) fn validators(fixture: &Fixture) -> BTreeMap<String, jsonschema::Validator> {
     let (output, document) = run_json(fixture, &["api", "schema", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     document["result"]["schemas"]
@@ -85,7 +85,11 @@ fn validators(fixture: &Fixture) -> BTreeMap<String, jsonschema::Validator> {
         .collect()
 }
 
-fn validate(validators: &BTreeMap<String, jsonschema::Validator>, id: &str, output: &Output) {
+pub(super) fn validate(
+    validators: &BTreeMap<String, jsonschema::Validator>,
+    id: &str,
+    output: &Output,
+) {
     let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert!(
         validators[id].is_valid(&document),
