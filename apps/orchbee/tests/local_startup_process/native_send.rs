@@ -253,6 +253,7 @@ fn send_text_executes_while_tui_keeps_input_and_resize() -> TestResult {
 
     // Afterwards the unchanged shell still answers the TUI's interactive input.
     client.send(pid_producer(&fixture, "shell-after").as_bytes());
+    client.send(b"\r");
     assert_eq!(
         wait_file(
             &fixture.base.join("shell-after"),
