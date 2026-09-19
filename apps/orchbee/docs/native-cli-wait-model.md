@@ -28,7 +28,9 @@ The model covers one invocation on one terminal:
 Environment flags (`cancelled`, `expired`) may land between any two steps and may still
 arrive after emission — the model records emit-time evidence (`emitAction`,
 `cancelledAtDone`, `expiredAtDone`, `matchedOnce`) precisely so that late, unobservable
-environment steps cannot falsify a finished answer.
+environment steps cannot falsify a finished answer. A dedicated `emitCount` increments
+inside every answer-writing action, so `OutputWrittenOnce` is a real count bound rather
+than a shape check on the emitted label.
 
 ## Source mapping
 
@@ -57,9 +59,11 @@ fair. Bounds: `MaxSeq = 2`, observation count saturates, `CHECK_DEADLOCK FALSE`.
 The authoritative run uses the pinned `tla2tools` jar, one worker, a 512 MiB heap, and the
 shared `heavy.lock`, with each run's log and exit code kept in separate batch evidence
 files. The positive run passes all invariants and both temporal properties with nonzero
-coverage on every action. Two out-of-band mutants must keep producing genuine
+coverage on every action. Four out-of-band mutants must keep producing genuine
 counterexamples: skipping the late sample on detach error violates `LateSampleDecides`,
-and letting a late flag erase a confirmed cleanup violates `CleanupHonest`. Reachability
+letting a late flag erase a confirmed cleanup violates `CleanupHonest`, a duplicate-emission
+action violates `OutputWrittenOnce`, and an issue that does not consume a fresh sequence
+number violates `SeqStrictIncrease`. Reachability
 probes (`ProbeNo*`) witness the happy path, unflagged typed detach, cancelled with
 `requested` or `confirmed` cleanup, sequence exhaustion, a second sequence number, a typed
 outcome surviving a detach error, and pre-viewer cancellation with absent cleanup.

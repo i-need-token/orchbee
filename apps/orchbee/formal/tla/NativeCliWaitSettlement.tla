@@ -51,13 +51,13 @@ VARIABLES phase, expired, cancelled, viewerKnown, seq, obs, applied,
   feedbackOk, gateFresh, outcome, primary, cleanup, pending, answered,
   detachAcked, detachErrSeen, detachSkip, lastSample, cancelledAtDone,
   expiredAtDone, previousSeq, previousObs, settledAnswer, matchedOnce,
-  emitAction, lastAction
+  emitAction, emitCount, lastAction
 
 vars == <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
   feedbackOk, gateFresh, outcome, primary, cleanup, pending, answered,
   detachAcked, detachErrSeen, detachSkip, lastSample, cancelledAtDone,
   expiredAtDone, previousSeq, previousObs, settledAnswer, matchedOnce,
-  emitAction, lastAction>>
+  emitAction, emitCount, lastAction>>
 
 SampleOf(cancelFlag, expiredFlag) ==
   IF cancelFlag THEN IF expiredFlag THEN "ce" ELSE "cf"
@@ -94,6 +94,7 @@ Init ==
   /\ settledAnswer = "none"
   /\ matchedOnce = FALSE
   /\ emitAction = "none"
+  /\ emitCount = 0
   /\ lastAction = "init"
 
 \* --- Environment events: independently ordered, never sealed — a flag may
@@ -107,7 +108,7 @@ Expire ==
   /\ UNCHANGED <<phase, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, pending, answered,
        detachAcked, detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 Signal ==
   /\ ~cancelled
@@ -116,7 +117,7 @@ Signal ==
   /\ UNCHANGED <<phase, expired, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, pending, answered,
        detachAcked, detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 \* --- Preamble: the folded per-step settles of snapshot_session_before.
 \* --- A flag caught there, or a step's own failure, ends the run before
@@ -135,8 +136,8 @@ PreambleGate ==
         /\ phase' = "admitted" /\ UNCHANGED primary
   /\ IF phase' = "done"
       THEN /\ cancelledAtDone' = cancelled /\ expiredAtDone' = expired
-           /\ emitAction' = "preamble-gate"
-      ELSE UNCHANGED <<cancelledAtDone, expiredAtDone, emitAction>>
+           /\ emitAction' = "preamble-gate" /\ emitCount' = emitCount + 1
+      ELSE UNCHANGED <<cancelledAtDone, expiredAtDone, emitAction, emitCount>>
   /\ Record("preamble-gate")
   /\ UNCHANGED <<expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, cleanup, pending, answered,
@@ -150,7 +151,7 @@ PreambleFail ==
   /\ primary' = IF cancelled THEN "cancelled"
                 ELSE IF expired THEN "timeout" ELSE "typed"
   /\ cancelledAtDone' = cancelled /\ expiredAtDone' = expired
-  /\ emitAction' = "preamble-fail"
+  /\ emitAction' = "preamble-fail" /\ emitCount' = emitCount + 1
   /\ Record("preamble-fail")
   /\ UNCHANGED <<expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, cleanup, pending, answered,
@@ -179,7 +180,7 @@ IssueAttach ==
   /\ Record("issue-attach")
   /\ UNCHANGED <<expired, cancelled, seq, obs, applied, feedbackOk,
        gateFresh, primary, cleanup, answered, detachAcked, detachErrSeen,
-       detachSkip, cancelledAtDone, expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       detachSkip, cancelledAtDone, expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 \* --- The loop-top gate: run.check() before every poll. A fresh sample is
 \* --- required for the next poll issue; a flag landing between the sample
@@ -203,7 +204,7 @@ ObserveGate ==
   /\ UNCHANGED <<expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, primary, cleanup, pending, answered, detachAcked,
        detachErrSeen, detachSkip, cancelledAtDone, expiredAtDone,
-       settledAnswer, matchedOnce, emitAction>>
+       settledAnswer, matchedOnce, emitAction, emitCount>>
 
 IssuePoll ==
   /\ phase = "observing"
@@ -216,7 +217,7 @@ IssuePoll ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, outcome, primary, cleanup, answered, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 \* --- Feedback and read-rows issues carry their own step_deadline sample:
 \* --- a flag settles the step failure instead of submitting.
@@ -239,7 +240,7 @@ IssueFeedback ==
   /\ UNCHANGED <<expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, primary, cleanup, answered, detachAcked,
        detachErrSeen, detachSkip, cancelledAtDone, expiredAtDone,
-       settledAnswer, matchedOnce, emitAction>>
+       settledAnswer, matchedOnce, emitAction, emitCount>>
 
 \* --- next_sequence is consumed before step_deadline: the sequence is
 \* --- spent even when a flag then turns the issue into a failure, and
@@ -267,7 +268,7 @@ IssueReadRows ==
   /\ UNCHANGED <<expired, cancelled, viewerKnown, obs, applied,
        feedbackOk, gateFresh, primary, cleanup, answered, detachAcked,
        detachErrSeen, detachSkip, cancelledAtDone, expiredAtDone,
-       settledAnswer, matchedOnce, emitAction>>
+       settledAnswer, matchedOnce, emitAction, emitCount>>
 
 \* --- Detach decision: step_deadline settles the flags before submit.
 \* --- Cancel makes the exchange an unconfirmed skip; expiry makes it a
@@ -291,7 +292,7 @@ AttemptDetach ==
   /\ Record("attempt-detach")
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, answered, detachAcked,
-       detachErrSeen, cancelledAtDone, expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       detachErrSeen, cancelledAtDone, expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 \* --- Answers: the peer/environment resolves each pending exchange. The
 \* --- delivered facts are recorded at delivery; Settle consumes them.
@@ -305,7 +306,7 @@ AnswerAttachOk ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerAttachErr ==
   /\ pending = "attach"
@@ -314,7 +315,7 @@ AnswerAttachErr ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerPollEmpty ==
   /\ pending = "poll"
@@ -323,7 +324,7 @@ AnswerPollEmpty ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerPollRecord ==
   /\ pending = "poll"
@@ -332,7 +333,7 @@ AnswerPollRecord ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerPollErr ==
   /\ pending = "poll"
@@ -341,7 +342,7 @@ AnswerPollErr ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerFeedbackOk ==
   /\ pending = "feedback"
@@ -350,7 +351,7 @@ AnswerFeedbackOk ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerFeedbackErr ==
   /\ pending = "feedback"
@@ -359,7 +360,7 @@ AnswerFeedbackErr ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerReadRowsWindow ==
   /\ pending = "read-rows"
@@ -368,7 +369,7 @@ AnswerReadRowsWindow ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerReadRowsMatch ==
   /\ pending = "read-rows"
@@ -377,7 +378,7 @@ AnswerReadRowsMatch ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerReadRowsStale ==
   /\ pending = "read-rows"
@@ -386,7 +387,7 @@ AnswerReadRowsStale ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerReadRowsErr ==
   /\ pending = "read-rows"
@@ -395,7 +396,7 @@ AnswerReadRowsErr ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachErrSeen, detachSkip, lastSample, cancelledAtDone,
-       expiredAtDone, settledAnswer, matchedOnce, emitAction>>
+       expiredAtDone, settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerDetachAcked ==
   /\ pending = "detach"
@@ -405,7 +406,7 @@ AnswerDetachAcked ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachErrSeen,
        detachSkip, lastSample, cancelledAtDone, expiredAtDone,
-       settledAnswer, matchedOnce, emitAction>>
+       settledAnswer, matchedOnce, emitAction, emitCount>>
 
 AnswerDetachErr ==
   /\ pending = "detach"
@@ -415,7 +416,7 @@ AnswerDetachErr ==
   /\ UNCHANGED <<phase, expired, cancelled, viewerKnown, seq, obs, applied,
        feedbackOk, gateFresh, outcome, primary, cleanup, detachAcked,
        detachSkip, lastSample, cancelledAtDone, expiredAtDone,
-       settledAnswer, matchedOnce, emitAction>>
+       settledAnswer, matchedOnce, emitAction, emitCount>>
 
 \* --- Settle: consume one delivered answer, sample the flags at this
 \* --- point, and route. The sampled flags outrank the answer's own class;
@@ -437,7 +438,7 @@ Settle ==
            cleanup' = IF answered = "acked" THEN "confirmed"
                       ELSE "unconfirmed"
         /\ UNCHANGED <<phase, outcome, primary, viewerKnown, seq, obs,
-             applied, feedbackOk, gateFresh, matchedOnce, emitAction,
+             applied, feedbackOk, gateFresh, matchedOnce, emitAction, emitCount,
              cancelledAtDone, expiredAtDone>>
      \/ /\ phase = "attaching"
         /\ answered = "ok"
@@ -446,8 +447,8 @@ Settle ==
            \* path, never a pre-viewer drop.
            viewerKnown' = TRUE
         /\ UNCHANGED <<primary, cleanup, seq, obs, applied, feedbackOk,
-             gateFresh, matchedOnce, emitAction, cancelledAtDone,
-             expiredAtDone>>
+             gateFresh, matchedOnce, emitAction, emitCount,
+             cancelledAtDone, expiredAtDone>>
         /\ \/ /\ cancelled
               /\ outcome' = "cancelled" /\ phase' = "detaching"
            \/ /\ ~cancelled /\ expired
@@ -460,24 +461,24 @@ Settle ==
         /\ primary' = IF cancelled THEN "cancelled"
                       ELSE IF expired THEN "timeout" ELSE "typed"
         /\ cancelledAtDone' = cancelled /\ expiredAtDone' = expired
-        /\ emitAction' = "settle"
+        /\ emitAction' = "settle" /\ emitCount' = emitCount + 1
         /\ UNCHANGED <<outcome, cleanup, viewerKnown, seq, obs, applied,
              feedbackOk, gateFresh, matchedOnce>>
      \/ /\ phase = "observing"
         /\ cancelled
         /\ outcome' = "cancelled" /\ phase' = "detaching"
         /\ UNCHANGED <<primary, cleanup, viewerKnown, seq, obs, applied,
-             feedbackOk, gateFresh, matchedOnce, emitAction,
+             feedbackOk, gateFresh, matchedOnce, emitAction, emitCount,
              cancelledAtDone, expiredAtDone>>
      \/ /\ phase = "observing"
         /\ ~cancelled /\ expired
         /\ outcome' = "timeout" /\ phase' = "detaching"
         /\ UNCHANGED <<primary, cleanup, viewerKnown, seq, obs, applied,
-             feedbackOk, gateFresh, matchedOnce, emitAction,
+             feedbackOk, gateFresh, matchedOnce, emitAction, emitCount,
              cancelledAtDone, expiredAtDone>>
      \/ /\ phase = "observing"
         /\ ~cancelled /\ ~expired
-        /\ UNCHANGED <<primary, cleanup, viewerKnown, seq, emitAction,
+        /\ UNCHANGED <<primary, cleanup, viewerKnown, seq, emitAction, emitCount,
              cancelledAtDone, expiredAtDone>>
         /\ \/ /\ answered = "empty"
               /\ UNCHANGED <<phase, outcome, obs, applied, feedbackOk,
@@ -517,7 +518,7 @@ PreViewerSettle ==
   /\ primary' = IF cancelled THEN "cancelled"
                 ELSE IF expired THEN "timeout" ELSE outcome
   /\ cancelledAtDone' = cancelled /\ expiredAtDone' = expired
-  /\ emitAction' = "pre-viewer-settle"
+  /\ emitAction' = "pre-viewer-settle" /\ emitCount' = emitCount + 1
   /\ phase' = "done"
   /\ Record("pre-viewer-settle")
   /\ UNCHANGED <<expired, cancelled, viewerKnown, seq, obs, applied,
@@ -542,7 +543,7 @@ LateSample ==
                  ELSE "typed-detach"
             ELSE outcome
   /\ cancelledAtDone' = cancelled /\ expiredAtDone' = expired
-  /\ emitAction' = "late-sample"
+  /\ emitAction' = "late-sample" /\ emitCount' = emitCount + 1
   /\ phase' = "done"
   /\ Record("late-sample")
   /\ UNCHANGED <<expired, cancelled, viewerKnown, seq, obs, applied,
@@ -609,13 +610,18 @@ TypeOK ==
   /\ settledAnswer \in Answers
   /\ matchedOnce \in BOOLEAN
   /\ emitAction \in ActionNames \cup {"none"}
+  /\ emitCount \in 0..2
   /\ lastAction \in ActionNames
 
 \* The command emits an answer exactly on the transition into done, and
 \* only the terminal-writing actions can enter it — one answer per run.
+\* emitCount counts the answer-writing actions themselves (never derived
+\* from entering done, which would hide a repeated emit), so a second
+\* emission — even an identical one — is a real violation, not a stutter.
 \* emitAction is frozen at emission so later flag flips cannot blur who
 \* wrote the answer.
 OutputWrittenOnce ==
+  /\ emitCount <= 1
   /\ primary /= "none" <=> phase = "done"
   /\ phase = "done" =>
        emitAction \in {"preamble-gate", "preamble-fail", "settle",
@@ -670,13 +676,17 @@ ResultRequiresConfirmedDetach ==
 MatchFactPersists ==
   matchedOnce => outcome = "matched"
 
-\* requestSequence is strictly increasing: only ever consumed by an
-\* issue-read-rows transition, and always by exactly +1.
+\* requestSequence is strictly increasing, in both directions: a growth
+\* only ever comes from an issue-read-rows step of exactly +1, and every
+\* issue-read-rows really consumes a fresh number — a repeated issue that
+\* kept the old sequence would forge a stale-replay on the wire. The
+\* exhaustion arm records its own action name and is untouched by this.
 SeqStrictIncrease ==
   /\ seq >= previousSeq
   /\ seq > previousSeq =>
        /\ lastAction = "issue-read-rows"
        /\ seq = previousSeq + 1
+  /\ lastAction = "issue-read-rows" => seq = previousSeq + 1
 
 \* The observation counter only ever grows on a consumed consistent-window
 \* or match answer — stale or failed reads never count.

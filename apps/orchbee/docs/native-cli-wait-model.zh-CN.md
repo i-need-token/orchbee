@@ -22,7 +22,8 @@ commit 上的 `src/cli/query.rs`。
 
 环境 flag（`cancelled`、`expired`）可落在任意两步之间，也可在发射之后到达——模型记录发射
 时刻证据（`emitAction`、`cancelledAtDone`、`expiredAtDone`、`matchedOnce`），正是为了让迟到
-且不可观察的环境步无法伪造一份已完成的应答。
+且不可观察的环境步无法伪造一份已完成的应答。独立的 `emitCount` 在每个写答案的动作内
+递增，使 `OutputWrittenOnce` 成为真实计数上界而非仅对发射标签的形状检查。
 
 ## 源码映射
 
@@ -50,8 +51,9 @@ commit 上的 `src/cli/query.rs`。
 
 权威运行使用固定的 `tla2tools` jar、单 worker、512 MiB 堆与共享 `heavy.lock`，每次运行的
 日志与退出码各自保存在独立的批次证据文件中。正向运行通过全部不变量与两条时态性质，且每个
-动作覆盖计数非零。两个批外变异必须持续产生真反例：detach 错误时跳过迟到采样违反
-`LateSampleDecides`；让迟到 flag 抹除已 confirmed 的 cleanup 违反 `CleanupHonest`。可达性探针
+动作覆盖计数非零。四个批外变异必须持续产生真反例：detach 错误时跳过迟到采样违反
+`LateSampleDecides`；让迟到 flag 抹除已 confirmed 的 cleanup 违反 `CleanupHonest`；重复
+发射动作违反 `OutputWrittenOnce`；issue 不消耗新序号违反 `SeqStrictIncrease`。可达性探针
 （`ProbeNo*`）见证快乐路径、无 flag 的 typed detach、cleanup 为 `requested` 或 `confirmed`
 的取消、序号耗尽、第二个序号、typed 结果在 detach 错误后存活、以及 absent cleanup 的
 pre-viewer 取消。
