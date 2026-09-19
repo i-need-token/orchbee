@@ -125,6 +125,10 @@
 			"englishSha256": "3b216d045c33103f8283c3176f975f65b39190205817ca4889012c8c42400e05",
 			"zhCnSha256": "5776a6d55b76d53e57c2147fc33ede0b3e32dedcc770c6fb852575058d3c5792"
 		},
+		"apps/orchbee-worker/docs/worker-send-transaction.md": {
+			"englishSha256": "aac6f44c8d22b3d61ce87d2e3b95d6a65d2fe313768a7180142290fe763018ca",
+			"zhCnSha256": "91cc5feab3d4fcad89fa40f0df8fc9ee82c67adb11021531f54d1ed32ce1faa0"
+		},
 		"apps/orchbee/README.md": {
 			"englishSha256": "368d69b8bbe4c6e4f73f951950b82b1dc776006ddd5afdc534f9bec5ea8891b0",
 			"zhCnSha256": "846e7bea7f050f1ecd1aa9328dd1258069d2d999323e9db4f856f2be9321e8a6"
