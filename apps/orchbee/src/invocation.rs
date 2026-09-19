@@ -1819,6 +1819,7 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.path.is_some() && !scope.path {
         return Some("--path");
+    }
     if options.match_text.is_some() && !scope.wait {
         return Some("--match");
     }

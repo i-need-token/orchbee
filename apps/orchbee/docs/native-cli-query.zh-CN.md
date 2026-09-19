@@ -223,7 +223,7 @@ checked 5 秒预算。非 Linux 平台对网络查询与 mutation 产出 `servic
 
 - **期限**——在命令开始时取一个绝对 deadline `T0 + --timeout`（默认 30000ms，准入范围
   `1..=3600000`）。cohort、discovery、connect、snapshot 以及每次 `terminal.viewer` 请求
-  都在 `min(5 秒本地预算, 剩余 deadline)` 内运行；每个等待步骤返回后都复查 deadline，
+  都在 `min(5 s local budget, remaining deadline)` 内运行；每个等待步骤返回后都复查 deadline，
   因此迟到完成仍算 `timeout`（退出 7）。该 deadline 是协作式的：同步文件系统调用无法
   在系统调用中途打断，最坏超出量是一次已开始的本地操作。
 - **观察**——`Poll` 在 deadline 内重复：`Empty` 先睡 10ms，连续空回退到 100ms，收到
@@ -235,7 +235,7 @@ checked 5 秒预算。非 Linux 平台对网络查询与 mutation 产出 `servic
   `K = min(--rows, totalRows, 262144/columns)`、`totalRows = scrollback + screenRows`，
   revision 与 generation 为该帧的 `.exact` 值，`maximumBytes` 为 8 MiB。
   `requestSequence` 每附件严格递增、从 1 开始（`checked_add`；重试也取新值，且绝不与
-  transport requestId、frame sequence、history-event sequence 混用）；解码窗口必须回显
+  `transport requestId`、frame sequence、history-event sequence 混用）；解码窗口必须回显
   所发 sequence 及全部钉住字段，否则为 `protocol-invalid`。
   `stale-revision`/`stale-generation`/`history-evicted` 舍弃本次观察并在同一 deadline 内
   继续轮询——绝不匹配半窗口；其余 `rows-rejected` reason 按与 `read-history` 相同的
@@ -552,7 +552,6 @@ outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效
 | 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                             | 按矩阵 typed kind；绝不冒称真实 Server 证据       | `tests/cli_query.rs`                                      |
 | 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连 | `terminal read` 成功 + typed viewer-stage 失败    | `tests/cli_query.rs`                                      |
 | 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试  | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
-| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试   | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
 | 脚本化 OBCS viewer peer + 手工 OBTF/OBRW record：递增 `requestSequence`、可见/历史边界窗口、每帧真实 `FrameApplied`、stale 重钉、行尾 excerpt 命中、含 preamble 的总期限 | `terminal wait-output` 成功 + typed 失败          | `tests/cli_query.rs`                                      |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`wait-output` 命中已有/后到/滚出屏/UTF-8 输出，短期限退出 7，取消后槽位可复用       | 公共等待观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                    | 真实只读观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
