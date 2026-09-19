@@ -26,6 +26,9 @@ mod controllers;
 mod exchange;
 mod target_cleanup;
 mod viewers;
+
+#[cfg(test)]
+mod read_rows_tests;
 pub(crate) use exchange::{HostExchange, PeerFailure, exchange};
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
