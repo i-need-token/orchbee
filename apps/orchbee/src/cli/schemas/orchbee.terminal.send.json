@@ -1,0 +1,119 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.terminal.send",
+	"title": "orchbee terminal send result envelope",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": { "const": "orchbee.terminal.send" },
+		"version": { "const": 1 },
+		"source": { "$ref": "#/$defs/sendSource" },
+		"result": {
+			"type": "object",
+			"required": ["action", "requestId", "siteId", "workerId", "terminalId", "inputStatus", "cleanupStatus"],
+			"additionalProperties": false,
+			"properties": {
+				"action": { "const": "terminal.send" },
+				"requestId": { "$ref": "#/$defs/id" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"workerId": { "$ref": "#/$defs/id" },
+				"terminalId": { "$ref": "#/$defs/id" },
+				"payloadKind": { "enum": ["text", "key"] },
+				"recordBytes": { "type": "integer", "minimum": 1, "maximum": 4096 },
+				"key": {
+					"enum": [
+						"enter", "escape", "tab", "backspace", "delete",
+						"up", "down", "left", "right", "home", "end",
+						"page-up", "page-down", "ctrl-c", "ctrl-d"
+					]
+				},
+				"inputStatus": {
+					"enum": ["accepted", "not-submitted", "rejected", "unknown"]
+				},
+				"cleanupStatus": {
+					"enum": ["not-needed", "confirmed", "unconfirmed"]
+				},
+				"reason": {
+					"enum": [
+						"host-input-backpressure", "host-input-invalid",
+						"host-input-limit-exceeded", "host-input-unavailable",
+						"host-protocol-fault", "host-rejected", "host-unavailable",
+						"server-busy", "stale-host-epoch", "stale-worker-generation",
+						"terminal-runtime-unavailable", "terminal-unavailable",
+						"worker-unavailable"
+					]
+				},
+				"acceptedBytes": { "type": "integer", "minimum": 0, "maximum": 1048576 },
+				"target": {
+					"type": "object",
+					"required": ["workerGeneration", "hostEpoch", "hostTerminalId"],
+					"additionalProperties": false,
+					"properties": {
+						"workerGeneration": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+						"hostEpoch": { "$ref": "#/$defs/id" },
+						"hostTerminalId": { "$ref": "#/$defs/id" }
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": { "inputStatus": { "const": "accepted" } },
+						"required": ["inputStatus"]
+					},
+					"then": { "required": ["acceptedBytes"] }
+				},
+				{
+					"if": {
+						"properties": { "inputStatus": { "enum": ["not-submitted", "rejected"] } },
+						"required": ["inputStatus"]
+					},
+					"then": { "required": ["reason"] }
+				},
+				{
+					"if": {
+						"properties": { "inputStatus": { "enum": ["accepted", "unknown"] } },
+						"required": ["inputStatus"]
+					},
+					"then": { "required": ["target"] }
+				},
+				{
+					"if": {
+						"properties": { "cleanupStatus": { "enum": ["confirmed", "unconfirmed"] } },
+						"required": ["cleanupStatus"]
+					},
+					"then": { "required": ["target"] }
+				},
+				{
+					"if": {
+						"properties": { "payloadKind": { "const": "text" } },
+						"required": ["payloadKind"]
+					},
+					"then": { "required": ["recordBytes"] }
+				},
+				{
+					"if": {
+						"properties": { "payloadKind": { "const": "key" } },
+						"required": ["payloadKind"]
+					},
+					"then": { "required": ["key"] }
+				}
+			]
+		}
+	},
+	"$defs": {
+		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+		"sendSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": { "const": "terminal.send" },
+				"siteId": { "$ref": "#/$defs/id" },
+				"requestId": { "$ref": "#/$defs/id" },
+				"snapshotRevision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+			}
+		}
+	}
+}

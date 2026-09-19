@@ -383,7 +383,7 @@
 			"required": ["stage"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "enum": ["admission", "command", "snapshot", "viewer"] },
+				"stage": { "enum": ["admission", "command", "send", "snapshot", "viewer"] },
 				"matchObserved": { "const": true },
 				"cleanup": { "$ref": "#/$defs/cleanupState" }
 			}
@@ -403,7 +403,7 @@
 			"required": ["stage", "requestId", "reason"],
 			"additionalProperties": false,
 			"properties": {
-				"stage": { "const": "command" },
+				"stage": { "enum": ["command", "send"] },
 				"requestId": { "$ref": "#/$defs/id" },
 				"reason": { "$ref": "#/$defs/outcomeUnknownReason" }
 			}
@@ -593,6 +593,17 @@
 						"kind": { "const": "workbench-snapshot" },
 						"siteId": { "$ref": "#/$defs/id" },
 						"revision": { "$ref": "#/$defs/revision" }
+					}
+				},
+				{
+					"type": "object",
+					"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+					"additionalProperties": false,
+					"properties": {
+						"kind": { "const": "terminal.send" },
+						"siteId": { "$ref": "#/$defs/id" },
+						"requestId": { "$ref": "#/$defs/id" },
+						"snapshotRevision": { "$ref": "#/$defs/revision" }
 					}
 				},
 				{

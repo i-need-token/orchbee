@@ -117,7 +117,26 @@ pub(crate) fn read_terminal(
 /// the still admitted session; on any failure the session is already dropped.
 #[cfg(target_os = "linux")]
 pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Failure> {
-    snapshot_session_inner(None)
+    let cohort_deadline = deadline_after(COHORT_BUDGET)?;
+    let (cohort, site) = session_preamble(cohort_deadline, None)?;
+    // Query and read callers keep their accepted budget: a fresh network
+    // deadline sampled only after the preamble completes.
+    let deadline = deadline_after(NETWORK_BUDGET)?;
+    admit_snapshot(&cohort, &site, deadline, None)
+}
+
+/// The same preamble and admission as `snapshot_session`, but every stage
+/// shares the caller's absolute deadline — a total command budget sampled
+/// once at entry. The cohort check still never exceeds its own budget: it
+/// runs under the earlier of `COHORT_BUDGET` and `deadline`, and the
+/// admission plus snapshot read share what remains.
+#[cfg(target_os = "linux")]
+pub(crate) fn snapshot_session_until(
+    deadline: Instant,
+) -> Result<(LocalClient, Instant, Snapshot), Failure> {
+    let cohort_deadline = bounded_deadline(Instant::now(), COHORT_BUDGET, deadline)?;
+    let (cohort, site) = session_preamble(cohort_deadline, None)?;
+    admit_snapshot(&cohort, &site, deadline, None)
 }
 
 /// The same preamble gated by the wait command's clock/cancel control:
@@ -133,57 +152,61 @@ pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Fai
 fn snapshot_session_before(
     gate: &WaitGate<'_>,
 ) -> Result<(LocalClient, Instant, Snapshot), Failure> {
-    snapshot_session_inner(Some(gate))
+    let (cohort, site) = session_preamble(gate.budget(COHORT_BUDGET)?, Some(gate))?;
+    // A slow filesystem step may already have spent the whole wait budget;
+    // the network deadline is priced only from what remains.
+    admit_snapshot(&cohort, &site, gate.budget(NETWORK_BUDGET)?, Some(gate))
 }
 
+/// The wait gate's post-step settlement, a no-op for ungated callers.
 #[cfg(target_os = "linux")]
-fn snapshot_session_inner(
+fn settle(gate: Option<&WaitGate<'_>>) -> Result<(), Failure> {
+    match gate {
+        Some(gate) => gate.settle(),
+        None => Ok(()),
+    }
+}
+
+/// Everything before the network exchange: the cohort check under its own
+/// deadline, then existing-only rendezvous and socket validation. Under a
+/// wait gate every step's return — success *and* failure — is settled
+/// against the total deadline and the pending termination signal first.
+#[cfg(target_os = "linux")]
+fn session_preamble(
+    cohort_deadline: Instant,
     gate: Option<&WaitGate<'_>>,
-) -> Result<(LocalClient, Instant, Snapshot), Failure> {
-    // Without a gate the shared preamble keeps its fixed budgets and its
-    // original classifications; with one, every step is settled against the
-    // total deadline and the pending termination signal first.
-    let budget = |allowance: Duration| -> Result<Instant, Failure> {
-        match gate {
-            Some(gate) => gate.budget(allowance),
-            None => Instant::now()
-                .checked_add(allowance)
-                .ok_or_else(|| Failure::new(FailureKind::InternalFailure)),
-        }
-    };
-    let settle = || -> Result<(), Failure> {
-        match gate {
-            Some(gate) => gate.settle(),
-            None => Ok(()),
-        }
-    };
-    let cohort_deadline = budget(COHORT_BUDGET)?;
+) -> Result<(NativeCohort, ModeCheckedLocalSiteRendezvous), Failure> {
     let cohort = NativeCohort::current(cohort_deadline);
-    settle()?;
+    settle(gate)?;
     let cohort = cohort
         .map_err(|_| Failure::new(FailureKind::CheckFailed).details(stage_details("cohort")))?;
     let site = rendezvous();
-    settle()?;
+    settle(gate)?;
     let site = site?;
     let socket_exists = site.client_socket_exists();
-    settle()?;
+    settle(gate)?;
     match socket_exists {
-        Ok(true) => {}
+        Ok(true) => Ok((cohort, site)),
         Ok(false) => {
-            return Err(
-                Failure::new(FailureKind::ServiceUnavailable).details(stage_details("discovery"))
-            );
+            Err(Failure::new(FailureKind::ServiceUnavailable).details(stage_details("discovery")))
         }
-        Err(_) => {
-            return Err(Failure::new(FailureKind::CheckFailed).details(stage_details("socket")));
-        }
+        Err(_) => Err(Failure::new(FailureKind::CheckFailed).details(stage_details("socket"))),
     }
-    // A slow filesystem step may already have spent the whole wait budget;
-    // the network deadline is priced only from what remains.
-    let deadline = budget(NETWORK_BUDGET)?;
+}
+
+/// One admission and one snapshot read under the shared deadline. On success
+/// the caller owns the still admitted session; on any failure the session is
+/// already dropped.
+#[cfg(target_os = "linux")]
+fn admit_snapshot(
+    cohort: &NativeCohort,
+    site: &ModeCheckedLocalSiteRendezvous,
+    deadline: Instant,
+    gate: Option<&WaitGate<'_>>,
+) -> Result<(LocalClient, Instant, Snapshot), Failure> {
     let connected =
         LocalClient::connect_before(site.client_socket_path(), cohort.identity(), deadline);
-    if let Err(failure) = settle() {
+    if let Err(failure) = settle(gate) {
         drop(connected);
         return Err(failure);
     }
@@ -199,7 +222,7 @@ fn snapshot_session_inner(
     // A snapshot answer that arrives past the total deadline — or under a
     // pending cancel — is still settled as timeout/cancelled, never a late
     // success.
-    if let Err(failure) = settle() {
+    if let Err(failure) = settle(gate) {
         drop(client);
         return Err(failure);
     }
@@ -220,6 +243,50 @@ fn snapshot_session_inner(
             drop(client);
             Err(Failure::new(FailureKind::ServiceUnavailable).details(stage_details("snapshot")))
         }
+    }
+}
+
+/// One checked deadline `budget` out from now.
+#[cfg(target_os = "linux")]
+fn deadline_after(budget: Duration) -> Result<Instant, Failure> {
+    Instant::now()
+        .checked_add(budget)
+        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))
+}
+
+/// A stage's effective deadline under a total ceiling: `budget` from `now`
+/// or `ceiling`, whichever lands first. The deterministic pin for the
+/// shared-budget contract — stages keep their own bound but can never
+/// outlive the command's absolute deadline.
+#[cfg(target_os = "linux")]
+fn bounded_deadline(now: Instant, budget: Duration, ceiling: Instant) -> Result<Instant, Failure> {
+    Ok(now
+        .checked_add(budget)
+        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?
+        .min(ceiling))
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    /// The send path's total budget is shared, not additive: the preamble's
+    /// stage deadline is the earlier of its own budget and the command's
+    /// absolute deadline — pinned without any clock or socket.
+    #[test]
+    fn bounded_deadline_takes_the_earlier_bound() {
+        let now = Instant::now();
+        // A nearly spent total budget leaves the preamble almost nothing.
+        let ceiling = now + Duration::from_millis(50);
+        assert_eq!(
+            bounded_deadline(now, COHORT_BUDGET, ceiling).unwrap(),
+            ceiling
+        );
+        // A far ceiling keeps the stage's own budget intact.
+        assert_eq!(
+            bounded_deadline(now, COHORT_BUDGET, now + Duration::from_secs(60)).unwrap(),
+            now + COHORT_BUDGET
+        );
     }
 }
 
@@ -1267,7 +1334,7 @@ pub(crate) fn request_id() -> Result<WorkbenchRequestId, Failure> {
 }
 
 #[cfg(target_os = "linux")]
-fn obcs_request_id() -> Result<ObcsRequestId, Failure> {
+pub(crate) fn obcs_request_id() -> Result<ObcsRequestId, Failure> {
     ObcsRequestId::parse(&fresh_request_id()?)
         .map_err(|_| Failure::new(FailureKind::InternalFailure))
 }

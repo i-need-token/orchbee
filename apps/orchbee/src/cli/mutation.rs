@@ -519,6 +519,9 @@ mod linux {
                     direction: *direction,
                 })
             }
+            // `terminal send` never becomes a Workbench action; `cli::mutation`
+            // routes it to the send executor before this resolver runs.
+            MutationCommand::TerminalSend { .. } => Err(Failure::new(FailureKind::InternalFailure)),
         }
     }
 

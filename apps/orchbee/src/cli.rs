@@ -7,6 +7,7 @@ mod present;
 mod query;
 pub(crate) mod results;
 mod schema;
+pub(crate) mod send;
 mod text;
 
 #[cfg(test)]
@@ -251,10 +252,13 @@ pub(crate) fn completion(shell: CompletionShell, locale: Locale) -> Output {
     fixed_text(&completion::render(shell), locale)
 }
 
-/// One effectful Workbench command: the mutation executor owns the admitted
-/// session, the snapshot read, the single command submission, and every
-/// receipt/failure mapping.
+/// One effectful command: the mutation executor owns Workbench actions, while
+/// `terminal send` takes its own input-record path on the same session
+/// discipline — both admit once, submit once, and never replay.
 pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let MutationCommand::TerminalSend { target, input } = &command {
+        return send::run(target, input, format, locale);
+    }
     mutation::run(&command, format, locale)
 }
 

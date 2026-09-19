@@ -13,7 +13,8 @@
 //! - `ended` — `--` was seen: option termination, and `--` is never consumed
 //!   as a flag value (checked before value ownership)
 //! - `value` — a declared flag owns the next word: `format` | `direction` |
-//!   `filter` (every other value-owning flag)
+//!   `key` (`terminal send --key`) | `filter` (every other value-owning
+//!   flag)
 //! - `seen_*` — one consumed bit per `--format` and per business flag;
 //!   duplicates are usage
 //!
@@ -52,6 +53,7 @@
 //! - done | ended → nothing
 //! - value == format → text json
 //! - value == direction → the resolved command's direction words
+//! - value == key → the closed `terminal send --key` vocabulary
 //! - value == filter → nothing (no resource enumeration)
 //! - cur == `--format=*` → `--format=text`/`--format=json` only where a
 //!   format option is legal and none was consumed — never after
@@ -107,13 +109,11 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("panel", &["close", "get", "list", "move", "split"]),
     ("project", &["create", "get", "list"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
-    ("terminal", &["get", "list", "read"]),
+    ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
         "workspace",
         &["accept-directory", "create", "get", "list", "rename"],
     ),
-    ("terminal", &["get", "list", "read", "wait-output"]),
-    ("workspace", &["create", "get", "list", "rename"]),
 ];
 
 /// Every business flag the grammar admits (`--format` is orthogonal), in the
@@ -135,6 +135,9 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--path",
     "--match",
     "--timeout",
+    "--text",
+    "--enter",
+    "--key",
 ];
 
 /// `<family>:<verb>` → the business flags that command admits. Commands not
@@ -176,6 +179,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("panel:close", &["--confirm"]),
     ("panel:move", &["--target-panel", "--direction"]),
     ("terminal:read", &["--history", "--rows"]),
+    ("terminal:send", &["--text", "--enter", "--key"]),
     ("terminal:wait-output", &["--match", "--rows", "--timeout"]),
 ];
 
@@ -185,6 +189,26 @@ const DIRECTION_VALUES: &[(&str, &[&str])] = &[
     ("tab:move", &["first", "last", "next", "previous"]),
     ("panel:split", &["above", "below", "left", "right"]),
     ("panel:move", &["above", "below", "left", "right"]),
+];
+
+/// The closed semantic-key vocabulary `terminal send --key` accepts — the
+/// same names `invocation::TerminalSendKey` parses.
+const KEY_VALUES: &[&str] = &[
+    "enter",
+    "escape",
+    "tab",
+    "backspace",
+    "delete",
+    "up",
+    "down",
+    "left",
+    "right",
+    "home",
+    "end",
+    "page-up",
+    "page-down",
+    "ctrl-c",
+    "ctrl-d",
 ];
 
 /// `<family>:<verb>` paths that consume one positional operand.
@@ -201,8 +225,9 @@ const OPERAND_PATHS: &[&str] = &[
     "tab:rename",
     "terminal:get",
     "terminal:read",
-    "workspace:accept-directory",
+    "terminal:send",
     "terminal:wait-output",
+    "workspace:accept-directory",
     "workspace:get",
     "workspace:rename",
 ];
@@ -229,13 +254,11 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     ("panel", &["close", "get", "list", "move", "split"]),
     ("project", &["create", "get", "list"]),
     ("tab", &["close", "create", "get", "list", "move", "rename"]),
-    ("terminal", &["get", "list", "read"]),
+    ("terminal", &["get", "list", "read", "send", "wait-output"]),
     (
         "workspace",
         &["accept-directory", "create", "get", "list", "rename"],
     ),
-    ("terminal", &["get", "list", "read", "wait-output"]),
-    ("workspace", &["create", "get", "list", "rename"]),
 ];
 
 const SHELLS: &[&str] = &["bash", "fish", "zsh"];
@@ -268,6 +291,9 @@ fn flag_bit(flag: &str) -> &'static str {
         "--path" => "seen_path",
         "--match" => "seen_match",
         "--timeout" => "seen_timeout",
+        "--text" => "seen_text",
+        "--enter" => "seen_enter",
+        "--key" => "seen_key",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
 }
@@ -277,7 +303,8 @@ fn flag_bit(flag: &str) -> &'static str {
 fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
         "--direction" => Some("direction"),
-        "--standalone" | "--confirm" | "--history" => None,
+        "--key" => Some("key"),
+        "--standalone" | "--confirm" | "--history" | "--enter" => None,
         _ => Some("filter"),
     }
 }
@@ -391,6 +418,17 @@ fn after_flag_cases_bash() -> String {
                         "                            {patterns}) ((seen_workspace)) && done=1 ;;"
                     )
                 }
+                // `terminal send` payload forms are mutually exclusive and
+                // `--enter` rides on `--text` only.
+                "--text" => {
+                    format!("                            {patterns}) ((seen_key)) && done=1 ;;")
+                }
+                "--key" => format!(
+                    "                            {patterns}) ((seen_text || seen_enter)) && done=1 ;;"
+                ),
+                "--enter" => {
+                    format!("                            {patterns}) ((seen_key)) && done=1 ;;")
+                }
                 _ => format!("                            {patterns}) ;;"),
             }
         })
@@ -408,9 +446,14 @@ fn scope_cases_bash() -> String {
                 let command = format!("{family}:{verb}");
                 let bad = forbidden_bits(&command).join(" || ");
                 // `--workspace`/`--standalone` stay exclusive wherever both
-                // are admitted — only tab commands admit them.
+                // are admitted — only tab commands admit them. `terminal
+                // send` is dead once `--key` stands next to a text payload
+                // bit; a lone `--enter` stays viable because `--text` may
+                // still follow.
                 let exclusive = if *family == "tab" {
                     "((seen_workspace && seen_standalone)) && done=1\n                                        "
+                } else if command == "terminal:send" {
+                    "((seen_key && (seen_text || seen_enter))) && done=1\n                                        "
                 } else {
                     ""
                 };
@@ -434,6 +477,8 @@ fn verb_cases_bash() -> String {
                     let bad = forbidden_bits(&format!("{family}:{verb}")).join(" || ");
                     let exclusive = if *family == "tab" {
                         " || (seen_workspace && seen_standalone)"
+                    } else if *verb == "send" {
+                        " || (seen_key && (seen_text || seen_enter))"
                     } else {
                         ""
                     };
@@ -486,6 +531,11 @@ fn extras_cases_bash() -> String {
                         "--workspace" | "--standalone" => {
                             "seen_workspace || seen_standalone".to_owned()
                         }
+                        // `terminal send`: payload forms exclude each other
+                        // and `--enter` is offered only once `--text` stands.
+                        "--text" => "seen_text || seen_key".to_owned(),
+                        "--key" => "seen_key || seen_text || seen_enter".to_owned(),
+                        "--enter" => "!seen_text || seen_enter".to_owned(),
                         _ => flag_bit(flag).to_owned(),
                     };
                     format!("                (({cond})) || extras=\"$extras {flag}\"")
@@ -660,6 +710,7 @@ fn bash() -> String {
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
             "        esac\n",
+            "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
             "        if ((!seen_format)); then\n",
@@ -724,6 +775,7 @@ fn bash() -> String {
         topic_words = HELP_TOPICS.join(" "),
         help_paths = path_patterns(HELP_CHILDREN),
         format_values = FORMAT_VALUES.join(" "),
+        key_values = KEY_VALUES.join(" "),
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
@@ -887,6 +939,7 @@ fn zsh() -> String {
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
             "        esac\n",
+            "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
             "        if ((!seen_format)); then\n",
@@ -947,6 +1000,7 @@ fn zsh() -> String {
         topic_words = HELP_TOPICS.join(" "),
         help_paths = path_patterns(HELP_CHILDREN),
         format_values = FORMAT_VALUES.join(" "),
+        key_values = KEY_VALUES.join(" "),
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
@@ -1039,6 +1093,15 @@ fn after_flag_cases_fish() -> String {
                 "--standalone" => {
                     format!("                            case {patterns}; if test $seen_workspace -eq 1; set done 1; end")
                 }
+                "--text" => {
+                    format!("                            case {patterns}; if test $seen_key -eq 1; set done 1; end")
+                }
+                "--key" => {
+                    format!("                            case {patterns}; if test $seen_text -eq 1 -o $seen_enter -eq 1; set done 1; end")
+                }
+                "--enter" => {
+                    format!("                            case {patterns}; if test $seen_key -eq 1; set done 1; end")
+                }
                 _ => format!("                            case {patterns}"),
             }
         })
@@ -1060,6 +1123,8 @@ fn scope_cases_fish() -> String {
                     .join(" -o ");
                 let exclusive = if *family == "tab" {
                     "\n                                        if test $seen_workspace -eq 1 -a $seen_standalone -eq 1; set done 1; end"
+                } else if command == "terminal:send" {
+                    "\n                                        if test $seen_key -eq 1 -a $seen_text -eq 1 -o $seen_key -eq 1 -a $seen_enter -eq 1; set done 1; end"
                 } else {
                     ""
                 };
@@ -1084,9 +1149,12 @@ fn verb_cases_fish() -> String {
                         .collect::<Vec<_>>()
                         .join(" -a ");
                     // The exclusive pair must not both be seen for a tab verb
-                    // to remain viable.
+                    // to remain viable; `send` dies once `--key` stands next
+                    // to a text payload bit.
                     if *family == "tab" {
                         format!("                if test {bad}\n                    if test $seen_workspace -eq 0 -o $seen_standalone -eq 0; set -a verbs {verb}; end\n                end")
+                    } else if *verb == "send" {
+                        format!("                if test {bad}\n                    if test $seen_key -eq 0 -o $seen_text -eq 0 -a $seen_enter -eq 0; set -a verbs {verb}; end\n                end")
                     } else {
                         format!("                if test {bad}; set -a verbs {verb}; end")
                     }
@@ -1132,6 +1200,11 @@ fn extras_cases_fish() -> String {
                         "--workspace" | "--standalone" => {
                             "$seen_workspace -eq 0 -a $seen_standalone -eq 0".to_owned()
                         }
+                        "--text" => "$seen_text -eq 0 -a $seen_key -eq 0".to_owned(),
+                        "--key" => {
+                            "$seen_key -eq 0 -a $seen_text -eq 0 -a $seen_enter -eq 0".to_owned()
+                        }
+                        "--enter" => "$seen_text -eq 1 -a $seen_enter -eq 0".to_owned(),
                         _ => format!("${} -eq 0", flag_bit(flag)),
                     };
                     format!("                if test {cond}; set -a candidates {flag}; end")
@@ -1301,6 +1374,7 @@ fn fish() -> String {
             "        switch \"$family:$sub\"\n",
             "{direction_cases}\n",
             "        end\n",
+            "    else if test \"$value\" = key; set candidates {key_values}\n",
             "    else if test -n \"$value\"; set candidates\n",
             "    else if string match -q -- '--format=*' $cur\n",
             "        if test $seen_format -eq 0\n",
@@ -1357,6 +1431,7 @@ fn fish() -> String {
         topics = HELP_TOPICS.join(" "),
         help_paths = path_patterns(HELP_CHILDREN).replace('|', " "),
         format_values = FORMAT_VALUES.join(" "),
+        key_values = KEY_VALUES.join(" "),
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),

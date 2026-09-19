@@ -34,7 +34,11 @@ orchbee --help | --version
 Query families are `project`, `workspace`, `tab`, `panel`, and `terminal` (`list`/`get`, plus
 `terminal read`). Mutation commands against the running Site are `project create`,
 `workspace create`/`rename`/`accept-directory`, `tab create`/`rename`/`move`/`close`, and
-`panel split`/`move`/`close`. `project create` submits the existing `ProjectCreate` action —
+`panel split`/`move`/`close`. `terminal send <id> (--text <utf8> [--enter] | --key <name>)`
+delivers exactly one input record — literal text with an optional folded carriage return, or
+one of fifteen semantic keys — to a bound terminal over the same admitted session, without
+taking over TUI controller/viewer ownership; its two-axis receipt reports the Server's input
+verdict and cleanup status separately. `project create` submits the existing `ProjectCreate` action —
 one navigation record, no directory or filesystem effect — and returns the Server-allocated
 project id for the `workspace create`/`tab create` chain; `workspace accept-directory`
 submits the existing `WorkspacePrimaryDirectoryAccept` action — the Server authoritatively

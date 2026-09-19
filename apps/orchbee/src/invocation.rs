@@ -131,6 +131,8 @@ pub(crate) enum CommandPath {
     TerminalGet,
     TerminalRead,
     TerminalWaitOutput,
+    TerminalSend,
+
     ApiSnapshot,
     ApiSchema,
     ConfigCheck,
@@ -165,6 +167,8 @@ impl CommandPath {
             Self::TerminalGet => "terminal get",
             Self::TerminalRead => "terminal read",
             Self::TerminalWaitOutput => "terminal wait-output",
+            Self::TerminalSend => "terminal send",
+
             Self::ApiSnapshot => "api snapshot",
             Self::ApiSchema => "api schema",
             Self::ConfigCheck => "config check",
@@ -223,7 +227,84 @@ pub(crate) enum TabContext {
     Standalone,
 }
 
-/// One effectful Workbench command admitted by the grammar. Every field is a
+/// The `terminal send` payload the grammar admits: literal bytes or one named
+/// key — the parser stores the validated choice so the executor never
+/// re-reads argv.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum TerminalSendInput {
+    /// Literal UTF-8 bytes; `enter` folds one trailing CR into the same
+    /// single input record, never a second request.
+    Text { text: String, enter: bool },
+    /// One semantic key the Host encodes under the terminal's current mode.
+    Key(TerminalSendKey),
+}
+
+/// The closed `terminal send --key` vocabulary. `CtrlC`/`CtrlD` carry the
+/// Control modifier on their letter; every other key is modifier-neutral.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TerminalSendKey {
+    Enter,
+    Escape,
+    Tab,
+    Backspace,
+    Delete,
+    Up,
+    Down,
+    Left,
+    Right,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    CtrlC,
+    CtrlD,
+}
+
+impl TerminalSendKey {
+    /// The flag's public spelling, reused for receipt correlation.
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Enter => "enter",
+            Self::Escape => "escape",
+            Self::Tab => "tab",
+            Self::Backspace => "backspace",
+            Self::Delete => "delete",
+            Self::Up => "up",
+            Self::Down => "down",
+            Self::Left => "left",
+            Self::Right => "right",
+            Self::Home => "home",
+            Self::End => "end",
+            Self::PageUp => "page-up",
+            Self::PageDown => "page-down",
+            Self::CtrlC => "ctrl-c",
+            Self::CtrlD => "ctrl-d",
+        }
+    }
+
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "enter" => Self::Enter,
+            "escape" => Self::Escape,
+            "tab" => Self::Tab,
+            "backspace" => Self::Backspace,
+            "delete" => Self::Delete,
+            "up" => Self::Up,
+            "down" => Self::Down,
+            "left" => Self::Left,
+            "right" => Self::Right,
+            "home" => Self::Home,
+            "end" => Self::End,
+            "page-up" => Self::PageUp,
+            "page-down" => Self::PageDown,
+            "ctrl-c" => Self::CtrlC,
+            "ctrl-d" => Self::CtrlD,
+            _ => return None,
+        })
+    }
+}
+
+/// One effectful command admitted by the grammar. Every field is a
 /// wire-ready value already checked against protocol bounds, so the executor
 /// never re-validates argv.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -272,6 +353,10 @@ pub(crate) enum MutationCommand {
         target: Target,
         into: Target,
         direction: WorkbenchPanelSplitDirection,
+    },
+    TerminalSend {
+        target: Target,
+        input: TerminalSendInput,
     },
 }
 
@@ -334,6 +419,9 @@ pub(crate) enum ExpectedValue {
     DirectoryPath,
     MatchText,
     WaitTimeout,
+    SendText,
+    SendKey,
+
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -453,6 +541,10 @@ struct Options {
     path: Option<String>,
     match_text: Option<String>,
     timeout: Option<String>,
+    text: Option<String>,
+    enter: bool,
+    key: Option<String>,
+
 }
 
 /// Every named option that owns the next argv token as its value, used by
@@ -463,6 +555,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--cell-width",
     "--cols",
     "--direction",
+    "--key",
     "--label",
     "--path",
     "--match",
@@ -471,6 +564,8 @@ const VALUE_FLAGS: &[&str] = &[
     "--tab",
     "--target-panel",
     "--timeout",
+    "--text",
+
     "--workspace",
 ];
 
@@ -689,6 +784,9 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                     "--path" => &mut options.path,
                     "--match" => &mut options.match_text,
                     "--timeout" => &mut options.timeout,
+                    "--text" => &mut options.text,
+                    "--key" => &mut options.key,
+
                     _ => &mut options.target_panel,
                 };
                 if slot.replace(value).is_some() {
@@ -699,13 +797,15 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 }
                 index += 2;
             }
-            "--standalone" | "--confirm" | "--history" => {
+            "--standalone" | "--confirm" | "--history" | "--enter" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
                 } else if token == "--confirm" {
                     (&mut options.confirm, "--confirm")
-                } else {
+                } else if token == "--history" {
                     (&mut options.history, "--history")
+                } else {
+                    (&mut options.enter, "--enter")
                 };
                 if *seen {
                     return Err(usage_with(
@@ -1250,6 +1350,22 @@ fn resolve_words(
                 options,
             ))
         }
+        ["terminal", "send", value] => {
+            check_scope(
+                options,
+                TERMINAL_SEND_SCOPE,
+                UsageContext::Path("terminal send"),
+                envelope,
+            )?;
+            let context = UsageContext::Path("terminal send");
+            Ok(mutation(
+                MutationCommand::TerminalSend {
+                    target: target((*value).to_owned(), Resource::Terminal, envelope)?,
+                    input: send_input(options, context, envelope)?,
+                },
+                options,
+            ))
+        }
         ["api", "snapshot"] => {
             reject_filters(options, UsageContext::Path("api snapshot"), envelope)?;
             Ok(query(QueryCommand::ApiSnapshot, options))
@@ -1514,6 +1630,16 @@ fn resolve_words(
             extra,
             envelope,
         )),
+        ["terminal", "send"] => Err(missing_required(
+            UsageContext::Path("terminal send"),
+            "<terminal>",
+            envelope,
+        )),
+        ["terminal", "send", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("terminal send"),
+            extra,
+            envelope,
+        )),
         ["terminal", verb, ..] => Err(unknown_command(
             UsageContext::Path("terminal"),
             verb,
@@ -1622,6 +1748,8 @@ fn help_topic(path: &[&str]) -> Option<HelpTopic> {
         ["terminal", "get"] => HelpTopic::Command(CommandPath::TerminalGet),
         ["terminal", "read"] => HelpTopic::Command(CommandPath::TerminalRead),
         ["terminal", "wait-output"] => HelpTopic::Command(CommandPath::TerminalWaitOutput),
+        ["terminal", "send"] => HelpTopic::Command(CommandPath::TerminalSend),
+
         ["api", "snapshot"] => HelpTopic::Command(CommandPath::ApiSnapshot),
         ["api", "schema"] => HelpTopic::Command(CommandPath::ApiSchema),
         ["config", "check"] => HelpTopic::Command(CommandPath::ConfigCheck),
@@ -1666,6 +1794,13 @@ struct Scope {
     /// `terminal wait-output --match <t> [--rows <n>] [--timeout <ms>]`:
     /// admits all three flags and the wait-window meaning of `--rows`.
     wait: bool,
+    /// `terminal send --text <t>`: the literal input-bytes value option.
+    text: bool,
+    /// `terminal send --enter`: the text form's same-record CR modifier.
+    enter: bool,
+    /// `terminal send --key <name>`: the semantic-key value option.
+    key: bool,
+
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -1681,6 +1816,10 @@ const NO_OPTIONS: Scope = Scope {
     history: false,
     path: false,
     wait: false,
+    text: false,
+    enter: false,
+    key: false,
+
 };
 
 const WORKSPACE_LIST_SCOPE: Scope = Scope {
@@ -1756,6 +1895,13 @@ const TERMINAL_WAIT_OUTPUT_SCOPE: Scope = Scope {
     ..NO_OPTIONS
 };
 
+const TERMINAL_SEND_SCOPE: Scope = Scope {
+    text: true,
+    enter: true,
+    key: true,
+    ..NO_OPTIONS
+};
+
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
     options.label.is_some()
@@ -1770,6 +1916,10 @@ fn business_options(options: &Options) -> bool {
         || options.path.is_some()
         || options.match_text.is_some()
         || options.timeout.is_some()
+        || options.text.is_some()
+        || options.enter
+        || options.key.is_some()
+
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -1825,6 +1975,15 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.timeout.is_some() && !scope.wait {
         return Some("--timeout");
+    }
+    if options.text.is_some() && !scope.text {
+        return Some("--text");
+    }
+    if options.enter && !scope.enter {
+        return Some("--enter");
+    }
+    if options.key.is_some() && !scope.key {
+        return Some("--key");
     }
     None
 }
@@ -2030,6 +2189,85 @@ fn wait_timeout_option(
             },
             envelope,
         )),
+    }
+}
+
+/// The wire's single-record input bound: literal bytes plus the optional
+/// folded CR must fit one input payload.
+const MAXIMUM_SEND_TEXT_BYTES: usize = 4096;
+
+/// `terminal send` admits exactly one payload form. `--text`/`--key` are
+/// mutually exclusive and one is required; `--enter` is the text form's own
+/// modifier and never legal alone or under `--key`. The text byte budget
+/// counts the payload the wire actually carries — the literal bytes plus the
+/// appended CR — so an over-limit record is refused before any connection.
+fn send_input(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<TerminalSendInput, ParseFailure> {
+    match (&options.text, &options.key) {
+        (Some(text), None) => {
+            let bytes = text.len() + usize::from(options.enter);
+            if text.is_empty() || bytes > MAXIMUM_SEND_TEXT_BYTES {
+                return Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "--text",
+                        value: text.clone(),
+                        expected: ExpectedValue::SendText,
+                    },
+                    envelope,
+                ));
+            }
+            Ok(TerminalSendInput::Text {
+                text: text.clone(),
+                enter: options.enter,
+            })
+        }
+        (None, Some(name)) => {
+            if options.enter {
+                return Err(usage_with(
+                    UsageReason::UnexpectedOption {
+                        context,
+                        option: "--enter",
+                    },
+                    envelope,
+                ));
+            }
+            let Some(key) = TerminalSendKey::parse(name) else {
+                return Err(usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "--key",
+                        value: name.clone(),
+                        expected: ExpectedValue::SendKey,
+                    },
+                    envelope,
+                ));
+            };
+            Ok(TerminalSendInput::Key(key))
+        }
+        (Some(_), Some(_)) => Err(usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first: "--text",
+                second: "--key",
+            },
+            envelope,
+        )),
+        (None, None) => {
+            if options.enter {
+                return Err(usage_with(
+                    UsageReason::UnexpectedOption {
+                        context,
+                        option: "--enter",
+                    },
+                    envelope,
+                ));
+            }
+            Err(missing_required(context, "'--text' or '--key'", envelope))
+        }
     }
 }
 

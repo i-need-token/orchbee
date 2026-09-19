@@ -123,6 +123,7 @@ orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
 orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
+orchbee terminal send <target> (--text <utf8> [--enter] | --key <name>)
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee config check
@@ -302,6 +303,38 @@ read-only viewer alive for a bounded observation loop instead of a single frame:
   always runs and is reported as `cleanup:"requested"` when no Detach budget remains —
   never claimed as released.
 
+`terminal send` samples one absolute 5-second deadline at command entry and shares it across
+steps 1–5 — the cohort check runs under the earlier of its own budget and that ceiling, and
+discovery, admission, and the snapshot read consume only what remains — then uses the same
+admitted session for exactly one `terminal.send` exchange under the same deadline:
+
+1. **Resolve** — the typed terminal ID is looked up in the validated snapshot's presentation
+   bindings; absent → `not-found` (3) with `{resource:"terminal",target}` and the session
+   drops. Labels are never consulted.
+2. **Send** — one `terminal.send{siteId,workerId,terminalId,payload}` built from the
+   snapshot's own facts under a fresh request identity. The payload is either
+   `{kind:"text",text,enter}` — the literal bytes plus the `--enter` carriage return folded
+   into the same single input record, bounded at 4096 bytes total — or `{kind:"key",key}`
+   naming one of the fifteen semantic keys (`enter`, `escape`, `tab`, `backspace`, `delete`,
+   `up`, `down`, `left`, `right`, `home`, `end`, `page-up`, `page-down`, `ctrl-c`, `ctrl-d`).
+   Keys are protocol-level names, never canned escape-byte strings. The Client Session is
+   then fully released before the typed result is mapped or output prepared; the send is
+   never retried.
+3. **Answer** — the Server's `terminal.send.result` splits two axes the envelope reports
+   verbatim: `inputStatus` (`accepted` means the Host queued the input record — never that a
+   child process read or executed it; `rejected`/`not-submitted` mean the record provably never
+   reached the queue; `unknown` means it may already have landed) and `cleanupStatus`
+   (`not-needed`/`confirmed`/`unconfirmed`, where `unconfirmed` means the temporary input-only
+   attachment may persist until carrier teardown or Host-epoch end — never a claim of
+   release). The result's physical `target` (`workerGeneration`, `hostEpoch`,
+   `hostTerminalId`) is the incarnation the Server actually admitted, projected verbatim;
+   pre-admission refusals carry none. Exit mapping: `accepted`+`confirmed` → 0;
+   `accepted`+`unconfirmed` → 5 with a do-not-resend warning (the input may already have
+   taken effect); `rejected` → 3; `not-submitted` → 4, except the protocol-fault reason
+   `host-protocol-fault` which is a transport-class defect → 5; `unknown` → 8 with a
+   never-retried warning. Every nonzero answer keeps `inputStatus` truthful — an accepted
+   input is never rewritten as unsent.
+
 ## Canonical data and results
 
 Canonical traversal order: `navigation.projects` order; each project's `workspaces` order;
@@ -319,6 +352,8 @@ Success envelopes are `{schema, version:1, source, result}`:
 - `source.kind="embedded"` — the compiled-in schema dictionary (`api schema` results and its
   `not-found` failure).
 - `source.kind="local-runtime"` — produced `config check` results.
+- `source.kind="terminal.send"` — `siteId`, the send `requestId`, and the decimal-string
+  `snapshotRevision` the binding resolved from, on typed `terminal send` answers.
 - There is no freshness field; one consistent read is not a liveness guarantee.
 
 Result payloads (schema IDs are stable machine names):
@@ -370,6 +405,16 @@ tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts und
   `MAXIMUM_FRAME_CELLS/columns` cap or the text budget never emitted — while rows older than
   `startRow` were never requested, not omitted. Text output matches `terminal read`: one escaped
   line per emitted row plus the marker.
+- `orchbee.terminal.send` → `{action:"terminal.send",requestId,siteId,workerId,terminalId,
+  payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,target?}` —
+  the request's own facts plus the Server's two-axis answer: `payloadKind:"text"` carries
+  `recordBytes` (the single input record's byte length, including the folded carriage
+  return), `payloadKind:"key"` carries `key`; `inputStatus`/`cleanupStatus` are verbatim
+  outcome classes; `reason` is the typed rejection/unavailable token; `acceptedBytes` only on
+  `accepted`; `target` is the physical incarnation the Server admitted
+  (`workerGeneration`,`hostEpoch`,`hostTerminalId`) — present whenever the answer admits one
+  (`accepted`, `outcome-unknown`, or any cleanup obligation), absent on pre-admission
+  refusals. The submitted text is never echoed anywhere in the document or diagnostics.
 - `orchbee.api.snapshot` → `{snapshot}`: the complete `WorkbenchProtocolDocument::Snapshot`
   semantic re-encode including `kind:"workbench.snapshot"`; envelope `siteId`/`revision` agree
   with the inner document.
@@ -408,6 +453,10 @@ budget entries and every `address-too-long` entry carry `path`/`pathBytesHex` pl
 platform socket-address capacity). No cross-file atomic health claim is made.
 
 ## Mutations
+
+`terminal send` mutates Host input state, not the Workbench document: it rides the admitted
+session's OBCS `terminal.send` exchange described above and does not touch `expectedRevision`,
+the Workbench command channel, or the TUI's controller/viewer/resize ownership.
 
 Eleven commands mutate Workbench state through the admitted OBWP `workbench.command` channel:
 `project create`, `workspace create`/`rename`/`accept-directory`,
@@ -491,7 +540,7 @@ typed IDs, and `direction`/`label`/`terminal` where the command has them. Text o
 renders the same fields one per line under the same escaping rules as queries.
 
 Deliberately not delivered: `project rename`/`project close`, `workspace close`/`workspace focus`,
-`tab focus`, `panel resize`/`panel focus`, terminal open/send operations, Site lifecycle
+`tab focus`, `panel resize`/`panel focus`, terminal open operations, Site lifecycle
 commands, and every remote operation.
 
 ## Failure matrix
@@ -538,6 +587,11 @@ Exit codes: 0 success (empty lists included); 1 local config/output/internal det
 | command `Denied` precommit                                                                                                                | `denied`                             | 3    | omitted                                                                                   |
 | command `Unavailable` precommit                                                                                                           | `service-unavailable`                | 4    | `{stage:"command",reason}`                                                                |
 | `OutcomeUnknown` (any reason)                                                                                                             | `outcome-unknown`                    | 8    | `{stage:"command",requestId,reason}`                                                      |
+| send `RequestNotSubmitted` (the request provably never reached the wire)                                                                    | `transport-loss`                     | 5    | `{stage:"send"}`                                                                          |
+| send `SessionUnavailable`/`RequestEncoding`                                                                                               | `internal-failure`                   | 1    | omitted                                                                                   |
+| send `OutcomeUnknown` (write/read/invalid-result/correlation)                                                                             | `outcome-unknown`                    | 8    | `{stage:"send",requestId,reason}`                                                         |
+| `terminal.send.result` `Rejected`/`Unavailable`                                                                                           | typed answer, not a failure envelope | 3/4  | send result `reason`, `cleanupStatus`; `host-protocol-fault` exits 5                      |
+| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                                 | typed answer, not a failure envelope | 5    | send result `acceptedBytes`, `cleanupStatus`                                              |
 | prepared output over 8 MiB                                                                                                                | `output-too-large`                   | 1    | `{limitBytes:8388608}`                                                                    |
 | stdout write/flush failure                                                                                                                | `output-failed`                      | 1    | no second stdout document                                                                 |
 | `config check` finishes with failures                                                                                                     | success schema `ok:false`            | 1    | all five checks preserved                                                                 |
@@ -547,17 +601,21 @@ Exit codes: 0 success (empty lists included); 1 local config/output/internal det
 | `terminal wait-output` match with unconfirmed `Detach`                                                                                     | typed viewer-stage failure           | *    | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                                |
 
 `resource` is `project|workspace|tab|panel|terminal|schema`; `stage` is
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|platform|wait`.
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|send|platform|wait`.
 Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
 is a closed per-kind vocabulary — `{resource,target}`,
 `{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`,
 `{stage:"command",reason,revision}`, `{stage:"command",requestId,reason}`,
+`{stage:"send",requestId,reason}`,
 `{stage:"viewer",operation:"read-history"|"wait-output",reason}`,
 `{stage:"wait",timeoutMs,observed}`, `{stage:"wait",cleanup}`,
 `{stage:"viewer",matchObserved,cleanup}`, or `{limitBytes}` —
 and the embedded schemas reject documents outside those shapes. Read-path errors never become
 outcome-unknown/failed-effect: only the command stage can produce an undetermined effect, and
 `rejected`/`denied`/`unavailable` precommit answers are definite — the Server applied nothing.
+The send stage follows the same rule for its single input record: a `RequestNotSubmitted` is
+definite non-submission, an `OutcomeUnknown` means the record may already have landed, and the
+typed `terminal.send.result` answers are the Server's own verdicts, never a client guess.
 
 ## Output contract and side effects
 
@@ -601,10 +659,15 @@ outcome-unknown/failed-effect: only the command stage can produce an undetermine
   into output.
 - A mutation submits at most one `workbench.command` per invocation under a fresh
   `WorkbenchRequestId`; it is never retried or replayed, and an ambiguous outcome is reported
-  as `outcome-unknown`, not guessed.
+  as `outcome-unknown`, not guessed. `terminal send` follows the same discipline for its one
+  OBCS `terminal.send` exchange: at most one input record per invocation under a fresh request
+  identity, never retried — an ambiguous answer is `outcome-unknown`, and the localized
+  diagnostic says the input may already have landed before the operator decides whether to
+  repeat it.
 - There is at most one snapshot read per invocation, one admission per invocation, and one
-  network deadline covering read and command; `terminal read`'s viewer exchanges ride on that
-  same session and deadline — never a second admission or a renewed budget.
+  network deadline covering read and command; `terminal read`'s viewer exchanges and
+  `terminal send`'s single send ride on that same session and deadline — never a second
+  admission or a renewed budget.
   `terminal wait-output` keeps the same single admission and replaces the fixed 5-second
   budget with the user `--timeout` deadline taken at command start; its per-attachment
   `requestSequence` strictly increases from 1 across every `read-rows` it issues.
@@ -635,6 +698,7 @@ outcome-unknown/failed-effect: only the command stage can produce an undetermine
 | Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                                                        | typed kinds per matrix; never labeled real-Server evidence      | `tests/cli_query.rs`                                               |
 | Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect                            | `terminal read` success + typed viewer-stage failures           | `tests/cli_query.rs`                                               |
 | Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, window mismatch, oversized record, no retry | `terminal read --history` success + typed failures              | `tests/cli_query.rs`                                               |
+| Scripted OBCS send peer: UTF-8 text with optional folded CR and semantic keys arrive as one request, target/request identity, accepted/rejected/unavailable/unknown answers, stalled answer, no retry | `terminal send` exit 0/3/4/5/8 with the two-axis result fields    | `tests/cli_send.rs`                                                |
 | Scripted OBCS viewer peer + hand-built OBTF/OBRW records: increasing `requestSequence`, visible/history boundary window, real `FrameApplied` per frame, stale re-pin, excerpt tail match, deadline incl. preamble | `terminal wait-output` success + typed failures | `tests/cli_query.rs`                                        |
 | Real staged-cohort Server + live TUI terminal: `wait-output` matches existing/later/scrolled-off/UTF-8 output, short deadline exits 7, cancel frees the slot | public wait observation coexisting with the TUI's own viewer | `tests/local_startup_process`                             |
 | Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                                                    | real read-only observation coexisting with the TUI's own viewer | `tests/local_startup_process`                                      |

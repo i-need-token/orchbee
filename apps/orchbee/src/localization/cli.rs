@@ -150,6 +150,63 @@ impl Locale {
         }
     }
 
+    /// The stderr line a typed `terminal send` answer carries on a nonzero
+    /// exit: what the outcome axis settled, and — whenever resending could
+    /// type the same input twice — an explicit do-not-resend warning. The
+    /// send envelope on stdout still reports both axes verbatim.
+    pub(crate) fn cli_send_stderr(
+        self,
+        verdict: crate::cli::send::SendVerdict,
+        reason: Option<&'static str>,
+        cleanup_unconfirmed: bool,
+    ) -> String {
+        use crate::cli::send::SendVerdict;
+        let cleanup_note = match (self, cleanup_unconfirmed) {
+            (_, false) => "",
+            (Self::EnUs, true) => " Release of the temporary input channel is unconfirmed.",
+            (Self::ZhCn, true) => " 临时输入通道的释放状态未确认。",
+        };
+        match verdict {
+            SendVerdict::Quiet => String::new(),
+            SendVerdict::AcceptedCleanupUnconfirmed => match self {
+                Self::EnUs => {
+                    "The terminal accepted the input, but release of the temporary input channel could not be confirmed. Do not resend — the input may already have taken effect.\n".to_owned()
+                }
+                Self::ZhCn => {
+                    "终端已接受该输入，但临时输入通道的释放无法确认。请勿重发——输入可能已生效。\n".to_owned()
+                }
+            },
+            SendVerdict::Rejected => match self {
+                Self::EnUs => format!(
+                    "The local Site rejected the input ({}); nothing was sent.{cleanup_note}\n",
+                    reason.unwrap_or("unknown")
+                ),
+                Self::ZhCn => format!(
+                    "本地 Site 拒绝了该输入（{}）；未发送任何内容。{cleanup_note}\n",
+                    reason.unwrap_or("unknown")
+                ),
+            },
+            SendVerdict::Unavailable => match self {
+                Self::EnUs => format!(
+                    "The input could not be submitted ({}); nothing was sent.{cleanup_note}\n",
+                    reason.unwrap_or("unknown")
+                ),
+                Self::ZhCn => format!(
+                    "该输入未能提交（{}）；未发送任何内容。{cleanup_note}\n",
+                    reason.unwrap_or("unknown")
+                ),
+            },
+            SendVerdict::OutcomeUnknown => match self {
+                Self::EnUs => format!(
+                    "The send outcome is unknown: the input may or may not have reached the terminal. It was not retried — inspect the terminal before deciding whether to resend.{cleanup_note}\n"
+                ),
+                Self::ZhCn => format!(
+                    "发送结果未知：输入可能已到达终端，也可能未到达。未自动重试——请先检查终端，再决定是否重发。{cleanup_note}\n"
+                ),
+            },
+        }
+    }
+
     /// The localized `invalid-usage` stderr diagnostic: one concrete cause
     /// plus a help hint that always names a real path. `None` and the
     /// `Invalid` fallback keep the original generic text.
@@ -191,6 +248,14 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::MatchText) => "至多 4096 字节的非空字面文本",
             (Self::EnUs, ExpectedValue::WaitTimeout) => "a decimal integer from 1 to 3600000",
             (Self::ZhCn, ExpectedValue::WaitTimeout) => "1–3600000 的十进制整数",
+            (Self::EnUs, ExpectedValue::SendText) => {
+                "nonempty text of at most 4096 bytes including the '--enter' CR"
+            }
+            (Self::ZhCn, ExpectedValue::SendText) => {
+                "非空文本，计入 '--enter' 的回车后不超过 4096 字节"
+            }
+            (Self::EnUs, ExpectedValue::SendKey) => "one of the accepted '--key' names",
+            (Self::ZhCn, ExpectedValue::SendKey) => "'--key' 接受的按键名之一",
         };
         let (problem, hint) = match reason {
             UsageReason::Invalid => return self.usage_failure().to_owned(),
@@ -659,6 +724,8 @@ impl Locale {
             (Self::ZhCn, CommandPath::TerminalRead) => HELP_TERMINAL_READ_ZH,
             (Self::EnUs, CommandPath::TerminalWaitOutput) => HELP_TERMINAL_WAIT_OUTPUT_EN,
             (Self::ZhCn, CommandPath::TerminalWaitOutput) => HELP_TERMINAL_WAIT_OUTPUT_ZH,
+            (Self::EnUs, CommandPath::TerminalSend) => HELP_TERMINAL_SEND_EN,
+            (Self::ZhCn, CommandPath::TerminalSend) => HELP_TERMINAL_SEND_ZH,
             (Self::EnUs, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_EN,
             (Self::ZhCn, CommandPath::ApiSnapshot) => HELP_API_SNAPSHOT_ZH,
             (Self::EnUs, CommandPath::ApiSchema) => HELP_API_SCHEMA_EN,
@@ -669,8 +736,8 @@ impl Locale {
     }
 }
 
-const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output\n  orchbee api          Machine snapshot and embedded schema documents\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
-const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output\n  orchbee api          机器快照与内嵌 schema 文档\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
+const ROOT_HELP_EN: &str = "Orchbee\n\nUsage:\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [operands] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\nModes and queries:\n  orchbee              Open the local terminal (Linux development cohort)\n  orchbee tui          Open the same local terminal explicitly\n  orchbee status       Read the running local Site's Workbench snapshot\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee api          Machine snapshot and embedded schema documents\n\nMutations (one command per invocation, against the running Site):\n  orchbee project      create\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\nInspection and help:\n  orchbee config check Inspect local runtime/cohort/locale/socket inputs\n  orchbee help         Show help for a family or complete command path\n  orchbee completion   Emit a static shell completion script\n  orchbee -h|--help    Show this help; after a family or command path, show\n                       that path's help\n  orchbee --version    Show the version\n\nRun 'orchbee help <family>' for filters and target rules, or\n'orchbee help <family> <command>' for one mutation's full syntax.\n";
+const ROOT_HELP_ZH: &str = "Orchbee\n\n用法：\n  orchbee\n  orchbee tui\n  orchbee status [--format text|json]\n  orchbee <family> <command> [操作数] [--format text|json]\n  orchbee api snapshot|schema\n  orchbee config check [--format text|json]\n  orchbee help [<family>|<command>]\n  orchbee completion bash|zsh|fish\n  orchbee -h|--help\n  orchbee --version\n\n模式与查询：\n  orchbee              打开本地终端（Linux 开发 cohort）\n  orchbee tui          显式打开同一本地终端\n  orchbee status       读取正在运行的本地 Site 的 Workbench 快照\n  orchbee project      list | get\n  orchbee workspace    list | get\n  orchbee tab          list | get\n  orchbee panel        list | get\n  orchbee terminal     list | get | read | wait-output | send\n  orchbee api          机器快照与内嵌 schema 文档\n\n修改命令（每次调用执行一条命令，作用于运行中的 Site）：\n  orchbee project      create\n  orchbee workspace    create | rename | accept-directory\n  orchbee tab          create | rename | move | close\n  orchbee panel        split | move | close\n  orchbee terminal     send\n\n检查与帮助：\n  orchbee config check 检查本地运行时/cohort/locale/套接字输入\n  orchbee help         显示某个 family 或完整命令路径的帮助\n  orchbee completion   输出静态 shell 补全脚本\n  orchbee -h|--help    显示此帮助；跟在 family 或命令路径后时显示该路径的帮助\n  orchbee --version    显示版本\n\n运行 'orchbee help <family>' 查看过滤参数与 target 规则，或\n'orchbee help <family> <command>' 查看单条修改命令的完整语法。\n";
 
 const HELP_TUI_EN: &str = "orchbee tui\n\nOpen the local terminal interface (Linux development cohort).\nA bare 'orchbee' invocation does the same.\n";
 const HELP_TUI_ZH: &str =
@@ -691,8 +758,8 @@ const HELP_TAB_ZH: &str = "orchbee tab list|get|create|rename|move|close\n\n查�
 const HELP_PANEL_EN: &str = "orchbee panel list|get|split|close|move\n\nQuery and mutate Panel resources in the running local Site.\n  panel list [--tab <t>]                   List Panels, optionally inside one Tab\n  panel get <panel-id>                     Show one Panel by its complete typed ID\n  panel split <panel-id> --direction <d> --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                           Split one Panel, creating a sibling\n  panel close <panel-id> --confirm         Close one Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           Move one Panel next to a sibling\nPanels have no independent label; only complete 32-hex IDs are accepted.\n";
 const HELP_PANEL_ZH: &str = "orchbee panel list|get|split|close|move\n\n查询并修改本地 Site 中的 Panel 资源。\n  panel list [--tab <t>]                   列出 Panel，可按某个 Tab 过滤\n  panel get <panel-id>                     按完整类型化 ID 显示一个 Panel\n  panel split <panel-id> --direction <d> --label <l> --cols <n> --rows <n> --cell-width <px> --cell-height <px>\n                                           分裂一个 Panel，创建一个相邻 Panel\n  panel close <panel-id> --confirm         关闭一个 Panel\n  panel move <panel-id> --target-panel <panel-id> --direction <d>\n                                           将一个 Panel 移动到某个相邻 Panel 旁\nPanel 没有独立 label；只接受完整 32 位小写十六进制 ID。\n";
 
-const HELP_TERMINAL_EN: &str = "orchbee terminal list|get|read|wait-output\n\nQuery terminals bound by Workbench Presentations in the running local Site.\n  terminal list                List every bound terminal\n  terminal get <terminal-id>   Show one terminal by its complete typed ID\n  terminal read <terminal-id>  Read the terminal's current visible content\n  terminal wait-output <terminal-id> --match <text>\n                               Wait for text in the terminal's retained output\nA terminal invisible to any Presentation binding cannot be listed or read; a\nbinding proves structure only, not that a process is alive.\n";
-const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read|wait-output\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端。\n  terminal list                列出所有已绑定终端\n  terminal get <terminal-id>   按完整类型化 ID 显示一个终端\n  terminal read <terminal-id>  读取终端当前可见内容\n  terminal wait-output <terminal-id> --match <text>\n                               等待终端保留输出中出现指定文本\n未被任何 Presentation 引用的终端不可见也不可读；绑定只证明结构，不证明进程存活。\n";
+const HELP_TERMINAL_EN: &str = "orchbee terminal list|get|read|wait-output|send\n\nQuery terminals bound by Workbench Presentations in the running local Site,\nor send one input record to one of them.\n  terminal list                List every bound terminal\n  terminal get <terminal-id>   Show one terminal by its complete typed ID\n  terminal read <terminal-id>  Read the terminal's current visible content\n  terminal wait-output <terminal-id> --match <text>\n                               Wait for text in the terminal's retained output\n  terminal send <terminal-id>  Send text or one key to the terminal's input\nA terminal invisible to any Presentation binding cannot be listed, read,\nwaited on, or sent to; a binding proves structure only, not that a process\nis alive.\n";
+const HELP_TERMINAL_ZH: &str = "orchbee terminal list|get|read|wait-output|send\n\n查询本地 Site 中被 Workbench Presentation 绑定的终端，或向其中一个终端发送一条输入。\n  terminal list                列出所有已绑定终端\n  terminal get <terminal-id>   按完整类型化 ID 显示一个终端\n  terminal read <terminal-id>  读取终端当前可见内容\n  terminal wait-output <terminal-id> --match <text>\n                               等待终端保留输出中出现指定文本\n  terminal send <terminal-id>  向终端输入发送文本或一个按键\n未被任何 Presentation 引用的终端不可见、不可读、不可等待也不可发送；绑定只证明结构，不证明进程存活。\n";
 
 const HELP_API_EN: &str = "orchbee api snapshot|schema\n\nMachine introspection of the local Workbench surface.\n  api snapshot           Emit the complete workbench.snapshot document\n  api schema [<id>]      List embedded JSON Schemas, or one schema by ID\nSuccessful output is always JSON, whatever '--format' was selected; a\nfailure envelope still requires an explicit '--format json'.\n";
 const HELP_API_ZH: &str = "orchbee api snapshot|schema\n\n本地 Workbench 面的机器自省。\n  api snapshot           输出完整 workbench.snapshot 文档\n  api schema [<id>]      列出内嵌 JSON Schema，或按 ID 取单个 schema\n成功输出无论 '--format' 选择如何都是 JSON；失败封套仍需显式\n'--format json'。\n";
@@ -770,6 +837,8 @@ const HELP_TERMINAL_READ_ZH: &str = "orchbee terminal read <terminal-id> [--hist
 
 const HELP_TERMINAL_WAIT_OUTPUT_EN: &str = "orchbee terminal wait-output <terminal-id> --match <text> [--rows <n>] [--timeout <ms>] [--format text|json]\n\nWait until <text> appears in one bound terminal's retained output. The\ntext is a literal, case-sensitive substring (1..=4096 bytes); matching\nchecks the most recent --rows retained rows (1..=1000, default 1000)\nspanning the visible screen and scrollback as one window, joining\nsoft-wrapped rows into logical lines first. '--timeout' bounds the total\nwait in milliseconds (1..=3600000, default 30000); the command exits 0 on\nmatch, 7 on timeout, and 130 when cancelled by HUP/INT/QUIT/TERM. Nothing\nis typed into the terminal and nothing is created or mutated. Text output\nprints the matching line; '--format json' emits the\norchbee.terminal.wait-output envelope with match and observation\nmetadata.\n";
 const HELP_TERMINAL_WAIT_OUTPUT_ZH: &str = "orchbee terminal wait-output <terminal-id> --match <text> [--rows <n>] [--timeout <ms>] [--format text|json]\n\n等待一个已绑定终端的保留输出中出现 <text>。匹配文本为字面、区分大小\n写的子串（1..=4096 字节）；搜索范围为最近 --rows 行保留行（1..=1000，\n默认 1000），可见屏与回滚历史作为一个窗口，并先把软换行行拼接为逻\n辑行。'--timeout' 以毫秒限定总等待预算（1..=3600000，默认 30000）；\n匹配成功退出 0，超时退出 7，被 HUP/INT/QUIT/TERM 取消时退出 130。不\n向终端写入任何输入，不创建、不修改任何状态。文本输出打印匹配行；\n'--format json' 输出带匹配与观测元数据的\norchbee.terminal.wait-output 封套。\n";
+const HELP_TERMINAL_SEND_EN: &str = "orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name>) [--format text|json]\n\nSend exactly one input record to one bound terminal: the literal bytes of\n'--text' (UTF-8, at most 4096 bytes including the appended CR), optionally\nwith '--enter' folding one carriage return into the same record, or one\nnamed key from '--key'. Accepted key names: enter, escape, tab, backspace,\ndelete, up, down, left, right, home, end, page-up, page-down, ctrl-c,\nctrl-d. Named keys are delivered semantically; the Host encodes them under\nthe terminal's current mode, never as canned escape bytes.\n\nThe send rides a temporary input-only attachment on the same session — it\nnever takes the TUI's controller, viewer, or resize ownership. The Site\nsubmits the record at most once and never retries an uncertain outcome;\nsends to one terminal serialize in arrival order. When the outcome is\nunknown (exit 8) do not resend blindly — check the terminal first, or you\nmay type twice. '--format json' emits the orchbee.terminal.send envelope\nwith inputStatus, cleanupStatus, and the accepted byte count.\n";
+const HELP_TERMINAL_SEND_ZH: &str = "orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name>) [--format text|json]\n\n向一个已绑定终端恰好发送一条输入记录：'--text' 的字面字节（UTF-8，\n含附加回车在内不超过 4096 字节），可选 '--enter' 把一个回车并入同一\n记录；或 '--key' 的一个按键名。接受的按键名：enter、escape、tab、\nbackspace、delete、up、down、left、right、home、end、page-up、\npage-down、ctrl-c、ctrl-d。具名按键按语义递交，由 Host 按终端当前\n模式编码，绝不发送预置转义字节。\n\n发送经由同一会话上的临时仅输入附属通道——绝不接管 TUI 的\ncontroller、viewer 或 resize 所有权。Site 至多提交一次该记录，对不\n确定结果绝不自动重试；同一终端的多个发送按到达顺序串行。当结果为\nunknown（退出码 8）时不要盲目重发——先查看终端，否则可能输入两次。\n'--format json' 输出带 inputStatus、cleanupStatus 与已接受字节数的\norchbee.terminal.send 封套。\n";
 
 const HELP_API_SNAPSHOT_EN: &str = "orchbee api snapshot [--format text|json]\n\nEmit the complete validated workbench.snapshot document inside the\norchbee.api.snapshot envelope. Successful output is JSON even under\n'--format text'; a failure envelope still requires '--format json'.\n";
 const HELP_API_SNAPSHOT_ZH: &str = "orchbee api snapshot [--format text|json]\n\n在 orchbee.api.snapshot 封套内输出完整已验证 workbench.snapshot 文档。\n成功输出即使 '--format text' 也为 JSON；失败封套仍需显式 '--format json'。\n";

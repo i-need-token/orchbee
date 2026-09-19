@@ -395,3 +395,25 @@ pub(crate) fn receipt(
     }
     Ok(())
 }
+
+/// A `terminal send` answer renders the same `name  value` block over the
+/// result object's own fields — typed identities, both status axes, and the
+/// nested admitted `target` through the shared detail writer. No input
+/// contents ever appear.
+pub(crate) fn send_result(out: &mut Bounded, result: &Value) -> Result<(), TooLarge> {
+    let Value::Object(map) = result else {
+        return Ok(());
+    };
+    let width = map
+        .keys()
+        .map(|name| display_width(name))
+        .max()
+        .unwrap_or(0);
+    for (name, value) in map {
+        out.push(name)?;
+        out.push(&" ".repeat(width.saturating_sub(display_width(name)) + 2))?;
+        detail(out, value)?;
+        out.push("\n")?;
+    }
+    Ok(())
+}

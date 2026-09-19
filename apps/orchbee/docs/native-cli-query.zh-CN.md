@@ -105,6 +105,7 @@ orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
 orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
 orchbee terminal wait-output <target> --match <text> [--rows <1-1000>] [--timeout <1-3600000>]
+orchbee terminal send <target> (--text <utf8> [--enter] | --key <name>)
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee config check
@@ -257,6 +258,32 @@ checked 5 秒预算。非 Linux 平台对网络查询与 mutation 产出 `servic
   主失败及清理状态；session drop 总会执行，当没有剩余 Detach 预算时上报为
   `cleanup:"requested"`——绝不谎称已释放。
 
+`terminal send` 在命令入口采样一个绝对的 5 秒 deadline 并贯穿第 1–5 步——cohort 检查在
+自身预算与该上限的较早者之下运行，discovery、admission 与快照读取只消耗剩余额度——然后
+在同一 deadline 内用同一已准入 session 执行恰好一次 `terminal.send` 交换：
+
+1. **解析** —— 在已验证快照的 presentation 绑定中查找该 typed terminal ID；缺失 →
+   `not-found`（3），details 为 `{resource:"terminal",target}`，session 随之 drop。
+   绝不查询 label。
+2. **发送** —— 用快照自身事实在全新请求身份下构造一条
+   `terminal.send{siteId,workerId,terminalId,payload}`。payload 为
+   `{kind:"text",text,enter}`——字面字节加上折叠进同一输入记录的 `--enter` 回车，合计
+   上限 4096 字节——或 `{kind:"key",key}`，命名十五个语义键之一（`enter`、`escape`、
+   `tab`、`backspace`、`delete`、`up`、`down`、`left`、`right`、`home`、`end`、
+   `page-up`、`page-down`、`ctrl-c`、`ctrl-d`）。键是协议级名称，绝不是预置转义字节串。
+   随后在任何类型化结果映射与输出准备之前完全释放 Client Session；send 绝不重试。
+3. **应答** —— Server 的 `terminal.send.result` 拆分为 envelope 逐字报告的两条轴：
+   `inputStatus`（`accepted` 表示 Host 已把输入记录入队——绝不表示子进程已读取或执行；
+   `rejected`/`not-submitted` 表示该记录可证明从未到达队列；`unknown` 表示其可能
+   已经落地）与 `cleanupStatus`（`not-needed`/`confirmed`/`unconfirmed`，其中
+   `unconfirmed` 表示临时 input-only attachment 可能存续至 carrier 拆除或 Host-epoch
+   结束——绝不宣称已释放）。结果的物理 `target`（`workerGeneration`、`hostEpoch`、
+   `hostTerminalId`）是 Server 实际准入的 incarnation，逐字投影；准入前拒绝不携带。
+   退出映射：`accepted`+`confirmed` → 0；`accepted`+`unconfirmed` → 5 并附勿重发警告
+   （输入可能已生效）；`rejected` → 3；`not-submitted` → 4，唯协议故障 reason
+   `host-protocol-fault` 属 transport 类缺陷 → 5；`unknown` → 8 并附
+   绝不重试警告。每个非零应答都保持 `inputStatus` 诚实——已接受的输入绝不改写为未发送。
+
 ## Canonical 数据与结果
 
 Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspaces` 顺序；
@@ -273,6 +300,8 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 - `source.kind="embedded"`：随二进制编译内嵌的 schema 字典（`api schema` 结果及其
   `not-found` 失败）。
 - `source.kind="local-runtime"`：已产出的 `config check` 结果。
+- `source.kind="terminal.send"`：`siteId`、send `requestId`，以及解析出该绑定的十进制
+  字符串 `snapshotRevision`——出现在类型化 `terminal send` 应答上。
 - 不存在 freshness 字段；一次一致读取不等于持续活性保证。
 
 结果载荷（schema ID 为稳定机器名）：
@@ -321,6 +350,15 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   `{rows:1000,textBytes:4194304}`。`omittedRows` 诚实计为 `min(requestedRows,scrollbackRows)` 减去已发出行数——即被 `MAXIMUM_FRAME_CELLS/columns` 上限或文本预算截掉的
   行——而早于 `startRow` 的行从未被请求，不算遗漏。text 输出与 `terminal read` 一致：每个
   发出的行渲染为一行转义文本加标记。
+- `orchbee.terminal.send` → `{action:"terminal.send",requestId,siteId,workerId,terminalId,
+  payloadKind,recordBytes?,key?,inputStatus,cleanupStatus,reason?,acceptedBytes?,target?}`——
+  请求自身事实加上 Server 的两轴应答：`payloadKind:"text"` 携带 `recordBytes`（单条输入
+  记录的字节长度，含折叠的回车），`payloadKind:"key"` 携带 `key`；`inputStatus`/
+  `cleanupStatus` 为逐字结果类别；`reason` 为类型化拒绝/不可用 token；`acceptedBytes`
+  仅在 `accepted` 时出现；`target` 为 Server 实际准入的物理 incarnation
+  （`workerGeneration`、`hostEpoch`、`hostTerminalId`）——只要应答承认一个（`accepted`、
+  `outcome-unknown` 或任何 cleanup 义务）即出现，准入前拒绝则缺席。提交的文本绝不回显到
+  文档或诊断的任何位置。
 - `orchbee.api.snapshot` → `{snapshot}`：完整 `WorkbenchProtocolDocument::Snapshot` 的语义化
   重编码，含 `kind:"workbench.snapshot"`；envelope 的 `siteId`/`revision` 与内部文档一致。
 - `orchbee.api.schema` → 带参 `{schema:{schemaId,document}}`；无参
@@ -357,6 +395,10 @@ runtime-unavailable,address-too-long,presence-not-inspected}`。`clientPending`/
 容量）。不作跨文件原子健康快照声明。
 
 ## Mutations
+
+`terminal send` 修改的是 Host 输入状态而非 Workbench 文档：它走上文描述的已准入 session
+上的 OBCS `terminal.send` 交换，不触碰 `expectedRevision`、Workbench 命令通道，或 TUI 的
+controller/viewer/resize 所有权。
 
 十一条命令经已 admitted 的 OBWP `workbench.command` 通道修改 Workbench 状态：
 `project create`、`workspace create`/`rename`/`accept-directory`、
@@ -422,7 +464,7 @@ Mutation 结果使用 `schema:"orchbee.mutation.result"`、`version:1`，
 `direction`/`label`/`terminal`。文本输出按与查询相同的转义规则逐行渲染同样字段。
 
 明确不交付：`project rename`/`project close`、`workspace close`/`workspace focus`、`tab focus`、
-`panel resize`/`panel focus`、终端 open/send 操作、Site 生命周期命令，以及一切远端操作。
+`panel resize`/`panel focus`、终端 open 操作、Site 生命周期命令，以及一切远端操作。
 
 ## 失败矩阵
 
@@ -468,6 +510,11 @@ HUP/INT/QUIT/TERM）。
 | command `Denied` precommit                                                                                                   | `denied`                             | 3    | 省略                                                                                      |
 | command `Unavailable` precommit                                                                                              | `service-unavailable`                | 4    | `{stage:"command",reason}`                                                                |
 | `OutcomeUnknown`（任意原因）                                                                                                 | `outcome-unknown`                    | 8    | `{stage:"command",requestId,reason}`                                                      |
+| send `RequestNotSubmitted`（请求可证明从未到达线缆）                                                                         | `transport-loss`                     | 5    | `{stage:"send"}`                                                                          |
+| send `SessionUnavailable`/`RequestEncoding`                                                                                  | `internal-failure`                   | 1    | 省略                                                                                      |
+| send `OutcomeUnknown`（写/读/无效结果/correlation）                                                                          | `outcome-unknown`                    | 8    | `{stage:"send",requestId,reason}`                                                         |
+| `terminal.send.result` `Rejected`/`Unavailable`                                                                              | 类型化应答，非失败 envelope          | 3/4  | send 结果 `reason`、`cleanupStatus`；`host-protocol-fault` 退出 5                         |
+| `terminal.send.result` `Accepted` + `Unconfirmed` cleanup                                                                    | 类型化应答，非失败 envelope          | 5    | send 结果 `acceptedBytes`、`cleanupStatus`                                                |
 | 预备输出超 8 MiB                                                                                                             | `output-too-large`                   | 1    | `{limitBytes:8388608}`                                                                    |
 | stdout 写/flush 失败                                                                                                         | `output-failed`                      | 1    | 不追加第二份 stdout 文档                                                                  |
 | `config check` 完成但存在失败项                                                                                              | 成功 schema `ok:false`               | 1    | 五项全部保留                                                                              |
@@ -477,16 +524,20 @@ HUP/INT/QUIT/TERM）。
 | `terminal wait-output` 命中但 `Detach` 未确认                                                                                  | 类型化 viewer-stage 失败             | *    | `{stage:"viewer",matchObserved:true,cleanup:"unconfirmed"}`                                |
 
 `resource` ∈ `project|workspace|tab|panel|terminal|schema`；`stage` ∈
-`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|platform|wait`。
+`cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|send|platform|wait`。
 stage 与 reason 是有限 schema 值；任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
 `{resource,target,candidates≤8,totalCount}`、`{stage[,reason]}`、
 `{stage:"command",reason,revision}`、`{stage:"command",requestId,reason}`、
+`{stage:"send",requestId,reason}`、
 `{stage:"viewer",operation:"read-history"|"wait-output",reason}`、
 `{stage:"wait",timeoutMs,observed}`、`{stage:"wait",cleanup}`、
 `{stage:"viewer",matchObserved,cleanup}` 或
 `{limitBytes}`——内嵌 schema 拒绝超出这些形状的文档。读路径错误永不归类为
 outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效果；
 `rejected`/`denied`/`unavailable` precommit 答案都是确定的——Server 未应用任何效果。
+send 阶段对其单条输入记录遵循同一规则：`RequestNotSubmitted` 是确定的未提交，
+`OutcomeUnknown` 表示记录可能已经落地，而类型化 `terminal.send.result` 应答是 Server
+自己的判定，绝非客户端猜测。
 
 ## 输出契约与副作用
 
@@ -521,9 +572,13 @@ outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效
   认可的读路径副作用，最小化持有并在输出前释放。至多持有一个短暂 Client Session，且绝不
   带入输出阶段。
 - Mutation 每次调用在全新 `WorkbenchRequestId` 下至多提交一次 `workbench.command`；绝不
-  重试或重放，结果不可判定时报告 `outcome-unknown` 而非猜测。
+  重试或重放，结果不可判定时报告 `outcome-unknown` 而非猜测。`terminal send` 对其唯一
+  一次 OBCS `terminal.send` 交换遵循同一纪律：每次调用在全新请求身份下至多一条输入记录，
+  绝不重试——不可判定的应答是 `outcome-unknown`，且本地化诊断会说明输入可能已经落地，
+  由操作员据此决定是否重复。
 - 每次调用至多一次快照读取、一次准入，且读取与命令共用一个网络 deadline；`terminal read`
-  的 viewer 交换复用同一 session 与同一 deadline——绝无第二次准入或续期预算。
+  的 viewer 交换与 `terminal send` 的唯一 send 复用同一 session 与同一 deadline——绝无
+  第二次准入或续期预算。
   `terminal wait-output` 保持同一次准入，并把固定 5 秒预算替换为命令开始时取的用户
   `--timeout` deadline；其每附件 `requestSequence` 在全部 `read-rows` 中从 1 严格递增。
 - match 只证明该文本在本次观察的搜索窗口内被找到——绝不证明命令完成、新 turn 或没有
@@ -551,7 +606,8 @@ outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效
 | 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                             | 成功/`session-capacity`/结构不变                  | `tests/local_startup_process`                             |
 | 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                             | 按矩阵 typed kind；绝不冒称真实 Server 证据       | `tests/cli_query.rs`                                      |
 | 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连 | `terminal read` 成功 + typed viewer-stage 失败    | `tests/cli_query.rs`                                      |
-| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试  | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试   | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS send peer：UTF-8 文本与可选折叠回车、语义键均以一条请求到达，target/请求身份，accepted/rejected/unavailable/unknown 应答、停滞应答、无重试 | `terminal send` 退出 0/3/4/5/8 且两轴结果字段齐全 | `tests/cli_send.rs`                                       |
 | 脚本化 OBCS viewer peer + 手工 OBTF/OBRW record：递增 `requestSequence`、可见/历史边界窗口、每帧真实 `FrameApplied`、stale 重钉、行尾 excerpt 命中、含 preamble 的总期限 | `terminal wait-output` 成功 + typed 失败          | `tests/cli_query.rs`                                      |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`wait-output` 命中已有/后到/滚出屏/UTF-8 输出，短期限退出 7，取消后槽位可复用       | 公共等待观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                    | 真实只读观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |

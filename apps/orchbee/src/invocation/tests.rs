@@ -8,7 +8,8 @@ use orchbee_workbench_protocol::{
 use super::{
     CommandPath, CompletionShell, ExpectedValue, FailureEnvelope, Family, HelpTopic,
     MutationCommand, OutputFormat, ParseFailure, ParseFailureKind, QueryCommand, Request, Resource,
-    TabContext, Target, UsageContext, UsageReason, parse_request,
+    TabContext, Target, TerminalSendInput, TerminalSendKey, UsageContext, UsageReason,
+    parse_request,
 };
 
 fn parse(arguments: &[&str]) -> Result<Request, ParseFailure> {
@@ -467,6 +468,10 @@ fn suffix_help_resolves_any_recognized_help_path() {
             HelpTopic::Command(CommandPath::TerminalRead),
         ),
         (
+            &["terminal", "send", "--help"],
+            HelpTopic::Command(CommandPath::TerminalSend),
+        ),
+        (
             &["api", "snapshot", "--help"],
             HelpTopic::Command(CommandPath::ApiSnapshot),
         ),
@@ -570,6 +575,10 @@ fn help_command_accepts_recognized_paths_only() {
         (
             &["help", "terminal", "read"],
             HelpTopic::Command(CommandPath::TerminalRead),
+        ),
+        (
+            &["help", "terminal", "send"],
+            HelpTopic::Command(CommandPath::TerminalSend),
         ),
         (
             &["help", "api", "snapshot"],
@@ -2439,11 +2448,6 @@ fn terminal_read_history_grammar() {
     }
 }
 
-/// `terminal wait-output --match <t> [--rows <n>] [--timeout <ms>]`: `--match`
-/// is required literal text (1..=4096 bytes), `--rows` is the searched
-/// retained-row window 1..=1000 (default 1000), and `--timeout` the total
-/// millisecond budget 1..=3600000 (default 30000). All three flags stay
-/// illegal on every other command, including `terminal read`.
 #[test]
 fn terminal_wait_output_grammar() {
     let wait = |match_text: &str, rows: u16, timeout_ms: u32| {
@@ -2669,5 +2673,203 @@ fn terminal_wait_output_grammar() {
             panic!("{arguments:?} must fail");
         };
         assert_eq!(failure.usage.as_ref(), Some(&expected), "{arguments:?}");
+    }
+}
+
+#[test]
+fn terminal_send_grammar() {
+    let send = |input| {
+        mutation(
+            MutationCommand::TerminalSend {
+                target: Target::Id(ID.into()),
+                input,
+            },
+            OutputFormat::Text,
+        )
+    };
+    assert_eq!(
+        parse(&["terminal", "send", ID, "--text", "ls -la"]),
+        Ok(send(TerminalSendInput::Text {
+            text: "ls -la".to_owned(),
+            enter: false,
+        }))
+    );
+    assert_eq!(
+        parse(&["terminal", "send", ID, "--text", "make", "--enter"]),
+        Ok(send(TerminalSendInput::Text {
+            text: "make".to_owned(),
+            enter: true,
+        }))
+    );
+    assert_eq!(
+        parse(&[
+            "terminal", "send", ID, "--enter", "--text", "make", "--format", "json"
+        ]),
+        Ok(mutation(
+            MutationCommand::TerminalSend {
+                target: Target::Id(ID.into()),
+                input: TerminalSendInput::Text {
+                    text: "make".to_owned(),
+                    enter: true,
+                },
+            },
+            OutputFormat::Json,
+        ))
+    );
+    // Every admitted key name resolves to its semantic key.
+    for (name, key) in [
+        ("enter", TerminalSendKey::Enter),
+        ("escape", TerminalSendKey::Escape),
+        ("tab", TerminalSendKey::Tab),
+        ("backspace", TerminalSendKey::Backspace),
+        ("delete", TerminalSendKey::Delete),
+        ("up", TerminalSendKey::Up),
+        ("down", TerminalSendKey::Down),
+        ("left", TerminalSendKey::Left),
+        ("right", TerminalSendKey::Right),
+        ("home", TerminalSendKey::Home),
+        ("end", TerminalSendKey::End),
+        ("page-up", TerminalSendKey::PageUp),
+        ("page-down", TerminalSendKey::PageDown),
+        ("ctrl-c", TerminalSendKey::CtrlC),
+        ("ctrl-d", TerminalSendKey::CtrlD),
+    ] {
+        assert_eq!(
+            parse(&["terminal", "send", ID, "--key", name]),
+            Ok(send(TerminalSendInput::Key(key))),
+            "{name}"
+        );
+    }
+    // Exactly one payload form is required.
+    let Err(failure) = parse(&["terminal", "send", ID]) else {
+        panic!("missing payload must fail");
+    };
+    assert_eq!(
+        failure.usage.as_ref(),
+        Some(&UsageReason::MissingRequired {
+            context: UsageContext::Path("terminal send"),
+            requirement: "'--text' or '--key'",
+        })
+    );
+    // The forms exclude each other.
+    let Err(failure) = parse(&["terminal", "send", ID, "--text", "x", "--key", "enter"]) else {
+        panic!("conflicting payload forms must fail");
+    };
+    assert_eq!(
+        failure.usage.as_ref(),
+        Some(&UsageReason::ConflictingOptions {
+            context: UsageContext::Path("terminal send"),
+            first: "--text",
+            second: "--key",
+        })
+    );
+    // `--enter` is the text form's modifier only.
+    for arguments in [
+        &["terminal", "send", ID, "--enter"][..],
+        &["terminal", "send", ID, "--key", "enter", "--enter"][..],
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::UnexpectedOption {
+                context: UsageContext::Path("terminal send"),
+                option: "--enter",
+            }),
+            "{arguments:?}"
+        );
+    }
+    // Empty text and over-budget records are refused at the boundary; the
+    // bound counts the folded CR, so 4096 literal bytes fit, 4095+CR is the
+    // last legal record, and 4096+CR or 4097 literal are refused.
+    let maximum = "x".repeat(4096);
+    assert_eq!(
+        parse(&["terminal", "send", ID, "--text", maximum.as_str()]),
+        Ok(send(TerminalSendInput::Text {
+            text: maximum.clone(),
+            enter: false,
+        }))
+    );
+    let edge = "x".repeat(4095);
+    assert_eq!(
+        parse(&["terminal", "send", ID, "--text", edge.as_str(), "--enter"]),
+        Ok(send(TerminalSendInput::Text {
+            text: edge,
+            enter: true,
+        }))
+    );
+    for (text, enter) in [
+        (String::new(), false),
+        ("x".repeat(4097), false),
+        ("x".repeat(4096), true),
+    ] {
+        let mut arguments = vec!["terminal", "send", ID, "--text", text.as_str()];
+        if enter {
+            arguments.push("--enter");
+        }
+        let Err(failure) = parse(&arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::InvalidValue {
+                context: UsageContext::Path("terminal send"),
+                option: "--text",
+                value: text.clone(),
+                expected: ExpectedValue::SendText,
+            }),
+            "{arguments:?}"
+        );
+    }
+    let Err(failure) = parse(&["terminal", "send", ID, "--key", "ctrl-x"]) else {
+        panic!("unknown key must fail");
+    };
+    assert_eq!(
+        failure.usage.as_ref(),
+        Some(&UsageReason::InvalidValue {
+            context: UsageContext::Path("terminal send"),
+            option: "--key",
+            value: "ctrl-x".to_owned(),
+            expected: ExpectedValue::SendKey,
+        })
+    );
+    // The target stays a typed terminal id — labels are not admitted.
+    for (value, expect_identifier) in [("web", true), (ID, false), (ZERO, true)] {
+        let outcome = parse(&["terminal", "send", value, "--key", "enter"]);
+        if expect_identifier {
+            assert_eq!(
+                outcome.map_err(|failure| failure.kind),
+                Err(ParseFailureKind::InvalidIdentifier {
+                    resource: Resource::Terminal,
+                    target: value.to_owned(),
+                }),
+                "{value}"
+            );
+        } else {
+            assert!(outcome.is_ok(), "{value}");
+        }
+    }
+    // Send flags stay inside their own scope.
+    for (arguments, option) in [
+        (&["terminal", "get", ID, "--text", "x"][..], "--text"),
+        (&["terminal", "read", ID, "--key", "enter"][..], "--key"),
+        (&["terminal", "list", "--enter"][..], "--enter"),
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::UnexpectedOption {
+                context: match arguments[1] {
+                    "get" => UsageContext::Path("terminal get"),
+                    "read" => UsageContext::Path("terminal read"),
+                    _ => UsageContext::Path("terminal list"),
+                },
+                option,
+            }),
+            "{arguments:?}"
+        );
     }
 }

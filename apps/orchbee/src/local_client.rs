@@ -16,9 +16,9 @@ use nix::{
 use orchbee_client_server_protocol::{
     ClientMessage, ProtocolError, ReadMessageError, RequestId, ServerMessage,
     TerminalControlAction, TerminalControlOutcome, TerminalControlRequest, TerminalControlResult,
-    TerminalCreateRequest, TerminalCreateResult, TerminalStartRequest, TerminalStartResult,
-    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
-    encode_client_frame, read_server_message,
+    TerminalCreateRequest, TerminalCreateResult, TerminalSendRequest, TerminalSendResult,
+    TerminalStartRequest, TerminalStartResult, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerRequest, TerminalViewerResult, encode_client_frame, read_server_message,
 };
 use orchbee_local_client_protocol::{ClientSessionConnection, ConnectClientError};
 
@@ -419,6 +419,49 @@ impl LocalClient {
         Ok(result)
     }
 
+    pub(crate) fn submit_terminal_send_before(
+        &mut self,
+        request: TerminalSendRequest,
+        deadline: Instant,
+    ) -> Result<TerminalSendResult, SubmissionError> {
+        self.submit_terminal_send_with_deadline(request, Some(deadline))
+    }
+
+    fn submit_terminal_send_with_deadline(
+        &mut self,
+        request: TerminalSendRequest,
+        deadline: Option<Instant>,
+    ) -> Result<TerminalSendResult, SubmissionError> {
+        let request_id = request.request_id().clone();
+        let message = ClientMessage::TerminalSend(request);
+        let result = match deadline {
+            Some(deadline) => self.exchange_before(message, &request_id, deadline)?,
+            None => self.exchange(message, &request_id)?,
+        };
+        let ServerMessage::TerminalSendResult(result) = result else {
+            return self.retire_with_unknown(
+                request_id,
+                OutcomeUnknownReason::UnexpectedResult {
+                    expected: ResultKind::Send,
+                    received: result_kind(&result),
+                },
+            );
+        };
+        if result.request_id() != &request_id {
+            let received = result.request_id().clone();
+            return self.retire_with_unknown(
+                request_id.clone(),
+                OutcomeUnknownReason::CorrelationMismatch {
+                    expected: request_id,
+                    received,
+                },
+            );
+        }
+        // Every typed outcome variant is a legitimate send answer; impossible
+        // input/cleanup pairs were already refused at the wire boundary.
+        Ok(result)
+    }
+
     fn exchange(
         &mut self,
         request: ClientMessage,
@@ -637,6 +680,7 @@ pub(crate) enum ResultKind {
     Start,
     Viewer,
     Control,
+    Send,
 }
 
 impl fmt::Display for ResultKind {
@@ -647,6 +691,7 @@ impl fmt::Display for ResultKind {
             Self::Start => "terminal.start.result",
             Self::Viewer => "terminal.viewer.result",
             Self::Control => "terminal.control.result",
+            Self::Send => "terminal.send.result",
         })
     }
 }
@@ -658,6 +703,7 @@ fn result_kind(result: &ServerMessage) -> ResultKind {
         ServerMessage::TerminalStartResult(_) => ResultKind::Start,
         ServerMessage::TerminalViewerResult(_) => ResultKind::Viewer,
         ServerMessage::TerminalControlResult(_) => ResultKind::Control,
+        ServerMessage::TerminalSendResult(_) => ResultKind::Send,
     }
 }
 
