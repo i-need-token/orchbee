@@ -337,6 +337,19 @@ fn denied_result(request: &ClientMessage) -> ServerMessage {
                 },
             ))
         }
+        ClientMessage::TerminalSend(request) => ServerMessage::TerminalSendResult(
+            match orchbee_client_server_protocol::TerminalSendResult::new(
+                request.request_id().clone(),
+                None,
+                orchbee_client_server_protocol::TerminalSendOutcome::Rejected {
+                    reason: orchbee_client_server_protocol::SendRejectedReason::TerminalUnavailable,
+                    cleanup: orchbee_client_server_protocol::SendCleanupStatus::NotNeeded,
+                },
+            ) {
+                Ok(result) => result,
+                Err(_) => unreachable!("validated send outcomes are encodable"),
+            },
+        ),
     }
 }
 

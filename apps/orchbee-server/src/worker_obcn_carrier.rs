@@ -38,6 +38,7 @@ pub(crate) enum WorkerOperationRequest {
     Launch(AuthorizedTerminalLaunch),
     Start(AuthorizedTerminalStart),
     Viewer(orchbee_capability_node_protocol::TerminalViewerRequest),
+    Send(orchbee_capability_node_protocol::TerminalSendRequest),
 }
 
 impl WorkerOperationRequest {
@@ -63,6 +64,7 @@ impl WorkerOperationRequest {
                 request.authorization().worker_generation(),
             ),
             Self::Viewer(request) => (request.worker_id, request.worker_generation),
+            Self::Send(request) => (request.worker_id, request.worker_generation),
         }
     }
 
@@ -80,6 +82,7 @@ impl WorkerOperationRequest {
             }
             Self::Start(request) => CapabilityNodeMessage::AuthorizedTerminalStart(*request),
             Self::Viewer(request) => CapabilityNodeMessage::TerminalViewerRequest(*request),
+            Self::Send(request) => CapabilityNodeMessage::TerminalSendRequest(request.clone()),
         }
     }
 }
@@ -92,6 +95,7 @@ pub(crate) enum WorkerOperationResult {
     Launch(TerminalLaunchResult),
     Start(TerminalStartResult),
     Viewer(orchbee_capability_node_protocol::TerminalViewerResult),
+    Send(orchbee_capability_node_protocol::TerminalSendResult),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -733,7 +737,8 @@ fn validate_response(
             | CapabilityNodeMessage::TerminalControlResult(_)
             | CapabilityNodeMessage::TerminalViewerResult(_)
             | CapabilityNodeMessage::TerminalLaunchResult(_)
-            | CapabilityNodeMessage::TerminalStartResult(_),
+            | CapabilityNodeMessage::TerminalStartResult(_)
+            | CapabilityNodeMessage::TerminalSendResult(_),
         ) => Err(WorkerResponseFailure::WrongResultKind),
         (
             WorkerOperationRequest::Lifecycle(expected),
@@ -767,7 +772,8 @@ fn validate_response(
             CapabilityNodeMessage::TerminalControlResult(_)
             | CapabilityNodeMessage::TerminalViewerResult(_)
             | CapabilityNodeMessage::TerminalLaunchResult(_)
-            | CapabilityNodeMessage::TerminalStartResult(_),
+            | CapabilityNodeMessage::TerminalStartResult(_)
+            | CapabilityNodeMessage::TerminalSendResult(_),
         ) => Err(WorkerResponseFailure::WrongResultKind),
         (
             WorkerOperationRequest::Control(expected),
@@ -813,7 +819,8 @@ fn validate_response(
             WorkerOperationRequest::Control(_),
             CapabilityNodeMessage::TerminalLaunchResult(_)
             | CapabilityNodeMessage::TerminalStartResult(_)
-            | CapabilityNodeMessage::TerminalViewerResult(_),
+            | CapabilityNodeMessage::TerminalViewerResult(_)
+            | CapabilityNodeMessage::TerminalSendResult(_),
         ) => Err(WorkerResponseFailure::WrongResultKind),
         (
             WorkerOperationRequest::Viewer(expected),
@@ -865,10 +872,20 @@ fn validate_response(
             Ok(WorkerOperationResult::Start(actual))
         }
         (
+            WorkerOperationRequest::Send(expected),
+            CapabilityNodeMessage::TerminalSendResult(actual),
+        ) => {
+            if actual.request_id() != expected.request_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            Ok(WorkerOperationResult::Send(actual))
+        }
+        (
             _,
             CapabilityNodeMessage::AuthorizedTerminalLaunch(_)
             | CapabilityNodeMessage::AuthorizedTerminalStart(_)
-            | CapabilityNodeMessage::TerminalViewerRequest(_),
+            | CapabilityNodeMessage::TerminalViewerRequest(_)
+            | CapabilityNodeMessage::TerminalSendRequest(_),
         ) => Err(WorkerResponseFailure::WrongDirection),
         (
             WorkerOperationRequest::Viewer(_),
@@ -877,7 +894,13 @@ fn validate_response(
         )
         | (_, CapabilityNodeMessage::TerminalViewerResult(_))
         | (WorkerOperationRequest::Launch(_), CapabilityNodeMessage::TerminalStartResult(_))
-        | (WorkerOperationRequest::Start(_), CapabilityNodeMessage::TerminalLaunchResult(_)) => {
+        | (WorkerOperationRequest::Start(_), CapabilityNodeMessage::TerminalLaunchResult(_))
+        | (
+            WorkerOperationRequest::Send(_),
+            CapabilityNodeMessage::TerminalLaunchResult(_)
+            | CapabilityNodeMessage::TerminalStartResult(_),
+        )
+        | (_, CapabilityNodeMessage::TerminalSendResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
     }

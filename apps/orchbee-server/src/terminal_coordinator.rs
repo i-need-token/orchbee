@@ -426,6 +426,21 @@ impl TerminalCoordinator {
                     }))),
             ClientMessage::TerminalCreate(request) => self.prepare_create(request, worker, expiry),
             ClientMessage::TerminalStart(request) => self.prepare_start(request, worker, expiry, start_fenced),
+            // Terminal send never enters the pending-operation path; it is
+            // admitted and dispatched by the service's one-shot send flow.
+            ClientMessage::TerminalSend(request) => PreparedOperation::Ready(
+                match orchbee_client_server_protocol::TerminalSendResult::new(
+                    request.request_id().clone(),
+                    None,
+                    orchbee_client_server_protocol::TerminalSendOutcome::Unavailable {
+                        reason: orchbee_client_server_protocol::SendUnavailableReason::ServerBusy,
+                        cleanup: orchbee_client_server_protocol::SendCleanupStatus::NotNeeded,
+                    },
+                ) {
+                    Ok(result) => ServerMessage::TerminalSendResult(result),
+                    Err(_) => unreachable!("validated send outcomes are encodable"),
+                },
+            ),
         }
     }
 
@@ -816,6 +831,28 @@ fn unknown_result(request: &ClientMessage) -> ServerMessage {
         ClientMessage::TerminalStart(request) => {
             start_result(request, StartOutcome::OutcomeUnknown)
         }
+        ClientMessage::TerminalSend(request) => ServerMessage::TerminalSendResult(
+            match orchbee_client_server_protocol::TerminalSendResult::new(
+                request.request_id().clone(),
+                None,
+                orchbee_client_server_protocol::TerminalSendOutcome::OutcomeUnknown {
+                    cleanup: orchbee_client_server_protocol::SendCleanupStatus::Unconfirmed,
+                },
+            )
+            .or_else(|_| {
+                orchbee_client_server_protocol::TerminalSendResult::new(
+                    request.request_id().clone(),
+                    None,
+                    orchbee_client_server_protocol::TerminalSendOutcome::Unavailable {
+                        reason: orchbee_client_server_protocol::SendUnavailableReason::ServerBusy,
+                        cleanup: orchbee_client_server_protocol::SendCleanupStatus::NotNeeded,
+                    },
+                )
+            }) {
+                Ok(result) => result,
+                Err(_) => unreachable!("validated send outcomes are encodable"),
+            },
+        ),
     }
 }
 

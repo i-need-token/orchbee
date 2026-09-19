@@ -20,10 +20,12 @@ mod lifecycle;
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, AuthorizedTerminalLaunch, AuthorizedTerminalStart, CapabilityNodeMessage,
     HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity,
-    LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, TerminalCwdValidationOutcome,
-    TerminalCwdValidationRequest, TerminalCwdValidationResult, TerminalFence, TerminalId,
-    TerminalLaunchMode, TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
+    LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, SendAcceptedBytes, SendCleanupStatus,
+    SendKey, SendRejection, SendText, TerminalCwdValidationOutcome, TerminalCwdValidationRequest,
+    TerminalCwdValidationResult, TerminalFence, TerminalId, TerminalLaunchMode,
+    TerminalLaunchOutcome, TerminalLaunchRejection, TerminalLaunchResult,
     TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
+    TerminalSendOutcome, TerminalSendPayload, TerminalSendRequest, TerminalSendResult,
     TerminalStartOutcome, TerminalStartRejection, TerminalStartResult, WorkerGeneration,
     WorkerId as CapabilityWorkerId, read_message, write_message,
 };
@@ -1585,5 +1587,233 @@ fn paste_results_validate_count_boundaries_and_exact_result_class() -> TestResul
         CapabilityNodeMessage::TerminalLaunchResult(launch_result(&unrelated_launch)),
         WorkerResponseFailure::WrongResultKind,
     )?;
+    Ok(())
+}
+
+fn send_request(
+    operation: u8,
+    attachment: u8,
+    generation: u64,
+    worker_id: WorkerId,
+    payload: TerminalSendPayload,
+) -> TestResult<TerminalSendRequest> {
+    Ok(TerminalSendRequest {
+        request_id: OperationId::from_bytes([operation; 16])?,
+        worker_id: CapabilityWorkerId::from_bytes(worker_id.as_bytes())?,
+        worker_generation: WorkerGeneration::new(nonzero(generation)?),
+        target: host_identity(7)?,
+        attachment_id: OperationId::from_bytes([attachment; 16])?,
+        payload,
+    })
+}
+
+#[test]
+fn carries_send_requests_and_results_on_the_serialized_wire() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let text_request = send_request(
+        10,
+        11,
+        GENERATION.get(),
+        LOCAL_WORKER_ID,
+        TerminalSendPayload::new_text(SendText::new("echo hi".to_owned())?, true)?,
+    )?;
+    let key_request = send_request(
+        12,
+        13,
+        GENERATION.get(),
+        LOCAL_WORKER_ID,
+        TerminalSendPayload::new_key(SendKey::CtrlC),
+    )?;
+    let text_result = TerminalSendResult::new(
+        text_request.request_id,
+        TerminalSendOutcome::Accepted {
+            accepted_bytes: SendAcceptedBytes::new(8)?,
+            cleanup: SendCleanupStatus::Confirmed,
+        },
+    )?;
+    let key_result = TerminalSendResult::new(
+        key_request.request_id,
+        TerminalSendOutcome::Rejected {
+            reason: SendRejection::HostInputBackpressure,
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
+    )?;
+    let (worker_text, worker_key) = (text_request.clone(), key_request.clone());
+    let (reply_text, reply_key) = (text_result, key_result);
+    let worker_thread = thread::spawn(move || -> TestResult {
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::TerminalSendRequest(worker_text)
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalSendResult(reply_text),
+        )?;
+        assert_eq!(
+            read_message(&mut worker)?,
+            CapabilityNodeMessage::TerminalSendRequest(worker_key)
+        );
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalSendResult(reply_key),
+        )?;
+        Ok(())
+    });
+
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Send(text_request))?,
+        WorkerOperationResult::Send(text_result)
+    );
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Send(key_request))?,
+        WorkerOperationResult::Send(key_result)
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn send_result_correlation_mismatch_is_post_delivery_unknown() -> TestResult {
+    let request = send_request(
+        10,
+        11,
+        GENERATION.get(),
+        LOCAL_WORKER_ID,
+        TerminalSendPayload::new_key(SendKey::Enter),
+    )?;
+    let mismatched = TerminalSendResult::new(
+        OperationId::from_bytes([9; 16])?,
+        TerminalSendOutcome::OutcomeUnknown {
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
+    )?;
+    assert_post_delivery_failure(
+        WorkerOperationRequest::Send(request),
+        CapabilityNodeMessage::TerminalSendResult(mismatched),
+        WorkerResponseFailure::MismatchedCorrelation,
+    )
+}
+
+#[test]
+fn send_wrong_result_kind_and_direction_retire_the_carrier() -> TestResult {
+    let request = send_request(
+        10,
+        11,
+        GENERATION.get(),
+        LOCAL_WORKER_ID,
+        TerminalSendPayload::new_key(SendKey::Escape),
+    )?;
+    let unrelated_launch = launch_request(authorization(9, 9, GENERATION.get(), LOCAL_WORKER_ID)?)?;
+    assert_post_delivery_failure(
+        WorkerOperationRequest::Send(request.clone()),
+        CapabilityNodeMessage::TerminalLaunchResult(launch_result(&unrelated_launch)),
+        WorkerResponseFailure::WrongResultKind,
+    )?;
+    assert_post_delivery_failure(
+        WorkerOperationRequest::Send(request.clone()),
+        CapabilityNodeMessage::TerminalSendRequest(send_request(
+            20,
+            21,
+            GENERATION.get(),
+            LOCAL_WORKER_ID,
+            TerminalSendPayload::new_key(SendKey::Tab),
+        )?),
+        WorkerResponseFailure::WrongDirection,
+    )?;
+    Ok(())
+}
+
+#[test]
+fn send_response_loss_after_delivery_is_outcome_unknown() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let request = send_request(
+        10,
+        11,
+        GENERATION.get(),
+        LOCAL_WORKER_ID,
+        TerminalSendPayload::new_text(SendText::new("printf".to_owned())?, false)?,
+    )?;
+    let worker_thread = thread::spawn(move || -> TestResult {
+        let _request = read_message(&mut worker)?;
+        drop(worker);
+        Ok(())
+    });
+    assert!(matches!(
+        handle.request(WorkerOperationRequest::Send(request)),
+        Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_))
+    ));
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert!(matches!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::PeerClosed | WorkerWireExit::RequestFailed
+    ));
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
+    Ok(())
+}
+
+#[test]
+fn send_on_a_retired_carrier_is_unavailable_not_reused() -> TestResult {
+    let (handle, owner, _shutdown, server, mut worker) = test_carrier()?;
+    let (exit_sender, exit_receiver) = mpsc::channel();
+    let owner_thread = spawn_owner(owner, server, exit_sender);
+    let request = send_request(
+        10,
+        11,
+        GENERATION.get(),
+        LOCAL_WORKER_ID,
+        TerminalSendPayload::new_key(SendKey::Home),
+    )?;
+    let mismatched = TerminalSendResult::new(
+        OperationId::from_bytes([9; 16])?,
+        TerminalSendOutcome::OutcomeUnknown {
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
+    )?;
+    let worker_thread = thread::spawn(move || -> TestResult {
+        let _request = read_message(&mut worker)?;
+        write_message(
+            &mut worker,
+            &CapabilityNodeMessage::TerminalSendResult(mismatched),
+        )?;
+        Ok(())
+    });
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Send(request.clone())),
+        Err(WorkerRequestError::PostDeliveryOutcomeUnknown(
+            WorkerResponseFailure::MismatchedCorrelation
+        ))
+    );
+    worker_thread
+        .join()
+        .map_err(|_panic| "fake Worker panicked")??;
+    assert_eq!(
+        exit_receiver.recv_timeout(TEST_COMPLETION_TIMEOUT)?,
+        WorkerWireExit::RequestFailed
+    );
+    // The retired carrier never serves another send on the same stream.
+    assert_eq!(
+        handle.request(WorkerOperationRequest::Send(request)),
+        Err(WorkerRequestError::Unavailable)
+    );
+    owner_thread
+        .join()
+        .map_err(|_panic| "wire owner panicked")?;
     Ok(())
 }

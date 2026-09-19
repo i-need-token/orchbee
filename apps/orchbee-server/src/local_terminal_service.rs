@@ -27,6 +27,7 @@ mod close_maintenance;
 mod controller_session;
 mod panel_split;
 mod projection;
+mod send;
 mod standalone;
 mod tab_close;
 mod tab_create;
@@ -99,6 +100,9 @@ impl LocalTerminalService {
                     outcome,
                 ),
             );
+        }
+        if let ClientMessage::TerminalSend(request) = request {
+            return self.execute_send(&request);
         }
         let busy = busy_result(&request);
         let (prepared, handle) = {
@@ -195,7 +199,8 @@ fn submit(handle: &WorkerRequestHandle, message: &CapabilityNodeMessage) -> Comp
             WorkerOperationResult::CwdValidation(_)
             | WorkerOperationResult::Viewer(_)
             | WorkerOperationResult::Control(_)
-            | WorkerOperationResult::Lifecycle(_),
+            | WorkerOperationResult::Lifecycle(_)
+            | WorkerOperationResult::Send(_),
         ) => Completion::Unknown,
         Err(WorkerRequestError::Backpressure) => Completion::Busy,
         Err(WorkerRequestError::PostDeliveryOutcomeUnknown(_)) => Completion::Unknown,
@@ -269,6 +274,19 @@ fn busy_result(request: &ClientMessage) -> ServerMessage {
                 },
             ))
         }
+        ClientMessage::TerminalSend(request) => ServerMessage::TerminalSendResult(
+            match orchbee_client_server_protocol::TerminalSendResult::new(
+                request.request_id().clone(),
+                None,
+                orchbee_client_server_protocol::TerminalSendOutcome::Unavailable {
+                    reason: orchbee_client_server_protocol::SendUnavailableReason::ServerBusy,
+                    cleanup: orchbee_client_server_protocol::SendCleanupStatus::NotNeeded,
+                },
+            ) {
+                Ok(result) => result,
+                Err(_) => unreachable!("validated send outcomes are encodable"),
+            },
+        ),
     }
 }
 fn unknown_result(result: &ServerMessage) -> ServerMessage {
@@ -284,6 +302,28 @@ fn unknown_result(result: &ServerMessage) -> ServerMessage {
         ),
         ServerMessage::TerminalStartResult(result) => ServerMessage::TerminalStartResult(
             TerminalStartResult::new(result.request_id().clone(), StartOutcome::OutcomeUnknown),
+        ),
+        ServerMessage::TerminalSendResult(result) => ServerMessage::TerminalSendResult(
+            match orchbee_client_server_protocol::TerminalSendResult::new(
+                result.request_id().clone(),
+                result.target().cloned(),
+                orchbee_client_server_protocol::TerminalSendOutcome::OutcomeUnknown {
+                    cleanup: orchbee_client_server_protocol::SendCleanupStatus::Unconfirmed,
+                },
+            )
+            .or_else(|_| {
+                orchbee_client_server_protocol::TerminalSendResult::new(
+                    result.request_id().clone(),
+                    None,
+                    orchbee_client_server_protocol::TerminalSendOutcome::Unavailable {
+                        reason: orchbee_client_server_protocol::SendUnavailableReason::ServerBusy,
+                        cleanup: orchbee_client_server_protocol::SendCleanupStatus::NotNeeded,
+                    },
+                )
+            }) {
+                Ok(result) => result,
+                Err(_) => unreachable!("validated send outcomes are encodable"),
+            },
         ),
     }
 }
