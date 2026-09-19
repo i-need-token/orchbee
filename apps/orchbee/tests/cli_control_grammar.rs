@@ -19,6 +19,8 @@ use std::{
     process::Output,
 };
 
+// The shared support module also carries helpers only other suites use.
+#[allow(dead_code)]
 mod support;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
