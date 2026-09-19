@@ -1,6 +1,6 @@
 use orchbee_terminal_protocol::{
-    ProtocolErrorCode, TERMINAL_ROW_WINDOW_HEADER_BYTES, TerminalRowPromptClass,
-    decode_terminal_text_row_window,
+    MAXIMUM_ROW_WINDOW_BYTES, ProtocolErrorCode, TERMINAL_ROW_WINDOW_HEADER_BYTES,
+    TerminalRowPromptClass, decode_terminal_text_row_window,
 };
 use std::{error::Error, io};
 
@@ -258,6 +258,30 @@ fn utf8_and_mapping_boundaries_reject_on_scalar_splits() -> Result<(), Box<dyn E
             .ok_or("accepted")?
             .code(),
         ProtocolErrorCode::InvalidField
+    );
+    Ok(())
+}
+
+#[test]
+fn size_bound_rejects_before_magic_is_read() -> Result<(), Box<dyn Error>> {
+    // Past the 44 MiB row-window bound the length guard fires before the magic
+    // bytes are inspected; at exactly the bound the same invalid magic is
+    // reached and named.
+    let mut bytes = vec![0_u8; MAXIMUM_ROW_WINDOW_BYTES + 1];
+    assert_eq!(
+        decode_terminal_text_row_window(&bytes)
+            .err()
+            .ok_or("over-limit window accepted")?
+            .code(),
+        ProtocolErrorCode::LimitExceeded
+    );
+    bytes.truncate(MAXIMUM_ROW_WINDOW_BYTES);
+    assert_eq!(
+        decode_terminal_text_row_window(&bytes)
+            .err()
+            .ok_or("invalid magic accepted")?
+            .code(),
+        ProtocolErrorCode::InvalidMagic
     );
     Ok(())
 }

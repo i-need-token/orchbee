@@ -255,6 +255,8 @@ fn decode_text_rows(
             return Err(error(ProtocolErrorCode::LimitExceeded));
         }
         let utf16_length = if identity_ascii {
+            // Identity rows carry no mapping entries, so no UTF-16 offset is
+            // ever compared against this value.
             0_u64
         } else {
             text.chars().map(|char| char.len_utf16() as u64).sum()
