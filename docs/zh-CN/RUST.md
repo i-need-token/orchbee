@@ -4,7 +4,8 @@
 
 本标准约束手写 Rust 源码、Cargo 清单和仓库 Cargo workspace。应用放置仍以
 [应用](APPLICATIONS.md)为权威，语义所有权和可见性从[模块边界](MODULE-BOUNDARIES.md)开始，
-仓库执行仍以[验证](VERIFICATION.md)和[测试](TESTING.md)为权威。
+仓库执行仍以[验证](VERIFICATION.md)和[测试](TESTING.md)为权威。Rust 可执行文件的命令行行为
+遵循从 [CLI 命令面](cli/command-surface.md)开始的 `cli/` 标准；其全屏行为遵循 `tui/` 标准。
 
 根目录 `rust-toolchain.toml` 固定完全一致的 compiler、Cargo、rustfmt 与 Clippy cohort。根目录
 `Cargo.toml` 是唯一 Cargo workspace root。Rust project 不得选择自己的工具链或创建嵌套 workspace。
@@ -29,6 +30,23 @@ Cargo package 名使用 kebab-case。可执行文件名与安装后的进程名�
 一个应用也绝不导入另一个应用的源码或 Cargo target。只有在行为具备稳定语义 owner 和真实
 consumer 后，才把它移到共享边界。
 
+## 必需的 crate 形态
+
+每个 Cargo member 都包含这些文件：
+
+| 路径                             | 职责                                                    |
+| -------------------------------- | ------------------------------------------------------- |
+| `Cargo.toml`                     | 身份、target、feature 和依赖；继承根 workspace package  |
+| `project.json`                   | 机器可读的范围与职责                                    |
+| `README.md` 和 `README.zh-CN.md` | 面向使用方的职责、公共边界和维护命令                    |
+| `src/lib.rs` 或 `src/main.rs`    | 唯一的 crate root；库 root 是显式的 re-export allowlist |
+| `tests/`                         | 集成与 conformance 测试；crate 声称公共边界时存在       |
+
+应用 crate 只有为了让自己的 `tests/` 树能通过一个已审阅边界触达 binary 的领域操作时，才可以在
+`src/main.rs` 旁添加 `src/lib.rs`。该库 target 不是公共 API：没有其他 workspace member 依赖它，
+其 `pub` 面仅限于该应用的测试和 binary 所消费的内容，而且当第二个使用方出现时，它绝不能成为
+跳过准入真实 `crates/*` 库的理由。
+
 ## 清单、依赖和生成状态
 
 - 每个 member 从根清单继承 `edition`、`rust-version` 和 workspace lint。
@@ -43,6 +61,22 @@ consumer 后，才把它移到共享边界。
   网络，也绝不编辑已跟踪源码。
 - `target/` 和生成的构建输出保持未跟踪。生成的 protocol binding 标明其来源，并由所属契约
   检查是否陈旧。
+
+## 依赖准入
+
+标准库是默认实现。第三方 crate 只为一项 `std` 无法正确提供的具名能力而准入，例如操作系统
+绑定、序列化、终端控制或 Unicode 分词；便利、熟悉和更短的代码都不是能力。添加依赖是
+[`DEVELOPMENT.md`](DEVELOPMENT.md#决策权威)下的保留决策。
+
+| 关注点     | 契约                                                                                                                                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 运行时框架 | workspace 不使用 async runtime、参数解析框架、错误聚合 crate 或日志框架。引入其中任何一个都是 Consequential 工作，而非单个 crate 的选择。 |
+| Feature    | 声明 `default-features = false` 并列出实际使用的 feature；启用一个 feature 按依赖变更评审。                                               |
+| 版本统一   | 直接依赖在整个 workspace 内解析为一个版本；给 `Cargo.lock` 新增重复传递版本的变更必须在评审中指出它，并说明无法统一的原因。               |
+| 传递评审   | 接受前评审新增的传递依赖树、其 `unsafe` 足迹、build script、proc macro、维护状态和许可证。                                                |
+| 开发范围   | 仅被测试、conformance 检查或构建工具使用的 crate 留在 `[dev-dependencies]` 或 `[build-dependencies]`。                                    |
+| 平台范围   | 只在一个平台需要的 crate 声明在对应的 `[target.'cfg(...)'.dependencies]` 表中。                                                           |
+| 移除       | 最后一个使用方消失的依赖在同一变更中移除。                                                                                                |
 
 ## 模块和可见性
 
@@ -59,6 +93,36 @@ consumer 后，才把它移到共享边界。
   ownership、invariant 或 dependency direction 分叉时将其拆开。
 - 生产代码避免 glob import 和 glob re-export。它们会隐藏已审阅 public surface，并让跨模块
   ownership 变更变得非局部。
+- 带子模块的模块是与目录 `name/` 并列的文件 `name.rs`；`src/` 下不使用 `mod.rs`。在 `tests/`
+  下，共享 helper 放在 `tests/support/mod.rs`，以免 Cargo 把它们编译成独立的测试 crate。
+- 父文件拥有其子模块的 `mod` 声明、可见性和 re-export；子模块绝不声明兄弟模块。
+
+## 平台特定代码
+
+- 操作系统 API 与行为放在路径命名了平台或能力的适配器模块中，例如 `linux_permissions` 或
+  `connection/native`，或放在 composition root 中。确定性领域、状态所有者和协议模块不含
+  `cfg(unix)`、`cfg(windows)` 或 `cfg(target_os = ...)`。
+- 用 `#[cfg(...)]` 门控到 item 粒度：`mod` 声明、import、字段、函数、`impl` 或 match 分支。另一
+  平台的代码不得编译进本平台的构建。`cfg!(...)` 只用于每个分支在每个 target 上都能编译的策略
+  常量。
+- 选择正确范围内最宽的谓词。`cfg(unix)` 覆盖 POSIX 行为；只有 API 仅存在于一个操作系统时才
+  收窄到 `cfg(target_os = "linux")`，并在调用处看不出原因时用注释指明该 API。
+- 不受支持的平台通过与其他拒绝相同的类型化结果失败。`#[cfg(not(unix))]` 存根只存在于适配器
+  边界，返回类型化的 unsupported-platform 结果，绝不 panic、静默降级或伪造结果。
+- 测试携带与其验证行为相同的谓词。平台行为按[测试](TESTING.md#原生应用测试)在该平台的
+  原生 runner 上证明；在其他地方编译门控代码不是证据。
+
+## 文档注释
+
+- 每个 crate root，以及每个拥有契约、状态或适配器的模块文件，都以一段 `//!` 注释开头，用一个
+  段落说明其职责和非目标。它不复述模块名，也不列举子模块。
+- crate 或模块边界上的每个 `pub` 和 `pub(crate)` item 都带有 `///` 注释，说明该 item 保证什么。
+  返回的错误有调用方必须区分的变体时添加 `# Errors`；断言了已证明不变量时添加 `# Panics`。
+- 私有 item 遵循[代码风格](CODESTYLE.md#注释)：注释解释约束或非显而易见的决策，而不是签名。
+- 注释描述当前行为。任务历史、分阶段切片标记和对话引用不属于源码。
+- 声称可编译的文档示例按[测试](#测试)参与 doctest。
+- 缺少文档是评审发现项；`missing_docs` 未启用，启用它属于[Lint 策略与执行边界](#lint-策略与执行边界)
+  下的 lint 策略变更。
 
 ## 类型与受检边界
 
@@ -122,6 +186,21 @@ consumer 后，才把它移到共享边界。
   文件系统或进程等待、回调或阻塞计算持有同步锁。将不可避免的阻塞工作与异步执行器隔离；
   截止时间不会让阻塞工作变成异步工作。
 
+## 本地进程与 IPC 边界
+
+以下规则适用于每个打开本地端点、连接本地端点或启动兄弟进程的 Rust 可执行文件。
+
+| 关注点     | 契约                                                                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 进程退出   | `main` 返回 `ExitCode`，并把一个类型化结果映射到它。库、领域和适配器代码绝不调用 `process::exit`；失败作为值传到 `main`，以便所有者析构并执行恢复。                                                                       |
+| 对端身份   | 本地端点在读取协议字节之前，先把连接对端的操作系统凭据与预期的有效用户核对。知道端点路径不授予任何权限。                                                                                                                  |
+| 运行时路径 | 运行时目录和 socket 派生自一个显式配置的 base，绝不来自当前目录、仓库或 `PATH`。创建时设置显式 mode；遍历不跟随符号链接，并检查所有者与 mode。                                                                            |
+| 路径缺陷   | 意外的所有者、mode、符号链接或文件类型是报告给调用方的类型化拒绝。进程绝不修复、删除或替换其他所有者的路径来继续执行。                                                                                                    |
+| 兄弟启动   | 启动另一个仓库可执行文件的进程，先解析确切的预期 artifact 并在启动前验证其身份；它绝不运行 `PATH` 或当前目录碰巧解析到的东西。                                                                                            |
+| 信号       | 由一个所有者安装信号处理，并把终止信号转换为一个类型化的关闭事件。处理器除发出信号外不做任何工作；中断退出遵循惯例的 `128 + signal` 退出码。                                                                              |
+| 子进程     | 每个派生的子进程都有一个负责回收它的生命周期所有者。有意保留的子进程是显式、具名的所有权转移，并有文档化的存活契约，而不是被遗忘的句柄。                                                                                  |
+| 环境       | 进程读取的变量命名为 `ORCHBEE_*`，由所属 workspace 记录，并在启动时校验。除此之外，只有[本地化产品文案](#本地化产品文案)中的 locale 变量和 [TUI 终端环境](tui/terminal-environment.md#能力探测)中的终端能力变量影响行为。 |
+
 ## Lint 策略与执行边界
 
 Workspace policy 对自有代码使用 `unsafe_code = "forbid"`。局部 `allow` 或 `expect` 无法降低它。
@@ -135,7 +214,9 @@ unsafe 代码；依赖与 feature 评审仍然必要。
 
 新增或变更的局部 lint 例外必须列出具体 lint，使用最小适用范围，并通过 `reason` 说明不变量或
 取舍。告警可靠存在时优先使用 `#[expect(...)]`，以便诊断过期例外。解释依赖配置的 `allow`
-用法；不得抑制整个模块的正确性检查或绕过仓库硬约束。
+用法；不得抑制整个模块的正确性检查或绕过仓库硬约束。`reason` 要求是评审义务：
+`clippy::allow_attributes_without_reason` 未启用，启用它属于 lint 策略变更，且必须在同一变更中
+修复每个现有例外。
 
 | 关注点              | 证据与限制                                                                                                                 |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -159,6 +240,22 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
 该权威及其 fixture；它不会复制 model 后静默重新解释。Presentation text 和本地化 diagnostic
 不是 wire contract。
 
+## 本地化产品文案
+
+原生产品文案——展示给人的诊断、帮助、标签和确认——与其他产品消息一样以 `en-US` 和
+`zh-CN` 交付。前端目录遵循[前端本地化](frontend/localization.md)；原生可执行文件遵循以下规则。
+
+- 每个可执行文件有一个 `localization` 模块，拥有全部面向人的字符串。领域、协议和适配器模块
+  返回类型化结果，绝不格式化散文。
+- 受支持的 locale 是一个封闭枚举。每条消息都是对该枚举的 `match`，没有通配分支，因此新增
+  locale 在每条消息都翻译完成前无法编译。
+- Locale 选择按 `LC_ALL`、`LC_MESSAGES`、`LANG` 的顺序读取，忽略空值，并在值缺失、非 Unicode
+  或不受支持时回退到 `en-US`。繁体中文变体解析为 `zh-CN`。
+- 机器可读输出绝不本地化：wire 字段、schema 标识符、枚举值、退出码和标识符在每种 locale 下
+  保持一致。用户控制的文本作为数据携带，按所在表面转义，绝不翻译。
+- 翻译精确保留命令、flag、路径、标识符和占位符，并使用目标语言的标点。测试按
+  [测试](TESTING.md#本地化契约)在两种 locale 下渲染每条消息。
+
 ## 测试
 
 遵循共享的[测试义务](TESTING.md#必需的单元测试)和[测试层次与成本](TESTING.md#测试层次与成本)。
@@ -166,6 +263,11 @@ Rust、TypeScript 与 Zig binding 绝不能成为同一 serialized contract 的�
 
 - Unit-test body 放在相邻 test module 文件或 crate 的 `tests/` 树中。Production module 可以保留
   挂载该文件所需的窄化 `#[cfg(test)] mod tests;` 声明，但不放 inline scenario 或 fixture。
+- 挂载的模块命名为 `tests`，位于模块旁的 `tests.rs`，或位于一个 `tests/` 目录中，由其 `tests.rs`
+  声明按行为命名的子模块，例如 `mod backpressure;`。不要给生产文件挂载其他名称或缩写的测试
+  模块。
+- 集成与 conformance 测试位于 crate 根的 `tests/` 树中，每个边界或 fixture 族一个文件；共享
+  helper 位于 `tests/support/mod.rs`。
 - 测试 public behavior、invalid 与 maximum input、partial failure 后的 cleanup、cancellation、
   stale identity、backpressure 和 deterministic shutdown。当 ordering 或 state-space 风险值得时，
   使用 property 或 model-based evidence。

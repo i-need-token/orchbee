@@ -5,7 +5,9 @@
 This standard governs authored Rust source, Cargo manifests, and the repository Cargo workspace.
 Application placement remains authoritative in [Applications](APPLICATIONS.md), semantic ownership
 and visibility begin with [Module Boundaries](MODULE-BOUNDARIES.md), and repository execution
-remains authoritative in [Verification](VERIFICATION.md) and [Testing](TESTING.md).
+remains authoritative in [Verification](VERIFICATION.md) and [Testing](TESTING.md). The
+command-line behavior of a Rust executable follows the `cli/` standards starting at
+[CLI Command Surface](cli/command-surface.md); its full-screen behavior follows the `tui/` standards.
 
 The root `rust-toolchain.toml` pins the exact compiler, Cargo, rustfmt, and Clippy cohort. The root
 `Cargo.toml` is the only Cargo workspace root. A Rust project never selects its own toolchain or
@@ -33,6 +35,24 @@ Application crates may depend on `crates/*` through workspace dependencies. A cr
 on an application crate, and one application never imports another application's source or Cargo
 target. Shared behavior moves only after it has a stable semantic owner and real consumers.
 
+## Required crate shape
+
+Every Cargo member contains these files:
+
+| Path                              | Responsibility                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------------- |
+| `Cargo.toml`                      | Identity, targets, features, and dependencies; inherits the root workspace package |
+| `project.json`                    | Machine-readable scope and responsibility                                          |
+| `README.md` and `README.zh-CN.md` | Consumer-facing responsibility, public boundary, and maintenance commands          |
+| `src/lib.rs` or `src/main.rs`     | The one crate root; a library root is an explicit re-export allowlist              |
+| `tests/`                          | Integration and conformance tests, present when the crate claims a public boundary |
+
+An application crate may add a `src/lib.rs` beside `src/main.rs` only so that its own `tests/`
+tree can reach the binary's domain operations through one reviewed boundary. That library target
+is not a public API: no other workspace member depends on it, its `pub` surface is limited to
+what the application's tests and binary consume, and it never becomes a reason to skip admitting a
+real `crates/*` library when a second consumer appears.
+
 ## Manifests, dependencies, and generated state
 
 - Every member inherits `edition`, `rust-version`, and workspace lints from the root manifest.
@@ -50,6 +70,24 @@ target. Shared behavior moves only after it has a stable semantic owner and real
 - Keep `target/` and generated build output untracked. Generated protocol bindings identify their
   source and are checked for staleness by their owning contract.
 
+## Dependency admission
+
+The standard library is the default implementation. A third-party crate is admitted for one named
+capability that `std` cannot provide correctly, such as OS bindings, serialization, terminal
+control, or Unicode segmentation; convenience, familiarity, and shorter code are not capabilities.
+Adding a dependency is a reserved decision under
+[`DEVELOPMENT.md`](DEVELOPMENT.md#decision-authority).
+
+| Concern            | Contract                                                                                                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime frameworks | The workspace uses no async runtime, argument-parsing framework, error-aggregation crate, or logging framework. Introducing one is Consequential work, not a per-crate choice.              |
+| Features           | Declare `default-features = false` and list the features actually used; enabling a feature is reviewed as a dependency change.                                                              |
+| Version unity      | Direct dependencies resolve to one version across the workspace; a change that adds a duplicate transitive version to `Cargo.lock` names it in review with the reason it cannot be unified. |
+| Transitive review  | Review the added transitive tree, its `unsafe` footprint, build scripts, proc macros, maintenance status, and license before acceptance.                                                    |
+| Development scope  | A crate used only by tests, conformance checks, or build tooling stays in `[dev-dependencies]` or `[build-dependencies]`.                                                                   |
+| Platform scope     | A crate needed on one platform is declared under the matching `[target.'cfg(...)'.dependencies]` table.                                                                                     |
+| Removal            | A dependency whose last consumer disappears is removed in the same change.                                                                                                                  |
+
 ## Modules and visibility
 
 - Use `UpperCamelCase` for types and traits, `snake_case` for modules, functions, and values, and
@@ -65,6 +103,46 @@ target. Shared behavior moves only after it has a stable semantic owner and real
   owned responsibility and split it when ownership, invariants, or dependency direction diverge.
 - Avoid glob imports and glob re-exports in production code. They hide the reviewed public surface
   and make cross-module ownership changes non-local.
+- A module with children is the file `name.rs` beside the directory `name/`; `mod.rs` is not used
+  under `src/`. Under `tests/`, shared helpers live in `tests/support/mod.rs` so Cargo does not
+  compile them as their own test crate.
+- The parent file owns the `mod` declarations, visibility, and re-exports of its children; a child
+  never declares a sibling.
+
+## Platform-specific code
+
+- Operating-system APIs and behavior live in adapter modules whose path names the platform or the
+  capability, such as `linux_permissions` or `connection/native`, or in the composition root.
+  Deterministic domain, state-owner, and protocol modules contain no `cfg(unix)`,
+  `cfg(windows)`, or `cfg(target_os = ...)`.
+- Gate with `#[cfg(...)]` on the item: the `mod` declaration, import, field, function, `impl`, or
+  match arm. Code for another platform must not compile into this platform's build. Use `cfg!(...)`
+  only for a policy constant whose every branch compiles on every target.
+- Choose the widest correct predicate. `cfg(unix)` covers POSIX behavior; narrow to
+  `cfg(target_os = "linux")` only for an API that exists on one operating system, and name that API
+  in a comment when the reason is not visible in the call.
+- An unsupported platform fails through the same typed outcome as any other rejection. A
+  `#[cfg(not(unix))]` stub exists only at the adapter boundary, returns the typed
+  unsupported-platform outcome, and never panics, silently degrades, or fabricates a result.
+- Tests carry the same predicate as the behavior they exercise. Platform behavior is proven on a
+  native runner for that platform according to [Testing](TESTING.md#native-application-tests);
+  compiling the gated code elsewhere is not evidence.
+
+## Documentation comments
+
+- Every crate root and every module file that owns a contract, state, or adapter begins with a
+  `//!` comment stating its responsibility and non-goals in one paragraph. It does not restate the
+  module name or list its children.
+- Every `pub` and `pub(crate)` item at a crate or module boundary carries a `///` comment that
+  states what the item guarantees. Add `# Errors` when the returned error has variants the caller
+  must distinguish and `# Panics` when a proven invariant is asserted.
+- Private items follow [Code Style](CODESTYLE.md#comments): a comment explains a constraint or a
+  non-obvious decision, not the signature.
+- Comments describe current behavior. Task history, staged-slice markers, and references to
+  conversations do not belong in source.
+- Doc examples that claim to compile participate in doctests under [Testing](#testing).
+- Missing documentation is a review finding; `missing_docs` is not enabled, and enabling it is a
+  lint policy change under [Lint policy and enforcement](#lint-policy-and-enforcement).
 
 ## Types and validated boundaries
 
@@ -140,6 +218,22 @@ native types; do not reproduce TypeScript file-count or syntax conventions.
   filesystem or process waits, callbacks, or blocking computation. Isolate unavoidable blocking
   work from the async executor; deadlines do not make blocking work asynchronous.
 
+## Local process and IPC boundaries
+
+These rules apply to every Rust executable that opens a local endpoint, connects to one, or
+launches a sibling process.
+
+| Concern         | Contract                                                                                                                                                                                                                                                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Process exit    | `main` returns `ExitCode` and maps one typed outcome to it. Library, domain, and adapter code never calls `process::exit`; a failure travels to `main` as a value so owners drop and restoration runs.                                                                                                                                                 |
+| Peer identity   | A local endpoint verifies the connecting peer's operating-system credentials against the expected effective user before reading protocol bytes. Knowing an endpoint path grants nothing.                                                                                                                                                               |
+| Runtime paths   | Runtime directories and sockets derive from one explicitly configured base, never from the current directory, the repository, or `PATH`. Creation sets an explicit mode; traversal is no-follow and owner- and mode-checked.                                                                                                                           |
+| Path defects    | An unexpected owner, mode, symlink, or file type is a typed rejection reported to the caller. The process never repairs, removes, or replaces another owner's path to proceed.                                                                                                                                                                         |
+| Sibling launch  | A process that launches another repository executable resolves the exact expected artifact and verifies its identity before launch; it never runs whatever `PATH` or the current directory resolves.                                                                                                                                                   |
+| Signals         | One owner installs signal handling and translates termination signals into one typed shutdown event. Handlers do no work beyond signaling; interruption exits follow the conventional `128 + signal` code.                                                                                                                                             |
+| Child processes | Every spawned child has one lifetime owner that reaps it. A deliberately retained child is an explicit, named ownership transfer with a documented survivor contract, not a forgotten handle.                                                                                                                                                          |
+| Environment     | Variables the process reads are named `ORCHBEE_*`, documented by the owning workspace, and validated at startup. Beyond them, only the locale variables in [Localized product copy](#localized-product-copy) and the terminal capability variables in [TUI Terminal Environment](tui/terminal-environment.md#capability-detection) influence behavior. |
+
 ## Lint policy and enforcement
 
 Workspace policy uses `unsafe_code = "forbid"` for authored code. A local `allow` or `expect`
@@ -158,6 +252,9 @@ New or changed local lint exceptions name the specific lint, use the narrowest a
 and give a `reason` describing the invariant or tradeoff. Prefer `#[expect(...)]` when the warning
 is reliably present so an obsolete exception is diagnosed. Explain configuration-dependent `allow`
 uses; do not suppress a whole module's correctness checks or bypass a repository hard constraint.
+The `reason` requirement is a review obligation: `clippy::allow_attributes_without_reason` is not
+enabled, and enabling it is a lint policy change that must fix every existing exception in the
+same change.
 
 | Concern                          | Evidence and limits                                                                                                                                                                                      |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -182,6 +279,26 @@ otherwise. A Rust implementation consumes that authority and its fixtures; it do
 model and silently reinterpret it. Presentation text and localized diagnostics are not wire
 contracts.
 
+## Localized product copy
+
+Native product copy — diagnostics, help, labels, and confirmations shown to a person — ships in
+`en-US` and `zh-CN` like every other product message. Frontend catalogs follow
+[Frontend Localization](frontend/localization.md); native executables follow these rules.
+
+- One `localization` module per executable owns every human-facing string. Domain, protocol, and
+  adapter modules return typed outcomes and never format prose.
+- The supported locales are a closed enum. Every message is a `match` over that enum with no
+  wildcard arm, so adding a locale fails to compile until every message is translated.
+- Locale selection reads `LC_ALL`, `LC_MESSAGES`, and `LANG` in that order, ignores empty values,
+  and falls back to `en-US` for an absent, non-Unicode, or unsupported value. Traditional Chinese
+  variants resolve to `zh-CN`.
+- Machine-readable output is never localized: wire fields, schema identifiers, enum values, exit
+  codes, and identifiers stay identical under every locale. User-controlled text is carried as
+  data, escaped for the surface, and never translated.
+- Translations preserve commands, flags, paths, identifiers, and placeholders exactly and use the
+  target language's punctuation. Tests render every message under both locales according to
+  [Testing](TESTING.md#localization-contracts).
+
 ## Testing
 
 Follow the shared [test obligations](TESTING.md#required-unit-tests) and
@@ -191,6 +308,11 @@ modules; neither a new source file nor a new function requires a companion test 
 - Put unit-test bodies in an adjacent test module file or in the crate's `tests/` tree. A production
   module may contain the narrow `#[cfg(test)] mod tests;` declaration needed to attach that file,
   but not inline scenarios or fixtures.
+- The attached module is named `tests` and lives in `tests.rs` beside the module, or in a `tests/`
+  directory whose `tests.rs` declares behavior-named children such as `mod backpressure;`. Do not
+  attach differently named or abbreviated test modules to production files.
+- Integration and conformance tests live in the crate root `tests/` tree, one file per boundary or
+  fixture family; shared helpers live in `tests/support/mod.rs`.
 - Test public behavior, invalid and maximum inputs, cleanup after partial failure, cancellation,
   stale identity, backpressure, and deterministic shutdown. Use property or model-based evidence
   when ordering or state-space risk justifies it.

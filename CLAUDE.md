@@ -35,7 +35,7 @@
 - **Development**: `docs/DEVELOPMENT.md` — change classification, decision authority, staged governed-write control, and convergence
 - **Modeling and Correctness**: `docs/MODELING-AND-CORRECTNESS.md` — model-first behavior design and risk-based correctness evidence
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
-- **Rust**: `docs/RUST.md` — Cargo workspace placement, ownership, safety, concurrency, contracts, and verification
+- **Rust**: `docs/RUST.md` — Cargo workspace placement, crate shape, dependency admission, platform gating, ownership, safety, concurrency, process boundaries, localization, contracts, and verification
 - **Zig**: `docs/ZIG.md` — native naming, resource ownership, safety, concurrency, and testing
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
 - **Frontend Package Boundaries**: `docs/frontend/package-boundaries.md` — frontend workspace placement, semantic ownership, dependency direction, and platform ports
@@ -60,6 +60,10 @@
 - **TUI Overlays and Status**: `docs/tui/overlays-and-status.md` — surface selection, overlay composition, confirmations, status line, notices, and pending indication
 - **TUI Terminal Environment**: `docs/tui/terminal-environment.md` — host admission, mode lifecycle, capability detection, output discipline, and restoration
 - **TUI Verification**: `docs/tui/verification.md` — structural prerequisites and render, input, environment, and host evidence for terminal interfaces
+- **CLI Command Surface**: `docs/cli/command-surface.md` — grammar authority, command paths, options, targets, help, completion, destructive commands, Agent discoverability, and environment variables
+- **CLI Output**: `docs/cli/output.md` — stream split, formats, machine documents, exit codes, text rendering, bounds, streamed records, and localization
+- **CLI Process**: `docs/cli/process.md` — input trust boundary, parse before effect, deadlines, side effects, request identity, signals, and runtime discovery
+- **CLI Verification**: `docs/cli/verification.md` — structural prerequisites and grammar, effect, exit-code, text, bounds, and process evidence for command-line surfaces
 
 ## Project Structure
 

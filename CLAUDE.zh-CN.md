@@ -35,7 +35,7 @@
 - **开发**：`docs/DEVELOPMENT.md` — 变更分类、决策权、分阶段受治理写入控制和收敛
 - **建模与正确性**：`docs/MODELING-AND-CORRECTNESS.md` — 模型优先的行为设计和基于风险的正确性证据
 - **TypeScript**：`docs/TYPESCRIPT.md` — 零妥协类型安全和禁用模式
-- **Rust**：`docs/RUST.md` — Cargo 工作区位置、所有权、安全性、并发、契约和验证
+- **Rust**：`docs/RUST.md` — Cargo 工作区位置、crate 形态、依赖准入、平台门控、所有权、安全性、并发、进程边界、本地化、契约和验证
 - **Zig**：`docs/ZIG.md` — 原生命名、资源所有权、安全性、并发和测试
 - **测试**：`docs/TESTING.md` — 测试布局、执行和回归要求
 - **前端包边界**：`docs/frontend/package-boundaries.md` — 前端工作区位置、语义所有权、依赖方向和平台端口
@@ -60,6 +60,10 @@
 - **TUI 覆盖层与状态**：`docs/tui/overlays-and-status.md` — 表面选择、覆盖层组合、确认、状态行、通知和等待指示
 - **TUI 终端环境**：`docs/tui/terminal-environment.md` — 宿主准入、模式生命周期、能力探测、输出纪律和恢复
 - **TUI 验证**：`docs/tui/verification.md` — 终端界面的结构前提以及渲染、输入、环境和宿主证据
+- **CLI 命令面**：`docs/cli/command-surface.md` — 语法权威、命令路径、选项、target、帮助、补全、破坏性命令、Agent 可发现性和环境变量
+- **CLI 输出**：`docs/cli/output.md` — 流划分、格式、机器文档、退出码、文本渲染、上限、流式记录和本地化
+- **CLI 进程**：`docs/cli/process.md` — 输入信任边界、解析先于效果、截止时间、副作用、请求身份、信号和运行时发现
+- **CLI 验证**：`docs/cli/verification.md` — 命令行面的结构前提以及语法、效果、退出码、文本、上限和进程证据
 
 ## 项目结构
 
