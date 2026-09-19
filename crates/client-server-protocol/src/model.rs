@@ -132,6 +132,7 @@ pub enum ClientMessage {
     TerminalCreate(TerminalCreateRequest),
     TerminalStart(TerminalStartRequest),
     TerminalViewer(crate::TerminalViewerRequest),
+    TerminalSend(crate::TerminalSendRequest),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -295,6 +296,7 @@ pub enum ServerMessage {
     TerminalCreateResult(TerminalCreateResult),
     TerminalStartResult(TerminalStartResult),
     TerminalViewerResult(crate::TerminalViewerResult),
+    TerminalSendResult(crate::TerminalSendResult),
 }
 
 #[cfg(test)]

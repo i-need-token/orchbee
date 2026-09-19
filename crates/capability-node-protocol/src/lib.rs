@@ -4,6 +4,7 @@ mod identity;
 mod terminal_cwd_validation;
 mod terminal_launch;
 mod terminal_lifecycle;
+mod terminal_send;
 mod terminal_viewer;
 
 pub use terminal_viewer::{
@@ -50,4 +51,9 @@ pub use terminal_control::{
     ControlInput, ControlRejection, MAXIMUM_CONTROL_INPUT_BYTES, MAXIMUM_PASTE_CONTENT_BYTES,
     PasteAcceptedBytes, PasteContent, TerminalControlAction, TerminalControlOutcome,
     TerminalControlRequest, TerminalControlResult,
+};
+pub use terminal_send::{
+    MAXIMUM_SEND_ACCEPTED_BYTES, MAXIMUM_SEND_TEXT_BYTES, SendAcceptedBytes, SendCleanupStatus,
+    SendKey, SendRejection, SendText, SendTextInput, SendUnavailable, TerminalSendOutcome,
+    TerminalSendPayload, TerminalSendRequest, TerminalSendResult,
 };

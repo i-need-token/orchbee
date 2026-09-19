@@ -256,6 +256,46 @@ is a raw record alongside the frame stream, like `OBNR`. Codec tests cover
 all actions/outcomes/reasons, raw byte preservation, maximum input and invalid scope bounds. The
 Server and Worker guides own single-controller reservation, cleanup and real PTY evidence.
 
+## Send messages
+
+OBCN kind 13 `TerminalSendRequest` and kind 14 `TerminalSendResult` carry one Server-authorized
+non-interactive input submission. Server allocates a fresh request identity and the input-only
+attachment identity; Worker never mints either, never consults its viewer or controller maps, and
+never re-resolves the target by a logical terminal ID — the request already pins the exact
+authorized incarnation.
+
+A request contains request ID (16 bytes), Worker ID (16), Worker generation (u64), the exact
+Host terminal identity (48: creation ID + Host epoch + Host terminal ID), then the
+Server-assigned attachment ID (16), then a payload tag: 1 text or 2 key. Text adds a u16
+length and 1 through 4,096 UTF-8 bytes plus an `enter` flag byte (0 or 1); the carriage return is
+declared inside the same payload, so one request always encodes exactly one Host input record and
+`text` + `enter` together must fit the 4,096-byte bound. Key adds a closed u8 code: 1 Enter,
+2 Escape, 3 Tab, 4 Backspace, 5 Delete, 6 Up, 7 Down, 8 Left, 9 Right, 10 Home, 11 End, 12 PageUp,
+13 PageDown, 14 CtrlC, 15 CtrlD. All integers are big-endian and all IDs nonzero. The generation,
+epoch, and terminal identity are fences: the Worker rejects a request pinned to a different
+generation or epoch instead of rebinding, and no restart-rebind behavior exists in this contract.
+
+A result contains the request ID (16), then the input axis — 1 Unavailable with a reason byte
+(1 HostUnavailable, 2 HostProtocolFault), 2 Rejected with a reason byte (1 WrongWorker,
+2 StaleWorkerGeneration, 3 StaleHostEpoch, 4 TerminalUnavailable, 5 HostRejected,
+6 HostInputInvalid, 7 HostInputLimitExceeded, 8 HostInputBackpressure, 9 HostInputUnavailable),
+3 Accepted with the u32 `accepted_bytes` count the Host encoded into its input queue (zero is
+legal when a mode ignores a semantic key; it is never the request byte length or a key-name
+length), or 4 Unknown — then the orthogonal cleanup axis byte: 1 NotNeeded, 2 Confirmed, or
+3 Unconfirmed. Two pairs cannot arise from the Attach → input → Detach sequence and are rejected
+at construction and at both codec boundaries: Accepted + NotNeeded (an accepted input implies a
+real attachment) and Unknown + Confirmed (a confirmed release implies a completed exchange).
+Unknown and Unconfirmed mean the input may have landed or the attachment may persist; neither may
+be retried automatically. A definite Host rejection still releases the temporary attachment,
+while a desynchronizing exchange is answered by closing the Worker-Host carrier rather than
+further requests — the degraded cleanup status records that honestly instead of claiming release.
+
+The 8 KiB OBCN frame limit, exact-length decoding, direction rules, and nonzero-identity rules are
+unchanged. This message grants no controller, viewer, resize, or lease authority and consumes no
+slot in either map; the authorized attachment is temporary to one sequential send. Codec tests
+cover every payload/outcome/reason combination, strict goldens, unknown tags, trailing bytes, and
+boundary lengths; the Server and Worker guides own admission and the real Host evidence.
+
 ## Authorization outcomes
 
 Pre-admission rejection distinguishes wrong Worker, stale generation, expired lease, stale fence,

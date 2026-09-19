@@ -83,6 +83,46 @@ rejection reasons, paste maps the Host typed failures `host-input-invalid`,
 The schema-owner's corpus checks each action/outcome/reason and malformed, maximum, and excessive
 inputs. This binding grants no controller authority and never retries an unknown effect.
 
+## Send binding
+
+`TerminalSendRequest`, `TerminalSendPayload`, `TerminalSendResult`, and `TerminalSendOutcome`
+carry one Server-authorized non-interactive input submission to an exposed Workbench terminal.
+The request is a flat `requestId` + `siteId`/`workerId`/`terminalId` binding triple + closed
+payload union; the triple is the declared target the Server resolves at authorize time, not an
+incarnation lock. The binding grants no controller, viewer, resize, or lease authority, consumes
+no attachment slot, and never rebinds across a restart: a target that changed worker or Host
+incarnation after admission fails or reports an unknown outcome instead of redirecting.
+
+`TerminalSendPayload` is exactly one of `text` or `key`. `text` carries a `SendTextInput`
+pairing validated non-empty UTF-8 `SendText` with an `enter` flag; the carriage return folds into
+the same payload, so one send is always exactly one Host input record. `SendText` accepts up to
+`MAXIMUM_SEND_TEXT_BYTES` (4,096) bytes, and `SendTextInput::new` enforces the combined bound:
+`text` + `enter` together must fit it — a 4,096-byte text is legal only without `enter`. The
+fields are private so no public construction or decoding path can exceed the bound, and the wire
+encoder re-checks it independently. `key` carries one `SendKey` from the closed 15-name set
+(`enter`, `escape`, `tab`, `backspace`, `delete`, `up`, `down`, `left`, `right`, `home`, `end`,
+`page-up`, `page-down`, `ctrl-c`, `ctrl-d`); modifiers are not expressible beyond the named
+`ctrl-` variants, and arbitrary key sequences, multi-record atomicity, raw hex, and paste are
+outside this contract.
+
+Every `TerminalSendOutcome` variant carries the orthogonal `cleanup` axis:
+`accepted`/`rejected`/`unavailable`/`outcome-unknown` each pair their status with
+`not-needed`, `confirmed`, or `unconfirmed` attachment cleanup. Two pairs cannot arise from the
+Attach → input → Detach sequence and are rejected at construction and at both codec boundaries:
+`accepted` + `not-needed` (an accepted input implies a real attachment) and
+`outcome-unknown` + `confirmed` (a confirmed release implies a completed exchange). `accepted`
+echoes `acceptedBytes`, the Host-encoded input-queue count (`SendAcceptedBytes`, zero through
+`Self::MAXIMUM`); zero is legal because a terminal mode may ignore a semantic key. Accepted means
+the Host admitted the record to its input queue — never that a child process read, executed, or
+completed it. Rejection and unavailability reasons are closed sets; `outcome-unknown` means the
+record may have landed and must never be retried automatically.
+
+`TerminalSendResult` also carries `target`: the `SendTarget` physical incarnation — worker
+generation, Host epoch, and Host terminal identity — the Server actually admitted for the send.
+It is present whenever the request was resolved to a current authorized binding; a rejection
+decided before any binding was admitted carries `null` rather than an invented or caller-expected
+identity. Consumers read the recorded target fields verbatim and never re-resolve them.
+
 ## Request boundary
 
 The crate models no replay lookup, historical duplicate detection, or runtime idempotency ledger.

@@ -66,6 +66,7 @@ define_identity!(SiteId);
 define_identity!(WorkerId);
 define_identity!(TerminalId);
 define_identity!(HostEpoch);
+define_identity!(HostTerminalId);
 define_identity!(ViewerId);
 
 fn validate_identity(value: &str) -> Result<(), IdentityError> {

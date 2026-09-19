@@ -33,6 +33,12 @@
 		},
 		{
 			"$ref": "#/$defs/terminalOpenResult"
+		},
+		{
+			"$ref": "#/$defs/terminalSend"
+		},
+		{
+			"$ref": "#/$defs/terminalSendResult"
 		}
 	],
 	"$defs": {
@@ -1030,6 +1036,289 @@
 				},
 				"outcome": {
 					"$ref": "#/$defs/openOutcome"
+				}
+			}
+		},
+		"hostEpoch": {
+			"title": "HostEpoch",
+			"$ref": "#/$defs/identity"
+		},
+		"hostTerminalId": {
+			"title": "HostTerminalId",
+			"$ref": "#/$defs/identity"
+		},
+		"sendText": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4096,
+			"$comment": "Non-empty UTF-8 text; the combined byte length including the optional folded carriage return must not exceed 4096 bytes, enforced semantically on decoded UTF-8."
+		},
+		"sendKey": {
+			"enum": [
+				"enter",
+				"escape",
+				"tab",
+				"backspace",
+				"delete",
+				"up",
+				"down",
+				"left",
+				"right",
+				"home",
+				"end",
+				"page-up",
+				"page-down",
+				"ctrl-c",
+				"ctrl-d"
+			]
+		},
+		"sendPayload": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"text",
+						"enter"
+					],
+					"properties": {
+						"kind": {
+							"const": "text"
+						},
+						"text": {
+							"$ref": "#/$defs/sendText"
+						},
+						"enter": {
+							"type": "boolean"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"key"
+					],
+					"properties": {
+						"kind": {
+							"const": "key"
+						},
+						"key": {
+							"$ref": "#/$defs/sendKey"
+						}
+					}
+				}
+			]
+		},
+		"sendTarget": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"workerGeneration",
+				"hostEpoch",
+				"hostTerminalId"
+			],
+			"properties": {
+				"workerGeneration": {
+					"$ref": "#/$defs/projectionPositive"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/hostEpoch"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/hostTerminalId"
+				}
+			},
+			"$comment": "The exact physical incarnation admitted for the send; recorded on the result only after admission resolves a current authorized binding."
+		},
+		"sendCleanupStatus": {
+			"enum": [
+				"not-needed",
+				"confirmed",
+				"unconfirmed"
+			]
+		},
+		"sendRejectedReason": {
+			"enum": [
+				"terminal-unavailable",
+				"stale-worker-generation",
+				"stale-host-epoch",
+				"host-rejected",
+				"host-input-invalid",
+				"host-input-limit-exceeded",
+				"host-input-backpressure",
+				"host-input-unavailable"
+			]
+		},
+		"sendUnavailableReason": {
+			"enum": [
+				"server-busy",
+				"worker-unavailable",
+				"terminal-runtime-unavailable",
+				"host-unavailable",
+				"host-protocol-fault"
+			]
+		},
+		"sendOutcome": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"acceptedBytes",
+						"cleanup"
+					],
+					"properties": {
+						"kind": {
+							"const": "accepted"
+						},
+						"acceptedBytes": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 1048576
+						},
+						"cleanup": {
+							"enum": [
+								"confirmed",
+								"unconfirmed"
+							]
+						}
+					},
+					"$comment": "An accepted input implies a real attachment, so cleanup is never not-needed."
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"reason",
+						"cleanup"
+					],
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"$ref": "#/$defs/sendRejectedReason"
+						},
+						"cleanup": {
+							"$ref": "#/$defs/sendCleanupStatus"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"reason",
+						"cleanup"
+					],
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/sendUnavailableReason"
+						},
+						"cleanup": {
+							"$ref": "#/$defs/sendCleanupStatus"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"cleanup"
+					],
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
+						},
+						"cleanup": {
+							"enum": [
+								"not-needed",
+								"unconfirmed"
+							]
+						}
+					},
+					"$comment": "A confirmed cleanup implies a completed exchange, so it never accompanies an unknown outcome."
+				}
+			]
+		},
+		"terminalSend": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"siteId",
+				"workerId",
+				"terminalId",
+				"payload"
+			],
+			"properties": {
+				"kind": {
+					"const": "terminal.send"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"siteId": {
+					"$ref": "#/$defs/siteId"
+				},
+				"workerId": {
+					"$ref": "#/$defs/workerId"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/terminalId"
+				},
+				"payload": {
+					"$ref": "#/$defs/sendPayload"
+				}
+			}
+		},
+		"terminalSendResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"target",
+				"outcome"
+			],
+			"properties": {
+				"kind": {
+					"const": "terminal.send.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"target": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/sendTarget"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"outcome": {
+					"$ref": "#/$defs/sendOutcome"
 				}
 			}
 		}

@@ -1185,3 +1185,334 @@ fn pasted_result_and_paste_rejections_round_trip() -> Result<(), Box<dyn std::er
     }
     Ok(())
 }
+
+fn send_request(payload: crate::TerminalSendPayload) -> crate::TerminalSendRequest {
+    crate::TerminalSendRequest {
+        request_id: OperationId::from_bytes([21; 16]).expect("id"),
+        worker_id: WorkerId::from_bytes([22; 16]).expect("id"),
+        worker_generation: WorkerGeneration::new(NonZeroU64::new(9).expect("nonzero")),
+        target: HostTerminalIdentity::new(
+            HostCreationId::from_bytes([23; 16]).expect("id"),
+            HostEpoch::from_bytes([24; 16]).expect("id"),
+            HostTerminalId::from_bytes([25; 16]).expect("id"),
+        ),
+        attachment_id: OperationId::from_bytes([26; 16]).expect("id"),
+        payload,
+    }
+}
+
+#[test]
+fn send_text_request_encodes_the_documented_golden_frame() -> Result<(), Box<dyn std::error::Error>>
+{
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(
+        crate::TerminalSendPayload::new_text(crate::SendText::new("ls -la".to_string())?, true)?,
+    ));
+    let mut expected = Vec::from(*b"OBCN");
+    expected.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
+    expected.extend_from_slice(&115_u16.to_be_bytes());
+    expected.push(13);
+    expected.extend_from_slice(&[21; 16]);
+    expected.extend_from_slice(&[22; 16]);
+    expected.extend_from_slice(&9_u64.to_be_bytes());
+    expected.extend_from_slice(&[23; 16]);
+    expected.extend_from_slice(&[24; 16]);
+    expected.extend_from_slice(&[25; 16]);
+    expected.extend_from_slice(&[26; 16]);
+    expected.push(1);
+    expected.extend_from_slice(&6_u16.to_be_bytes());
+    expected.extend_from_slice(b"ls -la");
+    expected.push(1);
+    assert_eq!(encode_message(&request)?, expected);
+    assert_eq!(expected.len(), 123);
+    assert_eq!(decode_message(&expected)?, request);
+    Ok(())
+}
+
+#[test]
+fn send_key_request_uses_one_numeric_key_code() -> Result<(), Box<dyn std::error::Error>> {
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(
+        crate::TerminalSendPayload::new_key(crate::SendKey::CtrlC),
+    ));
+    let encoded = encode_message(&request)?;
+    assert_eq!(encoded.len(), 8 + 107);
+    assert_eq!(encoded[8], 13);
+    assert_eq!(&encoded[8 + 105..], &[2, 14]);
+    assert_eq!(decode_message(&encoded)?, request);
+    Ok(())
+}
+
+#[test]
+fn send_request_decode_enforces_every_boundary() -> Result<(), Box<dyn std::error::Error>> {
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(
+        crate::TerminalSendPayload::new_text(crate::SendText::new("hi".to_string())?, false)?,
+    ));
+    let encoded = encode_message(&request)?;
+
+    let mut trailing = encoded.clone();
+    trailing.push(0);
+    let trailing_length = u16::try_from(trailing.len() - 8)?;
+    trailing[6..8].copy_from_slice(&trailing_length.to_be_bytes());
+    assert_eq!(
+        decode_message(&trailing),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut bad_tag = encoded.clone();
+    bad_tag[8 + 105] = 9;
+    assert_eq!(decode_message(&bad_tag), Err(ProtocolError::InvalidPayload));
+
+    let mut bad_key = encoded.clone();
+    bad_key[8 + 105] = 2;
+    bad_key[8 + 106] = 16;
+    let mut bad_key_frame = bad_key[..8 + 107].to_vec();
+    assert_eq!(
+        decode_message(&bad_key_frame),
+        Err(ProtocolError::InvalidPayload)
+    );
+    bad_key_frame[8 + 106] = 0;
+    assert_eq!(
+        decode_message(&bad_key_frame),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut bad_utf8 = encoded.clone();
+    bad_utf8[8 + 109] = 0x80;
+    assert_eq!(
+        decode_message(&bad_utf8),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut bad_enter = encoded.clone();
+    bad_enter[8 + 110] = 2;
+    assert_eq!(
+        decode_message(&bad_enter),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut zero_generation = encoded.clone();
+    zero_generation[8 + 33..8 + 41].copy_from_slice(&0_u64.to_be_bytes());
+    assert_eq!(
+        decode_message(&zero_generation),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut zero_epoch = encoded.clone();
+    zero_epoch[8 + 57..8 + 73].fill(0);
+    assert_eq!(
+        decode_message(&zero_epoch),
+        Err(ProtocolError::InvalidIdentity)
+    );
+
+    let mut zero_attachment = encoded.clone();
+    zero_attachment[8 + 89..8 + 105].fill(0);
+    assert_eq!(
+        decode_message(&zero_attachment),
+        Err(ProtocolError::InvalidIdentity)
+    );
+    Ok(())
+}
+
+#[test]
+fn send_text_bound_counts_the_folded_return() -> Result<(), Box<dyn std::error::Error>> {
+    let maximum = "x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES);
+    assert!(
+        crate::TerminalSendPayload::new_text(crate::SendText::new(maximum.clone())?, false).is_ok()
+    );
+    assert!(crate::TerminalSendPayload::new_text(crate::SendText::new(maximum)?, true).is_err());
+    assert!(
+        crate::TerminalSendPayload::new_text(
+            crate::SendText::new("x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES - 1))?,
+            true
+        )
+        .is_ok()
+    );
+
+    let request = CapabilityNodeMessage::TerminalSendRequest(send_request(
+        crate::TerminalSendPayload::new_text(
+            crate::SendText::new("x".repeat(crate::MAXIMUM_SEND_TEXT_BYTES - 1))?,
+            true,
+        )?,
+    ));
+    let encoded = encode_message(&request)?;
+    assert_eq!(
+        encoded.len(),
+        8 + 105 + 1 + 2 + (crate::MAXIMUM_SEND_TEXT_BYTES - 1) + 1
+    );
+    assert_eq!(decode_message(&encoded)?, request);
+
+    // A wire frame declaring MAXIMUM text bytes plus the folded return is one
+    // byte over the combined bound and must be rejected.
+    let mut overlong = encoded.clone();
+    overlong[8 + 106..8 + 108]
+        .copy_from_slice(&u16::try_from(crate::MAXIMUM_SEND_TEXT_BYTES)?.to_be_bytes());
+    overlong.insert(8 + 108 + crate::MAXIMUM_SEND_TEXT_BYTES - 1, b'x');
+    let overlong_length = u16::try_from(overlong.len() - 8)?;
+    overlong[6..8].copy_from_slice(&overlong_length.to_be_bytes());
+    assert_eq!(
+        decode_message(&overlong),
+        Err(ProtocolError::InvalidPayload)
+    );
+    Ok(())
+}
+
+#[test]
+fn send_result_golden_and_outcome_axes() -> Result<(), Box<dyn std::error::Error>> {
+    let accepted = CapabilityNodeMessage::TerminalSendResult(crate::TerminalSendResult::new(
+        OperationId::from_bytes([31; 16])?,
+        crate::TerminalSendOutcome::Accepted {
+            accepted_bytes: crate::SendAcceptedBytes::new(2)?,
+            cleanup: crate::SendCleanupStatus::Confirmed,
+        },
+    )?);
+    let mut expected = Vec::from(*b"OBCN");
+    expected.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
+    expected.extend_from_slice(&23_u16.to_be_bytes());
+    expected.push(14);
+    expected.extend_from_slice(&[31; 16]);
+    expected.push(3);
+    expected.extend_from_slice(&2_u32.to_be_bytes());
+    expected.push(2);
+    assert_eq!(encode_message(&accepted)?, expected);
+    assert_eq!(expected.len(), 31);
+    assert_eq!(decode_message(&expected)?, accepted);
+
+    let zero_key_press = CapabilityNodeMessage::TerminalSendResult(crate::TerminalSendResult::new(
+        OperationId::from_bytes([31; 16])?,
+        crate::TerminalSendOutcome::Accepted {
+            accepted_bytes: crate::SendAcceptedBytes::new(0)?,
+            cleanup: crate::SendCleanupStatus::Unconfirmed,
+        },
+    )?);
+    assert_eq!(
+        decode_message(&encode_message(&zero_key_press)?)?,
+        zero_key_press
+    );
+
+    for outcome in [
+        crate::TerminalSendOutcome::Unavailable {
+            reason: crate::SendUnavailable::HostUnavailable,
+            cleanup: crate::SendCleanupStatus::NotNeeded,
+        },
+        crate::TerminalSendOutcome::Rejected {
+            reason: crate::SendRejection::WrongWorker,
+            cleanup: crate::SendCleanupStatus::NotNeeded,
+        },
+        crate::TerminalSendOutcome::Rejected {
+            reason: crate::SendRejection::HostInputBackpressure,
+            cleanup: crate::SendCleanupStatus::Unconfirmed,
+        },
+        crate::TerminalSendOutcome::OutcomeUnknown {
+            cleanup: crate::SendCleanupStatus::Unconfirmed,
+        },
+    ] {
+        let message = CapabilityNodeMessage::TerminalSendResult(crate::TerminalSendResult::new(
+            OperationId::from_bytes([31; 16])?,
+            outcome,
+        )?);
+        assert_eq!(decode_message(&encode_message(&message)?)?, message);
+    }
+    Ok(())
+}
+
+#[test]
+fn send_result_rejects_unknown_codes_and_impossible_pairs() -> Result<(), Box<dyn std::error::Error>>
+{
+    let result = CapabilityNodeMessage::TerminalSendResult(crate::TerminalSendResult::new(
+        OperationId::from_bytes([31; 16])?,
+        crate::TerminalSendOutcome::Rejected {
+            reason: crate::SendRejection::HostInputInvalid,
+            cleanup: crate::SendCleanupStatus::Confirmed,
+        },
+    )?);
+    let encoded = encode_message(&result)?;
+
+    let mut unknown_input = encoded.clone();
+    unknown_input[8 + 17] = 9;
+    assert_eq!(
+        decode_message(&unknown_input),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut unknown_reason = encoded.clone();
+    unknown_reason[8 + 18] = 10;
+    assert_eq!(
+        decode_message(&unknown_reason),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut unknown_cleanup = encoded.clone();
+    unknown_cleanup[8 + 19] = 4;
+    assert_eq!(
+        decode_message(&unknown_cleanup),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    // `Accepted` with `not-needed` cleanup cannot arise from a real
+    // Attach → input → Detach sequence and is rejected on the wire.
+    let mut accepted_no_attachment = Vec::from(*b"OBCN");
+    accepted_no_attachment.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
+    accepted_no_attachment.extend_from_slice(&22_u16.to_be_bytes());
+    accepted_no_attachment.push(14);
+    accepted_no_attachment.extend_from_slice(&[31; 16]);
+    accepted_no_attachment.push(3);
+    accepted_no_attachment.extend_from_slice(&5_u32.to_be_bytes());
+    accepted_no_attachment.push(1);
+    assert_eq!(
+        decode_message(&accepted_no_attachment),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut unknown_confirmed = encoded.clone();
+    unknown_confirmed[8 + 17] = 4;
+    unknown_confirmed[8 + 18] = 2;
+    let mut unknown_confirmed_frame = unknown_confirmed[..8 + 19].to_vec();
+    let unknown_confirmed_length = u16::try_from(unknown_confirmed_frame.len() - 8)?;
+    unknown_confirmed_frame[6..8].copy_from_slice(&unknown_confirmed_length.to_be_bytes());
+    assert_eq!(
+        decode_message(&unknown_confirmed_frame),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut trailing = encoded.clone();
+    trailing.push(0);
+    let trailing_length = u16::try_from(trailing.len() - 8)?;
+    trailing[6..8].copy_from_slice(&trailing_length.to_be_bytes());
+    assert_eq!(
+        decode_message(&trailing),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    let mut oversized_accepted = Vec::from(*b"OBCN");
+    oversized_accepted.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
+    oversized_accepted.extend_from_slice(&22_u16.to_be_bytes());
+    oversized_accepted.push(14);
+    oversized_accepted.extend_from_slice(&[31; 16]);
+    oversized_accepted.push(3);
+    oversized_accepted.extend_from_slice(&(crate::MAXIMUM_SEND_ACCEPTED_BYTES + 1).to_be_bytes());
+    oversized_accepted.push(2);
+    assert_eq!(
+        decode_message(&oversized_accepted),
+        Err(ProtocolError::InvalidPayload)
+    );
+
+    assert!(
+        crate::TerminalSendResult::new(
+            OperationId::from_bytes([31; 16])?,
+            crate::TerminalSendOutcome::Accepted {
+                accepted_bytes: crate::SendAcceptedBytes::new(0)?,
+                cleanup: crate::SendCleanupStatus::NotNeeded,
+            },
+        )
+        .is_err()
+    );
+    assert!(
+        crate::TerminalSendResult::new(
+            OperationId::from_bytes([31; 16])?,
+            crate::TerminalSendOutcome::OutcomeUnknown {
+                cleanup: crate::SendCleanupStatus::Confirmed,
+            },
+        )
+        .is_err()
+    );
+    Ok(())
+}

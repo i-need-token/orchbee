@@ -7,6 +7,7 @@ mod model;
 mod number;
 mod open;
 mod paste_record;
+mod send;
 mod viewer;
 mod viewer_record;
 mod wire;
@@ -30,7 +31,8 @@ pub use geometry::{
     MAXIMUM_TERMINAL_CELLS,
 };
 pub use identity::{
-    ControllerId, HostEpoch, IdentityError, RequestId, SiteId, TerminalId, ViewerId, WorkerId,
+    ControllerId, HostEpoch, HostTerminalId, IdentityError, RequestId, SiteId, TerminalId,
+    ViewerId, WorkerId,
 };
 pub use model::{
     ClientMessage, CreateAcceptedState, CreateFailureReason, CreateOutcome, CreateRejectedReason,
@@ -40,6 +42,11 @@ pub use model::{
     WorkerConstraint,
 };
 pub use paste_record::PASTE_RECORD_MAGIC;
+pub use send::{
+    MAXIMUM_SEND_TEXT_BYTES, SendAcceptedBytes, SendCleanupStatus, SendKey, SendRejectedReason,
+    SendTarget, SendText, SendTextInput, SendUnavailableReason, TerminalSendOutcome,
+    TerminalSendPayload, TerminalSendRequest, TerminalSendResult,
+};
 pub use viewer::{
     MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
     MINIMUM_READ_ROWS_BYTES, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,

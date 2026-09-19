@@ -425,6 +425,81 @@
 			"direction": "server-to-client",
 			"name": "viewer-rows-rejected-invalid-phase",
 			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rows-rejected\",\"reason\":\"invalid-phase\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "send-text-folded-return",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"ls -la\",\"enter\":true}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "send-text-without-return",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"cargo test --locked\",\"enter\":false}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "send-text-unicode-and-spaces",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"cd /tmp/工作 目录\",\"enter\":true}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "send-text-maximum-without-return",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"enter\":false}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "send-text-maximum-minus-one-with-return",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"enter\":true}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "send-text-maximum-multibyte",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工\",\"enter\":true}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "send-key-enter",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"enter\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "send-key-ctrl-c",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"ctrl-c\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "send-key-page-down",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"page-down\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-result-accepted-confirmed",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":12,\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-result-accepted-zero-unconfirmed",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":0,\"cleanup\":\"unconfirmed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-result-rejected-with-target",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-input-backpressure\",\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-result-rejected-pre-admission",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"cleanup\":\"not-needed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-result-unavailable-host",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"host-unavailable\",\"cleanup\":\"not-needed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-result-outcome-unknown-unconfirmed",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"unconfirmed\"}}"
 		}
 	],
 	"equivalentMessages": [
@@ -1233,6 +1308,132 @@
 			"direction": "server-to-client",
 			"name": "viewer-rows-rejected-extra-field",
 			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rows-rejected\",\"reason\":\"stale-revision\",\"detail\":\"x\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "send-unknown-payload-kind",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"paste\",\"text\":\"x\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "send-payload-unknown-field",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"ls\",\"enter\":true,\"extra\":0}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "send-key-unknown-name",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"ctrl-alt-delete\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "send-text-missing-enter",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"ls\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "send-text-empty",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"\",\"enter\":false}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "send-text-nonstring",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":7,\"enter\":false}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "send-request-unknown-field",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"key\",\"key\":\"enter\"},\"retry\":true}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "send-request-missing-binding",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"payload\":{\"kind\":\"key\",\"key\":\"enter\"}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "send-text-maximum-with-return-overflows",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"enter\":true}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "send-text-multibyte-over-byte-bound",
+			"payload": "{\"kind\":\"terminal.send\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"siteId\":\"22222222222222222222222222222222\",\"workerId\":\"33333333333333333333333333333333\",\"terminalId\":\"44444444444444444444444444444444\",\"payload\":{\"kind\":\"text\",\"text\":\"工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工工\",\"enter\":false}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-accepted-cleanup-not-needed",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"not-needed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-unknown-cleanup-confirmed",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-missing-cleanup",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-missing-target-field",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"unconfirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-unknown-cleanup-status",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"cleanup\":\"future\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-unknown-rejected-reason",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"rejected\",\"reason\":\"controller-busy\",\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-accepted-bytes-overflow",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1048577,\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-accepted-bytes-negative",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":-1,\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-target-zero-generation",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"0\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-target-zero-identity",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"00000000000000000000000000000000\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-target-unknown-field",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\",\"expected\":true},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"confirmed\"}}"
 		}
 	],
 	"workingDirectoryCases": [

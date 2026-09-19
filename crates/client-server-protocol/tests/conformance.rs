@@ -118,7 +118,7 @@ fn schema_and_corpus_are_well_formed_and_every_canonical_message_round_trips()
             .pointer("/oneOf")
             .and_then(Value::as_array)
             .map(Vec::len),
-        Some(10)
+        Some(12)
     );
     assert!(jsonschema::draft202012::meta::is_valid(&schema));
     let schema_validator = jsonschema::draft202012::new(&schema)?;
@@ -262,6 +262,20 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "start-rejected-terminal-not-awaiting-start",
         "start-unavailable-server-busy",
         "start-unavailable-terminal-runtime-unavailable",
+        "message-terminal-send",
+        "send-payload-text-enter",
+        "send-payload-text-plain",
+        "send-payload-key",
+        "message-terminal-send-result",
+        "send-target-present",
+        "send-target-absent",
+        "send-accepted",
+        "send-rejected",
+        "send-unavailable",
+        "send-outcome-unknown",
+        "send-cleanup-not-needed",
+        "send-cleanup-confirmed",
+        "send-cleanup-unconfirmed",
     ]);
     assert_eq!(reached, expected);
     Ok(())
@@ -738,6 +752,49 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                     reason: StartFailureReason::TerminalStartFailed,
                 } => "start-failed-terminal-start-failed",
                 StartOutcome::OutcomeUnknown => "start-outcome-unknown",
+            });
+        }
+        DecodedMessage::Client(ClientMessage::TerminalSend(request)) => {
+            use orchbee_client_server_protocol::TerminalSendPayload;
+            reached.insert("message-terminal-send");
+            reached.insert(match request.payload() {
+                TerminalSendPayload::Text(input) => {
+                    if input.enter() {
+                        "send-payload-text-enter"
+                    } else {
+                        "send-payload-text-plain"
+                    }
+                }
+                TerminalSendPayload::Key { .. } => "send-payload-key",
+            });
+        }
+        DecodedMessage::Server(ServerMessage::TerminalSendResult(result)) => {
+            use orchbee_client_server_protocol::{
+                SendCleanupStatus, TerminalSendOutcome,
+            };
+            reached.insert("message-terminal-send-result");
+            reached.insert(if result.target().is_some() {
+                "send-target-present"
+            } else {
+                "send-target-absent"
+            });
+            let outcome = result.outcome();
+            reached.insert(match outcome {
+                TerminalSendOutcome::Accepted { .. } => "send-accepted",
+                TerminalSendOutcome::Rejected { .. } => "send-rejected",
+                TerminalSendOutcome::Unavailable { .. } => "send-unavailable",
+                TerminalSendOutcome::OutcomeUnknown { .. } => "send-outcome-unknown",
+            });
+            let cleanup = match outcome {
+                TerminalSendOutcome::Accepted { cleanup, .. }
+                | TerminalSendOutcome::Rejected { cleanup, .. }
+                | TerminalSendOutcome::Unavailable { cleanup, .. }
+                | TerminalSendOutcome::OutcomeUnknown { cleanup } => *cleanup,
+            };
+            reached.insert(match cleanup {
+                SendCleanupStatus::NotNeeded => "send-cleanup-not-needed",
+                SendCleanupStatus::Confirmed => "send-cleanup-confirmed",
+                SendCleanupStatus::Unconfirmed => "send-cleanup-unconfirmed",
             });
         }
     }

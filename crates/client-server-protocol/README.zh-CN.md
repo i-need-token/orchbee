@@ -78,6 +78,40 @@ Host 类型化失败 `host-input-invalid`、`host-input-limit-exceeded`、`host-
 Schema owner 的 corpus 检查每个 action/outcome/reason
 以及畸形、最大和超限 input。本 binding 不授予 controller 权限，绝不重试未知副作用。
 
+## Send binding
+
+`TerminalSendRequest`、`TerminalSendPayload`、`TerminalSendResult` 与 `TerminalSendOutcome`
+承载一次经 Server 授权、面向已暴露 Workbench 终端的非交互 input 提交。request 是扁平的
+`requestId` + `siteId`/`workerId`/`terminalId` 绑定三元组 + 闭合 payload 联合；三元组是
+Server 在准入时解析的声明目标，不是化身锁。本 binding 不授予 controller、viewer、resize
+或 lease 权限，不占 attachment 槽位，且绝不跨 restart 重绑：准入后 worker 或 Host 化身已
+变化的目标只能失败或报告 unknown，绝不改向。
+
+`TerminalSendPayload` 恰好为 `text` 或 `key` 之一。`text` 携带 `SendTextInput`——已验证
+非空 UTF-8 `SendText` 与 `enter` 标志的配对；回车折进同一 payload，因此一次 send 永远
+恰好是一条 Host input record。`SendText` 最多接受 `MAXIMUM_SEND_TEXT_BYTES`（4,096）
+byte，`SendTextInput::new` 强制合计界限：`text` + `enter` 必须落在其中——4,096-byte 的
+text 仅在无 `enter` 时合法。字段私有，任何公开构造或解码路径都无法越界，wire encoder
+再独立复核一次。`key` 携带闭集 15 名 `SendKey` 之一（`enter`、`escape`、`tab`、
+`backspace`、`delete`、`up`、`down`、`left`、`right`、`home`、`end`、`page-up`、
+`page-down`、`ctrl-c`、`ctrl-d`）；除具名 `ctrl-` 变体外不可表达修饰键，任意键序列、
+多 record 原子性、raw hex 与 paste 均不在本契约内。
+
+每个 `TerminalSendOutcome` 变体都携带正交的 `cleanup` 轴：`accepted`/`rejected`/
+`unavailable`/`outcome-unknown` 各自与 `not-needed`、`confirmed`、`unconfirmed` 的附件清理
+状态配对。两种配对不可能出自 Attach → input → Detach 序列，构造期与两侧 codec 边界
+都拒绝：`accepted` + `not-needed`（已接受的 input 意味着真实附件）与
+`outcome-unknown` + `confirmed`（confirmed 释放意味着已完成的交换）。`accepted` 回显
+`acceptedBytes`——Host 编码后入队字节数（`SendAcceptedBytes`，0 至 `Self::MAXIMUM`）；
+零合法，因为终端模式可能忽略某语义键。Accepted 仅表示 Host 已将该 record 接入 input
+队列——绝不表示子进程读过、执行过或已完成。拒绝与不可用原因是闭集；
+`outcome-unknown` 表示 record 可能已落地，绝不自动重试。
+
+`TerminalSendResult` 另携带 `target`：Server 实际准入本 send 的 `SendTarget` 物理化身
+——worker generation、Host epoch 与 Host 终端身份。凡 request 已解析到当前授权 binding
+即存在；在任何 binding 准入前即决定的拒绝携带 `null`，而非捏造或按调用者预期的身份。
+消费方逐字段照录该 target，绝不重新解析。
+
 ## Request boundary
 
 本 crate 不建模 replay lookup、历史 duplicate detection 或 runtime idempotency ledger。

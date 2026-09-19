@@ -22,6 +22,7 @@ use crate::{
 mod control;
 mod cwd_validation;
 mod lifecycle;
+mod send;
 mod viewer;
 
 const FRAME_MAGIC: [u8; 4] = *b"OBCN";
@@ -56,6 +57,8 @@ pub enum CapabilityNodeMessage {
     TerminalStartResult(TerminalStartResult),
     TerminalViewerRequest(crate::TerminalViewerRequest),
     TerminalViewerResult(crate::TerminalViewerResult),
+    TerminalSendRequest(crate::TerminalSendRequest),
+    TerminalSendResult(crate::TerminalSendResult),
 }
 
 pub fn encode_message(message: &CapabilityNodeMessage) -> Result<Vec<u8>, ProtocolError> {
@@ -158,6 +161,12 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::TerminalStartResult(value) => encode_terminal_start_result(*value),
         CapabilityNodeMessage::TerminalViewerRequest(value) => viewer::encode_request(*value),
         CapabilityNodeMessage::TerminalViewerResult(value) => viewer::encode_result(value),
+        CapabilityNodeMessage::TerminalSendRequest(value) => {
+            send::encode_request(value).expect("bounded send request")
+        }
+        CapabilityNodeMessage::TerminalSendResult(value) => {
+            send::encode_result(value).expect("validated send result")
+        }
     }
 }
 
@@ -201,6 +210,8 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
             viewer::decode_request(payload).map(CapabilityNodeMessage::TerminalViewerRequest)
         }
         Some(6) => viewer::decode_result(payload).map(CapabilityNodeMessage::TerminalViewerResult),
+        Some(13) => send::decode_request(payload).map(CapabilityNodeMessage::TerminalSendRequest),
+        Some(14) => send::decode_result(payload).map(CapabilityNodeMessage::TerminalSendResult),
         Some(AUTHORIZED_TERMINAL_LAUNCH_KIND) => decode_authorized_terminal_launch(payload)
             .map(CapabilityNodeMessage::AuthorizedTerminalLaunch),
         Some(TERMINAL_LAUNCH_RESULT_KIND) => {
