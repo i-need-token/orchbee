@@ -1993,6 +1993,58 @@
 			]
 		},
 		{
+			"id": "native-cli-wait-settlement",
+			"owner": "orchbee",
+			"workspace": "apps/orchbee",
+			"module": "apps/orchbee/formal/tla/NativeCliWaitSettlement.tla",
+			"config": "apps/orchbee/formal/tla/NativeCliWaitSettlement.cfg",
+			"claims": [
+				"apps/orchbee/docs/native-cli-wait-model.md"
+			],
+			"triggers": [
+				"apps/orchbee/docs/native-cli-wait-model.md",
+				"apps/orchbee/docs/native-cli-wait-model.zh-CN.md",
+				"apps/orchbee/formal/tla/NativeCliWaitSettlement.cfg",
+				"apps/orchbee/formal/tla/NativeCliWaitSettlement.tla",
+				"apps/orchbee/src/cli/query.rs",
+				"apps/orchbee/src/cli/results.rs",
+				"apps/orchbee/src/local_client/**",
+				"apps/orchbee/src/termination_signal.rs",
+				"apps/orchbee/tests/local_startup_process/native_cli_workflow.rs",
+				"apps/orchbee/tests/local_startup_process/native_wait.rs"
+			],
+			"requiredCoverage": [
+				"Expire",
+				"Signal",
+				"PreambleGate",
+				"PreambleFail",
+				"IssueAttach",
+				"ObserveGate",
+				"IssuePoll",
+				"IssueFeedback",
+				"IssueReadRows",
+				"AttemptDetach",
+				"AnswerAttachOk",
+				"AnswerAttachErr",
+				"AnswerPollEmpty",
+				"AnswerPollRecord",
+				"AnswerPollErr",
+				"AnswerFeedbackOk",
+				"AnswerFeedbackErr",
+				"AnswerReadRowsWindow",
+				"AnswerReadRowsMatch",
+				"AnswerReadRowsStale",
+				"AnswerReadRowsErr",
+				"AnswerDetachAcked",
+				"AnswerDetachErr",
+				"Settle",
+				"PreViewerSettle",
+				"LateSample"
+			],
+			"timeoutMilliseconds": 120000,
+			"workers": 1
+		},
+		{
 			"id": "native-client-close-control",
 			"owner": "orchbee",
 			"workspace": "apps/orchbee",
