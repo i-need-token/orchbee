@@ -104,8 +104,9 @@ bytes it abstracts.
 
 ## Verification
 
-Positive run (under `/home/liushuai/orchbee-batches/heavy.lock`, pinned
-`tla2tools-1.7.4.jar`, 1 worker, 512 MiB, 120 s ceiling):
+Author's pinned positive control (under
+`/home/liushuai/orchbee-batches/heavy.lock`, pinned `tla2tools-1.7.4.jar`,
+1 worker, 512 MiB, 120 s ceiling):
 
 ```sh
 java -Xmx512m -XX:+UseParallelGC -jar tla2tools-1.7.4.jar \
@@ -117,6 +118,11 @@ Outcome: exit 0, 2688 generated / 1834 distinct states, depth 15, every
 action covered (no zero-coverage line). Logs and the child exit code live in
 the batch evidence directory `a3/evidence-14/positive/` (earlier
 `a3/evidence-13/` runs predate the counter fix and are retained as-is).
+
+The authoritative run uses the existing runner resource budget — currently a
+2048 MiB heap, one worker, and a 120 s ceiling, as recorded in
+`scripts/tla/models.json` (`workers` 1, `timeoutMilliseconds` 120000) and
+capped by `maximumHeapMiB` in `scripts/tla/model-checks.mjs`.
 
 ## Negative controls
 
@@ -143,7 +149,7 @@ out-of-tree under `a3/evidence-14/named-traces/` on the frozen module digest;
 each TLC violation is the witness trace):
 
 - `ProbeKeyAckZero` — `payload="key" /\ outcome="accepted" /\
-  acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
+acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
 - `ProbeAppliedResponseLost` — `hostInputApplied /\ outcome="unknown"`: the
   Host applied the input but the answer never reached the Worker.
 
@@ -178,13 +184,13 @@ each TLC violation is the witness trace):
   `ServerLostBeforeInputFact`, `ServerLostAfterInputFact`,
   `ServerLostAtResult`, `CarrierLost`, `PostAttachAbort`, `DrainHostEvent`,
   `DeliverResult`, `AbandonResult`.
-- Resource bound: 1 worker / 512 MiB / 120 s (observed: <1 s, 1834 distinct
-  states).
+- Author's control bound: 1 worker / 512 MiB / 120 s (observed: <1 s, 1834
+  distinct states); the authoritative run uses the runner budget above.
 - Known exclusions: pre-admission fence (deterministic, zero Host bytes;
   scripted test `send_fence_rejections_never_reach_the_host` owns it), fresh-ID
   collision freedom (trusted oracle, disclosed), real byte counts and wire
   encodings (pinned by the scripted-Host suite), process-level TUI isolation
   (only the shared-carrier boundary is modeled).
 
-This entry is a recommendation only — `scripts/tla/models.json` is owned by
-A6; this model is not registered and not claimed as officially covered.
+This model is registered in `scripts/tla/models.json` as
+`worker-send-transaction` (owner `orchbee-worker`).

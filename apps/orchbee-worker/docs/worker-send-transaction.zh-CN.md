@@ -85,8 +85,8 @@ send 测试；本模型不替代它们——wire 字节由它们钉住而模型�
 
 ## 验证
 
-正向运行（`/home/liushuai/orchbee-batches/heavy.lock` 锁内，pinned
-`tla2tools-1.7.4.jar`，1 worker，512 MiB，上限 120 秒）：
+作者定点正向对照（`/home/liushuai/orchbee-batches/heavy.lock` 锁内，
+pinned `tla2tools-1.7.4.jar`，1 worker，512 MiB，上限 120 秒）：
 
 ```sh
 java -Xmx512m -XX:+UseParallelGC -jar tla2tools-1.7.4.jar \
@@ -97,6 +97,11 @@ java -Xmx512m -XX:+UseParallelGC -jar tla2tools-1.7.4.jar \
 结果：exit 0，2688 generated / 1834 distinct states，深度 15，每个 action 均有
 覆盖（无零覆盖行）。日志与直接子进程 exit 码存于批次证据目录
 `a3/evidence-14/positive/`（旧 `a3/evidence-13/` 先于计数修正，原样保留）。
+
+权威运行采用既有 runner 资源预算——当前记录为 2048 MiB 堆、单 worker、
+120 秒上限（见 `scripts/tla/models.json` 的 `workers` 1、
+`timeoutMilliseconds` 120000，以及 `scripts/tla/model-checks.mjs` 的
+`maximumHeapMiB` 上限）。
 
 ## 负控
 
@@ -119,7 +124,7 @@ mutant 模块按批次在树外生成，每个只改一处 guard/action，各自
 `a3/evidence-14/named-traces/`；每条 TLC 违例即见证轨迹）：
 
 - `ProbeKeyAckZero`——`payload="key" /\ outcome="accepted" /\
-  acceptedBytes={0}`：语义键合法地以零字节应答。
+acceptedBytes={0}`：语义键合法地以零字节应答。
 - `ProbeAppliedResponseLost`——`hostInputApplied /\ outcome="unknown"`：
   Host 已应用输入但应答从未到达 Worker。
 
@@ -151,11 +156,12 @@ mutant 模块按批次在树外生成，每个只改一处 guard/action，各自
   `ServerLostBeforeInputFact`、`ServerLostAfterInputFact`、
   `ServerLostAtResult`、`CarrierLost`、`PostAttachAbort`、`DrainHostEvent`、
   `DeliverResult`、`AbandonResult`。
-- 资源界：1 worker / 512 MiB / 120 s（实测 <1 s，1834 distinct states）。
+- 作者对照资源界：1 worker / 512 MiB / 120 s（实测 <1 s，1834
+  distinct states）；权威运行采用上述 runner 预算。
 - 已知排除：准入前 fence（确定性、零 Host 字节；由脚本化测试
   `send_fence_rejections_never_reach_the_host` 持有）、fresh-ID 无碰撞（已披露的
   可信 oracle）、真实字节数与 wire 编码（由 scripted-Host 套件钉住）、进程级 TUI
   隔离（本模型只覆盖共享 carrier 边界）。
 
-此条目仅为建议——`scripts/tla/models.json` 归 A6 所有；本模型未登记，也不冒称
-官方覆盖。
+本模型已登记于 `scripts/tla/models.json`，id 为 `worker-send-transaction`
+（owner `orchbee-worker`）。

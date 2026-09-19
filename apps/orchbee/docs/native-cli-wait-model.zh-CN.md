@@ -27,16 +27,16 @@ commit 上的 `src/cli/query.rs`。
 
 ## 源码映射
 
-| 模型元素 | `src/cli/query.rs` 中的运行锚点 |
-|---|---|
-| `PreambleGate` / `PreambleFail` | `session_preamble` 在 `run.check()` 结算该门后返回；已采样 flag 以 `cleanup = "absent"` 且无 attach 结束调用 |
-| `IssueAttach` / `AnswerAttachOk` / `AnswerAttachErr` | `run.check()` + `step_deadline` 之后的 `attach_viewer`；`Ok` 产生具名 viewer，`Err` 进入 `PreViewerSettle` |
-| `ObserveGate` / `IssuePoll` | `wait_observe` 中每次 poll 之前的循环顶 `run.check()` |
-| `IssueFeedback` / `IssueReadRows` | 每次交换前的 `step_deadline`；`wait_read_window` 先消耗 `next_sequence` |
-| `Settle` | 交换后的 `run.check()`，让已采样 flag 胜过交换自身的分类 |
-| `AttemptDetach` | 提交前的 `step_deadline`：`cancel` 以 `unconfirmed` 跳过，`expiry` 以 `requested` 跳过 |
-| `LateSample` | detach 之后决定最终 primary 的无条件 `run.check()`，同时保留 cleanup 事实 |
-| `matchedOnce` | 仅当一致窗口通过门且匹配器接受 match 时置位——绝不在 raw 应答时提前置位 |
+| 模型元素                                             | `src/cli/query.rs` 中的运行锚点                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `PreambleGate` / `PreambleFail`                      | `session_preamble` 在 `run.check()` 结算该门后返回；已采样 flag 以 `cleanup = "absent"` 且无 attach 结束调用 |
+| `IssueAttach` / `AnswerAttachOk` / `AnswerAttachErr` | `run.check()` + `step_deadline` 之后的 `attach_viewer`；`Ok` 产生具名 viewer，`Err` 进入 `PreViewerSettle`   |
+| `ObserveGate` / `IssuePoll`                          | `wait_observe` 中每次 poll 之前的循环顶 `run.check()`                                                        |
+| `IssueFeedback` / `IssueReadRows`                    | 每次交换前的 `step_deadline`；`wait_read_window` 先消耗 `next_sequence`                                      |
+| `Settle`                                             | 交换后的 `run.check()`，让已采样 flag 胜过交换自身的分类                                                     |
+| `AttemptDetach`                                      | 提交前的 `step_deadline`：`cancel` 以 `unconfirmed` 跳过，`expiry` 以 `requested` 跳过                       |
+| `LateSample`                                         | detach 之后决定最终 primary 的无条件 `run.check()`，同时保留 cleanup 事实                                    |
+| `matchedOnce`                                        | 仅当一致窗口通过门且匹配器接受 match 时置位——绝不在 raw 应答时提前置位                                       |
 
 ## 性质
 
@@ -49,8 +49,11 @@ commit 上的 `src/cli/query.rs`。
 
 ## 证据
 
-权威运行使用固定的 `tla2tools` jar、单 worker、512 MiB 堆与共享 `heavy.lock`，每次运行的
-日志与退出码各自保存在独立的批次证据文件中。正向运行通过全部不变量与两条时态性质，且每个
+权威运行使用固定的 `tla2tools` jar 与共享 `heavy.lock`，采用既有 runner 资源预算——当前
+记录为 2048 MiB 堆、单 worker、120 秒上限（见 `scripts/tla/models.json` 的 `workers` 1、
+`timeoutMilliseconds` 120000，以及 `scripts/tla/model-checks.mjs` 的 `maximumHeapMiB`
+上限），每次运行的日志与退出码各自保存在独立的批次证据文件中。作者定点正负对照在同一
+锁、worker 数与上限下使用 512 MiB 堆。正向运行通过全部不变量与两条时态性质，且每个
 动作覆盖计数非零。四个批外变异必须持续产生真反例：detach 错误时跳过迟到采样违反
 `LateSampleDecides`；让迟到 flag 抹除已 confirmed 的 cleanup 违反 `CleanupHonest`；重复
 发射动作违反 `OutputWrittenOnce`；issue 不消耗新序号违反 `SeqStrictIncrease`。可达性探针

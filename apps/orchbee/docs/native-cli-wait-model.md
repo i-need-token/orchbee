@@ -34,16 +34,16 @@ than a shape check on the emitted label.
 
 ## Source mapping
 
-| Model element | Runtime anchor in `src/cli/query.rs` |
-|---|---|
-| `PreambleGate` / `PreambleFail` | `session_preamble` returns after `run.check()` settles the gate; a sampled flag ends the invocation with `cleanup = "absent"` and no attach |
-| `IssueAttach` / `AnswerAttachOk` / `AnswerAttachErr` | `attach_viewer` after `run.check()` + `step_deadline`; `Ok` yields a named viewer, `Err` reaches `PreViewerSettle` |
-| `ObserveGate` / `IssuePoll` | the loop-top `run.check()` in `wait_observe` before each poll |
-| `IssueFeedback` / `IssueReadRows` | `step_deadline` before each exchange; `wait_read_window` consumes `next_sequence` first |
-| `Settle` | the post-exchange `run.check()` that lets a sampled flag outrank the exchange's own classification |
-| `AttemptDetach` | the pre-submit `step_deadline`: `cancel` skips with `unconfirmed`, `expiry` skips with `requested` |
-| `LateSample` | the unconditional `run.check()` after detach that decides the final primary while preserving the cleanup fact |
-| `matchedOnce` | set only when a consistent window passes the gate and the matcher accepts it — never on a raw reply |
+| Model element                                        | Runtime anchor in `src/cli/query.rs`                                                                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PreambleGate` / `PreambleFail`                      | `session_preamble` returns after `run.check()` settles the gate; a sampled flag ends the invocation with `cleanup = "absent"` and no attach |
+| `IssueAttach` / `AnswerAttachOk` / `AnswerAttachErr` | `attach_viewer` after `run.check()` + `step_deadline`; `Ok` yields a named viewer, `Err` reaches `PreViewerSettle`                          |
+| `ObserveGate` / `IssuePoll`                          | the loop-top `run.check()` in `wait_observe` before each poll                                                                               |
+| `IssueFeedback` / `IssueReadRows`                    | `step_deadline` before each exchange; `wait_read_window` consumes `next_sequence` first                                                     |
+| `Settle`                                             | the post-exchange `run.check()` that lets a sampled flag outrank the exchange's own classification                                          |
+| `AttemptDetach`                                      | the pre-submit `step_deadline`: `cancel` skips with `unconfirmed`, `expiry` skips with `requested`                                          |
+| `LateSample`                                         | the unconditional `run.check()` after detach that decides the final primary while preserving the cleanup fact                               |
+| `matchedOnce`                                        | set only when a consistent window passes the gate and the matcher accepts it — never on a raw reply                                         |
 
 ## Properties
 
@@ -56,9 +56,12 @@ fair. Bounds: `MaxSeq = 2`, observation count saturates, `CHECK_DEADLOCK FALSE`.
 
 ## Evidence
 
-The authoritative run uses the pinned `tla2tools` jar, one worker, a 512 MiB heap, and the
-shared `heavy.lock`, with each run's log and exit code kept in separate batch evidence
-files. The positive run passes all invariants and both temporal properties with nonzero
+The authoritative run uses the pinned `tla2tools` jar and the shared `heavy.lock` under the
+existing runner resource budget — currently a 2048 MiB heap, one worker, and a 120 s
+ceiling, as recorded in `scripts/tla/models.json` (`workers` 1, `timeoutMilliseconds` 120000) and capped by `maximumHeapMiB` in `scripts/tla/model-checks.mjs` — with each run's
+log and exit code kept in separate batch evidence files. The author's pinned positive and
+negative controls used a 512 MiB heap under the same lock, worker count, and ceiling.
+The positive run passes all invariants and both temporal properties with nonzero
 coverage on every action. Four out-of-band mutants must keep producing genuine
 counterexamples: skipping the late sample on detach error violates `LateSampleDecides`,
 letting a late flag erase a confirmed cleanup violates `CleanupHonest`, a duplicate-emission
