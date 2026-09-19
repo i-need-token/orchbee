@@ -11,6 +11,65 @@ pub const MAXIMUM_READ_ROWS: u16 = 4096;
 pub const MINIMUM_READ_ROWS_BYTES: u32 = 112;
 pub const MAXIMUM_READ_ROWS_BYTES: u32 = 8 * 1024 * 1024;
 
+/// Projection delivery the Server requests the Worker to set on a viewer
+/// attachment. Binary `demand`: 1 `Active`, 2 `Paused`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ViewerProjectionDemand {
+    Active,
+    Paused,
+}
+
+impl ViewerProjectionDemand {
+    pub const fn from_tag(tag: u8) -> Result<Self, crate::ProtocolError> {
+        match tag {
+            1 => Ok(Self::Active),
+            2 => Ok(Self::Paused),
+            _ => Err(crate::ProtocolError::InvalidPayload),
+        }
+    }
+
+    pub const fn tag(self) -> u8 {
+        match self {
+            Self::Active => 1,
+            Self::Paused => 2,
+        }
+    }
+}
+
+/// Retained-history delivery the Server requests the Worker to set on a viewer
+/// attachment. Binary `demand`: 1 `FollowingBottom`, 2 `ViewingHistory`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ViewerHistoryDemand {
+    FollowingBottom,
+    ViewingHistory,
+}
+
+impl ViewerHistoryDemand {
+    pub const fn from_tag(tag: u8) -> Result<Self, crate::ProtocolError> {
+        match tag {
+            1 => Ok(Self::FollowingBottom),
+            2 => Ok(Self::ViewingHistory),
+            _ => Err(crate::ProtocolError::InvalidPayload),
+        }
+    }
+
+    pub const fn tag(self) -> u8 {
+        match self {
+            Self::FollowingBottom => 1,
+            Self::ViewingHistory => 2,
+        }
+    }
+}
+
+/// The row window origin a `read-viewport-rows` action resolves against the
+/// Host's retained rows. Binary `origin` tag: 1 `Tail` then `u32`
+/// `rows_before`, 2 `Committed` then `i32` `delta`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ViewportRowOrigin {
+    Tail { rows_before: u32 },
+    Committed { delta: i32 },
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ViewerSnapshotReason {
     ActivityStale,
@@ -48,6 +107,33 @@ pub enum TerminalViewerAction {
         generation: NonZeroU64,
         request_sequence: NonZeroU64,
         maximum_bytes: u32,
+    },
+    SetProjectionDemand {
+        demand: ViewerProjectionDemand,
+    },
+    SetHistoryDemand {
+        demand: ViewerHistoryDemand,
+    },
+    // Distinct from `ReadRows`: the served window's revision is Host-captured
+    // viewport identity, never request equality. `maximum_bytes` still bounds
+    // the OBRW payload, not the record.
+    ReadViewportRows {
+        origin: ViewportRowOrigin,
+        row_count: u16,
+        revision: u64,
+        generation: NonZeroU64,
+        request_sequence: NonZeroU64,
+        maximum_bytes: u32,
+    },
+    RowsApplied {
+        request_sequence: NonZeroU64,
+        generation: NonZeroU64,
+        revision: u64,
+    },
+    HistoryObserved {
+        sequence: NonZeroU64,
+        generation: NonZeroU64,
+        revision: u64,
     },
     Detach,
 }

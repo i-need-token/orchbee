@@ -586,6 +586,11 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 TerminalViewerAction::FrameApplied { .. } => "viewer-frame-applied",
                 TerminalViewerAction::NeedSnapshot { .. } => "viewer-need-snapshot",
                 TerminalViewerAction::ReadRows { .. } => "viewer-read-rows",
+                TerminalViewerAction::SetProjectionDemand { .. } => "viewer-set-projection-demand",
+                TerminalViewerAction::SetHistoryDemand { .. } => "viewer-set-history-demand",
+                TerminalViewerAction::ReadViewportRows { .. } => "viewer-read-viewport-rows",
+                TerminalViewerAction::RowsApplied { .. } => "viewer-rows-applied",
+                TerminalViewerAction::HistoryObserved { .. } => "viewer-history-observed",
                 TerminalViewerAction::Detach { .. } => "viewer-detach",
             });
         }
@@ -605,6 +610,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                         "viewer-rejected-terminal-unavailable"
                     }
                     ViewerRejectedReason::FeedbackMismatch => "viewer-rejected-feedback-mismatch",
+                    ViewerRejectedReason::HostRejected => "viewer-rejected-host-rejected",
                 },
                 TerminalViewerOutcome::RowsRejected { reason } => match reason {
                     ViewerRowsRejectedReason::StaleRevision => {

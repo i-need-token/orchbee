@@ -57,6 +57,39 @@ type. This crate does not decode OBTP or terminal presentation; Server and the e
 their respective routing and presentation validation. Large-record tests cover byte equality,
 partial reads, following-frame alignment, direction, and invalid header/length/identity rejection.
 
+### History viewport actions (unpublished)
+
+Five additive action kinds extend the viewer surface for the native history viewport:
+`set-projection-demand`, `set-history-demand`, `read-viewport-rows`, `rows-applied`, and
+`history-observed`. They remain an unpublished contract requiring an exact development cohort; no
+fallback shape is defined. Each carries `attachmentId` inside its own variant, matching the
+existing attachment-scoped actions.
+
+`set-projection-demand` carries `demand` (`"active"` or `"paused"`); `set-history-demand` carries
+`demand` (`"following-bottom"` or `"viewing-history"`). Their Host acknowledgements echo only the
+attachment and demand pair, so callers match them by correlation plus echoed demand — there is no
+generation field to compare.
+
+`read-viewport-rows` carries an `origin` object (`{"kind":"tail","rowsBefore":u32}` or
+`{"kind":"committed","delta":i32}`), `rowCount` (`1..=4096`), `revision`, `generation`,
+`requestSequence` (positive u64 decimal strings), and `maximumBytes` (`112..=8,388,608`, the same
+OBRW payload bound `read-rows` uses). The Host serves the current view: the returned revision
+becomes the window's captured identity, so the binding does not require revision equality with the
+request. `rowsBefore` and `delta` are bounded JSON integers (`u32`/`i32` domains, both inside the
+JavaScript safe-integer range); `delta` is signed natively and admits negative scroll deltas.
+
+`rows-applied` carries `requestSequence`, `generation`, and `revision` — the exact tuple the Host
+promotes from a pending viewport anchor to committed. `history-observed` carries `sequence`,
+`generation`, and `revision` — the exact acknowledgement tuple for one delivered history-changed
+event. Both use positive u64 decimal strings for sequence and generation and a canonical u64
+decimal string for revision.
+
+`ViewerRejectedReason::HostRejected` (`"host-rejected"`) is a new closed viewer-level reason
+reserved for the four control-acknowledgement actions' explicit Host typed failures. It is
+distinct from the controller-plane `ControlRejectedReason::HostRejected` and does not apply to
+older actions. `read-viewport-rows` failures ride the existing `RowsRejected` nine-reason
+vocabulary; `read-rows` is unchanged byte-for-byte.
+
 ## Controller binding
 
 `TerminalControlRequest`, `TerminalControlAction`, `TerminalControlResult`, and `TerminalControlOutcome`

@@ -200,6 +200,28 @@ OBCN control 边界，也不解码帧内容。严格的内存 decode 拒绝尾�
 一条 record，并保留下一 frame 边界。Codec 不隐含 acknowledgement、retry 或 queue policy。
 查看附件 carrier 失败后退役临时 state；调用方绝不自动重放结果不明确的附着或反馈 exchange。
 
+五个追加 action tag 7 到 11 服务历史视口，仍然私有且未发布；tag 1 到 6 逐字节不变。
+所有 action 的 attachment 仅由 request envelope 携带。所有整数为 big-endian；`i32` 是唯一的
+有符号字段。未知 tag、未知 origin 或 demand 值、零值正整数、越界边界与尾随字节一律拒绝。
+
+- Tag 7 `set-projection-demand` 追加 `demand`（`u8`）：1 active、2 paused。
+- Tag 8 `set-history-demand` 追加 `demand`（`u8`）：1 following-bottom、2 viewing-history。
+- Tag 9 `read-viewport-rows` 追加 `origin`（`u8`：1 tail、2 committed），tail 后随
+  `rowsBefore`（`u32`）、committed 后随 `delta`（`i32`），然后依次是 `rowCount`（`u16`，
+  1 到 4096）、`revision`（`u64`）、正数 `generation`（`u64`）、正数 `requestSequence`
+  （`u64`）与 `maximumBytes`（`u32`，112 到 8,388,608——是 OBRW payload 边界，不是 record
+  边界）。Purpose、detail 与 revision policy 由调用方 adapter 固定为
+  viewport/text/current-view，不由本 payload 表达。
+- Tag 10 `rows-applied` 追加正数 `requestSequence`（`u64`）、正数 `generation`（`u64`）与
+  `revision`（`u64`）——与 `FrameApplied` 相同的字段顺序。
+- Tag 11 `history-observed` 追加正数 `sequence`（`u64`）、正数 `generation`（`u64`）与
+  `revision`（`u64`）。
+
+四个控制应答 action 以 `FeedbackAccepted` 应答，或当 Host 返回 typed failure 时以携带既有
+Host-rejected reason tag 8 的 `Rejected` 应答。`read-viewport-rows` 以承载相关 kind-46
+行窗口 response 的 `Record` 应答，或以既有九值 reason 词表的 `RowsRejected` 应答。其它
+outcome 配对仍为协议违例。
+
 ## Controller 消息
 
 OBCN kind 7 `TerminalControlRequest` 和 kind 8 `TerminalControlResult` 扩展同一串行 Server-Worker

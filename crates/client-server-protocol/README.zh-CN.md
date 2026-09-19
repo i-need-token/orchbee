@@ -53,6 +53,35 @@ AttachBinding 不增加 OBCN 或 OBSR type。本 crate 不解码 OBTP 或终端�
 renderer 分别负责路由与呈现验证。大记录测试覆盖字节相等、partial read、后继帧对齐、方向，
 以及非法 header、length、identity 的拒绝。
 
+### 历史视口 action（未发布）
+
+五个追加 action kind 为原生历史视口扩展 viewer 面：`set-projection-demand`、
+`set-history-demand`、`read-viewport-rows`、`rows-applied` 与 `history-observed`。它们仍是
+未发布契约，要求精确开发 cohort；不定义 fallback 形态。每个 action 在自身 variant 内携带
+`attachmentId`，与既有 attachment 作用域 action 一致。
+
+`set-projection-demand` 携带 `demand`（`"active"` 或 `"paused"`）；`set-history-demand` 携带
+`demand`（`"following-bottom"` 或 `"viewing-history"`）。它们的 Host 应答只回显
+attachment 与 demand 对，因此调用方按 correlation 加回显 demand 匹配——没有 generation
+字段可比。
+
+`read-viewport-rows` 携带 `origin` 对象（`{"kind":"tail","rowsBefore":u32}` 或
+`{"kind":"committed","delta":i32}`）、`rowCount`（`1..=4096`）、`revision`、`generation`、
+`requestSequence`（正 u64 十进制字符串）与 `maximumBytes`（`112..=8,388,608`，与 `read-rows`
+相同的 OBRW payload 边界）。Host 按当前视图服务：返回的 revision 成为该窗口的捕获身份，
+因此 binding 不要求响应与请求 revision 相等。`rowsBefore` 与 `delta` 是有界 JSON 整数
+（`u32`/`i32` 域，均在 JavaScript 安全整数范围内）；`delta` 原生有符号，允许负滚动差值。
+
+`rows-applied` 携带 `requestSequence`、`generation` 与 `revision`——Host 将 pending 视口锚
+提升为 committed 所需的精确三元组。`history-observed` 携带 `sequence`、`generation` 与
+`revision`——对一条已投递 history-changed 事件的精确应答三元组。两者 sequence 与
+generation 使用正 u64 十进制字符串，revision 使用规范 u64 十进制字符串。
+
+`ViewerRejectedReason::HostRejected`（`"host-rejected"`）是新增的闭合 viewer 级 reason，
+只为四个控制应答 action 的明确 Host typed failure 保留。它与 controller 面的
+`ControlRejectedReason::HostRejected` 不同，也不适用于旧 action。`read-viewport-rows` 的
+失败沿用既有 `RowsRejected` 九值 reason 词表；`read-rows` 逐字节不变。
+
 ## Controller binding
 
 `TerminalControlRequest`、`TerminalControlAction`、`TerminalControlResult` 和 `TerminalControlOutcome`

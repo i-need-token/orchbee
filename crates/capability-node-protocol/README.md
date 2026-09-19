@@ -219,6 +219,30 @@ record and preserves the following frame boundary. No acknowledgement, retry, or
 hidden in these codecs. Viewer carrier failure retires transient state; callers never replay an
 ambiguous attachment or feedback exchange automatically.
 
+Five additive action tags 7 through 11 serve the history viewport and remain private and
+unshipped; tags 1 through 6 are unchanged byte-for-byte. All carry the attachment only on the
+request envelope. All integers are big-endian; `i32` is the only signed field. Unknown tags,
+unknown origin or demand values, zero positive integers, out-of-range bounds, and trailing bytes
+all reject.
+
+- Tag 7 `set-projection-demand` adds `demand` (`u8`): 1 active, 2 paused.
+- Tag 8 `set-history-demand` adds `demand` (`u8`): 1 following-bottom, 2 viewing-history.
+- Tag 9 `read-viewport-rows` adds `origin` (`u8`: 1 tail, 2 committed) followed by `rowsBefore`
+  (`u32`) for tail or `delta` (`i32`) for committed, then `rowCount` (`u16`, 1 through 4096),
+  `revision` (`u64`), positive `generation` (`u64`), positive `requestSequence` (`u64`), and
+  `maximumBytes` (`u32`, 112 through 8,388,608 — an OBRW payload bound, not a record bound).
+  Purpose, detail, and revision policy are fixed viewport/text/current-view by the caller's
+  adapter, not by this payload.
+- Tag 10 `rows-applied` adds positive `requestSequence` (`u64`), positive `generation` (`u64`),
+  and `revision` (`u64`) — the same field order `FrameApplied` uses.
+- Tag 11 `history-observed` adds positive `sequence` (`u64`), positive `generation` (`u64`), and
+  `revision` (`u64`).
+
+The four control acknowledgement actions answer with `FeedbackAccepted`, or `Rejected` carrying
+the existing Host-rejected reason tag 8 when the Host returns a typed failure. `read-viewport-rows`
+answers with a `Record` holding the correlated kind-46 row-window response, or `RowsRejected` with
+the existing nine-reason vocabulary. Any other outcome pairing stays a protocol violation.
+
 ## Controller messages
 
 OBCN kind 7 `TerminalControlRequest` and kind 8 `TerminalControlResult` extend the same serialized

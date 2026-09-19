@@ -10,7 +10,8 @@ mod terminal_viewer;
 pub use terminal_viewer::{
     MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
     MINIMUM_READ_ROWS_BYTES, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
-    TerminalViewerResult, ViewerRejection, ViewerRowsRejectedReason, ViewerSnapshotReason,
+    TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand, ViewerRejection,
+    ViewerRowsRejectedReason, ViewerSnapshotReason, ViewportRowOrigin,
 };
 
 pub use codec::{

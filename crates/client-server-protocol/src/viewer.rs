@@ -4,6 +4,37 @@ use std::num::NonZeroU64;
 
 pub const MAXIMUM_VIEWER_RECORD_BYTES: usize = 64 + 36 * 1024 * 1024;
 
+/// Projection delivery the Client requests for an attached viewer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProjectionDemand {
+    Active,
+    Paused,
+}
+
+/// Retained-history delivery the Client requests for an attached viewer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HistoryDemand {
+    FollowingBottom,
+    ViewingHistory,
+}
+
+/// The row window origin a `read-viewport-rows` action resolves against the
+/// Host's retained rows: a distance back from the live tail, or a signed
+/// delta from the Host-committed viewport anchor.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum ViewportRowOrigin {
+    Tail { rows_before: u32 },
+    Committed { delta: i32 },
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ViewerSnapshotReason {
@@ -64,6 +95,46 @@ pub enum TerminalViewerAction {
         request_sequence: NonZeroU64,
         maximum_bytes: u32,
     },
+    SetProjectionDemand {
+        attachment_id: ViewerId,
+        demand: ProjectionDemand,
+    },
+    SetHistoryDemand {
+        attachment_id: ViewerId,
+        demand: HistoryDemand,
+    },
+    // `maximum_bytes` bounds the OBRW payload, not the record. The served
+    // window's revision is Host-captured identity, never request equality.
+    ReadViewportRows {
+        attachment_id: ViewerId,
+        origin: ViewportRowOrigin,
+        row_count: u16,
+        #[serde(with = "crate::number::decimal")]
+        revision: u64,
+        #[serde(with = "crate::number::positive_decimal")]
+        generation: NonZeroU64,
+        #[serde(with = "crate::number::positive_decimal")]
+        request_sequence: NonZeroU64,
+        maximum_bytes: u32,
+    },
+    RowsApplied {
+        attachment_id: ViewerId,
+        #[serde(with = "crate::number::positive_decimal")]
+        request_sequence: NonZeroU64,
+        #[serde(with = "crate::number::positive_decimal")]
+        generation: NonZeroU64,
+        #[serde(with = "crate::number::decimal")]
+        revision: u64,
+    },
+    HistoryObserved {
+        attachment_id: ViewerId,
+        #[serde(with = "crate::number::positive_decimal")]
+        sequence: NonZeroU64,
+        #[serde(with = "crate::number::positive_decimal")]
+        generation: NonZeroU64,
+        #[serde(with = "crate::number::decimal")]
+        revision: u64,
+    },
     Detach {
         attachment_id: ViewerId,
     },
@@ -95,14 +166,22 @@ impl TerminalViewerAction {
     /// Semantic bounds the JSON shape cannot express; callers reject the
     /// message when this fails, exactly like a malformed field.
     pub(crate) fn validate(&self) -> Result<(), ProtocolError> {
-        if let Self::ReadRows {
-            row_count,
-            maximum_bytes,
-            ..
-        } = self
-            && (*row_count == 0
-                || *row_count > MAXIMUM_READ_ROWS
-                || !(MINIMUM_READ_ROWS_BYTES..=MAXIMUM_READ_ROWS_BYTES).contains(maximum_bytes))
+        let bounds = match self {
+            Self::ReadRows {
+                row_count,
+                maximum_bytes,
+                ..
+            }
+            | Self::ReadViewportRows {
+                row_count,
+                maximum_bytes,
+                ..
+            } => (*row_count, *maximum_bytes),
+            _ => return Ok(()),
+        };
+        if bounds.0 == 0
+            || bounds.0 > MAXIMUM_READ_ROWS
+            || !(MINIMUM_READ_ROWS_BYTES..=MAXIMUM_READ_ROWS_BYTES).contains(&bounds.1)
         {
             return Err(ProtocolError::InvalidPayload);
         }
@@ -117,6 +196,11 @@ impl TerminalViewerAction {
             | Self::FrameApplied { attachment_id, .. }
             | Self::NeedSnapshot { attachment_id, .. }
             | Self::ReadRows { attachment_id, .. }
+            | Self::SetProjectionDemand { attachment_id, .. }
+            | Self::SetHistoryDemand { attachment_id, .. }
+            | Self::ReadViewportRows { attachment_id, .. }
+            | Self::RowsApplied { attachment_id, .. }
+            | Self::HistoryObserved { attachment_id, .. }
             | Self::Detach { attachment_id } => Some(attachment_id),
         }
     }
@@ -148,6 +232,10 @@ pub enum ViewerRejectedReason {
     AlreadyAttached,
     TerminalUnavailable,
     FeedbackMismatch,
+    /// Reserved for the four control-acknowledgement actions' explicit Host
+    /// typed failures; distinct from the controller-plane reason of the same
+    /// name and never applied to older actions.
+    HostRejected,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

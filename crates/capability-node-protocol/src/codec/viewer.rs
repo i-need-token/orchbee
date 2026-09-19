@@ -4,7 +4,8 @@ use super::PayloadReader;
 use crate::{
     CapabilityNodeMessage, MAXIMUM_VIEWER_RECORD_BYTES, OperationId, ProtocolError,
     ReadMessageError, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
-    TerminalViewerResult, ViewerRejection, ViewerSnapshotReason, WorkerGeneration, WorkerId,
+    TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand, ViewerRejection,
+    ViewerSnapshotReason, ViewportRowOrigin, WorkerGeneration, WorkerId,
 };
 
 pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
@@ -63,6 +64,59 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
             bytes.extend_from_slice(&generation.get().to_be_bytes());
             bytes.extend_from_slice(&request_sequence.get().to_be_bytes());
             bytes.extend_from_slice(&maximum_bytes.to_be_bytes());
+        }
+        TerminalViewerAction::SetProjectionDemand { demand } => {
+            bytes.push(7);
+            bytes.push(demand.tag());
+        }
+        TerminalViewerAction::SetHistoryDemand { demand } => {
+            bytes.push(8);
+            bytes.push(demand.tag());
+        }
+        TerminalViewerAction::ReadViewportRows {
+            origin,
+            row_count,
+            revision,
+            generation,
+            request_sequence,
+            maximum_bytes,
+        } => {
+            bytes.push(9);
+            match origin {
+                ViewportRowOrigin::Tail { rows_before } => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&rows_before.to_be_bytes());
+                }
+                ViewportRowOrigin::Committed { delta } => {
+                    bytes.push(2);
+                    bytes.extend_from_slice(&delta.to_be_bytes());
+                }
+            }
+            bytes.extend_from_slice(&row_count.to_be_bytes());
+            bytes.extend_from_slice(&revision.to_be_bytes());
+            bytes.extend_from_slice(&generation.get().to_be_bytes());
+            bytes.extend_from_slice(&request_sequence.get().to_be_bytes());
+            bytes.extend_from_slice(&maximum_bytes.to_be_bytes());
+        }
+        TerminalViewerAction::RowsApplied {
+            request_sequence,
+            generation,
+            revision,
+        } => {
+            bytes.push(10);
+            bytes.extend_from_slice(&request_sequence.get().to_be_bytes());
+            bytes.extend_from_slice(&generation.get().to_be_bytes());
+            bytes.extend_from_slice(&revision.to_be_bytes());
+        }
+        TerminalViewerAction::HistoryObserved {
+            sequence,
+            generation,
+            revision,
+        } => {
+            bytes.push(11);
+            bytes.extend_from_slice(&sequence.get().to_be_bytes());
+            bytes.extend_from_slice(&generation.get().to_be_bytes());
+            bytes.extend_from_slice(&revision.to_be_bytes());
         }
     }
     bytes
@@ -123,6 +177,53 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
                 maximum_bytes,
             }
         }
+        7 => TerminalViewerAction::SetProjectionDemand {
+            demand: ViewerProjectionDemand::from_tag(reader.read_u8()?)?,
+        },
+        8 => TerminalViewerAction::SetHistoryDemand {
+            demand: ViewerHistoryDemand::from_tag(reader.read_u8()?)?,
+        },
+        9 => {
+            let origin = match reader.read_u8()? {
+                1 => ViewportRowOrigin::Tail {
+                    rows_before: reader.read_u32()?,
+                },
+                2 => ViewportRowOrigin::Committed {
+                    delta: reader.read_i32()?,
+                },
+                _ => return Err(ProtocolError::InvalidPayload),
+            };
+            let row_count = reader.read_u16()?;
+            let revision = reader.read_u64()?;
+            let generation = positive(reader.read_u64()?)?;
+            let request_sequence = positive(reader.read_u64()?)?;
+            let maximum_bytes = reader.read_u32()?;
+            if row_count == 0
+                || row_count > crate::MAXIMUM_READ_ROWS
+                || !(crate::MINIMUM_READ_ROWS_BYTES..=crate::MAXIMUM_READ_ROWS_BYTES)
+                    .contains(&maximum_bytes)
+            {
+                return Err(ProtocolError::InvalidPayload);
+            }
+            TerminalViewerAction::ReadViewportRows {
+                origin,
+                row_count,
+                revision,
+                generation,
+                request_sequence,
+                maximum_bytes,
+            }
+        }
+        10 => TerminalViewerAction::RowsApplied {
+            request_sequence: positive(reader.read_u64()?)?,
+            generation: positive(reader.read_u64()?)?,
+            revision: reader.read_u64()?,
+        },
+        11 => TerminalViewerAction::HistoryObserved {
+            sequence: positive(reader.read_u64()?)?,
+            generation: positive(reader.read_u64()?)?,
+            revision: reader.read_u64()?,
+        },
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;
