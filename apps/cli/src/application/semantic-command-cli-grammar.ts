@@ -25,6 +25,7 @@ export interface SemanticCommandCliGrammarCommand {
 	readonly path: readonly string[];
 	readonly coordinator: boolean;
 	readonly operand?: string | undefined;
+	readonly operandValues?: readonly string[] | undefined;
 	readonly location: boolean;
 	readonly options: readonly SemanticCommandCliGrammarOption[];
 }
@@ -256,6 +257,7 @@ export const SEMANTIC_COMMAND_CLI_COMMANDS: readonly SemanticCommandCliGrammarCo
 		kind: 'completion',
 		location: false,
 		operand: '<shell>',
+		operandValues: SEMANTIC_COMMAND_CLI_SHELLS,
 		options: [],
 		path: ['completion'],
 	},
