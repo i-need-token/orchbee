@@ -2218,6 +2218,11 @@ impl UiDriver {
             | Some(TerminalViewerAction::AttachBinding { .. })
             | Some(TerminalViewerAction::Poll { .. })
             | Some(TerminalViewerAction::ReadRows { .. })
+            | Some(TerminalViewerAction::SetProjectionDemand { .. })
+            | Some(TerminalViewerAction::SetHistoryDemand { .. })
+            | Some(TerminalViewerAction::ReadViewportRows { .. })
+            | Some(TerminalViewerAction::RowsApplied { .. })
+            | Some(TerminalViewerAction::HistoryObserved { .. })
             | Some(TerminalViewerAction::Detach { .. }) => {
                 Err(test_error("projection returned a non-feedback action"))
             }

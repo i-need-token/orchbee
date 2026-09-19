@@ -2,21 +2,23 @@ use std::{error::Error, io, num::NonZeroU64, os::unix::net::UnixStream, time::Du
 
 use orchbee_capability_node_protocol::{
     MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, TerminalViewerResult, ViewerRejection, ViewerRowsRejectedReason,
-    ViewerSnapshotReason,
+    TerminalViewerRequest, TerminalViewerResult, ViewerHistoryDemand, ViewerProjectionDemand,
+    ViewerRejection, ViewerRowsRejectedReason, ViewerSnapshotReason, ViewportRowOrigin,
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, EncodedRowAccessControl, Envelope,
-    FrameApplied, MessageRole, NeedSnapshot, PayloadEncoding, ProjectionDemand,
-    ProjectionDemandControl, ProjectionFeedbackControl, ReadRows, RowAccessControl,
-    RowRevisionPolicy, RowWindowDetail, RowWindowOrigin, RowWindowPurpose, SetProjectionDemand,
-    SnapshotReason, TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalId, decode_attachment_control,
-    decode_connection_control, decode_projection_demand_control,
-    decode_projection_feedback_control, decode_transport_envelope, encode_attachment_control,
-    encode_projection_demand_control, encode_projection_feedback_control,
-    encode_row_access_control, encode_transport_envelope, message_contract,
+    FrameApplied, HistoryControl, HistoryDemand, HistoryObserved, MessageRole, NeedSnapshot,
+    PayloadEncoding, ProjectionDemand, ProjectionDemandControl, ProjectionFeedbackControl,
+    ReadRows, RowAccessControl, RowRevisionPolicy, RowWindowDetail, RowWindowOrigin,
+    RowWindowPurpose, RowsApplied, SetHistoryDemand, SetProjectionDemand, SnapshotReason,
+    TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalId, decode_attachment_control,
+    decode_connection_control, decode_history_control, decode_projection_demand_control,
+    decode_projection_feedback_control, decode_row_access_control, decode_transport_envelope,
+    encode_attachment_control, encode_history_control, encode_projection_demand_control,
+    encode_projection_feedback_control, encode_row_access_control, encode_transport_envelope,
+    message_contract,
 };
 
 use crate::host_connection::{HostBrokerConnection, HostExchange, exchange};
@@ -189,62 +191,56 @@ fn apply(
             generation,
             request_sequence,
             maximum_bytes,
-        } => {
-            // A buffer read needs an admitted, open viewer; unknown or closed
-            // attachments are the existing unavailability, never a row rejection.
-            if !host.viewers.borrow().open(request.attachment_id) {
-                return Ok(TerminalViewerOutcome::Rejected(
-                    ViewerRejection::AttachmentUnavailable,
-                ));
-            }
-            // The effective budget is the smallest of the requested bound, the
-            // negotiated row-window limit, and what the viewer record carrier can
-            // hold after its envelope header.
-            let carrier_payload = u32::try_from(
-                MAXIMUM_VIEWER_RECORD_BYTES.saturating_sub(TRANSPORT_ENVELOPE_HEADER_BYTES),
-            )
-            .unwrap_or(u32::MAX);
-            let effective_maximum = maximum_bytes
-                .min(host.negotiated_limits().row_window_bytes)
-                .min(carrier_payload);
-            let command = encode_row_access_control(&RowAccessControl::ReadRows(ReadRows {
+        } => read_rows(
+            host,
+            server,
+            correlation,
+            request.attachment_id,
+            ReadRows {
                 attachment_id: id,
                 detail: RowWindowDetail::Text,
                 generation,
-                maximum_bytes: effective_maximum,
+                maximum_bytes,
                 origin: RowWindowOrigin::Absolute { row: start_row },
                 purpose: RowWindowPurpose::Buffer,
                 request_sequence,
                 revision,
                 revision_policy: RowRevisionPolicy::Exact,
                 row_count,
-            }))?;
-            let response = exchange_rows(
-                host,
-                server,
-                correlation,
-                &command,
-                TRANSPORT_ENVELOPE_HEADER_BYTES.saturating_add(effective_maximum as usize),
-            )?;
-            let envelope = decode_transport_envelope(&response)?;
-            if envelope.payload_encoding == PayloadEncoding::RowWindow {
-                // The bounded exchange already proved the response record fits
-                // the effective budget; confirm the payload length itself.
-                if envelope.payload.len() > effective_maximum as usize {
-                    return Err(invalid("Host row window exceeds its byte budget").into());
-                }
-                return Ok(TerminalViewerOutcome::Record(response));
-            }
-            let Ok(ConnectionControl::TypedFailure(failure)) =
-                decode_connection_control(envelope.kind, envelope.role, envelope.payload)
-            else {
-                return Err(invalid("Host did not answer the row request").into());
-            };
-            Ok(TerminalViewerOutcome::RowsRejected(
-                rows_rejection_reason(&failure.code)
-                    .ok_or_else(|| invalid("Host row rejection used an unknown reason"))?,
-            ))
-        }
+            },
+        ),
+        TerminalViewerAction::ReadViewportRows {
+            origin,
+            row_count,
+            revision,
+            generation,
+            request_sequence,
+            maximum_bytes,
+        } => read_rows(
+            host,
+            server,
+            correlation,
+            request.attachment_id,
+            ReadRows {
+                attachment_id: id,
+                detail: RowWindowDetail::Text,
+                generation,
+                maximum_bytes,
+                origin: match origin {
+                    ViewportRowOrigin::Tail { rows_before } => {
+                        RowWindowOrigin::Tail { rows_before }
+                    }
+                    ViewportRowOrigin::Committed { delta } => {
+                        RowWindowOrigin::Committed { delta }
+                    }
+                },
+                purpose: RowWindowPurpose::Viewport,
+                request_sequence,
+                revision,
+                revision_policy: RowRevisionPolicy::CurrentView,
+                row_count,
+            },
+        ),
         TerminalViewerAction::Detach => {
             if !host.viewers.borrow().contains(request.attachment_id) {
                 if host.disposed_viewer(request.attachment_id) {
@@ -273,6 +269,133 @@ fn apply(
             }
             host.viewers.borrow_mut().remove(request.attachment_id);
             Ok(TerminalViewerOutcome::Detached)
+        }
+        TerminalViewerAction::SetProjectionDemand { demand } => {
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
+            let demand = match demand {
+                ViewerProjectionDemand::Active => ProjectionDemand::Active,
+                ViewerProjectionDemand::Paused => ProjectionDemand::Paused,
+            };
+            let command =
+                encode_projection_demand_control(&ProjectionDemandControl::SetProjectionDemand(
+                    SetProjectionDemand {
+                        attachment_id: id,
+                        demand,
+                    },
+                ))?;
+            let Some(response) =
+                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
+            else {
+                return Ok(TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected));
+            };
+            let envelope = decode_transport_envelope(&response)?;
+            let ProjectionDemandControl::ProjectionDemandAccepted(accepted) =
+                decode_projection_demand_control(envelope.kind, envelope.role, envelope.payload)?
+            else {
+                return Err(invalid("Host did not acknowledge the viewer projection demand").into());
+            };
+            if accepted.attachment_id != id || accepted.demand != demand {
+                return Err(invalid("Host projection demand acknowledgement disagrees").into());
+            }
+            Ok(TerminalViewerOutcome::FeedbackAccepted)
+        }
+        TerminalViewerAction::SetHistoryDemand { demand } => {
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
+            let demand = match demand {
+                ViewerHistoryDemand::FollowingBottom => HistoryDemand::FollowingBottom,
+                ViewerHistoryDemand::ViewingHistory => HistoryDemand::ViewingHistory,
+            };
+            let command = encode_history_control(&HistoryControl::SetHistoryDemand(
+                SetHistoryDemand {
+                    attachment_id: id,
+                    demand,
+                },
+            ))?;
+            let Some(response) =
+                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
+            else {
+                return Ok(TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected));
+            };
+            let envelope = decode_transport_envelope(&response)?;
+            let HistoryControl::HistoryDemandAccepted(accepted) =
+                decode_history_control(envelope.kind, envelope.role, envelope.payload)?
+            else {
+                return Err(invalid("Host did not acknowledge the viewer history demand").into());
+            };
+            if accepted.attachment_id != id || accepted.demand != demand {
+                return Err(invalid("Host history demand acknowledgement disagrees").into());
+            }
+            Ok(TerminalViewerOutcome::FeedbackAccepted)
+        }
+        TerminalViewerAction::RowsApplied {
+            request_sequence,
+            generation,
+            revision,
+        } => {
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
+            let applied = RowsApplied {
+                attachment_id: id,
+                generation,
+                request_sequence,
+                revision,
+            };
+            let command =
+                encode_row_access_control(&RowAccessControl::RowsAppliedRequest(applied))?;
+            let Some(response) =
+                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
+            else {
+                return Ok(TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected));
+            };
+            let envelope = decode_transport_envelope(&response)?;
+            if decode_row_access_control(envelope.kind, envelope.role, envelope.payload)?
+                != RowAccessControl::RowsAppliedResponse(applied)
+            {
+                return Err(invalid("Host did not acknowledge the exact rows applied").into());
+            }
+            Ok(TerminalViewerOutcome::FeedbackAccepted)
+        }
+        TerminalViewerAction::HistoryObserved {
+            sequence,
+            generation,
+            revision,
+        } => {
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
+            let observed = HistoryObserved {
+                attachment_id: id,
+                generation,
+                revision,
+                sequence,
+            };
+            let command =
+                encode_history_control(&HistoryControl::HistoryObservedRequest(observed))?;
+            let Some(response) =
+                ack_round_trip(host, server, correlation, command.kind, &command.payload)?
+            else {
+                return Ok(TerminalViewerOutcome::Rejected(ViewerRejection::HostRejected));
+            };
+            let envelope = decode_transport_envelope(&response)?;
+            if decode_history_control(envelope.kind, envelope.role, envelope.payload)?
+                != HistoryControl::HistoryObservedResponse(observed)
+            {
+                return Err(invalid("Host did not acknowledge the exact history observed").into());
+            }
+            Ok(TerminalViewerOutcome::FeedbackAccepted)
         }
         TerminalViewerAction::FrameApplied { .. } | TerminalViewerAction::NeedSnapshot { .. } => {
             // Drain pending events before changing feedback state. HostExchange's preflight
@@ -347,6 +470,90 @@ const fn snapshot_reason(reason: ViewerSnapshotReason) -> SnapshotReason {
         ViewerSnapshotReason::SequenceGap => SnapshotReason::SequenceGap,
         ViewerSnapshotReason::StoreReset => SnapshotReason::StoreReset,
     }
+}
+
+/// A row read needs an admitted, open viewer; unknown or closed attachments are
+/// the existing unavailability, never a row rejection. The answer is either the
+/// correlated row-window record or a typed failure mapped to a rows rejection.
+fn read_rows(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    attachment: orchbee_capability_node_protocol::OperationId,
+    read: ReadRows,
+) -> Result<TerminalViewerOutcome, Box<dyn Error>> {
+    if !host.viewers.borrow().open(attachment) {
+        return Ok(TerminalViewerOutcome::Rejected(
+            ViewerRejection::AttachmentUnavailable,
+        ));
+    }
+    // The effective budget is the smallest of the requested bound, the
+    // negotiated row-window limit, and what the viewer record carrier can
+    // hold after its envelope header.
+    let carrier_payload = u32::try_from(
+        MAXIMUM_VIEWER_RECORD_BYTES.saturating_sub(TRANSPORT_ENVELOPE_HEADER_BYTES),
+    )
+    .unwrap_or(u32::MAX);
+    let effective_maximum = read
+        .maximum_bytes
+        .min(host.negotiated_limits().row_window_bytes)
+        .min(carrier_payload);
+    let command = encode_row_access_control(&RowAccessControl::ReadRows(ReadRows {
+        maximum_bytes: effective_maximum,
+        ..read
+    }))?;
+    let response = exchange_rows(
+        host,
+        server,
+        correlation,
+        &command,
+        TRANSPORT_ENVELOPE_HEADER_BYTES.saturating_add(effective_maximum as usize),
+    )?;
+    let envelope = decode_transport_envelope(&response)?;
+    if envelope.payload_encoding == PayloadEncoding::RowWindow {
+        // The bounded exchange already proved the response record fits
+        // the effective budget; confirm the payload length itself.
+        if envelope.payload.len() > effective_maximum as usize {
+            return Err(invalid("Host row window exceeds its byte budget").into());
+        }
+        return Ok(TerminalViewerOutcome::Record(response));
+    }
+    let Ok(ConnectionControl::TypedFailure(failure)) =
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload)
+    else {
+        return Err(invalid("Host did not answer the row request").into());
+    };
+    Ok(TerminalViewerOutcome::RowsRejected(
+        rows_rejection_reason(&failure.code)
+            .ok_or_else(|| invalid("Host row rejection used an unknown reason"))?,
+    ))
+}
+
+/// A control acknowledgement round trip answers either the control family's
+/// response or a typed failure; the caller maps the failure to host-rejected.
+fn ack_round_trip(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    kind: u16,
+    payload: &[u8],
+) -> Result<Option<Vec<u8>>, Box<dyn Error>> {
+    let response = exchange(
+        host,
+        server,
+        correlation,
+        kind,
+        payload,
+        PayloadEncoding::ControlJson,
+    )?;
+    let envelope = decode_transport_envelope(&response)?;
+    if matches!(
+        decode_connection_control(envelope.kind, envelope.role, envelope.payload),
+        Ok(ConnectionControl::TypedFailure(_))
+    ) {
+        return Ok(None);
+    }
+    Ok(Some(response))
 }
 
 fn rows_rejection_reason(code: &str) -> Option<ViewerRowsRejectedReason> {

@@ -1181,6 +1181,9 @@ fn classify_viewer_rejected(reason: ViewerRejectedReason) -> Failure {
             viewer_unavailable()
         }
         ViewerRejectedReason::FeedbackMismatch => viewer_protocol_invalid(),
+        ViewerRejectedReason::HostRejected => {
+            Failure::new(FailureKind::Rejected).details(stage_details("viewer"))
+        }
     }
 }
 

@@ -5,9 +5,14 @@ use super::{
     snapshot_reason, unavailable,
 };
 use orchbee_capability_node_protocol::{
-    OperationId, ViewerRowsRejectedReason as WorkerRowsRejectedReason,
+    OperationId, ViewerHistoryDemand as WorkerHistoryDemand,
+    ViewerProjectionDemand as WorkerProjectionDemand,
+    ViewerRowsRejectedReason as WorkerRowsRejectedReason,
+    ViewportRowOrigin as WorkerViewportRowOrigin,
 };
-use orchbee_client_server_protocol::ViewerRowsRejectedReason;
+use orchbee_client_server_protocol::{
+    HistoryDemand, ProjectionDemand, ViewerRowsRejectedReason, ViewportRowOrigin,
+};
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, CorrelationId, MessageRole, PayloadEncoding, RowWindowDetail,
     decode_transport_envelope, inspect_terminal_row_window_route,
@@ -42,6 +47,11 @@ impl LocalTerminalSession<'_> {
             | Action::FrameApplied { .. }
             | Action::NeedSnapshot { .. }
             | Action::ReadRows { .. }
+            | Action::SetProjectionDemand { .. }
+            | Action::SetHistoryDemand { .. }
+            | Action::ReadViewportRows { .. }
+            | Action::RowsApplied { .. }
+            | Action::HistoryObserved { .. }
             | Action::Detach { .. } => {}
         }
         let index = request.action().attachment_id().and_then(|attachment_id| {
@@ -125,6 +135,63 @@ impl LocalTerminalSession<'_> {
                 request_sequence: *request_sequence,
                 maximum_bytes: *maximum_bytes,
             },
+            Action::SetProjectionDemand { demand, .. } => WorkerAction::SetProjectionDemand {
+                demand: match demand {
+                    ProjectionDemand::Active => WorkerProjectionDemand::Active,
+                    ProjectionDemand::Paused => WorkerProjectionDemand::Paused,
+                },
+            },
+            Action::SetHistoryDemand { demand, .. } => WorkerAction::SetHistoryDemand {
+                demand: match demand {
+                    HistoryDemand::FollowingBottom => WorkerHistoryDemand::FollowingBottom,
+                    HistoryDemand::ViewingHistory => WorkerHistoryDemand::ViewingHistory,
+                },
+            },
+            Action::ReadViewportRows {
+                origin,
+                row_count,
+                revision,
+                generation,
+                request_sequence,
+                maximum_bytes,
+                ..
+            } => WorkerAction::ReadViewportRows {
+                origin: match origin {
+                    ViewportRowOrigin::Tail { rows_before } => {
+                        WorkerViewportRowOrigin::Tail {
+                            rows_before: *rows_before,
+                        }
+                    }
+                    ViewportRowOrigin::Committed { delta } => {
+                        WorkerViewportRowOrigin::Committed { delta: *delta }
+                    }
+                },
+                row_count: *row_count,
+                revision: *revision,
+                generation: *generation,
+                request_sequence: *request_sequence,
+                maximum_bytes: *maximum_bytes,
+            },
+            Action::RowsApplied {
+                request_sequence,
+                generation,
+                revision,
+                ..
+            } => WorkerAction::RowsApplied {
+                request_sequence: *request_sequence,
+                generation: *generation,
+                revision: *revision,
+            },
+            Action::HistoryObserved {
+                sequence,
+                generation,
+                revision,
+                ..
+            } => WorkerAction::HistoryObserved {
+                sequence: *sequence,
+                generation: *generation,
+                revision: *revision,
+            },
             Action::Attach { .. } | Action::AttachBinding { .. } => {
                 unreachable!("attach is handled before existing-viewer operations")
             }
@@ -144,13 +211,22 @@ impl LocalTerminalSession<'_> {
             Ok(WorkerOperationResult::Viewer(result)) => match result.outcome {
                 WorkerOutcome::Empty => Outcome::Empty {},
                 WorkerOutcome::Record(record) => {
-                    // A buffer-read response is not a projection event: it is
+                    // A row-read response is not a projection event: it is
                     // validated against the issued request and the pinned
                     // attachment, never fed to the frame-only projection.
-                    let accepted = if matches!(request.action(), Action::ReadRows { .. }) {
-                        valid_rows_record(request.action(), viewer, request_id, &record)
-                    } else {
-                        viewer.projection.receive(&record).is_ok()
+                    let accepted = match request.action() {
+                        Action::ReadRows { .. } => {
+                            valid_rows_record(request.action(), viewer, request_id, &record)
+                        }
+                        Action::ReadViewportRows { .. } => {
+                            valid_viewport_rows_record(
+                                request.action(),
+                                viewer,
+                                request_id,
+                                &record,
+                            )
+                        }
+                        _ => viewer.projection.receive(&record).is_ok(),
                     };
                     if accepted {
                         Outcome::Record(record)
@@ -163,7 +239,10 @@ impl LocalTerminalSession<'_> {
                     // A typed row rejection answers the read without disturbing
                     // the healthy viewer; the carrier already proved the pairing,
                     // and any other action turns it into a viewer violation.
-                    if matches!(request.action(), Action::ReadRows { .. }) {
+                    if matches!(
+                        request.action(),
+                        Action::ReadRows { .. } | Action::ReadViewportRows { .. }
+                    ) {
                         Outcome::RowsRejected {
                             reason: rows_rejected_reason(reason),
                         }
@@ -173,7 +252,12 @@ impl LocalTerminalSession<'_> {
                     }
                 }
                 WorkerOutcome::FeedbackAccepted => {
-                    viewer.projection.complete_feedback(request.action());
+                    if matches!(
+                        request.action(),
+                        Action::FrameApplied { .. } | Action::NeedSnapshot { .. }
+                    ) {
+                        viewer.projection.complete_feedback(request.action());
+                    }
                     Outcome::FeedbackAccepted {}
                 }
                 WorkerOutcome::Detached => {
@@ -183,6 +267,17 @@ impl LocalTerminalSession<'_> {
                 }
                 WorkerOutcome::Rejected(ViewerRejection::FeedbackMismatch) => {
                     rejected(Rejected::FeedbackMismatch)
+                }
+                WorkerOutcome::Rejected(ViewerRejection::HostRejected)
+                    if matches!(
+                        request.action(),
+                        Action::SetProjectionDemand { .. }
+                            | Action::SetHistoryDemand { .. }
+                            | Action::RowsApplied { .. }
+                            | Action::HistoryObserved { .. }
+                    ) =>
+                {
+                    rejected(Rejected::HostRejected)
                 }
                 WorkerOutcome::Rejected(_) | WorkerOutcome::Attached => {
                     self.viewers[index].take();
@@ -246,6 +341,53 @@ fn valid_rows_record(
         && route.revision == *revision
         && route.generation == *generation
         && route.start_row == *start_row
+        && route.row_count == *row_count
+        && route.detail == RowWindowDetail::Text
+}
+
+/// A viewport-read record is accepted on the same envelope, correlation, and
+/// pinned-window checks as a buffer read, except start row and revision: the
+/// Host serves the current view and captures the window identity it resolved,
+/// so the binding never requires request equality for those fields.
+fn valid_viewport_rows_record(
+    action: &Action,
+    viewer: &ViewerAttachment,
+    operation: OperationId,
+    record: &[u8],
+) -> bool {
+    let Action::ReadViewportRows {
+        row_count,
+        generation,
+        request_sequence,
+        maximum_bytes,
+        ..
+    } = action
+    else {
+        return false;
+    };
+    let Ok(envelope) = decode_transport_envelope(record) else {
+        return false;
+    };
+    let Ok(correlation) = CorrelationId::from_bytes(operation.as_bytes()) else {
+        return false;
+    };
+    if envelope.protocol != CURRENT_PROTOCOL_VERSION
+        || envelope.role != MessageRole::Response
+        || envelope.correlation_id != Some(correlation)
+        || envelope.host_epoch != Some(viewer.projection.host_epoch)
+        || envelope.optional_message
+        || envelope.payload_encoding != PayloadEncoding::RowWindow
+        || envelope.payload.len() > usize::try_from(*maximum_bytes).unwrap_or(usize::MAX)
+    {
+        return false;
+    }
+    let Ok(route) = inspect_terminal_row_window_route(envelope.payload) else {
+        return false;
+    };
+    route.attachment_id == viewer.projection.attachment_id
+        && route.host_epoch == viewer.projection.host_epoch
+        && route.sequence == *request_sequence
+        && route.generation == *generation
         && route.row_count == *row_count
         && route.detail == RowWindowDetail::Text
 }

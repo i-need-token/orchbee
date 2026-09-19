@@ -59,9 +59,18 @@ pub(super) fn run(mut peer: UnixStream, effects: Arc<Mutex<Vec<Effect>>>) {
                             effects.lock().unwrap().push(Effect::Feedback(id));
                             WorkerOutcome::FeedbackAccepted
                         }
-                        WorkerAction::ReadRows { .. } => WorkerOutcome::RowsRejected(
-                            orchbee_capability_node_protocol::ViewerRowsRejectedReason::MissingResource,
-                        ),
+                        WorkerAction::ReadRows { .. } | WorkerAction::ReadViewportRows { .. } => {
+                            WorkerOutcome::RowsRejected(
+                                orchbee_capability_node_protocol::ViewerRowsRejectedReason::MissingResource,
+                            )
+                        }
+                        WorkerAction::SetProjectionDemand { .. }
+                        | WorkerAction::SetHistoryDemand { .. }
+                        | WorkerAction::RowsApplied { .. }
+                        | WorkerAction::HistoryObserved { .. } => {
+                            effects.lock().unwrap().push(Effect::Feedback(id));
+                            WorkerOutcome::FeedbackAccepted
+                        }
                         WorkerAction::Detach => {
                             effects.lock().unwrap().push(Effect::Detach(id));
                             viewers.remove(&id);

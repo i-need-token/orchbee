@@ -1580,7 +1580,8 @@ impl NativeExecutor {
                 // parked until the selection changes.
                 ViewerRejectedReason::AlreadyAttached => PaneFault::CapacityExceeded,
                 ViewerRejectedReason::TerminalUnavailable
-                | ViewerRejectedReason::FeedbackMismatch => PaneFault::AttachRejected,
+                | ViewerRejectedReason::FeedbackMismatch
+                | ViewerRejectedReason::HostRejected => PaneFault::AttachRejected,
             },
             TerminalViewerOutcome::Unavailable { .. } => PaneFault::AttachUnavailable,
             TerminalViewerOutcome::Attached { .. }
