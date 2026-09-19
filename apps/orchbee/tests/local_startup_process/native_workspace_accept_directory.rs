@@ -2,12 +2,12 @@
 //! staged `orchbee` binary drives the accepted `WorkspacePrimaryDirectoryAccept`
 //! action against a live isolated Site — with no TUI client and no directory
 //! wizard anywhere in the sequence. `project create → workspace create →
-//! workspace accept-directory → tab create → terminal list/read → tab close`
-//! is the genuinely headless chain the accepted slice authorizes; the negative
-//! matrix proves invalid paths exit at the CLI boundary or through the Server's
-//! own probe (zero mkdir, zero committed metadata), repeated acceptance stays
-//! the Server's conflict, and duplicate labels stay ambiguous while typed ids
-//! resolve.
+//! workspace accept-directory → tab create → terminal list/read → tab close
+//! → bounded list observation` is the genuinely headless chain the accepted
+//! slice authorizes; the negative matrix proves invalid paths exit at the CLI
+//! boundary or through the Server's own probe (zero mkdir, zero committed
+//! metadata), repeated acceptance stays the Server's conflict, and duplicate
+//! labels stay ambiguous while typed ids resolve.
 
 use super::{
     native_cli_query::{run_cli, run_json, spawn_real_server, validate, validators},
@@ -30,9 +30,12 @@ const GEOMETRY: [&str; 8] = [
 ];
 
 /// `project create` → `workspace create` → `workspace accept-directory` →
-/// `tab create` → `terminal list`/`terminal read` → `tab close --confirm` —
-/// every step a real CLI invocation, every id chained out of the previous
-/// JSON receipt, zero TUI keys, zero wizard surfaces.
+/// `tab create` → `terminal list`/`terminal read` → `tab close --confirm` →
+/// bounded `tab list`/`terminal list` observation — every step a real CLI
+/// invocation, every id chained out of the previous JSON receipt, zero TUI
+/// keys, zero wizard surfaces. The close stays `accepted` (a receipt, not a
+/// deletion); the bounded observation is what proves the tabId/terminalId
+/// are gone, and the close is never re-sent.
 #[test]
 fn accept_directory_completes_the_headless_chain() -> TestResult {
     let _process_witness = process_witness_guard();
@@ -40,8 +43,10 @@ fn accept_directory_completes_the_headless_chain() -> TestResult {
     let _server = spawn_real_server(&fixture);
     let validators = validators(&fixture);
 
-    // A fresh empty directory is the only filesystem fixture this slice needs.
-    let directory = fixture.base.join("cli accepted dir");
+    // A fresh empty directory is the only filesystem fixture this slice
+    // needs; its name deliberately carries CJK and spaces so the wire and
+    // receipt prove the literal-path contract on non-ASCII input.
+    let directory = fixture.base.join("cli 已接受 目录 dir");
     fs::create_dir(&directory)?;
     let path = directory
         .to_str()
@@ -252,6 +257,57 @@ fn accept_directory_completes_the_headless_chain() -> TestResult {
         closed["result"]["closeRequestId"].as_str().is_some(),
         "the asynchronous close carries its request id"
     );
+
+    // 8. `accepted` is a receipt, not proof of deletion: poll the public
+    //    listings until neither the tabId nor the terminalId is exposed any
+    //    more. The close is submitted exactly once — only bounded read-only
+    //    observation follows, never a resend.
+    let deadline = Instant::now() + BIND_DEADLINE;
+    loop {
+        let (output, tabs) = run_json(
+            &fixture,
+            &[
+                "tab",
+                "list",
+                "--workspace",
+                workspace_id.as_str(),
+                "--format",
+                "json",
+            ],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "tab list: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let tab_visible = tabs["result"]["tabs"]
+            .as_array()
+            .expect("tabs array")
+            .iter()
+            .any(|row| row["tabId"] == tab_id);
+        let (output, terminals) = run_json(&fixture, &["terminal", "list", "--format", "json"]);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "terminal list: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let terminal_visible = terminals["result"]["terminals"]
+            .as_array()
+            .expect("terminals array")
+            .iter()
+            .any(|row| row["terminalId"] == terminal_id);
+        if !tab_visible && !terminal_visible {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "accepted close never settled: tab {tab_id} visible={tab_visible}, \
+             terminal {terminal_id} visible={terminal_visible}"
+        );
+        thread::sleep(BIND_POLL);
+    }
     Ok(())
 }
 
@@ -372,8 +428,9 @@ fn accept_directory_negative_matrix_stays_server_owned() -> TestResult {
 
     // 3. A valid accept commits — then a second acceptance, even of the same
     //    path under a fresh request, is the Server's `WorkspaceDirectoryConflict`
-    //    (exit 3), never a client-side idempotent success.
-    let directory = fixture.base.join("real dir");
+    //    (exit 3), never a client-side idempotent success. The accepted path
+    //    again carries CJK and spaces through the literal contract.
+    let directory = fixture.base.join("real 目录 dir");
     fs::create_dir(&directory)?;
     let path = directory.to_str().ok_or("dir path UTF-8")?.to_owned();
     let accept = [
