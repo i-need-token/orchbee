@@ -326,7 +326,10 @@ admitted session for exactly one `terminal.send` exchange under the same deadlin
    reached the queue; `unknown` means it may already have landed) and `cleanupStatus`
    (`not-needed`/`confirmed`/`unconfirmed`, where `unconfirmed` means the temporary input-only
    attachment may persist until carrier teardown or Host-epoch end — never a claim of
-   release). The result's physical `target` (`workerGeneration`, `hostEpoch`,
+   release). The send rides the shared Worker↔Host link: when that connection fails, or when
+   its cleanup cannot be confirmed, other viewers on the same Host may be interrupted — a
+   transport-level side effect of the underlying connection, not a normal send seizing
+   control. The result's physical `target` (`workerGeneration`, `hostEpoch`,
    `hostTerminalId`) is the incarnation the Server actually admitted, projected verbatim;
    pre-admission refusals carry none. Exit mapping: `accepted`+`confirmed` → 0;
    `accepted`+`unconfirmed` → 5 with a do-not-resend warning (the input may already have

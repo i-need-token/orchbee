@@ -277,7 +277,9 @@ checked 5 秒预算。非 Linux 平台对网络查询与 mutation 产出 `servic
    `rejected`/`not-submitted` 表示该记录可证明从未到达队列；`unknown` 表示其可能
    已经落地）与 `cleanupStatus`（`not-needed`/`confirmed`/`unconfirmed`，其中
    `unconfirmed` 表示临时 input-only attachment 可能存续至 carrier 拆除或 Host-epoch
-   结束——绝不宣称已释放）。结果的物理 `target`（`workerGeneration`、`hostEpoch`、
+   结束——绝不宣称已释放）。发送经由共享的 Worker↔Host 连接：当该连接失效、或其
+   清理无法确认时，同一 Host 上的其它 viewer 可能被中断——这是底层连接的
+   transport 级副作用，并非正常 send 夺取控制权。结果的物理 `target`（`workerGeneration`、`hostEpoch`、
    `hostTerminalId`）是 Server 实际准入的 incarnation，逐字投影；准入前拒绝不携带。
    退出映射：`accepted`+`confirmed` → 0；`accepted`+`unconfirmed` → 5 并附勿重发警告
    （输入可能已生效）；`rejected` → 3；`not-submitted` → 4，唯协议故障 reason
