@@ -2,6 +2,7 @@ import type { AgentObservationEvent, AgentSemanticEvent } from './events';
 import {
 	AgentRuntimeSnapshotSchema,
 	AgentSessionSnapshotSchema,
+	compareAgentIdentity,
 	type AgentCapability,
 	type AgentPresentationAttachment,
 	type AgentRuntimeSnapshot,
@@ -271,7 +272,7 @@ function requestAttention(
 		...session,
 		observation: advanceObservation(session, event.sequence),
 		pendingRequests: [...session.pendingRequests, { ...event.request }].sort((left, right) =>
-			left.requestId.localeCompare(right.requestId),
+			compareAgentIdentity(left.requestId, right.requestId),
 		),
 	};
 	return replaceSession(snapshot, index, nextSession, [
@@ -613,9 +614,14 @@ function applied(
 	sessions: readonly AgentSessionSnapshot[],
 	semanticEvents: readonly AgentSemanticEvent[],
 ): AgentTransition {
+	if (previous.revision >= Number.MAX_SAFE_INTEGER) {
+		return rejected(previous, 'capacity-exceeded');
+	}
 	const snapshot = AgentRuntimeSnapshotSchema.parse({
 		revision: previous.revision + 1,
-		sessions: [...sessions].sort((left, right) => left.sessionId.localeCompare(right.sessionId)),
+		sessions: [...sessions].sort((left, right) =>
+			compareAgentIdentity(left.sessionId, right.sessionId),
+		),
 	});
 	return { kind: 'applied', semanticEvents: [...semanticEvents], snapshot };
 }
@@ -733,9 +739,9 @@ function sortAttachments(
 	return attachments
 		.map((attachment) => ({ ...attachment }))
 		.sort((left, right) => {
-			const presentationOrder = left.presentationId.localeCompare(right.presentationId);
+			const presentationOrder = compareAgentIdentity(left.presentationId, right.presentationId);
 			return presentationOrder === 0
-				? left.generation.localeCompare(right.generation)
+				? compareAgentIdentity(left.generation, right.generation)
 				: presentationOrder;
 		});
 }

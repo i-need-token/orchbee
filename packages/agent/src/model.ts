@@ -6,6 +6,11 @@ const opaqueIdentitySchema = z
 	.max(128)
 	.regex(/^[A-Za-z0-9._:-]+$/u);
 
+export function compareAgentIdentity(left: string, right: string): number {
+	if (left === right) return 0;
+	return left < right ? -1 : 1;
+}
+
 export const AgentSessionIdSchema = opaqueIdentitySchema.brand<'AgentSessionId'>();
 export const AgentTurnIdSchema = opaqueIdentitySchema.brand<'AgentTurnId'>();
 export const AgentRequestIdSchema = opaqueIdentitySchema.brand<'AgentRequestId'>();
@@ -47,10 +52,32 @@ export const AgentExecutionLocationSchema = z.strictObject({
 
 export const AgentPresentationVisibilitySchema = z.enum(['visible', 'hidden', 'unknown']);
 
+const hasLoneSurrogate = (value: string): boolean => {
+	for (let index = 0; index < value.length; index += 1) {
+		const codeUnit = value.charCodeAt(index);
+		if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+			const next = value.charCodeAt(index + 1);
+			if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+			index += 1;
+		} else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+			return true;
+		}
+	}
+	return false;
+};
+
+const AgentPresentationIdSchema = z
+	.string()
+	.min(1)
+	.max(256)
+	.refine((value) => !hasLoneSurrogate(value), {
+		message: 'presentationId must be well-formed Unicode',
+	});
+
 export const AgentPresentationAttachmentSchema = z.strictObject({
 	generation: opaqueIdentitySchema,
 	navigable: z.boolean(),
-	presentationId: z.string().min(1).max(256),
+	presentationId: AgentPresentationIdSchema,
 	visibility: AgentPresentationVisibilitySchema,
 });
 

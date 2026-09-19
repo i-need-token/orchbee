@@ -19,6 +19,8 @@ Orchbee 中 observed Agent 状态的 provider-neutral 领域模型与确定性�
 
 Session、Turn、Request、Event 与 Provider identity 都是有界 opaque string。一个 runtime snapshot 最多包含 512 个 Session，一个 Session 最多包含 128 个 pending request。Parent Session 必须存在于同一 snapshot 中，且 parentage 必须无环。Ended Session 不能保留 active work 或 pending request。
 
+Session、pending request 与 presentation attachment 的 canonical 排序是原始 UTF-16 code-unit 字典序：在任何进程 locale 下结果相同，不做规范化、大小写折叠或数字排序，且只有完全相同的字符串才判等。Identity 相等仍是精确字符串相等。Presentation ID 是非空、至多 256 个 UTF-16 code unit 的字符串，且必须是 well-formed Unicode——孤立 surrogate code unit 被拒绝，而 NUL、格式字符、组合符与合法代理对仍属合法值。
+
 第一阶段只接受 `navigate-only` attention path。该包不导出 provider-native decision 或 resume capability。Prompt text、question text、command、tool input/output、transcript、filesystem path、environment value 与 provider error text 都不是模型字段。
 
 ## Transition 与信任
@@ -30,7 +32,9 @@ content-free change journal。每条 record 只包含 runtime revision、canonic
 Session summary；unchanged 与 rejected input 不创建 record。`readChanges(...)` 返回 ordered page、
 `current`、`revision-ahead`，或在调用者落后于 retention 时返回显式 `reset-required` result。重复或乱序
 sequence value 保持 unchanged；generation、identity、capability、parent、location 或 Turn/Request
-correlation 不匹配时拒绝且不发生 mutation。
+correlation 不匹配时拒绝且不发生 mutation。对 revision 已达最大安全整数的 snapshot，一次本可
+applied 的 transition 会以 `capacity-exceeded` 拒绝，不产生 semantic event、不发生 mutation；
+绝不抛出异常，也绝不抢先改变任何更先达成的 unchanged 或 rejected 结局。
 
 Source 与 capability 相互独立。Heuristic source 不能声明 semantic capability。Terminal source 只能通过 `limited-activity-observed` 声明有界 activity；产生的 hint 绝不创建 Turn、肯定性 idle、outcome、attention request、semantic event 或 notification 权威。Native 与 hook source 只能声明其实际实现的 observational capability。`presentation-attached`、`presentation-visibility-changed` 与 `presentation-detached` 更新精确、受 generation fencing 的 presentation view，但不会重复 Session 语义；只 detach 一个 presentation 时，只要仍有其他 navigable attachment，Session 就保持 connected。Reconnect 需要显式 higher-generation snapshot，会重新验证 source capability 上限与每项 semantic claim，并且绝不从缺失中重建 completion 或 resolution。Staleness 只改变 freshness。Client acknowledgement 有意位于 canonical reducer 之外，不能解决 shared request。
 

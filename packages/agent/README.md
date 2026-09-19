@@ -19,6 +19,8 @@ An `AgentSessionSnapshot` keeps independent facts instead of collapsing them int
 
 Session, Turn, Request, Event, and Provider identities are bounded opaque strings. A runtime snapshot contains at most 512 Sessions, and one Session contains at most 128 pending requests. Parent Sessions must exist in the same snapshot and parentage must be acyclic. An ended Session cannot retain active work or pending requests.
 
+Canonical ordering of Sessions, pending requests, and presentation attachments is the raw UTF-16 code-unit lexicographic order: identical under every process locale, with no normalization, case folding, or numeric collation, and equal only for identical strings. Identity equality remains exact string equality. A presentation ID is a non-empty string of at most 256 UTF-16 code units that must be well-formed Unicode — lone surrogate code units are rejected while NUL, format characters, combining marks, and valid supplementary pairs remain legal.
+
 Phase one accepts only `navigate-only` attention paths. The package does not export a provider-native decision or resume capability. Prompt text, question text, commands, tool inputs or outputs, transcripts, filesystem paths, environment values, and provider error text are not model fields.
 
 ## Transitions and trust
@@ -31,7 +33,9 @@ revision, canonical transition kind, and current Session summary; unchanged and 
 creates no record. `readChanges(...)` returns ordered pages, `current`, `revision-ahead`, or an
 explicit `reset-required` result when a caller is behind retention. Duplicate or reordered sequence
 values are unchanged; mismatched generation, identity, capability, parent, location, or Turn and
-Request correlation is rejected without mutation.
+Request correlation is rejected without mutation. A would-be-applied transition against a snapshot
+already at the maximum safe revision is rejected as `capacity-exceeded` with no semantic event and
+no mutation; it never throws and never preempts an earlier unchanged or rejected outcome.
 
 Source and capability are independent. A heuristic source can claim no semantic capability. A terminal source can claim only bounded activity through `limited-activity-observed`; the resulting hint never creates a Turn, affirmative idle, outcome, attention request, semantic event, or notification authority. Native and hook sources may claim only the observational capabilities they actually implement. `presentation-attached`, `presentation-visibility-changed`, and `presentation-detached` update exact generation-fenced presentation views without duplicating Session semantics; detaching one presentation leaves the Session connected while another navigable attachment remains. Reconnect requires an explicit higher-generation snapshot, revalidates its source capability ceiling and every semantic claim, and never reconstructs a missing completion or resolution. Staleness changes only freshness. Client acknowledgement is intentionally outside the canonical reducer and cannot resolve a shared request.
 

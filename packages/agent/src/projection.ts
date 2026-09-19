@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { AgentActivitySchema } from './model';
+import { AgentActivitySchema, compareAgentIdentity } from './model';
 import type {
 	AgentExecutionLocation,
 	AgentObservation,
@@ -81,11 +81,12 @@ export function projectAgentLocations(
 		}
 	}
 	return [...byLocation.values()].map(projectLocation).sort((left, right) => {
-		const presentationOrder = left.location.presentationId.localeCompare(
+		const presentationOrder = compareAgentIdentity(
+			left.location.presentationId,
 			right.location.presentationId,
 		);
 		return presentationOrder === 0
-			? left.location.generation.localeCompare(right.location.generation)
+			? compareAgentIdentity(left.location.generation, right.location.generation)
 			: presentationOrder;
 	});
 }
@@ -177,7 +178,9 @@ function projectLocation(group: {
 function projectAggregate(sessions: readonly AgentSessionSnapshot[]): AgentAggregatePresentation {
 	const live = sessions.filter((session) => session.lifecycle === 'live');
 	const retained = live.length > 0 ? live : sessions;
-	const sorted = [...retained].sort((left, right) => left.sessionId.localeCompare(right.sessionId));
+	const sorted = [...retained].sort((left, right) =>
+		compareAgentIdentity(left.sessionId, right.sessionId),
+	);
 	const first = sorted[0];
 	if (first === undefined) throw new Error('An Agent aggregate projection requires a Session.');
 	const resolution = resolveAggregate(sorted);
@@ -222,7 +225,7 @@ function compareSessionPresentation(
 		Number(right.status.kind === 'unknown' && right.status.activityHint !== null) -
 		Number(left.status.kind === 'unknown' && left.status.activityHint !== null);
 	return activityHintPriority === 0
-		? left.sessionId.localeCompare(right.sessionId)
+		? compareAgentIdentity(left.sessionId, right.sessionId)
 		: activityHintPriority;
 }
 
@@ -257,7 +260,7 @@ function compareLocationPreference(
 	if (freshnessPriority !== 0) return freshnessPriority;
 	const semanticPriority = statusPriority(right.status) - statusPriority(left.status);
 	if (semanticPriority !== 0) return semanticPriority;
-	return right.location.generation.localeCompare(left.location.generation);
+	return compareAgentIdentity(right.location.generation, left.location.generation);
 }
 
 function freshnessRank(freshness: AgentObservation['freshness']): number {
