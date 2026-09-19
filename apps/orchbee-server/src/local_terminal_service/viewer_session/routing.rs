@@ -1,7 +1,16 @@
 use super::{
     Action, LocalTerminalSession, Outcome, Rejected, TargetLifecycle, TerminalViewerRequest,
-    Unavailable, ViewerRejection, WorkerAction, WorkerOperationRequest, WorkerOperationResult,
-    WorkerOutcome, WorkerRequest, WorkerRequestError, rejected, snapshot_reason, unavailable,
+    Unavailable, ViewerAttachment, ViewerRejection, WorkerAction, WorkerOperationRequest,
+    WorkerOperationResult, WorkerOutcome, WorkerRequest, WorkerRequestError, rejected,
+    snapshot_reason, unavailable,
+};
+use orchbee_capability_node_protocol::{
+    OperationId, ViewerRowsRejectedReason as WorkerRowsRejectedReason,
+};
+use orchbee_client_server_protocol::ViewerRowsRejectedReason;
+use orchbee_terminal_protocol::{
+    CURRENT_PROTOCOL_VERSION, CorrelationId, MessageRole, PayloadEncoding, RowWindowDetail,
+    decode_transport_envelope, inspect_terminal_row_window_route,
 };
 
 impl LocalTerminalSession<'_> {
@@ -32,6 +41,7 @@ impl LocalTerminalSession<'_> {
             Action::Poll { .. }
             | Action::FrameApplied { .. }
             | Action::NeedSnapshot { .. }
+            | Action::ReadRows { .. }
             | Action::Detach { .. } => {}
         }
         let index = request.action().attachment_id().and_then(|attachment_id| {
@@ -99,6 +109,22 @@ impl LocalTerminalSession<'_> {
                 sequence: *sequence,
                 reason: snapshot_reason(*reason),
             },
+            Action::ReadRows {
+                start_row,
+                row_count,
+                revision,
+                generation,
+                request_sequence,
+                maximum_bytes,
+                ..
+            } => WorkerAction::ReadRows {
+                start_row: *start_row,
+                row_count: *row_count,
+                revision: *revision,
+                generation: *generation,
+                request_sequence: *request_sequence,
+                maximum_bytes: *maximum_bytes,
+            },
             Action::Attach { .. } | Action::AttachBinding { .. } => {
                 unreachable!("attach is handled before existing-viewer operations")
             }
@@ -118,8 +144,29 @@ impl LocalTerminalSession<'_> {
             Ok(WorkerOperationResult::Viewer(result)) => match result.outcome {
                 WorkerOutcome::Empty => Outcome::Empty {},
                 WorkerOutcome::Record(record) => {
-                    if viewer.projection.receive(&record).is_ok() {
+                    // A buffer-read response is not a projection event: it is
+                    // validated against the issued request and the pinned
+                    // attachment, never fed to the frame-only projection.
+                    let accepted = if matches!(request.action(), Action::ReadRows { .. }) {
+                        valid_rows_record(request.action(), viewer, request_id, &record)
+                    } else {
+                        viewer.projection.receive(&record).is_ok()
+                    };
+                    if accepted {
                         Outcome::Record(record)
+                    } else {
+                        self.viewers[index].take();
+                        unavailable(Unavailable::TerminalRuntimeUnavailable)
+                    }
+                }
+                WorkerOutcome::RowsRejected(reason) => {
+                    // A typed row rejection answers the read without disturbing
+                    // the healthy viewer; the carrier already proved the pairing,
+                    // and any other action turns it into a viewer violation.
+                    if matches!(request.action(), Action::ReadRows { .. }) {
+                        Outcome::RowsRejected {
+                            reason: rows_rejected_reason(reason),
+                        }
                     } else {
                         self.viewers[index].take();
                         unavailable(Unavailable::TerminalRuntimeUnavailable)
@@ -148,5 +195,73 @@ impl LocalTerminalSession<'_> {
                 unavailable(Unavailable::TerminalRuntimeUnavailable)
             }
         }
+    }
+}
+
+/// A ReadRows record is accepted only when the complete OBTP envelope and the
+/// OBRW header both name this exact request: the Server-issued operation is the
+/// Host correlation, and every pinned window field echoes the request.
+fn valid_rows_record(
+    action: &Action,
+    viewer: &ViewerAttachment,
+    operation: OperationId,
+    record: &[u8],
+) -> bool {
+    let Action::ReadRows {
+        start_row,
+        row_count,
+        revision,
+        generation,
+        request_sequence,
+        maximum_bytes,
+        ..
+    } = action
+    else {
+        return false;
+    };
+    let Ok(envelope) = decode_transport_envelope(record) else {
+        return false;
+    };
+    let Ok(correlation) = CorrelationId::from_bytes(operation.as_bytes()) else {
+        return false;
+    };
+    // `decode_transport_envelope` already proved kind 46 is the only
+    // RowWindow-encoded response; a render detail is not this read's answer.
+    if envelope.protocol != CURRENT_PROTOCOL_VERSION
+        || envelope.role != MessageRole::Response
+        || envelope.correlation_id != Some(correlation)
+        || envelope.host_epoch != Some(viewer.projection.host_epoch)
+        || envelope.optional_message
+        || envelope.payload_encoding != PayloadEncoding::RowWindow
+        || envelope.payload.len() > usize::try_from(*maximum_bytes).unwrap_or(usize::MAX)
+    {
+        return false;
+    }
+    let Ok(route) = inspect_terminal_row_window_route(envelope.payload) else {
+        return false;
+    };
+    route.attachment_id == viewer.projection.attachment_id
+        && route.host_epoch == viewer.projection.host_epoch
+        && route.sequence == *request_sequence
+        && route.revision == *revision
+        && route.generation == *generation
+        && route.start_row == *start_row
+        && route.row_count == *row_count
+        && route.detail == RowWindowDetail::Text
+}
+
+const fn rows_rejected_reason(reason: WorkerRowsRejectedReason) -> ViewerRowsRejectedReason {
+    match reason {
+        WorkerRowsRejectedReason::StaleRevision => ViewerRowsRejectedReason::StaleRevision,
+        WorkerRowsRejectedReason::StaleGeneration => ViewerRowsRejectedReason::StaleGeneration,
+        WorkerRowsRejectedReason::HistoryEvicted => ViewerRowsRejectedReason::HistoryEvicted,
+        WorkerRowsRejectedReason::MissingResource => ViewerRowsRejectedReason::MissingResource,
+        WorkerRowsRejectedReason::InvalidField => ViewerRowsRejectedReason::InvalidField,
+        WorkerRowsRejectedReason::InvalidAcknowledgement => {
+            ViewerRowsRejectedReason::InvalidAcknowledgement
+        }
+        WorkerRowsRejectedReason::LimitExceeded => ViewerRowsRejectedReason::LimitExceeded,
+        WorkerRowsRejectedReason::ResourceExhausted => ViewerRowsRejectedReason::ResourceExhausted,
+        WorkerRowsRejectedReason::InvalidPhase => ViewerRowsRejectedReason::InvalidPhase,
     }
 }

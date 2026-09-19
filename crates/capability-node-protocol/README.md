@@ -185,21 +185,32 @@ This path grants neither input nor resize, and never claims the Host resize leas
 
 The closed actions are `Attach` with Host epoch and Host terminal ID, `Poll`, `FrameApplied` with
 positive sequence/generation and revision, `NeedSnapshot` with positive sequence and the existing
-eight snapshot reasons, and `Detach`. Kind 5 lays out request ID (16 bytes), Worker ID (16),
-generation (8), attachment ID (16), then action tag (1). Tags 1 through 5 select those actions in
+eight snapshot reasons, `Detach`, and `ReadRows`. Kind 5 lays out request ID (16 bytes), Worker ID (16),
+generation (8), attachment ID (16), then action tag (1). Tags 1 through 6 select those actions in
 that order. Attach adds two 16-byte identities; FrameApplied adds three 8-byte integers;
 NeedSnapshot adds an 8-byte sequence and reason tag 1 through 8: `ActivityStale`, `BaseMismatch`,
 `DecoderRejected`, `DimensionsMismatch`, `GenerationMismatch`, `IdentityMismatch`, `SequenceGap`,
-and `StoreReset`.
+and `StoreReset`. `ReadRows` adds big-endian `startRow` (u64), `rowCount` (u16, 1 through 4096),
+`revision` (u64), positive `generation` (u64), positive `requestSequence` (u64), and
+`maximumBytes` (u32, 112 through 8,388,608 — an OBRW payload bound, not a record bound); its
+attachment stays on the request envelope and is not repeated. Tags 1 through 5 are unchanged
+byte-for-byte.
 All integers are unsigned big-endian. Kind 6 contains request and attachment IDs followed by
-`Attached`, `Empty`, `FeedbackAccepted`, `Detached`, or `Rejected` tags 1 through 5. Rejection tags
-1 through 8 are wrong Worker, stale Worker generation, stale Host epoch, capacity exceeded,
-attachment unavailable, attachment already exists, feedback mismatch, and Host rejected.
+`Attached`, `Empty`, `FeedbackAccepted`, `Detached`, `Rejected`, or `RowsRejected` tags 1 through 6.
+Rejection tags 1 through 8 are wrong Worker, stale Worker generation, stale Host epoch, capacity
+exceeded, attachment unavailable, attachment already exists, feedback mismatch, and Host rejected.
+`RowsRejected` adds one reason tag 1 through 9: `StaleRevision`, `StaleGeneration`,
+`HistoryEvicted`, `MissingResource`, `InvalidField`, `InvalidAcknowledgement`, `LimitExceeded`,
+`ResourceExhausted`, and `InvalidPhase`; it answers only `ReadRows`, and a `ReadRows` request
+accepts only a `Record`, `RowsRejected`, or the existing explicit unavailability/rejection
+outcomes. A `RowsRejected` on any other action, or a `Record` answering an action that cannot
+produce one, is a protocol violation.
 Results always echo both request and attachment IDs. A poll never waits for future Host output.
 
 A record result uses the separate `OBNR` envelope: four-byte magic, big-endian version 1 (`u16`),
 zero reserved field (`u16`), and big-endian payload length (`u32`), then request ID (16), attachment
-ID (16), and one unchanged OBTP record. Its record is 64 through `64 + 36 MiB` bytes, matching the
+ID (16), and one unchanged OBTP record. For `Poll` that record is a Host event; for `ReadRows` it
+is the correlated Host response. Its record is 64 through `64 + 36 MiB` bytes, matching the
 Host envelope plus maximum OBTF payload. The codec validates the complete 12-byte header and bound
 before allocating payload; consumers validate the opaque record's Host envelope, route, role,
 identity, and negotiated size. This does not enlarge the 8 KiB OBCN control bound or decode frame

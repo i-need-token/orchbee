@@ -186,7 +186,12 @@ pub(crate) enum QueryCommand {
     PanelGet(Target),
     TerminalList,
     TerminalGet(Target),
-    TerminalRead(Target),
+    TerminalRead {
+        target: Target,
+        /// `Some(n)` selects the `--history --rows n` form: retained
+        /// scrollback rows instead of the visible frame.
+        history: Option<u16>,
+    },
     ApiSnapshot,
     ApiSchema {
         schema_id: Option<String>,
@@ -302,6 +307,7 @@ pub(crate) enum ExpectedValue {
     TabDirection,
     PanelDirection,
     Shell,
+    HistoryRows,
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -417,6 +423,7 @@ struct Options {
     cell_height: Option<String>,
     confirm: bool,
     target_panel: Option<String>,
+    history: bool,
 }
 
 /// Every named option that owns the next argv token as its value, used by
@@ -657,11 +664,13 @@ fn scan(tokens: Vec<String>) -> Result<Request, ParseFailure> {
                 }
                 index += 2;
             }
-            "--standalone" | "--confirm" => {
+            "--standalone" | "--confirm" | "--history" => {
                 let (seen, option) = if token == "--standalone" {
                     (&mut options.standalone, "--standalone")
-                } else {
+                } else if token == "--confirm" {
                     (&mut options.confirm, "--confirm")
+                } else {
+                    (&mut options.history, "--history")
                 };
                 if *seen {
                     return Err(usage_with(
@@ -1125,13 +1134,30 @@ fn resolve_words(
             ))
         }
         ["terminal", "read", value] => {
-            reject_filters(options, UsageContext::Path("terminal read"), envelope)?;
+            check_scope(
+                options,
+                TERMINAL_READ_SCOPE,
+                UsageContext::Path("terminal read"),
+                envelope,
+            )?;
+            let context = UsageContext::Path("terminal read");
+            // `--history` and `--rows` are admitted as a pair only: each
+            // without the other is a missing-requirement, never a default.
+            let history = match (options.history, options.rows.is_some()) {
+                (true, true) => Some(history_rows_option(options, context, envelope)?),
+                (true, false) => {
+                    return Err(missing_required(context, "'--rows'", envelope));
+                }
+                (false, true) => {
+                    return Err(missing_required(context, "'--history'", envelope));
+                }
+                (false, false) => None,
+            };
             Ok(query(
-                QueryCommand::TerminalRead(target(
-                    (*value).to_owned(),
-                    Resource::Terminal,
-                    envelope,
-                )?),
+                QueryCommand::TerminalRead {
+                    target: target((*value).to_owned(), Resource::Terminal, envelope)?,
+                    history,
+                },
                 options,
             ))
         }
@@ -1512,6 +1538,9 @@ struct Scope {
     geometry: bool,
     confirm: bool,
     target_panel: bool,
+    /// `terminal read --history --rows <n>`: admits the flag and the
+    /// history-row meaning of the shared `--rows` value option.
+    history: bool,
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -1524,6 +1553,7 @@ const NO_OPTIONS: Scope = Scope {
     geometry: false,
     confirm: false,
     target_panel: false,
+    history: false,
 };
 
 const WORKSPACE_LIST_SCOPE: Scope = Scope {
@@ -1584,6 +1614,11 @@ const PANEL_MOVE_SCOPE: Scope = Scope {
     ..NO_OPTIONS
 };
 
+const TERMINAL_READ_SCOPE: Scope = Scope {
+    history: true,
+    ..NO_OPTIONS
+};
+
 /// Any mutation-only option seen outside a mutation command.
 fn business_options(options: &Options) -> bool {
     options.label.is_some()
@@ -1594,6 +1629,7 @@ fn business_options(options: &Options) -> bool {
         || options.cell_height.is_some()
         || options.confirm
         || options.target_panel.is_some()
+        || options.history
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
@@ -1617,25 +1653,28 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.direction.is_some() && !scope.direction {
         return Some("--direction");
     }
-    if !scope.geometry {
-        if options.cols.is_some() {
-            return Some("--cols");
-        }
-        if options.rows.is_some() {
-            return Some("--rows");
-        }
-        if options.cell_width.is_some() {
-            return Some("--cell-width");
-        }
-        if options.cell_height.is_some() {
-            return Some("--cell-height");
-        }
+    if options.cols.is_some() && !scope.geometry {
+        return Some("--cols");
+    }
+    // `--rows` is a geometry dimension under `geometry` scope and the paired
+    // history row count under `history` scope; both spellings share the flag.
+    if options.rows.is_some() && !scope.geometry && !scope.history {
+        return Some("--rows");
+    }
+    if options.cell_width.is_some() && !scope.geometry {
+        return Some("--cell-width");
+    }
+    if options.cell_height.is_some() && !scope.geometry {
+        return Some("--cell-height");
     }
     if options.confirm && !scope.confirm {
         return Some("--confirm");
     }
     if options.target_panel.is_some() && !scope.target_panel {
         return Some("--target-panel");
+    }
+    if options.history && !scope.history {
+        return Some("--history");
     }
     None
 }
@@ -1737,6 +1776,28 @@ fn geometry_option(
             envelope,
         )
     })
+}
+
+/// The `--rows` value under `--history`: a bounded retained-row count, not a
+/// geometry dimension. 1..=1000 rows per the read-history contract.
+fn history_rows_option(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<u16, ParseFailure> {
+    let value = required(&options.rows, context, "'--rows'", envelope)?;
+    match value.parse::<u16>() {
+        Ok(rows) if (1..=1000).contains(&rows) => Ok(rows),
+        _ => Err(usage_with(
+            UsageReason::InvalidValue {
+                context,
+                option: "--rows",
+                value,
+                expected: ExpectedValue::HistoryRows,
+            },
+            envelope,
+        )),
+    }
 }
 
 fn tab_direction(

@@ -5,6 +5,12 @@ use crate::{HostEpoch, HostTerminalId, OperationId, WorkerGeneration, WorkerId};
 // Mirrors the owning Terminal Protocol OBTP header plus maximum OBTF payload.
 pub const MAXIMUM_VIEWER_RECORD_BYTES: usize = 64 + 36 * 1024 * 1024;
 
+/// `read-rows` bounds mirrored from the owning OBCS contract: the row count
+/// and OBRW-payload byte budget the action admits.
+pub const MAXIMUM_READ_ROWS: u16 = 4096;
+pub const MINIMUM_READ_ROWS_BYTES: u32 = 112;
+pub const MAXIMUM_READ_ROWS_BYTES: u32 = 8 * 1024 * 1024;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ViewerSnapshotReason {
     ActivityStale,
@@ -33,7 +39,32 @@ pub enum TerminalViewerAction {
         sequence: NonZeroU64,
         reason: ViewerSnapshotReason,
     },
+    // The attachment lives on the request envelope; the action does not
+    // repeat it. `maximum_bytes` bounds the OBRW payload, not the record.
+    ReadRows {
+        start_row: u64,
+        row_count: u16,
+        revision: u64,
+        generation: NonZeroU64,
+        request_sequence: NonZeroU64,
+        maximum_bytes: u32,
+    },
     Detach,
+}
+
+/// The closed reason vocabulary a `rows-rejected` result may carry; each
+/// variant maps to exactly one Host row-window failure code.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ViewerRowsRejectedReason {
+    StaleRevision,
+    StaleGeneration,
+    HistoryEvicted,
+    MissingResource,
+    InvalidField,
+    InvalidAcknowledgement,
+    LimitExceeded,
+    ResourceExhausted,
+    InvalidPhase,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -65,6 +96,7 @@ pub enum TerminalViewerOutcome {
     FeedbackAccepted,
     Detached,
     Rejected(ViewerRejection),
+    RowsRejected(ViewerRowsRejectedReason),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

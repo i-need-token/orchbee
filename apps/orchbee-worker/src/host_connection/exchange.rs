@@ -75,6 +75,17 @@ impl<'a> HostExchange<'a> {
     }
 
     pub(crate) fn round_trip(&mut self, record: &[u8]) -> Result<Vec<u8>, PeerFailure> {
+        self.round_trip_bounded(record, MAXIMUM_TERMINAL_FRAME_BYTES)
+    }
+
+    /// Same single exchange with a tighter bound on the correlated response
+    /// payload; interleaved events keep the existing frame bound because a
+    /// queued frame may exceed a row request's byte budget legitimately.
+    pub(crate) fn round_trip_bounded(
+        &mut self,
+        record: &[u8],
+        maximum_response_payload: usize,
+    ) -> Result<Vec<u8>, PeerFailure> {
         let mut remaining = record;
         while !remaining.is_empty() {
             self.wait(PollFlags::POLLOUT)?;
@@ -86,7 +97,7 @@ impl<'a> HostExchange<'a> {
             }
         }
         loop {
-            let record = self.read_record()?;
+            let record = self.read_record(maximum_response_payload)?;
             let envelope = decode_transport_envelope(&record).map_err(|_| PeerFailure::Host)?;
             if envelope.role != MessageRole::Event {
                 return Ok(record);
@@ -97,18 +108,25 @@ impl<'a> HostExchange<'a> {
         }
     }
 
-    fn read_record(&mut self) -> Result<Vec<u8>, PeerFailure> {
+    fn read_record(&mut self, maximum_response_payload: usize) -> Result<Vec<u8>, PeerFailure> {
         let mut header = [0_u8; TRANSPORT_ENVELOPE_HEADER_BYTES];
         self.read_exact(&mut header)?;
         let length = usize::try_from(u32::from_le_bytes([
             header[8], header[9], header[10], header[11],
         ]))
         .map_err(|_error| PeerFailure::Host)?;
-        // Events can carry one bounded opaque OBTF record between control responses.
-        if !(TRANSPORT_ENVELOPE_HEADER_BYTES
-            ..=TRANSPORT_ENVELOPE_HEADER_BYTES + MAXIMUM_TERMINAL_FRAME_BYTES)
-            .contains(&length)
-        {
+        // Events can carry one bounded opaque OBTF record between control
+        // responses; anything else is a response bounded by this exchange's
+        // declared payload budget.
+        let event = u16::from_le_bytes([header[6], header[7]]) & (1 << 2) != 0;
+        let bound = TRANSPORT_ENVELOPE_HEADER_BYTES
+            .checked_add(if event {
+                MAXIMUM_TERMINAL_FRAME_BYTES
+            } else {
+                maximum_response_payload
+            })
+            .ok_or(PeerFailure::Host)?;
+        if !(TRANSPORT_ENVELOPE_HEADER_BYTES..=bound).contains(&length) {
             return Err(PeerFailure::Host);
         }
         let mut record = vec![0; length];

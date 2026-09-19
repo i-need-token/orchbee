@@ -642,6 +642,10 @@ impl<'a> PayloadReader<'a> {
         self.read_array().map(u16::from_be_bytes)
     }
 
+    fn read_u32(&mut self) -> Result<u32, ProtocolError> {
+        self.read_array().map(u32::from_be_bytes)
+    }
+
     fn read_u64(&mut self) -> Result<u64, ProtocolError> {
         self.read_array().map(u64::from_be_bytes)
     }

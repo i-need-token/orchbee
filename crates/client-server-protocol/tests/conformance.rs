@@ -203,6 +203,7 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "viewer-poll",
         "viewer-frame-applied",
         "viewer-need-snapshot",
+        "viewer-read-rows",
         "viewer-detach",
         "viewer-attached",
         "viewer-empty",
@@ -211,6 +212,15 @@ fn canonical_corpus_reaches_every_closed_message_and_result_variant()
         "viewer-rejected-already-attached",
         "viewer-rejected-terminal-unavailable",
         "viewer-rejected-feedback-mismatch",
+        "viewer-rows-rejected-stale-revision",
+        "viewer-rows-rejected-stale-generation",
+        "viewer-rows-rejected-history-evicted",
+        "viewer-rows-rejected-missing-resource",
+        "viewer-rows-rejected-invalid-field",
+        "viewer-rows-rejected-invalid-acknowledgement",
+        "viewer-rows-rejected-limit-exceeded",
+        "viewer-rows-rejected-resource-exhausted",
+        "viewer-rows-rejected-invalid-phase",
         "viewer-unavailable-server-busy",
         "viewer-unavailable-terminal-runtime",
         "viewer-unavailable-workbench",
@@ -561,12 +571,14 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                 TerminalViewerAction::Poll { .. } => "viewer-poll",
                 TerminalViewerAction::FrameApplied { .. } => "viewer-frame-applied",
                 TerminalViewerAction::NeedSnapshot { .. } => "viewer-need-snapshot",
+                TerminalViewerAction::ReadRows { .. } => "viewer-read-rows",
                 TerminalViewerAction::Detach { .. } => "viewer-detach",
             });
         }
         DecodedMessage::Server(ServerMessage::TerminalViewerResult(result)) => {
             use orchbee_client_server_protocol::{
-                TerminalViewerOutcome, ViewerRejectedReason, ViewerUnavailableReason,
+                TerminalViewerOutcome, ViewerRejectedReason, ViewerRowsRejectedReason,
+                ViewerUnavailableReason,
             };
             reached.insert(match result.outcome() {
                 TerminalViewerOutcome::Attached { .. } => "viewer-attached",
@@ -579,6 +591,31 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
                         "viewer-rejected-terminal-unavailable"
                     }
                     ViewerRejectedReason::FeedbackMismatch => "viewer-rejected-feedback-mismatch",
+                },
+                TerminalViewerOutcome::RowsRejected { reason } => match reason {
+                    ViewerRowsRejectedReason::StaleRevision => {
+                        "viewer-rows-rejected-stale-revision"
+                    }
+                    ViewerRowsRejectedReason::StaleGeneration => {
+                        "viewer-rows-rejected-stale-generation"
+                    }
+                    ViewerRowsRejectedReason::HistoryEvicted => {
+                        "viewer-rows-rejected-history-evicted"
+                    }
+                    ViewerRowsRejectedReason::MissingResource => {
+                        "viewer-rows-rejected-missing-resource"
+                    }
+                    ViewerRowsRejectedReason::InvalidField => "viewer-rows-rejected-invalid-field",
+                    ViewerRowsRejectedReason::InvalidAcknowledgement => {
+                        "viewer-rows-rejected-invalid-acknowledgement"
+                    }
+                    ViewerRowsRejectedReason::LimitExceeded => {
+                        "viewer-rows-rejected-limit-exceeded"
+                    }
+                    ViewerRowsRejectedReason::ResourceExhausted => {
+                        "viewer-rows-rejected-resource-exhausted"
+                    }
+                    ViewerRowsRejectedReason::InvalidPhase => "viewer-rows-rejected-invalid-phase",
                 },
                 TerminalViewerOutcome::Unavailable { reason } => match reason {
                     ViewerUnavailableReason::ServerBusy => "viewer-unavailable-server-busy",

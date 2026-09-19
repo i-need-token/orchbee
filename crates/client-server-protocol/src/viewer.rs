@@ -1,4 +1,4 @@
-use crate::{HostEpoch, RequestId, SiteId, TerminalId, ViewerId, WorkerId};
+use crate::{HostEpoch, ProtocolError, RequestId, SiteId, TerminalId, ViewerId, WorkerId};
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 
@@ -51,12 +51,64 @@ pub enum TerminalViewerAction {
         sequence: NonZeroU64,
         reason: ViewerSnapshotReason,
     },
+    ReadRows {
+        attachment_id: ViewerId,
+        #[serde(with = "crate::number::decimal")]
+        start_row: u64,
+        row_count: u16,
+        #[serde(with = "crate::number::decimal")]
+        revision: u64,
+        #[serde(with = "crate::number::positive_decimal")]
+        generation: NonZeroU64,
+        #[serde(with = "crate::number::positive_decimal")]
+        request_sequence: NonZeroU64,
+        maximum_bytes: u32,
+    },
     Detach {
         attachment_id: ViewerId,
     },
 }
 
+/// The closed reason vocabulary a `rows-rejected` outcome may carry; each
+/// variant maps to exactly one Host row-window failure code.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ViewerRowsRejectedReason {
+    StaleRevision,
+    StaleGeneration,
+    HistoryEvicted,
+    MissingResource,
+    InvalidField,
+    InvalidAcknowledgement,
+    LimitExceeded,
+    ResourceExhausted,
+    InvalidPhase,
+}
+
+/// `read-rows` bounds: the row count and byte budget the action contract
+/// admits. `maximum_bytes` bounds the OBRW payload, not the carrier record.
+pub const MAXIMUM_READ_ROWS: u16 = 4096;
+pub const MINIMUM_READ_ROWS_BYTES: u32 = 112;
+pub const MAXIMUM_READ_ROWS_BYTES: u32 = 8 * 1024 * 1024;
+
 impl TerminalViewerAction {
+    /// Semantic bounds the JSON shape cannot express; callers reject the
+    /// message when this fails, exactly like a malformed field.
+    pub(crate) fn validate(&self) -> Result<(), ProtocolError> {
+        if let Self::ReadRows {
+            row_count,
+            maximum_bytes,
+            ..
+        } = self
+            && (*row_count == 0
+                || *row_count > MAXIMUM_READ_ROWS
+                || !(MINIMUM_READ_ROWS_BYTES..=MAXIMUM_READ_ROWS_BYTES).contains(maximum_bytes))
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(())
+    }
+
     #[must_use]
     pub const fn attachment_id(&self) -> Option<&ViewerId> {
         match self {
@@ -64,6 +116,7 @@ impl TerminalViewerAction {
             Self::Poll { attachment_id }
             | Self::FrameApplied { attachment_id, .. }
             | Self::NeedSnapshot { attachment_id, .. }
+            | Self::ReadRows { attachment_id, .. }
             | Self::Detach { attachment_id } => Some(attachment_id),
         }
     }
@@ -125,6 +178,9 @@ pub enum TerminalViewerOutcome {
     Detached {},
     Rejected {
         reason: ViewerRejectedReason,
+    },
+    RowsRejected {
+        reason: ViewerRowsRejectedReason,
     },
     Unavailable {
         reason: ViewerUnavailableReason,

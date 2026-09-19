@@ -61,19 +61,43 @@ pub(crate) fn read_snapshot() -> Result<Snapshot, Failure> {
 
 /// `terminal read`: the snapshot resolves the typed binding, then one
 /// read-capability viewer attachment on the same session and deadline
-/// observes the terminal's current projection. The attachment is released
+/// observes the terminal's current projection — or, under `--history`, the
+/// retained scrollback window behind it. The attachment is released
 /// (best-effort `Detach` plus the session drop) before any output work.
 #[cfg(target_os = "linux")]
-pub(crate) fn read_terminal(target: &Target) -> Result<(serde_json::Value, Projection), Failure> {
+pub(crate) fn read_terminal(
+    target: &Target,
+    history: Option<u16>,
+) -> Result<(serde_json::Value, Projection), Failure> {
     let (mut client, deadline, snapshot) = snapshot_session()?;
     let source = super::results::snapshot_source(&snapshot);
-    let outcome = read_terminal_frame(&mut client, deadline, &snapshot, target);
-    // The Client Session is fully dropped before the applied frame is mapped
-    // into the bounded document or any output is prepared.
+    let outcome = match history {
+        None => read_terminal_frame(&mut client, deadline, &snapshot, target)
+            .map(|(row, frame)| Observed::Visible(row, frame)),
+        Some(rows) => read_terminal_history(&mut client, deadline, &snapshot, target, rows).map(
+            |(row, frame, window)| Observed::History {
+                row,
+                frame,
+                window,
+                requested: rows,
+            },
+        ),
+    };
+    // The Client Session is fully dropped before the applied frame or the
+    // history window is mapped into the bounded document or any output is
+    // prepared.
     drop(client);
     match outcome {
-        Ok((row, frame)) => super::results::terminal_read_doc(row, &frame)
+        Ok(Observed::Visible(row, frame)) => super::results::terminal_read_doc(row, &frame)
             .map(|doc| (source.clone(), Projection::TerminalRead(doc)))
+            .map_err(|failure| failure.source(source)),
+        Ok(Observed::History {
+            row,
+            frame,
+            window,
+            requested,
+        }) => super::results::terminal_history_doc(row, &frame, requested, window.as_ref())
+            .map(|doc| (source.clone(), Projection::TerminalHistory(doc)))
             .map_err(|failure| failure.source(source)),
         // Every failure after this point had a validated snapshot: the
         // failure envelope may honestly cite it as the source.
@@ -134,6 +158,19 @@ pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Fai
     }
 }
 
+/// What the terminal observation produced: the applied visible frame, or the
+/// validated scrollback window behind it.
+#[cfg(target_os = "linux")]
+enum Observed {
+    Visible(super::results::TerminalRow, TerminalTextFrame),
+    History {
+        row: super::results::TerminalRow,
+        frame: TerminalTextFrame,
+        window: Option<orchbee_terminal_protocol::TerminalTextRowWindow>,
+        requested: u16,
+    },
+}
+
 /// Resolve the typed binding from the snapshot, attach a read-only viewer to
 /// it, and drive attach → poll → feedback → detach inside the same deadline.
 /// The applied frame leaves the session so the caller can map it only after
@@ -146,6 +183,64 @@ fn read_terminal_frame(
     snapshot: &Snapshot,
     target: &Target,
 ) -> Result<(super::results::TerminalRow, TerminalTextFrame), Failure> {
+    let (row, viewer_id, _attachment, _epoch, projection) =
+        attach_viewer(client, deadline, snapshot, target)?;
+    let outcome = poll_terminal_frame(client, deadline, &viewer_id, projection);
+    detach_viewer(client, deadline, viewer_id);
+    outcome.map(|frame| (row, frame))
+}
+
+/// `--history`: the same attach → poll preamble pins the frame's retained
+/// scrollback count, then exactly one `ReadRows` asks for the rows that have
+/// scrolled off the active screen. `K = min(requested, scrollback,
+/// MAXIMUM_FRAME_CELLS / columns)` keeps the absolute start at the recent
+/// end; `scrollback == 0` short-circuits before any Host request. No
+/// `RowsApplied` is sent: a buffer read creates no pending anchor.
+#[cfg(target_os = "linux")]
+fn read_terminal_history(
+    client: &mut LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    target: &Target,
+    requested: u16,
+) -> Result<
+    (
+        super::results::TerminalRow,
+        TerminalTextFrame,
+        Option<orchbee_terminal_protocol::TerminalTextRowWindow>,
+    ),
+    Failure,
+> {
+    let (row, viewer_id, attachment, epoch, projection) =
+        attach_viewer(client, deadline, snapshot, target)?;
+    let outcome = poll_terminal_frame(client, deadline, &viewer_id, projection).and_then(|frame| {
+        read_history_window(
+            client, deadline, &viewer_id, attachment, epoch, &frame, requested,
+        )
+        .map(|window| (frame, window))
+    });
+    detach_viewer(client, deadline, viewer_id);
+    outcome.map(|(frame, window)| (row, frame, window))
+}
+
+/// Resolve the typed binding from the snapshot and attach a read-only viewer
+/// to it inside the shared deadline.
+#[cfg(target_os = "linux")]
+fn attach_viewer(
+    client: &mut LocalClient,
+    deadline: Instant,
+    snapshot: &Snapshot,
+    target: &Target,
+) -> Result<
+    (
+        super::results::TerminalRow,
+        ViewerId,
+        AttachmentId,
+        HostEpoch,
+        TerminalProjection,
+    ),
+    Failure,
+> {
     let identity = match target {
         Target::Id(identity) => identity.as_str(),
         // The parser admits only typed IDs for terminal targets.
@@ -168,7 +263,7 @@ fn read_terminal_frame(
     let result = client
         .submit_terminal_viewer_before(attach, deadline)
         .map_err(classify_viewer)?;
-    let (viewer_id, projection) = match result.outcome() {
+    match result.outcome() {
         TerminalViewerOutcome::Attached {
             attachment_id,
             host_epoch,
@@ -177,21 +272,25 @@ fn read_terminal_frame(
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
             let epoch = HostEpoch::parse(host_epoch.as_str())
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
-            (
+            Ok((
+                row,
                 attachment_id.clone(),
+                attachment,
+                epoch,
                 TerminalProjection::new(attachment, epoch),
-            )
+            ))
         }
-        TerminalViewerOutcome::Rejected { reason } => {
-            return Err(classify_viewer_rejected(*reason));
-        }
-        TerminalViewerOutcome::Unavailable { .. } => return Err(viewer_unavailable()),
-        _ => return Err(viewer_protocol_invalid()),
-    };
-    let outcome = poll_terminal_frame(client, deadline, &viewer_id, projection);
-    // The read observation is released no matter how polling ended; the
-    // detach is best-effort because the session drop that follows already
-    // guarantees teardown.
+        TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
+        TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
+        _ => Err(viewer_protocol_invalid()),
+    }
+}
+
+/// The read observation is released no matter how the exchange ended; the
+/// detach is best-effort because the session drop that follows already
+/// guarantees teardown.
+#[cfg(target_os = "linux")]
+fn detach_viewer(client: &mut LocalClient, deadline: Instant, viewer_id: ViewerId) {
     if let Ok(request_id) = obcs_request_id() {
         let _ = client.submit_terminal_viewer_before(
             TerminalViewerRequest::new(
@@ -203,7 +302,145 @@ fn read_terminal_frame(
             deadline,
         );
     }
-    outcome.map(|frame| (row, frame))
+}
+
+/// Issue the single Host `ReadRows` behind the validated frame and decode its
+/// answer. The effective window is `min(requested, scrollback, capacity)`
+/// rows ending at the scrollback boundary; a `RowsRejected` maps to its
+/// typed failure and any other outcome — including an `Empty` stand-in — is
+/// protocol-invalid. Exactly one request is ever sent: no retry.
+#[cfg(target_os = "linux")]
+fn read_history_window(
+    client: &mut LocalClient,
+    deadline: Instant,
+    viewer_id: &ViewerId,
+    attachment: AttachmentId,
+    epoch: HostEpoch,
+    frame: &TerminalTextFrame,
+    requested: u16,
+) -> Result<Option<orchbee_terminal_protocol::TerminalTextRowWindow>, Failure> {
+    let scrollback = frame.scrollback_rows;
+    if scrollback == 0 {
+        return Ok(None);
+    }
+    // The frame geometry was validated by the OBTF decoder: columns ≥ 1.
+    let capacity = u64::try_from(orchbee_terminal_protocol::MAXIMUM_FRAME_CELLS)
+        .unwrap_or(u64::MAX)
+        / u64::from(frame.geometry.columns);
+    let count = u64::from(requested).min(scrollback).min(capacity);
+    let start_row = scrollback - count;
+    let row_count = u16::try_from(count).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+    let request = TerminalViewerRequest::new(
+        obcs_request_id()?,
+        TerminalViewerAction::ReadRows {
+            attachment_id: viewer_id.clone(),
+            start_row,
+            row_count,
+            revision: frame.route.revision,
+            generation: frame.route.generation,
+            request_sequence: std::num::NonZeroU64::MIN,
+            maximum_bytes: orchbee_client_server_protocol::MAXIMUM_READ_ROWS_BYTES,
+        },
+    );
+    let result = client
+        .submit_terminal_viewer_before(request, deadline)
+        .map_err(classify_viewer)?;
+    match result.outcome() {
+        TerminalViewerOutcome::Record(record) => {
+            decode_history_window(record.clone(), attachment, epoch, frame, start_row, count)
+                .map(Some)
+        }
+        TerminalViewerOutcome::RowsRejected { reason } => Err(classify_rows_rejected(*reason)),
+        TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
+        TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
+        _ => Err(viewer_protocol_invalid()),
+    }
+}
+
+/// Independently validate the complete OBTP response record and its OBRW
+/// payload against the request and the frame that priced it: envelope role
+/// and encoding, Host epoch, and every window field — attachment, sequence,
+/// revision, generation, columns, start, count, and the frame-derived total.
+#[cfg(target_os = "linux")]
+fn decode_history_window(
+    record: Vec<u8>,
+    attachment: AttachmentId,
+    epoch: HostEpoch,
+    frame: &TerminalTextFrame,
+    start_row: u64,
+    count: u64,
+) -> Result<orchbee_terminal_protocol::TerminalTextRowWindow, Failure> {
+    let envelope = orchbee_terminal_protocol::decode_transport_envelope(&record)
+        .map_err(|_| viewer_protocol_invalid())?;
+    if envelope.protocol != orchbee_terminal_protocol::CURRENT_PROTOCOL_VERSION
+        || envelope.role != orchbee_terminal_protocol::MessageRole::Response
+        || envelope.optional_message
+        || envelope.payload_encoding != orchbee_terminal_protocol::PayloadEncoding::RowWindow
+        || envelope.host_epoch != Some(epoch)
+        || envelope.payload.len()
+            > usize::try_from(orchbee_client_server_protocol::MAXIMUM_READ_ROWS_BYTES)
+                .unwrap_or(usize::MAX)
+    {
+        return Err(viewer_protocol_invalid());
+    }
+    let window = orchbee_terminal_protocol::decode_terminal_text_row_window(&envelope.payload)
+        .map_err(|_| viewer_protocol_invalid())?;
+    let total_rows = frame
+        .scrollback_rows
+        .checked_add(u64::from(frame.geometry.rows))
+        .ok_or_else(viewer_protocol_invalid)?;
+    if window.attachment_id != attachment
+        || window.host_epoch != epoch
+        || window.sequence != std::num::NonZeroU64::MIN
+        || window.revision != frame.route.revision
+        || window.generation != frame.route.generation
+        || window.columns != frame.geometry.columns
+        || window.start_row != start_row
+        || u64::try_from(window.rows.len()).unwrap_or(u64::MAX) != count
+        || window.total_rows != total_rows
+    {
+        return Err(viewer_protocol_invalid());
+    }
+    Ok(window)
+}
+
+/// A typed `rows-rejected` answer maps to its fixed failure class: the local
+/// budget overrun is a rejection, Host state answers are unavailability, and
+/// reasons our fixed request shape cannot honestly produce are protocol
+/// violations.
+#[cfg(target_os = "linux")]
+fn classify_rows_rejected(
+    reason: orchbee_client_server_protocol::ViewerRowsRejectedReason,
+) -> Failure {
+    use orchbee_client_server_protocol::ViewerRowsRejectedReason as Reason;
+    let (kind, detail) = match reason {
+        Reason::LimitExceeded => (FailureKind::Rejected, Some("limit-exceeded")),
+        Reason::StaleRevision => (FailureKind::ServiceUnavailable, Some("stale-revision")),
+        Reason::StaleGeneration => (FailureKind::ServiceUnavailable, Some("stale-generation")),
+        Reason::HistoryEvicted => (FailureKind::ServiceUnavailable, Some("history-evicted")),
+        Reason::MissingResource => (FailureKind::ServiceUnavailable, Some("missing-resource")),
+        Reason::ResourceExhausted => (FailureKind::ServiceUnavailable, Some("resource-exhausted")),
+        Reason::InvalidPhase => (FailureKind::ServiceUnavailable, Some("invalid-phase")),
+        Reason::InvalidField | Reason::InvalidAcknowledgement => {
+            (FailureKind::ProtocolInvalid, None)
+        }
+    };
+    let failure = Failure::new(kind);
+    match detail {
+        Some(reason) => failure.details(history_details(reason)),
+        None => failure.details(stage_details("viewer")),
+    }
+}
+
+/// `read-history` failure details: the typed reason the Host carried, under
+/// the viewer stage the read belongs to.
+#[cfg(target_os = "linux")]
+fn history_details(reason: &str) -> serde_json::Map<String, serde_json::Value> {
+    serde_json::Map::from_iter([
+        ("stage".to_owned(), serde_json::json!("viewer")),
+        ("operation".to_owned(), serde_json::json!("read-history")),
+        ("reason".to_owned(), serde_json::json!(reason)),
+    ])
 }
 
 /// Poll until one record applies to the projection, acknowledging a rejected
@@ -474,6 +711,7 @@ pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, su
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn read_terminal(
     _target: &crate::invocation::Target,
+    _history: Option<u16>,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
         super::Failure::new(super::FailureKind::ServiceUnavailable).details(

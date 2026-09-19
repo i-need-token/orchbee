@@ -18,18 +18,20 @@ use std::{
 };
 
 use orchbee_client_server_protocol::{
-    ClientMessage, HostEpoch, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, TerminalViewerResult, ViewerId, ViewerRejectedReason,
-    ViewerSnapshotReason, ViewerUnavailableReason, read_client_message, write_server_message,
+    ClientMessage, HostEpoch, MAXIMUM_READ_ROWS_BYTES, ServerMessage, TerminalViewerAction,
+    TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult, ViewerId,
+    ViewerRejectedReason, ViewerRowsRejectedReason, ViewerSnapshotReason, ViewerUnavailableReason,
+    read_client_message, write_server_message,
 };
 use orchbee_local_client_protocol::{
     LocalClientMessage, RejectionReason, read_message, write_message,
 };
 use orchbee_local_site_runtime::ModeCheckedLocalSiteRendezvous;
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, Envelope, MessageRole, PayloadEncoding, ProjectionBlockReason,
-    ProjectionBlocked, ProjectionDemandControl, decode_terminal_text_frame,
-    encode_projection_demand_control, encode_transport_envelope, inspect_terminal_frame_route,
+    CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, MessageRole, PayloadEncoding,
+    ProjectionBlockReason, ProjectionBlocked, ProjectionDemandControl, decode_terminal_text_frame,
+    decode_terminal_text_row_window, encode_projection_demand_control, encode_transport_envelope,
+    inspect_terminal_frame_route,
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchRequest, WorkbenchResponse, WorkbenchSnapshotOutcome,
@@ -2954,6 +2956,17 @@ fn expect_session_eof(stream: &UnixStream) {
 /// record, and the result is re-checked against the real decoder so a broken
 /// builder fails inside the test instead of corrupting the peer.
 fn budget_obtf(columns: u16, rows: &[(u8, &[u32])], strings: &[&str]) -> Vec<u8> {
+    budget_obtf_scrolled(columns, rows, strings, 0)
+}
+
+/// `budget_obtf` with an explicit retained-scrollback count at header offset
+/// 80 — the fact `terminal read --history` prices its row window from.
+fn budget_obtf_scrolled(
+    columns: u16,
+    rows: &[(u8, &[u32])],
+    strings: &[&str],
+    scrollback_rows: u64,
+) -> Vec<u8> {
     let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
     let row_count = u16::try_from(rows.len()).expect("row count fits u16");
     let mut frame = Vec::new();
@@ -2970,7 +2983,7 @@ fn budget_obtf(columns: u16, rows: &[(u8, &[u32])], strings: &[&str]) -> Vec<u8>
     frame.extend_from_slice(&u64::MAX.to_le_bytes()); // base revision: none
     frame.extend_from_slice(&1_u64.to_le_bytes()); // revision
     frame.extend_from_slice(&1_u64.to_le_bytes()); // generation
-    frame.extend_from_slice(&[0; 8]); // reserved routing tail
+    frame.extend_from_slice(&scrollback_rows.to_le_bytes()); // captured scrollback
     frame.extend_from_slice(&columns.to_le_bytes());
     frame.extend_from_slice(&row_count.to_le_bytes());
     frame.extend_from_slice(&[0; 2]); // cursor column
@@ -3391,5 +3404,769 @@ fn terminal_read_incompatible_feedback_result_is_protocol_invalid() -> TestResul
     let failure = failure_kind(&output);
     assert_eq!(failure["failure"]["kind"], "protocol-invalid");
     assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+// ---- terminal read --history ------------------------------------------------
+//
+// `--history --rows <n>` reuses the same admitted session: attach, one
+// applied frame for its scrollback fact, then exactly one `ReadRows` whose
+// absolute window ends at the scrollback boundary. These peers answer with
+// hand-built decoder-legal OBRW records, so request shape, window
+// validation, typed rejections, and the drop-before-output ordering all run
+// against production code.
+
+/// A complete OBRW text-detail record whose header echoes the request the
+/// CLI must have sent. `rows` are `(flags, ascii_text)` pairs; the identity
+/// mapping flag is added here so every row stays decoder-legal without
+/// explicit cell mappings. The record is re-checked against the real decoder
+/// so a broken builder fails inside the test.
+fn obrw_window(
+    start_row: u64,
+    total_rows: u64,
+    columns: u16,
+    sequence: u64,
+    revision: u64,
+    generation: u64,
+    rows: &[(u8, &str)],
+) -> Vec<u8> {
+    const IDENTITY_ASCII: u8 = 0x04;
+    let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
+    let mut body = Vec::new();
+    let mut entry_count = 0_u32;
+    for (flags, text) in rows {
+        assert!(text.is_ascii() && text.len() <= usize::from(columns));
+        body.push(flags | IDENTITY_ASCII);
+        body.push(0); // prompt: none
+        body.extend_from_slice(&[0; 2]); // reserved
+        body.extend_from_slice(&(text.len() as u32).to_le_bytes());
+        body.extend_from_slice(&0_u32.to_le_bytes()); // no explicit mappings
+        body.extend_from_slice(text.as_bytes());
+        entry_count += text.len() as u32;
+    }
+    let total = 112 + body.len();
+    let mut record = Vec::with_capacity(total);
+    record.extend_from_slice(b"OBRW");
+    record.extend_from_slice(&[0, 0]); // format major/minor
+    record.push(2); // detail: text
+    record.push(0); // flags
+    record.extend_from_slice(&(total as u32).to_le_bytes());
+    record.extend_from_slice(&112_u16.to_le_bytes()); // header bytes
+    record.extend_from_slice(&columns.to_le_bytes());
+    record.extend_from_slice(route.host_epoch.as_bytes());
+    record.extend_from_slice(route.attachment_id.as_bytes());
+    record.extend_from_slice(&sequence.to_le_bytes());
+    record.extend_from_slice(&revision.to_le_bytes());
+    record.extend_from_slice(&generation.to_le_bytes());
+    record.extend_from_slice(&total_rows.to_le_bytes());
+    record.extend_from_slice(&start_row.to_le_bytes());
+    record.extend_from_slice(&(rows.len() as u16).to_le_bytes()); // row count
+    record.extend_from_slice(&[0; 2]); // reserved
+    record.extend_from_slice(&entry_count.to_le_bytes());
+    record.extend_from_slice(&(body.len() as u32).to_le_bytes()); // body bytes
+    record.push(3); // format patch
+    record.extend_from_slice(&0_u32.to_le_bytes()); // projection bytes: text only
+    record.extend_from_slice(&0_u32.to_le_bytes()); // graphics bytes: text only
+    record.extend_from_slice(&[0; 3]); // reserved tail
+    record.extend_from_slice(&body);
+    decode_terminal_text_row_window(&record).expect("generated window must decode");
+    record
+}
+
+/// Wrap an OBRW record in its OBTP `RowsSnapshot` response envelope — the
+/// byte payload a `record` outcome answering `ReadRows` carries.
+fn history_record(obrw: &[u8]) -> Vec<u8> {
+    let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
+    // The OBTP correlation is the Server-issued operation identity: opaque to
+    // the CLI and checked by the routing hop, so any valid value suffices.
+    let correlation = CorrelationId::from_bytes([0xdd; 16]).expect("correlation id");
+    encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Response,
+        kind: 46,
+        payload_encoding: PayloadEncoding::RowWindow,
+        host_epoch: Some(route.host_epoch),
+        correlation_id: Some(correlation),
+        optional_message: false,
+        payload: obrw,
+    })
+    .expect("history record")
+}
+
+/// Consume the CLI's single `ReadRows`, asserting every pinned field, and
+/// return the request plus `(start_row, row_count)` for the script's answer.
+fn take_read_rows(
+    stream: &UnixStream,
+    attachment: &ViewerId,
+    revision: u64,
+    generation: u64,
+) -> (TerminalViewerRequest, u64, u16) {
+    let request = viewer_request(stream);
+    let bounds = match request.action() {
+        TerminalViewerAction::ReadRows {
+            attachment_id,
+            start_row,
+            row_count,
+            revision: request_revision,
+            generation: request_generation,
+            request_sequence,
+            maximum_bytes,
+        } => {
+            assert_eq!(attachment_id, attachment);
+            assert_eq!(*request_revision, revision);
+            assert_eq!(request_generation.get(), generation);
+            assert_eq!(request_sequence.get(), 1);
+            assert_eq!(*maximum_bytes, MAXIMUM_READ_ROWS_BYTES);
+            (*start_row, *row_count)
+        }
+        action => panic!("peer expected read-rows, got {action:?}"),
+    };
+    (request, bounds.0, bounds.1)
+}
+
+/// Zero retained scrollback answers the history read without any `ReadRows`:
+/// the next request after the applied frame must be the release `Detach`.
+#[test]
+fn terminal_read_history_empty_scrollback_never_reads_rows() -> TestResult {
+    let base = base_dir("thist-empty");
+    let scope = stage_scope(&base);
+    let record = obtf_record();
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "10",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["schema"], "orchbee.terminal.history");
+    let history = &document["result"]["history"];
+    assert_eq!(history["scrollbackRows"], "0");
+    assert_eq!(history["screenRows"], 6);
+    assert_eq!(history["totalRows"], "6");
+    assert_eq!(history["startRow"], "0");
+    assert_eq!(history["requestedRows"], 10);
+    assert_eq!(history["windowRows"], 0);
+    let content = &document["result"]["content"];
+    assert_eq!(content["rowCount"], 0);
+    assert_eq!(content["rows"].as_array().unwrap().len(), 0);
+    assert_eq!(content["truncated"], false);
+    assert_eq!(content["omittedRows"], 0);
+    let schema = compiled_schema(&base, "orchbee.terminal.history");
+    assert!(schema.is_valid(&document), "history document: {document}");
+    Ok(())
+}
+
+/// The happy path: `S=3`, `--rows 2` requests the absolute window `[1,3)`;
+/// the emitted rows carry their absolute indices and wrap pair.
+#[test]
+fn terminal_read_history_returns_the_bounded_window() -> TestResult {
+    let base = base_dir("thist-window");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells), (0, &cells)], &["s"], 3);
+    let record = frame_record(&frame);
+    // The window answers start=1, rows 1 and 2 of total 3+2=5; row 1 wraps
+    // into row 2 (bit0 set on 1, bit1 set on 2).
+    let obrw = obrw_window(1, 5, 8, 1, 1, 1, &[(0x01, "wrap-a"), (0x02, "wrap-b")]);
+    let answer = history_record(&obrw);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        let (request, start_row, row_count) = take_read_rows(stream, &attachment, 1, 1);
+        assert_eq!(start_row, 1);
+        assert_eq!(row_count, 2);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "2",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["schema"], "orchbee.terminal.history");
+    let history = &document["result"]["history"];
+    assert_eq!(history["revision"], "1");
+    assert_eq!(history["generation"], "1");
+    assert_eq!(history["alternateScreen"], false);
+    assert_eq!(history["columns"], 8);
+    assert_eq!(history["screenRows"], 2);
+    assert_eq!(history["scrollbackRows"], "3");
+    assert_eq!(history["totalRows"], "5");
+    assert_eq!(history["startRow"], "1");
+    assert_eq!(history["requestedRows"], 2);
+    assert_eq!(history["windowRows"], 2);
+    let content = &document["result"]["content"];
+    assert_eq!(content["truncated"], false);
+    assert_eq!(content["omittedRows"], 0);
+    assert_eq!(content["rowCount"], 2);
+    assert_eq!(content["limits"]["rows"], 1000);
+    let emitted = content["rows"].as_array().unwrap();
+    assert_eq!(emitted.len(), 2);
+    assert_eq!(emitted[0]["index"], "1");
+    assert_eq!(emitted[0]["text"], "wrap-a");
+    assert_eq!(emitted[0]["continuation"]["fromPrevious"], false);
+    assert_eq!(emitted[0]["continuation"]["intoNext"], true);
+    assert_eq!(emitted[1]["index"], "2");
+    assert_eq!(emitted[1]["text"], "wrap-b");
+    assert_eq!(emitted[1]["continuation"]["fromPrevious"], true);
+    assert_eq!(emitted[1]["continuation"]["intoNext"], false);
+    let schema = compiled_schema(&base, "orchbee.terminal.history");
+    assert!(schema.is_valid(&document), "history document: {document}");
+    assert_eq!(
+        scope.read_dir()?.count(),
+        1,
+        "history read must not write the scope"
+    );
+    Ok(())
+}
+
+/// `count = min(requested, scrollback, MAXIMUM_FRAME_CELLS / columns)`: a
+/// 500-column frame caps the window at 524 rows, so `--rows 1000` on 600
+/// retained rows prices `start = 600 - 524 = 76` — the cap bites the recent
+/// end, never the requested edge.
+#[test]
+fn terminal_read_history_capacity_clamps_the_window() -> TestResult {
+    let base = base_dir("thist-cap");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 500];
+    let frame = budget_obtf_scrolled(500, &[(0, &cells)], &["s"], 600);
+    let record = frame_record(&frame);
+    // 524 one-cell rows, indices 76..600 of total 601.
+    let window_rows: Vec<(u8, String)> = (0..524).map(|_| (0_u8, "x".to_owned())).collect();
+    let window_ref: Vec<(u8, &str)> = window_rows
+        .iter()
+        .map(|(flags, text)| (*flags, text.as_str()))
+        .collect();
+    let obrw = obrw_window(76, 601, 500, 1, 1, 1, &window_ref);
+    let answer = history_record(&obrw);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        let (request, start_row, row_count) = take_read_rows(stream, &attachment, 1, 1);
+        assert_eq!(start_row, 76);
+        assert_eq!(row_count, 524);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "1000",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let history = &document["result"]["history"];
+    assert_eq!(history["scrollbackRows"], "600");
+    assert_eq!(history["totalRows"], "601");
+    assert_eq!(history["startRow"], "76");
+    assert_eq!(history["requestedRows"], 1000);
+    assert_eq!(history["windowRows"], 524);
+    let content = &document["result"]["content"];
+    // min(requested, scrollback) = 600 rows were entitled; the window cap
+    // emitted 524, so 76 count as omitted — honest, not silent.
+    assert_eq!(content["truncated"], true);
+    assert_eq!(content["omittedRows"], 76);
+    assert_eq!(content["rowCount"], 524);
+    let emitted = content["rows"].as_array().unwrap();
+    assert_eq!(emitted[0]["index"], "76");
+    assert_eq!(emitted[523]["index"], "599");
+    let schema = compiled_schema(&base, "orchbee.terminal.history");
+    assert!(schema.is_valid(&document), "history document: {document}");
+    Ok(())
+}
+
+/// `requested > scrollback` clamps to the retained count: `--rows 1000` on
+/// `S=2` requests `[0,2)`, and nothing past the scrollback boundary is owed.
+#[test]
+fn terminal_read_history_clamps_to_the_retained_rows() -> TestResult {
+    let base = base_dir("thist-clamp");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells), (0, &cells)], &["s"], 2);
+    let record = frame_record(&frame);
+    let obrw = obrw_window(0, 4, 8, 1, 1, 1, &[(0x00, "oldest"), (0x00, "newer")]);
+    let answer = history_record(&obrw);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        let (request, start_row, row_count) = take_read_rows(stream, &attachment, 1, 1);
+        assert_eq!(start_row, 0);
+        assert_eq!(row_count, 2);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "1000",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(0));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let history = &document["result"]["history"];
+    assert_eq!(history["startRow"], "0");
+    assert_eq!(history["windowRows"], 2);
+    assert_eq!(document["result"]["content"]["omittedRows"], 0);
+    assert_eq!(document["result"]["content"]["truncated"], false);
+    Ok(())
+}
+
+/// `rows-rejected` maps to its fixed failure vocabulary: Host state answers
+/// are unavailability with the typed reason, and the local budget overrun is
+/// a rejection. No second `ReadRows` is ever sent.
+#[test]
+fn terminal_read_history_rows_rejected_maps_typed_failures() -> TestResult {
+    let cases: &[(&str, ViewerRowsRejectedReason, i32, &str, Option<&str>)] = &[
+        (
+            "evicted",
+            ViewerRowsRejectedReason::HistoryEvicted,
+            4,
+            "service-unavailable",
+            Some("history-evicted"),
+        ),
+        (
+            "stale-rev",
+            ViewerRowsRejectedReason::StaleRevision,
+            4,
+            "service-unavailable",
+            Some("stale-revision"),
+        ),
+        (
+            "stale-gen",
+            ViewerRowsRejectedReason::StaleGeneration,
+            4,
+            "service-unavailable",
+            Some("stale-generation"),
+        ),
+        (
+            "exhausted",
+            ViewerRowsRejectedReason::ResourceExhausted,
+            4,
+            "service-unavailable",
+            Some("resource-exhausted"),
+        ),
+        (
+            "missing",
+            ViewerRowsRejectedReason::MissingResource,
+            4,
+            "service-unavailable",
+            Some("missing-resource"),
+        ),
+        (
+            "phase",
+            ViewerRowsRejectedReason::InvalidPhase,
+            4,
+            "service-unavailable",
+            Some("invalid-phase"),
+        ),
+        (
+            "limit",
+            ViewerRowsRejectedReason::LimitExceeded,
+            3,
+            "rejected",
+            Some("limit-exceeded"),
+        ),
+        // A reason our fixed request shape cannot produce is a violation.
+        (
+            "bad-field",
+            ViewerRowsRejectedReason::InvalidField,
+            5,
+            "protocol-invalid",
+            None,
+        ),
+    ];
+    for (tag, reason, code, kind, detail_reason) in cases {
+        let base = base_dir(&format!("thist-rej-{tag}"));
+        let scope = stage_scope(&base);
+        let cells = [0_u32; 8];
+        let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 5);
+        let record = frame_record(&frame);
+        let reason = *reason;
+        let peer = read_peer(&scope, move |stream| {
+            let attachment = attach_with_fixture(stream);
+            let request = take_poll(stream, &attachment);
+            viewer_reply(
+                stream,
+                &request,
+                TerminalViewerOutcome::Record(record.clone()),
+            );
+            let (request, _, _) = take_read_rows(stream, &attachment, 1, 1);
+            viewer_reply(
+                stream,
+                &request,
+                TerminalViewerOutcome::RowsRejected { reason },
+            );
+            // Exactly one read: the release Detach follows, then EOF.
+            answer_detach(stream, &attachment);
+            expect_session_eof(stream);
+        });
+        let output = run(
+            &base,
+            &[
+                "terminal",
+                "read",
+                TERMINAL_ID,
+                "--history",
+                "--rows",
+                "3",
+                "--format",
+                "json",
+            ],
+        );
+        peer.join().expect("peer finished");
+        assert_eq!(
+            output.status.code(),
+            Some(*code),
+            "{tag}: stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let failure = failure_kind(&output);
+        assert_eq!(failure["failure"]["kind"], *kind, "{tag}");
+        assert_eq!(failure["failure"]["details"]["stage"], "viewer", "{tag}");
+        match detail_reason {
+            Some(expected) => {
+                assert_eq!(
+                    failure["failure"]["details"]["operation"], "read-history",
+                    "{tag}"
+                );
+                assert_eq!(failure["failure"]["details"]["reason"], *expected, "{tag}");
+            }
+            // A reason outside the read's honest vocabulary reports only the
+            // stage — the typed detail would claim more than was seen.
+            None => {
+                assert!(
+                    failure["failure"]["details"].get("operation").is_none(),
+                    "{tag}"
+                );
+                assert!(
+                    failure["failure"]["details"].get("reason").is_none(),
+                    "{tag}"
+                );
+            }
+        }
+        // The emitted envelope validates against the failure schema's new
+        // history detail forms.
+        let schema = compiled_schema(&base, "orchbee.cli.failure");
+        assert!(schema.is_valid(&failure), "{tag} failure: {failure}");
+    }
+    Ok(())
+}
+
+/// A `Record` answer whose OBRW header does not echo the request — wrong
+/// start row here — is protocol-invalid; the attachment is still released
+/// and the session dropped before the failure envelope is prepared.
+#[test]
+fn terminal_read_history_window_mismatch_is_protocol_invalid() -> TestResult {
+    let base = base_dir("thist-mismatch");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 5);
+    let record = frame_record(&frame);
+    // start_row 0 does not echo the requested start 3.
+    let obrw = obrw_window(0, 7, 8, 1, 1, 1, &[(0x00, "aa"), (0x00, "bb")]);
+    let answer = history_record(&obrw);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        let (request, start_row, row_count) = take_read_rows(stream, &attachment, 1, 1);
+        assert_eq!(start_row, 3);
+        assert_eq!(row_count, 2);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "2",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "protocol-invalid");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+/// A success `record` whose OBRW payload exceeds the declared `maximumBytes`
+/// budget is rejected as `protocol-invalid` before the row window is
+/// materialized — the byte bound is never relaxed into decode or truncation.
+#[test]
+fn terminal_read_history_oversized_record_is_protocol_invalid() -> TestResult {
+    let base = base_dir("thist-oversize");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 5);
+    let record = frame_record(&frame);
+    // Every envelope field is a valid kind-46 response, so the single byte
+    // over the declared budget is the only defect this control isolates.
+    let route = inspect_terminal_frame_route(OBTF).expect("fixture route");
+    let oversized_payload = vec![0_u8; MAXIMUM_READ_ROWS_BYTES as usize + 1];
+    let oversized = encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Response,
+        kind: 46,
+        payload_encoding: PayloadEncoding::RowWindow,
+        host_epoch: Some(route.host_epoch),
+        correlation_id: Some(CorrelationId::from_bytes([0xdd; 16]).expect("correlation id")),
+        optional_message: false,
+        payload: &oversized_payload,
+    })
+    .expect("oversized record");
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        let (request, _, _) = take_read_rows(stream, &attachment, 1, 1);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(oversized.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "2",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "protocol-invalid");
+    assert_eq!(failure["failure"]["details"]["stage"], "viewer");
+    Ok(())
+}
+
+/// A frame-role or wrong-encoding `record` where the row window belongs is
+/// the same violation — the envelope must be a kind-46 response.
+#[test]
+fn terminal_read_history_frame_record_answer_is_protocol_invalid() -> TestResult {
+    let base = base_dir("thist-wrongkind");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 5);
+    let record = frame_record(&frame);
+    let wrong = obtf_record();
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        let (request, _, _) = take_read_rows(stream, &attachment, 1, 1);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(wrong.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "2",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(5));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "protocol-invalid");
+    Ok(())
+}
+
+/// Text format emits one escaped line per row and the localized truncation
+/// marker counts rows the window cap never sent.
+#[test]
+fn terminal_read_history_text_output_marks_omitted_rows() -> TestResult {
+    let base = base_dir("thist-text");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 500];
+    let frame = budget_obtf_scrolled(500, &[(0, &cells)], &["s"], 600);
+    let record = frame_record(&frame);
+    let window_rows: Vec<(u8, String)> = (0..524).map(|_| (0_u8, "x".to_owned())).collect();
+    let window_ref: Vec<(u8, &str)> = window_rows
+        .iter()
+        .map(|(flags, text)| (*flags, text.as_str()))
+        .collect();
+    let obrw = obrw_window(76, 601, 500, 1, 1, 1, &window_ref);
+    let answer = history_record(&obrw);
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(record.clone()),
+        );
+        let (request, _, _) = take_read_rows(stream, &attachment, 1, 1);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "1000",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let body = String::from_utf8(output.stdout).expect("utf8 output");
+    let lines: Vec<&str> = body.lines().collect();
+    assert_eq!(lines.len(), 525, "524 rows plus the marker");
+    assert!(lines[..524].iter().all(|line| *line == "x"));
+    assert_eq!(lines[524], "… 76 more rows truncated at the read limit");
     Ok(())
 }

@@ -1,18 +1,22 @@
-use std::{error::Error, num::NonZeroU64, os::unix::net::UnixStream, time::Duration};
+use std::{error::Error, io, num::NonZeroU64, os::unix::net::UnixStream, time::Duration};
 
 use orchbee_capability_node_protocol::{
-    TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult,
-    ViewerRejection, ViewerSnapshotReason,
+    MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
+    TerminalViewerRequest, TerminalViewerResult, ViewerRejection, ViewerRowsRejectedReason,
+    ViewerSnapshotReason,
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_terminal_protocol::{
     AttachTerminal, AttachmentCapabilityState, AttachmentControl, AttachmentId, AttachmentTarget,
-    ConnectionControl, CorrelationId, FrameApplied, NeedSnapshot, PayloadEncoding,
-    ProjectionDemand, ProjectionDemandControl, ProjectionFeedbackControl, SetProjectionDemand,
-    SnapshotReason, TerminalId, decode_attachment_control, decode_connection_control,
-    decode_projection_demand_control, decode_projection_feedback_control,
-    decode_transport_envelope, encode_attachment_control, encode_projection_demand_control,
-    encode_projection_feedback_control,
+    CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, EncodedRowAccessControl, Envelope,
+    FrameApplied, MessageRole, NeedSnapshot, PayloadEncoding, ProjectionDemand,
+    ProjectionDemandControl, ProjectionFeedbackControl, ReadRows, RowAccessControl,
+    RowRevisionPolicy, RowWindowDetail, RowWindowOrigin, RowWindowPurpose, SetProjectionDemand,
+    SnapshotReason, TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalId, decode_attachment_control,
+    decode_connection_control, decode_projection_demand_control,
+    decode_projection_feedback_control, decode_transport_envelope, encode_attachment_control,
+    encode_projection_demand_control, encode_projection_feedback_control,
+    encode_row_access_control, encode_transport_envelope, message_contract,
 };
 
 use crate::host_connection::{HostBrokerConnection, HostExchange, exchange};
@@ -178,6 +182,69 @@ fn apply(
             Ok(TerminalViewerOutcome::Attached)
         }
         TerminalViewerAction::Poll => Ok(host.viewers.borrow_mut().poll(request.attachment_id)),
+        TerminalViewerAction::ReadRows {
+            start_row,
+            row_count,
+            revision,
+            generation,
+            request_sequence,
+            maximum_bytes,
+        } => {
+            // A buffer read needs an admitted, open viewer; unknown or closed
+            // attachments are the existing unavailability, never a row rejection.
+            if !host.viewers.borrow().open(request.attachment_id) {
+                return Ok(TerminalViewerOutcome::Rejected(
+                    ViewerRejection::AttachmentUnavailable,
+                ));
+            }
+            // The effective budget is the smallest of the requested bound, the
+            // negotiated row-window limit, and what the viewer record carrier can
+            // hold after its envelope header.
+            let carrier_payload = u32::try_from(
+                MAXIMUM_VIEWER_RECORD_BYTES.saturating_sub(TRANSPORT_ENVELOPE_HEADER_BYTES),
+            )
+            .unwrap_or(u32::MAX);
+            let effective_maximum = maximum_bytes
+                .min(host.negotiated_limits().row_window_bytes)
+                .min(carrier_payload);
+            let command = encode_row_access_control(&RowAccessControl::ReadRows(ReadRows {
+                attachment_id: id,
+                detail: RowWindowDetail::Text,
+                generation,
+                maximum_bytes: effective_maximum,
+                origin: RowWindowOrigin::Absolute { row: start_row },
+                purpose: RowWindowPurpose::Buffer,
+                request_sequence,
+                revision,
+                revision_policy: RowRevisionPolicy::Exact,
+                row_count,
+            }))?;
+            let response = exchange_rows(
+                host,
+                server,
+                correlation,
+                &command,
+                TRANSPORT_ENVELOPE_HEADER_BYTES.saturating_add(effective_maximum as usize),
+            )?;
+            let envelope = decode_transport_envelope(&response)?;
+            if envelope.payload_encoding == PayloadEncoding::RowWindow {
+                // The bounded exchange already proved the response record fits
+                // the effective budget; confirm the payload length itself.
+                if envelope.payload.len() > effective_maximum as usize {
+                    return Err(invalid("Host row window exceeds its byte budget").into());
+                }
+                return Ok(TerminalViewerOutcome::Record(response));
+            }
+            let Ok(ConnectionControl::TypedFailure(failure)) =
+                decode_connection_control(envelope.kind, envelope.role, envelope.payload)
+            else {
+                return Err(invalid("Host did not answer the row request").into());
+            };
+            Ok(TerminalViewerOutcome::RowsRejected(
+                rows_rejection_reason(&failure.code)
+                    .ok_or_else(|| invalid("Host row rejection used an unknown reason"))?,
+            ))
+        }
         TerminalViewerAction::Detach => {
             if !host.viewers.borrow().contains(request.attachment_id) {
                 if host.disposed_viewer(request.attachment_id) {
@@ -280,4 +347,70 @@ const fn snapshot_reason(reason: ViewerSnapshotReason) -> SnapshotReason {
         ViewerSnapshotReason::SequenceGap => SnapshotReason::SequenceGap,
         ViewerSnapshotReason::StoreReset => SnapshotReason::StoreReset,
     }
+}
+
+fn rows_rejection_reason(code: &str) -> Option<ViewerRowsRejectedReason> {
+    Some(match code {
+        "stale-revision" => ViewerRowsRejectedReason::StaleRevision,
+        "stale-generation" => ViewerRowsRejectedReason::StaleGeneration,
+        "history-evicted" => ViewerRowsRejectedReason::HistoryEvicted,
+        "missing-resource" => ViewerRowsRejectedReason::MissingResource,
+        "invalid-field" => ViewerRowsRejectedReason::InvalidField,
+        "invalid-acknowledgement" => ViewerRowsRejectedReason::InvalidAcknowledgement,
+        "limit-exceeded" => ViewerRowsRejectedReason::LimitExceeded,
+        "resource-exhausted" => ViewerRowsRejectedReason::ResourceExhausted,
+        "invalid-phase" => ViewerRowsRejectedReason::InvalidPhase,
+        _ => return None,
+    })
+}
+
+/// A row read accepts either the correlated RowWindow response or a control
+/// TypedFailure; every other kind, encoding, or role is a Host violation.
+fn exchange_rows(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    correlation: CorrelationId,
+    command: &EncodedRowAccessControl,
+    maximum_record_bytes: usize,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    let expected = message_contract(command.kind)
+        .and_then(|contract| contract.request)
+        .map(|request| request.success_kind)
+        .ok_or_else(|| invalid("Host row request kind has no response contract"))?;
+    let record = encode_transport_envelope(&Envelope {
+        correlation_id: Some(correlation),
+        host_epoch: Some(host.host_epoch()),
+        kind: command.kind,
+        optional_message: false,
+        payload: &command.payload,
+        payload_encoding: PayloadEncoding::ControlJson,
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Request,
+    })?;
+    let mut exchange = HostExchange::new(host, server, Duration::from_secs(1))
+        .ok_or_else(|| io::Error::other("invalid Host request budget"))?;
+    exchange
+        .prepare()
+        .map_err(|_| io::Error::other("Host request preflight failed"))?;
+    let record = exchange
+        .round_trip_bounded(&record, maximum_record_bytes)
+        .map_err(|_| io::Error::other("Host request exchange failed"))?;
+    let envelope = decode_transport_envelope(&record)?;
+    let row_window =
+        envelope.kind == expected && envelope.payload_encoding == PayloadEncoding::RowWindow;
+    let typed_failure = envelope.payload_encoding == PayloadEncoding::ControlJson
+        && matches!(
+            decode_connection_control(envelope.kind, envelope.role, envelope.payload),
+            Ok(ConnectionControl::TypedFailure(_))
+        );
+    if envelope.correlation_id != Some(correlation)
+        || envelope.host_epoch != Some(host.host_epoch())
+        || envelope.role != MessageRole::Response
+        || envelope.protocol != CURRENT_PROTOCOL_VERSION
+        || envelope.optional_message
+        || !(row_window || typed_failure)
+    {
+        return Err(io::Error::other("unexpected Host row response envelope").into());
+    }
+    Ok(record)
 }

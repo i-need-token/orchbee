@@ -41,8 +41,9 @@ pub use model::{
 };
 pub use paste_record::PASTE_RECORD_MAGIC;
 pub use viewer::{
-    MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, TerminalViewerResult, ViewerRejectedReason, ViewerSnapshotReason,
+    MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
+    MINIMUM_READ_ROWS_BYTES, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
+    TerminalViewerResult, ViewerRejectedReason, ViewerRowsRejectedReason, ViewerSnapshotReason,
     ViewerUnavailableReason,
 };
 pub use working_directory::{

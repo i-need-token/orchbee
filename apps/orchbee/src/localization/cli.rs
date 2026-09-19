@@ -170,6 +170,8 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::PanelDirection) => "'above'、'below'、'left' 或 'right'",
             (Self::EnUs, ExpectedValue::Shell) => "'bash', 'zsh', or 'fish'",
             (Self::ZhCn, ExpectedValue::Shell) => "'bash'、'zsh' 或 'fish'",
+            (Self::EnUs, ExpectedValue::HistoryRows) => "a decimal integer from 1 to 1000",
+            (Self::ZhCn, ExpectedValue::HistoryRows) => "1–1000 的十进制整数",
         };
         let (problem, hint) = match reason {
             UsageReason::Invalid => return self.usage_failure().to_owned(),
@@ -404,9 +406,31 @@ impl Locale {
             }
             (Self::ZhCn, "snapshot") => "本地 Site 当前无法产出快照。\n".to_owned(),
             (Self::EnUs, "viewer") => {
-                "The terminal could not be observed for reading right now.\n".to_owned()
+                let reason = failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("reason"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("");
+                if reason.is_empty() {
+                    "The terminal could not be observed for reading right now.\n".to_owned()
+                } else {
+                    format!("The terminal history could not be read right now ({reason}).\n")
+                }
             }
-            (Self::ZhCn, "viewer") => "该终端当前无法进行读取观察。\n".to_owned(),
+            (Self::ZhCn, "viewer") => {
+                let reason = failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("reason"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("");
+                if reason.is_empty() {
+                    "该终端当前无法进行读取观察。\n".to_owned()
+                } else {
+                    format!("该终端的历史当前无法读取（{reason}）。\n")
+                }
+            }
             (Self::EnUs, "command") => {
                 "The local Site could not execute the command right now; nothing was applied.\n"
                     .to_owned()
@@ -707,8 +731,8 @@ const HELP_TERMINAL_LIST_ZH: &str = "orchbee terminal list [--format text|json]\
 const HELP_TERMINAL_GET_EN: &str = "orchbee terminal get <terminal-id> [--format text|json]\n\nShow one bound terminal by complete typed ID: worker id and its single\nboundTo location (presentation, panel, tab, context).\n";
 const HELP_TERMINAL_GET_ZH: &str = "orchbee terminal get <terminal-id> [--format text|json]\n\n按完整类型化 ID 显示一个已绑定终端：worker id 及其唯一 boundTo 位置\n（presentation、panel、tab、context）。\n";
 
-const HELP_TERMINAL_READ_EN: &str = "orchbee terminal read <terminal-id> [--format text|json]\n\nRead the current visible content of one bound terminal. The terminal is\nresolved from the Workbench snapshot, then observed once through a short-\nlived read-only viewer on the same session; nothing is created, activated,\nor mutated. Text output prints the grid rows; '--format json' emits the\norchbee.terminal.read envelope with frame metadata and row content.\n";
-const HELP_TERMINAL_READ_ZH: &str = "orchbee terminal read <terminal-id> [--format text|json]\n\n读取一个已绑定终端的当前可见内容。终端经 Workbench 快照解析后，通过同\n一会话上短暂存活的只读 viewer 观察一次；不创建、不激活、不修改任何\n状态。文本输出逐行打印网格内容；'--format json' 输出带帧元数据与行内\n容的 orchbee.terminal.read 封套。\n";
+const HELP_TERMINAL_READ_EN: &str = "orchbee terminal read <terminal-id> [--history --rows <n>] [--format text|json]\n\nRead the current visible content of one bound terminal. The terminal is\nresolved from the Workbench snapshot, then observed once through a short-\nlived read-only viewer on the same session; nothing is created, activated,\nor mutated. Text output prints the grid rows; '--format json' emits the\norchbee.terminal.read envelope with frame metadata and row content.\n\nWith '--history --rows <n>' (both flags required together, 1..=1000), read\nup to n retained rows that have scrolled off the active screen instead of\nthe visible frame; '--format json' emits the orchbee.terminal.history\nenvelope with scrollback metadata and row content.\n";
+const HELP_TERMINAL_READ_ZH: &str = "orchbee terminal read <terminal-id> [--history --rows <n>] [--format text|json]\n\n读取一个已绑定终端的当前可见内容。终端经 Workbench 快照解析后，通过同\n一会话上短暂存活的只读 viewer 观察一次；不创建、不激活、不修改任何\n状态。文本输出逐行打印网格内容；'--format json' 输出带帧元数据与行内\n容的 orchbee.terminal.read 封套。\n\n加 '--history --rows <n>'（两个 flag 必须成对，1..=1000）时，读取已滚\n出当前活动屏幕的至多 n 行保留历史，而非可见帧；'--format json' 输出\n带历史元数据与行内容的 orchbee.terminal.history 封套。\n";
 
 const HELP_API_SNAPSHOT_EN: &str = "orchbee api snapshot [--format text|json]\n\nEmit the complete validated workbench.snapshot document inside the\norchbee.api.snapshot envelope. Successful output is JSON even under\n'--format text'; a failure envelope still requires '--format json'.\n";
 const HELP_API_SNAPSHOT_ZH: &str = "orchbee api snapshot [--format text|json]\n\n在 orchbee.api.snapshot 封套内输出完整已验证 workbench.snapshot 文档。\n成功输出即使 '--format text' 也为 JSON；失败封套仍需显式 '--format json'。\n";

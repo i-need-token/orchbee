@@ -126,6 +126,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--cell-height",
     "--confirm",
     "--target-panel",
+    "--history",
 ];
 
 /// `<family>:<verb>` → the business flags that command admits. Commands not
@@ -164,6 +165,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     ("panel:close", &["--confirm"]),
     ("panel:move", &["--target-panel", "--direction"]),
+    ("terminal:read", &["--history", "--rows"]),
 ];
 
 /// `<family>:<verb>` → the words its `--direction` flag accepts. Only
@@ -244,6 +246,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--cell-height" => "seen_cell_height",
         "--confirm" => "seen_confirm",
         "--target-panel" => "seen_target_panel",
+        "--history" => "seen_history",
         other => unreachable!("flag {other} lacks a seen bit"),
     }
 }
@@ -253,7 +256,7 @@ fn flag_bit(flag: &str) -> &'static str {
 fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
         "--direction" => Some("direction"),
-        "--standalone" | "--confirm" => None,
+        "--standalone" | "--confirm" | "--history" => None,
         _ => Some("filter"),
     }
 }

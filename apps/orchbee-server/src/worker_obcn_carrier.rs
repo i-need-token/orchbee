@@ -836,6 +836,10 @@ fn validate_response(
                         Action::FrameApplied { .. } | Action::NeedSnapshot { .. },
                         Outcome::FeedbackAccepted
                     )
+                    | (
+                        Action::ReadRows { .. },
+                        Outcome::Record(_) | Outcome::RowsRejected(_)
+                    )
                     | (Action::Detach, Outcome::Detached)
                     | (_, Outcome::Rejected(_))
             ) {

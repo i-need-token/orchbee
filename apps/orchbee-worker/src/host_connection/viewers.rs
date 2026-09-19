@@ -105,6 +105,13 @@ impl HostViewers {
         self.viewers.contains_key(&id.as_bytes())
     }
 
+    /// An admitted viewer that has not been closed is open for buffer reads.
+    pub(crate) fn open(&self, id: OperationId) -> bool {
+        self.viewers
+            .get(&id.as_bytes())
+            .is_some_and(|viewer| !viewer.closed)
+    }
+
     pub(crate) fn poll(&mut self, id: OperationId) -> TerminalViewerOutcome {
         let Some(viewer) = self.viewers.get_mut(&id.as_bytes()) else {
             return TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable);

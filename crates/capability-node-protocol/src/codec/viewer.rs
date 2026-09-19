@@ -48,6 +48,22 @@ pub(super) fn encode_request(value: TerminalViewerRequest) -> Vec<u8> {
             });
         }
         TerminalViewerAction::Detach => bytes.push(5),
+        TerminalViewerAction::ReadRows {
+            start_row,
+            row_count,
+            revision,
+            generation,
+            request_sequence,
+            maximum_bytes,
+        } => {
+            bytes.push(6);
+            bytes.extend_from_slice(&start_row.to_be_bytes());
+            bytes.extend_from_slice(&row_count.to_be_bytes());
+            bytes.extend_from_slice(&revision.to_be_bytes());
+            bytes.extend_from_slice(&generation.get().to_be_bytes());
+            bytes.extend_from_slice(&request_sequence.get().to_be_bytes());
+            bytes.extend_from_slice(&maximum_bytes.to_be_bytes());
+        }
     }
     bytes
 }
@@ -84,6 +100,29 @@ pub(super) fn decode_request(bytes: &[u8]) -> Result<TerminalViewerRequest, Prot
             },
         },
         5 => TerminalViewerAction::Detach,
+        6 => {
+            let start_row = reader.read_u64()?;
+            let row_count = reader.read_u16()?;
+            let revision = reader.read_u64()?;
+            let generation = positive(reader.read_u64()?)?;
+            let request_sequence = positive(reader.read_u64()?)?;
+            let maximum_bytes = reader.read_u32()?;
+            if row_count == 0
+                || row_count > crate::MAXIMUM_READ_ROWS
+                || !(crate::MINIMUM_READ_ROWS_BYTES..=crate::MAXIMUM_READ_ROWS_BYTES)
+                    .contains(&maximum_bytes)
+            {
+                return Err(ProtocolError::InvalidPayload);
+            }
+            TerminalViewerAction::ReadRows {
+                start_row,
+                row_count,
+                revision,
+                generation,
+                request_sequence,
+                maximum_bytes,
+            }
+        }
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;
@@ -118,9 +157,42 @@ pub(super) fn encode_result(value: &TerminalViewerResult) -> Vec<u8> {
                 ViewerRejection::HostRejected => 8,
             });
         }
+        TerminalViewerOutcome::RowsRejected(reason) => {
+            bytes.push(6);
+            bytes.push(rows_rejected_code(reason));
+        }
         TerminalViewerOutcome::Record(_) => unreachable!("record uses OBNR framing"),
     }
     bytes
+}
+
+fn rows_rejected_code(reason: crate::ViewerRowsRejectedReason) -> u8 {
+    match reason {
+        crate::ViewerRowsRejectedReason::StaleRevision => 1,
+        crate::ViewerRowsRejectedReason::StaleGeneration => 2,
+        crate::ViewerRowsRejectedReason::HistoryEvicted => 3,
+        crate::ViewerRowsRejectedReason::MissingResource => 4,
+        crate::ViewerRowsRejectedReason::InvalidField => 5,
+        crate::ViewerRowsRejectedReason::InvalidAcknowledgement => 6,
+        crate::ViewerRowsRejectedReason::LimitExceeded => 7,
+        crate::ViewerRowsRejectedReason::ResourceExhausted => 8,
+        crate::ViewerRowsRejectedReason::InvalidPhase => 9,
+    }
+}
+
+fn rows_rejected_reason(code: u8) -> Result<crate::ViewerRowsRejectedReason, ProtocolError> {
+    Ok(match code {
+        1 => crate::ViewerRowsRejectedReason::StaleRevision,
+        2 => crate::ViewerRowsRejectedReason::StaleGeneration,
+        3 => crate::ViewerRowsRejectedReason::HistoryEvicted,
+        4 => crate::ViewerRowsRejectedReason::MissingResource,
+        5 => crate::ViewerRowsRejectedReason::InvalidField,
+        6 => crate::ViewerRowsRejectedReason::InvalidAcknowledgement,
+        7 => crate::ViewerRowsRejectedReason::LimitExceeded,
+        8 => crate::ViewerRowsRejectedReason::ResourceExhausted,
+        9 => crate::ViewerRowsRejectedReason::InvalidPhase,
+        _ => return Err(ProtocolError::InvalidPayload),
+    })
 }
 
 pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalViewerResult, ProtocolError> {
@@ -143,6 +215,7 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalViewerResult, Protoc
             8 => ViewerRejection::HostRejected,
             _ => return Err(ProtocolError::InvalidPayload),
         }),
+        6 => TerminalViewerOutcome::RowsRejected(rows_rejected_reason(reader.read_u8()?)?),
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;

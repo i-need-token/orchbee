@@ -104,7 +104,7 @@ orchbee panel list [--tab <target>] | panel get <target>
 orchbee panel split <target> --direction above|below|left|right --label <label> <geometry>
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
-orchbee terminal list | terminal get <target> | terminal read <target>
+orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee config check
@@ -216,6 +216,26 @@ same deadline — never a second admission — for one read-only viewer observat
    both complete before any mapping, formatting, or output. The viewer attachment is never
    retained into output, and the session drop is itself the teardown guarantee.
 
+`terminal read --history --rows <n>` keeps the same attach → poll preamble — `--history` and
+`--rows` are admitted only as a pair, and `n` is the bounded retained-row count `1..=1000`, not
+a geometry dimension — then reads the scrollback behind the applied frame:
+
+- The applied frame's retained-scrollback fact prices exactly one `ReadRows{attachmentId,
+  startRow,rowCount,revision,generation,requestSequence:1,maximumBytes}`: `rowCount =
+  min(n, scrollback, 262144/columns)` and `startRow = scrollback - rowCount`, so the window ends
+  at the scrollback boundary. Zero scrollback short-circuits — no `ReadRows` is sent and the
+  answer is an empty window.
+- The `record` answer must be a complete OBTP `RowsSnapshot` (kind 46) response whose OBRW text
+  window independently echoes the request: attachment, Host epoch, sequence, revision,
+  generation, columns, start row, row count, and `totalRows = scrollback + screenRows`, with the
+  payload inside `maximumBytes` (8 MiB). Any mismatch is `protocol-invalid` stage `viewer`.
+- `rows-rejected` maps to a typed vocabulary: `limit-exceeded` is `rejected` (3); Host state
+  answers (`history-evicted`, `stale-revision`, `stale-generation`, `missing-resource`,
+  `resource-exhausted`, `invalid-phase`) are `service-unavailable` (4) with
+  `{stage:"viewer",operation:"read-history",reason}`; reasons the fixed request shape cannot
+  produce are `protocol-invalid`. There is no retry, and no `RowsApplied`/feedback anchor is
+  ever sent for the read.
+
 ## Canonical data and results
 
 Canonical traversal order: `navigation.projects` order; each project's `workspaces` order;
@@ -274,6 +294,16 @@ tabId,terminalContextId}}]}`; `terminal get` returns the same identity facts und
   one escaped line followed by a localized truncation marker when `omittedRows>0`. The read is a
   single point-in-time frame: `revision`/`generation`/`sequence` are the host's counters at that
   observation, not a CLI freshness claim.
+- `orchbee.terminal.history` → `{terminal,history,content}`: `history` carries the priced
+  window's facts — `revision`/`generation`, `alternateScreen`, `columns`, `screenRows`, the
+  decimal-string `scrollbackRows`/`totalRows`/`startRow`, `requestedRows`, and `windowRows` (the
+  Host window's complete row count); `content` carries `rows` (`{index,text,continuation}` with
+  `index` the absolute retained-plus-screen row coordinate as a decimal string), `rowCount`
+  (emitted rows), `truncated`/`omittedRows`, and `limits` `{rows:1000,textBytes:4194304}`.
+  `omittedRows` honestly counts `min(requestedRows,scrollbackRows)` minus emitted rows — rows the
+  `MAXIMUM_FRAME_CELLS/columns` cap or the text budget never emitted — while rows older than
+  `startRow` were never requested, not omitted. Text output matches `terminal read`: one escaped
+  line per emitted row plus the marker.
 - `orchbee.api.snapshot` → `{snapshot}`: the complete `WorkbenchProtocolDocument::Snapshot`
   semantic re-encode including `kind:"workbench.snapshot"`; envelope `siteId`/`revision` agree
   with the inner document.
@@ -408,6 +438,9 @@ default SIGINT semantics. 7 stays reserved and unreachable in this slice.
 | viewer `OutcomeUnknown(CorrelationMismatch)`                                                                                              | `protocol-invalid`                   | 5    | `{stage:"viewer",reason:"correlation-mismatch"}`                                          |
 | viewer outcome `Rejected(AlreadyAttached\|TerminalUnavailable)` or `Unavailable`                                                          | `service-unavailable`                | 4    | `{stage:"viewer"}`                                                                        |
 | viewer outcome `Rejected(FeedbackMismatch)`, record rejected by the projection                                                            | `protocol-invalid`                   | 5    | `{stage:"viewer"}`                                                                        |
+| `ReadRows` outcome `RowsRejected(LimitExceeded)`                                                                                          | `rejected`                           | 3    | `{stage:"viewer",operation:"read-history",reason:"limit-exceeded"}`                       |
+| `ReadRows` outcome `RowsRejected` (other producible reason)                                                                               | `service-unavailable`                | 4    | `{stage:"viewer",operation:"read-history",reason}`                                        |
+| `ReadRows` outcome `RowsRejected(InvalidField\|InvalidAcknowledgement)`, mismatched/malformed row-window record                           | `protocol-invalid`                   | 5    | `{stage:"viewer"}`                                                                        |
 | `DefinitelyNotSubmitted::RequestNotSubmitted` (command)                                                                                   | `transport-loss`                     | 5    | `{stage:"command"}`                                                                       |
 | `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`                                                                            | `internal-failure`                   | 1    | omitted                                                                                   |
 | command `Rejected` precommit                                                                                                              | `rejected`                           | 3    | `{stage:"command",reason,revision}`                                                       |
@@ -424,7 +457,8 @@ default SIGINT semantics. 7 stays reserved and unreachable in this slice.
 Stages and reasons are finite schema values; no exception text becomes a machine field. `details`
 is a closed per-kind vocabulary — `{resource,target}`,
 `{resource,target,candidates≤8,totalCount}`, `{stage[,reason]}`,
-`{stage:"command",reason,revision}`, `{stage:"command",requestId,reason}`, or `{limitBytes}` —
+`{stage:"command",reason,revision}`, `{stage:"command",requestId,reason}`,
+`{stage:"viewer",operation:"read-history",reason}`, or `{limitBytes}` —
 and the embedded schemas reject documents outside those shapes. Read-path errors never become
 outcome-unknown/failed-effect: only the command stage can produce an undetermined effect, and
 `rejected`/`denied`/`unavailable` precommit answers are definite — the Server applied nothing.
@@ -497,6 +531,7 @@ outcome-unknown/failed-effect: only the command stage can produce an undetermine
 | Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                     | success/`session-capacity`/unchanged structure                  | `tests/local_startup_process`                                      |
 | Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                             | typed kinds per matrix; never labeled real-Server evidence      | `tests/cli_query.rs`                                               |
 | Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect | `terminal read` success + typed viewer-stage failures           | `tests/cli_query.rs`                                               |
+| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, window mismatch, oversized record, no retry | `terminal read --history` success + typed failures              | `tests/cli_query.rs`                                               |
 | Real staged-cohort Server + live TUI terminal: `terminal read` returns its grid and schema-validates                                         | real read-only observation coexisting with the TUI's own viewer | `tests/local_startup_process`                                      |
 | Mutation grammar: every command, target rules, `--confirm`, geometry bounds, flag scopes                                                     | exact parse/failure kinds before runtime access                 | `src/invocation` tests                                             |
 | Mutation scripted peers: all nine commands, precommit verdicts, ambiguous and unapplied outcomes                                             | one command per call; `outcome-unknown` never replayed          | `tests/cli_mutation.rs`                                            |
@@ -507,6 +542,7 @@ outcome-unknown/failed-effect: only the command stage can produce an undetermine
 
 Model obligations: this slice adds no new Server state machine, persistence, or retry and reuses
 the registered OBLC/OBWP/OBCS/Client models — `terminal read` rides the existing
-`terminal.viewer` attach/poll/detach protocol unchanged — so no new TLA+ model is required.
+`terminal.viewer` attach/poll/detach lifecycle, with `--history` adding one bounded
+`read-rows`/`rows-rejected` exchange inside it — so no new TLA+ model is required.
 Registered models whose triggers cover `apps/orchbee` source, manifest, project scope, README,
 and test paths must still actually run; the inventory output is not a substitute.

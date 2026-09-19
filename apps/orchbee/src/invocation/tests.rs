@@ -97,7 +97,10 @@ fn accepts_every_query_path_with_default_text() {
         ),
         (
             &["terminal", "read", ID],
-            QueryCommand::TerminalRead(Target::Id(ID.into())),
+            QueryCommand::TerminalRead {
+                target: Target::Id(ID.into()),
+                history: None,
+            },
         ),
         (&["api", "snapshot"], QueryCommand::ApiSnapshot),
         (
@@ -2009,4 +2012,196 @@ fn ownership_and_terminator_keep_their_reasons() {
             option: "--bogus".to_owned(),
         })
     );
+}
+
+/// `terminal read --history --rows <n>`: the flags admit only as a pair, the
+/// value is the 1..=1000 retained-row count, and `--history` stays illegal on
+/// every other command — including the geometry commands where `--rows`
+/// keeps its dimension meaning.
+#[test]
+fn terminal_read_history_grammar() {
+    let read = |history: Option<u16>| {
+        query(
+            QueryCommand::TerminalRead {
+                target: Target::Id(ID.into()),
+                history,
+            },
+            OutputFormat::Text,
+        )
+    };
+    for (arguments, expected) in [
+        (
+            &["terminal", "read", ID, "--history", "--rows", "1"][..],
+            Some(1),
+        ),
+        (
+            &["terminal", "read", ID, "--history", "--rows", "1000"][..],
+            Some(1000),
+        ),
+        // Flag order is free; the pair binds at resolve time.
+        (
+            &["terminal", "read", ID, "--rows", "42", "--history"][..],
+            Some(42),
+        ),
+        // The shared unsigned-integer spelling admits a leading `+`, exactly
+        // like the geometry dimensions.
+        (
+            &["terminal", "read", ID, "--history", "--rows", "+5"][..],
+            Some(5),
+        ),
+        (&["terminal", "read", ID][..], None),
+    ] {
+        assert_eq!(parse(arguments), Ok(read(expected)), "{arguments:?}");
+    }
+    // History mode composes with the orthogonal format selection.
+    assert_eq!(
+        parse(&[
+            "terminal",
+            "read",
+            ID,
+            "--history",
+            "--rows",
+            "7",
+            "--format",
+            "json"
+        ]),
+        Ok(Request::Query {
+            command: QueryCommand::TerminalRead {
+                target: Target::Id(ID.into()),
+                history: Some(7),
+            },
+            format: OutputFormat::Json,
+        })
+    );
+    // Each half without the other is the missing requirement, never a
+    // default or an implied mode.
+    for (arguments, requirement) in [
+        (&["terminal", "read", ID, "--history"][..], "'--rows'"),
+        (
+            &["terminal", "read", ID, "--history", "--format", "json"][..],
+            "'--rows'",
+        ),
+        (&["terminal", "read", ID, "--rows", "5"][..], "'--history'"),
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::MissingRequired {
+                context: UsageContext::Path("terminal read"),
+                requirement,
+            }),
+            "{arguments:?}"
+        );
+    }
+    // The history-row value shape: bounds, syntax, and no geometry spill.
+    for value in ["0", "1001", "65536", "abc", "-1", "", "5.0", " 5", "5 "] {
+        let arguments = ["terminal", "read", ID, "--history", "--rows", value];
+        let Err(failure) = parse(&arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::InvalidValue {
+                context: UsageContext::Path("terminal read"),
+                option: "--rows",
+                value: value.to_owned(),
+                expected: ExpectedValue::HistoryRows,
+            }),
+            "{arguments:?}"
+        );
+    }
+    // `--history` is out of scope everywhere else, named as the first
+    // rejected flag in declaration order.
+    for (arguments, context) in [
+        (
+            &["terminal", "get", ID, "--history"][..],
+            UsageContext::Path("terminal get"),
+        ),
+        (
+            &["terminal", "list", "--history"][..],
+            UsageContext::Path("terminal list"),
+        ),
+        (&["status", "--history"][..], UsageContext::Path("status")),
+        (
+            &["api", "snapshot", "--history"][..],
+            UsageContext::Path("api snapshot"),
+        ),
+        (
+            &[
+                "tab",
+                "create",
+                "--standalone",
+                "--label",
+                "t",
+                "--cols",
+                "80",
+                "--rows",
+                "24",
+                "--cell-width",
+                "8",
+                "--cell-height",
+                "16",
+                "--history",
+            ][..],
+            UsageContext::Path("tab create"),
+        ),
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(
+            failure.usage.as_ref(),
+            Some(&UsageReason::UnexpectedOption {
+                context,
+                option: "--history",
+            }),
+            "{arguments:?}"
+        );
+    }
+    // `--history` repeats and `--rows` repeats stay duplicate/invalid before
+    // the pair is ever resolved.
+    for (arguments, expected) in [
+        (
+            &[
+                "terminal",
+                "read",
+                ID,
+                "--history",
+                "--history",
+                "--rows",
+                "5",
+            ][..],
+            UsageReason::DuplicateOption {
+                option: "--history",
+            },
+        ),
+        (
+            &[
+                "terminal",
+                "read",
+                ID,
+                "--history",
+                "--rows",
+                "5",
+                "--rows",
+                "6",
+            ][..],
+            UsageReason::DuplicateOption { option: "--rows" },
+        ),
+        // `--rows` still owns its next word whole, even a flag spelling.
+        (
+            &["terminal", "read", ID, "--rows", "--history"][..],
+            UsageReason::MissingRequired {
+                context: UsageContext::Path("terminal read"),
+                requirement: "'--history'",
+            },
+        ),
+    ] {
+        let Err(failure) = parse(arguments) else {
+            panic!("{arguments:?} must fail");
+        };
+        assert_eq!(failure.usage.as_ref(), Some(&expected), "{arguments:?}");
+    }
 }

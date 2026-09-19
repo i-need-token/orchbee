@@ -2004,6 +2004,7 @@ impl UiDriver {
             Some(TerminalViewerAction::Attach { .. })
             | Some(TerminalViewerAction::AttachBinding { .. })
             | Some(TerminalViewerAction::Poll { .. })
+            | Some(TerminalViewerAction::ReadRows { .. })
             | Some(TerminalViewerAction::Detach { .. }) => {
                 Err(test_error("projection returned a non-feedback action"))
             }

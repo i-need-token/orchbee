@@ -7,8 +7,9 @@ mod terminal_lifecycle;
 mod terminal_viewer;
 
 pub use terminal_viewer::{
-    MAXIMUM_VIEWER_RECORD_BYTES, TerminalViewerAction, TerminalViewerOutcome,
-    TerminalViewerRequest, TerminalViewerResult, ViewerRejection, ViewerSnapshotReason,
+    MAXIMUM_READ_ROWS, MAXIMUM_READ_ROWS_BYTES, MAXIMUM_VIEWER_RECORD_BYTES,
+    MINIMUM_READ_ROWS_BYTES, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
+    TerminalViewerResult, ViewerRejection, ViewerRowsRejectedReason, ViewerSnapshotReason,
 };
 
 pub use codec::{

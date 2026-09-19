@@ -3,6 +3,7 @@
 use crate::{
     AttachmentId, HostEpoch, MAXIMUM_FRAME_CELLS, MAXIMUM_FRAME_COLUMNS, MAXIMUM_FRAME_ROWS,
     MAXIMUM_ROW_WINDOW_BYTES, MAXIMUM_TEXT_CELL_BYTES, ProtocolError, ProtocolErrorCode,
+    RowWindowDetail,
 };
 use std::num::NonZeroU64;
 
@@ -58,6 +59,22 @@ pub struct TerminalTextRowWindow {
     pub rows: Vec<TerminalTextWindowRow>,
 }
 
+/// Routing and scope facts of a complete OBRW record. The same header validation
+/// as `decode_terminal_text_row_window` runs first; row payloads are not decoded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TerminalRowWindowRoute {
+    pub attachment_id: AttachmentId,
+    pub host_epoch: HostEpoch,
+    pub sequence: NonZeroU64,
+    pub revision: u64,
+    pub generation: NonZeroU64,
+    pub total_rows: u64,
+    pub start_row: u64,
+    pub columns: u16,
+    pub row_count: u16,
+    pub detail: RowWindowDetail,
+}
+
 enum Detail {
     Render,
     Text,
@@ -110,6 +127,29 @@ pub fn decode_terminal_text_row_window(
         columns: header.columns,
         ignored_optional_flags: header.ignored_optional_flags,
         rows,
+    })
+}
+
+/// Validate a complete OBRW record's fixed structure and return its routing
+/// facts without decoding rows. Render and text windows both inspect.
+pub fn inspect_terminal_row_window_route(
+    bytes: &[u8],
+) -> Result<TerminalRowWindowRoute, ProtocolError> {
+    let header = decode_header(bytes)?;
+    Ok(TerminalRowWindowRoute {
+        attachment_id: header.attachment_id,
+        host_epoch: header.host_epoch,
+        sequence: NonZeroU64::new(header.sequence).ok_or_else(field_error)?,
+        revision: header.revision,
+        generation: NonZeroU64::new(header.generation).ok_or_else(field_error)?,
+        total_rows: header.total_rows,
+        start_row: header.start_row,
+        columns: header.columns,
+        row_count: header.row_count,
+        detail: match header.detail {
+            Detail::Render => RowWindowDetail::Render,
+            Detail::Text => RowWindowDetail::Text,
+        },
     })
 }
 

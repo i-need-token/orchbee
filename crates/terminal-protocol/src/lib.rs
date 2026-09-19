@@ -114,8 +114,9 @@ pub use row_access::{
     encode_row_access_control,
 };
 pub use row_window::{
-    TERMINAL_ROW_WINDOW_HEADER_BYTES, TerminalRowPromptClass, TerminalTextCellMapping,
-    TerminalTextRowWindow, TerminalTextWindowRow, decode_terminal_text_row_window,
+    TERMINAL_ROW_WINDOW_HEADER_BYTES, TerminalRowPromptClass, TerminalRowWindowRoute,
+    TerminalTextCellMapping, TerminalTextRowWindow, TerminalTextWindowRow,
+    decode_terminal_text_row_window, inspect_terminal_row_window_route,
 };
 pub use selection::{
     EncodedSelectionControl, SelectionChanged, SelectionChangedState, SelectionCommand,

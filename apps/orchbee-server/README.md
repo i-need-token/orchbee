@@ -553,6 +553,30 @@ The ordinary Server unit suite includes the stateful test and its coverage/repla
 model, service/carrier and real process evidence all gate integration; one method cannot replace
 another. Final verification and bilingual contract convergence remain required before completion.
 
+## Accepted Session Viewer history read modeling record
+
+This accepted slice adds one one-shot retained-history read to an existing admitted viewer. It
+extends the same Session/Server/Worker/Host routing spine with a single correlated exchange and no
+new long-lived state. The [OBCS contract](../../schemas/client-server/README.md) owns the wire
+representation; the OBCN viewer section of the capability-node README owns the tag-6 encoding.
+
+| Field          | Accepted contract                                                                                                                                                                                                                                                                                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem        | A one-shot consumer (the native CLI) needs bounded retained scrollback plus visible rows without keeping a viewer, consuming the live feed, or inventing a second read path.                                                                                                                                                                                                  |
+| Inputs         | `read-rows` action: owned `attachmentId`, absolute `startRow`, `rowCount` 1–4096, exact pinned `revision`/`generation`, positive `requestSequence`, `maximumBytes` 112–8,388,608 bounding the OBRW payload. The Client computes `startRow`/`rowCount` from one validated frame (`K = min(N, S, 262144 / columns)`, `start = S - K`); Server/Worker treat the action as untrusted and re-validate every field. |
+| Data and owner | `LocalTerminalSession` still owns the viewer entry and its pinned Worker handle. Server signs one fresh Worker `OperationId` per dispatch; that identity alone is the inner Host correlation and is never equated with the outer OBCS `requestId`. No per-request history state survives the exchange.                                                                        |
+| Outputs        | Exactly one of: complete correlated OBTP response record through OBNR/OBSR, `RowsRejected` with one of the nine closed reasons, or the existing explicit `Rejected`/`Unavailable` outcomes. A byte-budget overrun is a typed failure, never a partial success. `Empty` never answers `read-rows`.                                                                            |
+| Routing        | Server resolves the selector within the issuing Session (unowned → `terminal-unavailable`), revalidates the pinned Worker/generation/current-worker, then dispatches OBCN tag 6. The response record's Host correlation must equal this dispatch's Worker `OperationId`; role, kind, encoding, Host epoch, and attachment must match the request scope. The record bypasses frame-only `projection.receive`. Interleaved Host events still route to their owning attachments. |
+| Settlement     | Host `TypedFailure` maps to the closed `RowsRejected` reason set; a legal `RowsRejected` does not retire a healthy viewer. `RowsRejected` on a non-`ReadRows` operation, or a response `Record` in an invalid phase, is a protocol violation. No acknowledgement (`RowsApplied`) is sent for buffer reads, and no implicit retry, resend, or retargeting follows any failure. |
+| Lifetime       | The exchange is bounded by the existing one-second Worker/Host budget inside the caller's deadline. Viewer slot release and detach/drop stay with the existing Session cleanup; nothing here extends viewer lifetime.                                                                                                                                                         |
+
+The action is additive and matched-cohort only: an older Worker rejects tag 6, and a same-cohort
+violation (wrong inner correlation, response record in the wrong phase, `RowsRejected` on another
+action) fails closed rather than degrading to a guessed interpretation. Worker additionally rejects
+a successful response whose actual OBRW payload length exceeds this request's effective budget
+(`min(requested, negotiated row-window, record carrier)`); the 64-byte OBTP header counts against
+the carrier bound, while `maximumBytes` bounds only the OBRW payload.
+
 ## Local terminal coordinator modeling record
 
 The accepted local milestone grants the Server's single effective-user subject default-shell

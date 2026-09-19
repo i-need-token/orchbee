@@ -228,6 +228,23 @@ pub(crate) fn render(
             }
             Ok(())
         }
+        // `terminal read --history` prints the retained rows the same way:
+        // escaped text, one line per emitted row, then the localized marker
+        // when the window cap or read budget omitted rows.
+        Projection::TerminalHistory(doc) => {
+            for row in &doc.rows {
+                out.push(&escape(&row.text))?;
+                out.push("\n")?;
+            }
+            if doc.omitted_rows > 0 {
+                out.push(
+                    &locale.cli_read_truncated(
+                        usize::try_from(doc.omitted_rows).unwrap_or(usize::MAX),
+                    ),
+                )?;
+            }
+            Ok(())
+        }
         Projection::TerminalGet(row) => {
             field(out, text.terminal, &row.terminal_id)?;
             field(out, text.worker, &row.worker_id)?;

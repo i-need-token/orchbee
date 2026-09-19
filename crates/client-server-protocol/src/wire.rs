@@ -296,9 +296,12 @@ pub(crate) fn decode_client_payload(payload: &[u8]) -> Result<ClientMessage, Pro
             _protocol_version: _,
             request_id,
             action,
-        } => Ok(ClientMessage::TerminalViewer(
-            crate::TerminalViewerRequest::new(request_id, action),
-        )),
+        } => {
+            action.validate()?;
+            Ok(ClientMessage::TerminalViewer(
+                crate::TerminalViewerRequest::new(request_id, action),
+            ))
+        }
         DecodedClientMessage::Create {
             _protocol_version: _,
             request_id,

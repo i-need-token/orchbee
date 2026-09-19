@@ -99,6 +99,7 @@
 								"oneOf": [
 									{ "$ref": "#/$defs/unavailableStageDetails" },
 									{ "$ref": "#/$defs/commandUnavailableDetails" },
+									{ "$ref": "#/$defs/historyReadUnavailableDetails" },
 									{ "$ref": "#/$defs/platformDetails" }
 								]
 							}
@@ -227,7 +228,14 @@
 				"properties": {
 					"failure": {
 						"required": ["details"],
-						"properties": { "details": { "$ref": "#/$defs/rejectedDetails" } }
+						"properties": {
+									"details": {
+										"oneOf": [
+											{ "$ref": "#/$defs/rejectedDetails" },
+											{ "$ref": "#/$defs/historyReadRejectedDetails" }
+										]
+									}
+								}
 					}
 				}
 			}
@@ -354,6 +362,35 @@
 				"stage": { "const": "command" },
 				"requestId": { "$ref": "#/$defs/id" },
 				"reason": { "$ref": "#/$defs/outcomeUnknownReason" }
+			}
+		},
+		"historyReadRejectedDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "viewer" },
+				"operation": { "const": "read-history" },
+				"reason": { "const": "limit-exceeded" }
+			}
+		},
+		"historyReadUnavailableDetails": {
+			"type": "object",
+			"required": ["stage", "operation", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": { "const": "viewer" },
+				"operation": { "const": "read-history" },
+				"reason": {
+					"enum": [
+						"history-evicted",
+						"invalid-phase",
+						"missing-resource",
+						"resource-exhausted",
+						"stale-generation",
+						"stale-revision"
+					]
+				}
 			}
 		},
 		"unavailableReason": {

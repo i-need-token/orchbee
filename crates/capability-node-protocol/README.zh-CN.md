@@ -170,19 +170,30 @@ identity。只有已认证 Server 授予读取权限；Worker 在附着前检查
 
 闭合 action 为携带 Host epoch 和 Host terminal ID 的 `Attach`、`Poll`、携带正数 sequence/
 generation 与 revision 的 `FrameApplied`、携带正数 sequence 与现有八种 snapshot reason 的
-`NeedSnapshot`，以及 `Detach`。Kind 5 按顺序包含 request ID（16 字节）、Worker ID（16）、
-generation（8）、attachment ID（16）和 action tag（1）。Tag 1 到 5 按上述顺序选择 action。
+`NeedSnapshot`、`Detach`，以及 `ReadRows`。Kind 5 按顺序包含 request ID（16 字节）、Worker ID（16）、
+generation（8）、attachment ID（16）和 action tag（1）。Tag 1 到 6 按上述顺序选择 action。
 Attach 追加两个 16 字节 identity；FrameApplied 追加三个 8 字节整数；NeedSnapshot 追加一个
 8 字节 sequence 和 1 到 8 reason tag，依次为 `ActivityStale`、`BaseMismatch`、`DecoderRejected`、
-`DimensionsMismatch`、`GenerationMismatch`、`IdentityMismatch`、`SequenceGap` 与 `StoreReset`。所有整数均为
+`DimensionsMismatch`、`GenerationMismatch`、`IdentityMismatch`、`SequenceGap` 与 `StoreReset`。
+`ReadRows` 追加 big-endian `startRow`（u64）、`rowCount`（u16，1 到 4096）、`revision`（u64）、
+正数 `generation`（u64）、正数 `requestSequence`（u64）与 `maximumBytes`（u32，112 到
+8,388,608——是 OBRW payload 边界，不是 record 边界）；其 attachment 留在 request envelope
+上，不重复携带。Tag 1 到 5 逐字节不变。所有整数均为
 unsigned big-endian。Kind 6 包含 request 与 attachment ID，随后是 `Attached`、`Empty`、
-`FeedbackAccepted`、`Detached` 或 `Rejected`，依次使用 tag 1 到 5。Rejection tag 1 到 8 分别
+`FeedbackAccepted`、`Detached`、`Rejected` 或 `RowsRejected`，依次使用 tag 1 到 6。Rejection
+tag 1 到 8 分别
 表示错误 Worker、过期 Worker generation、过期 Host epoch、超出容量、附件不可用、附件已存在、
-反馈不匹配和 Host 拒绝。Result 始终回显 request 与 attachment ID。轮询绝不等待未来 Host 输出。
+反馈不匹配和 Host 拒绝。`RowsRejected` 追加一个 1 到 9 的 reason tag：`StaleRevision`、
+`StaleGeneration`、`HistoryEvicted`、`MissingResource`、`InvalidField`、`InvalidAcknowledgement`、
+`LimitExceeded`、`ResourceExhausted` 与 `InvalidPhase`；它只应答 `ReadRows`，而 `ReadRows`
+请求只接受 `Record`、`RowsRejected` 或既有明确的不可用/拒绝 outcome。其它 action 上出现的
+`RowsRejected`，或应答不能产出 record 的 action 的 `Record`，均为协议违例。
+Result 始终回显 request 与 attachment ID。轮询绝不等待未来 Host 输出。
 
 Record result 使用独立 `OBNR` envelope：四字节 magic、big-endian version 1（`u16`）、零值
 reserved field（`u16`）、big-endian payload length（`u32`），随后是 request ID（16）、attachment
-ID（16）和一条未经修改的 OBTP record。Record 长度为 64 到 `64 + 36 MiB` 字节，与 Host envelope
+ID（16）和一条未经修改的 OBTP record。对 `Poll` 该 record 是 Host event；对 `ReadRows` 则是
+关联的 Host response。Record 长度为 64 到 `64 + 36 MiB` 字节，与 Host envelope
 加最大 OBTF payload 一致。Codec 在分配 payload 前校验完整的 12 字节 header 和边界；消费者
 校验不透明 record 的 Host envelope、route、role、identity 和 negotiated size。这不扩大 8 KiB
 OBCN control 边界，也不解码帧内容。严格的内存 decode 拒绝尾随字节；streaming decode 精确消费

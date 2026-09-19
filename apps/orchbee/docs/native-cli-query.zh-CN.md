@@ -88,7 +88,7 @@ orchbee panel list [--tab <target>] | panel get <target>
 orchbee panel split <target> --direction above|below|left|right --label <label> <geometry>
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
-orchbee terminal list | terminal get <target> | terminal read <target>
+orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>]
 orchbee api snapshot
 orchbee api schema [<schema-id>]
 orchbee config check
@@ -185,6 +185,23 @@ checked 5 秒预算。非 Linux 平台对网络查询与 mutation 产出 `servic
    任何映射、格式化或输出之前。viewer attachment 绝不保留到输出阶段，session drop 本身就是
    拆除保证。
 
+`terminal read --history --rows <n>` 沿用同一 attach → poll 前导——`--history` 与 `--rows`
+仅成对准入，`n` 是有界保留行数 `1..=1000` 而非几何维度——然后读取已应用帧背后的滚动
+历史：
+
+- 已应用帧的保留滚动行数事实为恰好一次 `ReadRows{attachmentId, startRow,rowCount,revision,generation,requestSequence:1,maximumBytes}` 定价：`rowCount = min(n, scrollback,
+  262144/columns)` 且 `startRow = scrollback - rowCount`，窗口止于滚动边界。滚动为零则短路
+  ——不发送 `ReadRows`，答案为空窗口。
+- `record` 应答必须是完整的 OBTP `RowsSnapshot`（kind 46）响应，其 OBRW 文本窗口独立回显
+  请求：attachment、Host epoch、sequence、revision、generation、columns、起始行、行数，
+  以及 `totalRows = scrollback + screenRows`，且载荷不超过 `maximumBytes`（8 MiB）。任何
+  失配都是 `protocol-invalid`、stage `viewer`。
+- `rows-rejected` 映射到类型化词汇：`limit-exceeded` 为 `rejected`（3）；Host 状态应答
+  （`history-evicted`、`stale-revision`、`stale-generation`、`missing-resource`、
+  `resource-exhausted`、`invalid-phase`）为 `service-unavailable`（4），details 为
+  `{stage:"viewer",operation:"read-history",reason}`；固定请求形状不可能产生的 reason 为
+  `protocol-invalid`。不重试，也绝不为此读取发送 `RowsApplied`/feedback 锚点。
+
 ## Canonical 数据与结果
 
 Canonical 遍历次序：`navigation.projects` 顺序；各 project 的 `workspaces` 顺序；
@@ -241,6 +258,14 @@ tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身�
   个发出的行渲染为一行转义文本，`omittedRows>0` 时末尾追加本地化截断标记。本次读取是单一
   时间点帧：`revision`/`generation`/`sequence` 是宿主在该观察时刻的计数器，不是 CLI 的
   freshness 声明。
+- `orchbee.terminal.history` → `{terminal,history,content}`：`history` 携带已定价窗口的
+  事实——`revision`/`generation`、`alternateScreen`、`columns`、`screenRows`、十进制字符串
+  `scrollbackRows`/`totalRows`/`startRow`、`requestedRows` 与 `windowRows`（Host 窗口的完整
+  行数）；`content` 携带 `rows`（`{index,text,continuation}`，`index` 为"保留区+屏幕"绝对行
+  坐标的十进制字符串）、`rowCount`（发出的行数）、`truncated`/`omittedRows` 与 `limits`
+  `{rows:1000,textBytes:4194304}`。`omittedRows` 诚实计为 `min(requestedRows,scrollbackRows)` 减去已发出行数——即被 `MAXIMUM_FRAME_CELLS/columns` 上限或文本预算截掉的
+  行——而早于 `startRow` 的行从未被请求，不算遗漏。text 输出与 `terminal read` 一致：每个
+  发出的行渲染为一行转义文本加标记。
 - `orchbee.api.snapshot` → `{snapshot}`：完整 `WorkbenchProtocolDocument::Snapshot` 的语义化
   重编码，含 `kind:"workbench.snapshot"`；envelope 的 `siteId`/`revision` 与内部文档一致。
 - `orchbee.api.schema` → 带参 `{schema:{schemaId,document}}`；无参
@@ -360,6 +385,9 @@ transport-loss/protocol-invalid；6 incompatible；8 outcome-unknown；130 默�
 | viewer `OutcomeUnknown(CorrelationMismatch)`                                                                                 | `protocol-invalid`                   | 5    | `{stage:"viewer",reason:"correlation-mismatch"}`                                          |
 | viewer outcome `Rejected(AlreadyAttached\|TerminalUnavailable)` 或 `Unavailable`                                             | `service-unavailable`                | 4    | `{stage:"viewer"}`                                                                        |
 | viewer outcome `Rejected(FeedbackMismatch)`、record 被投影拒绝                                                               | `protocol-invalid`                   | 5    | `{stage:"viewer"}`                                                                        |
+| `ReadRows` outcome `RowsRejected(LimitExceeded)`                                                                             | `rejected`                           | 3    | `{stage:"viewer",operation:"read-history",reason:"limit-exceeded"}`                       |
+| `ReadRows` outcome `RowsRejected`（其他可产生 reason）                                                                       | `service-unavailable`                | 4    | `{stage:"viewer",operation:"read-history",reason}`                                        |
+| `ReadRows` outcome `RowsRejected(InvalidField\|InvalidAcknowledgement)`、行窗口 record 失配/畸形                             | `protocol-invalid`                   | 5    | `{stage:"viewer"}`                                                                        |
 | `DefinitelyNotSubmitted::RequestNotSubmitted`（command）                                                                     | `transport-loss`                     | 5    | `{stage:"command"}`                                                                       |
 | `DefinitelyNotSubmitted::SessionUnavailable`/`RequestEncoding`                                                               | `internal-failure`                   | 1    | 省略                                                                                      |
 | command `Rejected` precommit                                                                                                 | `rejected`                           | 3    | `{stage:"command",reason,revision}`                                                       |
@@ -375,7 +403,8 @@ transport-loss/protocol-invalid；6 incompatible；8 outcome-unknown；130 默�
 `cohort|runtime-base|runtime-directory|socket|discovery|admission|snapshot|viewer|command|platform`。
 stage 与 reason 是有限 schema 值；任何异常文本都不进入机器字段。`details` 是按 kind 封闭的词汇——`{resource,target}`、
 `{resource,target,candidates≤8,totalCount}`、`{stage[,reason]}`、
-`{stage:"command",reason,revision}`、`{stage:"command",requestId,reason}` 或
+`{stage:"command",reason,revision}`、`{stage:"command",requestId,reason}`、
+`{stage:"viewer",operation:"read-history",reason}` 或
 `{limitBytes}`——内嵌 schema 拒绝超出这些形状的文档。读路径错误永不归类为
 outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效果；
 `rejected`/`denied`/`unavailable` precommit 答案都是确定的——Server 未应用任何效果。
@@ -438,6 +467,7 @@ outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效
 | 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                             | 成功/`session-capacity`/结构不变                  | `tests/local_startup_process`                             |
 | 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                             | 按矩阵 typed kind；绝不冒称真实 Server 证据       | `tests/cli_query.rs`                                      |
 | 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连 | `terminal read` 成功 + typed viewer-stage 失败    | `tests/cli_query.rs`                                      |
+| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试   | `terminal read --history` 成功 + typed 失败       | `tests/cli_query.rs`                                      |
 | 真实 staged-cohort Server + 活跃 TUI 终端：`terminal read` 返回其网格并通过 schema 校验                                    | 真实只读观察与 TUI 自身 viewer 共存               | `tests/local_startup_process`                             |
 | Mutation 语法：全部命令、target 规则、`--confirm`、几何界限、flag 范围                                                     | 运行时访问前的精确 parse/失败类别                 | `src/invocation` 测试                                     |
 | Mutation 脚本化 peer：全部九条命令、precommit 判定、不可判定与未提交结果                                                   | 每次调用一条命令；`outcome-unknown` 绝不重放      | `tests/cli_mutation.rs`                                   |
@@ -447,6 +477,6 @@ outcome-unknown/failed-effect：只有 command 阶段可能产生不可判定效
 | 双语文本/失败输出                                                                                                          | 精确 en-US/zh-CN 字符串                           | `tests/process.rs` + `tests/cli_query.rs`                 |
 
 模型义务：本切片不新增 Server 状态机、持久化或重试，复用已注册的 OBLC/OBWP/OBCS/Client
-模型——`terminal read` 原样复用既有 `terminal.viewer` attach/poll/detach 协议——故不需要新的
-TLA+ 模型。触发范围覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试路径的
+模型——`terminal read` 复用既有 `terminal.viewer` attach/poll/detach 生命周期，`--history`
+在其内新增一次有界 `read-rows`/`rows-rejected` 交换——故不需要新的 TLA+ 模型。触发范围覆盖 `apps/orchbee` 源码、manifest、project scope、README 与测试路径的
 已注册模型仍须真实运行；inventory 输出不替代执行。

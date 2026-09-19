@@ -353,7 +353,8 @@ impl NativeExecutor {
                 TerminalViewerOutcome::Empty {}
                 | TerminalViewerOutcome::FeedbackAccepted {}
                 | TerminalViewerOutcome::Detached {}
-                | TerminalViewerOutcome::Record(_) => Err(CarrierFailure::Protocol),
+                | TerminalViewerOutcome::Record(_)
+                | TerminalViewerOutcome::RowsRejected { .. } => Err(CarrierFailure::Protocol),
                 TerminalViewerOutcome::Attached { .. } => unreachable!("matched attached outcome"),
             };
         };
@@ -500,7 +501,8 @@ impl NativeExecutor {
                 TerminalViewerOutcome::Record(record) => Some(record),
                 TerminalViewerOutcome::Attached { .. }
                 | TerminalViewerOutcome::FeedbackAccepted {}
-                | TerminalViewerOutcome::Detached {} => {
+                | TerminalViewerOutcome::Detached {}
+                | TerminalViewerOutcome::RowsRejected { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }
                 TerminalViewerOutcome::Rejected { .. }
@@ -541,7 +543,8 @@ impl NativeExecutor {
                 TerminalViewerOutcome::Attached { .. }
                 | TerminalViewerOutcome::Detached {}
                 | TerminalViewerOutcome::Empty {}
-                | TerminalViewerOutcome::Record(_) => {
+                | TerminalViewerOutcome::Record(_)
+                | TerminalViewerOutcome::RowsRejected { .. } => {
                     return Err(CarrierFailure::Protocol);
                 }
             }
@@ -805,7 +808,8 @@ impl NativeExecutor {
             | TerminalViewerOutcome::Unavailable { .. }
             | TerminalViewerOutcome::Attached { .. }
             | TerminalViewerOutcome::FeedbackAccepted {}
-            | TerminalViewerOutcome::Detached {} => {
+            | TerminalViewerOutcome::Detached {}
+            | TerminalViewerOutcome::RowsRejected { .. } => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
             }
         };
@@ -858,7 +862,8 @@ impl NativeExecutor {
             | TerminalViewerOutcome::Attached { .. }
             | TerminalViewerOutcome::Detached {}
             | TerminalViewerOutcome::Empty {}
-            | TerminalViewerOutcome::Record(_) => {
+            | TerminalViewerOutcome::Record(_)
+            | TerminalViewerOutcome::RowsRejected { .. } => {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
             }
         }

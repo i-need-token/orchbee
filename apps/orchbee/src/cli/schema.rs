@@ -62,6 +62,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.terminal.get.json"),
     ),
     (
+        "orchbee.terminal.history",
+        include_str!("schemas/orchbee.terminal.history.json"),
+    ),
+    (
         "orchbee.terminal.list",
         include_str!("schemas/orchbee.terminal.list.json"),
     ),

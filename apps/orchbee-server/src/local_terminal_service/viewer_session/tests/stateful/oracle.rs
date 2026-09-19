@@ -71,6 +71,7 @@ fn tag(message: &ServerMessage) -> String {
             Outcome::FeedbackAccepted {} => "feedback".into(),
             Outcome::Detached {} => "detached".into(),
             Outcome::Rejected { reason } => format!("viewer:{reason:?}"),
+            Outcome::RowsRejected { reason } => format!("rows:{reason:?}"),
             Outcome::Unavailable { reason } => format!("unavailable:{reason:?}"),
         },
         ServerMessage::TerminalControlResult(result) => match result.outcome() {

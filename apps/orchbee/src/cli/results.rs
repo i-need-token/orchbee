@@ -27,7 +27,13 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::PanelGet(_) => "orchbee.panel.get",
         QueryCommand::TerminalList => "orchbee.terminal.list",
         QueryCommand::TerminalGet(_) => "orchbee.terminal.get",
-        QueryCommand::TerminalRead(_) => "orchbee.terminal.read",
+        QueryCommand::TerminalRead { history, .. } => {
+            if history.is_some() {
+                "orchbee.terminal.history"
+            } else {
+                "orchbee.terminal.read"
+            }
+        }
         QueryCommand::ApiSnapshot => "orchbee.api.snapshot",
         QueryCommand::ApiSchema { .. } => "orchbee.api.schema",
         QueryCommand::ConfigCheck => "orchbee.config.check",
@@ -198,6 +204,38 @@ pub(crate) struct TerminalReadDoc {
     pub(crate) omitted_rows: usize,
 }
 
+/// One history row emitted in the answer: absolute index into the complete
+/// retained-plus-screen coordinate space, the row's text, and its soft-wrap
+/// continuation flags.
+#[derive(Clone, Debug)]
+pub(crate) struct HistoryContentRow {
+    pub(crate) index: u64,
+    pub(crate) text: String,
+    pub(crate) from_previous: bool,
+    pub(crate) into_next: bool,
+}
+
+/// `terminal read --history`: the validated frame facts and the bounded
+/// scrollback window. `window_rows` is the Host row window's complete row
+/// count; `omitted_rows` counts the gap between `min(requested, scrollback)`
+/// and the rows actually emitted.
+#[derive(Clone, Debug)]
+pub(crate) struct TerminalHistoryDoc {
+    pub(crate) terminal: TerminalRow,
+    pub(crate) revision: u64,
+    pub(crate) generation: u64,
+    pub(crate) alternate_screen: bool,
+    pub(crate) columns: u16,
+    pub(crate) screen_rows: u16,
+    pub(crate) scrollback_rows: u64,
+    pub(crate) total_rows: u64,
+    pub(crate) start_row: u64,
+    pub(crate) requested_rows: u16,
+    pub(crate) window_rows: usize,
+    pub(crate) rows: Vec<HistoryContentRow>,
+    pub(crate) omitted_rows: u64,
+}
+
 /// The read bound: the summed JSON-encoded `text` member length of emitted
 /// rows never exceeds this budget, so every format stays far under the
 /// 8 MiB preparation cap even on hostile cell content.
@@ -269,6 +307,68 @@ pub(crate) fn terminal_read_doc(
     })
 }
 
+/// The history read bound admitted by the `--rows` grammar: 1..=1000.
+pub(crate) const MAXIMUM_HISTORY_ROWS: u16 = 1000;
+
+/// Project a validated history window into the bounded answer. `window` is
+/// the complete Host row window the CLI verified against its request; emitted
+/// rows stop when the encoded-text budget would overflow, and `omitted_rows`
+/// honestly counts `min(requested, scrollback)` minus the emitted rows —
+/// including rows the protocol window cap never reached.
+#[cfg(unix)]
+pub(crate) fn terminal_history_doc(
+    terminal: TerminalRow,
+    frame: &orchbee_terminal_protocol::TerminalTextFrame,
+    requested_rows: u16,
+    window: Option<&orchbee_terminal_protocol::TerminalTextRowWindow>,
+) -> Result<TerminalHistoryDoc, Failure> {
+    let scrollback_rows = frame.scrollback_rows;
+    let screen_rows = frame.geometry.rows;
+    let total_rows = scrollback_rows
+        .checked_add(u64::from(screen_rows))
+        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+    let (start_row, window_rows, window_rows_slice) = match window {
+        Some(window) => (window.start_row, window.rows.len(), window.rows.as_slice()),
+        None => (0, 0, &[][..]),
+    };
+    let mut budget = READ_TEXT_BYTES;
+    let mut rows = Vec::new();
+    for row in window_rows_slice {
+        let text = row.text.to_string();
+        let encoded =
+            serde_json::to_string(&text).map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+        if encoded.len() > budget {
+            break;
+        }
+        budget -= encoded.len();
+        rows.push(HistoryContentRow {
+            index: row.index,
+            text,
+            from_previous: row.wrap_continuation,
+            into_next: row.wrap,
+        });
+    }
+    // Rows the window cap or text budget never emitted still count against
+    // the caller's `min(requested, scrollback)` expectation.
+    let entitled = u64::from(requested_rows).min(scrollback_rows);
+    let omitted_rows = entitled.saturating_sub(u64::try_from(rows.len()).unwrap_or(u64::MAX));
+    Ok(TerminalHistoryDoc {
+        terminal,
+        revision: frame.route.revision,
+        generation: frame.route.generation.get(),
+        alternate_screen: frame.alternate_screen,
+        columns: frame.geometry.columns,
+        screen_rows,
+        scrollback_rows,
+        total_rows,
+        start_row,
+        requested_rows,
+        window_rows,
+        rows,
+        omitted_rows,
+    })
+}
+
 /// The bound terminal row for a typed identity, or `None` when no
 /// presentation binds it — the same visibility rule as `terminal get`.
 pub(crate) fn terminal_binding(snapshot: &Snapshot, identity: &str) -> Option<TerminalRow> {
@@ -291,6 +391,7 @@ pub(crate) enum Projection {
     TerminalList(Vec<TerminalRow>),
     TerminalGet(TerminalRow),
     TerminalRead(TerminalReadDoc),
+    TerminalHistory(TerminalHistoryDoc),
     ApiSnapshot(Value),
 }
 
@@ -461,6 +562,44 @@ impl Projection {
                     "omittedRows": doc.omitted_rows,
                     "limits": {
                         "rows": MAXIMUM_FRAME_ROWS,
+                        "textBytes": READ_TEXT_BYTES,
+                    },
+                },
+            }),
+            Self::TerminalHistory(doc) => json!({
+                "terminal": terminal_row_json(&doc.terminal),
+                "history": {
+                    "revision": doc.revision.to_string(),
+                    "generation": doc.generation.to_string(),
+                    "alternateScreen": doc.alternate_screen,
+                    "columns": doc.columns,
+                    "screenRows": doc.screen_rows,
+                    "scrollbackRows": doc.scrollback_rows.to_string(),
+                    "totalRows": doc.total_rows.to_string(),
+                    "startRow": doc.start_row.to_string(),
+                    "requestedRows": doc.requested_rows,
+                    "windowRows": doc.window_rows,
+                },
+                "content": {
+                    "rows": doc
+                        .rows
+                        .iter()
+                        .map(|row| {
+                            json!({
+                                "index": row.index.to_string(),
+                                "text": row.text,
+                                "continuation": {
+                                    "fromPrevious": row.from_previous,
+                                    "intoNext": row.into_next,
+                                },
+                            })
+                        })
+                        .collect::<Vec<_>>(),
+                    "rowCount": doc.rows.len(),
+                    "truncated": doc.omitted_rows > 0,
+                    "omittedRows": doc.omitted_rows,
+                    "limits": {
+                        "rows": MAXIMUM_HISTORY_ROWS,
                         "textBytes": READ_TEXT_BYTES,
                     },
                 },
@@ -835,7 +974,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // `terminal read` projects a live frame, not snapshot data alone; its
         // answer is built by the query layer. `api schema`/`config check`
         // never reach a snapshot projection.
-        QueryCommand::TerminalRead(_)
+        QueryCommand::TerminalRead { .. }
         | QueryCommand::ApiSchema { .. }
         | QueryCommand::ConfigCheck => Err(Failure::new(FailureKind::InternalFailure)),
     }
@@ -1568,6 +1707,7 @@ mod tests {
                 foreground: 0,
                 background: 0,
                 theme_revision: 1,
+                scrollback_rows: 0,
                 rows,
             }
         }
@@ -1602,7 +1742,7 @@ mod tests {
             bytes.extend_from_slice(&u64::MAX.to_le_bytes()); // base revision: none
             bytes.extend_from_slice(&route.revision.to_le_bytes());
             bytes.extend_from_slice(&route.generation.get().to_le_bytes());
-            bytes.extend_from_slice(&[0; 8]); // reserved routing tail
+            bytes.extend_from_slice(&frame.scrollback_rows.to_le_bytes());
             bytes.extend_from_slice(&frame.geometry.columns.to_le_bytes());
             bytes.extend_from_slice(&frame.geometry.rows.to_le_bytes());
             bytes.extend_from_slice(&frame.cursor.column.to_le_bytes());
@@ -1915,7 +2055,10 @@ mod tests {
             // The real text path emits only the prefix: the head's control
             // character stays escaped, the affordable tail never leaks, and
             // the localized marker counts both omitted rows.
-            let command = QueryCommand::TerminalRead(Target::Id(hex(0x01)));
+            let command = QueryCommand::TerminalRead {
+                target: Target::Id(hex(0x01)),
+                history: None,
+            };
             let body = render_text(|out| present::render(out, &projection, &command, Locale::EnUs))
                 .expect("text output fits the preparation bound");
             let body = String::from_utf8(body).expect("utf8 output");

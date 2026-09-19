@@ -43,6 +43,8 @@ pub struct TerminalTextFrame {
     pub foreground: u32,
     pub background: u32,
     pub theme_revision: u64,
+    /// Retained scrollback row count captured at frame time; zero means no history.
+    pub scrollback_rows: u64,
     pub rows: Vec<TerminalTextRow>,
 }
 
@@ -50,6 +52,11 @@ pub struct TerminalTextFrame {
 /// Optional extensions are size-checked and skipped; this is not a graphics decoder.
 pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, ProtocolError> {
     let route = inspect_terminal_frame_route(bytes)?;
+    let scrollback_rows = u64::from_le_bytes(
+        bytes[80..88]
+            .try_into()
+            .map_err(|_| error(ProtocolErrorCode::Truncated))?,
+    );
     let mut header = Reader::new(bytes);
     header.take(88)?;
     let columns = header.u16()?;
@@ -189,6 +196,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         foreground,
         background,
         theme_revision,
+        scrollback_rows,
         rows,
     })
 }

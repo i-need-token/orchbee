@@ -144,8 +144,8 @@ validation has this precedence after the Server-owned Session capacity guard:
 Workbench exposure and retained-target resolution linearize together. Later Workbench retirement
 does not cancel the pinned operation. Attachment success linearizes at the existing post-IPC
 current-Worker check; Worker loss after that check can race response delivery and is fenced by the
-next operation. `poll`, `frame-applied`, `need-snapshot`, and `detach` require an in-action
-`attachmentId`, using the nonzero 32-character lowercase hexadecimal identity format. It selects
+next operation. `poll`, `frame-applied`, `need-snapshot`, `detach`, and `read-rows` require an
+in-action `attachmentId`, using the nonzero 32-character lowercase hexadecimal identity format. It selects
 only a Server-issued viewer owned by the submitting Session; it cannot create or transfer ownership.
 `attach` and `attach-binding` forbid this field. Session loss detaches transient viewing state and never terminates the retained
 terminal. The action changes only OBCS JSON; the existing OBCN relay, OBSR framing, and byte limits
@@ -161,8 +161,19 @@ viewer's frame scope determine validity. Poll while that viewer awaits feedback 
 without another frame and does not block a sibling viewer.
 A new attachment requires a new baseline; viewer attachment grants neither input nor resize authority.
 
-An unknown or unowned selector returns `terminal-unavailable` for Poll or feedback and effect-free
-`detached` for Detach. Control returns `viewer-unavailable`. A same-Session attachment to the same
+`read-rows` performs one buffer read of retained history plus visible rows against the exact pinned
+`generation` and `revision`, anchored at the absolute `startRow`. Alongside `attachmentId` it carries
+`startRow` and `revision` as canonical decimal strings, `generation` and `requestSequence` as positive
+canonical decimal strings, `rowCount` as an integer 1 through 4096, and `maximumBytes` as an integer
+112 through 8,388,608 bounding the OBRW payload (not the carrier record). It is a single correlated
+Host exchange with no acknowledgement, replay, or retry: a byte budget overrun is a typed failure,
+never a partial success. Interleaved Host events still route to their owning attachments; they are
+never mistaken for the response. A successful answer is the complete correlated OBTP response
+record through the existing OBSR binary carrier — the same `Record` shape that answers Poll, with
+response (not event) content.
+
+An unknown or unowned selector returns `terminal-unavailable` for Poll, feedback, or ReadRows and
+effect-free `detached` for Detach. Control returns `viewer-unavailable`. A same-Session attachment to the same
 resolved live runtime target returns `already-attached`; different targets can coexist. The owning
 [Server guide](../../apps/orchbee-server/README.md#accepted-session-viewer-routing-modeling-record)
 defines capacity precedence, disposal, generation fencing, and cleanup. The codec validates syntax,
@@ -170,14 +181,22 @@ not runtime ownership.
 
 This required selector changes the unpublished OBCS v1 request shape. Build, deploy, and roll back
 the exact Client/Server/Worker development cohort together; mixed cohorts and an implicit-current
-viewer fallback are unsupported. OBCN and OBSR wire formats do not change.
+viewer fallback are unsupported. The OBSR carrier format does not change; `read-rows` /
+`rows-rejected` additively extend the matched OBCN cohort (action tag 6 and result tag 6), and an
+older Worker rejects the new tags rather than silently ignoring them.
 
 JSON viewer outcomes are `attached` with `attachmentId` and `hostEpoch` (nonzero 32-character
 lowercase hex), fieldless `empty`, `feedback-accepted`, or `detached`, `rejected` with reason
-`already-attached`, `terminal-unavailable`, or `feedback-mismatch`, and `unavailable` with reason
-`server-busy`, `terminal-runtime-unavailable`, or viewer-only `workbench-unavailable`. Attached
+`already-attached`, `terminal-unavailable`, or `feedback-mismatch`, `rows-rejected` with reason
+`stale-revision`, `stale-generation`, `history-evicted`, `missing-resource`, `invalid-field`,
+`invalid-acknowledgement`, `limit-exceeded`, `resource-exhausted`, or `invalid-phase`, and
+`unavailable` with reason `server-busy`, `terminal-runtime-unavailable`, or viewer-only
+`workbench-unavailable`. Attached
 answers Attach or AttachBinding; Empty or a binary record answers Poll; FeedbackAccepted answers
-either feedback action; Detached answers Detach, including an already absent viewer. Rejected and
+either feedback action; Detached answers Detach, including an already absent viewer; a binary
+record or RowsRejected answers ReadRows, which never answers Empty. RowsRejected answers only
+ReadRows — on any other action it is a protocol violation — and a legal RowsRejected does not
+retire the viewer. Rejected and
 Unavailable can answer any action. Wrong kind or correlation retires the Client carrier. Only a
 correlated `server-busy` result known to have committed no effect may use the existing bounded retry
 policy: the Client retains identical action values, uses a fresh `requestId`, and stays within the
@@ -185,8 +204,11 @@ same logical deadline. Ambiguous failure never authorizes replay, fallback, or r
 
 A record result uses binary `OBSR`, not JSON: four magic bytes, big-endian u16 version 1, two zero
 reserved bytes, then big-endian u32 payload length. The payload is the exact request ID as 16
-big-endian bytes followed by one opaque OBTP event record of 64 through `64 + 36 * 1024 * 1024`
-bytes. The 12-byte header and bound are checked before payload allocation; stream readers consume
+big-endian bytes followed by one opaque OBTP record of 64 through `64 + 36 * 1024 * 1024`
+bytes — a Host event record for Poll, or the correlated Host response record for ReadRows. The
+inner Host correlation is the Server-issued Worker operation identity; the Client `requestId` lives
+only in this outer carrier and is never equated with it. The 12-byte header and bound are checked
+before payload allocation; stream readers consume
 one frame, and in-memory decoders reject truncation or trailing bytes. Only Server-to-Client readers
 accept OBSR. Server validates Host epoch, attachment, role, frame routing metadata and feedback;
 presentation decoding remains the Client's responsibility. OBSR has no JSON `record` outcome and
