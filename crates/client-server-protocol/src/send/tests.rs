@@ -35,7 +35,7 @@ fn folded_enter_shares_the_same_payload_bound() {
     let edge = text(&"x".repeat(MAXIMUM_SEND_TEXT_BYTES - 1));
     let input = SendTextInput::new(edge, true).expect("edge payload");
     assert_eq!(input.record_bytes(), MAXIMUM_SEND_TEXT_BYTES);
-    assert_eq!(input.enter(), true);
+    assert!(input.enter());
 }
 
 #[test]
