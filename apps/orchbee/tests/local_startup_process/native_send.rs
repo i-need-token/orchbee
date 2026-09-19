@@ -7,18 +7,20 @@
 //! On this base the `send` subcommand does not exist yet, so this file is
 //! compile-checked only and recorded EXPECTED-RED until A9 integrates Send.
 
-use super::native_cli_query::{run_cli, run_json};
+use super::native_cli_query::{run_cli, run_json, validate, validators};
 use super::*;
-use std::process::Output;
+use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
+use rustix::process::{Pid, PidfdFlags, pidfd_open};
+use std::os::fd::AsFd;
 
 /// One public `terminal send` invocation that must be admitted and accepted:
-/// `--format json` keeps the receipt machine-readable while the exit code is
-/// the authoritative acceptance signal.
-fn send(fixture: &Fixture, terminal_id: &str, arguments: &[&str]) -> Output {
+/// the receipt is validated against the embedded `orchbee.terminal.send`
+/// schema (A1's final contract, commit 8d4f7fd4) and must report the healthy
+/// `accepted` + `confirmed` verdict with its physical incarnation.
+fn send(fixture: &Fixture, terminal_id: &str, arguments: &[&str]) -> serde_json::Value {
     let mut full: Vec<&str> = vec!["terminal", "send", terminal_id];
     full.extend_from_slice(arguments);
-    full.push("--format");
-    full.push("json");
+    full.extend_from_slice(&["--format", "json"]);
     let output = run_cli(fixture, &full);
     assert_eq!(
         output.status.code(),
@@ -26,10 +28,52 @@ fn send(fixture: &Fixture, terminal_id: &str, arguments: &[&str]) -> Output {
         "terminal send {full:?} was not accepted: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    // SEAM: the receipt document is validated against A1's final send receipt
-    // schema at integration (`validate(&validators(...), <send schema id>,
-    // &output)`); this witness deliberately binds no invented field names.
-    output
+    validate(&validators(fixture), "orchbee.terminal.send", &output);
+    let document: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("send receipt document");
+    let result = &document["result"];
+    assert_eq!(result["action"], "terminal.send", "{document}");
+    assert_eq!(result["inputStatus"], "accepted", "{document}");
+    assert_eq!(result["cleanupStatus"], "confirmed", "{document}");
+    assert_eq!(result["terminalId"], terminal_id, "{document}");
+    let target = &result["target"];
+    assert!(
+        target["workerGeneration"]
+            .as_str()
+            .is_some_and(|generation| generation.parse::<u64>().is_ok_and(|value| value > 0)),
+        "physical target must carry a positive worker generation: {document}"
+    );
+    for field in ["hostEpoch", "hostTerminalId"] {
+        assert!(
+            target[field]
+                .as_str()
+                .is_some_and(|id| id.len() == 32 && id.chars().all(|c| c.is_ascii_hexdigit())),
+            "physical target must carry a 32-hex {field}: {document}"
+        );
+    }
+    document
+}
+
+/// Text records admit exactly the UTF-8 text plus the folded carriage return;
+/// both `recordBytes` and the Host-echoed `acceptedBytes` carry that count.
+fn assert_text_bytes(receipt: &serde_json::Value, text: &str, enter: bool) {
+    let result = &receipt["result"];
+    let expected = (text.len() + usize::from(enter)) as u64;
+    assert_eq!(result["payloadKind"], "text", "{receipt}");
+    assert_eq!(result["recordBytes"], expected, "{receipt}");
+    assert_eq!(result["acceptedBytes"], expected, "{receipt}");
+}
+
+/// Key records echo the semantic key name; `acceptedBytes` is the Host-encoded
+/// count, which may legitimately be zero for a mode-ignored key.
+fn assert_key_bytes(receipt: &serde_json::Value, key: &str) {
+    let result = &receipt["result"];
+    assert_eq!(result["payloadKind"], "key", "{receipt}");
+    assert_eq!(result["key"], key, "{receipt}");
+    assert!(
+        result["acceptedBytes"].as_u64().is_some(),
+        "accepted sends must echo a bounded byte count: {receipt}"
+    );
 }
 
 /// Bound terminal ids through the public `terminal list` surface.
@@ -118,11 +162,13 @@ fn read_rows(fixture: &Fixture, terminal_id: &str) -> String {
 
 /// One shell line that both prints a visible token and produces a proof file:
 /// the file is the independent execution proof and the token lands on the
-/// public read surface. Arguments are single-quoted literals, so the line
-/// stays free of embedded double quotes inside the CLI `--text` argument.
-fn producer(fixture: &Fixture, token: &str, filename: &str, content: &str) -> String {
+/// public read surface. `visible` is a complete `printf` fragment whose final
+/// marker is assembled from format + arguments — the input record itself
+/// never contains the contiguous token, so an echo of the sent line can only
+/// show the split scaffold, never satisfy the read assertion.
+fn producer(fixture: &Fixture, visible: &str, filename: &str, content: &str) -> String {
     format!(
-        "printf '%s\\n' '{token}'; printf '%s' '{content}' > {}",
+        "{visible}; printf '%s' '{content}' > {}",
         fixture.base.join(filename).display()
     )
 }
@@ -181,15 +227,14 @@ fn send_text_executes_while_tui_keeps_input_and_resize() -> TestResult {
     client.wait_resized_ready_after(checkpoint, Instant::now() + OBSERVATION_TIMEOUT, 30, 1);
 
     let terminal = only_terminal(&fixture);
-    send(
+    let line = producer(
         &fixture,
-        &terminal,
-        &[
-            "--text",
-            &producer(&fixture, "OB_SEND_LANDED", "send-proof", "from-send"),
-            "--enter",
-        ],
+        "printf 'OB_%s_LANDED\\n' 'SEND'",
+        "send-proof",
+        "from-send",
     );
+    let receipt = send(&fixture, &terminal, &["--text", &line, "--enter"]);
+    assert_text_bytes(&receipt, &line, true);
 
     // Real execution is the shell-produced file; the public read surface shows
     // the printed token through the same grid the controlling TUI draws.
@@ -244,24 +289,22 @@ fn sends_to_two_terminals_keep_independent_markers() -> TestResult {
     let terminal_b = create_public_terminal(&fixture, "send-b", &terminal_a);
     assert_ne!(terminal_a, terminal_b);
 
-    send(
+    let line_a = producer(
         &fixture,
-        &terminal_a,
-        &[
-            "--text",
-            &producer(&fixture, "OB_SEND_A", "marker-a", "marker-a"),
-            "--enter",
-        ],
+        "printf 'OB_%s_A\\n' 'SEND'",
+        "marker-a",
+        "marker-a",
     );
-    send(
+    let receipt_a = send(&fixture, &terminal_a, &["--text", &line_a, "--enter"]);
+    assert_text_bytes(&receipt_a, &line_a, true);
+    let line_b = producer(
         &fixture,
-        &terminal_b,
-        &[
-            "--text",
-            &producer(&fixture, "OB_SEND_B", "marker-b", "marker-b"),
-            "--enter",
-        ],
+        "printf 'OB_%s_B\\n' 'SEND'",
+        "marker-b",
+        "marker-b",
     );
+    let receipt_b = send(&fixture, &terminal_b, &["--text", &line_b, "--enter"]);
+    assert_text_bytes(&receipt_b, &line_b, true);
 
     // Each marker lands only in its own terminal's file: no cross-writing.
     let deadline = Instant::now() + OBSERVATION_TIMEOUT;
@@ -299,15 +342,16 @@ fn text_without_enter_stages_then_one_semantic_enter_executes() -> TestResult {
     );
     let terminal = only_terminal(&fixture);
 
-    send(
+    let line = producer(
         &fixture,
-        &terminal,
-        &[
-            "--text",
-            &producer(&fixture, "OB_STAGED_RAN", "staged-proof", "staged"),
-        ],
+        "printf 'OB_%s_RAN\\n' 'STAGED'",
+        "staged-proof",
+        "staged",
     );
-    // The staged text must not execute on its own across a bounded window.
+    let receipt = send(&fixture, &terminal, &["--text", &line]);
+    assert_text_bytes(&receipt, &line, false);
+    // The staged text must not execute on its own: this is a bounded absence
+    // window, not a claim that a delayed execution is impossible in principle.
     assert_absent_while(
         &fixture,
         "staged-proof",
@@ -315,7 +359,8 @@ fn text_without_enter_stages_then_one_semantic_enter_executes() -> TestResult {
         Duration::from_millis(600),
     );
 
-    send(&fixture, &terminal, &["--key", "enter"]);
+    let receipt = send(&fixture, &terminal, &["--key", "enter"]);
+    assert_key_bytes(&receipt, "enter");
     assert_eq!(
         wait_file(
             &fixture.base.join("staged-proof"),
@@ -353,34 +398,58 @@ fn ctrl_c_interrupts_only_the_target_terminal_foreground() -> TestResult {
     let terminal_a = only_terminal(&fixture);
     let terminal_b = create_public_terminal(&fixture, "send-peer", &terminal_a);
 
-    // A's shell runs a fixture-owned foreground command whose `;` tail only
-    // executes when the foreground command actually terminates.
+    // A's shell runs a fixture-owned foreground child that reports its own pid
+    // and then stays blocked under the same pid: `exec` keeps the reported
+    // identity as the actual sleep process, so the marker file's existence
+    // plus liveness proves a real foreground job — no marker-before-start
+    // window and no settled-sleep guess. A `sleep; tail` line is rejected as
+    // oracle because an interactive shell discards the remainder on SIGINT.
     send(
         &fixture,
         &terminal_a,
         &[
             "--text",
             &format!(
-                "sleep 300; printf '%s' 'interrupted' > {}",
-                fixture.base.join("a-interrupted").display()
+                "/bin/sh -c 'printf \"%s\" \"$$\" > {}; exec sleep 300'",
+                fixture.base.join("a-child-pid").display()
             ),
             "--enter",
         ],
     );
-    // Let the accepted input reach the shell and start the foreground job
-    // before the interrupt — the same post-submit settle the harness uses.
-    thread::sleep(Duration::from_millis(500));
+    let child_pid: u32 = wait_file(
+        &fixture.base.join("a-child-pid"),
+        &mut [&mut client],
+        Instant::now() + OBSERVATION_TIMEOUT,
+    )
+    .parse()
+    .expect("child pid");
+    assert_ne!(
+        child_pid, shell_pid,
+        "the foreground job must be a distinct child process"
+    );
+    // Hold the child's exact process identity and confirm it is alive and
+    // blocked before the interrupt.
+    let child = pidfd_open(
+        Pid::from_raw(i32::try_from(child_pid).expect("child pid range"))
+            .ok_or("child pid not a valid process id")?,
+        PidfdFlags::empty(),
+    )?;
+    let mut descriptor = [PollFd::new(child.as_fd(), PollFlags::POLLIN)];
+    assert_eq!(
+        poll(&mut descriptor, PollTimeout::ZERO)?,
+        0,
+        "the reported foreground child must be alive and blocked"
+    );
 
     // While A is blocked, the independent terminal still takes its own send.
-    send(
+    let line_b = producer(
         &fixture,
-        &terminal_b,
-        &[
-            "--text",
-            &producer(&fixture, "OB_PEER_ALIVE", "b-alive", "peer-alive"),
-            "--enter",
-        ],
+        "printf 'OB_%s_ALIVE\\n' 'PEER'",
+        "b-alive",
+        "peer-alive",
     );
+    let receipt_b = send(&fixture, &terminal_b, &["--text", &line_b, "--enter"]);
+    assert_text_bytes(&receipt_b, &line_b, true);
     assert_eq!(
         wait_file(
             &fixture.base.join("b-alive"),
@@ -390,32 +459,42 @@ fn ctrl_c_interrupts_only_the_target_terminal_foreground() -> TestResult {
         "peer-alive"
     );
 
-    send(&fixture, &terminal_a, &["--key", "ctrl-c"]);
-    // The foreground job was genuinely interrupted: its tail produced the file
-    // long before the 300-second natural exit could.
-    assert_eq!(
-        wait_file(
-            &fixture.base.join("a-interrupted"),
-            &mut [&mut client],
-            Instant::now() + OBSERVATION_TIMEOUT,
-        ),
-        "interrupted"
-    );
+    // One ctrl-c through the public send path interrupts the foreground child.
+    let receipt = send(&fixture, &terminal_a, &["--key", "ctrl-c"]);
+    assert_key_bytes(&receipt, "ctrl-c");
+    let deadline = Instant::now() + OBSERVATION_TIMEOUT;
+    loop {
+        poll(&mut descriptor, PollTimeout::ZERO)?;
+        if descriptor[0]
+            .revents()
+            .is_some_and(|flags| flags.contains(PollFlags::POLLIN))
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the foreground child did not terminate"
+        );
+        client.collect();
+        thread::yield_now();
+    }
 
-    // A's original shell — same pid — continues after the interrupt.
-    send(
-        &fixture,
-        &terminal_a,
-        &["--text", &pid_producer(&fixture, "a-after"), "--enter"],
+    // The next command on the original shell captures `$$` and `$?` together:
+    // no intervening command may clobber the interrupt's exit status, so this
+    // must be the first input the shell runs after the child's death.
+    let status_line = format!(
+        "printf '%s:%s' \"$$\" \"$?\" > {}",
+        fixture.base.join("a-after").display()
     );
+    send(&fixture, &terminal_a, &["--text", &status_line, "--enter"]);
     assert_eq!(
         wait_file(
             &fixture.base.join("a-after"),
             &mut [&mut client],
             Instant::now() + OBSERVATION_TIMEOUT,
         ),
-        shell_pid.to_string(),
-        "the interrupted terminal keeps its exact original shell"
+        format!("{shell_pid}:130"),
+        "the original shell survives with the SIGINT status 128+2"
     );
     client.close_before(Instant::now() + EXIT_TIMEOUT);
     Ok(())
