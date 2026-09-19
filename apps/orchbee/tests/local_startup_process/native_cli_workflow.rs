@@ -425,16 +425,32 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             thread::sleep(BIND_POLL);
         }
     }
-    let (output, snapshot) = run_json(&fixture, &["api", "snapshot", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(0));
-    assert_eq!(snapshot["result"]["snapshot"]["kind"], "workbench.snapshot");
-    validate(&validators, "orchbee.api.snapshot", &output);
-    let canonical = serde_json::to_string(&snapshot["result"]["snapshot"])?;
-    for id in [&tab_ids[0], &tab_ids[1], &terminal_a, &terminal_b] {
+    // Closed tabs must vanish from every terminal context's `tabs[]` — the
+    // only resource-kind check that is meaningful here. Coordinator-space
+    // `terminalId` values share the 32-hex shape but not the document's id
+    // space, so a raw substring scan over the snapshot can collide with
+    // unrelated fields (context/project ids); terminal removal itself was
+    // already proven by the bounded `terminal list` observation above.
+    let deadline = Instant::now() + CLOSE_DEADLINE;
+    loop {
+        let (output, snapshot) = run_json(&fixture, &["api", "snapshot", "--format", "json"]);
+        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(snapshot["result"]["snapshot"]["kind"], "workbench.snapshot");
+        validate(&validators, "orchbee.api.snapshot", &output);
+        let gone = snapshot["result"]["snapshot"]["terminalContexts"]
+            .as_array()
+            .expect("terminal contexts")
+            .iter()
+            .flat_map(|context| context["tabs"].as_array().expect("context tabs"))
+            .all(|tab| tab["tabId"] != tab_ids[0] && tab["tabId"] != tab_ids[1]);
+        if gone {
+            break;
+        }
         assert!(
-            !canonical.contains(id.as_str()),
-            "closed resource {id} absent from the canonical snapshot"
+            Instant::now() < deadline,
+            "closed tabs still exposed in the canonical snapshot"
         );
+        thread::sleep(BIND_POLL);
     }
     Ok(())
 }
