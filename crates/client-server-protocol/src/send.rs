@@ -6,7 +6,9 @@ use std::num::NonZeroU64;
 /// the optional folded carriage return together must fit within it.
 pub const MAXIMUM_SEND_TEXT_BYTES: usize = 4096;
 /// Protocol bound for the Host-encoded input-queue byte count a send result
-/// may echo; zero is legal and the bound only guards the envelope.
+/// may echo; zero is legal and the bound only guards the envelope. It mirrors
+/// the terminal-protocol Host input bound `MAXIMUM_INPUT_BYTES` (1024 * 1024)
+/// and deliberately does not equal any serialized key-record length.
 pub const MAXIMUM_SEND_ACCEPTED_BYTES: u32 = 1024 * 1024;
 
 /// Validated non-empty UTF-8 text for one `text` send payload. The type alone
@@ -289,6 +291,17 @@ impl TerminalSendOutcome {
             _ => Ok(()),
         }
     }
+    /// Whether the outcome proves the send was bound to a physical target:
+    /// every `Accepted` or `OutcomeUnknown`, and any cleanup state other than
+    /// `NotNeeded`, requires the result to record the admitted incarnation.
+    pub(crate) const fn requires_target(&self) -> bool {
+        match self {
+            Self::Accepted { .. } | Self::OutcomeUnknown { .. } => true,
+            Self::Rejected { cleanup, .. } | Self::Unavailable { cleanup, .. } => {
+                !matches!(cleanup, SendCleanupStatus::NotNeeded)
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -344,19 +357,32 @@ pub struct TerminalSendResult {
     pub(crate) outcome: TerminalSendOutcome,
 }
 impl TerminalSendResult {
-    /// `target` is the Server-resolved physical incarnation; pass `None` only
-    /// for a rejection decided before any binding was admitted.
+    /// `target` is the Server-resolved physical incarnation. `None` is only
+    /// legal for a `Rejected`/`Unavailable` outcome with `NotNeeded` cleanup —
+    /// the pre-admission refusals decided before any binding was resolved.
+    /// Every `Accepted`, `OutcomeUnknown`, or `Confirmed`/`Unconfirmed` result
+    /// must carry the actual admitted target.
     pub fn new(
         request_id: RequestId,
         target: Option<SendTarget>,
         outcome: TerminalSendOutcome,
     ) -> Result<Self, ProtocolError> {
-        outcome.validate()?;
-        Ok(Self {
+        let result = Self {
             request_id,
             target,
             outcome,
-        })
+        };
+        result.validate()?;
+        Ok(result)
+    }
+    /// The full result invariant: outcome axes plus the target-presence rule
+    /// every construction and wire boundary must enforce identically.
+    pub(crate) fn validate(&self) -> Result<(), ProtocolError> {
+        self.outcome.validate()?;
+        if self.target.is_none() && self.outcome.requires_target() {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(())
     }
     #[must_use]
     pub const fn request_id(&self) -> &RequestId {

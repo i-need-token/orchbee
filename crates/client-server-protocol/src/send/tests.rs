@@ -271,6 +271,101 @@ fn result_records_the_selected_physical_target_or_none() -> Result<(), Box<dyn s
     Ok(())
 }
 
+#[test]
+fn absent_target_is_only_legal_for_pre_admission_refusals() -> Result<(), Box<dyn std::error::Error>>
+{
+    let request_id = RequestId::parse("11111111111111111111111111111111")?;
+    let accepted_bytes = || SendAcceptedBytes::new(3).expect("bytes");
+    for outcome in [
+        TerminalSendOutcome::Accepted {
+            accepted_bytes: accepted_bytes(),
+            cleanup: SendCleanupStatus::Confirmed,
+        },
+        TerminalSendOutcome::Accepted {
+            accepted_bytes: accepted_bytes(),
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
+        TerminalSendOutcome::OutcomeUnknown {
+            cleanup: SendCleanupStatus::NotNeeded,
+        },
+        TerminalSendOutcome::OutcomeUnknown {
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
+        TerminalSendOutcome::Rejected {
+            reason: super::SendRejectedReason::HostRejected,
+            cleanup: SendCleanupStatus::Confirmed,
+        },
+        TerminalSendOutcome::Unavailable {
+            reason: super::SendUnavailableReason::HostUnavailable,
+            cleanup: SendCleanupStatus::Unconfirmed,
+        },
+    ] {
+        assert!(
+            TerminalSendResult::new(request_id.clone(), None, outcome.clone()).is_err(),
+            "targetless {outcome:?} constructed"
+        );
+    }
+    for outcome in [
+        TerminalSendOutcome::Rejected {
+            reason: super::SendRejectedReason::TerminalUnavailable,
+            cleanup: SendCleanupStatus::NotNeeded,
+        },
+        TerminalSendOutcome::Unavailable {
+            reason: super::SendUnavailableReason::ServerBusy,
+            cleanup: SendCleanupStatus::NotNeeded,
+        },
+    ] {
+        assert!(
+            TerminalSendResult::new(request_id.clone(), None, outcome.clone()).is_ok(),
+            "pre-admission {outcome:?} rejected"
+        );
+    }
+    // A pinned target stays on the receipt even when no attachment obligation
+    // arose; only the target-absent case is constrained.
+    assert!(
+        TerminalSendResult::new(
+            request_id.clone(),
+            Some(target()),
+            TerminalSendOutcome::Rejected {
+                reason: super::SendRejectedReason::StaleHostEpoch,
+                cleanup: SendCleanupStatus::NotNeeded,
+            },
+        )
+        .is_ok()
+    );
+    // The encode boundary revalidates the full invariant so a struct literal
+    // cannot bypass `new`.
+    let bypassed = TerminalSendResult {
+        request_id: request_id.clone(),
+        target: None,
+        outcome: TerminalSendOutcome::Accepted {
+            accepted_bytes: accepted_bytes(),
+            cleanup: SendCleanupStatus::Confirmed,
+        },
+    };
+    assert!(wire_json(&bypassed).is_err());
+    // The decode boundary applies the same rule, and a missing `target` field
+    // is rejected rather than treated as `null`.
+    for payload in [
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":3,\"cleanup\":\"confirmed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"not-needed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"cleanup\":\"confirmed\"}}",
+        "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"cleanup\":\"not-needed\"}}",
+    ] {
+        assert!(
+            crate::wire::decode_server_payload(payload.as_bytes()).is_err(),
+            "payload {payload} decoded"
+        );
+    }
+    assert!(
+        crate::wire::decode_server_payload(
+            b"{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"terminal-unavailable\",\"cleanup\":\"not-needed\"}}",
+        )
+        .is_ok()
+    );
+    Ok(())
+}
+
 fn wire_json(result: &TerminalSendResult) -> Result<String, Box<dyn std::error::Error>> {
     let bytes = crate::wire::encode_server_payload(&crate::ServerMessage::TerminalSendResult(
         result.clone(),

@@ -108,9 +108,13 @@ text 仅在无 `enter` 时合法。字段私有，任何公开构造或解码路
 `outcome-unknown` 表示 record 可能已落地，绝不自动重试。
 
 `TerminalSendResult` 另携带 `target`：Server 实际准入本 send 的 `SendTarget` 物理化身
-——worker generation、Host epoch 与 Host 终端身份。凡 request 已解析到当前授权 binding
-即存在；在任何 binding 准入前即决定的拒绝携带 `null`，而非捏造或按调用者预期的身份。
-消费方逐字段照录该 target，绝不重新解析。
+——worker generation、Host epoch 与 Host 终端身份。`target` 字段在 wire 形态中始终存在
+且可为 `null`，但 `null` 仅对 cleanup 为 `not-needed` 的 `rejected`/`unavailable`
+合法——即在任何 binding 解析前决定的 pre-admission 拒绝。每个 `accepted`、
+`outcome-unknown` 或 cleanup 为 `confirmed`/`unconfirmed` 的结果必须记录实际准入的
+target；构造与两个 codec 边界一致执行该规则，而 cleanup 为 `not-needed` 的
+`rejected`/`unavailable` 结果仍可携带已钉定的 target。消费方逐字段照录该
+target，绝不重新解析。
 
 ## Request boundary
 

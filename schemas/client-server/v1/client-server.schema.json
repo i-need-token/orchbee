@@ -1320,7 +1320,76 @@
 				"outcome": {
 					"$ref": "#/$defs/sendOutcome"
 				}
-			}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"target": {
+								"type": "null"
+							}
+						},
+						"required": [
+							"target"
+						]
+					},
+					"then": {
+						"properties": {
+							"outcome": {
+								"$ref": "#/$defs/sendOutcomeNotNeeded"
+							}
+						},
+						"required": [
+							"outcome"
+						]
+					}
+				}
+			]
+		},
+		"sendOutcomeNotNeeded": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"reason",
+						"cleanup"
+					],
+					"properties": {
+						"kind": {
+							"const": "rejected"
+						},
+						"reason": {
+							"$ref": "#/$defs/sendRejectedReason"
+						},
+						"cleanup": {
+							"const": "not-needed"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"reason",
+						"cleanup"
+					],
+					"properties": {
+						"kind": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/sendUnavailableReason"
+						},
+						"cleanup": {
+							"const": "not-needed"
+						}
+					}
+				}
+			],
+			"$comment": "A null target is only legal for pre-admission refusals that carry no attachment obligation."
 		}
 	}
 }

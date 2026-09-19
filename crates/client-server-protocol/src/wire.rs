@@ -500,7 +500,7 @@ pub(crate) fn encode_server_payload(message: &ServerMessage) -> Result<Vec<u8>, 
             outcome: result.outcome,
         },
         ServerMessage::TerminalSendResult(result) => {
-            result.outcome().validate()?;
+            result.validate()?;
             EncodedServerMessage::Send {
                 protocol_version: ProtocolVersion,
                 request_id: &result.request_id,

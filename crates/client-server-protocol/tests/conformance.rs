@@ -769,9 +769,7 @@ fn record_coverage(message: &DecodedMessage, reached: &mut BTreeSet<&'static str
             });
         }
         DecodedMessage::Server(ServerMessage::TerminalSendResult(result)) => {
-            use orchbee_client_server_protocol::{
-                SendCleanupStatus, TerminalSendOutcome,
-            };
+            use orchbee_client_server_protocol::{SendCleanupStatus, TerminalSendOutcome};
             reached.insert("message-terminal-send-result");
             reached.insert(if result.target().is_some() {
                 "send-target-present"

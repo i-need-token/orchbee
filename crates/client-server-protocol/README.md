@@ -119,9 +119,13 @@ record may have landed and must never be retried automatically.
 
 `TerminalSendResult` also carries `target`: the `SendTarget` physical incarnation — worker
 generation, Host epoch, and Host terminal identity — the Server actually admitted for the send.
-It is present whenever the request was resolved to a current authorized binding; a rejection
-decided before any binding was admitted carries `null` rather than an invented or caller-expected
-identity. Consumers read the recorded target fields verbatim and never re-resolve them.
+The `target` field is always present in the wire shape and may be `null`, but `null` is only
+legal for `rejected`/`unavailable` outcomes whose cleanup is `not-needed` — the pre-admission
+refusals decided before any binding was resolved. Every `accepted`, `outcome-unknown`, or
+`confirmed`/`unconfirmed`-cleanup result must record the actual admitted target; construction
+and both codec boundaries enforce the rule identically, and a `rejected`/`unavailable` result
+with `not-needed` cleanup may still carry the pinned target. Consumers read the recorded target
+fields verbatim and never re-resolve them.
 
 ## Request boundary
 

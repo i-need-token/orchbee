@@ -500,6 +500,11 @@
 			"direction": "server-to-client",
 			"name": "send-result-outcome-unknown-unconfirmed",
 			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\"},\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"unconfirmed\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "send-result-unavailable-pre-admission",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\",\"cleanup\":\"not-needed\"}}"
 		}
 	],
 	"equivalentMessages": [
@@ -1434,6 +1439,24 @@
 			"direction": "server-to-client",
 			"name": "send-result-target-unknown-field",
 			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":{\"workerGeneration\":\"7\",\"hostEpoch\":\"55555555555555555555555555555555\",\"hostTerminalId\":\"66666666666666666666666666666666\",\"expected\":true},\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":1,\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-accepted-target-null",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"accepted\",\"acceptedBytes\":3,\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-outcome-unknown-target-null",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"outcome-unknown\",\"cleanup\":\"unconfirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "send-result-rejected-confirmed-target-null",
+			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"cleanup\":\"confirmed\"}}"
 		}
 	],
 	"workingDirectoryCases": [
