@@ -425,32 +425,169 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             thread::sleep(BIND_POLL);
         }
     }
-    // Closed tabs must vanish from every terminal context's `tabs[]` — the
-    // only resource-kind check that is meaningful here. Coordinator-space
-    // `terminalId` values share the 32-hex shape but not the document's id
-    // space, so a raw substring scan over the snapshot can collide with
-    // unrelated fields (context/project ids); terminal removal itself was
-    // already proven by the bounded `terminal list` observation above.
+    // Removal is checked against the snapshot model's own kinds, never a raw
+    // substring scan: closed tabs must vanish from every context's `tabs[]`,
+    // and closed terminals from every presentation's `binding.terminalId`
+    // (primary and child presentations, recursing through splits). Same-shape
+    // ids in other namespaces — coordinator `terminalId` values collide
+    // numerically with context/project ids — stay legal; the negative control
+    // below proves both directions.
     let deadline = Instant::now() + CLOSE_DEADLINE;
     loop {
         let (output, snapshot) = run_json(&fixture, &["api", "snapshot", "--format", "json"]);
         assert_eq!(output.status.code(), Some(0));
         assert_eq!(snapshot["result"]["snapshot"]["kind"], "workbench.snapshot");
         validate(&validators, "orchbee.api.snapshot", &output);
-        let gone = snapshot["result"]["snapshot"]["terminalContexts"]
-            .as_array()
-            .expect("terminal contexts")
-            .iter()
-            .flat_map(|context| context["tabs"].as_array().expect("context tabs"))
-            .all(|tab| tab["tabId"] != tab_ids[0] && tab["tabId"] != tab_ids[1]);
-        if gone {
+        if closed_resources_absent(
+            &snapshot["result"]["snapshot"],
+            &tab_ids,
+            &[&terminal_a, &terminal_b],
+        ) {
             break;
         }
         assert!(
             Instant::now() < deadline,
-            "closed tabs still exposed in the canonical snapshot"
+            "closed resources still exposed in the canonical snapshot"
         );
         thread::sleep(BIND_POLL);
     }
     Ok(())
+}
+
+/// True when none of `tab_ids` remain as `terminalContexts[].tabs[].tabId`
+/// and none of `terminal_ids` remain as any presentation's
+/// `binding.terminalId` (primary or child, through nested splits). Any other
+/// field carrying the same string — labels, context/project identities —
+/// does not count: ids are only compared inside their own model kinds.
+fn closed_resources_absent(
+    snapshot: &serde_json::Value,
+    tab_ids: &[String],
+    terminal_ids: &[&String],
+) -> bool {
+    let contexts = snapshot["terminalContexts"]
+        .as_array()
+        .expect("terminal contexts");
+    let tabs_gone = contexts
+        .iter()
+        .flat_map(|context| context["tabs"].as_array().expect("context tabs"))
+        .all(|tab| !tab_ids.iter().any(|id| tab["tabId"] == *id));
+    if !tabs_gone {
+        return false;
+    }
+    contexts
+        .iter()
+        .flat_map(|context| context["tabs"].as_array().expect("context tabs"))
+        .all(|tab| presentations_clear(&tab["root"], terminal_ids))
+}
+
+/// True when no presentation reachable from `node` binds one of
+/// `terminal_ids`: a panel's primary plus every child presentation, and all
+/// descendants of a split's children.
+fn presentations_clear(node: &serde_json::Value, terminal_ids: &[&String]) -> bool {
+    match node["kind"].as_str() {
+        Some("panel") => {
+            let clear = |presentation: &serde_json::Value| {
+                presentation["binding"]["terminalId"]
+                    .as_str()
+                    .is_none_or(|bound| !terminal_ids.iter().any(|id| bound == id.as_str()))
+            };
+            clear(&node["primaryPresentation"])
+                && node["childPresentations"]
+                    .as_array()
+                    .expect("child presentations")
+                    .iter()
+                    .all(clear)
+        }
+        Some("split") => node["children"]
+            .as_array()
+            .expect("split children")
+            .iter()
+            .all(|child| presentations_clear(&child["node"], terminal_ids)),
+        _ => panic!("unexpected panel node kind: {node}"),
+    }
+}
+
+/// Negative control for the canonical close check: same-shape strings in a
+/// label or another resource kind must not count as alive, while a real
+/// `binding.terminalId` or `tabs[].tabId` residue must be detected.
+#[test]
+fn closed_resources_absent_negative_controls() {
+    let tabs = vec!["0000000000000000000000000000000a".to_owned()];
+    let terminals = ["0000000000000000000000000000000b".to_owned()];
+    let terminal_refs: Vec<&String> = terminals.iter().collect();
+    let empty_context = |label: &str| {
+        serde_json::json!({
+            "groups": [],
+            "terminalContextId": "0000000000000000000000000000000c",
+            "tabs": [{
+                "groupId": null,
+                "label": label,
+                "pinned": false,
+                "root": {
+                    "kind": "panel",
+                    "panelId": "0000000000000000000000000000000d",
+                    "primaryPresentation": {
+                        "presentationId": "0000000000000000000000000000000e",
+                        "label": "shell",
+                        "binding": null
+                    },
+                    "childPresentations": []
+                },
+                "tabId": "0000000000000000000000000000000f"
+            }]
+        })
+    };
+    // Same strings in a tab label and a presentation label are not residue.
+    let mut snapshot = serde_json::json!({
+        "kind": "workbench.snapshot",
+        "terminalContexts": [empty_context("0000000000000000000000000000000a")]
+    });
+    snapshot["terminalContexts"][0]["tabs"][0]["root"]["primaryPresentation"]["label"] =
+        serde_json::json!("0000000000000000000000000000000b");
+    assert!(closed_resources_absent(&snapshot, &tabs, &terminal_refs));
+    // A real tabs[].tabId residue is detected.
+    snapshot["terminalContexts"][0]["tabs"][0]["tabId"] =
+        serde_json::json!("0000000000000000000000000000000a");
+    assert!(!closed_resources_absent(&snapshot, &tabs, &terminal_refs));
+    // A real binding.terminalId residue — including a nested-split child —
+    // is detected.
+    snapshot["terminalContexts"][0]["tabs"][0]["tabId"] =
+        serde_json::json!("0000000000000000000000000000000f");
+    snapshot["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"] = serde_json::json!([{
+        "presentationId": "00000000000000000000000000000010",
+        "label": "split-child",
+        "binding": { "terminalId": "0000000000000000000000000000000b", "workerId": "00000000000000000000000000000011" }
+    }]);
+    assert!(!closed_resources_absent(&snapshot, &tabs, &terminal_refs));
+    snapshot["terminalContexts"][0]["tabs"][0]["root"]["childPresentations"] =
+        serde_json::json!([]);
+    assert!(closed_resources_absent(&snapshot, &tabs, &terminal_refs));
+    snapshot["terminalContexts"][0]["tabs"][0]["root"] = serde_json::json!({
+        "kind": "split",
+        "splitId": "00000000000000000000000000000012",
+        "orientation": "horizontal",
+        "children": [
+            { "slotId": "00000000000000000000000000000013", "node": {
+                "kind": "panel",
+                "panelId": "00000000000000000000000000000014",
+                "primaryPresentation": {
+                    "presentationId": "00000000000000000000000000000015",
+                    "label": "left",
+                    "binding": null
+                },
+                "childPresentations": []
+            }},
+            { "slotId": "00000000000000000000000000000016", "node": {
+                "kind": "panel",
+                "panelId": "00000000000000000000000000000017",
+                "primaryPresentation": {
+                    "presentationId": "00000000000000000000000000000018",
+                    "label": "right",
+                    "binding": { "terminalId": "0000000000000000000000000000000b", "workerId": "00000000000000000000000000000011" }
+                },
+                "childPresentations": []
+            }}
+        ]
+    });
+    assert!(!closed_resources_absent(&snapshot, &tabs, &terminal_refs));
 }
