@@ -252,6 +252,47 @@ fn prepared_site(settle: bool) -> (SiteCoordinator, TerminalOperationAuthorizati
     (coordinator, authorization)
 }
 
+fn prepared_started_site() -> (SiteCoordinator, TerminalOperationAuthorization) {
+    use orchbee_capability_node_protocol::{HostStartAccepted, StartTransition};
+    let (mut coordinator, _authorization) = prepared_site(true);
+    let pending = dispatch(
+        coordinator.prepare(
+            ClientMessage::TerminalStart(
+                orchbee_client_server_protocol::TerminalStartRequest::new(id(9), id(1), geometry())
+                    .unwrap(),
+            ),
+            Some(worker(1)),
+            Some(expiry()),
+        ),
+    );
+    let CapabilityNodeMessage::AuthorizedTerminalStart(request) = pending.command() else {
+        panic!("start expected");
+    };
+    let start_authorization = request.authorization();
+    let start_geometry = request.geometry();
+    coordinator
+        .complete(
+            pending,
+            Completion::Start(
+                orchbee_capability_node_protocol::TerminalStartResult::new(
+                    start_authorization,
+                    identity(),
+                    orchbee_capability_node_protocol::TerminalStartOutcome::HostAccepted(
+                        HostStartAccepted::new(
+                            identity(),
+                            start_geometry,
+                            StartTransition::Started,
+                        ),
+                    ),
+                )
+                .unwrap(),
+            ),
+            Some(worker(1)),
+        )
+        .unwrap();
+    (coordinator, start_authorization)
+}
+
 #[test]
 fn exact_exposed_binding_prepares_the_retained_host_without_changing_workbench() {
     let (mut coordinator, authorization) = prepared_site(true);
@@ -439,4 +480,218 @@ fn viewer_identity_exhaustion_is_server_busy_and_preserves_the_cursor() {
         coordinator.allocate_identity(),
         Some((u128::MAX - 1).to_be_bytes())
     );
+}
+
+#[test]
+fn send_prepares_pinned_started_target_with_two_distinct_identities() {
+    let (mut coordinator, authorization) = prepared_started_site();
+    let selected = selection(&coordinator, authorization);
+    let before = snapshot(&mut coordinator);
+    coordinator.terminals.set_next_identity_for_test(Some(100));
+    let prepared = coordinator
+        .prepare_send_target(
+            &selected.site_id,
+            &selected.worker_id,
+            &selected.terminal_id,
+            Some(worker(1)),
+        )
+        .unwrap();
+    assert_eq!(prepared.target.identity, identity());
+    assert_eq!(prepared.target.worker, worker(1));
+    assert_ne!(
+        prepared.identities.operation,
+        prepared.identities.attachment
+    );
+    assert_eq!(
+        prepared.identities.operation.as_bytes(),
+        100_u128.to_be_bytes()
+    );
+    assert_eq!(
+        prepared.identities.attachment.as_bytes(),
+        101_u128.to_be_bytes()
+    );
+    assert_eq!(snapshot(&mut coordinator), before);
+    let second = coordinator
+        .prepare_send_target(
+            &selected.site_id,
+            &selected.worker_id,
+            &selected.terminal_id,
+            Some(worker(1)),
+        )
+        .unwrap();
+    assert_eq!(
+        second.identities.operation.as_bytes(),
+        102_u128.to_be_bytes()
+    );
+    assert_eq!(
+        coordinator.allocate_identity(),
+        Some(104_u128.to_be_bytes())
+    );
+}
+
+#[test]
+fn send_rejects_awaiting_start_binding_where_viewer_would_admit() {
+    let (mut coordinator, authorization) = prepared_site(true);
+    let selected = selection(&coordinator, authorization);
+    assert_eq!(
+        coordinator.prepare_send_target(
+            &selected.site_id,
+            &selected.worker_id,
+            &selected.terminal_id,
+            Some(worker(1)),
+        ),
+        Err(BindingViewerPreparationError::TerminalUnavailable)
+    );
+    assert_eq!(coordinator.allocate_identity(), Some(2_u128.to_be_bytes()));
+    assert!(
+        coordinator
+            .prepare_binding_viewer(
+                &selected.site_id,
+                &selected.worker_id,
+                &selected.terminal_id,
+                Some(worker(1)),
+            )
+            .is_ok()
+    );
+    assert_eq!(coordinator.allocate_identity(), Some(6_u128.to_be_bytes()));
+}
+
+#[test]
+fn send_rejects_unexposed_wrong_site_and_missing_workbench_without_identity() {
+    let (mut coordinator, authorization) = prepared_started_site();
+    let selected = selection(&coordinator, authorization);
+    let wrong_site = ClientSiteId::parse(&format!("{:032x}", 9_001)).unwrap();
+    let wrong_worker = ClientWorkerId::parse(&"08".repeat(16)).unwrap();
+    let wrong_terminal = ClientTerminalId::parse(&"07".repeat(16)).unwrap();
+    for (site_id, worker_id, terminal_id) in [
+        (&wrong_site, &selected.worker_id, &selected.terminal_id),
+        (&selected.site_id, &wrong_worker, &selected.terminal_id),
+        (&selected.site_id, &selected.worker_id, &wrong_terminal),
+    ] {
+        assert_eq!(
+            coordinator.prepare_send_target(site_id, worker_id, terminal_id, None),
+            Err(BindingViewerPreparationError::TerminalUnavailable)
+        );
+    }
+    let hidden = dispatch(coordinator.prepare(create(7), Some(worker(1)), Some(expiry())));
+    let hidden_authorization = launch_authorization(&hidden);
+    coordinator
+        .complete(
+            hidden,
+            Completion::Launch(
+                TerminalLaunchResult::new(
+                    hidden_authorization,
+                    TerminalLaunchOutcome::HostAccepted(HostLaunchAccepted::new(
+                        identity(),
+                        HostLaunchState::AwaitingStart,
+                    )),
+                )
+                .unwrap(),
+            ),
+            Some(worker(1)),
+        )
+        .unwrap();
+    let hidden_selection = selection(&coordinator, hidden_authorization);
+    assert_eq!(
+        coordinator.prepare_send_target(
+            &hidden_selection.site_id,
+            &hidden_selection.worker_id,
+            &hidden_selection.terminal_id,
+            Some(worker(1)),
+        ),
+        Err(BindingViewerPreparationError::TerminalUnavailable)
+    );
+
+    let mut missing = site();
+    let arbitrary = TerminalOperationAuthorization::new(
+        orchbee_capability_node_protocol::TerminalId::from_bytes([7; 16]).unwrap(),
+        orchbee_capability_node_protocol::OperationId::from_bytes([6; 16]).unwrap(),
+        worker(1).worker_id,
+        worker(1).generation,
+        orchbee_capability_node_protocol::TerminalFence::new(NonZeroU64::MIN),
+        orchbee_capability_node_protocol::TerminalOperationLease::new(
+            orchbee_capability_node_protocol::LeaseId::from_bytes([5; 16]).unwrap(),
+            expiry(),
+        ),
+        orchbee_capability_node_protocol::TERMINAL_LAUNCH_CAPABILITY_VERSION,
+    );
+    expose(&mut missing, arbitrary);
+    let missing_selection = selection(&missing, arbitrary);
+    assert_eq!(
+        missing.prepare_send_target(
+            &missing_selection.site_id,
+            &missing_selection.worker_id,
+            &missing_selection.terminal_id,
+            Some(worker(1)),
+        ),
+        Err(BindingViewerPreparationError::TerminalUnavailable)
+    );
+}
+
+#[test]
+fn send_rejects_accepted_close_and_stale_or_missing_worker() {
+    let (mut coordinator, authorization) = prepared_started_site();
+    let selected = selection(&coordinator, authorization);
+    for placement in [None, Some(worker(2))] {
+        assert_eq!(
+            coordinator.prepare_send_target(
+                &selected.site_id,
+                &selected.worker_id,
+                &selected.terminal_id,
+                placement,
+            ),
+            Err(BindingViewerPreparationError::TerminalRuntimeUnavailable)
+        );
+    }
+    let target = coordinator.viewer_target(&id(1), worker(1)).unwrap();
+    let (_close_id, _runtime, _now) = accept_target_close(&mut coordinator, authorization);
+    assert_eq!(
+        coordinator.target_lifecycle(target),
+        TargetLifecycle::Fenced
+    );
+    assert_eq!(
+        coordinator.prepare_send_target(
+            &selected.site_id,
+            &selected.worker_id,
+            &selected.terminal_id,
+            Some(worker(1)),
+        ),
+        Err(BindingViewerPreparationError::TerminalUnavailable)
+    );
+}
+
+#[test]
+fn send_identity_exhaustion_is_server_busy_and_preserves_the_cursor() {
+    let (mut coordinator, authorization) = prepared_started_site();
+    let selected = selection(&coordinator, authorization);
+    coordinator
+        .terminals
+        .set_next_identity_for_test(Some(u128::MAX));
+    assert_eq!(
+        coordinator.prepare_send_target(
+            &selected.site_id,
+            &selected.worker_id,
+            &selected.terminal_id,
+            Some(worker(1)),
+        ),
+        Err(BindingViewerPreparationError::ServerBusy)
+    );
+    assert_eq!(
+        coordinator.allocate_identity(),
+        Some(u128::MAX.to_be_bytes())
+    );
+    coordinator
+        .terminals
+        .set_next_identity_for_test(Some(u128::MAX - 1));
+    assert!(
+        coordinator
+            .prepare_send_target(
+                &selected.site_id,
+                &selected.worker_id,
+                &selected.terminal_id,
+                Some(worker(1)),
+            )
+            .is_ok()
+    );
+    assert_eq!(coordinator.allocate_identity(), None);
 }

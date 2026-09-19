@@ -53,6 +53,12 @@ pub(crate) struct ViewerOperationIdentities {
     pub(crate) cleanup: OperationId,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SendOperationIdentities {
+    pub(crate) operation: OperationId,
+    pub(crate) attachment: OperationId,
+}
+
 #[derive(Debug)]
 pub(crate) enum PreparedOperation {
     Ready(ServerMessage),
@@ -324,6 +330,37 @@ impl TerminalCoordinator {
             | TerminalPhase::Unavailable(_) => {
                 return Err(BindingViewerTargetError::TerminalUnavailable);
             }
+        };
+        Ok(BindingViewerTarget {
+            terminal_id,
+            identity,
+            worker,
+        })
+    }
+
+    pub(crate) fn binding_send_target(
+        &self,
+        terminal_id: TerminalId,
+        worker_id: WorkerId,
+        current_worker: Option<WorkerPlacement>,
+    ) -> Result<BindingViewerTarget, BindingViewerTargetError> {
+        let Some(worker) = current_worker else {
+            return Err(BindingViewerTargetError::TerminalRuntimeUnavailable);
+        };
+        if worker.worker_id != worker_id {
+            return Err(BindingViewerTargetError::TerminalRuntimeUnavailable);
+        }
+        let Some(binding) = self.bindings.values().find(|binding| {
+            binding.authorization.terminal_id() == terminal_id
+                && binding.authorization.worker_id() == worker_id
+        }) else {
+            return Err(BindingViewerTargetError::TerminalUnavailable);
+        };
+        if binding.authorization.worker_generation() != worker.generation {
+            return Err(BindingViewerTargetError::TerminalRuntimeUnavailable);
+        }
+        let TerminalPhase::Started { identity, .. } = binding.phase else {
+            return Err(BindingViewerTargetError::TerminalUnavailable);
         };
         Ok(BindingViewerTarget {
             terminal_id,
@@ -681,6 +718,23 @@ impl TerminalCoordinator {
             attachment,
             request,
             cleanup,
+        })
+    }
+
+    pub(crate) fn allocate_send_identities(&mut self) -> Option<SendOperationIdentities> {
+        let operation = self.next_identity?;
+        let attachment = operation.checked_add(1)?;
+        let next_identity = attachment.checked_add(1);
+        let (Ok(operation), Ok(attachment)) = (
+            OperationId::from_bytes(operation.to_be_bytes()),
+            OperationId::from_bytes(attachment.to_be_bytes()),
+        ) else {
+            return None;
+        };
+        self.next_identity = next_identity;
+        Some(SendOperationIdentities {
+            operation,
+            attachment,
         })
     }
 

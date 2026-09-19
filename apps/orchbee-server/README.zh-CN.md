@@ -353,6 +353,34 @@ cleanup；`LocalTerminalRelay` 拥有递增请求和未知副作用退役。具�
 shell 输出、已接受 resize、断连和重新获取。设计质疑使用当前上下文，不属于独立审查证据。
 Public cutover、持久化恢复和完整 Workbench 验收仍是独立边界。
 
+## 本机终端 send
+
+已准入 Client 可对其本可关闭的、已暴露 Workbench 终端提交一次非交互 input send。selector
+指明 Server 在本次准入时验证的精确 site、worker、terminal 绑定；它不是从早前 list 结果
+取得的隐式化身锁。send 是新增的显式编排输入权，不是只读查询，也不是权限零变化；它不新增
+远程暴露，也不绕过 cohort、peer 或 Host 能力检查。
+
+send 准入依次解析 Workbench binding 暴露、唯一保留绑定、当前 Worker placement 与绑定记录的
+Worker generation、Started 终端相位、Unfenced 生命周期以及无已受理 close。未启动、已关闭、
+已 fence 或 generation 过期的目标在 dispatch 前拒绝，且不消耗任何 Server 签发 identity；
+解析绝不重绑陈旧化身。准入时 Server 铸造新的 operation identity 与新的 input-only
+attachment identity，并把精确的 worker id、generation、Host epoch 与 Host terminal id 钉入
+恰好一个 OBCN 请求；Worker 绝不按逻辑标识重解析。若被钉住的 Worker 在 dispatch 前退出或
+generation 变化，该请求以 unavailable 或 unknown 失败，绝不重发。
+
+Worker 在其既有 Host broker 上执行一次有序的 attach、input、detach；不借用任何 viewer、
+controller 或 resize grant。受理仅表示输入已进入 Host 的有界 input queue；它不说明子进程
+读过或执行过。Host 的类型化拒绝仍执行一次 detach。传输失败、错误 ack 或不确定 detach
+之后，Worker 关闭该 Worker-Host 连接——其拆除即回收临时附件——绝不在可能失同步的流上继续
+新 exchange。每个结果保留两个独立事实：input 状态（not-submitted、rejected、accepted 或
+unknown）与 cleanup 状态（not-needed、confirmed 或 unconfirmed）。受理后的 cleanup 失败
+保留已接受字节数，绝不把输入报告为未发送。
+
+每次 send 提交一个 OBCN 请求，其标识只关联一次请求与响应；不新增持久 dedupe 账本，手动
+重试的 send 是新请求、可能重复送达输入。send 与 controller exchange 共用单一 Worker
+carrier 串行，输入顺序等于到达顺序。既有二十秒 Worker response 预算、两秒 write 上限与
+五十秒 Client submission 窗口全部保持；三次一秒 Host exchange 在其内容纳，无需扩大。
+
 ## 已接受的 Terminal Client authority 与 relay 建模记录
 
 有界 model 切片让 Rust Server 成为 relay `Client -> Server -> Worker -> Terminal Host` path 上

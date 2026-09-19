@@ -400,6 +400,42 @@ disconnect and re-acquisition. The challenge pass uses the current context and i
 review evidence. Public cutover, durable recovery and full Workbench acceptance
 remain separate boundaries.
 
+## Local terminal send
+
+An admitted Client may submit one non-interactive input send against an exposed Workbench terminal
+it could already close. The selector names the exact site, worker, and terminal binding the Server
+validates at that admission; it is not an implicit incarnation lock taken from an earlier list
+result. Send is a new explicit orchestration-input authority, not a read-only query and not a
+zero-permission change; it adds no remote exposure and bypasses no cohort, peer, or Host capability
+check.
+
+Send admission resolves Workbench binding exposure, a unique retained binding, the current Worker
+placement and the binding's recorded Worker generation, a Started terminal phase, an Unfenced
+lifecycle, and no accepted close. A not-yet-started, closed, fenced, or stale-generation target
+rejects before dispatch and consumes no Server-issued identity; resolution never rebinds a stale
+incarnation. On admission the Server mints a fresh operation identity and a fresh input-only
+attachment identity and pins the exact worker id, generation, Host epoch, and Host terminal id into
+exactly one OBCN request; the Worker never re-resolves a logical identifier. If the pinned Worker
+exits or changes generation before dispatch, the request fails unavailable or unknown and is never
+resent.
+
+The Worker runs one ordered attach, input, detach sequence on its existing Host broker; no viewer,
+controller, or resize grant is borrowed. Acceptance means the input entered the Host's bounded
+input queue; it says nothing about the child process reading or executing it. A typed Host
+rejection still runs the one detach. After a transport failure, a wrong acknowledgement, or an
+uncertain detach, the Worker closes that Worker-Host connection — whose teardown reclaims the
+temporary attachment — and never continues a new exchange on a possibly desynchronized stream.
+Every result keeps two independent facts: input status (not-submitted, rejected, accepted, or
+unknown) and cleanup status (not-needed, confirmed, or unconfirmed). A post-acceptance cleanup
+failure preserves the accepted byte count and never reports the input as unsent.
+
+Each send submits one OBCN request whose identity correlates exactly one request and response; no
+persistent dedupe ledger is added, and a manually retried send is a new request that may deliver
+input twice. Sends serialize on the single Worker carrier alongside controller exchanges, so input
+order equals arrival order. The existing twenty-second Worker response budget, two-second write
+bounds, and fifty-second Client submission window all hold; three one-second Host exchanges fit
+inside them without enlargement.
+
 ## Accepted terminal Client authority and relay modeling record
 
 The bounded model slice makes the Rust Server the owner of product-level Client Sessions and

@@ -28,7 +28,9 @@ pub(crate) use panel_split::PendingTerminalPanelSplit;
 pub(crate) use panel_split::PreparedTerminalPanelSplit;
 mod terminal_selection;
 mod workspace_directory;
-pub(crate) use terminal_selection::{BindingViewerPreparationError, PreparedBindingViewer};
+pub(crate) use terminal_selection::{
+    BindingViewerPreparationError, PreparedBindingViewer, PreparedSendTarget,
+};
 mod target_lifecycle;
 pub(crate) use target_lifecycle::TargetLifecycle;
 
