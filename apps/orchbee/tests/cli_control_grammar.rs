@@ -62,15 +62,49 @@ fn run(base: &Path, arguments: &[&str]) -> Output {
     support::run(Path::new(env!("CARGO_BIN_EXE_orchbee")), base, arguments)
 }
 
-/// The grammar admitted the argv: whatever follows (cohort, Site, or service
-/// discovery under the unavailable runtime) is not a usage rejection.
+/// The grammar admitted the argv: with no cohort staged, the only honest
+/// post-parse outcome is the cohort safety check — `check-failed` at exit 1.
+/// Anything else (usage 2, a panic, a signal) fails the witness, so a bare
+/// `!= 2` is never enough.
 fn admitted(base: &Path, arguments: &[&str]) {
     let output = run(base, arguments);
-    assert_ne!(
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
         output.status.code(),
-        Some(2),
-        "grammar must admit {arguments:?}; stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
+        Some(1),
+        "grammar-admitted {arguments:?} must stop at the cohort check; stderr: {stderr}"
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "text-envelope {arguments:?} must not write a stdout document; stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("cohort"),
+        "{arguments:?} must carry the cohort-stage diagnostic; stderr: {stderr}"
+    );
+}
+
+/// A grammar-admitted argv under a selected JSON envelope still stops at the
+/// cohort check: exit 1, and the failure document records kind `check-failed`
+/// at stage `cohort`.
+fn admitted_json(base: &Path, arguments: &[&str]) {
+    let output = run(base, arguments);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "{arguments:?}; stderr: {stderr}"
+    );
+    let document: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("cohort failure document is JSON");
+    assert_eq!(document["failure"]["kind"], "check-failed", "{arguments:?}");
+    assert_eq!(
+        document["failure"]["details"]["stage"], "cohort",
+        "{arguments:?}"
+    );
+    assert!(
+        stderr.contains("cohort"),
+        "{arguments:?} must carry the cohort-stage diagnostic; stderr: {stderr}"
     );
 }
 
@@ -172,16 +206,6 @@ fn terminal_send_admitted_forms() -> TestResult {
             "terminal",
             "send",
             TERMINAL_ID,
-            "--key",
-            "ctrl-c",
-            "--format",
-            "json",
-        ]
-        .as_slice(),
-        [
-            "terminal",
-            "send",
-            TERMINAL_ID,
             "--text",
             "hi",
             "--format=text",
@@ -194,6 +218,19 @@ fn terminal_send_admitted_forms() -> TestResult {
     ] {
         admitted(&base, arguments);
     }
+    // The separated `--format json` selector keeps the JSON failure envelope.
+    admitted_json(
+        &base,
+        &[
+            "terminal",
+            "send",
+            TERMINAL_ID,
+            "--key",
+            "ctrl-c",
+            "--format",
+            "json",
+        ],
+    );
     // Every member of the closed key vocabulary is individually legal.
     for key in SEND_KEYS {
         admitted(&base, &["terminal", "send", TERMINAL_ID, "--key", key]);
@@ -391,22 +428,24 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
             TERMINAL_ID,
             "--match",
             "ready",
-            "--format",
-            "json",
-        ]
-        .as_slice(),
-        [
-            "terminal",
-            "wait-output",
-            TERMINAL_ID,
-            "--match",
-            "ready",
             "--",
         ]
         .as_slice(),
     ] {
         admitted(&base, arguments);
     }
+    admitted_json(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "ready",
+            "--format",
+            "json",
+        ],
+    );
     Ok(())
 }
 
@@ -687,22 +726,24 @@ fn workspace_accept_directory_admitted_forms() -> TestResult {
             WORKSPACE_ID,
             "--path",
             "/repo",
-            "--format",
-            "json",
-        ]
-        .as_slice(),
-        [
-            "workspace",
-            "accept-directory",
-            WORKSPACE_ID,
-            "--path",
-            "/repo",
             "--",
         ]
         .as_slice(),
     ] {
         admitted(&base, arguments);
     }
+    admitted_json(
+        &base,
+        &[
+            "workspace",
+            "accept-directory",
+            WORKSPACE_ID,
+            "--path",
+            "/repo",
+            "--format",
+            "json",
+        ],
+    );
     Ok(())
 }
 
@@ -921,9 +962,9 @@ fn shared_option_rules_on_existing_commands() -> TestResult {
     // The same envelope rule applies inside the new commands' scope: a valid
     // unique json selection shapes the grammar failure.
     usage_json(&base, &["status", "--frobnicate", "--format", "json"]);
-    // A trailing `--` on a complete argv changes nothing.
-    let output = run(&base, &["status", "--"]);
-    assert_ne!(output.status.code(), Some(2));
+    // A trailing `--` on a complete argv changes nothing: `status` is formed
+    // at this base, so admission is proven by the same cohort-check outcome.
+    admitted(&base, &["status", "--"]);
     Ok(())
 }
 
