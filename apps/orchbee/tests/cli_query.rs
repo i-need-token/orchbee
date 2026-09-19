@@ -11,12 +11,16 @@ use std::{
     os::unix::fs::PermissionsExt,
     os::unix::net::{UnixListener, UnixStream},
     path::{Path, PathBuf},
-    process::{Command, Output},
-    sync::OnceLock,
+    process::{Child, Command, Output, Stdio},
+    sync::{OnceLock, mpsc},
     thread,
     time::{Duration, Instant},
 };
 
+use nix::{
+    sys::signal::{Signal, kill},
+    unistd::Pid,
+};
 use orchbee_client_server_protocol::{
     ClientMessage, HostEpoch, MAXIMUM_READ_ROWS_BYTES, ServerMessage, TerminalViewerAction,
     TerminalViewerOutcome, TerminalViewerRequest, TerminalViewerResult, ViewerId,
@@ -228,6 +232,25 @@ fn snapshot_response(
 /// `tests/support` — the same guard `cli_mutation` uses.
 fn run(base: &Path, arguments: &[&str]) -> Output {
     support::run(&cohort().join("orchbee"), base, arguments)
+}
+
+/// `run` that keeps the `Child` handle so a test can signal this process —
+/// and only this process — while an exchange is still open. Stdio and the
+/// deterministic locale environment match `support::run` exactly; the
+/// caller finishes through `support::bounded_wait_with_output`, keeping the
+/// shared wall-clock backstop, drain discipline, and capture budget.
+fn spawn_cli(base: &Path, arguments: &[&str]) -> Child {
+    Command::new(cohort().join("orchbee"))
+        .args(arguments)
+        .env("ORCHBEE_RUNTIME_BASE", base)
+        .env_remove("LC_ALL")
+        .env_remove("LC_MESSAGES")
+        .env("LANG", "en_US.UTF-8")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn cli child")
 }
 
 fn failure_kind(output: &Output) -> serde_json::Value {
@@ -4285,6 +4308,58 @@ fn take_wait_read_rows(
     (request, bounds.0, bounds.1)
 }
 
+/// Drive the raced-detach exchange as the peer: attach, one matched window,
+/// then the real `Detach` request — reported over `detach_seen` — whose
+/// typed refusal is held back until `release` fires. The two barriers make
+/// whatever the main thread does between them provably ordered before the
+/// answer reaches the wire, so a signal either preceded the refusal or did
+/// not happen at all.
+fn peer_detach_hold(
+    stream: &UnixStream,
+    detach_seen: &mpsc::Sender<()>,
+    release: &mpsc::Receiver<()>,
+) {
+    let attachment = attach_with_fixture(stream);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 1);
+    let request = take_poll(stream, &attachment);
+    viewer_reply(
+        stream,
+        &request,
+        TerminalViewerOutcome::Record(frame_record(&frame)),
+    );
+    take_frame_applied(stream, &attachment);
+    let (request, start_row, row_count) = take_wait_read_rows(stream, &attachment, 1, 1, 1);
+    assert_eq!((start_row, row_count), (0, 2));
+    let obrw = obrw_window(0, 2, 8, 1, 1, 1, &[(0x00, "hit"), (0x00, "tail")]);
+    viewer_reply(
+        stream,
+        &request,
+        TerminalViewerOutcome::Record(history_record(&obrw)),
+    );
+    // The Detach request on the wire is the real barrier — the CLI is now
+    // blocked inside the detach exchange waiting on this answer.
+    let request = viewer_request(stream);
+    match request.action() {
+        TerminalViewerAction::Detach { attachment_id } if attachment_id == &attachment => {}
+        action => panic!("peer expected detach, got {action:?}"),
+    }
+    detach_seen
+        .send(())
+        .expect("main thread waits at the detach barrier");
+    release
+        .recv_timeout(PEER_IO_DEADLINE)
+        .expect("main thread releases the refused answer");
+    viewer_reply(
+        stream,
+        &request,
+        TerminalViewerOutcome::Unavailable {
+            reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+        },
+    );
+    expect_session_eof(stream);
+}
+
 /// Keep answering `Empty` to every `Poll` until the CLI drops the session:
 /// the deadline-driven timeout path never sends `Detach` once nothing of the
 /// budget remains, so the peer only ever sees polls then EOF.
@@ -4747,6 +4822,102 @@ fn terminal_wait_match_with_refused_detach_reports_match_observed() -> TestResul
     );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(4));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "service-unavailable");
+    let details = &failure["failure"]["details"];
+    assert_eq!(details["matchObserved"], true);
+    assert_eq!(details["cleanup"], "unconfirmed");
+    Ok(())
+}
+
+/// A SIGINT that lands while the detach exchange is still open must win the
+/// answer even when the detach itself fails: the peer observes the real
+/// `Detach` on the wire, only then is this child interrupted, and only then
+/// is the typed refusal released — so the cancellation provably preceded
+/// the failure answer. The cancellation outranks the refused detach's own
+/// classification: exit 130 with `cancelled`, still honestly reporting that
+/// the match was observed and the release stays unconfirmed.
+#[test]
+fn terminal_wait_sigint_during_refused_detach_reports_cancelled() -> TestResult {
+    let base = base_dir("twait-detach-int");
+    let scope = stage_scope(&base);
+    let (detach_seen, detach_noted) = mpsc::channel();
+    let (release_send, release_recv) = mpsc::channel();
+    let peer = read_peer(&scope, move |stream| {
+        peer_detach_hold(stream, &detach_seen, &release_recv);
+    });
+    let child = spawn_cli(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "hit",
+            "--format",
+            "json",
+        ],
+    );
+    detach_noted
+        .recv_timeout(PEER_IO_DEADLINE)
+        .expect("peer observed the real detach");
+    kill(Pid::from_raw(child.id() as i32), Signal::SIGINT)
+        .expect("SIGINT to this test's own child");
+    release_send.send(()).expect("peer waits for the release");
+    let output = support::bounded_wait_with_output(child, support::RUN_WALL_CLOCK_BACKSTOP)
+        .unwrap_or_else(|failure| panic!("{failure}"));
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(130),
+        "cancelled wait exits 130, not the refused detach's typed failure: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "cancelled");
+    let details = &failure["failure"]["details"];
+    assert_eq!(details["matchObserved"], true);
+    assert_eq!(details["cleanup"], "unconfirmed");
+    Ok(())
+}
+
+/// The same exchange without the signal keeps the refused detach's own
+/// typed failure: the raced sibling cannot pass on just any nonzero exit —
+/// only the cancellation, never the refusal, may produce 130.
+#[test]
+fn terminal_wait_refused_detach_without_signal_keeps_typed_failure() -> TestResult {
+    let base = base_dir("twait-detach-calm");
+    let scope = stage_scope(&base);
+    let (detach_seen, detach_noted) = mpsc::channel();
+    let (release_send, release_recv) = mpsc::channel();
+    let peer = read_peer(&scope, move |stream| {
+        peer_detach_hold(stream, &detach_seen, &release_recv);
+    });
+    let child = spawn_cli(
+        &base,
+        &[
+            "terminal",
+            "wait-output",
+            TERMINAL_ID,
+            "--match",
+            "hit",
+            "--format",
+            "json",
+        ],
+    );
+    detach_noted
+        .recv_timeout(PEER_IO_DEADLINE)
+        .expect("peer observed the real detach");
+    release_send.send(()).expect("peer waits for the release");
+    let output = support::bounded_wait_with_output(child, support::RUN_WALL_CLOCK_BACKSTOP)
+        .unwrap_or_else(|failure| panic!("{failure}"));
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "an uninterrupted refused detach keeps its typed failure: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let failure = failure_kind(&output);
     assert_eq!(failure["failure"]["kind"], "service-unavailable");
     let details = &failure["failure"]["details"];

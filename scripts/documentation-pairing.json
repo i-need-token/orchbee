@@ -132,8 +132,6 @@
 		"apps/orchbee/docs/native-cli-query.md": {
 			"englishSha256": "f13116075fec7b2b8a308dd60aa0714df3a662b5ca3a6135588662a5f35c40fc",
 			"zhCnSha256": "ab7bfd00b1fd216f187ed5dcc2c45e37f8a1fdd3550719fdbeefc283d488ea5b"
-			"englishSha256": "3034976503249692c7a1f403f95d14bc68b3d630d45100dd19c43b8a2d94b07e",
-			"zhCnSha256": "52da42474efa2fcedc0eae7b579a48760bd4216cc87de3ad1a59dd6a58a953bd"
 		},
 		"apps/orchbee/docs/native-context-selection.md": {
 			"englishSha256": "e23f7ba364a5132a1ff11c570bab706f31c7dc16ee5bd389f358c4ce1760a472",
