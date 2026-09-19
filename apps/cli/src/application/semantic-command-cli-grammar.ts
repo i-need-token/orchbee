@@ -4,11 +4,7 @@ export type SemanticCommandCliLocale = 'en-US' | 'zh-CN';
 
 export type SemanticCommandCliShell = 'bash' | 'fish' | 'zsh';
 
-const SEMANTIC_COMMAND_CLI_SHELLS: readonly SemanticCommandCliShell[] = [
-	'bash',
-	'zsh',
-	'fish',
-];
+const SEMANTIC_COMMAND_CLI_SHELLS: readonly SemanticCommandCliShell[] = ['bash', 'zsh', 'fish'];
 
 export interface SemanticCommandCliGrammarOption {
 	readonly name: string;
