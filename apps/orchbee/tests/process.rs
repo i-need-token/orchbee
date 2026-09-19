@@ -119,6 +119,8 @@ fn help_flag_aliases_match_the_help_command_at_every_recognized_path() -> Result
         &["terminal", "list"],
         &["terminal", "get"],
         &["terminal", "read"],
+        &["terminal", "wait-output"],
+        &["terminal", "send"],
         &["api", "snapshot"],
         &["api", "schema"],
         &["config", "check"],

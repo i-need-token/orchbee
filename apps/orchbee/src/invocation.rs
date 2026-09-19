@@ -421,7 +421,6 @@ pub(crate) enum ExpectedValue {
     WaitTimeout,
     SendText,
     SendKey,
-
 }
 
 /// Why an `invalid-usage` failure was reached. Carried for the localized
@@ -544,7 +543,6 @@ struct Options {
     text: Option<String>,
     enter: bool,
     key: Option<String>,
-
 }
 
 /// Every named option that owns the next argv token as its value, used by
@@ -565,7 +563,6 @@ const VALUE_FLAGS: &[&str] = &[
     "--target-panel",
     "--timeout",
     "--text",
-
     "--workspace",
 ];
 
@@ -1800,7 +1797,6 @@ struct Scope {
     enter: bool,
     /// `terminal send --key <name>`: the semantic-key value option.
     key: bool,
-
 }
 
 const NO_OPTIONS: Scope = Scope {
@@ -1819,7 +1815,6 @@ const NO_OPTIONS: Scope = Scope {
     text: false,
     enter: false,
     key: false,
-
 };
 
 const WORKSPACE_LIST_SCOPE: Scope = Scope {
@@ -1919,7 +1914,6 @@ fn business_options(options: &Options) -> bool {
         || options.text.is_some()
         || options.enter
         || options.key.is_some()
-
 }
 
 /// The first named option present but outside `scope`, in the fixed `Options`
