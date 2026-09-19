@@ -39,6 +39,7 @@ PayloadKinds == {"text", "key"}
 \* (abstracted to 1), a semantic key may be ignored by mode (0) or count its
 \* encoded bytes (1); 2 is over the negotiated maximum and desyncs.
 ValidAcks(payload) == IF payload = "text" THEN {1} ELSE {0, 1}
+SingletonAcks(payload) == { {b} : b \in ValidAcks(payload) }
 SentPhases == {"attach-sent", "input-sent", "detach-sent"}
 BetweenPhases == {"idle", "attached", "input-accepted", "input-rejected"}
 
@@ -66,20 +67,20 @@ Init ==
 
 SendAttach ==
   /\ s.phase = "idle" /\ s.carrierAlive /\ s.serverAlive
-  /\ s' = [s EXCEPT !.phase = "attach-sent", !.attachSent = 1,
+  /\ s' = [s EXCEPT !.phase = "attach-sent", !.attachSent = @ + 1,
                     !.last = "send-attach"]
   /\ UNCHANGED fixed
 
 SendInput ==
   /\ s.phase = "attached" /\ s.carrierAlive /\ s.serverAlive
-  /\ s' = [s EXCEPT !.phase = "input-sent", !.inputSent = 1,
+  /\ s' = [s EXCEPT !.phase = "input-sent", !.inputSent = @ + 1,
                     !.last = "send-input"]
   /\ UNCHANGED fixed
 
 SendDetach ==
   /\ s.phase \in {"input-accepted", "input-rejected"}
   /\ s.carrierAlive /\ s.serverAlive
-  /\ s' = [s EXCEPT !.phase = "detach-sent", !.detachSent = 1,
+  /\ s' = [s EXCEPT !.phase = "detach-sent", !.detachSent = @ + 1,
                     !.last = "send-detach"]
   /\ UNCHANGED fixed
 
@@ -329,13 +330,13 @@ DrainHostEvent ==
 
 DeliverResult ==
   /\ s.phase = "result-ready" /\ s.serverAlive
-  /\ s' = [s EXCEPT !.phase = "done", !.deliveries = 1, !.delivered = TRUE,
-                    !.last = "deliver-result"]
+  /\ s' = [s EXCEPT !.phase = "done", !.deliveries = @ + 1,
+                    !.delivered = TRUE, !.last = "deliver-result"]
   /\ UNCHANGED fixed
 
 AbandonResult ==
   /\ s.phase = "result-ready" /\ ~s.serverAlive
-  /\ s' = [s EXCEPT !.phase = "done", !.deliveries = 1,
+  /\ s' = [s EXCEPT !.phase = "done", !.deliveries = @ + 1,
                     !.last = "abandon-result"]
   /\ UNCHANGED fixed
 
@@ -367,8 +368,12 @@ TypeOK ==
   /\ s.unavailReason \in UnavailableReasons /\ s.cleanup \in Cleanups
   /\ s.acceptedBytes \in SUBSET ByteCounts
   /\ s.hostAttachments \subseteq Attachments
-  /\ s.attachSent \in 0..1 /\ s.inputSent \in 0..1 /\ s.detachSent \in 0..1
-  /\ s.deliveries \in 0..1 /\ s.eventDrains \in 0..3
+  \* Counters are real occurrence counts (@ + 1 at emit), not occurred bits;
+  \* the domain deliberately includes 2 so a second emission is representable
+  \* and caught by the named AtMostOnce / ResultProducedOnce properties, not
+  \* by the type domain.
+  /\ s.attachSent \in 0..2 /\ s.inputSent \in 0..2 /\ s.detachSent \in 0..2
+  /\ s.deliveries \in 0..2 /\ s.eventDrains \in 0..3
   /\ \A field \in {"inputAcked", "detachAcked", "untrusted", "hostInputApplied",
        "teardownPending", "carrierAlive", "serverAlive", "delivered"} :
        s[field] \in BOOLEAN
@@ -386,7 +391,7 @@ PairingMatrix ==
   s.phase \in {"result-ready", "done"} =>
     /\ s.outcome = "accepted" =>
          s.cleanup \in {"confirmed", "unconfirmed"} /\
-         s.acceptedBytes \in {{0}, {1}, {2}}
+         s.acceptedBytes \in SingletonAcks(payload)
     /\ s.outcome = "unknown" => s.cleanup = "unconfirmed"
     /\ s.outcome = "unavailable" =>
          s.cleanup = "unconfirmed" /\ s.unavailReason # "none"
@@ -397,7 +402,12 @@ PairingMatrix ==
 \* Once the input fact is committed it survives every later cleanup outcome.
 AcceptedFactSurvivesCleanup ==
   s.inputAcked /\ s.phase \in {"result-ready", "done"} =>
-    s.outcome = "accepted" /\ s.acceptedBytes \in {{0}, {1}, {2}}
+    s.outcome = "accepted" /\ s.acceptedBytes \in SingletonAcks(payload)
+
+\* The accepted byte count is always a singleton drawn from ValidAcks: key 0
+\* is legal, text must be exact, and an over-max count is never accepted.
+AcceptedBytesMatchesPayload ==
+  s.inputAcked => s.acceptedBytes \in SingletonAcks(payload)
 
 ConfirmedRequiresDetachAck == s.cleanup = "confirmed" => s.detachAcked
 
@@ -448,5 +458,10 @@ UnknownNeverResends ==
 
 \* The accepted input fact, once observed, is never reverted.
 AcceptedNeverDowngraded == [][s.inputAcked => s'.inputAcked]_vars
+
+\* The acknowledged byte count is part of that fact: once inputAcked it is
+\* immutable in every successor state.
+AcceptedBytesStable ==
+  [][s.inputAcked => s'.acceptedBytes = s.acceptedBytes]_vars
 
 =============================================================================

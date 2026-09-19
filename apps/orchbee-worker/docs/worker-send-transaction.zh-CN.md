@@ -27,7 +27,13 @@ continue）。
   显式建模而非默默假设消失。
 - 字节数抽象为 `{0, 1, 2}`：1 是 text 的精确回显，0 是合法的被忽略 key 计数，
   2 超出协商上限。`payload` 在 Init 选择 `text`（回显必须等于 1）或 `key`
-  （接受 0 与 1）。
+  （接受 0 与 1）。`acceptedBytes` 一旦 `inputAcked` 即为取自
+  `ValidAcks(payload)` 的单元素集合——永不为 `{2}`——其后不可变
+  （`AcceptedBytesMatchesPayload`、`AcceptedBytesStable`）。
+- 阶段计数（`attachSent`/`inputSent`/`detachSent`）与 `deliveries` 是真实发生
+  次数（发射处 `@ + 1`），不是"是否发生"位。`TypeOK` 刻意允许 `0..2`，使第二次
+  发射在状态空间可表示、由命名性质 `*AtMostOnce`/`ResultProducedOnce` 抓住——
+  绝不靠类型域抓，也不允许 guard 消除第二次发送的可能性。
 
 ## 源码映射
 
@@ -54,15 +60,16 @@ continue）。
 
 ## 不变量与进展
 
-`PairingMatrix`、`AcceptedFactSurvivesCleanup`、`ConfirmedRequiresDetachAck`、
-`AttachRefusalNeedsNoDetach`、`UntrustedStreamNoDetach`、
-`UnconfirmedCleanupClosesCarrier`、`TuiLossOnlyViaCarrierDeath`、
-`SendAttachmentMatchesAdmission`、`NoResultOnEarlyServerLoss`、
-`ResultProducedOnce`、每阶段 `*AtMostOnce`。
+`PairingMatrix`、`AcceptedFactSurvivesCleanup`、`AcceptedBytesMatchesPayload`、
+`ConfirmedRequiresDetachAck`、`AttachRefusalNeedsNoDetach`、
+`UntrustedStreamNoDetach`、`UnconfirmedCleanupClosesCarrier`、
+`TuiLossOnlyViaCarrierDeath`、`SendAttachmentMatchesAdmission`、
+`NoResultOnEarlyServerLoss`、`ResultProducedOnce`、每阶段 `*AtMostOnce`。
 时态：`EventualSettlement`、`TeardownEventuallyReleasesAttachments`、
 `DetachOnlyAfterCommittedInputFact`、`UnknownNeverResends`、
-`AcceptedNeverDowngraded`。进展是对 `Next` 的弱公平——每个持续使能的解算
-（应答、过期、丢失或本地结算）都可能发生；不假定对端永远回成功。
+`AcceptedNeverDowngraded`、`AcceptedBytesStable`。进展是对 `Next` 的弱公平——
+每个持续使能的解算（应答、过期、丢失或本地结算）都可能发生；不假定对端
+永远回成功。
 
 `PairingMatrix` 只在结算后（`result-ready`/`done`）适用：detach 轴未解算时
 cleanup 为 `none`。健康 carrier 只在两种结算下存活——`AttachRefused` 与
@@ -89,29 +96,42 @@ java -Xmx512m -XX:+UseParallelGC -jar tla2tools-1.7.4.jar \
 
 结果：exit 0，2688 generated / 1834 distinct states，深度 15，每个 action 均有
 覆盖（无零覆盖行）。日志与直接子进程 exit 码存于批次证据目录
-`a3/evidence-13/positive/`。
+`a3/evidence-14/positive/`（旧 `a3/evidence-13/` 先于计数修正，原样保留）。
 
 ## 负控
 
-四个 mutant 模块在树外生成于 `a3/evidence-13/mutants/` 下，每个只改一处
-guard/action，各自在同一锁内单独运行，完整反例与 exit 码均保留：
+mutant 模块按批次在树外生成，每个只改一处 guard/action，各自在同一锁内
+单独运行，完整反例与 exit 码均保留。当前批次：`a3/evidence-14/mutants/`，
+建于冻结模块 digest。
 
 - `m1-detach-after-desync`——`InputDesync` 仍发出 detach 记录：违反
   `UntrustedStreamNoDetach`（exit 12）。
 - `m2-erase-accepted-fact`——`DetachUnreachable` 抹掉已提交的输入事实：违反
   `AcceptedFactSurvivesCleanup`（exit 12）。
-- `m3-duplicate-input`——`SendInput` 在一条输入在飞时再次发射：违反
-  `TypeOK`/`InputAtMostOnce`（exit 12）。
-- `m4-tui-takeover`——send attachment 在 carrier 存活时夺走 TUI controller
-  授权：违反 `TuiLossOnlyViaCarrierDeath`（exit 12）。
+- `m3-duplicate-input-guard-only`——纯 guard 放宽 `SendInput`（一条输入在飞
+  时重入；基线 `@ + 1` 计数代码不动）：`inputSent = 2` 由 `InputAtMostOnce`
+  而非 `TypeOK` 抓住（exit 12）。这才是承重的重放检查——计数位写法会让同一
+  guard 变异以 stutter 形式不可见。
+- （旧批次 `a3/evidence-13/` 另有 `m4-tui-takeover`，违反
+  `TuiLossOnlyViaCarrierDeath`；其反例先于计数修正，原样保留。）
 
 具名可达性见证（对目标状态取反的 probe 不变量，树外运行于
-`a3/evidence-13/named-traces/`；每条 TLC 违例即见证轨迹）：
+`a3/evidence-14/named-traces/`；每条 TLC 违例即见证轨迹）：
 
 - `ProbeKeyAckZero`——`payload="key" /\ outcome="accepted" /\
   acceptedBytes={0}`：语义键合法地以零字节应答。
 - `ProbeAppliedResponseLost`——`hostInputApplied /\ outcome="unknown"`：
   Host 已应用输入但应答从未到达 Worker。
+
+## 已知抽象（如实界注，不修正）
+
+- `ServerLostAtResult` 后 `done` 处 `carrierAlive`/`hostAttachments` 冻结为存活
+  态；真实 worker 退出会断 carrier 并释放 `tui`。该终态偏乐观但不支撑任何假
+  性质。
+- `eventDrains <= 3` 是任意取界；真实一秒步内可排空更多交错 Host 事件。此界
+  仅限制 stutter 深度。
+- `CarrierLost` 在交换间相位把"下一次写才发现死亡"折为无损转移；主导真实迹
+  （`prepare` 内零字节发现）已覆盖，而写到半途才失败的子情形被抽象掉。
 
 ## Inventory 建议（交 A6）
 

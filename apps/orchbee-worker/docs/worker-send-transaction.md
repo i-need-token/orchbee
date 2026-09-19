@@ -36,6 +36,14 @@ before `admit_launch`/`admit_start`).
 - Byte counts are abstracted to `{0, 1, 2}`: 1 is the exact text echo, 0 is the
   legal ignored-key count, 2 is over the negotiated maximum. `payload` is
   `text` (echo must equal 1) or `key` (0 and 1 accepted), chosen at Init.
+  `acceptedBytes` is a singleton drawn from `ValidAcks(payload)` once
+  `inputAcked` — never `{2}` — and immutable thereafter
+  (`AcceptedBytesMatchesPayload`, `AcceptedBytesStable`).
+- Stage counters (`attachSent`/`inputSent`/`detachSent`) and `deliveries` are
+  real occurrence counts (`@ + 1` at emit), not occurred bits. `TypeOK`
+  deliberately admits `0..2` so a second emission is representable and is
+  caught by the named `*AtMostOnce`/`ResultProducedOnce` properties — never by
+  the type domain, and no guard may erase the possibility of a second send.
 
 ## Source mapping
 
@@ -69,13 +77,14 @@ before `admit_launch`/`admit_start`).
 
 ## Invariants and progress
 
-`PairingMatrix`, `AcceptedFactSurvivesCleanup`, `ConfirmedRequiresDetachAck`,
-`AttachRefusalNeedsNoDetach`, `UntrustedStreamNoDetach`,
-`UnconfirmedCleanupClosesCarrier`, `TuiLossOnlyViaCarrierDeath`,
-`SendAttachmentMatchesAdmission`, `NoResultOnEarlyServerLoss`,
-`ResultProducedOnce`, `*AtMostOnce` per stage. Temporal: `EventualSettlement`,
-`TeardownEventuallyReleasesAttachments`, `DetachOnlyAfterCommittedInputFact`,
-`UnknownNeverResends`, `AcceptedNeverDowngraded`. Progress is weak fairness on
+`PairingMatrix`, `AcceptedFactSurvivesCleanup`, `AcceptedBytesMatchesPayload`,
+`ConfirmedRequiresDetachAck`, `AttachRefusalNeedsNoDetach`,
+`UntrustedStreamNoDetach`, `UnconfirmedCleanupClosesCarrier`,
+`TuiLossOnlyViaCarrierDeath`, `SendAttachmentMatchesAdmission`,
+`NoResultOnEarlyServerLoss`, `ResultProducedOnce`, `*AtMostOnce` per stage.
+Temporal: `EventualSettlement`, `TeardownEventuallyReleasesAttachments`,
+`DetachOnlyAfterCommittedInputFact`, `UnknownNeverResends`,
+`AcceptedNeverDowngraded`, `AcceptedBytesStable`. Progress is weak fairness on
 `Next` — every continuously enabled resolution (reply, expiry, loss, or local
 settle) may fire; no peer is assumed to answer successfully.
 
@@ -106,31 +115,50 @@ java -Xmx512m -XX:+UseParallelGC -jar tla2tools-1.7.4.jar \
 
 Outcome: exit 0, 2688 generated / 1834 distinct states, depth 15, every
 action covered (no zero-coverage line). Logs and the child exit code live in
-the batch evidence directory `a3/evidence-13/positive/`.
+the batch evidence directory `a3/evidence-14/positive/` (earlier
+`a3/evidence-13/` runs predate the counter fix and are retained as-is).
 
 ## Negative controls
 
-Four mutant modules were produced out-of-tree under
-`a3/evidence-13/mutants/`, each one guard or action edit, each run separately
-under the same lock with full counterexamples and exit codes preserved:
+Mutant modules are produced out-of-tree per batch, each one guard or action
+edit, each run separately under the same lock with full counterexamples and
+exit codes preserved. Current batch: `a3/evidence-14/mutants/` on the frozen
+module digest.
 
 - `m1-detach-after-desync` — `InputDesync` still emits the detach record:
   violates `UntrustedStreamNoDetach` (exit 12).
 - `m2-erase-accepted-fact` — `DetachUnreachable` erases the committed input
   fact: violates `AcceptedFactSurvivesCleanup` (exit 12).
-- `m3-duplicate-input` — `SendInput` may re-fire while one input is in flight:
-  violates `TypeOK`/`InputAtMostOnce` (exit 12).
-- `m4-tui-takeover` — the send attachment displaces the TUI controller on a
-  live carrier: violates `TuiLossOnlyViaCarrierDeath` (exit 12).
+- `m3-duplicate-input-guard-only` — guard-only relaxation of `SendInput`
+  (re-entry while one input is in flight; baseline `@ + 1` counting
+  untouched): `inputSent = 2` is caught by `InputAtMostOnce`, not `TypeOK`
+  (exit 12). This is the load-bearing replay check — a counter bit would make
+  the same guard mutation stutter invisibly.
+- (earlier batch `a3/evidence-13/` also carried `m4-tui-takeover`, violating
+  `TuiLossOnlyViaCarrierDeath`; its counterexample predates the counter fix
+  and is retained as-is.)
 
 Named reachability witnesses (probe invariants negating the target state, run
-out-of-tree under `a3/evidence-13/named-traces/`; each TLC violation is the
-witness trace):
+out-of-tree under `a3/evidence-14/named-traces/` on the frozen module digest;
+each TLC violation is the witness trace):
 
 - `ProbeKeyAckZero` — `payload="key" /\ outcome="accepted" /\
   acceptedBytes={0}`: a semantic key legally acknowledged with zero bytes.
 - `ProbeAppliedResponseLost` — `hostInputApplied /\ outcome="unknown"`: the
   Host applied the input but the answer never reached the Worker.
+
+## Known abstractions (annotated, not fixed)
+
+- `ServerLostAtResult` leaves `carrierAlive`/`hostAttachments` frozen as
+  alive at `done`; a real worker exit would drop the carrier and release
+  `tui`. The terminal state is optimistic here but supports no false
+  property.
+- `eventDrains <= 3` is an arbitrary bound; a real one-second step may drain
+  more interleaved Host events. The bound only limits stutter depth.
+- `CarrierLost` at a between-exchange phase folds "death discovered at the
+  next write" into a lossless transition; the dominant real trace (zero-byte
+  discovery inside `prepare`) is covered, while the write-halfway-failed
+  sub-case is abstracted away.
 
 ## Inventory recommendation (for A6)
 
