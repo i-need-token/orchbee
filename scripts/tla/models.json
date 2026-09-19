@@ -1998,9 +1998,7 @@
 			"workspace": "apps/orchbee",
 			"module": "apps/orchbee/formal/tla/NativeCliWaitSettlement.tla",
 			"config": "apps/orchbee/formal/tla/NativeCliWaitSettlement.cfg",
-			"claims": [
-				"apps/orchbee/docs/native-cli-wait-model.md"
-			],
+			"claims": ["apps/orchbee/docs/native-cli-wait-model.md"],
 			"triggers": [
 				"apps/orchbee/docs/native-cli-wait-model.md",
 				"apps/orchbee/docs/native-cli-wait-model.zh-CN.md",
