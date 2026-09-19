@@ -45,6 +45,12 @@ import {
 	WorkbenchWorkspaceListInputSchema,
 } from '@orchbee/workbench/semantic-commands';
 
+import {
+	resolveSemanticCommandCliDiscovery,
+	type SemanticCommandCliHelpTopic,
+	type SemanticCommandCliShell,
+} from './semantic-command-cli-grammar';
+
 export type SemanticCommandCliOutput = 'json' | 'text';
 
 interface SemanticCommandCliCommandBase {
@@ -63,6 +69,9 @@ interface SemanticCommandCliOwnedInvocationBase extends SemanticCommandCliComman
 
 export type SemanticCommandCliCommand =
 	| { readonly kind: 'skill' }
+	| { readonly kind: 'help'; readonly topic: SemanticCommandCliHelpTopic }
+	| { readonly kind: 'version' }
+	| { readonly kind: 'completion'; readonly shell: SemanticCommandCliShell }
 	| (SemanticCommandCliCommandBase & { readonly kind: 'status' })
 	| (SemanticCommandCliCommandBase & { readonly kind: 'operation-list' })
 	| (SemanticCommandCliCommandBase & {
@@ -131,6 +140,10 @@ export function parseSemanticCommandCliArguments(
 ): SemanticCommandCliArgumentParseResult {
 	if (matches(arguments_, ['--skill'])) {
 		return { command: { kind: 'skill' }, kind: 'parsed' };
+	}
+	const discovery = resolveSemanticCommandCliDiscovery(arguments_);
+	if (discovery !== null) {
+		return { command: discovery, kind: 'parsed' };
 	}
 	const parsed = collectArguments(arguments_);
 	if (parsed.kind === 'error') return parsed;

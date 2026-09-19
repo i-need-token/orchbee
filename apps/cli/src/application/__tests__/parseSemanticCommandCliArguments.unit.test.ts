@@ -243,7 +243,6 @@ describe('parseSemanticCommandCliArguments', () => {
 
 	it('rejects unknown, duplicate, missing, and cross-command options', () => {
 		for (const arguments_ of [
-			[],
 			['unknown'],
 			['status', '--detach'],
 			['status', '--target', endpointId, '--target', endpointId],

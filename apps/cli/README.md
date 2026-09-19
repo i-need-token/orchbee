@@ -47,6 +47,33 @@ orchbee agent wait <session-id> [--until <condition>]... [--after-revision <revi
 
 `orchbee --skill` is the separate coordinator-free command for printing the embedded Skill.
 
+One offline discovery surface serves people and Agents without a coordinator:
+
+```text
+orchbee                              # root help
+orchbee help [<family-or-path>]      # root help, or help for a recognized path
+orchbee <recognized path> -h|--help  # the same help for that path
+orchbee --version                    # build version line
+orchbee completion bash|zsh|fish     # static shell completion projection
+orchbee --skill                      # embedded Agent Skill
+```
+
+Offline commands classify pure arguments and answer from the build alone. They resolve no local
+configuration, load no native addon, read no stdin or file, allocate no request identity, and open
+no coordinator connection. A legal offline answer is plain text on stdout with exit 0 and empty
+stderr — never the JSON envelope; a grammar failure keeps the `cli-usage-invalid` exit-2 envelope.
+Help topics are the root, each recognized family (`operation`, `execution`, `agent`, `project`,
+`directory`, `workspace`, `tab`, `panel`, `terminal`), and every complete command path. A
+path-suffix `-h`/`--help` wins over missing operands but not over supplied operands, business
+options, or extra words; `-h`, `--help`, and `--version` in any other position are usage failures,
+as are unknown help paths such as `help help` or `help frobnicate`. `--version` prints
+`orchbee-cli <version>` — the build package version compiled in — independent of locale. The
+process reads only `LC_ALL`, `LC_MESSAGES`, and `LANG` to select the help locale (first nonempty
+value; a `zh` prefix selects zh-CN, otherwise en-US); coordinator commands additionally read the
+two trusted `ORCHBEE_CLI_*` product values. One declarative command table owns the help and
+completion grammar projection and is tested to agree with the parser in both directions; completion
+is a static word projection with no live lookup.
+
 Every coordinator-backed command accepts `--target <endpoint-id>` and `--output json|text`. Omitted
 targets succeed only when trusted local discovery resolves exactly one live coordinator. Duplicate,
 unknown, or cross-command options fail before connection. Generic invocation reads one strict UTF-8
@@ -89,8 +116,9 @@ Session summary.
 Default output is exactly one compact versioned JSON document on stdout. Invoke results always
 include the request identity. `--output text` is an explicitly unstable indented projection of that
 same document; automation must not parse it. The current runner emits no payload-bearing stderr
-diagnostics. `--skill` is the deliberate exception: it prints the canonical Agent Skill bundled in
-the same build, performs no runtime file read, and makes no coordinator connection.
+diagnostics. `--skill`, `help`, `--version`, and `completion` are the deliberate exceptions: they
+print plain text bundled in or projected from the same build, perform no runtime file read, and
+make no coordinator connection.
 
 | Exit | Meaning                                                                              |
 | ---- | ------------------------------------------------------------------------------------ |
@@ -133,17 +161,17 @@ package-manager installation, or stable third-party embedding API.
 
 ### Process model
 
-| Field        | Contract                                                                                                                                                                                                                                      |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | A human, Agent, or Skill already running in a Desktop-owned Terminal needs one nonvisual invocation path to the same live local coordinator without global installation or another state owner.                                               |
-| Inputs       | Arguments, high-level owner-backed inputs, file paths, file/stdin bytes, and signals are untrusted. The code-located launcher, embedded Skill, native addon location, and Desktop-selected runtime directory are trusted product composition. |
-| Data         | The process owns no durable state. It holds one bounded input buffer, one caller-generated request identity when invoking, and one transient client connection.                                                                               |
-| Outputs      | One versioned stdout document or the exact embedded Skill, plus one exit code. Current stderr is empty; operation input and result payloads never enter diagnostics.                                                                          |
-| Invariants   | Parse precedes connection; input is capped before JSON decoding; one invocation is submitted at most once; one process writes its result once; no launch path changes operation authority.                                                    |
-| Decisions    | Command grammar selects the runner branch; `--target` selects one exact validated endpoint; `--input-file -` selects bounded stdin instead of a bounded file; the output option selects only serialization.                                   |
-| Model        | `runSemanticCommandCliProcess` composes the deterministic runner with filesystem, randomness, trusted locator, and native-transport capabilities. `startSemanticCommandCliProcess` owns signal registration and final writes.                 |
-| Cancellation | `SIGINT` and `SIGTERM` abort only CLI-owned execution observation. They never issue semantic cancellation; business cancellation still requires `execution cancel`.                                                                           |
-| Verification | Unit tests control input, configuration, signals, and writes. Desktop native integration launches the built entry with Node, Electron's Node mode, and the exact product launcher against one real private endpoint.                          |
+| Field        | Contract                                                                                                                                                                                                                                            |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | A human, Agent, or Skill already running in a Desktop-owned Terminal needs one nonvisual invocation path to the same live local coordinator without global installation or another state owner.                                                     |
+| Inputs       | Arguments, high-level owner-backed inputs, file paths, file/stdin bytes, and signals are untrusted. The code-located launcher, embedded Skill, native addon location, and Desktop-selected runtime directory are trusted product composition.       |
+| Data         | The process owns no durable state. It holds one bounded input buffer, one caller-generated request identity when invoking, and one transient client connection.                                                                                     |
+| Outputs      | One versioned stdout document or the exact embedded Skill, plus one exit code. Current stderr is empty; operation input and result payloads never enter diagnostics.                                                                                |
+| Invariants   | Parse precedes connection; offline commands answer before configuration resolution; input is capped before JSON decoding; one invocation is submitted at most once; one process writes its result once; no launch path changes operation authority. |
+| Decisions    | Command grammar selects the runner branch; `--target` selects one exact validated endpoint; `--input-file -` selects bounded stdin instead of a bounded file; the output option selects only serialization.                                         |
+| Model        | `runSemanticCommandCliProcess` composes the deterministic runner with filesystem, randomness, trusted locator, and native-transport capabilities. `startSemanticCommandCliProcess` owns signal registration and final writes.                       |
+| Cancellation | `SIGINT` and `SIGTERM` abort only CLI-owned execution observation. They never issue semantic cancellation; business cancellation still requires `execution cancel`.                                                                                 |
+| Verification | Unit tests control input, configuration, signals, and writes. Desktop native integration launches the built entry with Node, Electron's Node mode, and the exact product launcher against one real private endpoint.                                |
 
 ## Client boundary
 

@@ -44,6 +44,31 @@ orchbee agent wait <session-id> [--until <condition>]... [--after-revision <revi
 
 `orchbee --skill` 是用于打印内嵌 Skill 的独立 coordinator-free command。
 
+一套离线 discovery 表面让人和 Agent 在无需 coordinator 的情况下完成发现：
+
+```text
+orchbee                              # 根 help
+orchbee help [<family-or-path>]      # 根 help，或某个已识别 path 的 help
+orchbee <recognized path> -h|--help  # 该 path 的同一份 help
+orchbee --version                    # 构建 version 行
+orchbee completion bash|zsh|fish     # 静态 shell completion projection
+orchbee --skill                      # 内嵌 Agent Skill
+```
+
+离线 command 只分类纯 argument，并仅由本构建回答。它们不解析本地 configuration、不加载
+native addon、不读取 stdin 或文件、不分配 request identity、不打开 coordinator 连接。合法的离线
+回答是 stdout 上的纯文本、exit 0、stderr 为空——绝不用 JSON envelope；grammar failure 保持
+`cli-usage-invalid` exit-2 envelope。Help topic 包括根、每个已识别 family（`operation`、
+`execution`、`agent`、`project`、`directory`、`workspace`、`tab`、`panel`、`terminal`）以及每条完整
+command path。path 尾部的 `-h`/`--help` 胜过缺失的 operand，但不胜过已提供的 operand、业务
+option 或多余词；位于其它任何位置的 `-h`、`--help` 与 `--version` 都是 usage failure，未知 help
+path（如 `help help`、`help frobnicate`）同样如此。`--version` 打印
+`orchbee-cli <version>`——编译进构建的 package version——与 locale 无关。Process 只读取
+`LC_ALL`、`LC_MESSAGES` 与 `LANG` 来选择 help locale（取第一个非空值；`zh` 前缀选 zh-CN，否则
+en-US）；连接 coordinator 的 command 还会读取两个可信的 `ORCHBEE_CLI_*` 产品值。一张声明式
+command table 拥有 help 与 completion 的 grammar projection，并以双向测试保证与 parser 一致；
+completion 是不做 live lookup 的静态 word projection。
+
 每条连接 coordinator 的 command 都接受 `--target <endpoint-id>` 与 `--output json|text`。只有可信本地
 discovery 精确解析到一个 live coordinator 时，省略 target 才能成功。重复、未知或跨 command 的 option
 会在连接前失败。通用 invocation 从指定文件或 stdin 读取一个严格 UTF-8 JSON value。高层 command 通过
@@ -77,8 +102,8 @@ record 只包含 revision、canonical transition kind 与 content-free Session s
 
 默认输出恰好是 stdout 上一个紧凑、带版本的 JSON document。Invoke result 始终包含 request identity。
 `--output text` 是同一 document 的明确不稳定缩进 projection；automation 不得解析它。当前 runner 不会向
-stderr 发出带 payload 的 diagnostic。`--skill` 是有意设置的例外：它打印同一 build 中捆绑的规范 Agent
-Skill，不在运行时读取文件，也不连接 coordinator。
+stderr 发出带 payload 的 diagnostic。`--skill`、`help`、`--version` 与 `completion` 是有意设置的例外：它们
+打印同一 build 中捆绑或由该 build 投影出的纯文本，不在运行时读取文件，也不连接 coordinator。
 
 | Exit | 含义                                                                              |
 | ---- | --------------------------------------------------------------------------------- |
@@ -127,7 +152,7 @@ distribution-internal、version-locked launch artifact，不是全局 executable
 | Inputs       | Argument、高层 owner-backed input、file path、file/stdin byte 与 signal 均不受信。由代码位置确定的 launcher、内嵌 Skill、native addon location 与 Desktop 选择的 runtime directory 属于可信 product composition。 |
 | Data         | Process 不拥有 durable state。它只持有一个有界 input buffer、invoke 时的一个 caller-generated request identity，以及一个瞬态 client connection。                                                                  |
 | Outputs      | 一个带版本的 stdout document 或精确内嵌 Skill，以及一个 exit code。当前 stderr 为空；operation input 与 result payload 绝不进入 diagnostic。                                                                      |
-| Invariants   | 先 parse 后连接；input 在 JSON decode 前受容量限制；一次 invocation 最多提交一次；一个 process 只写一次 result；launch path 不改变 operation authority。                                                          |
+| Invariants   | 先 parse 后连接；离线 command 在 configuration resolution 之前回答；input 在 JSON decode 前受容量限制；一次 invocation 最多提交一次；一个 process 只写一次 result；launch path 不改变 operation authority。       |
 | Decisions    | Command grammar 选择 runner branch；`--target` 选择一个精确且经过验证的 endpoint；`--input-file -` 选择有界 stdin 而非有界 file；output option 只选择 serialization。                                             |
 | Model        | `runSemanticCommandCliProcess` 用 filesystem、randomness、可信 locator 与 native-transport capability 组合 deterministic runner。`startSemanticCommandCliProcess` 拥有 signal registration 与最终 write。         |
 | Cancellation | `SIGINT` 与 `SIGTERM` 只 abort CLI-owned execution observation。它们绝不会发出 semantic cancellation；business cancellation 仍然需要 `execution cancel`。                                                         |

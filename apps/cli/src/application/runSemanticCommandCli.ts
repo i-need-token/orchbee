@@ -31,12 +31,16 @@ import {
 	type SemanticCommandCliCommand,
 	type SemanticCommandCliOwnedOperation,
 } from './parseSemanticCommandCliArguments';
+import { renderSemanticCommandCliCompletion } from './renderSemanticCommandCliCompletion';
+import type { SemanticCommandCliLocale } from './semantic-command-cli-grammar';
+import { renderSemanticCommandCliHelp } from './semantic-command-cli-help';
 import {
 	cliErrorResult,
 	cliFailureResult,
 	cliProtocolResult,
 	type SemanticCommandCliRunResult,
 } from './semantic-command-cli-output';
+import packageJson from '../../package.json';
 import orchbeeSkill from '../../skills/orchbee/SKILL.md?raw';
 
 export interface SemanticCommandCliConnection {
@@ -56,6 +60,7 @@ export interface SemanticCommandCliDependencies {
 		endpointId: SemanticCommandLocalEndpointId | undefined,
 	) => Promise<SemanticCommandCliConnectionResult>;
 	readonly createRequestIdentity: () => string;
+	readonly locale?: SemanticCommandCliLocale | undefined;
 	readonly readInput: (source: string) => Promise<Uint8Array>;
 	readonly signal?: AbortSignal | undefined;
 }
@@ -83,7 +88,10 @@ type WaitResult =
 
 type SemanticCommandCliCoordinatorCommand = Exclude<
 	SemanticCommandCliCommand,
-	{ readonly kind: 'skill' }
+	| { readonly kind: 'skill' }
+	| { readonly kind: 'help' }
+	| { readonly kind: 'version' }
+	| { readonly kind: 'completion' }
 >;
 
 type SemanticCommandCliInvocationCommand = Extract<
@@ -101,6 +109,23 @@ export async function runSemanticCommandCli(
 	if (parsed.kind === 'error') return cliErrorResult(null, parsed.code);
 	const command = parsed.command;
 	if (command.kind === 'skill') return skillResult();
+	if (command.kind === 'help') {
+		return {
+			exitCode: 0,
+			stderr: '',
+			stdout: renderSemanticCommandCliHelp(command.topic, dependencies.locale ?? 'en-US'),
+		};
+	}
+	if (command.kind === 'version') {
+		return { exitCode: 0, stderr: '', stdout: `orchbee-cli ${packageJson.version}\n` };
+	}
+	if (command.kind === 'completion') {
+		return {
+			exitCode: 0,
+			stderr: '',
+			stdout: renderSemanticCommandCliCompletion(command.shell),
+		};
+	}
 	try {
 		switch (command.kind) {
 			case 'status':

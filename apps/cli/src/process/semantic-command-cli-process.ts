@@ -5,10 +5,17 @@ import type { Readable } from 'node:stream';
 
 import { SEMANTIC_COMMAND_LOCAL_HTTP_MAX_REQUEST_BODY_BYTES } from '@orchbee/semantic-command-protocol/local-http';
 
-import { runSemanticCommandCli, type SemanticCommandCliRunResult } from '../application';
+import {
+	runSemanticCommandCli,
+	type SemanticCommandCliLocale,
+	type SemanticCommandCliRunResult,
+} from '../application';
 import { connectLocalSemanticCommandCoordinator } from '../local-transport';
 
 export interface SemanticCommandCliProcessEnvironment {
+	readonly LANG?: string | undefined;
+	readonly LC_ALL?: string | undefined;
+	readonly LC_MESSAGES?: string | undefined;
 	readonly ORCHBEE_CLI_NATIVE_ADDON_PATH?: string | undefined;
 	readonly ORCHBEE_CLI_RUNTIME_DIRECTORY?: string | undefined;
 }
@@ -38,9 +45,9 @@ interface SemanticCommandCliLocalConfiguration {
 export async function runSemanticCommandCliProcess(
 	options: SemanticCommandCliProcessOptions,
 ): Promise<SemanticCommandCliRunResult> {
-	const configuration = resolveLocalConfiguration(options.environment);
 	return runSemanticCommandCli(options.arguments, {
 		connect: async (endpointId) => {
+			const configuration = resolveLocalConfiguration(options.environment);
 			if (configuration === null) {
 				return { code: 'coordinator-unavailable', kind: 'error' };
 			}
@@ -58,6 +65,7 @@ export async function runSemanticCommandCliProcess(
 				: connection;
 		},
 		createRequestIdentity: () => `cli:request:${randomUUID()}`,
+		locale: resolveCliLocale(options.environment),
 		readInput: (source) => readBoundedInput(source, options.stdin),
 		...(options.signal === undefined ? {} : { signal: options.signal }),
 	});
@@ -81,6 +89,17 @@ export async function startSemanticCommandCliProcess(
 	} finally {
 		removeAbortHandlers();
 	}
+}
+
+function resolveCliLocale(
+	environment: SemanticCommandCliProcessEnvironment,
+): SemanticCommandCliLocale {
+	for (const key of ['LC_ALL', 'LC_MESSAGES', 'LANG'] as const) {
+		const value = environment[key];
+		if (value === undefined || value === '') continue;
+		return value.slice(0, 2).toLowerCase() === 'zh' ? 'zh-CN' : 'en-US';
+	}
+	return 'en-US';
 }
 
 function resolveLocalConfiguration(
