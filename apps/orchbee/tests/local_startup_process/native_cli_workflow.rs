@@ -1,11 +1,12 @@
-//! Public end-to-end CLI workflow witness: after the fixture only starts the
-//! isolated Site (the holding TUI keeps it alive; it receives no business
-//! input), every business step is one invocation of the real staged `orchbee`
-//! binary — project create → workspace create → workspace accept-directory →
-//! tab create → terminal list → terminal send → terminal wait-output →
-//! terminal read → tab close --confirm → canonical snapshot. No TUI keys set
-//! the directory or the input, no internal API mutates business state, no
-//! fixture file fakes a command, and no send is retried.
+//! Public end-to-end CLI workflow witness: the fixture only starts the
+//! isolated Site's Server — no TUI is spawned anywhere in the scenario — and
+//! every business step is one invocation of the real staged `orchbee` binary:
+//! project create → workspace create → workspace accept-directory → tab
+//! create → terminal list → terminal send → terminal wait-output → terminal
+//! read → tab close --confirm → canonical snapshot. No internal API mutates
+//! business state, no fixture file fakes a command, and no send is retried.
+//! Read and wait-output steps only observe produced output; they can never
+//! fabricate command completion.
 //!
 //! EXPECTED-RED on this base: `workspace accept-directory` (a4 slice),
 //! `terminal send` (a1 slice), and `terminal wait-output` (a5 slice) do not
@@ -16,7 +17,7 @@
 //! the exit/envelope contract is asserted.
 
 use super::{
-    native_cli_query::{run_json, validate, validators},
+    native_cli_query::{run_json, spawn_real_server, validate, validators},
     *,
 };
 use std::path::Path;
@@ -67,12 +68,7 @@ fn frame_rows(document: &serde_json::Value) -> Vec<String> {
         .as_array()
         .expect("frame rows")
         .iter()
-        .map(|row| {
-            row["text"]
-                .as_str()
-                .expect("frame row text")
-                .to_owned()
-        })
+        .map(|row| row["text"].as_str().expect("frame row text").to_owned())
         .collect()
 }
 
@@ -85,14 +81,9 @@ fn frame_rows(document: &serde_json::Value) -> Vec<String> {
 fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResult {
     let _process_witness = process_witness_guard();
     let fixture = Fixture::new();
-    let mut client = Client::spawn(&fixture, "en_US.UTF-8");
-    client.wait_ready_after(
-        0,
-        Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        1,
-        "1",
-        ReadyMode::Controlling,
-    );
+    // Server-only startup — the same fixture surface A4's pure-CLI evidence
+    // uses; no TUI ever joins this Site.
+    let _server = spawn_real_server(&fixture);
     let validators = validators(&fixture);
 
     // Fixture-owned workspace directory: literal absolute path containing a
@@ -205,12 +196,17 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     let terminal_b = bind_terminal(&fixture, &tab_ids[1]);
     assert_ne!(terminal_a, terminal_b, "independent terminal identities");
 
-    // 5. One `terminal send` per terminal. The marker is split inside the
-    //    typed text (`'WA22-''<nonce>'`), so the contiguous marker never
-    //    appears in the echoed command line — only in produced output. The
-    //    shell first writes a fixture-owned proof file containing its real
-    //    PID and the marker, then prints the marker: a wait match therefore
-    //    guarantees the independent producer evidence already exists.
+    // 5. One `terminal send` per terminal. The command never `cd`s: the shell
+    //    writes the proof into its own initial cwd via a relative name, so the
+    //    file's landing location — and the `pwd -P` line it records — attest
+    //    the real cwd that accept-directory/tab established instead of masking
+    //    a wrong one. The marker is split inside the typed text
+    //    (`'WA22-''<nonce>'`), so the contiguous marker never appears in the
+    //    echoed command line — only in produced output. The shell first
+    //    writes a fixture-owned proof file containing its real PID, the
+    //    marker, and its resolved cwd, then prints the marker: a wait match
+    //    therefore guarantees the independent producer evidence already
+    //    exists.
     let nonce = format!("{:05x}", std::process::id() & 0x0f_ffff);
     let marker_a = format!("WA22-{nonce}");
     let marker_b = format!("WB22-{nonce}");
@@ -222,7 +218,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     ] {
         let (prefix, tag) = marker.split_at(4);
         let text = format!(
-            "cd '{directory}' && printf '%s %s\\n' \"$$\" '{prefix}''{tag}' > '{proof}' && printf '{prefix}''{tag}\\n'"
+            "printf '%s\\n%s\\n%s\\n' \"$$\" '{prefix}''{tag}' \"$(pwd -P)\" > '{proof}' && printf '{prefix}''{tag}\\n'"
         );
         let (output, sent) = run_json(
             &fixture,
@@ -243,11 +239,13 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             "terminal send: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        // SEAM(a1): assert the receipt's input-status/accepted-bytes/cleanup
-        // axes and the echoed physical identity (worker id+generation,
-        // hostEpoch, hostTerminalId) once the send result schema is frozen.
-        // The accepted contract only freezes the exit code and that the
-        // receipt records the actually-selected physical target.
+        // SEAM(a1): exit 0 alone is NOT the receipt validation — the frozen
+        // contract additionally requires the receipt to record the
+        // actually-selected physical target. Assert the receipt's
+        // input-status/accepted-bytes/cleanup axes and the echoed physical
+        // identity (worker id+generation, hostEpoch, hostTerminalId) once the
+        // send result schema is frozen; A9's final combination must bind
+        // these against the actual registered schema, not guessed names.
         let _ = sent;
     }
 
@@ -278,42 +276,49 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             "terminal wait-output: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        // SEAM(a5): assert observed source identity (terminalId, resolved
-        // worker/site, hostEpoch/attachment), the bounded excerpt, and
-        // completedObservations once the wait result schema is frozen.
+        // SEAM(a5): exit 0 alone is NOT the match validation — assert the
+        // observed source identity (terminalId, resolved worker/site,
+        // hostEpoch/attachment), the bounded excerpt, and
+        // completedObservations once the wait result schema is frozen; A9's
+        // final combination must bind these against the actual registered
+        // schema, not guessed names.
         let _ = matched;
     }
 
     // 7. Independent producer evidence: each proof file was written by the
-    //    shell itself — a numeric PID and the unique marker — before the
-    //    marker was ever printed. The wait match alone is never "task done".
-    for (marker, proof) in [
-        (marker_a.as_str(), proof_a),
-        (marker_b.as_str(), proof_b),
-    ] {
+    //    shell itself — a nonzero real PID, the unique marker, and the
+    //    shell's resolved cwd — before the marker was ever printed. The wait
+    //    match alone is never "task done", and the file's landing inside the
+    //    accepted directory already proves the terminal's initial cwd; the
+    //    recorded `pwd -P` is checked against it explicitly.
+    let mut shell_pids = Vec::new();
+    for (marker, proof) in [(marker_a.as_str(), proof_a), (marker_b.as_str(), proof_b)] {
         let content = fs::read_to_string(Path::new(directory).join(proof))?;
-        let mut fields = content.split_whitespace();
-        assert!(
-            fields.next().is_some_and(|pid| pid.parse::<u64>().is_ok()),
-            "proof carries a real PID: {content:?}"
+        let mut lines = content.lines();
+        let pid = lines
+            .next()
+            .and_then(|pid| pid.parse::<u64>().ok())
+            .filter(|pid| *pid != 0)
+            .unwrap_or_else(|| panic!("proof carries a nonzero real PID: {content:?}"));
+        assert_eq!(lines.next(), Some(marker), "proof carries the marker");
+        assert_eq!(
+            lines.next(),
+            Some(directory),
+            "the shell's own `pwd -P` is the accepted directory: {content:?}"
         );
-        assert_eq!(fields.next(), Some(marker), "proof carries the marker");
+        shell_pids.push(pid);
     }
+    assert_ne!(
+        shell_pids[0], shell_pids[1],
+        "two independent shells report distinct PIDs"
+    );
 
     // 8. Cross-write check over `terminal read`: each frame contains its own
     //    marker exactly once (the produced line; the echoed command holds the
     //    split spelling) and never the sibling marker.
     for (terminal, own, foreign) in [
-        (
-            terminal_a.as_str(),
-            marker_a.as_str(),
-            marker_b.as_str(),
-        ),
-        (
-            terminal_b.as_str(),
-            marker_b.as_str(),
-            marker_a.as_str(),
-        ),
+        (terminal_a.as_str(), marker_a.as_str(), marker_b.as_str()),
+        (terminal_b.as_str(), marker_b.as_str(), marker_a.as_str()),
     ] {
         let (output, frame) = run_json(
             &fixture,
@@ -340,7 +345,10 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
 
     // 9. A bounded wait for a marker that is never produced times out with
     //    the accepted `timeout` failure (exit 7) — and the same terminal
-    //    still answers a subsequent query, proving the viewer was released.
+    //    still answers a subsequent query. Limited claim: this proves only
+    //    that a read still succeeds after the timed-out wait; it does NOT
+    //    prove the wait released its viewer slot (viewer-capacity accounting
+    //    is owned by the a5 cleanup slice, not this witness).
     let never = format!("WN22-{nonce}");
     let (output, failure) = run_json(
         &fixture,
@@ -374,8 +382,10 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
     );
     assert!(frame_rows(&after).iter().any(|row| row.contains(&marker_a)));
 
-    // 10. `tab close --confirm` for both tabs, then the canonical snapshot:
-    //     the closed tab and its terminal are no longer exposed.
+    // 10. `tab close --confirm` for both tabs: the long-term contract is an
+    //     *accepted* close request carrying a `closeRequestId` — removal is
+    //     then proven by bounded canonical observation, not by the receipt
+    //     alone.
     for (tab_id, terminal) in [
         (tab_ids[0].as_str(), terminal_a.as_str()),
         (tab_ids[1].as_str(), terminal_b.as_str()),
@@ -391,11 +401,14 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             String::from_utf8_lossy(&output.stderr)
         );
         assert_eq!(closed["result"]["action"], "tab.close");
-        assert_eq!(closed["result"]["outcome"], "committed");
+        assert_eq!(closed["result"]["outcome"], "accepted");
+        assert!(
+            closed["result"]["closeRequestId"].as_str().is_some(),
+            "accepted close carries its request id: {closed}"
+        );
         let deadline = Instant::now() + CLOSE_DEADLINE;
         loop {
-            let (output, terminals) =
-                run_json(&fixture, &["terminal", "list", "--format", "json"]);
+            let (output, terminals) = run_json(&fixture, &["terminal", "list", "--format", "json"]);
             assert_eq!(output.status.code(), Some(0));
             let gone = terminals["result"]["terminals"]
                 .as_array()
@@ -423,7 +436,5 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
             "closed resource {id} absent from the canonical snapshot"
         );
     }
-
-    client.close_before(Instant::now() + EXIT_TIMEOUT);
     Ok(())
 }
