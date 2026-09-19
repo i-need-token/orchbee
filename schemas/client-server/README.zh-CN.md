@@ -140,7 +140,8 @@ navigation、input、resize 或 controller effect。经过 Server 拥有的 Sess
 Workbench exposure 与 retained-target resolution 一起 linearize。之后 Workbench retired 不会取消
 已固定的 operation。Attachment 成功在既有 post-IPC current-Worker check 处线性化；
 检查后的 Worker loss 可能与响应交付竞争，由下一次 operation 的 fence 拦截。`poll`、`frame-applied`、
-`need-snapshot`、`detach` 与 `read-rows` 必须在 action 内携带 `attachmentId`，采用非零 32 字符小写十六进制身份格式。
+`need-snapshot`、`detach`、`read-rows`、`set-projection-demand`、`set-history-demand`、`read-viewport-rows`、
+`rows-applied` 与 `history-observed` 必须在 action 内携带 `attachmentId`，采用非零 32 字符小写十六进制身份格式。
 它只选择 Server 已签发且归提交 Session 所有的 viewer，不能创建或转移所有权。
 `attach` 与 `attach-binding` 禁止该字段。Session 丢失会分离临时查看状态，绝不
 终止保留的终端。该 action 只改变 OBCS JSON；既有 OBCN relay、OBSR framing 与 byte limit 不变。
@@ -163,6 +164,20 @@ exchange，不含 acknowledgement、replay 或 retry：超出字节预算是 typ
 载体返回的完整关联 OBTP response record——与回答 Poll 的 `Record` 形状相同，但内容是 response
 而非 event。
 
+`set-projection-demand` 与 `set-history-demand` 各携带 `attachmentId` 和一个 `demand`：projection 为
+`active` 或 `paused`，history 为 `following-bottom` 或 `viewing-history`。`read-viewport-rows`
+对保留历史加可见行执行一次 buffer 读取，锚点相对 Client 历史位置而非绝对行：`origin` 为
+`{"kind":"tail","rowsBefore":N}`（`rowsBefore` 为 0 至 4,294,967,295 的整数）或
+`{"kind":"committed","delta":N}`（`delta` 为 -2,147,483,648 至 2,147,483,647 的整数）。除
+`attachmentId` 与 `origin` 外，它携带整数 `rowCount`（1 到 4096）、整数 `maximumBytes`（112 到
+8,388,608，界定 OBRW payload 而非载体 record）、可过期的规范十进制字符串 `revision`，以及正数
+规范十进制字符串 `generation` 与 `requestSequence`。它是一次关联的 Host exchange，不含
+acknowledgement、replay 或 retry：服务应答的 revision 标识本次捕获的 window，不是对请求
+revision 的全等回显，Host 可交付 clamp 后的窗口。`rows-applied` 以正数规范 `requestSequence` 与
+`generation` 加规范 `revision` 确认 Client 已应用的窗口；`history-observed` 以 `sequence`、
+`generation` 与 `revision`（同一计数器形状）确认一条历史事件。穿插的 Host event 仍路由到各自
+归属附件，绝不会被误认为该响应。
+
 未知或不归当前 Session 所有的 selector，在 Poll、反馈或 ReadRows 时返回 `terminal-unavailable`，Detach 时
 返回无副作用的 `detached`，Control 时返回 `viewer-unavailable`。同一 Session 重复附着同一个
 已解析的存活 runtime target 返回 `already-attached`；不同 target 可以共存。
@@ -172,19 +187,24 @@ exchange，不含 acknowledgement、replay 或 retry：超出字节预算是 typ
 必需 selector 改变了尚未发布的 OBCS v1 请求形状。必须一起构建、部署和回滚精确匹配的
 Client/Server/Worker 开发 cohort；不支持混合 cohort 或隐式 current viewer fallback。
 OBSR 载体格式不变；`read-rows`/`rows-rejected` 对匹配的 OBCN cohort 做增量扩展（action tag 6
-与 result tag 6），旧 Worker 会拒绝新 tag 而非静默忽略。
+与 result tag 6），五个 viewport 与 history action 同样新增 OBCN action tag 7 至 11——旧 Worker
+会拒绝新 tag 而非静默忽略。
 
 JSON 查看附件 outcome 包括：带 `attachmentId` 和 `hostEpoch`（非零 32 字符小写 hex）的
 `attached`；无其他字段的 `empty`、`feedback-accepted`、`detached`；reason 为 `already-attached`、
-`terminal-unavailable` 或 `feedback-mismatch` 的 `rejected`；reason 为 `stale-revision`、
+`terminal-unavailable`、`feedback-mismatch` 或 `host-rejected` 的 `rejected`；reason 为 `stale-revision`、
 `stale-generation`、`history-evicted`、`missing-resource`、`invalid-field`、
 `invalid-acknowledgement`、`limit-exceeded`、`resource-exhausted` 或 `invalid-phase` 的
 `rows-rejected`；reason 为 `server-busy` 或
 `terminal-runtime-unavailable`，或仅用于 viewer 的 `workbench-unavailable` 的 `unavailable`。
 Attached 回答 Attach 或 AttachBinding；Empty 或二进制记录回答 Poll；FeedbackAccepted 回答两种
-反馈；Detached 回答 Detach，包括附件已不存在的情况；二进制 record 或 RowsRejected 回答
-ReadRows，ReadRows 绝不回答 Empty。RowsRejected 只回答 ReadRows——出现在其它 action 上即协议
-违例——且合法的 RowsRejected 不会使该 viewer 退役。Rejected 和 Unavailable 可回答任意
+反馈或四个控制确认 action 之一（`set-projection-demand`、`set-history-demand`、`rows-applied`、
+`history-observed`）；Detached 回答 Detach，包括附件已不存在的情况；二进制 record 或
+RowsRejected 回答 ReadRows 或 ReadViewportRows，二者绝不回答 Empty。RowsRejected 只回答
+ReadRows 或 ReadViewportRows——出现在其它 action 上即协议
+违例——且合法的 RowsRejected 不会使该 viewer 退役。`host-rejected` 仅报告四个控制确认 action
+之一的 Host typed failure；健康 viewer 在其后保持附着且可用。新增 reason 扩的是封闭 enum——不
+扩 consumer 可产生的配对集合。Rejected 和 Unavailable 可回答任意
 action。错误 kind 或 correlation 会让 Client carrier 退役。只有已知未 commit 任何 effect 的
 correlated `server-busy` result 才可使用既有 bounded retry policy：Client 保留完全相同的 action
 value，使用新的 `requestId`，并处于同一 logical deadline 内。Ambiguous failure 绝不授权 replay、
@@ -193,7 +213,7 @@ fallback 或 retargeting。
 记录结果使用二进制 `OBSR`，不使用 JSON：四个 magic byte、big-endian u16 version 1、两个为零
 的保留字节，以及 big-endian u32 payload length。Payload 是以 16 个 big-endian byte 表示的确切
 request ID，后接一条长度为 64 至 `64 + 36 * 1024 * 1024` byte 的 opaque OBTP record——对 Poll
-是 Host event record，对 ReadRows 是关联的 Host response record。内层 Host correlation 是
+是 Host event record，对 ReadRows 或 ReadViewportRows 是关联的 Host response record。内层 Host correlation 是
 Server 签发的 Worker operation identity；Client `requestId` 只存在于该外层载体中，绝不与内层
 身份等同。
 分配 payload 前校验 12-byte header 和 bound；stream reader 消费一帧，内存 decoder 拒绝截断或

@@ -699,7 +699,193 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
-					"required": ["kind", "attachmentId"],
+					"required": [
+						"kind",
+						"attachmentId",
+						"demand"
+					],
+					"properties": {
+						"kind": {
+							"const": "set-projection-demand"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"demand": {
+							"enum": [
+								"active",
+								"paused"
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"demand"
+					],
+					"properties": {
+						"kind": {
+							"const": "set-history-demand"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"demand": {
+							"enum": [
+								"following-bottom",
+								"viewing-history"
+							]
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"origin",
+						"rowCount",
+						"revision",
+						"generation",
+						"requestSequence",
+						"maximumBytes"
+					],
+					"properties": {
+						"kind": {
+							"const": "read-viewport-rows"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"origin": {
+							"oneOf": [
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": [
+										"kind",
+										"rowsBefore"
+									],
+									"properties": {
+										"kind": {
+											"const": "tail"
+										},
+										"rowsBefore": {
+											"type": "integer",
+											"minimum": 0,
+											"maximum": 4294967295
+										}
+									}
+								},
+								{
+									"type": "object",
+									"additionalProperties": false,
+									"required": [
+										"kind",
+										"delta"
+									],
+									"properties": {
+										"kind": {
+											"const": "committed"
+										},
+										"delta": {
+											"type": "integer",
+											"minimum": -2147483648,
+											"maximum": 2147483647
+										}
+									}
+								}
+							]
+						},
+						"rowCount": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionUnsigned"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"requestSequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"maximumBytes": {
+							"type": "integer",
+							"minimum": 112,
+							"maximum": 8388608
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"requestSequence",
+						"generation",
+						"revision"
+					],
+					"properties": {
+						"kind": {
+							"const": "rows-applied"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"requestSequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionUnsigned"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId",
+						"sequence",
+						"generation",
+						"revision"
+					],
+					"properties": {
+						"kind": {
+							"const": "history-observed"
+						},
+						"attachmentId": {
+							"$ref": "#/$defs/viewerId"
+						},
+						"sequence": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"generation": {
+							"$ref": "#/$defs/projectionPositive"
+						},
+						"revision": {
+							"$ref": "#/$defs/projectionUnsigned"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"kind",
+						"attachmentId"
+					],
 					"properties": {
 						"kind": {
 							"const": "detach"
@@ -784,7 +970,8 @@
 							"enum": [
 								"already-attached",
 								"terminal-unavailable",
-								"feedback-mismatch"
+								"feedback-mismatch",
+								"host-rejected"
 							]
 						}
 					}
@@ -816,29 +1003,6 @@
 						"kind",
 						"reason"
 					],
-					"properties": {
-						"kind": {
-							"const": "rows-rejected"
-						},
-						"reason": {
-							"enum": [
-								"stale-revision",
-								"stale-generation",
-								"history-evicted",
-								"missing-resource",
-								"invalid-field",
-								"invalid-acknowledgement",
-								"limit-exceeded",
-								"resource-exhausted",
-								"invalid-phase"
-							]
-						}
-					}
-				},
-				{
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["kind", "reason"],
 					"properties": {
 						"kind": {
 							"const": "rows-rejected"

@@ -505,6 +505,61 @@
 			"direction": "server-to-client",
 			"name": "send-result-unavailable-pre-admission",
 			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"unavailable\",\"reason\":\"server-busy\",\"cleanup\":\"not-needed\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-set-projection-demand-active",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-projection-demand\",\"attachmentId\":\"33333333333333333333333333333333\",\"demand\":\"active\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-set-projection-demand-paused",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-projection-demand\",\"attachmentId\":\"33333333333333333333333333333333\",\"demand\":\"paused\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-set-history-demand-following-bottom",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-history-demand\",\"attachmentId\":\"33333333333333333333333333333333\",\"demand\":\"following-bottom\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-set-history-demand-viewing-history",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-history-demand\",\"attachmentId\":\"33333333333333333333333333333333\",\"demand\":\"viewing-history\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-tail",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":1,\"revision\":\"0\",\"generation\":\"1\",\"requestSequence\":\"1\",\"maximumBytes\":112}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-tail-maximum",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":4294967295},\"rowCount\":4096,\"revision\":\"18446744073709551615\",\"generation\":\"18446744073709551615\",\"requestSequence\":\"18446744073709551615\",\"maximumBytes\":8388608}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-committed-negative",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"committed\",\"delta\":-2147483648},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-committed-positive",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"committed\",\"delta\":2147483647},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"3\",\"maximumBytes\":4096}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-rows-applied",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"rows-applied\",\"attachmentId\":\"33333333333333333333333333333333\",\"requestSequence\":\"2\",\"generation\":\"3\",\"revision\":\"7\"}}"
+		},
+		{
+			"direction": "client-to-server",
+			"name": "viewer-history-observed",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"history-observed\",\"attachmentId\":\"33333333333333333333333333333333\",\"sequence\":\"5\",\"generation\":\"3\",\"revision\":\"7\"}}"
+		},
+		{
+			"direction": "server-to-client",
+			"name": "viewer-rejected-host-rejected",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\"}}"
 		}
 	],
 	"equivalentMessages": [
@@ -1457,6 +1512,282 @@
 			"direction": "server-to-client",
 			"name": "send-result-rejected-confirmed-target-null",
 			"payload": "{\"kind\":\"terminal.send.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"target\":null,\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-rejected\",\"cleanup\":\"confirmed\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-missing-origin",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-extra-field",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096,\"cursor\":0}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-origin-not-object",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":\"tail\",\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-origin-unknown-kind",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"absolute\",\"row\":400},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-origin-missing-kind",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-tail-missing-rowsbefore",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\"},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-tail-extra-field",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0,\"delta\":1},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-committed-extra-field",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"committed\",\"delta\":0,\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-rowsbefore-negative",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":-1},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-rowsbefore-u32-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":4294967296},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-rowsbefore-fractional",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":1.5},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-rowsbefore-string",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":\"3\"},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-delta-underflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"committed\",\"delta\":-2147483649},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-delta-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"committed\",\"delta\":2147483648},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-delta-fractional",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"committed\",\"delta\":0.5},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-delta-string",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"committed\",\"delta\":\"-5\"},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-rowcount-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":0,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-rowcount-over",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":4097,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-rowcount-fractional",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":1.5,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-maxbytes-under",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":111}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-maxbytes-over",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":8388609}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-maxbytes-fractional",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096.5}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-generation-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"0\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-requestsequence-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"0\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-generation-noncanonical",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"03\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-generation-number",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":3,\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-revision-u64-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"18446744073709551616\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-requestsequence-u64-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"18446744073709551616\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "semantic",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-generation-u64-overflow",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"33333333333333333333333333333333\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"18446744073709551616\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-read-viewport-rows-attachment-malformed",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"read-viewport-rows\",\"attachmentId\":\"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\",\"origin\":{\"kind\":\"tail\",\"rowsBefore\":0},\"rowCount\":24,\"revision\":\"7\",\"generation\":\"3\",\"requestSequence\":\"2\",\"maximumBytes\":4096}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-set-projection-demand-unknown-demand",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-projection-demand\",\"attachmentId\":\"33333333333333333333333333333333\",\"demand\":\"idle\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-set-projection-demand-missing-demand",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-projection-demand\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-set-projection-demand-demand-null",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-projection-demand\",\"attachmentId\":\"33333333333333333333333333333333\",\"demand\":null}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-set-projection-demand-extra-field",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-projection-demand\",\"attachmentId\":\"33333333333333333333333333333333\",\"demand\":\"active\",\"epoch\":\"1\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-set-projection-demand-missing-attachment",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-projection-demand\",\"demand\":\"active\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-set-history-demand-unknown-demand",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-history-demand\",\"attachmentId\":\"33333333333333333333333333333333\",\"demand\":\"scrolling\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-set-history-demand-missing-demand",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-history-demand\",\"attachmentId\":\"33333333333333333333333333333333\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-set-history-demand-extra-field",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-history-demand\",\"attachmentId\":\"33333333333333333333333333333333\",\"demand\":\"viewing-history\",\"rowCount\":24}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-set-history-demand-zero-attachment",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"set-history-demand\",\"attachmentId\":\"00000000000000000000000000000000\",\"demand\":\"viewing-history\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-rows-applied-missing-requestsequence",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"rows-applied\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"3\",\"revision\":\"7\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-rows-applied-requestsequence-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"rows-applied\",\"attachmentId\":\"33333333333333333333333333333333\",\"requestSequence\":\"0\",\"generation\":\"3\",\"revision\":\"7\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-rows-applied-revision-noncanonical",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"rows-applied\",\"attachmentId\":\"33333333333333333333333333333333\",\"requestSequence\":\"2\",\"generation\":\"3\",\"revision\":\"07\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-history-observed-missing-sequence",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"history-observed\",\"attachmentId\":\"33333333333333333333333333333333\",\"generation\":\"3\",\"revision\":\"7\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-history-observed-sequence-zero",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"history-observed\",\"attachmentId\":\"33333333333333333333333333333333\",\"sequence\":\"0\",\"generation\":\"3\",\"revision\":\"7\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "client-to-server",
+			"name": "viewer-history-observed-generation-number",
+			"payload": "{\"kind\":\"terminal.viewer\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"action\":{\"kind\":\"history-observed\",\"attachmentId\":\"33333333333333333333333333333333\",\"sequence\":\"5\",\"generation\":3,\"revision\":\"7\"}}"
+		},
+		{
+			"boundary": "schema",
+			"direction": "server-to-client",
+			"name": "viewer-rejected-unknown-reason",
+			"payload": "{\"kind\":\"terminal.viewer.result\",\"protocolVersion\":1,\"requestId\":\"11111111111111111111111111111111\",\"outcome\":{\"kind\":\"rejected\",\"reason\":\"host-busy\"}}"
 		}
 	],
 	"workingDirectoryCases": [

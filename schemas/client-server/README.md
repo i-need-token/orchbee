@@ -144,7 +144,9 @@ validation has this precedence after the Server-owned Session capacity guard:
 Workbench exposure and retained-target resolution linearize together. Later Workbench retirement
 does not cancel the pinned operation. Attachment success linearizes at the existing post-IPC
 current-Worker check; Worker loss after that check can race response delivery and is fenced by the
-next operation. `poll`, `frame-applied`, `need-snapshot`, `detach`, and `read-rows` require an
+next operation. `poll`, `frame-applied`, `need-snapshot`, `detach`, `read-rows`,
+`set-projection-demand`, `set-history-demand`, `read-viewport-rows`, `rows-applied`, and
+`history-observed` require an
 in-action `attachmentId`, using the nonzero 32-character lowercase hexadecimal identity format. It selects
 only a Server-issued viewer owned by the submitting Session; it cannot create or transfer ownership.
 `attach` and `attach-binding` forbid this field. Session loss detaches transient viewing state and never terminates the retained
@@ -172,6 +174,23 @@ never mistaken for the response. A successful answer is the complete correlated 
 record through the existing OBSR binary carrier — the same `Record` shape that answers Poll, with
 response (not event) content.
 
+`set-projection-demand` and `set-history-demand` each carry `attachmentId` and one `demand`:
+`active` or `paused` for projection, `following-bottom` or `viewing-history` for history.
+`read-viewport-rows` performs one buffer read of retained history plus visible rows anchored
+relative to the Client's history position rather than an absolute row: `origin` is either
+`{"kind":"tail","rowsBefore":N}` with `rowsBefore` an integer 0 through 4,294,967,295, or
+`{"kind":"committed","delta":N}` with `delta` an integer -2,147,483,648 through 2,147,483,647.
+Alongside `attachmentId` and `origin` it carries `rowCount` as an integer 1 through 4096,
+`maximumBytes` as an integer 112 through 8,388,608 bounding the OBRW payload (not the carrier
+record), `revision` as a canonical decimal string that may be stale, and `generation` and
+`requestSequence` as positive canonical decimal strings. It is a single correlated Host exchange
+with no acknowledgement, replay, or retry: the served answer's revision identifies the captured
+window and is not an equality echo of the request revision, and Host may serve a clamped window.
+`rows-applied` acknowledges the Client's applied window with positive canonical `requestSequence`
+and `generation` plus canonical `revision`; `history-observed` acknowledges one history event with
+`sequence`, `generation`, and `revision` under the same counter shapes. Interleaved Host events
+still route to their owning attachments; they are never mistaken for the response.
+
 An unknown or unowned selector returns `terminal-unavailable` for Poll, feedback, or ReadRows and
 effect-free `detached` for Detach. Control returns `viewer-unavailable`. A same-Session attachment to the same
 resolved live runtime target returns `already-attached`; different targets can coexist. The owning
@@ -182,21 +201,28 @@ not runtime ownership.
 This required selector changes the unpublished OBCS v1 request shape. Build, deploy, and roll back
 the exact Client/Server/Worker development cohort together; mixed cohorts and an implicit-current
 viewer fallback are unsupported. The OBSR carrier format does not change; `read-rows` /
-`rows-rejected` additively extend the matched OBCN cohort (action tag 6 and result tag 6), and an
+`rows-rejected` additively extend the matched OBCN cohort (action tag 6 and result tag 6), and the
+five viewport and history actions add OBCN action tags 7 through 11 the same way — an
 older Worker rejects the new tags rather than silently ignoring them.
 
 JSON viewer outcomes are `attached` with `attachmentId` and `hostEpoch` (nonzero 32-character
 lowercase hex), fieldless `empty`, `feedback-accepted`, or `detached`, `rejected` with reason
-`already-attached`, `terminal-unavailable`, or `feedback-mismatch`, `rows-rejected` with reason
+`already-attached`, `terminal-unavailable`, `feedback-mismatch`, or `host-rejected`,
+`rows-rejected` with reason
 `stale-revision`, `stale-generation`, `history-evicted`, `missing-resource`, `invalid-field`,
 `invalid-acknowledgement`, `limit-exceeded`, `resource-exhausted`, or `invalid-phase`, and
 `unavailable` with reason `server-busy`, `terminal-runtime-unavailable`, or viewer-only
 `workbench-unavailable`. Attached
 answers Attach or AttachBinding; Empty or a binary record answers Poll; FeedbackAccepted answers
-either feedback action; Detached answers Detach, including an already absent viewer; a binary
-record or RowsRejected answers ReadRows, which never answers Empty. RowsRejected answers only
-ReadRows — on any other action it is a protocol violation — and a legal RowsRejected does not
-retire the viewer. Rejected and
+either feedback action or one of the four control acknowledgement actions (`set-projection-demand`,
+`set-history-demand`, `rows-applied`, `history-observed`); Detached answers Detach, including an
+already absent viewer; a binary
+record or RowsRejected answers ReadRows or ReadViewportRows, which never answer Empty. RowsRejected
+answers only ReadRows or ReadViewportRows — on any other action it is a protocol violation — and a
+legal RowsRejected does not
+retire the viewer. `host-rejected` reports the Host's typed failure for one of the four control
+acknowledgement actions only; the healthy viewer stays attached and usable after it. The new reason
+widens the closed enum — it does not widen the set of pairings a consumer may produce. Rejected and
 Unavailable can answer any action. Wrong kind or correlation retires the Client carrier. Only a
 correlated `server-busy` result known to have committed no effect may use the existing bounded retry
 policy: the Client retains identical action values, uses a fresh `requestId`, and stays within the
@@ -205,7 +231,8 @@ same logical deadline. Ambiguous failure never authorizes replay, fallback, or r
 A record result uses binary `OBSR`, not JSON: four magic bytes, big-endian u16 version 1, two zero
 reserved bytes, then big-endian u32 payload length. The payload is the exact request ID as 16
 big-endian bytes followed by one opaque OBTP record of 64 through `64 + 36 * 1024 * 1024`
-bytes — a Host event record for Poll, or the correlated Host response record for ReadRows. The
+bytes — a Host event record for Poll, or the correlated Host response record for ReadRows or
+ReadViewportRows. The
 inner Host correlation is the Server-issued Worker operation identity; the Client `requestId` lives
 only in this outer carrier and is never equated with it. The 12-byte header and bound are checked
 before payload allocation; stream readers consume
